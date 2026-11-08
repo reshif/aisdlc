@@ -1,6 +1,6 @@
 {
   "schema": "census/1",
-  "census_id": "census:acme.app:e372c3d3ff88bb1e39fb54ebd524c42a95d46f9e",
+  "census_id": "census:acme.app:476f9c9abaa2a9c0fb7c6e7d46c41c68e855db09",
   "repo": {
     "full_name": "acme/app",
     "owner": "acme",
@@ -12,7 +12,7 @@
     "default_branch": "main",
     "archetype": null
   },
-  "baseline_sha": "e372c3d3ff88bb1e39fb54ebd524c42a95d46f9e",
+  "baseline_sha": "476f9c9abaa2a9c0fb7c6e7d46c41c68e855db09",
   "requested_level": "census",
   "pins": {
     "catalogue": {
@@ -20,7 +20,7 @@
       "hash": "b1f87eab750e56c08d903705040f1a0252cb8a94d143f9563a4fa99769a76da3"
     },
     "criteria_set": "CRITERIA_V2@1.0.0",
-    "detector_set_version": "detectors/1:32e649f270eb",
+    "detector_set_version": "detectors/1:76e87cfdb5f7",
     "rules_version": "secrets-rules/2:961394bbf87c",
     "assembly": "census-rules/1"
   },
@@ -269,7 +269,7 @@
       "observed": "unknown",
       "na_rule": "NA-LEVEL",
       "reasons": [
-        "no_detector"
+        "needs_wizard"
       ],
       "evidence": []
     },
@@ -417,14 +417,19 @@
       "class": "RECORDED",
       "escalated": false,
       "scoring_class": "SCORED",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": [],
-      "gap_id": "gap:acme.app:RS-BT-4:."
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".nvmrc",
+          "blob": "2bd5a0a98a36cc08ada88b804d3be047e6aa5b8a",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "RS-BT-5",
@@ -481,14 +486,21 @@
       "class": "RECORDED",
       "escalated": false,
       "scoring_class": "SCORED",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
       "reasons": [
-        "no_detector"
+        "required_check_not_read"
       ],
-      "evidence": [],
-      "gap_id": "gap:acme.app:RS-BT-8:."
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".github/workflows/ci.yml",
+          "blob": "b076494d65f7891076b9ac8eb65bc8e8290bcb6c",
+          "line": 12
+        }
+      ]
     },
     {
       "id": "RS-ST-1",
@@ -564,7 +576,7 @@
       "observed": "unknown",
       "na_rule": "NA-LEVEL",
       "reasons": [
-        "no_detector"
+        "needs_wizard"
       ],
       "evidence": []
     },
@@ -575,14 +587,19 @@
       "class": "RECORDED",
       "escalated": false,
       "scoring_class": "SCORED",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": [],
-      "gap_id": "gap:acme.app:RS-ST-5:."
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".gitattributes",
+          "blob": "cf9687215b2cb3f1984eb29cf0896bff9a215ab0",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "RS-ST-6",
@@ -626,7 +643,7 @@
       "observed": "unknown",
       "na_rule": null,
       "reasons": [
-        "no_detector"
+        "needs_history"
       ],
       "evidence": [],
       "gap_id": "gap:acme.app:RS-TH-2:."
@@ -639,10 +656,10 @@
       "escalated": false,
       "scoring_class": "SCORED",
       "status": "na",
-      "observed": "unknown",
+      "observed": "pass",
       "na_rule": "NA-LEVEL",
       "reasons": [
-        "no_detector"
+        "nothing_to_quarantine"
       ],
       "evidence": []
     },
@@ -653,14 +670,11 @@
       "class": "RECORDED",
       "escalated": false,
       "scoring_class": "RECORDED",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": [],
-      "gap_id": "gap:acme.app:RS-TH-4:."
+      "reasons": [],
+      "evidence": []
     },
     {
       "id": "RS-TH-5",
@@ -675,7 +689,15 @@
       "reasons": [
         "probe_pending"
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".c8rc.json",
+          "blob": "9c6954ba573f61bb27f12dde2035cc2598ece51f",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "RS-TH-6",
@@ -688,7 +710,7 @@
       "observed": "unknown",
       "na_rule": "NA-LEVEL",
       "reasons": [
-        "no_detector"
+        "probe_pending"
       ],
       "evidence": []
     },
@@ -793,7 +815,7 @@
       "observed": "unknown",
       "na_rule": null,
       "reasons": [
-        "no_detector"
+        "needs_codehost_settings"
       ],
       "evidence": [],
       "gap_id": "gap:acme.app:RS-CC-6:."
@@ -809,7 +831,7 @@
       "observed": "unknown",
       "na_rule": null,
       "reasons": [
-        "no_detector"
+        "needs_history"
       ],
       "evidence": []
     },
@@ -820,14 +842,26 @@
       "class": "RECORDED",
       "escalated": false,
       "scoring_class": "SCORED",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": [],
-      "gap_id": "gap:acme.app:RS-KN-1:."
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "README.md",
+          "blob": "9b57f5f811d4790532a9f151ee841d252e48da34",
+          "line": 1
+        },
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "README.md",
+          "blob": "9b57f5f811d4790532a9f151ee841d252e48da34",
+          "line": 5
+        }
+      ]
     },
     {
       "id": "RS-KN-2",
@@ -840,7 +874,7 @@
       "observed": "unknown",
       "na_rule": "NA-LEVEL",
       "reasons": [
-        "no_detector"
+        "needs_wizard"
       ],
       "evidence": []
     },
@@ -897,12 +931,18 @@
       "escalated": false,
       "scoring_class": "ADVISORY",
       "status": "na",
-      "observed": "unknown",
+      "observed": "pass",
       "na_rule": "NA-LEVEL",
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": []
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "docs/adr/0001-record-decisions.md",
+          "blob": "62980dfb21d0458d7a0354dd2d85dfb621f4c767",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "RS-KN-7",
@@ -915,7 +955,7 @@
       "observed": "unknown",
       "na_rule": "NA-LEVEL",
       "reasons": [
-        "no_detector"
+        "needs_wizard"
       ],
       "evidence": []
     },
@@ -955,12 +995,18 @@
       "escalated": false,
       "scoring_class": "ADVISORY",
       "status": "na",
-      "observed": "unknown",
+      "observed": "pass",
       "na_rule": "NA-LEVEL",
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": []
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "docs/runbooks/deploy.md",
+          "blob": "97c021be800f309753c3aa23b3d6f16b70c7c159",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "RS-EN-1",
@@ -988,9 +1034,18 @@
       "observed": "unknown",
       "na_rule": null,
       "reasons": [
+        "env_example_placeholders_only",
         "probe_pending"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".env.example",
+          "blob": "37a106b8d355b960bb90671a36e30d3bde6298d9",
+          "line": 1
+        }
+      ],
       "gap_id": "gap:acme.app:RS-EN-2:."
     },
     {
@@ -1018,14 +1073,19 @@
       "class": "RECORDED",
       "escalated": false,
       "scoring_class": "SCORED",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": [],
-      "gap_id": "gap:acme.app:RS-PUB-1:."
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "LICENSE",
+          "blob": "4dcf83d97af41854c06e550e9d0e12d82a4d0bee",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "RS-PUB-2",
@@ -1034,14 +1094,19 @@
       "class": "RECORDED",
       "escalated": false,
       "scoring_class": "SCORED",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": [],
-      "gap_id": "gap:acme.app:RS-PUB-2:."
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "SECURITY.md",
+          "blob": "30c76cf208184cf6690247ddd0a57a6f84ead493",
+          "line": 3
+        }
+      ]
     },
     {
       "id": "RS-PUB-4",
@@ -1050,13 +1115,26 @@
       "class": "ADVISORY",
       "escalated": false,
       "scoring_class": "ADVISORY",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": []
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".github/pull_request_template.md",
+          "blob": "40ddadb5c6b509d26cbfbbe2d2157639d8c96ff9",
+          "line": 1
+        },
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "CONTRIBUTING.md",
+          "blob": "859acff97ac73c4a42605676163e1698f22d3071",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "RS-PUB-5",
@@ -1065,14 +1143,19 @@
       "class": "RECORDED",
       "escalated": false,
       "scoring_class": "SCORED",
-      "status": "unknown",
-      "observed": "unknown",
+      "status": "met",
+      "observed": "pass",
       "na_rule": null,
-      "reasons": [
-        "no_detector"
-      ],
-      "evidence": [],
-      "gap_id": "gap:acme.app:RS-PUB-5:."
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".github/dependabot.yml",
+          "blob": "f520b0eee40ef8b1bc6ca81b25205b7050cc4327",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "RS-SEC",
@@ -1240,9 +1323,9 @@
           "RS-TH-6"
         ],
         "floors_open": 0,
-        "measured": 5,
+        "measured": 10,
         "total": 18,
-        "scored_pass": 4,
+        "scored_pass": 8,
         "scored_total": 12,
         "all_pass": false
       },
@@ -1292,9 +1375,9 @@
           "RS-PUB-5"
         ],
         "floors_open": 0,
-        "measured": 5,
+        "measured": 8,
         "total": 9,
-        "scored_pass": 0,
+        "scored_pass": 3,
         "scored_total": 3,
         "all_pass": false
       },
@@ -1321,9 +1404,9 @@
           "RS-KN-7"
         ],
         "floors_open": 0,
-        "measured": 4,
+        "measured": 5,
         "total": 11,
-        "scored_pass": 2,
+        "scored_pass": 3,
         "scored_total": 6,
         "all_pass": false
       }
@@ -1449,8 +1532,9 @@
     "error_codes": [],
     "facts_truncated": false,
     "fact_counts": {
-      "stack": 3,
+      "stack": 4,
       "lockfile": 1,
+      "presence": 19,
       "codeowners": 1,
       "task_command": 8,
       "instruction_file": 16
@@ -1469,20 +1553,6 @@
       "gap_id": "gap:acme.app:RS-BT-2:.",
       "repo_id": "acme.app",
       "criterion": "RS-BT-2",
-      "area": ".",
-      "severity": "tracked",
-      "blocks_level": null,
-      "disposition": "track_only",
-      "status": "open",
-      "issue": null,
-      "remediation_item_ref": null,
-      "waiver": null,
-      "visibility_class": "public_safe"
-    },
-    {
-      "gap_id": "gap:acme.app:RS-BT-4:.",
-      "repo_id": "acme.app",
-      "criterion": "RS-BT-4",
       "area": ".",
       "severity": "tracked",
       "blocks_level": null,
@@ -1536,34 +1606,6 @@
       "visibility_class": "public_safe"
     },
     {
-      "gap_id": "gap:acme.app:RS-BT-8:.",
-      "repo_id": "acme.app",
-      "criterion": "RS-BT-8",
-      "area": ".",
-      "severity": "tracked",
-      "blocks_level": null,
-      "disposition": "track_only",
-      "status": "open",
-      "issue": null,
-      "remediation_item_ref": null,
-      "waiver": null,
-      "visibility_class": "public_safe"
-    },
-    {
-      "gap_id": "gap:acme.app:RS-ST-5:.",
-      "repo_id": "acme.app",
-      "criterion": "RS-ST-5",
-      "area": ".",
-      "severity": "tracked",
-      "blocks_level": null,
-      "disposition": "track_only",
-      "status": "open",
-      "issue": null,
-      "remediation_item_ref": null,
-      "waiver": null,
-      "visibility_class": "public_safe"
-    },
-    {
       "gap_id": "gap:acme.app:RS-TH-1:.",
       "repo_id": "acme.app",
       "criterion": "RS-TH-1",
@@ -1581,20 +1623,6 @@
       "gap_id": "gap:acme.app:RS-TH-2:.",
       "repo_id": "acme.app",
       "criterion": "RS-TH-2",
-      "area": ".",
-      "severity": "tracked",
-      "blocks_level": null,
-      "disposition": "track_only",
-      "status": "open",
-      "issue": null,
-      "remediation_item_ref": null,
-      "waiver": null,
-      "visibility_class": "public_safe"
-    },
-    {
-      "gap_id": "gap:acme.app:RS-TH-4:.",
-      "repo_id": "acme.app",
-      "criterion": "RS-TH-4",
       "area": ".",
       "severity": "tracked",
       "blocks_level": null,
@@ -1662,65 +1690,9 @@
       "visibility_class": "public_safe"
     },
     {
-      "gap_id": "gap:acme.app:RS-KN-1:.",
-      "repo_id": "acme.app",
-      "criterion": "RS-KN-1",
-      "area": ".",
-      "severity": "tracked",
-      "blocks_level": null,
-      "disposition": "track_only",
-      "status": "open",
-      "issue": null,
-      "remediation_item_ref": null,
-      "waiver": null,
-      "visibility_class": "public_safe"
-    },
-    {
       "gap_id": "gap:acme.app:RS-EN-2:.",
       "repo_id": "acme.app",
       "criterion": "RS-EN-2",
-      "area": ".",
-      "severity": "tracked",
-      "blocks_level": null,
-      "disposition": "track_only",
-      "status": "open",
-      "issue": null,
-      "remediation_item_ref": null,
-      "waiver": null,
-      "visibility_class": "public_safe"
-    },
-    {
-      "gap_id": "gap:acme.app:RS-PUB-1:.",
-      "repo_id": "acme.app",
-      "criterion": "RS-PUB-1",
-      "area": ".",
-      "severity": "tracked",
-      "blocks_level": null,
-      "disposition": "track_only",
-      "status": "open",
-      "issue": null,
-      "remediation_item_ref": null,
-      "waiver": null,
-      "visibility_class": "public_safe"
-    },
-    {
-      "gap_id": "gap:acme.app:RS-PUB-2:.",
-      "repo_id": "acme.app",
-      "criterion": "RS-PUB-2",
-      "area": ".",
-      "severity": "tracked",
-      "blocks_level": null,
-      "disposition": "track_only",
-      "status": "open",
-      "issue": null,
-      "remediation_item_ref": null,
-      "waiver": null,
-      "visibility_class": "public_safe"
-    },
-    {
-      "gap_id": "gap:acme.app:RS-PUB-5:.",
-      "repo_id": "acme.app",
-      "criterion": "RS-PUB-5",
       "area": ".",
       "severity": "tracked",
       "blocks_level": null,
@@ -1746,5 +1718,5 @@
       "visibility_class": "private_only"
     }
   ],
-  "census_hash": "c59b014ea1dd3e0990fb475e566499d0b2ae6e7b7a6ae6ee3577099bf833c76e"
+  "census_hash": "81ccc23115acae04d27662c6b2f8ea08c90e9ee7947142d56e546fdb8b25d129"
 }

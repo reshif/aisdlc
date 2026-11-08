@@ -1,5 +1,5 @@
-import { LINT_RULES, TierValues } from '@aisdlc/contracts';
-import type { CensusContext } from './context.js';
+import { LINT_RULES, TierValues, type CensusEvidence, type PresenceItem } from '@aisdlc/contracts';
+import type { CensusContext, FactOf } from './context.js';
 import { factEvidence, fail, pass, ref, unknown, type Evaluation } from './context.js';
 import type { Blockers } from './blockers.js';
 
@@ -18,34 +18,22 @@ export const UNOBSERVED: Readonly<Record<string, string>> = {
   'RS-BT-6': 'probe_pending',
   'RS-BT-7': 'probe_pending',
   'RS-TH-1': 'probe_pending',
-  'RS-TH-5': 'probe_pending',
-  'RS-EN-2': 'probe_pending',
   'RS-KN-3': 'probe_pending',
   // A human affirms or attests them (cards 2 and 4); nothing in a bundle can.
   'RS-AI-4': 'needs_human_attestation',
   'RS-KN-4': 'needs_human_attestation',
   'RS-KN-5': 'needs_human_attestation',
-  // No detector reads them yet (the detector set of M6.3 has no presence or CI-history check).
-  'RS-AI-2': 'no_detector',
-  'RS-BT-4': 'no_detector',
-  'RS-BT-8': 'no_detector',
-  'RS-ST-4': 'no_detector',
-  'RS-ST-5': 'no_detector',
-  'RS-TH-2': 'no_detector',
-  'RS-TH-3': 'no_detector',
-  'RS-TH-4': 'no_detector',
-  'RS-TH-6': 'no_detector',
-  'RS-CC-6': 'no_detector',
-  'RS-CC-7': 'no_detector',
-  'RS-KN-1': 'no_detector',
-  'RS-KN-2': 'no_detector',
-  'RS-KN-6': 'no_detector',
-  'RS-KN-7': 'no_detector',
-  'RS-OP-3': 'no_detector',
-  'RS-PUB-1': 'no_detector',
-  'RS-PUB-2': 'no_detector',
-  'RS-PUB-4': 'no_detector',
-  'RS-PUB-5': 'no_detector',
+  // Need history (CI runs, commit signatures) that no bundle carries.
+  'RS-TH-2': 'needs_history',
+  'RS-CC-7': 'needs_history',
+  // Need a run (mutation testing) or a code-host setting (merge method) the Census cannot read.
+  'RS-TH-6': 'probe_pending',
+  'RS-CC-6': 'needs_codehost_settings',
+  // Produced by the onboarding wizard and the pack generator (M7+): nothing to observe before then.
+  'RS-AI-2': 'needs_wizard',
+  'RS-ST-4': 'needs_wizard',
+  'RS-KN-2': 'needs_wizard',
+  'RS-KN-7': 'needs_wizard',
 };
 
 const incomplete = (what: string): Evaluation => unknown(`detector_incomplete:${what}`);
@@ -62,6 +50,30 @@ function taskNames(...names: string[]): Evaluator {
       else missing.push(`missing:${n}`);
     }
     return missing.length === 0 ? pass(ev) : fail(missing, ev);
+  };
+}
+
+/** The `presence` fact for `item`, or the Evaluation that says the detector did not give one. */
+function presenceOf(
+  c: CensusContext,
+  item: PresenceItem,
+): { fact: FactOf<'presence'> } | { eval: Evaluation } {
+  if (!c.ok('presence')) return { eval: incomplete('presence') };
+  const fact = c.presence(item);
+  return fact === undefined ? { eval: incomplete('presence') } : { fact };
+}
+
+const absentEv = (item: PresenceItem): CensusEvidence => ref('detector', `absent:${item}`);
+
+/** A task-contract name (RS-ST-1..3) or, failing that, the tool's own config file. */
+function toolOrTask(name: string, item: PresenceItem): Evaluator {
+  const task = taskNames(name);
+  return (c, b) => {
+    const t = task(c, b);
+    if (t.observed === 'pass') return t;
+    const f = c.ok('presence') ? c.presence(item) : undefined;
+    if (f?.state === 'present') return pass(factEvidence(f), [`via_config:${item}`]);
+    return t;
   };
 }
 
@@ -174,9 +186,10 @@ export const EVALUATORS: Readonly<Record<string, Evaluator>> = {
 
   // ---- build, style, tests
   'RS-BT-1': taskNames('test', 'check'),
-  'RS-ST-1': taskNames('format-check'),
-  'RS-ST-2': taskNames('lint'),
-  'RS-ST-3': taskNames('typecheck'),
+  // A task-contract target or the tool's own config shows the tool is in use (M6.6).
+  'RS-ST-1': toolOrTask('format-check', 'formatter_config'),
+  'RS-ST-2': toolOrTask('lint', 'linter_config'),
+  'RS-ST-3': toolOrTask('typecheck', 'type_checker_config'),
   'RS-ST-6': (c) => {
     if (!c.ok('inventory')) return incomplete('inventory');
     const hooks = ['pre_commit_config', 'git_hooks']
@@ -269,9 +282,175 @@ export const EVALUATORS: Readonly<Record<string, Evaluator>> = {
     const reasons: string[] = [];
     if (cov.lfs_unscanned > 0) reasons.push('lfs_unscanned');
     if ((c.r.coverage_counts.file_over_cap ?? 0) > 0) reasons.push('files_over_cap');
-    return reasons.length === 0
-      ? pass([ref('intake', 'intake:head_tree')])
-      : fail(reasons, [ref('intake', 'intake:head_tree')]);
+    const ev = [ref('intake', 'intake:head_tree')];
+    if (reasons.length > 0) return fail(reasons, ev);
+    // Recorded, not judged: what the tree holds is noted so the number is visible.
+    const shape = c.ok('presence') ? c.presence('repo_shape') : undefined;
+    const notes: string[] = [];
+    if (shape) {
+      if ((num(shape.detail['binary_files']) ?? 0) > 0) notes.push('has_binary_files');
+      if ((num(shape.detail['large_files']) ?? 0) > 0) notes.push('has_large_files');
+      if ((num(shape.detail['lfs_patterns']) ?? 0) > 0) notes.push('lfs_tracked');
+    }
+    return pass([...ev, ...(shape ? factEvidence(shape) : [])], notes);
+  },
+
+  // ---- presence (M6.6)
+  'RS-KN-1': (c) => {
+    const f = presenceOf(c, 'readme');
+    if (!('fact' in f)) return f.eval;
+    if (f.fact.state === 'absent') return fail(['no_readme'], [absentEv('readme')]);
+    const ev = factEvidence(f.fact);
+    const d = f.fact.detail;
+    if (d['purpose'] === null || d['run'] === null) return unknown('readme_unread', ev);
+    const reasons: string[] = [];
+    if (d['purpose'] !== true) reasons.push('readme_no_purpose');
+    if (d['run'] !== true) reasons.push('readme_no_run_instructions');
+    return reasons.length === 0 ? pass(ev) : fail(reasons, ev);
+  },
+  'RS-PUB-1': (c) => {
+    const f = presenceOf(c, 'license');
+    if (!('fact' in f)) return f.eval;
+    if (f.fact.state === 'absent') return fail(['no_license'], [absentEv('license')]);
+    return f.fact.detail['empty'] === true
+      ? fail(['license_empty'], factEvidence(f.fact))
+      : pass(factEvidence(f.fact));
+  },
+  'RS-PUB-2': (c) => {
+    const f = presenceOf(c, 'security_policy');
+    if (!('fact' in f)) return f.eval;
+    if (f.fact.state === 'absent')
+      return fail(['no_security_policy'], [absentEv('security_policy')]);
+    const ev = factEvidence(f.fact);
+    const pr = f.fact.detail['private_reporting'];
+    if (pr === null) return unknown('security_policy_unread', ev);
+    return pr === true ? pass(ev) : fail(['no_private_reporting_pointer'], ev);
+  },
+  'RS-PUB-4': (c) => {
+    if (!c.ok('presence')) return incomplete('presence');
+    const reasons: string[] = [];
+    const ev: CensusEvidence[] = [];
+    for (const [item, reason] of [
+      ['contributing', 'no_contributing'],
+      ['pr_template', 'no_pr_template'],
+    ] as const) {
+      const f = c.presence(item);
+      if (f === undefined) return incomplete('presence');
+      if (f.state === 'absent') reasons.push(reason);
+      else ev.push(...factEvidence(f));
+    }
+    return reasons.length === 0 ? pass(ev) : fail(reasons, ev);
+  },
+  'RS-PUB-5': (c) => {
+    const f = presenceOf(c, 'dependency_updates');
+    if (!('fact' in f)) return f.eval;
+    if (f.fact.state === 'absent')
+      return fail(['no_dependency_update_config'], [absentEv('dependency_updates')]);
+    const ev = factEvidence(f.fact);
+    const valid = f.fact.detail['valid'];
+    if (valid === null) return unknown('dependency_update_config_unparsed', ev);
+    return valid === true ? pass(ev) : fail(['dependency_update_config_empty'], ev);
+  },
+  'RS-EN-2': (c) => {
+    // The head part only (OB §3.3): `.env.example` holds no real value. "`test` needs no real
+    // secret" is what the probe measures, so a clean file never passes the criterion alone.
+    const f = presenceOf(c, 'env_example');
+    if (!('fact' in f)) return { observed: 'unknown', reasons: ['probe_pending'], evidence: [] };
+    if (f.fact.state === 'absent')
+      return {
+        observed: 'unknown',
+        reasons: ['probe_pending'],
+        evidence: [absentEv('env_example')],
+      };
+    const ev = factEvidence(f.fact);
+    if ((num(f.fact.detail['real_values']) ?? 0) > 0) return fail(['env_example_real_value'], ev);
+    if ((num(f.fact.detail['unread']) ?? 0) > 0)
+      return {
+        observed: 'unknown',
+        reasons: ['env_example_unread', 'probe_pending'],
+        evidence: ev,
+      };
+    return {
+      observed: 'unknown',
+      reasons: ['env_example_placeholders_only', 'probe_pending'],
+      evidence: ev,
+    };
+  },
+  'RS-ST-5': (c) => {
+    const f = presenceOf(c, 'generated_paths');
+    if (!('fact' in f)) return f.eval;
+    const d = f.fact.detail;
+    const ev = factEvidence(f.fact);
+    if ((num(d['declared']) ?? 0) > 0) return pass(ev);
+    return (num(d['candidates']) ?? 0) === 0
+      ? pass([], ['no_generated_or_vendored_paths'])
+      : fail(['undeclared_generated_or_vendored_paths'], ev);
+  },
+  'RS-BT-4': (c) => {
+    const f = presenceOf(c, 'toolchain_pin');
+    if (!('fact' in f)) return f.eval;
+    return f.fact.state === 'present'
+      ? pass(factEvidence(f.fact))
+      : fail(['no_toolchain_pin'], [absentEv('toolchain_pin')]);
+  },
+  'RS-BT-8': (c) => {
+    const f = presenceOf(c, 'ci_check');
+    if (!('fact' in f)) return f.eval;
+    const d = f.fact.detail;
+    if (f.fact.state === 'absent') return fail(['no_ci_workflow'], [absentEv('ci_check')]);
+    const ev = factEvidence(f.fact);
+    // The half that names the required check needs the code host's rules: not read here.
+    if (d['runs_check'] === true) return pass(ev, ['required_check_not_read']);
+    return (num(d['unanalysed']) ?? 0) > 0
+      ? unknown('ci_workflow_unanalysed', ev)
+      : fail(['ci_does_not_run_check'], ev);
+  },
+  'RS-TH-4': (c) => {
+    const f = presenceOf(c, 'skip_inventory');
+    if (!('fact' in f)) return f.eval;
+    const d = f.fact.detail;
+    if ((num(d['test_files_read']) ?? 0) < (num(d['test_files']) ?? 0))
+      return unknown('test_files_unread', factEvidence(f.fact));
+    // Recorded, not judged: the count is the inventory.
+    return pass(factEvidence(f.fact), (num(d['skipped']) ?? 0) > 0 ? ['has_skipped_tests'] : []);
+  },
+  'RS-TH-3': (c) => {
+    const q = presenceOf(c, 'quarantine_manifest');
+    if (!('fact' in q)) return q.eval;
+    const s = presenceOf(c, 'skip_inventory');
+    if (!('fact' in s)) return s.eval;
+    const skipped = num(s.fact.detail['skipped']) ?? 0;
+    if (q.fact.state === 'absent')
+      return skipped === 0
+        ? pass([], ['nothing_to_quarantine'])
+        : fail(['skipped_tests_without_quarantine_manifest'], factEvidence(s.fact));
+    const ev = factEvidence(q.fact);
+    if (q.fact.detail['valid'] === null) return unknown('quarantine_manifest_unparsed', ev);
+    return (num(q.fact.detail['incomplete']) ?? 0) > 0
+      ? fail(['quarantine_entry_missing_issue_owner_or_expiry'], ev)
+      : pass(ev);
+  },
+  'RS-TH-5': (c) => {
+    // Whether a report can be produced is a run (the probe); tooling that cannot produce one is a fail.
+    const f = presenceOf(c, 'coverage_config');
+    if (!('fact' in f)) return { observed: 'unknown', reasons: ['probe_pending'], evidence: [] };
+    return f.fact.state === 'absent'
+      ? fail(['no_coverage_tooling'], [absentEv('coverage_config')])
+      : { observed: 'unknown', reasons: ['probe_pending'], evidence: factEvidence(f.fact) };
+  },
+  'RS-KN-6': (c) => {
+    const f = presenceOf(c, 'decision_records');
+    if (!('fact' in f)) return f.eval;
+    return f.fact.state === 'present'
+      ? pass(factEvidence(f.fact))
+      : fail(['no_decision_records'], [absentEv('decision_records')]);
+  },
+  'RS-OP-3': (c) => {
+    const f = presenceOf(c, 'runbooks');
+    if (!('fact' in f)) return f.eval;
+    return f.fact.state === 'present'
+      ? pass(factEvidence(f.fact))
+      : fail(['no_runbook_pointers'], [absentEv('runbooks')]);
   },
 
   // ---- security (the blockers decide)

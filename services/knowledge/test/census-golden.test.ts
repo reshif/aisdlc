@@ -144,6 +144,9 @@ const scenarios: Scenario[] = [
       });
       expect(c.risk_category.tier_floor).toBe('T0');
       expect(c.risk_category.blocks_m4_until_attested).toBe(false);
+      // M6.6: nothing is unknown just because no detector reads it.
+      expect(c.criteria.filter((x) => x.reasons.includes('no_detector'))).toEqual([]);
+      expect(c.detectors?.error_codes).toEqual([]);
       expect(c.floors.filter((f) => f.id.startsWith('CF')).map((f) => f.status)).toEqual([
         'met',
         'met',
@@ -369,29 +372,21 @@ describe('persistence and the HTTP read', () => {
 
 /**
  * The exact gaps per scenario at the Census level: gap ids are `gap:<repo_id>:<criterion>:.`, shown as
- * the criterion. Criteria the Census cannot observe (the probe, and what no detector reads yet) are
- * tracked gaps in every scenario; the rest is what the scenario changes.
+ * the criterion. Criteria the Census cannot observe (the probe, history, code-host settings) are
+ * tracked gaps in every scenario; none is `no_detector` since M6.6; the rest is what the scenario changes.
  */
 const COMMON: Array<[string, string]> = [
   'RS-BT-2',
-  'RS-BT-4',
   'RS-BT-5',
   'RS-BT-6',
   'RS-BT-7',
-  'RS-BT-8',
-  'RS-ST-5',
   'RS-TH-1',
   'RS-TH-2',
-  'RS-TH-4',
   'RS-CC-3',
   'RS-CC-4',
   'RS-CC-5',
   'RS-CC-6',
-  'RS-KN-1',
   'RS-EN-2',
-  'RS-PUB-1',
-  'RS-PUB-2',
-  'RS-PUB-5',
 ].map((id) => [id, 'tracked']);
 const WITH_SEC: Array<[string, string]> = [...COMMON, ['RS-SEC', 'tracked']];
 const EXPECTED_GAPS: Record<string, Array<[string, string]>> = {

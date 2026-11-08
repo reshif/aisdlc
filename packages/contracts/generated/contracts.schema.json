@@ -318,7 +318,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -2778,7 +2779,8 @@
                           "inventory",
                           "b5_workflows",
                           "b6_apply_on_merge",
-                          "content_lint"
+                          "content_lint",
+                          "presence"
                         ]
                       },
                       "evidence": {
@@ -2834,7 +2836,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   }
                 },
@@ -5136,7 +5139,8 @@
                           "inventory",
                           "b5_workflows",
                           "b6_apply_on_merge",
-                          "content_lint"
+                          "content_lint",
+                          "presence"
                         ]
                       },
                       "evidence": {
@@ -5192,7 +5196,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   }
                 },
@@ -7309,7 +7314,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -7365,7 +7371,8 @@
                   "inventory",
                   "b5_workflows",
                   "b6_apply_on_merge",
-                  "content_lint"
+                  "content_lint",
+                  "presence"
                 ]
               }
             },
@@ -8672,7 +8679,8 @@
                   "inventory",
                   "b5_workflows",
                   "b6_apply_on_merge",
-                  "content_lint"
+                  "content_lint",
+                  "presence"
                 ]
               },
               "evidence": {
@@ -8728,7 +8736,8 @@
               "inventory",
               "b5_workflows",
               "b6_apply_on_merge",
-              "content_lint"
+              "content_lint",
+              "presence"
             ]
           }
         },
@@ -8841,7 +8850,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -9132,7 +9142,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -10507,7 +10518,8 @@
         "inventory",
         "b5_workflows",
         "b6_apply_on_merge",
-        "content_lint"
+        "content_lint",
+        "presence"
       ]
     },
     "DetectorInfo": {
@@ -10526,7 +10538,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "version": {
@@ -10570,7 +10583,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             {
@@ -10626,7 +10640,8 @@
                   "inventory",
                   "b5_workflows",
                   "b6_apply_on_merge",
-                  "content_lint"
+                  "content_lint",
+                  "presence"
                 ]
               },
               "version": {
@@ -10676,7 +10691,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   {
@@ -10743,7 +10759,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -10816,7 +10833,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -10932,7 +10950,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -11038,7 +11057,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -11179,7 +11199,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -11275,7 +11296,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -11435,7 +11457,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -11531,7 +11554,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -11621,7 +11645,8 @@
                       "inventory",
                       "b5_workflows",
                       "b6_apply_on_merge",
-                      "content_lint"
+                      "content_lint",
+                      "presence"
                     ]
                   },
                   "evidence": {
@@ -11689,6 +11714,113 @@
                   "rule",
                   "severity",
                   "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "presence"
+                  },
+                  "detector": {
+                    "type": "string",
+                    "enum": [
+                      "stack",
+                      "task_contract",
+                      "lockfiles",
+                      "codeowners",
+                      "tier_data_class",
+                      "tier_exposure",
+                      "tier_blast_radius",
+                      "inventory",
+                      "b5_workflows",
+                      "b6_apply_on_merge",
+                      "content_lint",
+                      "presence"
+                    ]
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "blob": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "line": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "blob",
+                        "line"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "item": {
+                    "type": "string",
+                    "enum": [
+                      "readme",
+                      "license",
+                      "security_policy",
+                      "contributing",
+                      "pr_template",
+                      "dependency_updates",
+                      "env_example",
+                      "repo_shape",
+                      "generated_paths",
+                      "quarantine_manifest",
+                      "skip_inventory",
+                      "decision_records",
+                      "runbooks",
+                      "ci_check",
+                      "formatter_config",
+                      "linter_config",
+                      "type_checker_config",
+                      "toolchain_pin",
+                      "coverage_config"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "present",
+                      "absent"
+                    ]
+                  },
+                  "detail": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "detector",
+                  "evidence",
+                  "item",
+                  "state",
+                  "detail"
                 ],
                 "additionalProperties": false
               }
@@ -11925,7 +12057,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -11998,7 +12131,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -12114,7 +12248,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -12220,7 +12355,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -12361,7 +12497,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -12457,7 +12594,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -12617,7 +12755,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -12713,7 +12852,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -12803,7 +12943,8 @@
                 "inventory",
                 "b5_workflows",
                 "b6_apply_on_merge",
-                "content_lint"
+                "content_lint",
+                "presence"
               ]
             },
             "evidence": {
@@ -12871,6 +13012,113 @@
             "rule",
             "severity",
             "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "presence"
+            },
+            "detector": {
+              "type": "string",
+              "enum": [
+                "stack",
+                "task_contract",
+                "lockfiles",
+                "codeowners",
+                "tier_data_class",
+                "tier_exposure",
+                "tier_blast_radius",
+                "inventory",
+                "b5_workflows",
+                "b6_apply_on_merge",
+                "content_lint",
+                "presence"
+              ]
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "blob": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "path",
+                  "blob",
+                  "line"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "item": {
+              "type": "string",
+              "enum": [
+                "readme",
+                "license",
+                "security_policy",
+                "contributing",
+                "pr_template",
+                "dependency_updates",
+                "env_example",
+                "repo_shape",
+                "generated_paths",
+                "quarantine_manifest",
+                "skip_inventory",
+                "decision_records",
+                "runbooks",
+                "ci_check",
+                "formatter_config",
+                "linter_config",
+                "type_checker_config",
+                "toolchain_pin",
+                "coverage_config"
+              ]
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "present",
+                "absent"
+              ]
+            },
+            "detail": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "detector",
+            "evidence",
+            "item",
+            "state",
+            "detail"
           ],
           "additionalProperties": false
         }
@@ -15466,7 +15714,8 @@
                           "inventory",
                           "b5_workflows",
                           "b6_apply_on_merge",
-                          "content_lint"
+                          "content_lint",
+                          "presence"
                         ]
                       },
                       "version": {
@@ -15516,7 +15765,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           {
@@ -15583,7 +15833,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -15656,7 +15907,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -15772,7 +16024,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -15878,7 +16131,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -16019,7 +16273,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -16115,7 +16370,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -16275,7 +16531,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -16371,7 +16628,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -16461,7 +16719,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "evidence": {
@@ -16529,6 +16788,113 @@
                           "rule",
                           "severity",
                           "path"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "presence"
+                          },
+                          "detector": {
+                            "type": "string",
+                            "enum": [
+                              "stack",
+                              "task_contract",
+                              "lockfiles",
+                              "codeowners",
+                              "tier_data_class",
+                              "tier_exposure",
+                              "tier_blast_radius",
+                              "inventory",
+                              "b5_workflows",
+                              "b6_apply_on_merge",
+                              "content_lint",
+                              "presence"
+                            ]
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "path": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "blob": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{40}$"
+                                },
+                                "line": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "path",
+                                "blob",
+                                "line"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "item": {
+                            "type": "string",
+                            "enum": [
+                              "readme",
+                              "license",
+                              "security_policy",
+                              "contributing",
+                              "pr_template",
+                              "dependency_updates",
+                              "env_example",
+                              "repo_shape",
+                              "generated_paths",
+                              "quarantine_manifest",
+                              "skip_inventory",
+                              "decision_records",
+                              "runbooks",
+                              "ci_check",
+                              "formatter_config",
+                              "linter_config",
+                              "type_checker_config",
+                              "toolchain_pin",
+                              "coverage_config"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "present",
+                              "absent"
+                            ]
+                          },
+                          "detail": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "null"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "detector",
+                          "evidence",
+                          "item",
+                          "state",
+                          "detail"
                         ],
                         "additionalProperties": false
                       }
@@ -16775,7 +17141,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -17527,7 +17894,8 @@
                               "inventory",
                               "b5_workflows",
                               "b6_apply_on_merge",
-                              "content_lint"
+                              "content_lint",
+                              "presence"
                             ]
                           },
                           "version": {
@@ -17577,7 +17945,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               {
@@ -17644,7 +18013,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -17717,7 +18087,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -17833,7 +18204,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -17939,7 +18311,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -18080,7 +18453,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -18176,7 +18550,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -18336,7 +18711,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -18432,7 +18808,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -18522,7 +18899,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "evidence": {
@@ -18590,6 +18968,113 @@
                               "rule",
                               "severity",
                               "path"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "presence"
+                              },
+                              "detector": {
+                                "type": "string",
+                                "enum": [
+                                  "stack",
+                                  "task_contract",
+                                  "lockfiles",
+                                  "codeowners",
+                                  "tier_data_class",
+                                  "tier_exposure",
+                                  "tier_blast_radius",
+                                  "inventory",
+                                  "b5_workflows",
+                                  "b6_apply_on_merge",
+                                  "content_lint",
+                                  "presence"
+                                ]
+                              },
+                              "evidence": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "path": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "blob": {
+                                      "type": "string",
+                                      "pattern": "^[0-9a-f]{40}$"
+                                    },
+                                    "line": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "path",
+                                    "blob",
+                                    "line"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "item": {
+                                "type": "string",
+                                "enum": [
+                                  "readme",
+                                  "license",
+                                  "security_policy",
+                                  "contributing",
+                                  "pr_template",
+                                  "dependency_updates",
+                                  "env_example",
+                                  "repo_shape",
+                                  "generated_paths",
+                                  "quarantine_manifest",
+                                  "skip_inventory",
+                                  "decision_records",
+                                  "runbooks",
+                                  "ci_check",
+                                  "formatter_config",
+                                  "linter_config",
+                                  "type_checker_config",
+                                  "toolchain_pin",
+                                  "coverage_config"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "present",
+                                  "absent"
+                                ]
+                              },
+                              "detail": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": [
+                                    "string",
+                                    "number",
+                                    "boolean",
+                                    "null"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "detector",
+                              "evidence",
+                              "item",
+                              "state",
+                              "detail"
                             ],
                             "additionalProperties": false
                           }
@@ -19412,7 +19897,8 @@
                                   "inventory",
                                   "b5_workflows",
                                   "b6_apply_on_merge",
-                                  "content_lint"
+                                  "content_lint",
+                                  "presence"
                                 ]
                               },
                               "version": {
@@ -19462,7 +19948,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   {
@@ -19529,7 +20016,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -19602,7 +20090,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -19718,7 +20207,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -19824,7 +20314,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -19965,7 +20456,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -20061,7 +20553,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -20221,7 +20714,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -20317,7 +20811,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -20407,7 +20902,8 @@
                                       "inventory",
                                       "b5_workflows",
                                       "b6_apply_on_merge",
-                                      "content_lint"
+                                      "content_lint",
+                                      "presence"
                                     ]
                                   },
                                   "evidence": {
@@ -20475,6 +20971,113 @@
                                   "rule",
                                   "severity",
                                   "path"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "presence"
+                                  },
+                                  "detector": {
+                                    "type": "string",
+                                    "enum": [
+                                      "stack",
+                                      "task_contract",
+                                      "lockfiles",
+                                      "codeowners",
+                                      "tier_data_class",
+                                      "tier_exposure",
+                                      "tier_blast_radius",
+                                      "inventory",
+                                      "b5_workflows",
+                                      "b6_apply_on_merge",
+                                      "content_lint",
+                                      "presence"
+                                    ]
+                                  },
+                                  "evidence": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "path": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        },
+                                        "blob": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{40}$"
+                                        },
+                                        "line": {
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "maximum": 9007199254740991
+                                        }
+                                      },
+                                      "required": [
+                                        "path",
+                                        "blob",
+                                        "line"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "item": {
+                                    "type": "string",
+                                    "enum": [
+                                      "readme",
+                                      "license",
+                                      "security_policy",
+                                      "contributing",
+                                      "pr_template",
+                                      "dependency_updates",
+                                      "env_example",
+                                      "repo_shape",
+                                      "generated_paths",
+                                      "quarantine_manifest",
+                                      "skip_inventory",
+                                      "decision_records",
+                                      "runbooks",
+                                      "ci_check",
+                                      "formatter_config",
+                                      "linter_config",
+                                      "type_checker_config",
+                                      "toolchain_pin",
+                                      "coverage_config"
+                                    ]
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "present",
+                                      "absent"
+                                    ]
+                                  },
+                                  "detail": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "type": [
+                                        "string",
+                                        "number",
+                                        "boolean",
+                                        "null"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "detector",
+                                  "evidence",
+                                  "item",
+                                  "state",
+                                  "detail"
                                 ],
                                 "additionalProperties": false
                               }
@@ -21255,7 +21858,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -21372,7 +21976,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -22291,6 +22896,137 @@
         "red",
         "amber",
         "green"
+      ]
+    },
+    "PresenceFact": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "presence"
+        },
+        "detector": {
+          "type": "string",
+          "enum": [
+            "stack",
+            "task_contract",
+            "lockfiles",
+            "codeowners",
+            "tier_data_class",
+            "tier_exposure",
+            "tier_blast_radius",
+            "inventory",
+            "b5_workflows",
+            "b6_apply_on_merge",
+            "content_lint",
+            "presence"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "blob": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "path",
+              "blob",
+              "line"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "item": {
+          "type": "string",
+          "enum": [
+            "readme",
+            "license",
+            "security_policy",
+            "contributing",
+            "pr_template",
+            "dependency_updates",
+            "env_example",
+            "repo_shape",
+            "generated_paths",
+            "quarantine_manifest",
+            "skip_inventory",
+            "decision_records",
+            "runbooks",
+            "ci_check",
+            "formatter_config",
+            "linter_config",
+            "type_checker_config",
+            "toolchain_pin",
+            "coverage_config"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "present",
+            "absent"
+          ]
+        },
+        "detail": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "detector",
+        "evidence",
+        "item",
+        "state",
+        "detail"
+      ],
+      "additionalProperties": false
+    },
+    "PresenceItem": {
+      "type": "string",
+      "enum": [
+        "readme",
+        "license",
+        "security_policy",
+        "contributing",
+        "pr_template",
+        "dependency_updates",
+        "env_example",
+        "repo_shape",
+        "generated_paths",
+        "quarantine_manifest",
+        "skip_inventory",
+        "decision_records",
+        "runbooks",
+        "ci_check",
+        "formatter_config",
+        "linter_config",
+        "type_checker_config",
+        "toolchain_pin",
+        "coverage_config"
       ]
     },
     "Principal": {
@@ -27470,7 +28206,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -27716,7 +28453,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -28056,7 +28794,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {
@@ -28518,7 +29257,8 @@
             "inventory",
             "b5_workflows",
             "b6_apply_on_merge",
-            "content_lint"
+            "content_lint",
+            "presence"
           ]
         },
         "evidence": {

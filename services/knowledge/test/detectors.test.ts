@@ -45,6 +45,7 @@ describe('the registry', () => {
         'b5_workflows',
         'b6_apply_on_merge',
         'content_lint',
+        'presence',
       ].sort(),
     );
     const v = detectorSetVersion(ds);
@@ -65,7 +66,7 @@ describe('the registry', () => {
   it('a result carries the version and the detectors, and an empty repo is T0, unattested', async () => {
     const { result } = await detect(repo({ 'README.md': '# empty\n' }));
     expect(result.detector_set_version).toBe(detectorSetVersion(buildDetectors()));
-    expect(result.detectors.map((d) => d.id)).toHaveLength(11);
+    expect(result.detectors.map((d) => d.id)).toHaveLength(12);
     expect(result.status).toBe('ok');
     expect(result.tier.floor).toBe('T0');
     expect(result.default_branch).toBe('main');

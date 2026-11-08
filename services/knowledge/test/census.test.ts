@@ -342,7 +342,7 @@ describe('classes, floors and gaps', () => {
       disposition: 'file_issue',
       visibility_class: 'public_safe',
     });
-    expect(c.gaps.find((x) => x.criterion === 'RS-BT-4')).toMatchObject({
+    expect(c.gaps.find((x) => x.criterion === 'RS-BT-5')).toMatchObject({
       severity: 'tracked',
       disposition: 'track_only',
     });
@@ -383,9 +383,15 @@ describe('classes, floors and gaps', () => {
     ).toEqual(['RS-AI-3', 'RS-SEC']);
   });
 
-  it('team mode raises RS-CC-1/2 to FLOOR, and RS-PUB-1/2 only on a public (or unknown) repo', () => {
+  it('team mode raises RS-CC-1/2 to FLOOR, and RS-PUB-1/2 only on a public (or unknown) repo', async () => {
+    // A repo without a LICENSE, so the escalated criterion is a real gap.
+    const bare = cleanRepo(scratch.dir, 'unit-no-license');
+    bare.commit('c');
+    bare.remove('LICENSE');
+    bare.commit('no license');
+    const noLicense = intakeOf((await detect(bare)).result);
     const team = (repo?: CensusAttestations['repo']) =>
-      assembleCensus(clean, CATALOGUE, 'light', {
+      assembleCensus(noLicense, CATALOGUE, 'light', {
         ...ATTESTED,
         mode: 'team',
         ...(repo ? { repo } : {}),

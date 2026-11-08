@@ -14,6 +14,7 @@ import { codeownersDetector } from './codeowners.js';
 import { inventoryDetector } from './inventory.js';
 import { DEFAULT_URL_ALLOW_LIST, lintDetector } from './lint.js';
 import { lockfileDetector } from './lockfiles.js';
+import { presenceDetector } from './presence.js';
 import { stackDetector } from './stack.js';
 import { taskContractDetector } from './task-contract.js';
 import { blastRadiusDetector, dataClassDetector, deriveTier, exposureDetector } from './tier.js';
@@ -45,6 +46,7 @@ export function buildDetectors(opts: DetectorOptions = {}): Detector[] {
     inventoryDetector(),
     b5Detector(),
     b6Detector(),
+    presenceDetector({ secretRules: opts.secretRules ?? RULES }),
     lintDetector({
       urlAllowList: opts.urlAllowList ?? DEFAULT_URL_ALLOW_LIST,
       secretRules: opts.secretRules ?? RULES,
@@ -84,6 +86,7 @@ const FACT_PRIORITY: Record<Fact['kind'], number> = {
   lockfile: 6,
   stack: 7,
   lint_finding: 8,
+  presence: 9,
 };
 
 /**

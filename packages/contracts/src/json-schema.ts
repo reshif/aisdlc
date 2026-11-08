@@ -304,6 +304,8 @@ export const SCHEMAS = {
   TaskContractName: entities.TaskContractName,
   TaskCommandFact: entities.TaskCommandFact,
   LockfileFact: entities.LockfileFact,
+  PresenceItem: entities.PresenceItem,
+  PresenceFact: entities.PresenceFact,
   CodeownersFact: entities.CodeownersFact,
   TierCriterion: entities.TierCriterion,
   DetectedTierCriterion: entities.DetectedTierCriterion,

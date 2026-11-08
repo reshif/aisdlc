@@ -9,6 +9,7 @@ import {
   type Fact,
   type IntakeResult,
   type Level,
+  type PresenceItem,
   type RepoOwnerType,
   type RepoVisibility,
   type SignerMode,
@@ -58,6 +59,10 @@ export class CensusContext {
 
   inventory(kind: string): FactOf<'instruction_file'> | undefined {
     return this.facts('instruction_file').find((f) => f.inventory === kind);
+  }
+
+  presence(item: PresenceItem): FactOf<'presence'> | undefined {
+    return this.facts('presence').find((f) => f.item === item);
   }
 
   task(name: string): FactOf<'task_command'> | undefined {

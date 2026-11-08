@@ -56,5 +56,48 @@ export function cleanRepo(root: string, name: string): FixtureRepo {
   r.write('.github/CODEOWNERS', '* @acme/core\n');
   r.write('.github/workflows/ci.yml', safeCi);
   r.write('src/index.ts', 'export const x = 1;\n');
+  // The community and toolchain files a well-kept repo has (M6.6): all plain, no links, no secrets.
+  r.write(
+    'README.md',
+    [
+      '# app',
+      '',
+      'A small service that turns incoming orders into shipping labels for the warehouse team.',
+      '',
+      '## Usage',
+      '',
+      'Run `npm ci`, then `npm run check`.',
+      '',
+    ].join('\n'),
+  );
+  r.write('LICENSE', 'Permission is hereby granted, free of charge, to any person.\n');
+  r.write(
+    'SECURITY.md',
+    '# Security\n\nReport a vulnerability privately to security@acme.example.\n',
+  );
+  r.write('CONTRIBUTING.md', '# Contributing\n\nOpen a pull request against main.\n');
+  r.write('.github/pull_request_template.md', '## What changed\n\n## How it was tested\n');
+  r.write(
+    '.github/dependabot.yml',
+    [
+      'version: 2',
+      'updates:',
+      '  - package-ecosystem: npm',
+      '    directory: /',
+      '    schedule:',
+      '      interval: weekly',
+      '',
+    ].join('\n'),
+  );
+  r.write('.env.example', 'DATABASE_URL=\nAPI_TOKEN=changeme\nLOG_LEVEL=info\n');
+  r.write('.gitattributes', 'package-lock.json linguist-generated=true\n');
+  r.write('.nvmrc', '22\n');
+  r.write('.c8rc.json', JSON.stringify({ reporter: ['lcov'] }));
+  r.write('tsconfig.json', JSON.stringify({ compilerOptions: { strict: true } }));
+  r.write(
+    'docs/adr/0001-record-decisions.md',
+    '# 1. Record decisions\n\nWe keep decision records.\n',
+  );
+  r.write('docs/runbooks/deploy.md', '# Deploy\n\nSteps for a deploy.\n');
   return r;
 }

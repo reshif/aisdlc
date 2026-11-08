@@ -23,6 +23,7 @@ export const DetectorId = z.enum([
   'b5_workflows',
   'b6_apply_on_merge',
   'content_lint',
+  'presence',
 ]);
 export type DetectorId = z.infer<typeof DetectorId>;
 
@@ -363,6 +364,43 @@ export const LintFindingFact = z.strictObject({
   path: z.string().min(1),
 });
 
+/**
+ * What the head tree shows about files a repo is expected to have (PLAN M6.6; OB §3.3: README,
+ * LICENSE, SECURITY.md, CI, tool configs, ...). One fact per item, always emitted: `absent` means
+ * the detector looked and found nothing, which is different from the detector not running. `detail`
+ * holds structural flags and counts only (`purpose`, `run`, `real_values`), never text of the file.
+ */
+export const PresenceItem = z.enum([
+  'readme',
+  'license',
+  'security_policy',
+  'contributing',
+  'pr_template',
+  'dependency_updates',
+  'env_example',
+  'repo_shape',
+  'generated_paths',
+  'quarantine_manifest',
+  'skip_inventory',
+  'decision_records',
+  'runbooks',
+  'ci_check',
+  'formatter_config',
+  'linter_config',
+  'type_checker_config',
+  'toolchain_pin',
+  'coverage_config',
+]);
+export type PresenceItem = z.infer<typeof PresenceItem>;
+
+export const PresenceFact = z.strictObject({
+  kind: z.literal('presence'),
+  ...base,
+  item: PresenceItem,
+  state: z.enum(['present', 'absent']),
+  detail: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+});
+
 export const Fact = z.discriminatedUnion('kind', [
   StackFact,
   TaskCommandFact,
@@ -373,6 +411,7 @@ export const Fact = z.discriminatedUnion('kind', [
   WorkflowFindingFact,
   ApplyOnMergeFact,
   LintFindingFact,
+  PresenceFact,
 ]);
 export type Fact = z.infer<typeof Fact>;
 export type FactKind = Fact['kind'];
