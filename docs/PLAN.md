@@ -37,7 +37,7 @@ TypeScript end to end, on Node 22, in one npm-workspaces monorepo. The reasoning
 | Database | PostgreSQL 16. The record, read models and config share one database with a Postgres schema per bounded context. **Key holders and AR9 services get their own database and role**: notary, witness, kms-local, killswitch, gate-check, gate-relay. None has a route to core's write APIs |
 | API | Fastify, behind the `bff` |
 | Jobs and loops | graphile-worker (Postgres-native queue, cron tasks, jobs enqueued in the same transaction as the record write). It plays the role RV §2.2 gave Procrastinate. One `core-worker` process with per-loop supervision |
-| Lifecycle engine | **Pending decision D-T (§7).** Default: a deterministic interpreter over the item's event stream, driven by the catalogue, with timers as worker jobs and a `WorkflowPort` so Temporal can be added later. Alternative: Temporal (TypeScript SDK) with its own Postgres, as RV §2 and §10 keep it |
+| Lifecycle engine | **D-T decided 2026-11-08: no Temporal.** A deterministic interpreter over the item's event stream, driven by the catalogue, with timers as worker jobs. A `WorkflowPort` keeps Temporal possible later. This departs from RV §2 and §10 items 4 and 9; see ADR-0001 |
 | Policy | Cedar (`@cedar-policy/cedar-wasm`), embedded in-process at every enforcement point (AR2) |
 | Signing | ES256 through a `KeyCustodyPort`: `kms-local` locally, AWS KMS in the cloud. The Notary is the only signer; the Witness co-signs checkpoints with its own key |
 | Agents | Claude Agent SDK (TypeScript) inside the sandbox. Every model call goes through the `gateway` (AR5, AR7) |
@@ -167,7 +167,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | Task | Deliverable | Acceptance |
 |---|---|---|
 | M9.1 | Requests and WorkItems; S1 1.1–1.6 deterministic parts (normalise, taint-mark, de-dupe, eligibility 1.4); untrusted-input boundary with B27; Question entity; SpawnLink for "new linked item" edges | Injection-like text is fenced and flagged on the G0 card |
-| M9.2 | Interpreter: lane profile bound at G0, gates from the project's gating profile, stage ports (`PlanningPort`, `CodingPort`, `VerifyPort`, `ReleasePort`) with deterministic fakes; replay determinism | Every FL edge has a test against the fake stages |
+| M9.2 | Interpreter: lane profile bound at G0, gates from the project's gating profile, stage ports (`PlanningPort`, `CodingPort`, `VerifyPort`, `ReleasePort`) with deterministic fakes; replay determinism | Every FL edge has a test against the fake stages; the rebuild drill that replaces Temporal's: kill core-worker mid-flight, wipe all execution state (jobs, timers, projections), refold from the record, and every item resumes in the same state |
 | M9.3 | Holds and terminals: HELD H1–H3 and WIP, N8, PARK (5 bd), BLOCKED (→ L2 remediation item), DECLINED (B22), ABANDONED with cause codes, RELHOLD (B26), prior-phase resume; MM-2 maintenance (timers frozen, decisions disabled, drafts kept) | Test per terminal and hold |
 | M9.4 | Back-edges B1–B28 with limits; per-item rework budget (B28 → E4); Handoff (one id) D1–D3 → E4 with its five choices, E3/E5 extension ≤ +50%, D4 hand-back and D5 complete; Assumption (one shape) | Scenario test per back-edge and E4 choice |
 | M9.5 | Re-laning: R1 upshift (insert first missing stage), R2 downshift needs E1 and re-runs G0, R3 circuit breaker ET14 per project × lane, R4 hotfix follow-up blocking new agent items after 5 bd overdue | Scenario tests |
@@ -255,14 +255,14 @@ Pre-push full-history scan, squashed push, multi-repo allow-list, Census + 0.4 +
 
 | Group | Containers |
 |---|---|
-| Data | postgres (record, read models, config, queue), plus separate databases on the same server for notary, witness, kms-local, killswitch, gate-check, gate-relay; temporal and its postgres only if D-T picks Temporal |
+| Data | postgres (record, read models, config, queue), plus separate databases on the same server for notary, witness, kms-local, killswitch, gate-check, gate-relay |
 | Edge and identity | web, bff, oidc (dev IdP), identity |
 | Core | core, core-worker |
 | Trust plane | kms-local, notary, witness, killswitch, sandbox-origin, audit-exporter, audit-backend |
 | Code and gate plane | codehost, gate-check, gate-relay, cvw, docker-proxy-cvw, docker-proxy-coding, package-mirror |
 | Agents and models | workflow, coding-worker, gateway, knowledge |
 
-That is 25 containers without Temporal (27 with), against RV §8.2's 26: no minio (a WORM stand-in comes with audit-exporter only when exports exist), no temporal-ui, one extra socket proxy, Temporal per D-T. core-worker exposes one aggregated `/healthz` (503 while any loop is down or an access-sync alert is active), the access-sync lag metric, loop-prefixed logs, and per-loop supervision so a poison row in one loop cannot stall the others (RV §3.1).
+That is 25 containers, against RV §8.2's 26: no temporal, postgres-temporal or temporal-ui (D-T), no minio until audit exports exist, one extra socket proxy. core-worker exposes one aggregated `/healthz` (503 while any loop is down or an access-sync alert is active), the access-sync lag metric, loop-prefixed logs, and per-loop supervision so a poison row in one loop cannot stall the others (RV §3.1).
 
 ## 6. How the build runs
 
@@ -277,7 +277,6 @@ Decided already: DEC-27..30 (OB §12.6). For the OB "decide now" set (DEC-1..9, 
 
 | When | Decision |
 |---|---|
-| **Before M9** | **D-T: Temporal or not.** RV §2 and §10 keep Temporal and its separate database. The default here drops it (ADR-0001), which loses the "drop and rebuild Temporal" drill and Aurora layout parity but removes 2–3 containers and a second state machine. Either way the record stays authoritative |
 | Before M4 | DM §9 Q1: is a Team owned by the factory, or a label imported from the IdP? Q2: does the wizard edit the ten-slot role map (default) or bindings directly? |
 | M5 | DEC-7: remove `statuses:write` from the GitHub App (on GitHub) |
 | M8.5 | DEC-4 attestation for the testbed ("no prod, no real data, no dependants") |
