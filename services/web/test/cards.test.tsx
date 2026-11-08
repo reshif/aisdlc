@@ -392,6 +392,7 @@ describe('card 4', () => {
     await user.click(
       screen.getByLabelText(/secret scanning and push protection are on where the plan allows/),
     );
+    await user.click(screen.getByLabelText('Free'));
   };
 
   it('shows the controls report with met, not met and unknown, what to do on GitHub, and a re-check button', async () => {
@@ -451,6 +452,12 @@ describe('card 4', () => {
       'secret scanning and push protection are on where the plan allows',
     ]) {
       expect(screen.getByLabelText(t)).not.toBeChecked();
+    }
+    // The plan is asked, with the note about private repos on Free (OB §5.5, §9.1 row 2); nothing is preselected.
+    expect(screen.getByText(/Which GitHub plan is the owner/)).toBeInTheDocument();
+    expect(screen.getByText(/cannot enforce rulesets/)).toBeInTheDocument();
+    for (const p of ['Free', 'Pro', 'Team', 'Enterprise']) {
+      expect(screen.getByLabelText(p)).not.toBeChecked();
     }
     const slots = document.querySelectorAll('.role');
     expect([...slots].map((s) => s.getAttribute('data-slot'))).toEqual([
@@ -529,6 +536,7 @@ describe('card 4', () => {
     expect(body.content['role_map'].g4).toEqual({ kind: 'codeowners' });
     expect(body.content['attestations']).toMatchObject({
       secret_scanning: 'on',
+      plan: 'free',
       bypass_has_no_factory_app: true,
     });
     expect(body.content['kill_delegations']).toEqual([]);

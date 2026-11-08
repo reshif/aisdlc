@@ -280,6 +280,7 @@ describe('the onboarding card routes', () => {
         actions_cannot_approve_prs: true,
         fork_pr_approval_required: true,
         secret_scanning: 'on',
+        plan: 'free',
       },
       role_map: view.role_map.proposed,
       two_person_enabled: true,

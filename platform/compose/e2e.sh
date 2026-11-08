@@ -24,6 +24,7 @@ cd "$(dirname "$0")"
 repo_root="$(cd ../.. && pwd)"
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-e2e}"
+export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
 dc() { docker compose --profile fake-github "$@"; }
 fail() { echo "e2e: FAIL: $*" >&2; exit 1; }
 
@@ -77,4 +78,6 @@ echo "  => only GETs on resources (POST is the App minting its read-only install
 printf '%s\n' "$gitl" | grep -q 'receive-pack' && fail "something tried to push"
 printf '%s\n' "$gitl" | grep -q 'authorized=false' && fail "git was asked without a credential"
 echo "  => git was only fetched from (upload-pack), every request with the installation token"
+echo "== the ledger: a checkpoint co-signed by the Witness, verify-ledger"
+./verify-ledger.sh --wait 150 || fail "the ledger did not verify"
 echo "e2e: PASS"

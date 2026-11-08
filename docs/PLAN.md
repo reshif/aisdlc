@@ -178,6 +178,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
+| M9.0 | Grantable onboarding role (user decision): `project.onboard` held by a new `factory.onboarder` role grantable at fleet or team scope, and every administrative action for `factory.admin`, without giving admins any gate decision | PDP tests per role; an admin still cannot decide a gate it holds no slot for |
 | M9.1 | Requests and WorkItems; S1 1.1–1.6 deterministic parts (normalise, taint-mark, de-dupe, eligibility 1.4); untrusted-input boundary with B27; Question entity; SpawnLink for "new linked item" edges | Injection-like text is fenced and flagged on the G0 card |
 | M9.2 | Interpreter (also wires the real `WorkInFlightPort` into core-worker, replacing the M5.4 fake that reports no work, so effective rules are polled hourly while agent work is in flight): lane profile bound at G0, gates from the project's gating profile, stage ports (`PlanningPort`, `CodingPort`, `VerifyPort`, `ReleasePort`) with deterministic fakes; replay determinism | Every FL edge has a test against the fake stages; the rebuild drill that replaces Temporal's: kill core-worker mid-flight, wipe all execution state (jobs, timers, projections), refold from the record, and every item resumes in the same state |
 | M9.3 | Holds and terminals: HELD H1–H3 and WIP, N8, PARK (5 bd), BLOCKED (→ L2 remediation item), DECLINED (B22), ABANDONED with cause codes, RELHOLD (B26), prior-phase resume; MM-2 maintenance (timers frozen, decisions disabled, drafts kept) | Test per terminal and hold |
@@ -282,6 +283,23 @@ That is 25 containers, against RV §8.2's 26: no temporal, postgres-temporal or 
 - Each task goes to one implementation agent with a written brief: goal, spec sections, files it may touch, acceptance tests. One task in flight at a time.
 - After each task: review the diff, run `npm run check`, commit (Conventional Commits). Milestones end with a pull request for human review. A human merges.
 - Decisions that belong to the user are asked at the milestone that needs them.
+
+## 7a. Decisions taken by the user (2026-11-08)
+
+| Topic | Decision |
+|---|---|
+| D-T | No Temporal (ADR-0001) |
+| Team, role map | Team is factory-owned with an optional IdP group mapping; the wizard edits the ten-slot role map and bindings are generated |
+| B21 backup approver | Notified only; gains no decision right |
+| Bootstrap decider | On a project's first onboarding the requester decides that S0 record's admin-slot cards (C1, C4, C5) and the first M1 config gate until the role map is published; never the security card or M4 |
+| Who may start an onboarding | A grantable onboarding role (any principal it is granted to, at fleet or team scope); factory admins hold every administrative action. Gate decisions still follow the project role map, two-person rules and the safety floor: no admin decides gates alone (G4 human code owner, no auto-approve, T2 two-person) |
+| Pillar mapping | VRL = BT/ST/TH, ERL = EN/SEC/CC, ORL = ID/OP/PUB, KRL = AI/KN |
+| Codex | A model route through the gateway (an OpenAI-compatible provider row), not a sandbox harness |
+| Registries | One Integration registry for code hosts and model providers, with a shared health shape |
+| Evals | Factory-wide, with an optional project tag |
+| DEC-18 | Decide container-class execution of repo code after the SEC-OB-3 hostile-probe evidence; the probe stays `pending` until then |
+| DEC-10, 11, 12, 13, 16, 17, 20 | The roadmap's recommendations: 10(a) the human never pushes, the factory pushes under an L8 gate-check profile; 11(a) affirmed text is fenced guidance, never control, with (c-i) step-up falling back to (c-ii); 12(a) record-first; 13(a) S0 and L8 gate-check profiles, (i) wait for the X2 path; 16(b) agent chores on T0/T1 only, T2 needs Full; 17 mirror wheels first, each scanner approved one at a time; 20(a) record is truth, issue is a twin, timing (i) right after R1b, blocking public-safe gaps by default |
+| DEC-7 | Done by the user: `statuses:write` removed from the GitHub App |
 
 ## 7. Decisions still open for the user
 

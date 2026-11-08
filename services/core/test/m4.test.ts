@@ -305,7 +305,53 @@ describe('the identity gaps the cards close', () => {
       'closed_verified',
       'closed_verified',
     ]);
+    expect(prr.repo.plan).toBe('free');
     ok(await decideAs(c, card.card_id, 'alice', 'approve', {}));
+  });
+
+  it('RS-ID-4 stays open when the owner cannot state the plan (unknown is not an attestation), and the PRR refuses to sign at Census', async () => {
+    const c = await scenario();
+    const repoId = c.repo.toLowerCase().replace('/', '.');
+    c.knowledge.setCensusRecord(c.repo, {
+      ...c.census,
+      census: {
+        ...c.census.census,
+        gaps: [
+          ...c.census.census.gaps,
+          {
+            gap_id: gapId(repoId, 'RS-ID-4', '.'),
+            repo_id: repoId,
+            criterion: 'RS-ID-4',
+            area: '.',
+            severity: 'blocking',
+            blocks_level: 'census',
+            disposition: null,
+            status: 'open',
+            issue: null,
+            remediation_item_ref: null,
+            waiver: null,
+            visibility_class: 'public_safe',
+          },
+        ],
+      } as never,
+    });
+    await throughC1(c);
+    await throughC4(c, {
+      attestations: {
+        bypass_has_no_factory_app: true,
+        app_scope_selected: true,
+        github_token_readonly: true,
+        actions_cannot_approve_prs: true,
+        fork_pr_approval_required: true,
+        secret_scanning: 'on',
+        plan: 'unknown',
+      },
+    });
+    await c.drive();
+    await sync(c);
+    const r = await sync(c);
+    expect(r.opened).toEqual([]);
+    expect(r.pending.join(' ')).toMatch(/blocking_gap_open|RS-ID-4|gap/);
   });
 });
 

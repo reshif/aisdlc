@@ -138,8 +138,10 @@ export const c4View = (over: Record<string, unknown> = {}, ctl = controls()) => 
       'actions_cannot_approve_prs',
       'fork_pr_approval_required',
       'secret_scanning',
+      'plan',
     ],
     secret_scanning_values: ['on', 'plan_unavailable'],
+    plan_values: ['free', 'pro', 'team', 'enterprise', 'unknown'],
   },
   tier: 'T0',
   role_map: {

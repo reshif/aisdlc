@@ -1,6 +1,7 @@
 import {
   MAX_WAIVER_DAYS,
   PROJECT_CONFIG_KEYS,
+  RepoPlan,
   levelRank,
   type CensusRecord,
   type ControlsReport,
@@ -275,9 +276,11 @@ export function c4View(c: C4Ctx): Record<string, unknown> {
         'actions_cannot_approve_prs',
         'fork_pr_approval_required',
         'secret_scanning',
+        'plan',
         ...(c.level_needs_operations ? ['operations_md'] : []),
       ],
       secret_scanning_values: ['on', 'plan_unavailable'],
+      plan_values: RepoPlan.options,
     },
     tier: c.tier,
     role_map: {

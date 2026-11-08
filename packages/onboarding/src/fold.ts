@@ -142,7 +142,7 @@ export function foldRepo(events: readonly RecordEvent[]): Repo | null {
         name: p.name,
         visibility: null,
         owner_type: null,
-        plan: null,
+        plan: 'unknown',
         default_branch: null,
         stack: null,
         onboarding_level: 'none',

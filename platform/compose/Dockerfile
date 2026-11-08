@@ -35,10 +35,23 @@ RUN set -eu; mkdir /out; \
     cp packages/ledger/dist/verify-ledger.js* /out/packages/ledger/dist/
 
 FROM ${RUNTIME_IMAGE} AS runtime
-RUN command -v git >/dev/null 2>&1 || ( \
-      apt-get update \
-      && apt-get install -y --no-install-recommends git ca-certificates \
-      && rm -rf /var/lib/apt/lists/* )
+# git is the one OS package (codehost and knowledge run it; neither needs a shell, a compiler or curl).
+# The default path installs it from Debian bookworm's own repositories, as root, in one layer:
+#   - pinned to the bookworm git line (`1:2.39.*`): security fixes of that line are taken, a jump to
+#     another git is not; override with --build-arg GIT_APT_VERSION=1:2.39.5-0+deb12u2 for an exact pin
+#   - --no-install-recommends (no perl-heavy extras, no editors), ca-certificates for HTTPS to GitHub
+#   - the apt lists are removed in the same layer, so no package index stays in the image
+#   - `set -eu`: a failed update or install fails the build; `git --version` proves it landed
+# Skipped when the base already has git (see RUNTIME_IMAGE above), which is the sandbox override.
+ARG GIT_APT_VERSION=1:2.39.*
+RUN set -eu; \
+    if ! command -v git >/dev/null 2>&1; then \
+      export DEBIAN_FRONTEND=noninteractive; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends "git=${GIT_APT_VERSION}" ca-certificates; \
+      rm -rf /var/lib/apt/lists/*; \
+    fi; \
+    git --version
 RUN useradd --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin aisdlc
 COPY --from=builder /out /app
 COPY platform/compose/healthcheck.mjs /app/healthcheck.mjs

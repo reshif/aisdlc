@@ -17,6 +17,7 @@ import {
   type CatalogueRef,
   type CensusRecord,
   type ControlsAttestation,
+  type RepoPlan,
   type ControlsReport,
   type Gap,
   type GatingProfile,
@@ -306,18 +307,30 @@ const controlsOf = (c4: PrrC4): Result<ProjectReadinessRecord['controls'], PrrBu
  * the gap is `closed_verified` and keeps card 1's disposition. A fact that is not there leaves its
  * gap open (unknown means unmet).
  *
- * NOT CHECKED: RS-ID-4 also names the owner's plan, which the code host port does not read yet, so
- * it closes on visibility and owner type alone (a follow-up: read the plan, or drop it from the floor).
+ * RS-ID-4 also names the owner's plan. The App cannot read it (CF4), so the code host records it as
+ * `unknown` and card 4 asks the owner to state it (free, pro, team, enterprise). The gap closes only
+ * when visibility and owner type are recorded AND the plan is attested; `unknown` is not an
+ * attestation, so a gap whose plan the owner could not state stays open.
  */
 export function closeOwnerCardGaps(
   census: CensusRecord,
-  f: { owner_confirmed: boolean; tier_signed: boolean; app_scoped: boolean },
+  f: {
+    owner_confirmed: boolean;
+    tier_signed: boolean;
+    app_scoped: boolean;
+    /** The plan card 4 attested; `unknown` or absent means not attested. */
+    plan_attested: RepoPlan | null;
+  },
 ): CensusRecord {
   const satisfied: Readonly<Record<string, boolean>> = {
     'RS-ID-1': f.app_scoped && census.repo.default_branch !== null,
     'RS-ID-2': f.owner_confirmed,
     'RS-ID-3': f.tier_signed,
-    'RS-ID-4': census.repo.visibility !== null && census.repo.owner_type !== null,
+    'RS-ID-4':
+      census.repo.visibility !== null &&
+      census.repo.owner_type !== null &&
+      f.plan_attested !== null &&
+      f.plan_attested !== 'unknown',
   };
   return {
     ...census,
@@ -445,7 +458,7 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
       repo_id: repo.repo_id,
       visibility: repo.visibility,
       owner_type: repo.owner_type,
-      plan: repo.plan,
+      plan: repo.plan ?? 'unknown',
       default_branch: repo.default_branch,
       archetype: repo.archetype,
     },

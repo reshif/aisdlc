@@ -13,7 +13,11 @@
 #   5. login through the dev IdP reaches the bff, which knows alice as a factory admin
 #   6. the fake GitHub's request log: its REST API saw GETs only (plus the App's token mint) and
 #      git was only ever fetched from
-#   7. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
+#   7. the ledger (M8.0b): core-worker's checkpointer has the Notary sign a tree head and the Witness
+#      co-sign it (CHECKPOINT_INTERVAL_MS is 15 s here, 5 min by default); verify-ledger.sh then
+#      runs the bundled `verify-ledger` against the record database with the two public keys from
+#      kms-local, and it must pass
+#   8. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
 #
 # SMOKE_SKIP_BUILD=1   use the image aisdlc/factory:local as it is (a network that blocks apt or
 #                      the npm registry: build it yourself, see README.md)
@@ -22,6 +26,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-smoke}"
+# The checkpointer runs every 5 minutes by default; a smoke test cannot wait that long.
+export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
 dc() { docker compose --profile fake-github "$@"; }
 T0=$SECONDS
 step() { printf '\n== [%3ss] %s\n' $((SECONDS - T0)) "$*"; }
@@ -144,7 +150,7 @@ echo "  ledger entries signed by the Notary: $entries"
 [ "$entries" -gt 0 ] || fail "the ledger is empty"
 
 step "login through the dev IdP reaches the bff"
-jar=$(mktemp); trap 'rm -f "$jar"; cleanup' EXIT
+jar=$(mktemp); trap 'rc=$?; rm -f "$jar"; (exit "$rc"); cleanup' EXIT
 loc=$(curl -fsS -o /dev/null -D- -c "$jar" http://localhost:8340/auth/login | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
 [ -n "$loc" ] || fail "/auth/login did not redirect"
 back=$(curl -fsS -o /dev/null -D- --resolve dev-oidc.localhost:8390:127.0.0.1 -X POST \
@@ -171,6 +177,12 @@ printf '%s\n' "$gitl" | sort | uniq -c | sed 's/^/    /'
 printf '%s\n' "$gitl" | grep -q 'receive-pack' && fail "something tried to push"
 printf '%s\n' "$gitl" | grep -q 'authorized=false' && fail "git was asked without a credential"
 echo "  => git was only fetched from (upload-pack), every request with the installation token"
+
+step "a checkpoint co-signed by the Witness, and verify-ledger passes"
+./verify-ledger.sh --wait 150 || fail "the ledger did not verify"
+cps=$(PGPW="$(cat secrets/pg-superuser)"; dc exec -T -e PGPASSWORD="$PGPW" postgres psql -U postgres -d aisdlc -At -c 'SELECT count(*) FROM ledger.checkpoint')
+echo "  checkpoints stored: $cps"
+dc logs --no-log-prefix --no-color core-worker 2>&1 | grep -E 'checkpointer.*checkpoint co-signed' | tail -2 | sed 's/^/  /'
 
 step "memory at idle (docker stats, once)"
 docker stats --no-stream --format '  {{printf "%-34s" .Name}} {{.MemUsage}}' $(dc ps -q) | sort

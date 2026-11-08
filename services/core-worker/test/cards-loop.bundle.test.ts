@@ -43,6 +43,11 @@ const wired = (): Record<string, string> => ({
   KMS_TOKEN_REF: 'env:CW_KMS',
   // Reading a public key needs any authenticated caller.
   CW_KMS: s.id.kms.tokens['witness'] as string,
+  // The ledger loops (M8.0b): nothing listens here, so their rounds fail and back off; what is
+  // proved is that the worker wires and supervises them.
+  CORE_WORKER_WITNESS_URL: 'http://127.0.0.1:9',
+  CORE_WORKER_WITNESS_TOKEN_REF: 'env:CW_WITNESS',
+  CW_WITNESS: tok('witness'),
   CORE_WORKER_PORT: '0',
 });
 
@@ -53,6 +58,20 @@ describe('core-worker: the onboarding cards loop', () => {
     const r = spawnSync(process.execPath, [bundle], { env, encoding: 'utf8', timeout: 20_000 });
     expect(r.status).toBe(78);
     expect(r.stderr).toMatch(/CORE_WORKER_NOTARY_URL is for the onboarding cards/);
+  });
+
+  it('refuses a Witness without a Notary (the checkpointer needs both)', () => {
+    const env: Record<string, string> = {
+      ...wired(),
+      CORE_WORKER_WITNESS_URL: 'http://127.0.0.1:9',
+      CORE_WORKER_WITNESS_TOKEN_REF: 'env:CW_WITNESS',
+      CW_WITNESS: tok('witness'),
+    };
+    delete env['CORE_WORKER_NOTARY_URL'];
+    delete env['CORE_WORKER_KNOWLEDGE_URL'];
+    const r = spawnSync(process.execPath, [bundle], { env, encoding: 'utf8', timeout: 20_000 });
+    expect(r.status).toBe(78);
+    expect(r.stderr).toMatch(/CORE_WORKER_WITNESS_URL checkpoints the Notary ledger/);
   });
 
   it('runs the loop when the Notary, the key lookup and knowledge are configured', async () => {
@@ -78,7 +97,12 @@ describe('core-worker: the onboarding cards loop', () => {
       loops: Array<{ name: string }>;
     };
     expect(body.loops.map((l) => l.name)).toEqual(
-      expect.arrayContaining(['onboarding_cards', 's0_driver']),
+      expect.arrayContaining([
+        'onboarding_cards',
+        's0_driver',
+        'ledger_reconciler',
+        'checkpointer',
+      ]),
     );
     expect(output.includes(wired()['CW_NOTARY'] as string)).toBe(false);
     const exited = new Promise<number | null>((resolve) => child?.once('exit', (c) => resolve(c)));

@@ -22,6 +22,13 @@ export interface CoreWorkerConfig {
    * knowledge, the onboarding cards loop runs; without it, cards open through core's sync route.
    */
   readonly ledger: { readonly notaryUrl: string; readonly notaryToken: string } | null;
+  /**
+   * The ledger reconciler and the checkpointer (PLAN M8.0b): the Witness's API (scope `cosign`).
+   * Needs `ledger` (the Notary). `null`: neither loop runs.
+   */
+  readonly witness: { readonly url: string; readonly token: string } | null;
+  readonly reconcileIntervalMs: number;
+  readonly checkpointIntervalMs: number;
   readonly cardsIntervalMs: number;
   readonly s0DriverIntervalMs: number;
   readonly roleMapSyncIntervalMs: number;
@@ -61,6 +68,10 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   `ledger`) and the key lookup: with them AND knowledge (scopes `census`
  *                                   and `security`) the `onboarding_cards` loop runs (it also needs the
  *                                   codehost scopes census and posture). Notary without knowledge is an error
+ *   CORE_WORKER_WITNESS_URL, CORE_WORKER_WITNESS_TOKEN_REF   the Witness's API: with it AND the Notary the
+ *                                   `ledger_reconciler` and `checkpointer` loops run (the checkpoint is
+ *                                   co-signed by the Witness). The Witness without the Notary is an error
+ *   CORE_WORKER_CHECKPOINT_INTERVAL_MS (300000, 5 min), CORE_WORKER_RECONCILE_INTERVAL_MS (60000)
  *   CORE_WORKER_CARDS_INTERVAL_MS (10000)
  *   CORE_WORKER_S0_DRIVER_INTERVAL_MS (15000), CORE_WORKER_ROLE_MAP_SYNC_INTERVAL_MS (10000)
  *   CORE_WORKER_HEAD_INTERVAL_MS (600000), CORE_WORKER_INSTALLATION_INTERVAL_MS (600000),
@@ -92,6 +103,12 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_NOTARY_URL is for the onboarding cards, which also need CORE_WORKER_KNOWLEDGE_URL',
     );
   }
+  const witness = remote('WITNESS');
+  if (witness !== null && ledger === null) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_WITNESS_URL checkpoints the Notary ledger, which also needs CORE_WORKER_NOTARY_URL',
+    );
+  }
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
@@ -99,6 +116,9 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     registeredReposFile: file === undefined || file === '' ? null : file,
     knowledge,
     ledger,
+    witness,
+    reconcileIntervalMs: intEnv(env, 'CORE_WORKER_RECONCILE_INTERVAL_MS', 60_000, 100),
+    checkpointIntervalMs: intEnv(env, 'CORE_WORKER_CHECKPOINT_INTERVAL_MS', 300_000, 100),
     cardsIntervalMs: intEnv(env, 'CORE_WORKER_CARDS_INTERVAL_MS', 10_000, 100),
     identity: remote('IDENTITY'),
     s0DriverIntervalMs: intEnv(env, 'CORE_WORKER_S0_DRIVER_INTERVAL_MS', 15_000, 100),

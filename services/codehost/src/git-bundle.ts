@@ -51,6 +51,16 @@ export interface GitBundleOptions {
   readonly extraEnv?: Readonly<Record<string, string>>;
   /** One line per phase with timings. Never a token. */
   readonly log?: (line: string) => void;
+  /**
+   * One entry per `git fetch` (a smart-HTTP `git-upload-pack` exchange, read-only): the repo as a
+   * template, success as 200 and failure as 0. Never a token, a ref name or a URL with credentials.
+   */
+  readonly onFetch?: (e: {
+    method: 'GIT_FETCH';
+    path: string;
+    status: number;
+    auth: string;
+  }) => void;
 }
 
 export interface GitBundleRequest {
@@ -326,6 +336,12 @@ export async function makeGitBundle(
       );
       if (tooBig)
         throw new Stop(readUnreadable('too_large', 'fetching every ref is over the size cap'));
+      o.onFetch?.({
+        method: 'GIT_FETCH',
+        path: '/{owner}/{repo}.git/git-upload-pack',
+        status: r.code === 0 ? 200 : 0,
+        auth: 'hub',
+      });
       if (r.code !== 0) throw new Stop(classifyGitFailure('fetch', r.stderr));
     } finally {
       if (guard) clearInterval(guard);

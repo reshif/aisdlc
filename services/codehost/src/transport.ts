@@ -10,6 +10,18 @@ import type { TokenBroker } from './token-broker.js';
 // request text cannot choose the host; redirects are never followed (the credential would go with
 // them); and no error or log line carries a header, a body or a token.
 
+/**
+ * One outbound request as the structured log records it: the method, the path TEMPLATE (variable
+ * parts named, never the values), the status and the role. No token, no header, no body, no query.
+ */
+export interface RequestLogEntry {
+  readonly method: string;
+  readonly path: string;
+  /** The HTTP status; `0` when no answer came (timeout, network). */
+  readonly status: number;
+  readonly auth: string;
+}
+
 export interface TransportOptions {
   readonly baseUrl: string;
   readonly broker: TokenBroker;
@@ -18,6 +30,8 @@ export interface TransportOptions {
   readonly timeoutMs?: number;
   /** One line per request: `GET /path -> status`. Never a header or a body. */
   readonly log?: (line: string) => void;
+  /** One structured entry per request that reached the network (see `RequestLogEntry`). */
+  readonly onRequest?: (e: RequestLogEntry) => void;
 }
 
 export interface GitHubResponse {
@@ -76,9 +90,16 @@ export class GitHubTransport {
       });
     } catch (e) {
       this.o.log?.(`${what} failed`);
+      this.o.onRequest?.({ method, path: verdict.row.template, status: 0, auth: verdict.row.auth });
       return err(notOkFromFetchError(e, what));
     }
     this.o.log?.(`${what} -> ${res.status}`);
+    this.o.onRequest?.({
+      method,
+      path: verdict.row.template,
+      status: res.status,
+      auth: verdict.row.auth,
+    });
     if (res.status < 200 || res.status >= 300) {
       await res.body?.cancel().catch(() => undefined);
       if (res.status === 401 && role !== null) this.o.broker.invalidate(role);

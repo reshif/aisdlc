@@ -13,6 +13,7 @@ import {
   s0SettingsFrom,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
+import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
 import {
   LoopSupervisor,
@@ -25,6 +26,7 @@ import {
 } from '@aisdlc/loops';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
+import { HttpWitness } from '@aisdlc/witness/client';
 import { FileRegisteredRepos } from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreWorkerApp } from './app.js';
@@ -115,6 +117,31 @@ export async function bootCoreWorker(
           setAlert: (k, a) => supervisor.setAlert(k, a),
         }),
       );
+    if (ledger && cfg.witness) {
+      // PLAN M8.0b: the reconciler finishes what a crashed writer left (rows the Notary signed and the
+      // record never saw), and the checkpointer has the Notary sign a tree head over the ledger and the
+      // Witness co-sign it. Neither holds a key; a failed round is a failed tick (backoff, health).
+      supervisor
+        .add(
+          reconcilerLoop({
+            pool,
+            deps: { notary: ledger.notary, notaryKey: ledger.notaryKey },
+            intervalMs: cfg.reconcileIntervalMs,
+            startDelayMs: 3_000,
+          }),
+        )
+        .add(
+          checkpointerLoop({
+            pool,
+            deps: {
+              notary: ledger.notary,
+              witness: new HttpWitness({ baseUrl: cfg.witness.url, token: cfg.witness.token }),
+            },
+            intervalMs: cfg.checkpointIntervalMs,
+            startDelayMs: 4_000,
+          }),
+        );
+    }
     if (cfg.knowledge || cfg.identity) {
       const registry = registerCoreConfig(new ConfigRegistry());
       reader = await ConfigReader.create({

@@ -148,6 +148,12 @@ export async function ensurePrrProposed(
   // default branch) fills in what the census was not given. Knowledge is not told these by anyone in
   // the deployed wiring, so its census leaves them null; they are not part of the census hash.
   const coreRepo = await getRepo(deps.pool, s0.repo);
+  const attRow = c4.payload.find((p) => p.kind === 'controls_attestation');
+  const parsedAtt =
+    attRow?.kind === 'controls_attestation'
+      ? ControlsAttestation.safeParse(attRow.attestation)
+      : null;
+  const attestedPlan = parsedAtt?.success ? parsedAtt.data.plan : 'unknown';
   const census: typeof fromKnowledge = coreRepo
     ? {
         ...fromKnowledge,
@@ -156,6 +162,8 @@ export async function ensurePrrProposed(
           visibility: fromKnowledge.repo.visibility ?? coreRepo.visibility,
           owner_type: fromKnowledge.repo.owner_type ?? coreRepo.owner_type,
           default_branch: fromKnowledge.repo.default_branch ?? coreRepo.default_branch,
+          // The code host cannot read the plan: what the PRR records is what card 4 attested.
+          plan: attestedPlan,
         },
       }
     : fromKnowledge;
@@ -177,7 +185,6 @@ export async function ensurePrrProposed(
   }
 
   // ---- card 4
-  const attRow = c4.payload.find((p) => p.kind === 'controls_attestation');
   const setRow = c4.payload.find((p) => p.kind === 'settings_decision');
   const c4Entry = await entryMeta(deps.pool, c4.card.state.steps[0]?.ledger_entry_id ?? null);
   if (attRow?.kind !== 'controls_attestation' || setRow?.kind !== 'settings_decision' || !c4Entry) {
@@ -231,6 +238,7 @@ export async function ensurePrrProposed(
       census: closeOwnerCardGaps(census, {
         owner_confirmed: c1.payload.some((p) => p.kind === 'owner_confirmation'),
         tier_signed: tierRow.kind === 'tier_decision',
+        plan_attested: attestedPlan,
         app_scoped:
           seen.data.report.app_installation.read === 'ok' &&
           seen.data.report.app_installation.repository_selection === 'selected',

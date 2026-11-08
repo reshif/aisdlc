@@ -21,7 +21,9 @@
     "check": "node scripts/check-workspace-deps.mjs && npm run typecheck && npm run lint && npm run format:check && npm run test",
     "demo:ledger": "npm run build && node scripts/demo-ledger.mjs",
     "smoke:compose": "bash platform/compose/smoke.sh",
-    "e2e:compose": "bash platform/compose/e2e.sh"
+    "e2e:compose": "bash platform/compose/e2e.sh",
+    "live:census": "bash platform/compose/live-census.sh",
+    "lint:shell": "bash -n platform/compose/smoke.sh platform/compose/e2e.sh platform/compose/live-census.sh platform/compose/verify-ledger.sh && (command -v shellcheck >/dev/null && shellcheck -x platform/compose/*.sh platform/compose/init-secrets || echo shellcheck not installed: syntax checked only)"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

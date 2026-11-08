@@ -253,6 +253,7 @@ try {
   ]) {
     await page.getByLabel(t).check();
   }
+  await page.getByLabel('Free', { exact: true }).check();
   await page.getByLabel(/^admin:/).fill('alice');
   await page.getByLabel(/^m4:/).fill('alice');
   const two = page.getByLabel(/Require a second person/);

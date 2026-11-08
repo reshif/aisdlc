@@ -226,7 +226,7 @@ services:
       NOTARY_DATABASE_URL: file:/run/secrets/db-url-notary
       NOTARY_CALLERS: >-
         {"core":{"token_ref":"file:/run/secrets/tok-core-notary","scopes":["ledger","read"]},
-        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-notary","scopes":["ledger","read"]},
+        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-notary","scopes":["ledger","read","checkpoint"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-notary","scopes":["ledger","read"]}}
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-notary-kms
@@ -247,8 +247,8 @@ services:
     mem_limit: 128m
 
   # Boundary: AR9 independence. The second signer of every checkpoint, with a database, a role and a
-  # key of its own, and no route to the Notary. Nothing calls it yet (the checkpointer is a later
-  # core-worker loop, which will mount tok-core-worker-witness).
+  # key of its own, and no route to the Notary. Its one caller is core-worker's checkpointer loop
+  # (M8.0b), which mounts tok-core-worker-witness.
   witness:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/witness/dist/main.js']
@@ -415,6 +415,11 @@ services:
       CORE_WORKER_IDENTITY_TOKEN_REF: file:/run/secrets/tok-core-worker-identity
       CORE_WORKER_NOTARY_URL: http://notary:8310
       CORE_WORKER_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-worker-notary
+      # M8.0b: the checkpointer (Notary signs a tree head, the Witness co-signs it) and the reconciler.
+      # 5 minutes by default; smoke.sh and e2e.sh set CHECKPOINT_INTERVAL_MS shorter.
+      CORE_WORKER_WITNESS_URL: http://witness:8320
+      CORE_WORKER_WITNESS_TOKEN_REF: file:/run/secrets/tok-core-worker-witness
+      CORE_WORKER_CHECKPOINT_INTERVAL_MS: ${CHECKPOINT_INTERVAL_MS:-300000}
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-core-worker-kms
       CORE_WORKER_HOST: 0.0.0.0
@@ -426,6 +431,7 @@ services:
         tok-core-worker-knowledge,
         tok-core-worker-identity,
         tok-core-worker-notary,
+        tok-core-worker-witness,
         tok-core-worker-kms,
       ]
     healthcheck:
@@ -440,6 +446,7 @@ services:
       codehost: { condition: service_healthy }
       knowledge: { condition: service_healthy }
       identity: { condition: service_healthy }
+      witness: { condition: service_healthy }
     networks: [app, data-record, kms-clients, notary-api, witness-api]
     mem_limit: 256m
 

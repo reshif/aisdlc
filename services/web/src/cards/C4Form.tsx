@@ -4,6 +4,7 @@ import {
   GATES,
   LaneValues,
   ProjectToggleGroupValues,
+  RepoPlan,
   ROLE_CATALOGUE,
   RoleSlotValues,
   T2_GATING_FLOOR,
@@ -41,6 +42,18 @@ export const SECRET_SCANNING_TEXT = {
   on: 'secret scanning and push protection are on where the plan allows',
   plan_unavailable: 'secret scanning is not available on this repository’s plan',
 } as const;
+
+/** The plan question (OB §5.5, §9.1 row 2): the App cannot read the plan, so the owner states it. */
+export const PLAN_QUESTION = 'Which GitHub plan is the owner of this repository on?';
+export const PLAN_TEXT: Readonly<Record<RepoPlan, string>> = {
+  free: 'Free',
+  pro: 'Pro',
+  team: 'Team',
+  enterprise: 'Enterprise',
+  unknown: 'I do not know (the plan stays unattested)',
+};
+export const PLAN_FREE_NOTE =
+  'A private repository on the Free plan cannot enforce rulesets (protect-main), so the factory could not write to it. A read-only Census can still be signed.';
 
 type AttestKey = keyof typeof ATTESTATION_TEXT;
 
@@ -121,6 +134,7 @@ export function C4Form({ card, csrf, me }: { card: CardDetailWire; csrf: string;
     fork_pr_approval_required: false,
     operations_md: false,
   });
+  const [plan, setPlan] = useState<RepoPlan | ''>('');
   const [scanning, setScanning] = useState<'on' | 'plan_unavailable' | ''>('');
 
   const startMap = v.role_map.current ?? v.role_map.proposed;
@@ -183,6 +197,7 @@ export function C4Form({ card, csrf, me }: { card: CardDetailWire; csrf: string;
       if (k === 'operations_md' && !needsOps) continue;
       if (!attest[k]) out.push(`Attest: ${ATTESTATION_TEXT[k]}.`);
     }
+    if (plan === '') out.push('Say which GitHub plan the owner is on (or that you do not know).');
     if (scanning === '') out.push('Say whether secret scanning and push protection are on.');
     for (const s of RoleSlotValues) {
       const val = roleMap[s];
@@ -209,6 +224,7 @@ export function C4Form({ card, csrf, me }: { card: CardDetailWire; csrf: string;
   }, [
     report,
     attest,
+    plan,
     scanning,
     roleMap,
     kills,
@@ -227,6 +243,7 @@ export function C4Form({ card, csrf, me }: { card: CardDetailWire; csrf: string;
       actions_cannot_approve_prs: attest.actions_cannot_approve_prs,
       fork_pr_approval_required: attest.fork_pr_approval_required,
       secret_scanning: scanning,
+      plan,
       ...(needsOps ? { operations_md: attest.operations_md } : {}),
     },
     role_map: roleMap,
@@ -353,6 +370,24 @@ export function C4Form({ card, csrf, me }: { card: CardDetailWire; csrf: string;
               {ATTESTATION_TEXT[k]}
             </Check>
           ))}
+        <fieldset className="options">
+          <legend>{PLAN_QUESTION}</legend>
+          {RepoPlan.options.map((k) => (
+            <label key={k} className="radio">
+              <input
+                type="radio"
+                name="github-plan"
+                value={k}
+                checked={plan === k}
+                onChange={() => setPlan(k)}
+              />{' '}
+              {PLAN_TEXT[k]}
+            </label>
+          ))}
+          <p className="muted">
+            GitHub does not tell the factory the plan, so it asks you. {PLAN_FREE_NOTE}
+          </p>
+        </fieldset>
         <fieldset className="options">
           <legend>Secret scanning</legend>
           {(['on', 'plan_unavailable'] as const).map((k) => (

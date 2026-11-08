@@ -19,6 +19,13 @@ export type RepoVisibility = z.infer<typeof RepoVisibility>;
 export const RepoOwnerType = z.enum(['user', 'org']);
 export type RepoOwnerType = z.infer<typeof RepoOwnerType>;
 
+/**
+ * The owner's GitHub plan. The App cannot read it (CF4), so the code host never says: a repo is
+ * recorded `unknown` until the owner states it on card 4 (OB §5.5). `unknown` is never an attestation.
+ */
+export const RepoPlan = z.enum(['free', 'pro', 'team', 'enterprise', 'unknown']);
+export type RepoPlan = z.infer<typeof RepoPlan>;
+
 export const Repo = z.strictObject({
   repo_id: RepoId,
   /** `owner/name` (DM `repo_ref`). */
@@ -30,7 +37,7 @@ export const Repo = z.strictObject({
   /** `null` until the code host has been read for this repo (unknown, never assumed). */
   visibility: RepoVisibility.nullable(),
   owner_type: RepoOwnerType.nullable(),
-  plan: z.string().min(1).nullable(),
+  plan: RepoPlan.nullable(),
   default_branch: z.string().min(1).nullable(),
   stack: z.string().min(1).nullable(),
   /** The highest level an M4 signed for this repo; `none` until then (M7.5 sets it). */

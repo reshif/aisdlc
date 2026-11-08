@@ -89,6 +89,7 @@ export function inputs(
         actions_cannot_approve_prs: true,
         fork_pr_approval_required: true,
         secret_scanning: 'on',
+        plan: 'free',
       },
       role_map: Object.fromEntries(
         ['admin', 'requesters', 'intent', 'design', 'g4', 'g5', 'x', 'sec', 'm4', 'kill'].map(

@@ -83,7 +83,7 @@ and its scopes stand in the way.
 | `kms-notary`, `kms-witness` (internal)   | kms-local and the Notary / the Witness                                        | the signers' route to their key: **the Notary and the Witness have no route to each other** (AR9, C33)                        |
 | `kms-clients` (internal)                 | kms-local, bff, core, core-worker, identity, knowledge, seed                  | public-key lookups, step-up signing (bff) and the fingerprint MAC (knowledge)                                                 |
 | `notary-api` (internal)                  | notary, core, core-worker, identity, seed                                     | the ledger's writers. Knowledge, codehost, bff and the dev IdP are not on it                                                  |
-| `witness-api` (internal)                 | witness, core-worker                                                          | the future checkpointer's route (nothing calls the Witness yet)                                                               |
+| `witness-api` (internal)                 | witness, core-worker                                                          | the checkpointer's route (core-worker's `checkpointer` loop is the Witness's one caller)                                      |
 | `egress`                                 | codehost                                                                      | the only way out. **Knowledge is on no network with a route out**, so it cannot reach GitHub                                  |
 
 The `fake-github` container joins the codehost's network namespace (`network_mode: service:codehost`)
@@ -130,6 +130,8 @@ token mint and `git-upload-pack` fetches, never a push.
 
 ## Using a real GitHub App
 
+(`live-census.sh` does all of this for you, see "The first live exit" below; the manual steps are:)
+
 1. Create the App with read-only permissions (contents, metadata) and install it on the repo (OB §5.5).
 2. Put its private key at `secrets/github-app.pem` (replacing the throwaway) and run
    `GITHUB_APP_ID=<id> GITHUB_INSTALLATION_ID=<id> ./init-secrets --real-github`. This rewrites `.env`
@@ -141,6 +143,12 @@ token mint and `git-upload-pack` fetches, never a push.
 The dev IdP and the seed stay: the people who may sign in are still `alice` and `bob`. Set the
 GitHub login of the person who owns the repo in `config/idp-seed.json` (alice's `logins`).
 
+The default image build installs `git` with apt only when the base image has none: `git=1:2.39.*`
+(the bookworm line, security fixes included; `--build-arg GIT_APT_VERSION=...` pins an exact version),
+`--no-install-recommends`, `ca-certificates`, the apt lists removed in the same layer, and
+`git --version` as the proof. That path cannot be run in a sandbox without apt; it runs on your machine
+at M8.5.
+
 Behind an egress allow-list or a TLS-inspecting proxy the image build may not reach apt or the npm
 registry. Build the image yourself (the Dockerfile skips apt when `git` is already there) and let
 compose use it:
@@ -151,6 +159,33 @@ docker build --network=host --secret id=extra_ca,src=/path/ca.pem --build-arg HT
   -f platform/compose/Dockerfile -t aisdlc/factory:local .
 SMOKE_SKIP_BUILD=1 npm run smoke:compose      # or: docker compose up -d --wait (it uses the image)
 ```
+
+## The ledger loops (M8.0b)
+
+core-worker runs two more loops when it has the Notary and the Witness (`CORE_WORKER_WITNESS_URL`,
+`CORE_WORKER_WITNESS_TOKEN_REF`, the `tok-core-worker-witness` secret, mounted only there and in the
+Witness): `ledger_reconciler` (every `CORE_WORKER_RECONCILE_INTERVAL_MS`, 60 s) finishes what a crashed
+writer left, and `checkpointer` (the Notary gives core-worker the `checkpoint` scope for it) (every `CORE_WORKER_CHECKPOINT_INTERVAL_MS`, **5 min**) has the Notary
+sign a tree head and the Witness co-sign it. Compose reads the interval from `CHECKPOINT_INTERVAL_MS`;
+`smoke.sh`, `e2e.sh` and the live dry run set 15 s. `verify-ledger.sh [--wait S]` waits for a checkpoint
+that covers the ledger head, then runs the bundled `verify-ledger` inside core-worker against the record
+database with the Notary's and the Witness's public keys fetched from kms-local (read-only, nothing
+written). `smoke.sh` runs it and it must pass.
+
+## The first live exit (M8.5)
+
+`live-census.sh` (`npm run live:census`) is the kit for onboarding a real repository with a real
+read-only App on your own machine: it checks the prerequisites (docker, compose, the key at
+`secrets/github-app.pem` with mode 0600, the App and installation ids), runs
+`init-secrets --real-github`, builds the image the default way, starts the stack **without** the
+`fake-github` profile and tells you where to sign in. `--wait-for-prr` waits for the readiness record;
+`--report` prints the codehost's request log to GitHub grouped by method and path template (asserting
+GETs on resources, the token mint listed apart, git fetches read-only), the installation's permissions
+(asserting `statuses` is absent), the S0 status, the PRR status, level and `record_hash`, and a
+`verify-ledger` run; `--down [--purge]` tears down. `--fake-github` is a dry run of every step but GitHub.
+The codehost writes the log as one JSON line per request (`codehost: ghreq {...}`: method, path
+template, status, role; no token, no header, no query values). The step-by-step guide for the person
+running it is `docs/runbooks/m8.5-live-census.md`.
 
 ## What local-prod stubs, and the cloud target (RV §7)
 
@@ -204,5 +239,4 @@ role map is published and identity has bound it), then card 5 after a step-up re
 bound to the record hash. The readiness record page and the ledger page then show the result.
 Screenshots (deviceScaleFactor 2) are in `docs/screenshots/`.
 
-Not done yet and visible here: the Witness has no caller until the checkpointer loop exists, and the
-cards C2 and C3 (Light and Full) have no Decide screen because core has no card for them yet.
+Not done yet and visible here: the cards C2 and C3 (Light and Full) have no Decide screen because core has no card for them yet.

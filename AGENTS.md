@@ -15,6 +15,8 @@ npm run build          # tsc emit (libraries) and esbuild bundles: dist/main.js 
 npm run demo:ledger    # M2 exit demo: real services as processes, ledger, checkpoint, verify, tamper
 npm run smoke:compose  # M8.0: the local-prod compose stack (fake GitHub) up, checked, down; needs Docker
 npm run e2e:compose    # M8.1-M8.4: the same stack, a real Chromium onboards a repo end to end: cards 1, 4, 5, step-up, PRR, ledger (Playwright)
+npm run live:census   # M8.5: onboard a real repo with your own read-only GitHub App (platform/compose/live-census.sh; --fake-github is a dry run); docs/runbooks/m8.5-live-census.md
+npm run lint:shell     # bash -n on the compose scripts, shellcheck when installed
 npx vitest run --project kernel   # one package
 ```
 

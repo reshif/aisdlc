@@ -111,6 +111,7 @@ export const SCHEMAS = {
   OnboardingLevel: entities.OnboardingLevel,
   RepoVisibility: entities.RepoVisibility,
   RepoOwnerType: entities.RepoOwnerType,
+  RepoPlan: entities.RepoPlan,
   Repo: entities.Repo,
   Project: entities.Project,
   RoleSlot: entities.RoleSlot,

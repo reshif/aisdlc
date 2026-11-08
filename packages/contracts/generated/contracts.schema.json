@@ -1323,6 +1323,16 @@
                 "plan_unavailable"
               ]
             },
+            "plan": {
+              "type": "string",
+              "enum": [
+                "free",
+                "pro",
+                "team",
+                "enterprise",
+                "unknown"
+              ]
+            },
             "operations_md": {
               "type": "boolean",
               "const": true
@@ -1334,7 +1344,8 @@
             "github_token_readonly",
             "actions_cannot_approve_prs",
             "fork_pr_approval_required",
-            "secret_scanning"
+            "secret_scanning",
+            "plan"
           ],
           "additionalProperties": false
         },
@@ -2052,6 +2063,16 @@
                           "plan_unavailable"
                         ]
                       },
+                      "plan": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "pro",
+                          "team",
+                          "enterprise",
+                          "unknown"
+                        ]
+                      },
                       "operations_md": {
                         "type": "boolean",
                         "const": true
@@ -2063,7 +2084,8 @@
                       "github_token_readonly",
                       "actions_cannot_approve_prs",
                       "fork_pr_approval_required",
-                      "secret_scanning"
+                      "secret_scanning",
+                      "plan"
                     ],
                     "additionalProperties": false
                   }
@@ -3578,6 +3600,16 @@
                     "plan_unavailable"
                   ]
                 },
+                "plan": {
+                  "type": "string",
+                  "enum": [
+                    "free",
+                    "pro",
+                    "team",
+                    "enterprise",
+                    "unknown"
+                  ]
+                },
                 "operations_md": {
                   "type": "boolean",
                   "const": true
@@ -3589,7 +3621,8 @@
                 "github_token_readonly",
                 "actions_cannot_approve_prs",
                 "fork_pr_approval_required",
-                "secret_scanning"
+                "secret_scanning",
+                "plan"
               ],
               "additionalProperties": false
             }
@@ -4235,6 +4268,16 @@
                           "plan_unavailable"
                         ]
                       },
+                      "plan": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "pro",
+                          "team",
+                          "enterprise",
+                          "unknown"
+                        ]
+                      },
                       "operations_md": {
                         "type": "boolean",
                         "const": true
@@ -4246,7 +4289,8 @@
                       "github_token_readonly",
                       "actions_cannot_approve_prs",
                       "fork_pr_approval_required",
-                      "secret_scanning"
+                      "secret_scanning",
+                      "plan"
                     ],
                     "additionalProperties": false
                   }
@@ -4931,7 +4975,13 @@
                   "anyOf": [
                     {
                       "type": "string",
-                      "minLength": 1
+                      "enum": [
+                        "free",
+                        "pro",
+                        "team",
+                        "enterprise",
+                        "unknown"
+                      ]
                     },
                     {
                       "type": "null"
@@ -6433,7 +6483,13 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "minLength": 1
+                  "enum": [
+                    "free",
+                    "pro",
+                    "team",
+                    "enterprise",
+                    "unknown"
+                  ]
                 },
                 {
                   "type": "null"
@@ -7291,7 +7347,13 @@
                   "anyOf": [
                     {
                       "type": "string",
-                      "minLength": 1
+                      "enum": [
+                        "free",
+                        "pro",
+                        "team",
+                        "enterprise",
+                        "unknown"
+                      ]
                     },
                     {
                       "type": "null"
@@ -9466,7 +9528,13 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "minLength": 1
+                  "enum": [
+                    "free",
+                    "pro",
+                    "team",
+                    "enterprise",
+                    "unknown"
+                  ]
                 },
                 {
                   "type": "null"
@@ -10976,7 +11044,13 @@
           "anyOf": [
             {
               "type": "string",
-              "minLength": 1
+              "enum": [
+                "free",
+                "pro",
+                "team",
+                "enterprise",
+                "unknown"
+              ]
             },
             {
               "type": "null"
@@ -12572,6 +12646,16 @@
             "plan_unavailable"
           ]
         },
+        "plan": {
+          "type": "string",
+          "enum": [
+            "free",
+            "pro",
+            "team",
+            "enterprise",
+            "unknown"
+          ]
+        },
         "operations_md": {
           "type": "boolean",
           "const": true
@@ -12583,7 +12667,8 @@
         "github_token_readonly",
         "actions_cannot_approve_prs",
         "fork_pr_approval_required",
-        "secret_scanning"
+        "secret_scanning",
+        "plan"
       ],
       "additionalProperties": false
     },
@@ -29254,7 +29339,13 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "minLength": 1
+                    "enum": [
+                      "free",
+                      "pro",
+                      "team",
+                      "enterprise",
+                      "unknown"
+                    ]
                   },
                   {
                     "type": "null"
@@ -29743,14 +29834,13 @@
                           ]
                         },
                         "plan": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "minLength": 1
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": "string",
+                          "enum": [
+                            "free",
+                            "pro",
+                            "team",
+                            "enterprise",
+                            "unknown"
                           ]
                         },
                         "default_branch": {
@@ -31453,14 +31543,13 @@
                                 ]
                               },
                               "plan": {
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
+                                "type": "string",
+                                "enum": [
+                                  "free",
+                                  "pro",
+                                  "team",
+                                  "enterprise",
+                                  "unknown"
                                 ]
                               },
                               "default_branch": {
@@ -33100,14 +33189,13 @@
               ]
             },
             "plan": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "minLength": 1
-                },
-                {
-                  "type": "null"
-                }
+              "type": "string",
+              "enum": [
+                "free",
+                "pro",
+                "team",
+                "enterprise",
+                "unknown"
               ]
             },
             "default_branch": {
@@ -35892,7 +35980,13 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "minLength": 1
+                    "enum": [
+                      "free",
+                      "pro",
+                      "team",
+                      "enterprise",
+                      "unknown"
+                    ]
                   },
                   {
                     "type": "null"
@@ -37131,14 +37225,13 @@
                   ]
                 },
                 "plan": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    {
-                      "type": "null"
-                    }
+                  "type": "string",
+                  "enum": [
+                    "free",
+                    "pro",
+                    "team",
+                    "enterprise",
+                    "unknown"
                   ]
                 },
                 "default_branch": {
@@ -38677,14 +38770,13 @@
           ]
         },
         "plan": {
-          "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
+          "type": "string",
+          "enum": [
+            "free",
+            "pro",
+            "team",
+            "enterprise",
+            "unknown"
           ]
         },
         "default_branch": {
@@ -39282,14 +39374,13 @@
                   ]
                 },
                 "plan": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    {
-                      "type": "null"
-                    }
+                  "type": "string",
+                  "enum": [
+                    "free",
+                    "pro",
+                    "team",
+                    "enterprise",
+                    "unknown"
                   ]
                 },
                 "default_branch": {
@@ -41193,7 +41284,13 @@
           "anyOf": [
             {
               "type": "string",
-              "minLength": 1
+              "enum": [
+                "free",
+                "pro",
+                "team",
+                "enterprise",
+                "unknown"
+              ]
             },
             {
               "type": "null"
@@ -41343,6 +41440,16 @@
       "enum": [
         "user",
         "org"
+      ]
+    },
+    "RepoPlan": {
+      "type": "string",
+      "enum": [
+        "free",
+        "pro",
+        "team",
+        "enterprise",
+        "unknown"
       ]
     },
     "RepoRegisteredPayload": {
