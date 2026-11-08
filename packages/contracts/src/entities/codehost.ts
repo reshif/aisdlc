@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { GitSha, IsoDateTime, PrincipalId, ProjectId } from './ids.js';
+import { RepoOwnerType } from './projects.js';
 
 // The code host (PLAN M5; DM §3.6 and §4 `CodeHostPort`; OB §5.5 and §6.5). One vocabulary for the
 // port in `@aisdlc/ports`, the fake, the GitHub App adapter and the `codehost` service: the
@@ -166,6 +167,8 @@ export const InstallationRepo = z.strictObject({
   default_branch: z.string().min(1),
   private: z.boolean(),
   archived: z.boolean(),
+  /** Who owns the repo (GitHub's `owner.type`); absent when the host does not say. Tier and PRR need it. */
+  owner_type: RepoOwnerType.optional(),
 });
 export type InstallationRepo = z.infer<typeof InstallationRepo>;
 

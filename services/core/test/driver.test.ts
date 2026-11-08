@@ -171,6 +171,7 @@ describe('0.1 precondition: the App is installed on the repo (DEC-2)', () => {
     // What the code host said of the repo is on the Repo.
     expect(await getRepo(s.record.pool, c.repo)).toMatchObject({
       visibility: 'private',
+      owner_type: 'org',
       default_branch: 'main',
     });
   });

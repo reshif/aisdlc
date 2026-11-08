@@ -6,6 +6,7 @@ import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
+import { BootstrapPdpEntities } from '@aisdlc/onboarding';
 import { HttpCodeHostReads } from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreApp } from './app.js';
@@ -69,7 +70,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
     await reader.start();
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
-      entities: new IdentityPdpEntities({ pool }),
+      entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
       log: new RecordDecisionLog({ pool }),
       onError: (e) => console.error(`core: ${e instanceof Error ? e.message : String(e)}`),
     });

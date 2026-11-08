@@ -40,6 +40,7 @@
     "@aisdlc/ledger": "0.0.0",
     "@aisdlc/loops": "0.0.0",
     "@aisdlc/notary": "0.0.0",
+    "@aisdlc/onboarding": "0.0.0",
     "@aisdlc/pdp": "0.0.0",
     "@aisdlc/ports": "0.0.0",
     "@aisdlc/record": "0.0.0",

@@ -332,14 +332,18 @@ async function step01(d: DriverDeps, s0: S0State): Promise<DriveAction> {
       }
       const repo = await j.repo(cur.repo);
       const visibility = found.private ? 'private' : 'public';
+      // The code host says who owns the repo when it can; what it does not say stays as it was.
+      const ownerType = found.owner_type ?? repo?.owner_type ?? null;
       if (
         repo &&
-        (repo.visibility !== visibility || repo.default_branch !== found.default_branch)
+        (repo.visibility !== visibility ||
+          repo.default_branch !== found.default_branch ||
+          repo.owner_type !== ownerType)
       ) {
         return j.emit(
           repoStream(cur.repo),
           REPO_EVENT.observed,
-          { visibility, owner_type: repo.owner_type, default_branch: found.default_branch },
+          { visibility, owner_type: ownerType, default_branch: found.default_branch },
           SYSTEM_ACTOR,
         );
       }

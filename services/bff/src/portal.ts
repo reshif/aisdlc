@@ -1,12 +1,21 @@
 import {
   CardDecideRequest,
   CardEvidenceRequest,
+  CoreInboxItem,
+  LedgerAuditView,
   OnboardRequest,
   OnboardingCardSummary,
   ProjectId,
+  ProjectPrrView,
   ProjectSummary,
+  RevisionDecideRequest,
+  RevisionEvidenceRequest,
   S0Overview,
+  S0Revision,
+  SettingsRevisionView,
   pdpResource,
+  type PortalInbox,
+  type PortalInboxItem,
   type ActionId,
   type PdpResource,
   type PortalCardSummary,
@@ -35,6 +44,15 @@ import type { CoreClient } from './core-client.js';
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
 //   POST /api/cards/:id/prepare|evidence|decide|recheck                               (card.decide)
+//   GET  /api/inbox                       what waits for the person, and what they only see
+//   GET  /api/s0/:id/revision             the settings revision card 4 proposed       (project.view)
+//   GET  /api/revisions/:gate             the same, by its gate                       (project.view)
+//   POST /api/revisions/:gate/prepare|evidence|decide|publish                         (gate.decide on the M1 gate)
+//   GET  /api/projects/:id/prr            the project's readiness records             (project.view)
+//   GET  /api/projects/:id/ledger         the ledger entries of the project           (audit.read)
+//
+// `may_decide` is the PDP's yes AND the person holding the slot core says decides (a card 5 also
+// needs the `m4` slot): the button is shown only when both hold; deciding asks core again.
 
 export interface PortalDeps {
   readonly app: FastifyInstance;
@@ -42,6 +60,8 @@ export interface PortalDeps {
   readonly core: CoreClient | undefined;
   /** The signed-in principal of an authenticated request (the session's, never the body's). */
   readonly principalOf: (req: FastifyRequest) => string;
+  /** Display names of principals, from the directory; an unknown principal is left out. */
+  readonly namesOf?: (ids: readonly string[]) => Promise<Record<string, string>>;
 }
 
 const uuid = z.uuid();
@@ -50,6 +70,8 @@ const uuid = z.uuid();
 export const PortalOnboardBody = OnboardRequest.omit({ on_behalf_of: true });
 export const PortalEvidenceBody = CardEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalDecideBody = CardDecideRequest.omit({ on_behalf_of: true });
+export const PortalRevisionEvidenceBody = RevisionEvidenceRequest.omit({ on_behalf_of: true });
+export const PortalRevisionDecideBody = RevisionDecideRequest.omit({ on_behalf_of: true });
 const EmptyBody = z.strictObject({});
 
 export function registerPortalRoutes(d: PortalDeps): void {
@@ -98,6 +120,14 @@ export function registerPortalRoutes(d: PortalDeps): void {
       return null;
     }
   }
+
+  const names = async (ids: readonly string[]): Promise<Record<string, string>> => {
+    try {
+      return (await d.namesOf?.(ids)) ?? {};
+    } catch {
+      return {};
+    }
+  };
 
   const core = (reply: FastifyReply): CoreClient | null => {
     if (d.core) return d.core;
@@ -230,13 +260,26 @@ export function registerPortalRoutes(d: PortalDeps): void {
     }
     const got = upstream<Record<string, unknown>>(reply, await c.call('GET', `/v1/cards/${id}`));
     if (!got) return;
+    const holders = (key: string): readonly string[] | null => {
+      const x = got.value[key] as { holders?: unknown } | null | undefined;
+      return Array.isArray(x?.holders) ? (x.holders as string[]) : null;
+    };
+    const slotHolders = holders('deciders');
+    const m4Holders = holders('m4_deciders');
+    const pdpYes = await allowed(
+      who,
+      'card.decide',
+      pdpResource.card(head.value.project_id, head.value.card_id),
+    );
+    const mine =
+      pdpYes &&
+      (slotHolders?.includes(who) ?? false) &&
+      (head.value.card !== 'C5' || (m4Holders?.includes(who) ?? false));
+    const ids = [...new Set([...(slotHolders ?? []), ...(m4Holders ?? []), who])];
     return {
       ...got.value,
-      may_decide: await allowed(
-        who,
-        'card.decide',
-        pdpResource.card(head.value.project_id, head.value.card_id),
-      ),
+      may_decide: mine,
+      principal_names: await names(ids),
     };
   });
 
@@ -275,4 +318,171 @@ export function registerPortalRoutes(d: PortalDeps): void {
     cardMove(req, reply, PortalDecideBody, 'decide'),
   );
   app.post('/api/cards/:id/recheck', (req, reply) => cardMove(req, reply, EmptyBody, 'recheck'));
+
+  // ------------------------------------------------------------ inbox (M8.3)
+
+  /** The PDP's `project.view`, then what the person may do with the item and who does. */
+  app.get('/api/inbox', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const who = d.principalOf(req);
+    const got = upstream(reply, await c.call('GET', '/v1/inbox'), (v) =>
+      z.array(CoreInboxItem).parse(v),
+    );
+    if (!got) return;
+    const items: Array<Omit<PortalInboxItem, 'deciders'>> = [];
+    for (const item of got.value) {
+      if (!(await allowed(who, 'project.view', pdpResource.project(item.project_id)))) continue;
+      const pdpYes =
+        item.kind === 'onboarding_card'
+          ? await allowed(who, 'card.decide', pdpResource.card(item.project_id, item.id))
+          : await allowed(who, 'gate.decide', pdpResource.gate(item.project_id, item.id, 'M1'));
+      items.push({ ...item, may_decide: pdpYes && item.holders.includes(who as never) });
+    }
+    const nameOf = await names([...new Set(items.flatMap((i) => i.holders))]);
+    const full: PortalInboxItem[] = items.map((i) => ({
+      ...i,
+      deciders: i.holders.map((p) => ({ principal_id: p, display_name: nameOf[p] ?? p })),
+    }));
+    const out: PortalInbox = {
+      decide: full.filter((i) => i.may_decide),
+      view: full.filter((i) => !i.may_decide),
+    };
+    return out;
+  });
+
+  // ------------------------------------------------------------ settings revision (card 4's M1 gate)
+
+  async function revisionMay(who: string, v: SettingsRevisionView): Promise<boolean> {
+    return (
+      v.status === 'pending' &&
+      v.deciders.holders.includes(who as never) &&
+      (await allowed(who, 'gate.decide', pdpResource.gate(v.project_id, v.gate_instance_id, 'M1')))
+    );
+  }
+
+  app.get('/api/s0/:id/revision', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    if (!(await viewableS0(req, reply, c, id))) return;
+    const got = upstream(reply, await c.call('GET', `/v1/s0/${id}/revision`), (v) =>
+      S0Revision.parse(v),
+    );
+    if (!got) return;
+    const rev = got.value.revision;
+    return {
+      revision: rev
+        ? {
+            ...rev,
+            may_decide: await revisionMay(d.principalOf(req), rev),
+            principal_names: await names(rev.deciders.holders),
+          }
+        : null,
+    };
+  });
+
+  app.get('/api/revisions/:gate', async (req, reply) => {
+    const c = core(reply);
+    const gate = (req.params as { gate?: string }).gate;
+    if (!c) return;
+    if (!uuid.safeParse(gate).success) return sendError(reply, 400, 'invalid_input', 'bad id');
+    const got = upstream(reply, await c.call('GET', `/v1/revisions/${gate}`), (v) =>
+      SettingsRevisionView.parse(v),
+    );
+    if (!got) return;
+    const who = d.principalOf(req);
+    if (!(await allowed(who, 'project.view', pdpResource.project(got.value.project_id)))) {
+      return deny(reply, 'project.view');
+    }
+    return {
+      ...got.value,
+      may_decide: await revisionMay(who, got.value),
+      principal_names: await names(got.value.deciders.holders),
+    };
+  });
+
+  /** `gate.decide` on the M1 gate of the revision's project, then core with the principal from the session. */
+  async function revisionMove<S extends z.ZodType<object>>(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    schema: S,
+    verb: 'prepare' | 'evidence' | 'decide' | 'publish',
+  ) {
+    const c = core(reply);
+    const gate = (req.params as { gate?: string }).gate;
+    if (!c) return;
+    if (!uuid.safeParse(gate).success) return sendError(reply, 400, 'invalid_input', 'bad id');
+    const body = schema.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    const who = d.principalOf(req);
+    const head = upstream(reply, await c.call('GET', `/v1/revisions/${gate}`), (v) =>
+      SettingsRevisionView.parse(v),
+    );
+    if (!head) return;
+    if (
+      !(await allowed(
+        who,
+        'gate.decide',
+        pdpResource.gate(head.value.project_id, gate as string, 'M1'),
+      ))
+    ) {
+      return deny(reply, 'gate.decide');
+    }
+    const got = upstream(
+      reply,
+      await c.call('POST', `/v1/revisions/${gate}/${verb}`, { ...body.data, on_behalf_of: who }),
+    );
+    return got?.value;
+  }
+
+  app.post('/api/revisions/:gate/prepare', (req, reply) =>
+    revisionMove(req, reply, EmptyBody, 'prepare'),
+  );
+  app.post('/api/revisions/:gate/evidence', (req, reply) =>
+    revisionMove(req, reply, PortalRevisionEvidenceBody, 'evidence'),
+  );
+  app.post('/api/revisions/:gate/decide', (req, reply) =>
+    revisionMove(req, reply, PortalRevisionDecideBody, 'decide'),
+  );
+  app.post('/api/revisions/:gate/publish', (req, reply) =>
+    revisionMove(req, reply, EmptyBody, 'publish'),
+  );
+
+  // ------------------------------------------------------------ readiness record and ledger (M8.4)
+
+  app.get('/api/projects/:id/prr', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const id = ProjectId.safeParse((req.params as { id: string }).id);
+    if (!id.success) return sendError(reply, 400, 'invalid_input', 'bad project id');
+    if (!(await allowed(d.principalOf(req), 'project.view', pdpResource.project(id.data)))) {
+      return deny(reply, 'project.view');
+    }
+    return upstream(reply, await c.call('GET', `/v1/projects/${id.data}/prr`), (v) =>
+      ProjectPrrView.parse(v),
+    )?.value;
+  });
+
+  app.get('/api/projects/:id/ledger', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const id = ProjectId.safeParse((req.params as { id: string }).id);
+    if (!id.success) return sendError(reply, 400, 'invalid_input', 'bad project id');
+    const q = z
+      .strictObject({
+        s0: z.uuid().optional(),
+        limit: z.coerce.number().int().min(1).max(2000).optional(),
+      })
+      .safeParse(req.query ?? {});
+    if (!q.success) return sendError(reply, 400, 'invalid_input', 'bad query');
+    if (!(await allowed(d.principalOf(req), 'audit.read', pdpResource.project(id.data)))) {
+      return deny(reply, 'audit.read');
+    }
+    const qs = new URLSearchParams();
+    if (q.data.s0) qs.set('s0', q.data.s0);
+    if (q.data.limit) qs.set('limit', String(q.data.limit));
+    const path = `/v1/projects/${id.data}/ledger${qs.size > 0 ? `?${qs}` : ''}`;
+    return upstream(reply, await c.call('GET', path), (v) => LedgerAuditView.parse(v))?.value;
+  });
 }

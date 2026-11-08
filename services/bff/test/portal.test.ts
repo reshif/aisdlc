@@ -1,7 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { bindProject, grantFleetRole } from '@aisdlc/identity/testing';
 import { Browser, signIn, startBffStack, type BffStack } from '../src/testing.js';
-import { CARD_ID, CORE_TOKEN, S0_ID, startFakeCore, type FakeCore } from './portal-fixtures.js';
+import {
+  CARD_ID,
+  CORE_TOKEN,
+  GATE_ID,
+  S0_ID,
+  startFakeCore,
+  type FakeCore,
+} from './portal-fixtures.js';
 
 // The portal's /api routes (PLAN M8.1): every one needs a session, the CSRF token on a write, the
 // PDP's yes for the signed-in principal, and sends core the bff's token and the principal from the
@@ -153,6 +160,74 @@ const CASES: RouteCase[] = [
     denied: 'dora',
     forwards: `POST /v1/cards/${CARD_ID}/recheck`,
   },
+  {
+    name: 'settings revision of a record',
+    method: 'GET',
+    path: `/api/s0/${S0_ID}/revision`,
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `GET /v1/s0/${S0_ID}/revision`,
+  },
+  {
+    name: 'settings revision by gate',
+    method: 'GET',
+    path: `/api/revisions/${GATE_ID}`,
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `GET /v1/revisions/${GATE_ID}`,
+  },
+  {
+    name: 'revision prepare',
+    method: 'POST',
+    path: `/api/revisions/${GATE_ID}/prepare`,
+    body: {},
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/revisions/${GATE_ID}/prepare`,
+  },
+  {
+    name: 'revision evidence',
+    method: 'POST',
+    path: `/api/revisions/${GATE_ID}/evidence`,
+    body: { nonce: 'n', evidence_hash: 'b'.repeat(64) },
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/revisions/${GATE_ID}/evidence`,
+  },
+  {
+    name: 'revision decide',
+    method: 'POST',
+    path: `/api/revisions/${GATE_ID}/decide`,
+    body: { nonce: 'n', decision: 'approve' },
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/revisions/${GATE_ID}/decide`,
+  },
+  {
+    name: 'revision publish',
+    method: 'POST',
+    path: `/api/revisions/${GATE_ID}/publish`,
+    body: {},
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/revisions/${GATE_ID}/publish`,
+  },
+  {
+    name: 'readiness records of a project',
+    method: 'GET',
+    path: '/api/projects/acme/prr',
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: 'GET /v1/projects/acme/prr',
+  },
+  {
+    name: 'ledger entries of a project',
+    method: 'GET',
+    path: '/api/projects/acme/ledger',
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: 'GET /v1/projects/acme/ledger',
+  },
 ];
 
 describe.each(CASES)('$name ($method $path)', (c) => {
@@ -180,7 +255,7 @@ describe.each(CASES)('$name ($method $path)', (c) => {
     // Whatever was read to find the project, nothing that writes or shows the thing was called.
     expect(core.seen.filter((x) => x.method === 'POST')).toHaveLength(0);
     // (The S0 overview is itself the read that finds the project; its body is not passed on.)
-    if (c.name !== 'S0 overview') {
+    if (c.name !== 'S0 overview' && c.name !== 'settings revision by gate') {
       expect(core.seen.map((x) => `${x.method} ${x.path}`)).not.toContain(c.forwards);
     }
   });
@@ -310,5 +385,116 @@ describe('failures of core, and bad input', () => {
     } finally {
       await bare.stop();
     }
+  });
+});
+
+describe('the inbox', () => {
+  it('unauthenticated: 401 and core is never called', async () => {
+    expect((await api(null, 'GET', '/api/inbox')).status).toBe(401);
+    expect(core.seen).toHaveLength(0);
+  });
+
+  it('splits what the person decides from what they only see, with who decides', async () => {
+    const alice = await api('alice', 'GET', '/api/inbox');
+    expect(alice.status).toBe(200);
+    expect(alice.json.decide.map((i: Json) => `${i.kind}:${i.label}`)).toEqual([
+      'onboarding_card:C1',
+      'settings_revision:null',
+      'onboarding_card:C4',
+    ]);
+    expect(alice.json.view).toEqual([]); // the secret project is not hers to see at all
+    expect(alice.json.decide[0].deciders).toEqual([
+      { principal_id: 'alice', display_name: 'Person alice' },
+    ]);
+    for (const x of core.seen) expect(x.headers.cookie).toBeUndefined();
+  });
+
+  it('a person who sees the project but does not hold the slot sees the item as not theirs', async () => {
+    const bob = await api('bob', 'GET', '/api/inbox');
+    expect(bob.json.decide).toEqual([]);
+    expect(bob.json.view.map((i: Json) => i.label)).toEqual(['C1', null, 'C4']);
+    expect(bob.json.view[0].deciders[0].display_name).toBe('Person alice');
+    expect(bob.json.view.every((i: Json) => i.may_decide === false)).toBe(true);
+    // a bare factory admin sees both projects and decides neither: no project role, so the PDP says no
+    const root = await api('root', 'GET', '/api/inbox');
+    expect(root.json.view).toHaveLength(4);
+    expect(root.json.decide).toEqual([]);
+  });
+
+  it('a stranger sees nothing; a core failure is a 502; garbage from core is refused', async () => {
+    expect((await api('dora', 'GET', '/api/inbox')).json).toEqual({ decide: [], view: [] });
+    core.override.set('GET /v1/inbox', { status: 503, json: { error: { message: 'down' } } });
+    expect((await api('alice', 'GET', '/api/inbox')).status).toBe(502);
+    core.override.set('GET /v1/inbox', { status: 200, json: [{ nope: true }] });
+    expect((await api('alice', 'GET', '/api/inbox')).status).toBe(502);
+  });
+});
+
+describe('may_decide on a card follows the slot holders, and a card 5 also the m4 slot', () => {
+  it('is false for the project admin when core says another person decides', async () => {
+    core.override.set(`GET /v1/cards/${CARD_ID}`, {
+      status: 200,
+      json: {
+        summary: { card_id: CARD_ID },
+        view: {},
+        deciders: { holders: ['bob'] },
+        m4_deciders: null,
+      },
+    });
+    const r = await api('alice', 'GET', `/api/cards/${CARD_ID}`);
+    expect(r.json.may_decide).toBe(false);
+    expect(r.json.principal_names).toMatchObject({ bob: 'Person bob', alice: 'Person alice' });
+  });
+});
+
+describe('the settings revision', () => {
+  it('may_decide only for a holder of the admin slot while it is pending', async () => {
+    const a = await api('alice', 'GET', `/api/revisions/${GATE_ID}`);
+    expect(a.json).toMatchObject({
+      gate_instance_id: GATE_ID,
+      status: 'pending',
+      may_decide: true,
+    });
+    expect(a.json.principal_names.alice).toBe('Person alice');
+    const b = await api('bob', 'GET', `/api/revisions/${GATE_ID}`);
+    expect(b.json.may_decide).toBe(false);
+  });
+
+  it('no revision on a record is null; a bad gate id is 400 before core is called', async () => {
+    core.override.set(`GET /v1/s0/${S0_ID}/revision`, { status: 200, json: { revision: null } });
+    expect((await api('alice', 'GET', `/api/s0/${S0_ID}/revision`)).json).toEqual({
+      revision: null,
+    });
+    core.seen.length = 0;
+    expect((await api('alice', 'GET', '/api/revisions/not-a-uuid')).status).toBe(400);
+    expect(
+      (
+        await api('alice', 'POST', '/api/revisions/not-a-uuid/decide', {
+          nonce: 'n',
+          decision: 'approve',
+        })
+      ).status,
+    ).toBe(400);
+    expect(core.seen).toHaveLength(0);
+  });
+
+  it('a decision that is not a vote is refused before core', async () => {
+    const r = await api('alice', 'POST', `/api/revisions/${GATE_ID}/decide`, {
+      nonce: 'n',
+      decision: 'maybe',
+    });
+    expect(r.status).toBe(400);
+    expect(core.seen.filter((x) => x.method === 'POST')).toHaveLength(0);
+  });
+});
+
+describe('the ledger view', () => {
+  it('needs audit.read: a viewer of the project may not read it, an admin may; the s0 filter is passed on', async () => {
+    expect((await api('bob', 'GET', '/api/projects/acme/ledger')).status).toBe(403);
+    const ok = await api('alice', 'GET', `/api/projects/acme/ledger?s0=${S0_ID}&limit=50`);
+    expect(ok.status).toBe(200);
+    expect(core.seen.map((x) => x.path)).toContain(`/v1/projects/acme/ledger?s0=${S0_ID}&limit=50`);
+    expect((await api('alice', 'GET', '/api/projects/acme/ledger?s0=nope')).status).toBe(400);
+    expect((await api('alice', 'GET', '/api/projects/acme/ledger?x=1')).status).toBe(400);
   });
 });

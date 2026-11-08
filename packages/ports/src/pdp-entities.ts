@@ -1,5 +1,6 @@
 import {
   scopeCovers,
+  type PdpResource,
   type PrincipalId,
   type PrincipalKind,
   type PrincipalStatus,
@@ -39,6 +40,16 @@ export interface PdpPrincipalFacts {
   readonly bindings: readonly PdpBindingFact[];
 }
 
+/**
+ * What is being asked, for an entity source that grants narrowly: the bootstrap grant holds the
+ * project admin role only for a few actions on a few resources (`BootstrapPdpEntities`). Identity's
+ * own source ignores it: a binding covers every action its role holds.
+ */
+export interface PdpAsk {
+  readonly action: string;
+  readonly resource: PdpResource;
+}
+
 export interface PdpEntityPort {
   /**
    * The principal and its in-force bindings that cover any of `scopes` at `at`. `null`: identity
@@ -48,6 +59,7 @@ export interface PdpEntityPort {
     principal: PrincipalId,
     scopes: readonly Scope[],
     at: Date,
+    ask?: PdpAsk,
   ): Promise<Result<PdpPrincipalFacts | null, PdpEntityError>>;
 }
 

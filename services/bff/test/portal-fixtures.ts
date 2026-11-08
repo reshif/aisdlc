@@ -1,9 +1,16 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import {
+  CoreInboxItem,
+  DEFAULT_GATING_PROFILE,
+  DEFAULT_TWO_PERSON,
+  EMPTY_ROLE_MAP,
+  LedgerAuditView,
   OnboardingCardSummary,
   ProjectDetail,
+  ProjectPrrView,
   ProjectSummary,
   S0Overview,
+  SettingsRevisionView,
   type OnboardingStepId,
   type OnboardingStepState,
 } from '@aisdlc/contracts';
@@ -15,6 +22,7 @@ import { HttpCoreClient } from '../src/core-client.js';
 export const CORE_TOKEN = 'bff-at-core-'.padEnd(32, 'x');
 export const S0_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe54';
 export const CARD_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe99';
+export const GATE_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77';
 const NOW = '2026-11-08T10:00:00.000Z';
 
 const STEPS: OnboardingStepId[] = ['0.1', '0.2', '0.3', '0.4', '0.5'];
@@ -100,6 +108,74 @@ export function cardSummary(projectId: string) {
   };
 }
 
+const deciders = (holders: string[]) => ({
+  slot: 'admin',
+  holders,
+  single_operator: holders.length === 1,
+  sod_waiver: holders.length === 1,
+  tier: 'T0',
+  t2: false,
+  can_decide: holders.length > 0,
+  error: null,
+});
+
+export function revisionView(projectId: string, holders = ['alice']) {
+  return {
+    gate_instance_id: GATE_ID,
+    project_id: projectId,
+    s0_id: S0_ID,
+    rev_hash: 'c'.repeat(64),
+    proposed_by: 'alice',
+    status: 'pending',
+    outcome: null,
+    published: false,
+    settings: {
+      role_map: EMPTY_ROLE_MAP,
+      two_person: DEFAULT_TWO_PERSON,
+      gating_profile: DEFAULT_GATING_PROFILE,
+      kill_delegations: [],
+    },
+    evidence_hash: 'd'.repeat(64),
+    deciders: deciders(holders),
+  };
+}
+
+export function inboxItems() {
+  const card = (projectId: string, holders: string[], over: object = {}) => ({
+    kind: 'onboarding_card',
+    id: CARD_ID,
+    project_id: projectId,
+    s0_id: S0_ID,
+    label: 'C1',
+    slot: 'admin',
+    opened_at: NOW,
+    sla_due_at: '2026-11-09T10:00:00.000Z',
+    overdue: false,
+    escalated: false,
+    holders,
+    ...over,
+  });
+  return [
+    card('acme', ['alice']),
+    card('secret', ['root']),
+    {
+      kind: 'settings_revision',
+      id: GATE_ID,
+      project_id: 'acme',
+      s0_id: S0_ID,
+      label: null,
+      slot: 'admin',
+      opened_at: NOW,
+      sla_due_at: null,
+      overdue: false,
+      escalated: false,
+      holders: ['alice'],
+    },
+    // A card of acme that bob (an intent approver) can see but alice alone decides.
+    card('acme', ['alice'], { label: 'C4', id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe88' }),
+  ];
+}
+
 export function summary(projectId: string) {
   return {
     project: project(projectId),
@@ -125,6 +201,14 @@ ProjectDetail.parse({
 });
 S0Overview.parse(s0Overview('acme'));
 OnboardingCardSummary.parse(cardSummary('acme'));
+inboxItems().forEach((i) => CoreInboxItem.parse(i));
+SettingsRevisionView.parse(revisionView('acme'));
+const prrFixture = (id: string) => ({
+  project_id: id,
+  repos: [{ repo: 'acme/web', governing: null, proposed: null }],
+});
+ProjectPrrView.parse(prrFixture('acme'));
+LedgerAuditView.parse({ project_id: 'acme', s0_id: null, entries: [], head: null });
 
 export interface Seen {
   readonly method: string;
@@ -186,10 +270,32 @@ export async function startFakeCore(): Promise<FakeCore> {
         return reply(200, cardSummary(p));
       }
       if (method === 'GET' && path === `/v1/cards/${CARD_ID}`) {
-        return reply(200, { summary: cardSummary(p), view: { card: 'C1' }, deciders: {} });
+        return reply(200, {
+          summary: cardSummary(p),
+          view: { card: 'C1' },
+          deciders: deciders(['alice']),
+          m4_deciders: null,
+        });
       }
       if (method === 'POST' && path.startsWith(`/v1/cards/${CARD_ID}/`)) {
         return reply(200, { ok: path.split('/').pop() });
+      }
+      if (method === 'GET' && path === '/v1/inbox') return reply(200, inboxItems());
+      if (method === 'GET' && path === `/v1/s0/${S0_ID}/revision`) {
+        return reply(200, { revision: revisionView(p) });
+      }
+      if (method === 'GET' && path === `/v1/revisions/${GATE_ID}`) {
+        return reply(200, revisionView(p));
+      }
+      if (method === 'POST' && path.startsWith(`/v1/revisions/${GATE_ID}/`)) {
+        return reply(200, { ok: path.split('/').pop() });
+      }
+      if (method === 'GET' && /^\/v1\/projects\/[a-z0-9_-]+\/prr$/.test(path)) {
+        return reply(200, prrFixture(path.split('/')[3] as string));
+      }
+      const led = /^\/v1\/projects\/([a-z0-9_-]+)\/ledger(\?.*)?$/.exec(path);
+      if (method === 'GET' && led) {
+        return reply(200, { project_id: led[1], s0_id: null, entries: [], head: null });
       }
       return reply(404, { error: { code: 'not_found', message: 'no such route' } });
     });

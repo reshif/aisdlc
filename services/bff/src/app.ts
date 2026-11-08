@@ -506,6 +506,14 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     pdp: o.pdp,
     core: o.core,
     principalOf: (req) => ctx(req).session.principal_id,
+    namesOf: async (ids) => {
+      const out: Record<string, string> = {};
+      for (const id of ids) {
+        const p = await getDirectoryPrincipal(o.pool, id);
+        if (p) out[id] = p.display_name;
+      }
+      return out;
+    },
   });
   if (o.webDir) registerWebFiles(app, o.webDir);
 

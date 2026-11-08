@@ -141,7 +141,15 @@ export function hostSeed(repo: string, o: HostOptions = {}): CodeHostSeed {
       },
       suspended: false,
     },
-    repos: [{ full_name: repo, default_branch: 'main', private: true, archived: false }],
+    repos: [
+      {
+        full_name: repo,
+        default_branch: 'main',
+        private: true,
+        archived: false,
+        owner_type: 'org',
+      },
+    ],
     heads: [{ repo, branch: 'main', sha: SHA }],
     files: [
       ...(o.codeowners === null

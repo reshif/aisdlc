@@ -16,20 +16,34 @@ export type Route =
   | { name: 'project'; id: string }
   | { name: 's0'; id: string }
   | { name: 'card'; id: string }
+  | { name: 'inbox' }
+  | { name: 'revision'; id: string }
+  | { name: 'readiness'; id: string }
+  | { name: 'ledger'; id: string }
   | { name: 'notfound' };
 
 export function parseRoute(path: string): Route {
   const p = path.replace(/\/+$/, '') || '/';
   if (p === '/') return { name: 'home' };
   if (p === '/onboard') return { name: 'onboard' };
-  const m = /^\/(projects|s0|cards)\/([^/]+)$/.exec(p);
+  if (p === '/inbox') return { name: 'inbox' };
+  const sub = /^\/projects\/([^/]+)\/(readiness|ledger)$/.exec(p);
+  if (sub) {
+    return {
+      name: sub[2] === 'ledger' ? 'ledger' : 'readiness',
+      id: decodeURIComponent(sub[1] as string),
+    };
+  }
+  const m = /^\/(projects|s0|cards|revisions)\/([^/]+)$/.exec(p);
   if (m) {
     const id = decodeURIComponent(m[2] as string);
     return m[1] === 'projects'
       ? { name: 'project', id }
       : m[1] === 's0'
         ? { name: 's0', id }
-        : { name: 'card', id };
+        : m[1] === 'revisions'
+          ? { name: 'revision', id }
+          : { name: 'card', id };
   }
   return { name: 'notfound' };
 }

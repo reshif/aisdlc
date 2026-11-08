@@ -2,6 +2,7 @@ import { createServer } from 'node:net';
 import { migrateConfig } from '@aisdlc/config';
 import { migrateDirectory } from '@aisdlc/directory';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
+import { BootstrapPdpEntities } from '@aisdlc/onboarding';
 import {
   seedLinks,
   seedPrincipals,
@@ -185,7 +186,7 @@ export async function startBffStack(o: StartOptions = {}): Promise<BffStack> {
     const log = new MemoryDecisionLog();
     const pdp = new Pdp({
       source: new StaticBundleSource(buildBundle()),
-      entities: new IdentityPdpEntities({ pool }),
+      entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
       clock: identity.clock,
       log,
     });

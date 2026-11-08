@@ -126,6 +126,14 @@ describe('TokenBroker', () => {
     ]);
   });
 
+  it('list_repos carries GitHub’s owner type (User or Organization) as owner_type, for the readiness record', async () => {
+    t = await startTestCodeHost({ seed: contractSeed() });
+    const r = await t.rest.list_repos();
+    expect(r.state).toBe('ok');
+    // the fake GitHub server answers `owner.type: "Organization"`
+    expect(r.state === 'ok' && r.value.every((x) => x.owner_type === 'org')).toBe(true);
+  });
+
   it('caches a token until shortly before it expires, then mints a new one', async () => {
     t = await startTestCodeHost({ seed: contractSeed(), tokenTtlMs: 60 * 60_000 });
     const a = await t.broker.token('hub');

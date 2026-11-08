@@ -16,6 +16,7 @@ function setup(overview: ReturnType<typeof s0>, cards = [card()]) {
     'GET /api/me': { json: me() },
     [`GET /api/s0/${S0_ID}`]: { json: overview },
     [`GET /api/s0/${S0_ID}/cards`]: { json: cards },
+    [`GET /api/s0/${S0_ID}/revision`]: { json: { revision: null } },
     'GET /api/projects/testbed': project,
   });
 }

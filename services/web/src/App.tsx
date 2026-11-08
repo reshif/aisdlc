@@ -9,6 +9,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError, api, type Me } from './api';
 import { ErrorNote, Loading } from './components/Notice';
 import { CardPage } from './pages/CardPage';
+import { InboxPage } from './pages/InboxPage';
+import { LedgerPage } from './pages/LedgerPage';
+import { PrrPage } from './pages/PrrPage';
+import { RevisionPage } from './pages/RevisionPage';
 import { OnboardPage } from './pages/Onboard';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectListPage } from './pages/ProjectList';
@@ -83,6 +87,7 @@ function Portal() {
           {me.data ? (
             <nav aria-label="Main">
               <Link to="/">Projects</Link>
+              <Link to="/inbox">Inbox</Link>
               {me.data.actions.fleet.includes('project.onboard') ? (
                 <Link to="/onboard">Onboard a repo</Link>
               ) : null}
@@ -158,7 +163,22 @@ function Page({ route, me }: { route: Route; me: Me }) {
     case 's0':
       return <S0Page id={route.id} />;
     case 'card':
-      return <CardPage id={route.id} />;
+      return <CardPage id={route.id} csrf={me.csrf_token} me={me.principal.principal_id} />;
+    case 'inbox':
+      return <InboxPage />;
+    case 'revision':
+      return <RevisionPage gate={route.id} csrf={me.csrf_token} />;
+    case 'readiness':
+      return <PrrPage project={route.id} />;
+    case 'ledger':
+      return (
+        <LedgerPage
+          project={route.id}
+          {...(new URLSearchParams(window.location.search).get('s0')
+            ? { s0: new URLSearchParams(window.location.search).get('s0') as string }
+            : {})}
+        />
+      );
     case 'notfound':
       return (
         <>

@@ -14,7 +14,7 @@ const CARD_STATUS_TONE = {
   superseded: 'neutral',
 } as const satisfies Record<PortalCardSummary['status'], string>;
 
-/** The open and past cards of one S0 record. The Decide screen itself comes with M8.3. */
+/** The open and past cards of one S0 record. Each card links to its Decide screen. */
 export function CardList({ cards }: { cards: readonly PortalCardSummary[] }) {
   if (cards.length === 0) {
     return <p className="muted">No card yet. Cards open when a step needs a decision.</p>;

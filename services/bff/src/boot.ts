@@ -2,6 +2,7 @@ import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
 import { STEP_UP_KEY_ID } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
+import { BootstrapPdpEntities } from '@aisdlc/onboarding';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
 import {
@@ -139,7 +140,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
     await reader.start();
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
-      entities: new IdentityPdpEntities({ pool }),
+      entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
       log: new RecordDecisionLog({ pool }),
       sampleRate: sampleRaw,
       onError: (e) => console.error(`bff: ${e instanceof Error ? e.message : String(e)}`),

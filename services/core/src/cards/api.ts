@@ -298,7 +298,7 @@ export async function recordOnboardingEvidence(
   return r.ok ? ok(true) : err(decisionRefusal(r.error));
 }
 
-function decisionRefusal(e: { code: string; message: string }): CoreError {
+export function decisionRefusal(e: { code: string; message: string }): CoreError {
   const code =
     e.code === 'invalid_input'
       ? 'invalid_input'

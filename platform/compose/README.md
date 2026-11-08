@@ -167,7 +167,7 @@ SMOKE_SKIP_BUILD=1 npm run smoke:compose      # or: docker compose up -d --wait 
 | Core and core-worker          | two containers                                                                                                                      | ECS services, same images                                      |
 | Not here yet                  | killswitch, gate-check, gate-relay, sandbox pieces, audit services, gateway                                                         | later milestones                                               |
 
-## The portal (M8.1, M8.2)
+## The portal (M8.1 to M8.4)
 
 The bff serves the web bundle (`services/web`, built inside the image to `/app/services/web/dist`,
 `BFF_WEB_DIR`) on its own origin with `default-src 'self'` and `frame-ancestors 'none'`, and is the
@@ -176,10 +176,33 @@ route asks the PDP for the signed-in principal, then calls core (`BFF_CORE_URL`)
 token (`tok-bff-core`, scopes `read`, `onboard`, `portal`); core gets the principal as `on_behalf_of`
 from the session, never a browser cookie or token, and asks the PDP again for every write.
 `/auth/login` and the step-up start are rate limited (token buckets, 429 with `Retry-After`).
-`npm run e2e:compose` (`e2e.sh`) signs alice in through the dev IdP in Chromium, requests the
-onboarding of the fixture repo and waits on the S0 page for step 0.1 `card` with card C1.
+`npm run e2e:compose` (`e2e.sh`) runs the whole Census onboarding of the fixture repo in Chromium as
+alice (see below), checks accessibility and the strict CSP on every page, and checks the fake
+GitHub's request log afterwards.
 
-Not done yet and visible here: the "bootstrap eligibility wrapper in the bff" of the M8.0 row is not
-in the bff. The bff takes no gate decision itself (its pre-check is the PDP's `card.decide`), and the
-only code that asks "who holds this slot" is the card layer in core, where the bootstrap decider is
-on (card detail shows its `deciders`). The Witness has no caller until the checkpointer loop exists.
+### Deciding in the portal (M8.3, M8.4)
+
+More bff routes, all behind the same session, CSRF and PDP checks: `GET /api/inbox` (what waits for
+the person, split into what they decide and what they only see, with who decides),
+`GET /api/s0/:id/revision` and `/api/revisions/:gate` with `prepare`, `evidence`, `decide` and
+`publish` (the M1 gate that publishes card 4's role map, decided by the admin slot), the card moves
+(`/api/cards/:id/prepare|evidence|decide|recheck`, a card 5 decision carries the step-up proof from
+`/api/step-up`), `GET /api/projects/:id/prr` (`project.view`) and `GET /api/projects/:id/ledger`
+(`audit.read`, optionally `?s0=`).
+
+The first onboarding of a project has no role map, so nobody holds any slot. The requester is its
+provisional admin (M7.4). The PDP sees that too: `BootstrapPdpEntities` (in `@aisdlc/onboarding`,
+wrapped around identity's entity source in core and in the bff) gives the live grantee the project
+admin role for one request at a time, and only `card.decide` on cards 1, 4 and 5 of the record that
+holds the grant and `gate.decide` on the M1 gate over a config revision. Never the security card,
+M4, another project or anything else, and it ends the moment card 4's revision is published.
+
+The e2e flow: alice requests the onboarding, decides card 1 (gaps, T0, regulatory, criticality),
+card 4 (attestations, role map with alice in `admin` and `m4`, two-person off at T0), then the
+settings revision card 4 proposed (a "Settings revision pending" page: card 5 cannot open until the
+role map is published and identity has bound it), then card 5 after a step-up re-login at the dev IdP
+bound to the record hash. The readiness record page and the ledger page then show the result.
+Screenshots (deviceScaleFactor 2) are in `docs/screenshots/`.
+
+Not done yet and visible here: the Witness has no caller until the checkpointer loop exists, and the
+cards C2 and C3 (Light and Full) have no Decide screen because core has no card for them yet.

@@ -294,6 +294,41 @@ const controlsOf = (c4: PrrC4): Result<ProjectReadinessRecord['controls'], PrrBu
   });
 };
 
+// ---------------------------------------------------------------- identity gaps closed by the cards
+
+/**
+ * RS-ID-1 to RS-ID-4 are the four identity criteria of the Census floor, and what satisfies them is
+ * not in the repo: the App scoped to selected repositories (card 4's controls report), the owner
+ * confirmed and the tier signed (card 1), the visibility and owner type recorded (the code host's
+ * answer, kept on the Repo). The census is assembled before any card, and in the deployed wiring
+ * knowledge is told none of these, so it raises all four as blocking gaps that nothing in the repo
+ * can close and that card 1 would have to "fix". When the facts are on the record, they close:
+ * the gap is `closed_verified` and keeps card 1's disposition. A fact that is not there leaves its
+ * gap open (unknown means unmet).
+ *
+ * NOT CHECKED: RS-ID-4 also names the owner's plan, which the code host port does not read yet, so
+ * it closes on visibility and owner type alone (a follow-up: read the plan, or drop it from the floor).
+ */
+export function closeOwnerCardGaps(
+  census: CensusRecord,
+  f: { owner_confirmed: boolean; tier_signed: boolean; app_scoped: boolean },
+): CensusRecord {
+  const satisfied: Readonly<Record<string, boolean>> = {
+    'RS-ID-1': f.app_scoped && census.repo.default_branch !== null,
+    'RS-ID-2': f.owner_confirmed,
+    'RS-ID-3': f.tier_signed,
+    'RS-ID-4': census.repo.visibility !== null && census.repo.owner_type !== null,
+  };
+  return {
+    ...census,
+    gaps: census.gaps.map((g) =>
+      satisfied[g.criterion] === true && g.status === 'open'
+        ? { ...g, status: 'closed_verified' as const }
+        : g,
+    ),
+  };
+}
+
 // ---------------------------------------------------------------- the builder
 
 export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildError> {

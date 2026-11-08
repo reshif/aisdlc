@@ -29,6 +29,11 @@ export function S0Page({ id, pollMs = POLL_MS }: { id: string; pollMs?: number }
     queryFn: () => api.cards(id),
     refetchInterval: s0.data && QUIET_STATUSES.has(s0.data.record.status) ? false : pollMs,
   });
+  const revision = useQuery({
+    queryKey: ['s0', id, 'revision'],
+    queryFn: () => api.s0Revision(id),
+    refetchInterval: s0.data && QUIET_STATUSES.has(s0.data.record.status) ? false : pollMs,
+  });
   const projectId = s0.data?.record.project_id;
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -130,12 +135,36 @@ export function S0Page({ id, pollMs = POLL_MS }: { id: string; pollMs?: number }
         </Callout>
       ) : null}
 
+      {revision.data?.revision && !revision.data.revision.published ? (
+        <Callout title="Settings revision pending">
+          <p>
+            {revision.data.revision.status === 'pending'
+              ? 'Card 4 proposed this project’s role map and settings. They take effect only when they are approved and published, and the last card cannot open until then.'
+              : revision.data.revision.outcome === 'approve'
+                ? 'The settings were approved and are being published.'
+                : 'The settings were not approved, so they are not in force.'}
+          </p>
+          <p>
+            <Link to={`/revisions/${revision.data.revision.gate_instance_id}`}>
+              {revision.data.revision.may_decide
+                ? 'Decide the settings revision'
+                : 'Look at the settings revision'}
+            </Link>
+          </p>
+        </Callout>
+      ) : null}
+
       <h2>Steps</h2>
       <StepList steps={steps} waiting={appMissing ? null : waiting} />
 
       <h2>
         Cards {openCards.length > 0 ? <span className="count">{openCards.length} open</span> : null}
       </h2>
+      <p>
+        <Link to={`/projects/${record.project_id}/ledger?s0=${record.s0_id}`}>
+          Ledger entries of this onboarding
+        </Link>
+      </p>
       {cards.isError ? <ErrorNote error={cards.error} retry={() => void cards.refetch()} /> : null}
       {cards.data ? (
         <CardList cards={cards.data} />

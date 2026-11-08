@@ -50,6 +50,7 @@ const Repo = z.looseObject({
   default_branch: z.string().min(1),
   private: z.boolean(),
   archived: z.boolean().optional(),
+  owner: z.looseObject({ type: z.string().optional() }).optional(),
 });
 
 const Installation = z.looseObject({
@@ -175,6 +176,12 @@ export class GitHubRestCodeHost implements CodeHostPort {
         default_branch: p.data.default_branch,
         private: p.data.private,
         archived: p.data.archived ?? false,
+        // GitHub says `User` or `Organization`; anything else is left unsaid (unknown means unmet).
+        ...(p.data.owner?.type === 'User'
+          ? { owner_type: 'user' as const }
+          : p.data.owner?.type === 'Organization'
+            ? { owner_type: 'org' as const }
+            : {}),
       });
       if (!repo.success) return readUnknown('malformed', 'a repository has an unexpected shape');
       out.push(repo.data);

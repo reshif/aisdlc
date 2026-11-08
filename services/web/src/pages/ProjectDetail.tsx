@@ -54,6 +54,11 @@ export function ProjectDetailPage({ id }: { id: string }) {
         </div>
       </dl>
 
+      <p className="actions">
+        <Link to={`/projects/${project.project_id}/readiness`}>Readiness record</Link>
+        <Link to={`/projects/${project.project_id}/ledger`}>Ledger entries</Link>
+      </p>
+
       <h2>Repos</h2>
       {repos.length === 0 ? (
         <p className="muted">No repo yet.</p>
