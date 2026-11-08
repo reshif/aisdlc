@@ -1,3 +1,13 @@
+import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
+import {
+  DbRegisteredRepos,
+  HttpKnowledge,
+  HttpRoleMapReconciler,
+  registerCoreConfig,
+  roleMapSyncLoop,
+  s0DriverLoop,
+  s0SettingsFrom,
+} from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
 import {
   LoopSupervisor,
@@ -19,6 +29,9 @@ import { coreWorkerConfigFromEnv } from './config.js';
  * loops and the outbox dead-letter alert so far (M5.4). More loops (inbox, relay, reconciler,
  * checkpointer, ...) are `supervisor.add(...)` calls here as their milestones land.
  *
+ * M7 adds the S0 step driver and the role-map sync (both from `@aisdlc/core/worker`), when knowledge
+ * and identity are configured; without a registered-repos file the polls read core's own repos.
+ *
  * Until the work engine exists (M9) there is no source of "work in flight": the fake says none, so
  * effective rules are polled nightly. That is the slower, never the faster, rate, so the real port
  * must be wired in before agent work can start (M9.1 owns that).
@@ -31,6 +44,7 @@ export async function bootCoreWorker(
   const listenOpts = listenConfig(env, 'CORE_WORKER', 8360);
   const log = deps.log ?? ((line: string) => console.log(`core-worker: ${line}`));
   const pool = createPool(cfg.databaseUrl, 6);
+  let reader: ConfigReader | undefined;
   try {
     const have = await pool.query<{ record: string | null }>(
       `SELECT to_regclass('record.record_event')::text AS record`,
@@ -38,12 +52,24 @@ export async function bootCoreWorker(
     if (have.rows[0]?.record == null) {
       throw new Error('the record schema is missing: migrate the record database first');
     }
+    const wantsCore = cfg.registeredReposFile === null || cfg.knowledge || cfg.identity;
+    if (wantsCore) {
+      // Core's schema ships with core (`aisdlc-migrate` applies it): this process only checks.
+      const core = await pool.query<{ core: string | null }>(
+        `SELECT to_regclass('core.s0_record')::text AS core`,
+      );
+      if (core.rows[0]?.core == null) {
+        throw new Error('the core schema is missing: migrate the record database first');
+      }
+    }
     const supervisor = new LoopSupervisor({ log });
     const source = new HttpCodeHostReads({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken });
     const poll = {
       pool,
       source,
-      registered: new FileRegisteredRepos(cfg.registeredReposFile),
+      registered: cfg.registeredReposFile
+        ? new FileRegisteredRepos(cfg.registeredReposFile)
+        : new DbRegisteredRepos(pool),
     };
     supervisor
       .add(defaultBranchHeadLoop(poll, { intervalMs: cfg.headIntervalMs }))
@@ -66,6 +92,53 @@ export async function bootCoreWorker(
           setAlert: (k, a) => supervisor.setAlert(k, a),
         }),
       );
+    if (cfg.knowledge || cfg.identity) {
+      const registry = registerCoreConfig(new ConfigRegistry());
+      reader = await ConfigReader.create({
+        pool,
+        registry,
+        onError: (e) => log(`config reader: ${e instanceof Error ? e.message : String(e)}`),
+      });
+      await reader.start();
+      if (cfg.knowledge) {
+        supervisor.add(
+          s0DriverLoop(
+            {
+              pool,
+              source,
+              knowledge: new HttpKnowledge({
+                baseUrl: cfg.knowledge.url,
+                token: cfg.knowledge.token,
+              }),
+              settings: s0SettingsFrom(reader),
+            },
+            {
+              intervalMs: cfg.s0DriverIntervalMs,
+              startDelayMs: 1_000,
+              // Only what happened: a record that needed nothing is not a log line.
+              onOutcome: (o) => {
+                if (o.action !== 'none') log(`s0_driver: ${o.s0_id}: ${o.action}`);
+              },
+            },
+          ),
+        );
+      }
+      if (cfg.identity) {
+        supervisor.add(
+          roleMapSyncLoop(
+            {
+              pool,
+              registry,
+              reconciler: new HttpRoleMapReconciler({
+                baseUrl: cfg.identity.url,
+                token: cfg.identity.token,
+              }),
+            },
+            { intervalMs: cfg.roleMapSyncIntervalMs, startDelayMs: 1_000 },
+          ),
+        );
+      }
+    }
     const app = createCoreWorkerApp(supervisor);
     const url = await listen(app, listenOpts);
     supervisor.start();
@@ -74,10 +147,12 @@ export async function bootCoreWorker(
       close: async () => {
         await app.close();
         await supervisor.stop();
+        await reader?.stop();
         await pool.end();
       },
     };
   } catch (e) {
+    await reader?.stop().catch(() => undefined);
     await pool.end().catch(() => undefined);
     throw e;
   }

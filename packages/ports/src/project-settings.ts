@@ -2,8 +2,9 @@ import { ProjectSettings, type ProjectId, type Tier } from '@aisdlc/contracts';
 import { err, ok, taggedError, type Result, type TaggedError } from '@aisdlc/kernel';
 
 // ProjectSettingsPort (PLAN M4.4): what the identity service needs of a project's settings (role
-// map, two-person, kill delegations) and of the project itself (its tier). Projects arrive in M7;
-// until then the fake is the only implementation.
+// map, two-person, kill delegations) and of the project itself (its tier). The real adapters are
+// core's (M7.1): `DbProjectSettings` in `@aisdlc/core` over its read models and the effective config,
+// and `HttpProjectSettings` (core-clients.ts) for the services that run elsewhere. The fake stays for tests.
 
 export type ProjectSettingsErrorCode = 'unknown_project' | 'unavailable';
 

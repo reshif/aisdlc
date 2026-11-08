@@ -52,6 +52,14 @@ export const CENSUS_AREA = '.';
 export const censusId = (repoId: string, baselineSha: string): string =>
   `census:${repoId}:${baselineSha}`;
 
+/**
+ * The factory's repo id: `<owner>.<name>` lowercase. GitHub owners never contain `.`, so it is
+ * unambiguous. Core's Repo and the Census use this one rule.
+ */
+export function repoIdOf(fullName: string): string {
+  return fullName.toLowerCase().replace('/', '.');
+}
+
 // ---------------------------------------------------------------- Mapping and N/A rules
 
 /**

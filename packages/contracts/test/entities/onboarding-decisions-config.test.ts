@@ -29,6 +29,7 @@ describe('onboarding', () => {
     repo_id: 'r1',
     status: 'running',
     requested_level: 'light',
+    signable_level: 'light',
     intake_ref: 'record:evt-1',
     rejected_at: null,
     readiness_version: null,
@@ -42,6 +43,8 @@ describe('onboarding', () => {
     expect(S0Record.safeParse({ ...s0, status: 'nope' }).success).toBe(false);
     expect(S0Record.safeParse({ ...s0, intake_ref: 'g0:abc' }).success).toBe(false);
     expect(S0Record.safeParse({ ...s0, rejected_at: '1.1' }).success).toBe(false);
+    expect(S0Record.safeParse({ ...s0, signable_level: 'census' }).success).toBe(true);
+    expect(S0Record.safeParse({ ...s0, signable_level: 'full' }).success).toBe(false);
     const noPin = Object.fromEntries(Object.entries(s0).filter(([k]) => k !== 'catalogue_ref'));
     expect(S0Record.safeParse(noPin).success).toBe(false);
     expect(

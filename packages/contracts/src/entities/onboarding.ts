@@ -3,7 +3,7 @@ import { hashCanonical } from '@aisdlc/kernel';
 import { GateId } from '../flow.js';
 import { LedgerDecision } from '../states/gate-instance.js';
 import { OnboardingStatus } from '../states/onboarding.js';
-import { Level, StepId } from '../values.js';
+import { Level, LevelValues, StepId } from '../values.js';
 import { CatalogueRef } from './config.js';
 import {
   CardId,
@@ -59,23 +59,34 @@ export type OnboardingStep = z.infer<typeof OnboardingStep>;
  * The S0 record. Its UUID is the gate subject of M4 and S0 X2 (fix #32); it is not a delivery item.
  * `intake_ref` is `s0_ref = record:<intake event>` (OB §6, never `g0_ref`).
  */
-export const S0Record = z.strictObject({
-  s0_id: S0RecordId,
-  project_id: ProjectId,
-  repo_id: RepoId,
-  status: OnboardingStatus,
-  requested_level: Level,
-  intake_ref: z.string().regex(/^record:\S+$/, 'record:<intake event>'),
-  /** The step a send-back rejected at (`rejected_at:0.2`), once rejected. */
-  rejected_at: OnboardingStepId.nullable(),
-  /** The PRR version this record produced, once one exists. */
-  readiness_version: z.number().int().min(1).nullable(),
-  /** The catalogue revision this onboarding started with (M1.6). */
-  catalogue_ref: CatalogueRef,
-  version: z.number().int().min(1),
-  created_at: IsoDateTime,
-  updated_at: IsoDateTime,
-});
+export const S0Record = z
+  .strictObject({
+    s0_id: S0RecordId,
+    project_id: ProjectId,
+    repo_id: RepoId,
+    status: OnboardingStatus,
+    requested_level: Level,
+    /**
+     * The highest level this onboarding can sign (DEC-9: "the human may sign a lower level"). Starts
+     * equal to `requested_level`, is never above it, and drops when something blocks the higher
+     * levels (an open secret at the Census: Light and Full are blocked, Census may still sign).
+     */
+    signable_level: Level,
+    intake_ref: z.string().regex(/^record:\S+$/, 'record:<intake event>'),
+    /** The step a send-back rejected at (`rejected_at:0.2`), once rejected. */
+    rejected_at: OnboardingStepId.nullable(),
+    /** The PRR version this record produced, once one exists. */
+    readiness_version: z.number().int().min(1).nullable(),
+    /** The catalogue revision this onboarding started with (M1.6). */
+    catalogue_ref: CatalogueRef,
+    version: z.number().int().min(1),
+    created_at: IsoDateTime,
+    updated_at: IsoDateTime,
+  })
+  .refine((r) => LevelValues.indexOf(r.signable_level) <= LevelValues.indexOf(r.requested_level), {
+    message: 'the signable level cannot be above the requested level',
+    path: ['signable_level'],
+  });
 export type S0Record = z.infer<typeof S0Record>;
 
 // ---------------------------------------------------------------- Cards

@@ -153,6 +153,10 @@ describe('projects', () => {
     expect(Repo.parse(repo)).toEqual(repo);
     expect(Repo.safeParse({ ...repo, onboarding_level: 'light' }).success).toBe(true);
     expect(Repo.safeParse({ ...repo, onboarding_level: 'gold' }).success).toBe(false);
+    // Not yet read from the code host: unknown, never assumed.
+    expect(
+      Repo.safeParse({ ...repo, visibility: null, owner_type: null, default_branch: null }).success,
+    ).toBe(true);
     expect(Repo.safeParse({ ...repo, repo_ref: 'no-slash' }).success).toBe(false);
     expect(Repo.safeParse({ ...repo, repo_id: 'a:b' }).success).toBe(false);
   });

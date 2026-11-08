@@ -15,7 +15,9 @@
     "typecheck": "tsc -p tsconfig.check.json"
   },
   "dependencies": {
+    "@aisdlc/config": "0.0.0",
     "@aisdlc/contracts": "0.0.0",
+    "@aisdlc/core": "0.0.0",
     "@aisdlc/db": "0.0.0",
     "@aisdlc/kernel": "0.0.0",
     "@aisdlc/loops": "0.0.0",

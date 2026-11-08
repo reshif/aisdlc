@@ -168,6 +168,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | M8.2 | Onboarding wizard: request, App status ("0.1 waiting: App not installed"), step progress | Wizard reads one Project and one S0Record |
 | M8.3 | Inbox and Decide for cards 1, 4, 5 and security, with step-up | Deciding in the browser writes a verifiable ledger entry |
 | M8.4 | PRR view; ledger audit view | Each decision links to its ledger entry |
+| M7.7 | Single-flight S0 driver: a per-S0-record lease (advisory lock or claimed-job row) so two core-worker instances never start two knowledge jobs for one record (found in M7.2; harmless while one worker runs) | Two concurrent drivers on one record start exactly one census job |
 | M8.0 | Local-prod compose: every service with its own port (bff dev-oidc and codehost both default to 8350 today), `aisdlc-migrate` run first, secrets as file references, the five boundary reasons checked per container | `docker compose up` brings the stack up healthy from a clean checkout |
 | M8.5 | **Live exit:** Census onboarding of `reshif/asf-factory-testbed` on local prod; GitHub request log shows GETs only; PRR active after M4 | Recorded demo and log |
 

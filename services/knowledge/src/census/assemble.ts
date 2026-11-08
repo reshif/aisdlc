@@ -10,6 +10,7 @@ import {
   ReadinessPillarValues,
   censusId,
   gapId,
+  repoIdOf,
   sealCensus,
   type CensusAttestations,
   type CensusBody,
@@ -32,10 +33,7 @@ import { assembleInventory, assembleRisk } from './risk.js';
 // the same gap ids. See `CENSUS_NA_RULES` (the only N/A rules), `READINESS_PILLAR_OF_FAMILY`, and
 // `scorePillar` below (the pre-score rule).
 
-/** The factory's repo id: `<owner>.<name>` lowercase. GitHub owners never contain `.`, so it is unambiguous. */
-export function repoIdOf(fullName: string): string {
-  return fullName.toLowerCase().replace('/', '.');
-}
+export { repoIdOf };
 
 const rankOf = (l: Level): number => LevelValues.indexOf(l);
 

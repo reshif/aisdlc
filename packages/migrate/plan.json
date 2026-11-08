@@ -8,7 +8,8 @@
       { "scope": "identity", "dir": "../../services/identity/migrations" },
       { "scope": "directory", "dir": "../directory/migrations" },
       { "scope": "bff", "dir": "../../services/bff/migrations" },
-      { "scope": "knowledge", "dir": "../../services/knowledge/migrations" }
+      { "scope": "knowledge", "dir": "../../services/knowledge/migrations" },
+      { "scope": "core", "dir": "../../services/core/migrations" }
     ],
     "notary": [{ "scope": "notary", "dir": "../../services/notary/migrations" }],
     "witness": [{ "scope": "witness", "dir": "../../services/witness/migrations" }]

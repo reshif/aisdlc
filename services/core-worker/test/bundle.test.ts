@@ -21,7 +21,7 @@ const runOnce = (env: Record<string, string>) =>
 
 describe('the core-worker bundle fails fast on bad configuration', () => {
   it('every misconfiguration exits 78 with a clear message', () => {
-    expect(runOnce({}).stderr).toMatch(/CORE_WORKER_REGISTERED_REPOS_FILE is required/);
+    expect(runOnce({}).stderr).toMatch(/CORE_WORKER_DATABASE_URL is required/);
     const base = {
       CORE_WORKER_REGISTERED_REPOS_FILE: '/nonexistent.json',
       CORE_WORKER_CODEHOST_URL: 'http://127.0.0.1:1',
