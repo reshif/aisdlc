@@ -57,6 +57,197 @@
       ],
       "additionalProperties": false
     },
+    "ActionClass": {
+      "type": "string",
+      "enum": [
+        "read",
+        "write",
+        "decide",
+        "kill",
+        "config"
+      ]
+    },
+    "ActionDef": {
+      "type": "object",
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]*(\\.[a-z][a-z_]*)+$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write",
+            "decide",
+            "kill",
+            "config"
+          ]
+        },
+        "resource_types": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Fleet",
+              "Project",
+              "Lane",
+              "Repo",
+              "Item",
+              "Gate",
+              "Card"
+            ]
+          }
+        },
+        "grants": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "view_level"
+                  },
+                  "min": {
+                    "type": "string",
+                    "enum": [
+                      "V1",
+                      "V2",
+                      "V3"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "min"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "slots"
+                  },
+                  "slots": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "admin",
+                        "requesters",
+                        "intent",
+                        "design",
+                        "g4",
+                        "g5",
+                        "x",
+                        "sec",
+                        "m4",
+                        "kill"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "slots"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "gate_slot"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "decides_gates"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "roles"
+                  },
+                  "roles": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[a-z][a-z0-9_.-]*$"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "roles"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "log_allow": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action_id",
+        "description",
+        "class",
+        "resource_types",
+        "grants",
+        "log_allow"
+      ],
+      "additionalProperties": false
+    },
+    "ActionId": {
+      "type": "string",
+      "enum": [
+        "project.onboard",
+        "project.view",
+        "project.settings.edit",
+        "floor.read",
+        "item.view_floor",
+        "gate.view",
+        "gate.decide",
+        "card.decide",
+        "kill.request",
+        "kill.release",
+        "config.propose",
+        "audit.read",
+        "access.explain"
+      ]
+    },
     "ActorKind": {
       "type": "string",
       "enum": [
@@ -3568,6 +3759,114 @@
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
     },
+    "GrantRule": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "view_level"
+            },
+            "min": {
+              "type": "string",
+              "enum": [
+                "V1",
+                "V2",
+                "V3"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "min"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "slots"
+            },
+            "slots": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "requesters",
+                  "intent",
+                  "design",
+                  "g4",
+                  "g5",
+                  "x",
+                  "sec",
+                  "m4",
+                  "kill"
+                ]
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "slots"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "gate_slot"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "decides_gates"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "roles"
+            },
+            "roles": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "roles"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "Group": {
       "type": "object",
       "properties": {
@@ -5112,6 +5411,401 @@
         "done",
         "skip"
       ]
+    },
+    "PdpDecision": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bundle_version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bundle_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision",
+        "reasons",
+        "bundle_version",
+        "bundle_hash"
+      ],
+      "additionalProperties": false
+    },
+    "PdpDecisionRecord": {
+      "type": "object",
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "principal": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resource": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "Fleet",
+                "Project",
+                "Lane",
+                "Repo",
+                "Item",
+                "Gate",
+                "Card"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "project": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lane": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "item": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gate_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "G0",
+                    "G1",
+                    "G1f",
+                    "G2",
+                    "G3",
+                    "G3d",
+                    "G3s",
+                    "G3o",
+                    "G4",
+                    "G5",
+                    "G6",
+                    "X1",
+                    "X2",
+                    "X3",
+                    "X4",
+                    "E1",
+                    "E2",
+                    "E3",
+                    "E4",
+                    "E5",
+                    "E6",
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "Q1",
+                    "SECT"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "project",
+            "lane",
+            "item",
+            "gate_id"
+          ],
+          "additionalProperties": false
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bundle_version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bundle_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "justification": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "logged_because": {
+          "type": "string",
+          "enum": [
+            "deny",
+            "action",
+            "sampled"
+          ]
+        }
+      },
+      "required": [
+        "decision_id",
+        "principal",
+        "action",
+        "resource",
+        "decision",
+        "reasons",
+        "bundle_version",
+        "bundle_hash",
+        "at",
+        "justification",
+        "logged_because"
+      ],
+      "additionalProperties": false
+    },
+    "PdpResource": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "Fleet",
+            "Project",
+            "Lane",
+            "Repo",
+            "Item",
+            "Gate",
+            "Card"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lane": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "item": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gate_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "G0",
+                "G1",
+                "G1f",
+                "G2",
+                "G3",
+                "G3d",
+                "G3s",
+                "G3o",
+                "G4",
+                "G5",
+                "G6",
+                "X1",
+                "X2",
+                "X3",
+                "X4",
+                "E1",
+                "E2",
+                "E3",
+                "E4",
+                "E5",
+                "E6",
+                "M1",
+                "M2",
+                "M3",
+                "M4",
+                "M5",
+                "M6",
+                "Q1",
+                "SECT"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "project",
+        "lane",
+        "item",
+        "gate_id"
+      ],
+      "additionalProperties": false
+    },
+    "PdpResourceType": {
+      "type": "string",
+      "enum": [
+        "Fleet",
+        "Project",
+        "Lane",
+        "Repo",
+        "Item",
+        "Gate",
+        "Card"
+      ]
+    },
+    "PolicyBundle": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policies": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bundle_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bundle_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "policies",
+        "bundle_version",
+        "bundle_hash"
+      ],
+      "additionalProperties": false
     },
     "Principal": {
       "type": "object",
@@ -9888,6 +10582,68 @@
         "9.3",
         "9.4",
         "9.5"
+      ]
+    },
+    "StepUpClaims": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "type": "number",
+          "const": 1
+        },
+        "proof_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "principal": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "bound_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "reauth",
+            "reconfirm"
+          ]
+        },
+        "auth_time": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "v",
+        "proof_id",
+        "principal",
+        "bound_hash",
+        "method",
+        "auth_time",
+        "issued_at",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "StepUpMethod": {
+      "type": "string",
+      "enum": [
+        "reauth",
+        "reconfirm"
       ]
     },
     "SubjectKind": {

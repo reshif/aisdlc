@@ -161,7 +161,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
-| M8.1 | `services/web` shell through the bff; project list and detail | Playwright smoke test |
+| M8.1 | `services/web` shell through the bff; project list and detail; login rate limiting on `/auth/login` and the step-up start route (follow-up from M4.5) | Playwright smoke test |
 | M8.2 | Onboarding wizard: request, App status ("0.1 waiting: App not installed"), step progress | Wizard reads one Project and one S0Record |
 | M8.3 | Inbox and Decide for cards 1, 4, 5 and security, with step-up | Deciding in the browser writes a verifiable ledger entry |
 | M8.4 | PRR view; ledger audit view | Each decision links to its ledger entry |

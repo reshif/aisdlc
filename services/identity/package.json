@@ -38,6 +38,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@aisdlc/directory": "0.0.0"
+    "@aisdlc/directory": "0.0.0",
+    "@aisdlc/pdp": "0.0.0"
   }
 }

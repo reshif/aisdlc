@@ -16,7 +16,15 @@ import { FakeIdentityProvider, FakeProjectSettings, type IdpSnapshot } from '@ai
 import { migrateRecord } from '@aisdlc/record';
 import { syncAccessLedger, type AccessSyncReport } from './access-sync.js';
 import type { NewPrincipal } from './commands.js';
-import { createPrincipal } from './commands.js';
+import {
+  addMember,
+  createBinding,
+  createGroup,
+  createPrincipal,
+  linkIdentity,
+  setPrincipalStatus,
+} from './commands.js';
+import { reconcileProject } from './reconcile.js';
 import { migrateIdentity } from './migrations.js';
 import type { IdentityDeps } from './tx.js';
 
@@ -153,3 +161,71 @@ export function settingsOf(
 }
 
 export type { Tier };
+
+// ---------------------------------------------------------------- helpers for other services' tests
+
+/** Links `idp_subject` identities (issuer, subject) to principals; throws on failure. */
+export async function seedLinks(
+  deps: IdentityDeps,
+  links: ReadonlyArray<{ principal: string; issuer: string; subject: string }>,
+): Promise<void> {
+  for (const l of links) {
+    const r = await linkIdentity(
+      deps,
+      { principal_id: l.principal, kind: 'idp_subject', issuer: l.issuer, value: l.subject },
+      'system.test',
+    );
+    if (!r.ok) throw new Error(`link ${l.principal}: ${r.error.message}`);
+  }
+}
+
+/** Disables (or re-enables) a principal; throws on failure. */
+export async function setStatusForTest(
+  deps: IdentityDeps,
+  id: string,
+  status: 'active' | 'disabled' | 'deleted',
+): Promise<void> {
+  const r = await setPrincipalStatus(deps, id, status, 'test', 'system.test');
+  if (!r.ok) throw new Error(`status ${id}: ${r.error.message}`);
+}
+
+/** Gives a principal a role at the fleet (through a group named after the role); throws on failure. */
+export async function grantFleetRole(
+  deps: IdentityDeps,
+  principal: string,
+  role: 'factory.admin' | 'factory.auditor',
+): Promise<void> {
+  const group = `grp-${role}`;
+  const g = await createGroup(
+    deps,
+    { group_id: group, display: role, pim_managed: false, protected: false },
+    'system.test',
+  );
+  if (!g.ok && g.error.code !== 'already_exists') throw new Error(g.error.message);
+  const m = await addMember(
+    deps,
+    { group_id: group as never, principal_id: pr(principal) },
+    'system.test',
+  );
+  if (!m.ok) throw new Error(m.error.message);
+  const b = await createBinding(
+    deps,
+    { group_id: group, role_id: role, scope: { kind: 'fleet', ref: '*' } },
+    'system.test',
+  );
+  if (!b.ok) throw new Error(b.error.message);
+}
+
+/** Sets a project's role map in the fake settings and reconciles it into bindings; throws on failure. */
+export async function bindProject(
+  s: Pick<IdentityStack, 'deps' | 'settings'>,
+  project: string,
+  slots: Partial<Record<RoleSlot, readonly string[]>>,
+): Promise<void> {
+  s.settings.set(settingsOf(project, slots), 'T1');
+  const r = await reconcileProject(
+    { ...s.deps, settings: s.settings },
+    { project_id: pid(project) },
+  );
+  if (!r.ok) throw new Error(`reconcile ${project}: ${r.error.message}`);
+}

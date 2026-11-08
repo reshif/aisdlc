@@ -133,7 +133,7 @@ export interface GrantFilter {
 export async function queryGrants(
   db: Executor,
   filter: GrantFilter,
-  target: Scope,
+  target: Scope | null,
   at: Date,
   catalogue: readonly RoleDef[] = ROLE_CATALOGUE,
 ): Promise<Grant[]> {
@@ -170,9 +170,13 @@ export async function queryGrants(
       ORDER BY p.principal_id, b.role_id, b.binding_id`,
     [filter.principal ?? null, filter.role ?? null],
   );
-  const covering = q.rows.filter((r) =>
-    scopeCovers({ kind: r.scope_kind, ref: r.scope_ref } as Scope, target),
-  );
+  // `null`: every scope (what a principal holds, for a "where can I act" listing).
+  const covering =
+    target === null
+      ? q.rows
+      : q.rows.filter((r) =>
+          scopeCovers({ kind: r.scope_kind, ref: r.scope_ref } as Scope, target),
+        );
   const ids = [...new Set(covering.map((r) => r.principal_id))];
   const quals = new Map<
     string,
@@ -259,6 +263,26 @@ export async function effectiveBindings(
   catalogue: readonly RoleDef[] = ROLE_CATALOGUE,
 ): Promise<EffectiveBinding[]> {
   const grants = await queryGrants(db, { principal }, target, at, catalogue);
+  return grants
+    .filter((g) => g.blockers.length === 0)
+    .map((g) => ({
+      binding_id: g.binding_id,
+      role_id: g.role_id,
+      scope: g.scope,
+      group_id: g.group_id,
+      constraints: g.constraints,
+      expiry: g.expiry,
+    }));
+}
+
+/** Every binding in force for a principal at `at`, whatever its scope. */
+export async function inForceBindings(
+  db: Executor,
+  principal: string,
+  at: Date,
+  catalogue: readonly RoleDef[] = ROLE_CATALOGUE,
+): Promise<EffectiveBinding[]> {
+  const grants = await queryGrants(db, { principal }, null, at, catalogue);
   return grants
     .filter((g) => g.blockers.length === 0)
     .map((g) => ({

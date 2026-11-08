@@ -10,3 +10,5 @@ export * from './decisions.js';
 export * from './work.js';
 export * from './gate-lifecycle.js';
 export * from './inbox.js';
+export * from './policy.js';
+export * from './step-up.js';

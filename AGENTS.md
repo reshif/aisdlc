@@ -26,9 +26,10 @@ packages/
   db/       pg + Drizzle, SQL migration runner, test database helper
   record/   record_event, outbox, projections
   ledger/   ledger_entry, checkpoints, writer, reconciler, verify-ledger CLI
-  ports/    port interfaces and fakes (key custody, Notary, Witness, IdentityProvider, ProjectSettings)
+  ports/    port interfaces and fakes (key custody, Notary, Witness, IdentityProvider, ProjectSettings, PdpEntity, Oidc)
   directory/ Principal and Team read models over the identity journal (for core)
-services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity)
+  pdp/      Cedar policies generated from the role catalogue, bundles published through config, embedded fail-closed evaluator, decision log
+services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity, bff)
 docs/       PLAN.md, adr/, specs/
 ```
 

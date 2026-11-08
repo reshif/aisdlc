@@ -5,6 +5,7 @@ export { identityProjection, type IdentitySnapshot } from './projection.js';
 export { migrateIdentity, MIGRATION_SCOPE, MIGRATIONS_DIR } from './migrations.js';
 export {
   effectiveBindings,
+  inForceBindings,
   getPrincipal,
   queryGrants,
   resolveGroups,
@@ -34,3 +35,4 @@ export {
 } from './explain.js';
 export { accessSyncLagSeconds, accessSyncStatus, type AccessSyncStatus } from './access-sync.js';
 export { IdentityError, IDENTITY_STATUS, type IdentityErrorCode } from './errors.js';
+export { IdentityPdpEntities } from './pdp-entities.js';
