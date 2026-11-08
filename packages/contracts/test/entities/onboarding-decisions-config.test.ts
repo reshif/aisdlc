@@ -108,18 +108,24 @@ describe('decisions', () => {
     global_seq: 10,
     type: 'item.created',
     payload: { a: 1 },
+    actor: 'system:test',
     occurred_at: T0,
     idempotency_key: 'k',
-    prev_hash: null,
+    prev_hash: '0'.repeat(64),
     hash: H('e1'),
   };
-  it('RecordEvent round-trips; only the first event lacks prev_hash', () => {
+  it('RecordEvent round-trips; only the first event links to the genesis hash', () => {
     expect(RecordEvent.parse(event)).toEqual(event);
     expect(RecordEvent.safeParse({ ...event, stream_seq: 2 }).success).toBe(false);
     expect(RecordEvent.safeParse({ ...event, stream_seq: 2, prev_hash: H('e0') }).success).toBe(
       true,
     );
     expect(RecordEvent.safeParse({ ...event, prev_hash: H('e0') }).success).toBe(false);
+    expect(RecordEvent.safeParse({ ...event, prev_hash: null }).success).toBe(false);
+    expect(RecordEvent.safeParse({ ...event, actor: '' }).success).toBe(false);
+    expect(
+      RecordEvent.safeParse({ ...event, stream_seq: 2, prev_hash: '0'.repeat(64) }).success,
+    ).toBe(false);
     expect(RecordEvent.safeParse({ ...event, type: 'Item Created' }).success).toBe(false);
     expect(RecordEvent.safeParse({ ...event, hash: 'zz' }).success).toBe(false);
   });

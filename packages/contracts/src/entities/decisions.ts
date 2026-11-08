@@ -16,9 +16,16 @@ import {
 
 // ---------------------------------------------------------------- RecordEvent
 
+/** `prev_hash` of the first event of every stream: 64 zeros (PLAN M2.1). */
+export const RECORD_GENESIS_HASH = '0'.repeat(64);
+
 /**
- * An append-only fact in a stream (PLAN M2.1): per-stream `seq`, `prev_hash` and `hash`. The stream
- * is an item, an S0 record or another subject, so `stream_id` is a string. The hash recipe is M2.1's.
+ * An append-only fact in a stream (PLAN M2.1): per-stream `seq`, `prev_hash` and `hash`, plus a
+ * `global_seq` that is the commit order across all streams. The stream is an item, an S0 record or
+ * another subject, so `stream_id` is a string. The hash is sha256 of the canonical JSON of
+ * `{stream: stream_id, seq: stream_seq, event_id, type, body: payload, actor, occurred_at,
+ * prev_hash}` (`global_seq` and `idempotency_key` are not hashed). `occurred_at` has millisecond
+ * precision.
  */
 export const RecordEvent = z
   .strictObject({
@@ -29,14 +36,16 @@ export const RecordEvent = z
     /** Event kind, dotted lowercase, for example `item.question_asked`. */
     type: z.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/, 'dotted lowercase'),
     payload: JsonObject,
+    /** Who caused the fact: a principal id, or a system actor such as `system:notary`. */
+    actor: z.string().min(1),
     occurred_at: IsoDateTime,
     /** Every inbound signal carries one (PLAN principle 3). */
     idempotency_key: z.string().min(1).nullable(),
-    prev_hash: Sha256Hex.nullable(),
+    prev_hash: Sha256Hex,
     hash: Sha256Hex,
   })
-  .refine((e) => (e.stream_seq === 1) === (e.prev_hash === null), {
-    message: 'only the first event of a stream has no prev_hash',
+  .refine((e) => (e.stream_seq === 1) === (e.prev_hash === RECORD_GENESIS_HASH), {
+    message: 'only the first event of a stream links to the genesis hash',
     path: ['prev_hash'],
   });
 export type RecordEvent = z.infer<typeof RecordEvent>;

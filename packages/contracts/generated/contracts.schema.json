@@ -6203,6 +6203,10 @@
           },
           "additionalProperties": {}
         },
+        "actor": {
+          "type": "string",
+          "minLength": 1
+        },
         "occurred_at": {
           "type": "string",
           "format": "date-time",
@@ -6220,15 +6224,8 @@
           ]
         },
         "prev_hash": {
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         },
         "hash": {
           "type": "string",
@@ -6242,6 +6239,7 @@
         "global_seq",
         "type",
         "payload",
+        "actor",
         "occurred_at",
         "idempotency_key",
         "prev_hash",
