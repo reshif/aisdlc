@@ -1,0 +1,300 @@
+flowchart TB
+  %% =====================================================================
+  %% CORRECTED VERSION. Every change from the original is tagged "FIX n".
+  %%  F1  X1/X2/X3 get approve + deny exits
+  %%  F2  Rejection edges for G0, G2, G3d, G5, E2 (new back-edges B22-B26)
+  %%  F3  PARK and BLOCKED get exits; R2, R3, SLA, META wired in
+  %%  F4  S9: audit sample and break-glass review hang off 9.3 asynchronously
+  %%  F5  G1 split into provisional (G0G1) and final (2.5, L6); L4/L5 named
+  %%  F6  L7 Spike has its own exit; it never reaches Push Broker / G4
+  %%  F7  Lane profiles bound at G0; L1-L3 enter at 3.1, not 3.2
+  %%  F8  7.5 Constitution check in S7 for ALL lanes (fills the 7.5 gap)
+  %%  F9  Oracle specs approved at G2; G3o only on deviation; human waits
+  %%      mid-build release the lease (WAIT policy)
+  %%  F10 B15 split: clean rebase -> S7 only; conflict -> S6
+  %%  F11 Merge gate-check binds PR head SHA == Evidence SHA; G5 links merged SHA
+  %%  F12 9.4 Learn proposes M1/M3 changes; mode-E suspension needs min sample
+  %%  F13 Phase-1 markings (dashed = target-state, stub in Phase 1) and
+  %%      single-operator gate consolidation (consolidated, never auto-approved)
+  %%  F14 Per-item rework budget: all back-edges count toward one total (B28 → E4)
+  %%  F15 Untrusted-input boundary: request, repo and dependency text is data,
+  %%      never instructions; suspected injection flagged at G0 (B27)
+  %% Numbers marked (tune) are placeholders to confirm in internal testing.
+  %% Step numbers are unchanged so blueprint references still hold.
+  %% =====================================================================
+
+  %% ================= STYLES =================
+  classDef D fill:#e3f2fd,stroke:#1565c0,color:#000;
+  classDef A fill:#f3e5f5,stroke:#6a1b9a,color:#000;
+  classDef DA fill:#ede7f6,stroke:#4527a0,color:#000;
+  classDef AH fill:#fffde7,stroke:#f9a825,color:#000;
+  classDef H fill:#e8f5e9,stroke:#2e7d32,color:#000;
+  classDef gate fill:#fff3cd,stroke:#d4a017,color:#000,font-weight:bold;
+  classDef bad fill:#fde2e2,stroke:#c0392b,color:#000;
+  classDef hand fill:#e1f5fe,stroke:#0277bd,color:#000;
+  classDef term fill:#eeeeee,stroke:#424242,color:#000;
+  classDef plane fill:#fafafa,stroke:#9e9e9e,color:#000,stroke-dasharray:4 3;
+  classDef tgt fill:#fafafa,stroke:#8d6e63,color:#000,stroke-width:2px,stroke-dasharray:6 4;
+  classDef fix fill:#e0f7fa,stroke:#00838f,color:#000,stroke-width:2px;
+
+  %% ================= ENTRY =================
+  REQ(["New request<br/>portal Ask · Teams · API · code-host issue<br/>N1–N8 · pins catalogue revision<br/>Phase 1: code-host issue / CLI only"]):::term
+
+  %% ================= S0 =================
+  subgraph S0["S0 ONBOARD, once per project/repo → Project Readiness Record"]
+    direction LR
+    s01["0.1 Census<br/>D+A"]:::DA --> s02["0.2 Light baseline<br/>A+H"]:::AH --> s03["0.3 Full baseline<br/>A+H"]:::AH --> s04["0.4 Controls and environment<br/>D+H"]:::AH --> s05["0.5 Sign-off<br/>H"]:::H --> M4{{"M4 Onboarding sign-off"}}:::gate
+  end
+
+  %% ================= S1 =================
+  subgraph S1["S1 INTAKE AND TRIAGE → Ready Work Item + intent block"]
+    direction LR
+    s11["1.1 Normalise + taint-mark input<br/>D"]:::D --> s12["1.2 De-dupe and conflict scan<br/>D+A"]:::DA --> s13["1.3 Classify, propose LANE L0–L8<br/>D+A"]:::DA --> s14["1.4 Eligibility and suitability<br/>D+A"]:::DA --> s15["1.5 Clarify questions + intent block<br/>A+H"]:::AH --> s16["1.6 Ready decision<br/>H"]:::H
+  end
+  %% FIX 5 + FIX 7: G1 here is provisional; G0 binds the lane profile
+  G0G1{{"G0 Triage + G1 Intent, provisional<br/>binds LANE PROFILE"}}:::gate
+
+  %% ================= S2 =================
+  subgraph S2["S2 SHAPE → Context brief + decision brief"]
+    direction LR
+    s21["2.1 Ground in code/docs<br/>A, via knowledge"]:::A --> s21b["2.1b Focused reverse-engineering<br/>A"]:::A --> s22["2.2 Impact and stakeholders<br/>A"]:::A --> s23["2.3 Options and decision brief<br/>A"]:::A --> s24["2.4 Initiative elaboration, L6 only<br/>A"]:::A --> s25["2.5 G1 Intent acceptance, FINAL, L6 only<br/>H"]:::H
+  end
+
+  %% ================= S3 =================
+  subgraph S3["S3 SPECIFY → spec-delta.md + oracle specs"]
+    direction LR
+    s31["3.1 Locate affected requirements<br/>A"]:::A --> s32["3.2 Draft delta spec<br/>A"]:::A --> s33["3.3 Validate<br/>D"]:::D --> s34["3.4 Oracle specs<br/>A"]:::A --> s35["3.5 Clean-context review<br/>A"]:::A
+  end
+  %% FIX 9: oracle specs approved together with the spec
+  G2{{"G2 Spec + oracle-spec approval"}}:::gate
+
+  %% ================= S4 =================
+  subgraph S4["S4 DESIGN → ADRs · contracts · NFRs"]
+    direction LR
+    s41["4.1 Decisions / ADRs<br/>A"]:::A --> s42["4.2 Contracts<br/>D+A"]:::DA --> s43["4.3 Data and migration<br/>A"]:::A --> s44["4.4 NFR, threat, ops<br/>A"]:::A --> s45["4.5 Constitution check, design-time<br/>D+A"]:::DA --> s46["4.6 Design and threat review<br/>H"]:::H
+  end
+  G3d{{"G3d Design / threat sign-off"}}:::gate
+  E2{{"E2 Constitution exception"}}:::gate
+
+  %% ================= S5 =================
+  subgraph S5["S5 DECOMPOSE AND PLAN → Plan PR, plan.md per Unit"]
+    direction LR
+    s51["5.1 Split into Units<br/>A"]:::A --> s52["5.2 Sequence<br/>A"]:::A --> s53["5.3 Task plan per Unit<br/>A"]:::A --> s54["5.4 Bind verification<br/>A"]:::A --> s55["5.5 Budget envelope<br/>D"]:::D --> s56["5.6 Capacity input<br/>D+A"]:::DA --> s57["5.7 Schedule<br/>H"]:::H --> s58["5.8 Plan approval<br/>H"]:::H
+  end
+  G3{{"G3 Plan approval, SHA-bound<br/>+ G3s skeleton"}}:::gate
+
+  %% ================= SCHEDULING =================
+  SCHED["SCHEDULED<br/>human pull · admission needs lease + slot + envelope<br/>envelope from 5.5 or LANE PROFILE default"]:::D
+  HELD["HELD<br/>H1 approver pool · H2 capacity · H3 env · WIP"]:::term
+
+  %% ================= S6 =================
+  subgraph S6["S6 BUILD, per Unit, in SANDBOX (no creds, egress = gateway + mirror only) → Draft PR"]
+    direction LR
+    s60["6.0 Admission<br/>D"]:::D --> s61["6.1 Provision / rehydrate<br/>D"]:::D --> s62["6.2 Baseline<br/>D"]:::D --> s63["6.3 Oracles red<br/>D check: matches G2-approved oracle specs<br/>L0: failing repro test"]:::DA --> s64["6.4 Implement task loop<br/>A"]:::A --> s65["6.5 Self-check and tripwires<br/>D"]:::D --> s66["6.6 Draft PR via Push Broker<br/>A"]:::A
+  end
+  %% FIX 9: G3o fires only when oracle code deviates from approved specs
+  G3o{{"G3o Oracle deviation approval<br/>only if oracles differ from G2"}}:::gate
+  X1{{"X1 Destructive / irreversible"}}:::gate
+  X3{{"X3 New dependency"}}:::gate
+  E3{{"E3/E5 Envelope extension / escalation override"}}:::gate
+  E6{{"E6 Test Change Request on locked tests"}}:::gate
+
+  %% ================= S7 =================
+  subgraph S7["S7 VERIFY, CVW → signed Evidence Pack bound to head SHA"]
+    direction LR
+    s71["7.1 Deterministic checks<br/>D"]:::D --> s72["7.2 Test integrity + oracle quality<br/>mutation · holdout · D"]:::D --> s73["7.3 Spec conformance<br/>D+A"]:::DA --> s74["7.4 Secrets and dependencies<br/>D"]:::D --> s75["7.5 Constitution check, ALL lanes<br/>D+A"]:::fix --> s76["7.6 Pack assembly + sign<br/>D"]:::D
+  end
+  X2{{"X2 Protected-path change"}}:::gate
+
+  %% ================= S8 =================
+  subgraph S8["S8 INTEGRATE AND RELEASE: the FACTORY NEVER MERGES"]
+    direction LR
+    s81["8.1 G4 review<br/>mode C codeowner · mode E evidence approver<br/>sensitive path → codeowner + D37 portal step-up"]:::H --> s82["8.2 HUMAN merges on GitHub<br/>gate-check: PR head SHA == Evidence Pack SHA<br/>factory reconciles"]:::H --> s8b["S8b Release<br/>gate-relay binds/consumes G5<br/>records merged SHA → evidence SHA"]:::H
+  end
+  G4{{"G4 Merge approval, NEVER skipped"}}:::gate
+  G5{{"G5 Production release"}}:::gate
+
+  %% ================= S9 =================
+  subgraph S9["S9 CLOSE-OUT AND LEARN"]
+    direction LR
+    s92["9.2 Requester acceptance<br/>H"]:::H --> s93["9.3 Close-out record<br/>D"]:::D --> s94["9.4 Learn<br/>A"]:::A
+  end
+  %% FIX 4: audit is sampled and asynchronous, not on the closing chain
+  s95["9.5 Mode-E audit sample, async<br/>H"]:::H
+  G6{{"G6 Requester acceptance"}}:::gate
+  X4{{"X4 Break-glass post-hoc review"}}:::gate
+  DONE(["DONE"]):::term
+
+  %% ================= NEW TERMINALS / HOLDS (FIX 3, FIX 6) =================
+  DECLINED(["DECLINED at G0<br/>reason + cause code to requester"]):::term
+  SPIKE["L7 SPIKE REPORT<br/>findings + recommendation · branch archived<br/>no Push Broker PR · never reaches G4"]:::fix
+  RELHOLD["RELEASE HELD<br/>merged, not deployed · flag off / not promoted"]:::term
+
+  %% ================= HAPPY PATH =================
+  REQ --> s11
+  M4 -. "project ready" .-> s11
+  s16 --> G0G1
+  G0G1 -->|"L4/L5/L6 full path<br/>2.4–2.5 L6 only"| s21
+  s23 -->|"L4/L5: skip 2.4–2.5"| s31
+  s25 --> s31
+  s35 --> G2 --> s41
+  s45 -. "violates constitution" .-> E2
+  E2 -->|"exception granted, ledgered"| s46
+  s46 --> G3d --> s51
+  s58 --> G3 --> SCHED
+  SCHED -->|"admission ok"| s60
+  SCHED -->|"no lease/slot/envelope"| HELD -->|"hold cleared, FIFO by priority"| SCHED
+  s63 -. "oracle code deviates" .-> G3o
+  G3o -->|"approved"| s64
+  s66 --> s71
+  s76 --> G4 --> s81
+  s82 --> G5 --> s8b --> s92 --> G6 --> s93
+  s94 --> DONE
+
+  %% ================= FIX 1: X1 / X2 / X3 EXITS =================
+  s64 -. "irreversible op" .-> X1
+  s64 -. "new package" .-> X3
+  X1 -->|"approved: rehydrate, resume"| s64
+  X3 -->|"approved: mirror pins pkg, resume"| s64
+  X1 -. "denied" .-> D1
+  X3 -. "denied: find alternative, 1×, else D1" .-> s64
+  s74 -. "protected path" .-> X2
+  X2 -->|"approved"| s75
+  X2 -. "denied" .-> D2
+
+  %% ================= LANE SHORTCUTS (FIX 6, FIX 7) =================
+  G0G1 -->|"L0 Hotfix: profile envelope + repro oracle"| SCHED
+  G0G1 -->|"L1/L2/L3: skip S2/S4; partial S3/S5"| s31
+  G0G1 -->|"L7 Spike: S2 then throwaway S6"| s21
+  G0G1 -->|"L8 human-led, or R3 tripped"| L8
+  s65 -->|"L7 only"| SPIKE --> s93
+
+  %% ================= BACK-EDGES B1–B21 (original) =================
+  s15 -. "B1 missing info: ≤2 rounds, park 5 bd" .-> PARK["PARKED<br/>visible reason"]:::term
+  s21 -. "B2 intent ambiguous: G1 again, 2×, then E4" .-> s15
+  s33 -. "B3 validator/critic fail: 3 auto, then ET8" .-> s32
+  s46 -. "B4 design reveals spec gap: 1×" .-> s32
+  G3 -. "B5 plan changes requested: 2 rejections, then human writes plan" .-> s51
+  s62 -. "B6 red baseline / env broken" .-> BLOCKED["BLOCKED<br/>platform owner; L2 remediation item"]:::term
+  s65 -. "B7 task check fails: ET3 3 rounds · ET2 5 CI rounds or 2× time" .-> s64
+  s65 -. "B8 scope tripwire, 1st: split Unit, G3 again" .-> s51
+  s76 -. "B9 repairable finding: ET3/ET4/ET5/ET6 limits" .-> s64
+  s73 -. "B10 spec ambiguous: G2 portion again, 1×" .-> s32
+  s76 -. "B11 approach wrong: G3 again, 1×" .-> s51
+  s72 -. "B12 locked test must change, 1×" .-> E6 -.-> G3o
+  s81 -. "B13 G4 changes requested: ET7 2 rounds" .-> s64
+  s81 -. "B14 mode-E approver unsure → mode C" .-> s81
+  %% FIX 10: B15 split
+  s82 -. "B15a base moved, clean rebase: S7 re-run, 2×" .-> s71
+  s82 -. "B15b merge conflict: resolve in S6, then S7" .-> s64
+  s8b -. "B16 deploy unhealthy: rollback, NEW L0/L1 item" .-> REQ
+  s93 -. "B17 escape found post-merge: NEW L0/L1, ET13" .-> REQ
+  s92 -. "B18 requester rejects: NEW linked item" .-> REQ
+  %% FIX 12: minimum sample before suspension
+  s95 -. "B19 gate-miss on mode-E merge: NEW item<br/>>10% over ≥20 sampled suspends mode E" .-> REQ
+  AMEND["B20 requester amends scope, any active stage, 1×"]:::term -.-> s32
+
+  %% ================= FIX 2: NEW REJECTION BACK-EDGES B22–B26 =================
+  G0G1 -. "B22 ineligible / unsuitable" .-> DECLINED
+  G2 -. "B23 spec rejected: 2 rounds, then E4" .-> s32
+  G3d -. "B24 design rejected: 2 rounds, then E4" .-> s41
+  E2 -. "B25 exception denied: redesign 1×, else E4" .-> s41
+  G5 -. "B26 release denied" .-> RELHOLD
+  RELHOLD -->|"re-request after fix window"| G5
+  RELHOLD -. "needs change: NEW linked item" .-> REQ
+
+  %% ================= FIX 8: constitution check in S7 =================
+  s75 -. "violation" .-> E2
+  E2 -. "runtime exception denied: fix in S6" .-> s64
+
+  %% ================= FIX 3: PARK / BLOCKED exits =================
+  PARK -->|"answers arrive"| s15
+  PARK -. "5 bd timeout" .-> ABANDON
+  BLOCKED -->|"env fixed"| s61
+
+  %% ================= FIX 4: S9 async branches =================
+  s93 -. "mode-E merge, sampled" .-> s95
+  s93 -. "break-glass was used" .-> X4
+
+  %% ================= HANDOFFS =================
+  D1["D1 HANDOFF from S6<br/>ET1 budget 100% · ET2 time · ET3 repeat fail · ET8 agent gave up<br/>ET9 scope drift ×2 · ET11 oscillation · ET12 instability<br/>A11 Handoff Pack · session killed · tokens revoked"]:::hand
+  D2["D2 HANDOFF from S7<br/>loop limits ET3–ET6 hit, or hard-fail class<br/>Handoff Pack + Evidence Pack"]:::hand
+  D3["D3 HANDOFF from G4<br/>ET7 two rejection rounds"]:::hand
+  E4{{"E4 owner-of-record chooses"}}:::gate
+  s64 -. "limits hit" .-> D1
+  s65 -. "B8 2nd time" .-> D1
+  s76 -. "B9–B12 limits hit" .-> D2
+  s81 -. "ET7" .-> D3
+  D1 --> E4
+  D2 --> E4
+  D3 --> E4
+  E4 -->|"answer and resume, same envelope"| s64
+  E4 -->|"one extension ≤ +50%"| E3 --> s64
+  E4 -->|"re-plan"| s51
+  E4 -->|"re-spec"| s32
+  E4 -->|"developer TAKES OVER: lease epoch+1, fresh env"| L8["L8 HUMAN-LED<br/>D4 hand back once · D5 dev completes"]:::hand
+  L8 -->|"D5"| s71
+  L8 -. "D4 hand back: new envelope, G3 if plan changed" .-> s64
+  E4 -->|"abandon"| ABANDON(["ABANDONED with cause code"]):::term
+
+  %% ================= QUARANTINE =================
+  Q1["Q1 QUARANTINE: ET10 misbehaviour<br/>locked-test edit · protected-path deny · secret access<br/>stub passes · credential hunting<br/>IMMEDIATE stop · session tainted · snapshot kept"]:::bad
+  s64 -. "ET10" .-> Q1
+  s72 -. "ET10 stub probe hit" .-> Q1
+  Q1 --> SECT{{"Security triage BEFORE any handoff"}}:::gate
+  SECT -->|"false positive: cold rebuild, new session"| s61
+  SECT -->|"confirmed: branch quarantined, autonomy demoted"| L8
+
+  %% ================= RE-LANING (FIX 3) =================
+  R1["R1 UPSHIFT, free and logged<br/>diff over lane budget · sensitive path · contract change<br/>new dep · cross-repo · irreversible migration<br/>inserts FIRST missing stage, done stays done"]:::DA
+  R2{{"R2 DOWNSHIFT needs E1, re-run G0"}}:::gate
+  R3["R3 CIRCUIT BREAKER ET14<br/>project × lane → new items go L8"]:::bad
+  R4["R4 Hotfix done → L1 follow-up auto-created<br/>overdue > 5 bd blocks new agent items"]:::D
+  s65 -.-> R1
+  s73 -. "contract change found" .-> R1
+  X2 -. "sensitive path" .-> R1
+  R1 -. "insert first missing of S2/S3/S4" .-> s21
+  R1 -. "S3 missing only" .-> s31
+  s23 -. "smaller than lane" .-> R2
+  s46 -. "smaller than lane" .-> R2
+  R2 -->|"E1 approved"| s13
+  Q1 -. "counts toward ET14" .-> R3
+  E4 -. "abandon / takeover counts toward ET14" .-> R3
+  R3 -. "routes new items" .-> G0G1
+  s8b -. "after L0" .-> R4
+  R4 -.-> REQ
+
+  %% ================= FIX 14: PER-ITEM REWORK BUDGET =================
+  RB["ITEM REWORK BUDGET<br/>every back-edge B2–B26 adds 1 · counter survives re-lane and handoff<br/>total ≥ 5 (tune) OR item age > 10 bd (tune)<br/>→ B28 straight to E4 · counts toward ET14"]:::fix
+  RB -. "B28 rework budget exhausted" .-> E4
+  RB -. "counts toward ET14" .-> R3
+
+  %% ================= FIX 15: UNTRUSTED-INPUT BOUNDARY =================
+  TRUST["UNTRUSTED-INPUT BOUNDARY<br/>request text · Teams / issue content · repo files · dependency docs<br/>= DATA, never instructions<br/>cannot change lane, gate outcome, tool permissions or egress<br/>agents act only on the intent block a human accepted at G1"]:::fix
+  s11 -. "B27 suspected injection in request:<br/>content fenced as data, flagged on G0 card" .-> G0G1
+  s21 -. "instruction-like text in repo / deps:<br/>logged, ignored, flagged in context brief" .-> TRUST
+  TRUST -. "agent acts on it anyway = ET10" .-> Q1
+
+  %% ================= FIX 13: PHASE-1 PROFILES =================
+  subgraph PROFILES["LANE PROFILES and SINGLE-OPERATOR MODE"]
+    direction LR
+    PROF["LANE PROFILE, bound at G0<br/>default envelope · oracle source · mandatory checks<br/>7.1–7.6 and G4 are mandatory in EVERY lane"]:::fix
+    SOLO["SINGLE-OPERATOR PROFILE, Phase 1<br/>one human holds all roles → CONSOLIDATE, never auto-approve<br/>card 1: G0+G1 · card 2: G2+oracles · card 3: G3d+G3+G3s<br/>card 4: G4 · card 5: G5+G6 when requester = operator<br/>X/E/Q gates stay separate"]:::fix
+    WAIT["HUMAN-WAIT POLICY in S6<br/>any pending G3o / X1 / X3 / E6 → snapshot kept<br/>lease + slot released · envelope clock paused<br/>rehydrate via 6.1 on decision"]:::fix
+  end
+
+  %% ================= CROSS-CUTTING PLANES =================
+  subgraph PLANES["CROSS-CUTTING: applies to EVERY step and gate · dashed brown = target-state, stub in Phase 1"]
+    direction LR
+    PDP["PDP · Cedar<br/>every action checked; UI hides only cosmetically"]:::tgt
+    LEDGER["Signed LEDGER<br/>Notary ES256 · Witness checkpoints 5 min<br/>every gate decision, hash-bound"]:::tgt
+    INBOX["INBOX-FIRST<br/>Postgres + ledger commit BEFORE Temporal<br/>idempotency key on every signal<br/>Teams card = twin of portal inbox entry"]:::tgt
+    GW["GATEWAY<br/>all model calls · per-Unit budget · redaction<br/>tool allow-list per Unit, never widened by content"]:::plane
+    KILL["KILL SWITCH<br/>scoped: fleet / project / lane"]:::plane
+    MM["Maintenance MM-2<br/>timers frozen · decisions disabled · drafts kept"]:::tgt
+    SLA["B21 any gate > 1 bd SLA → backup approver / manager<br/>NEVER auto-approve"]:::plane
+    META{{"M1 config · M2 variance · M3 catalogue/permission<br/>M5 autonomy promotion · M6 approver grant"}}:::gate
+  end
+
+  %% FIX 12: learning feeds governance
+  s94 -. "proposes config / catalogue changes" .-> META
