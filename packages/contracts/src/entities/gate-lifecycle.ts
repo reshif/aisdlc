@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { GateId, type GateId as GateIdType } from '../flow.js';
 import { SubjectKind, VoteDecision } from './decisions.js';
 import {
+  CardId,
   GateInstanceId,
   IsoDateTime,
   JsonObject,
@@ -127,6 +128,8 @@ export const DecisionBody = z.discriminatedUnion('kind', [
     step_up: z.strictObject({ bound_hash: Sha256Hex, proof_sha256: Sha256Hex }).nullable(),
     quorum_required: z.number().int().min(1),
     approvals_after: z.number().int().min(0),
+    /** Set when the vote was cast as part of a card decision (PLAN M3.4). */
+    card: z.strictObject({ card_id: CardId, payload_hash: Sha256Hex }).optional(),
   }),
   z.strictObject({
     kind: z.literal('supersede'),

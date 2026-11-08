@@ -91,9 +91,20 @@ export type CardRole = z.infer<typeof CardRole>;
 
 /**
  * DM gives `OnboardingCard.status` no values. These cover what OB §6.3 and §6.2 describe: waiting,
- * decided, sent back (one send-back per step, DEC-9), rejected, withdrawn.
+ * decided, sent back (one send-back per step, DEC-9), rejected, withdrawn; the inbox adds expired
+ * and superseded.
  */
-export const CardStatus = z.enum(['open', 'decided', 'sent_back', 'rejected', 'withdrawn']);
+export const CardStatus = z.enum([
+  'open',
+  'decided',
+  'sent_back',
+  'rejected',
+  'withdrawn',
+  // Inbox cards (M3.4): every gate on the card ran out of time, or was replaced by a new subject
+  // hash. Neither is a decision, and neither approves anything.
+  'expired',
+  'superseded',
+]);
 export type CardStatus = z.infer<typeof CardStatus>;
 export const CardStatusValues: readonly CardStatus[] = CardStatus.options;
 

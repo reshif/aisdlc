@@ -1,5 +1,12 @@
-import { GATE_EVENT, VoteDecision, gatePolicy, type PrincipalId } from '@aisdlc/contracts';
+import {
+  GATE_EVENT,
+  VoteDecision,
+  gatePolicy,
+  type PrincipalId,
+  type Sha256Hex,
+} from '@aisdlc/contracts';
 import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
+import type { Tx } from '@aisdlc/record';
 import { randomBytes } from 'node:crypto';
 import { decisionError, type DecisionError } from './errors.js';
 import {
@@ -12,7 +19,7 @@ import {
   type Written,
 } from './internal.js';
 import { applyVote, enterGate, requirePending, type VoteResult } from './vote.js';
-import { readGateState } from './state.js';
+import { readGateState, type GateState } from './state.js';
 
 // PreparedDecision (PLAN M3.3, DM `PreparedDecision` and `GateNonce`). A decision is two calls:
 //
@@ -173,6 +180,84 @@ export async function recordEvidenceViewed(
   return done.ok ? ok(done.value) : done;
 }
 
+/** A nonce that passed every check of `decide` and is consumed. */
+export interface ConsumedNonce {
+  readonly row: {
+    readonly principal: string;
+    readonly evidence_hash: string;
+    readonly evidence_viewed_at: Date;
+  };
+  readonly stepUp: { bound_hash: Sha256Hex; proof_sha256: Sha256Hex } | null;
+}
+
+/**
+ * Every check `decide` makes between the gate state and the vote, and the consume: the nonce is
+ * known, unused and unexpired; it is bound to this gate's current subject hash; the gate is
+ * pending; the evidence was recorded as viewed; and a gate that needs a step-up has a valid proof.
+ * Call after `enterGate` (gate lock, ledger lock). The nonce row is locked FOR UPDATE here and
+ * consumed in the caller's transaction, so a refusal anywhere rolls the consume back.
+ */
+export async function consumeNonce(
+  tx: Tx,
+  deps: DecisionDeps,
+  nonce: string,
+  state: GateState,
+  stepUpInput: { readonly proof: string } | undefined,
+): Promise<Result<ConsumedNonce, DecisionError>> {
+  const clock = clockOf(deps);
+  const h = hashOfNonce(nonce);
+  const locked = await tx.query<NonceRow>(
+    `SELECT ${NONCE_COLUMNS} FROM decisions.gate_nonce WHERE nonce_sha256 = $1 FOR UPDATE`,
+    [h],
+  );
+  const row = locked.rows[0];
+  if (!row) return err(decisionError('nonce_unknown', 'unknown nonce'));
+  if (row.gate_instance_id !== state.open.gate_instance_id) {
+    return err(decisionError('nonce_unknown', 'nonce is bound to another gate'));
+  }
+  if (row.consumed_at) return err(decisionError('nonce_replayed', 'nonce already used'));
+  if (!(clock.nowMs() < row.expires_at.getTime())) {
+    return err(decisionError('nonce_expired', 'nonce expired'));
+  }
+  const p = state.open.payload;
+  if (state.status === 'superseded' || row.subject_hash !== p.subject_hash) {
+    return err(decisionError('subject_superseded', 'the gate was reopened for a new subject hash'));
+  }
+  const refusal = requirePending(deps, state);
+  if (refusal) return err(refusal);
+  if (!row.evidence_viewed_at) {
+    return err(decisionError('evidence_not_viewed', 'evidence_viewed was not recorded'));
+  }
+  let stepUp: ConsumedNonce['stepUp'] = null;
+  if (p.step_up.required) {
+    if (!stepUpInput?.proof) {
+      return err(decisionError('step_up_required', `${p.gate_id} needs a step-up proof`));
+    }
+    const v = await deps.stepUp.verify(
+      stepUpInput.proof,
+      p.step_up.bound_hash,
+      row.principal as PrincipalId,
+    );
+    if (!v.ok) return err(decisionError('step_up_invalid', v.error.message));
+    stepUp = {
+      bound_hash: p.step_up.bound_hash,
+      proof_sha256: sha256Hex(stepUpInput.proof) as Sha256Hex,
+    };
+  }
+  await tx.query('UPDATE decisions.gate_nonce SET consumed_at = $2 WHERE nonce_sha256 = $1', [
+    h,
+    clock.now(),
+  ]);
+  return ok({
+    row: {
+      principal: row.principal,
+      evidence_hash: row.evidence_hash,
+      evidence_viewed_at: row.evidence_viewed_at,
+    },
+    stepUp,
+  });
+}
+
 export interface DecideInput {
   readonly nonce: string;
   /** `approve`, `reject` or `request_changes`; supersede, expire and withdraw are not votes. */
@@ -186,7 +271,6 @@ export async function decide(
   deps: DecisionDeps,
   input: DecideInput,
 ): Promise<Result<Written<VoteResult>, DecisionError>> {
-  const clock = clockOf(deps);
   const decision = VoteDecision.safeParse(input.decision);
   if (!decision.success) {
     return err(decisionError('invalid_input', `${input.decision} is not a vote decision`));
@@ -204,56 +288,20 @@ export async function decide(
     const entered = await enterGate(tx, deps, gateId);
     if (!entered.ok) return entered;
     const { state } = entered.value;
-    const locked = await tx.query<NonceRow>(
-      `SELECT ${NONCE_COLUMNS} FROM decisions.gate_nonce WHERE nonce_sha256 = $1 FOR UPDATE`,
-      [h],
-    );
-    const row = locked.rows[0] as NonceRow;
-    if (row.consumed_at) return err(decisionError('nonce_replayed', 'nonce already used'));
-    if (!(clock.nowMs() < row.expires_at.getTime())) {
-      return err(decisionError('nonce_expired', 'nonce expired'));
-    }
-    const p = state.open.payload;
-    if (state.status === 'superseded' || row.subject_hash !== p.subject_hash) {
-      return err(
-        decisionError('subject_superseded', 'the gate was reopened for a new subject hash'),
-      );
-    }
-    const refusal = requirePending(deps, state);
-    if (refusal) return err(refusal);
-    if (!row.evidence_viewed_at) {
-      return err(decisionError('evidence_not_viewed', 'evidence_viewed was not recorded'));
-    }
-
-    let stepUp: { bound_hash: string; proof_sha256: string } | null = null;
-    if (p.step_up.required) {
-      if (!input.step_up?.proof) {
-        return err(decisionError('step_up_required', `${p.gate_id} needs a step-up proof`));
-      }
-      const v = await deps.stepUp.verify(
-        input.step_up.proof,
-        p.step_up.bound_hash,
-        row.principal as PrincipalId,
-      );
-      if (!v.ok) return err(decisionError('step_up_invalid', v.error.message));
-      stepUp = { bound_hash: p.step_up.bound_hash, proof_sha256: sha256Hex(input.step_up.proof) };
-    }
-
-    await tx.query('UPDATE decisions.gate_nonce SET consumed_at = $2 WHERE nonce_sha256 = $1', [
-      h,
-      clock.now(),
-    ]);
+    const used = await consumeNonce(tx, deps, input.nonce, state, input.step_up);
+    if (!used.ok) return used;
+    const { row, stepUp } = used.value;
     const voted = await applyVote(tx, deps, state, {
       gate_instance_id: gateId,
       voter: row.principal as PrincipalId,
       decision: decision.data,
       evidence: {
-        evidence_hash: row.evidence_hash,
+        evidence_hash: row.evidence_hash as Sha256Hex,
         evidence_viewed_at: row.evidence_viewed_at.toISOString(),
-        nonce_sha256: h,
+        nonce_sha256: h as Sha256Hex,
         step_up: stepUp,
       },
-    } as Parameters<typeof applyVote>[3]);
+    });
     if (!voted.ok) return voted;
     return ok({
       value: { entry: voted.value.entry, after: voted.value.after },

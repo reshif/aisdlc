@@ -4,6 +4,8 @@ import {
   type LedgerDecision,
   type LedgerEntry,
   type LedgerEntryDraft,
+  type LedgerEntryId,
+  type RoleSlot,
   type SubjectKind,
 } from '@aisdlc/contracts';
 import { err, newId, ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
@@ -19,6 +21,7 @@ import {
 import { appendEvents, type NewEvent, type Tx } from '@aisdlc/record';
 import type pg from 'pg';
 import { decisionError, type DecisionError } from './errors.js';
+import type { BusinessCalendar } from './inbox/calendar.js';
 import type { EligibilityPort, StepUpPort } from './ports.js';
 
 export const DEFAULT_POLICY_BUNDLE_VERSION = 'decisions-1.0.0';
@@ -38,6 +41,12 @@ export interface DecisionDeps {
   readonly policyBundleVersion?: string;
   readonly gateTtlMs?: number;
   readonly nonceTtlMs?: number;
+  /** Business days for the B21 SLA (inbox). Default `DEFAULT_CALENDAR`: weekends off, no holidays. */
+  readonly calendar?: BusinessCalendar;
+  /** B21: business days a gate may stay pending before it escalates. Default 1. */
+  readonly slaBusinessDays?: number;
+  /** B21: the slot whose holders get the escalation entry. Default `admin`. */
+  readonly backupSlot?: RoleSlot;
 }
 
 export const clockOf = (d: DecisionDeps): Clock => d.clock ?? systemClock;
@@ -152,5 +161,5 @@ export async function writeDecision(
   return w.ok ? ok(w.value) : err(decisionError('ledger', w.error.message, w.error));
 }
 
-export const newEntryId = (deps: DecisionDeps): string =>
+export const newEntryId = (deps: DecisionDeps): LedgerEntryId =>
   newId<'LedgerEntry'>(clockOf(deps).nowMs());

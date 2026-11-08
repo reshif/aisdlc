@@ -1,14 +1,16 @@
 import {
   GATE_EVENT,
   gatePolicy,
+  type CardId,
   type LedgerEntry,
+  type LedgerEntryDraft,
   type PrincipalId,
   type Sha256Hex,
   type VoteDecision,
 } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import type { PendingConfirm } from '@aisdlc/ledger';
-import type { Tx } from '@aisdlc/record';
+import type { NewEvent, Tx } from '@aisdlc/record';
 import { decisionError, type DecisionError } from './errors.js';
 import {
   appendGateEvents,
@@ -49,6 +51,8 @@ export interface VoteRequest {
   readonly voter: PrincipalId;
   readonly decision: VoteDecision;
   readonly evidence: VoteEvidence;
+  /** The card decision this vote is part of; goes into the ledger body (PLAN M3.4). */
+  readonly card?: { readonly card_id: CardId; readonly payload_hash: Sha256Hex };
 }
 
 export interface VoteResult {
@@ -90,16 +94,24 @@ export function requirePending(deps: DecisionDeps, state: GateState): DecisionEr
   return null;
 }
 
+/** A vote that passed the policy: what to write, not yet written. */
+export interface PlannedVote {
+  readonly state: GateState;
+  /** The marker record event for the gate stream. */
+  readonly marker: NewEvent;
+  readonly draft: LedgerEntryDraft;
+  readonly entry_id: string;
+}
+
 /**
- * Evaluates the vote under the project's policy and, if allowed, writes the marker record event and
- * then the ledger entry (the last write). Must run in a transaction that called `enterGate` and `requirePending`.
+ * Evaluates the vote under the project's policy and builds the marker event and the ledger draft.
+ * Writes nothing, so a card decision can plan every gate first and write only if all of them pass.
  */
-export async function applyVote(
-  tx: Tx,
+export async function planVote(
   deps: DecisionDeps,
   state: GateState,
   req: VoteRequest,
-): Promise<Result<VoteResult & { pending: PendingConfirm[] }, DecisionError>> {
+): Promise<Result<PlannedVote, DecisionError>> {
   const p = state.open.payload;
   const holders = await deps.eligibility.holders(p.project_id, gatePolicy(p.gate_id).slot);
   const ctx = await deps.eligibility.policy(p.project_id);
@@ -120,16 +132,12 @@ export async function applyVote(
   if (!verdict.ok) return err(decisionError(verdict.error.code, verdict.error.message));
 
   const entryId = newEntryId(deps);
-  const marker = await appendGateEvents(tx, deps, state.open.gate_instance_id, [
-    {
-      type: GATE_EVENT.vote,
-      actor: req.voter,
-      idempotency_key: `vote:${entryId}`,
-      body: { ledger_entry_id: entryId, approver: req.voter, decision: req.decision },
-    },
-  ]);
-  if (!marker.ok) return marker;
-
+  const marker: NewEvent = {
+    type: GATE_EVENT.vote,
+    actor: req.voter,
+    idempotency_key: `vote:${entryId}`,
+    body: { ledger_entry_id: entryId, approver: req.voter, decision: req.decision },
+  };
   const draft = decisionDraft(deps, {
     entry_id: entryId,
     gate_instance_id: state.open.gate_instance_id,
@@ -148,15 +156,44 @@ export async function applyVote(
       step_up: req.evidence.step_up,
       quorum_required: p.quorum.required,
       approvals_after: verdict.value.approvals_after,
+      ...(req.card ? { card: req.card } : {}),
     },
   });
-  const w = await writeDecision(tx, deps, draft);
+  return ok({ state, marker, draft, entry_id: entryId });
+}
+
+/** The gate state after `entry` joined its decisions. */
+export function stateAfter(state: GateState, entry: LedgerEntry): FoldedGate {
+  const p = state.open.payload;
+  return foldDecisions({ subject_hash: p.subject_hash, quorum_required: p.quorum.required }, [
+    ...state.decisions,
+    decisionRowOf(entry),
+  ]);
+}
+
+/**
+ * Plans the vote and, if allowed, writes the marker record event and then the ledger entry (the
+ * last write). Must run in a transaction that called `enterGate` and `requirePending`.
+ */
+export async function applyVote(
+  tx: Tx,
+  deps: DecisionDeps,
+  state: GateState,
+  req: VoteRequest,
+): Promise<Result<VoteResult & { pending: PendingConfirm[] }, DecisionError>> {
+  const planned = await planVote(deps, state, req);
+  if (!planned.ok) return planned;
+  const marker = await appendGateEvents(tx, deps, state.open.gate_instance_id, [
+    planned.value.marker,
+  ]);
+  if (!marker.ok) return marker;
+  const w = await writeDecision(tx, deps, planned.value.draft);
   if (!w.ok) return w;
-  const after = foldDecisions(
-    { subject_hash: p.subject_hash, quorum_required: p.quorum.required },
-    [...state.decisions, decisionRowOf(w.value.entry)],
-  );
-  return ok({ entry: w.value.entry, after, pending: w.value.pending });
+  return ok({
+    entry: w.value.entry,
+    after: stateAfter(state, w.value.entry),
+    pending: w.value.pending,
+  });
 }
 
 /** Policy and persistence of one vote, in its own transaction (see the module note). */

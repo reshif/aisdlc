@@ -45,3 +45,15 @@ describe('uuid v7', () => {
     expect(r).toBe(p);
   });
 });
+
+describe('deterministicId', () => {
+  it('is stable, well formed and seed-sensitive', async () => {
+    const { deterministicId, parseUuid } = await import('../src/id.js');
+    const a = deterministicId<'X'>('seed-1');
+    expect(a).toBe(deterministicId<'X'>('seed-1'));
+    expect(a).not.toBe(deterministicId<'X'>('seed-2'));
+    expect(parseUuid(a).ok).toBe(true);
+    expect(a[14]).toBe('8');
+    expect('89ab').toContain(a[19]);
+  });
+});

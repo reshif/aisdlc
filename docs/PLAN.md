@@ -55,7 +55,8 @@ packages/
   catalogue/   versioned catalogue data: lanes, stages, gates, back-edges, ET triggers, terminals, criteria
   record/      record_event, outbox, chain verification, rebuild harness
   ledger/      ledger_entry and checkpoint tables (scope `ledger`), writer (reserve, sign, insert, confirm), reconciler, checkpoint loop, offline verifier and `aisdlc verify-ledger`
-  decisions/   gate kernel: GateInstance, votes, quorum, SoD, nonces, step-up binding
+  decisions/   gate kernel: GateInstance, votes, quorum, SoD, nonces, step-up binding; inbox cards, list payloads, B21 SLA sweep
+  config/      layered config revisions, registry of keys, config_publish (M1 gate), ConfigReader
   pdp/         Cedar schema, policies, embedded evaluator
   ports/       port interfaces plus deterministic fakes (KeyCustody, Notary, Witness so far)
   service-kit/ bearer service tokens, Fastify helpers, JSON client for the services
