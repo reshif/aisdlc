@@ -3,6 +3,7 @@ export * from './rows.js';
 export * from './tx.js';
 export * from './writer.js';
 export * from './reconcile.js';
+export * from './feed.js';
 export * from './checkpoint.js';
 export * from './verify.js';
 export * from './cli.js';

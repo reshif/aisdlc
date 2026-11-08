@@ -1226,6 +1226,137 @@
         "D3"
       ]
     },
+    "DecisionBody": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "vote"
+            },
+            "evidence_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "evidence_viewed_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "nonce_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "step_up": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "bound_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "proof_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "bound_hash",
+                    "proof_sha256"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "quorum_required": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "approvals_after": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "kind",
+            "evidence_hash",
+            "evidence_viewed_at",
+            "nonce_sha256",
+            "step_up",
+            "quorum_required",
+            "approvals_after"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "supersede"
+            },
+            "superseded_by": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "new_subject_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "kind",
+            "superseded_by",
+            "new_subject_hash"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "expire"
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "kind",
+            "expires_at"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "withdraw"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "EntryChannel": {
       "type": "string",
       "enum": [
@@ -1575,6 +1706,78 @@
       ],
       "additionalProperties": false
     },
+    "GateClosedMarker": {
+      "type": "object",
+      "properties": {
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "ledger_entry_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "GateEventType": {
+      "type": "string",
+      "enum": [
+        "gate.opened",
+        "gate.vote",
+        "gate.superseded",
+        "gate.closed",
+        "gate.expired",
+        "gate.evidence_viewed"
+      ]
+    },
+    "GateEvidenceViewedPayload": {
+      "type": "object",
+      "properties": {
+        "principal": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "evidence_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "nonce_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "principal",
+        "evidence_hash",
+        "nonce_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "GateExpiredMarker": {
+      "type": "object",
+      "properties": {
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "ledger_entry_id",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    },
     "GateFamily": {
       "type": "string",
       "enum": [
@@ -1740,6 +1943,236 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
+    "GateOpenedPayload": {
+      "type": "object",
+      "properties": {
+        "gate_instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "gate_id": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G1f",
+            "G2",
+            "G3",
+            "G3d",
+            "G3s",
+            "G3o",
+            "G4",
+            "G5",
+            "G6",
+            "X1",
+            "X2",
+            "X3",
+            "X4",
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "Q1",
+            "SECT"
+          ]
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "subject_kind": {
+          "type": "string",
+          "enum": [
+            "item",
+            "s0_record"
+          ]
+        },
+        "subject_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "subject_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "evidence_pack_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requester": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "facts": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "quorum": {
+          "type": "object",
+          "properties": {
+            "required": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "slot": {
+              "type": "string",
+              "enum": [
+                "admin",
+                "requesters",
+                "intent",
+                "design",
+                "g4",
+                "g5",
+                "x",
+                "sec",
+                "m4",
+                "kill"
+              ]
+            },
+            "basis": {
+              "type": "string",
+              "enum": [
+                "single",
+                "two_person",
+                "single_holder",
+                "two_person_off",
+                "own_item"
+              ]
+            }
+          },
+          "required": [
+            "required",
+            "slot",
+            "basis"
+          ],
+          "additionalProperties": false
+        },
+        "step_up": {
+          "type": "object",
+          "properties": {
+            "required": {
+              "type": "boolean"
+            },
+            "bound_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "required",
+            "bound_hash"
+          ],
+          "additionalProperties": false
+        },
+        "supersedes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "opened_by": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "gate_instance_id",
+        "gate_id",
+        "project_id",
+        "subject_kind",
+        "subject_id",
+        "subject_hash",
+        "evidence_pack_hash",
+        "requester",
+        "facts",
+        "quorum",
+        "step_up",
+        "supersedes",
+        "opened_by"
+      ],
+      "additionalProperties": false
+    },
+    "GatePolicy": {
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "requesters",
+            "intent",
+            "design",
+            "g4",
+            "g5",
+            "x",
+            "sec",
+            "m4",
+            "kill"
+          ]
+        },
+        "two_person": {
+          "type": "string",
+          "enum": [
+            "never",
+            "project"
+          ]
+        },
+        "own_request": {
+          "type": "string",
+          "enum": [
+            "blocked",
+            "allowed"
+          ]
+        },
+        "step_up": {
+          "type": "boolean"
+        },
+        "consolidatable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "slot",
+        "two_person",
+        "own_request",
+        "step_up",
+        "consolidatable"
+      ],
+      "additionalProperties": false
+    },
     "GateStatus": {
       "type": "string",
       "enum": [
@@ -1749,6 +2182,29 @@
         "expired",
         "closed"
       ]
+    },
+    "GateSupersededMarker": {
+      "type": "object",
+      "properties": {
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "superseded_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "new_subject_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "ledger_entry_id",
+        "superseded_by",
+        "new_subject_hash"
+      ],
+      "additionalProperties": false
     },
     "GateSwitch": {
       "type": "string",
@@ -1787,6 +2243,34 @@
         "approver",
         "decision",
         "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "GateVoteMarker": {
+      "type": "object",
+      "properties": {
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "approver": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "reject",
+            "request_changes"
+          ]
+        }
+      },
+      "required": [
+        "ledger_entry_id",
+        "approver",
+        "decision"
       ],
       "additionalProperties": false
     },
@@ -6320,6 +6804,16 @@
       ],
       "additionalProperties": false
     },
+    "QuorumBasis": {
+      "type": "string",
+      "enum": [
+        "single",
+        "two_person",
+        "single_holder",
+        "two_person_off",
+        "own_item"
+      ]
+    },
     "ReadinessActor": {
       "type": "string",
       "enum": [
@@ -7146,6 +7640,13 @@
         "locked_on"
       ],
       "additionalProperties": false
+    },
+    "TwoPersonMode": {
+      "type": "string",
+      "enum": [
+        "never",
+        "project"
+      ]
     },
     "UnitState": {
       "type": "string",
