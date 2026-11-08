@@ -281,7 +281,7 @@ Decided already: DEC-27..30 (OB §12.6). For the OB "decide now" set (DEC-1..9, 
 
 | When | Decision |
 |---|---|
-| Before M4 | DM §9 Q1: is a Team owned by the factory, or a label imported from the IdP? Q2: does the wizard edit the ten-slot role map (default) or bindings directly? |
+| Defaulted at M4 (2026-11-08, user did not object; change by config later) | DM §9 Q1: a Team is owned by the factory, with an optional mapping to an IdP group. Q2: the wizard edits the ten-slot role map and bindings are generated from it. B21: a backup approver is notified only and gains no decision right |
 | M5 | DEC-7: remove `statuses:write` from the GitHub App (on GitHub) |
 | M8.5 | DEC-4 attestation for the testbed ("no prod, no real data, no dependants") |
 | M10 | DM §9 Q4: one Integration registry for code hosts and model providers (default) or two. RV §11 Q1: is Codex a model route in the gateway or a harness in the sandbox? |
