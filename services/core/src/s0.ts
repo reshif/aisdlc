@@ -1,6 +1,9 @@
 import { currentCatalogueRef } from '@aisdlc/catalogue';
 import {
+  BOOTSTRAP_CARDS,
+  BOOTSTRAP_ENTRY_TYPE,
   PROJECT_EVENT,
+  S0BootstrapGrantedPayload,
   REPO_EVENT,
   S0_EVENT,
   canTransitionOnboarding,
@@ -12,6 +15,8 @@ import {
   s0Stream,
   type CatalogueRef,
   type CauseCode,
+  type LedgerEntryDraft,
+  type LedgerEntryId,
   type Level,
   type OnboardAttestations,
   type Tier,
@@ -24,10 +29,26 @@ import {
   type S0StepChangedPayload,
   type CardKind,
 } from '@aisdlc/contracts';
+import { DEFAULT_POLICY_BUNDLE_VERSION } from '@aisdlc/decisions';
 import { deterministicId, err, newId, ok, type Result } from '@aisdlc/kernel';
+import {
+  appendLedgerEntryTx,
+  importUnconfirmed,
+  lockLedger,
+  type PendingConfirm,
+} from '@aisdlc/ledger';
+import type { PoolClient } from 'pg';
+import { BOOTSTRAP_SLOT, bootstrapApplies } from './bootstrap.js';
 import { coreError, type CoreError } from './errors.js';
 import { isTerminal, type S0State } from './fold.js';
-import { inCoreTx, lockKeys, type CoreDeps, type Journal } from './journal.js';
+import {
+  clockOf,
+  inCoreLedgerTx,
+  inCoreTx,
+  lockKeys,
+  type CoreDeps,
+  type Journal,
+} from './journal.js';
 
 // The S0 record's writes (PLAN M7.1, M7.2): the `project.onboard` intake and every transition of the
 // OnboardingRecord state machine (contracts `states/onboarding.ts`, exactly). A write folds the
@@ -145,6 +166,8 @@ export interface OnboardResult {
   readonly superseded: readonly string[];
   /** True when `request_id` had been seen: nothing was written. */
   readonly duplicate: boolean;
+  /** The provisional admin this intake granted (PLAN M7.4), or `null`: the usual case. */
+  readonly bootstrap: { readonly grantee: string; readonly ledger_entry_id: string } | null;
 }
 
 export interface OnboardOptions {
@@ -174,7 +197,12 @@ export async function requestOnboarding(
     ? deterministicId<'S0Record'>(`aisdlc.s0:${req.request_id}`)
     : newId<'S0Record'>();
   const catalogue = opts.catalogue ?? currentCatalogueRef();
-  return inCoreTx<OnboardResult>(deps, async (j, tx) => {
+  type Done = { value: OnboardResult; pending: readonly PendingConfirm[] };
+  const body = async (
+    j: Journal,
+    tx: PoolClient,
+    ledger: NonNullable<CoreDeps['ledger']> | null,
+  ): Promise<Result<Done, CoreError>> => {
     await lockKeys(tx, [`project:${req.project_id}`, `repo:${key}`, `s0:${s0Id}`]);
 
     // A retry of a request already recorded is that request.
@@ -189,13 +217,17 @@ export async function requestOnboarding(
           return err(coreError('conflict', 'request_id was used for a different request'));
         }
         return ok({
-          s0_id: s0Id,
-          s0_ref: seen.record.intake_ref,
-          project_id: req.project_id,
-          repo: seen.repo,
-          project_created: false,
-          superseded: [],
-          duplicate: true,
+          value: {
+            s0_id: s0Id,
+            s0_ref: seen.record.intake_ref,
+            project_id: req.project_id,
+            repo: seen.repo,
+            project_created: false,
+            superseded: [],
+            duplicate: true,
+            bootstrap: null,
+          },
+          pending: [],
         });
       }
     }
@@ -208,6 +240,33 @@ export async function requestOnboarding(
           `repository ${existingRepo.repo_ref} belongs to project ${existingRepo.project_id}`,
         ),
       );
+    }
+
+    // The older S0 records of this repo (the repo key is held, so no other request is adding one).
+    const older = await tx.query<{ s0_id: string }>(
+      `SELECT body ->> 's0_id' AS s0_id FROM record.record_event
+        WHERE type = $1 AND lower(body ->> 'repo') = $2 ORDER BY global_seq`,
+      [S0_EVENT.requested, key],
+    );
+    const olderIds = older.rows.map((r) => r.s0_id).filter((id) => id !== s0Id);
+    await lockKeys(
+      tx,
+      olderIds.map((id) => `s0:${id}`),
+    );
+
+    // The bootstrap decider (PLAN M7.4): the project's first onboarding, with no published role
+    // map and no other live grant (an older request of this repo that this one supersedes does not
+    // count), makes the requester the provisional admin of this record's cards 1, 4 and 5. It
+    // needs the ledger: the grant is stated there, or it is not made. The ledger lock is taken
+    // here, before the first record append, and the entry is written last (AGENTS.md lock order).
+    const pending: PendingConfirm[] = [];
+    let grantEntryId: LedgerEntryId | null = null;
+    if (ledger && (await bootstrapApplies(tx, req.project_id, olderIds))) {
+      await lockLedger(tx);
+      const caught = await importUnconfirmed(tx, ledger);
+      if (!caught.ok) return err(coreError('unavailable', caught.error.message));
+      pending.push(...caught.value.pending);
+      grantEntryId = newId<'LedgerEntry'>(clockOf(deps).nowMs());
     }
 
     // Project.
@@ -260,18 +319,6 @@ export async function requestOnboarding(
       if (!w.ok) return w;
     }
 
-    // The older S0 records of this repo (the repo key is held, so no other request is adding one).
-    const older = await tx.query<{ s0_id: string }>(
-      `SELECT body ->> 's0_id' AS s0_id FROM record.record_event
-        WHERE type = $1 AND lower(body ->> 'repo') = $2 ORDER BY global_seq`,
-      [S0_EVENT.requested, key],
-    );
-    const olderIds = older.rows.map((r) => r.s0_id).filter((id) => id !== s0Id);
-    await lockKeys(
-      tx,
-      olderIds.map((id) => `s0:${id}`),
-    );
-
     // The intake event. Its own id is the record's `s0_ref`.
     const intakeId = newId<'RecordEvent'>();
     const intake = await j.emit(
@@ -292,6 +339,23 @@ export async function requestOnboarding(
     );
     if (!intake.ok) return intake;
     let s0 = (await j.s0(s0Id)) as S0State;
+    if (grantEntryId !== null) {
+      const g = await j.emit(
+        s0Stream(s0Id),
+        S0_EVENT.bootstrap_granted,
+        S0BootstrapGrantedPayload.parse({
+          s0_id: s0Id,
+          project_id: req.project_id,
+          grantee: actor,
+          slot: BOOTSTRAP_SLOT,
+          cards: [...BOOTSTRAP_CARDS],
+          basis: 'first_onboarding_no_role_map',
+          ledger_entry_id: grantEntryId,
+        }),
+        actor,
+      );
+      if (!g.ok) return g;
+    }
     // DEC-3: 0.2 and 0.3 run only if requested; otherwise they are recorded, never silently absent.
     for (const [step, needs] of [
       ['0.2', 'light'],
@@ -316,15 +380,57 @@ export async function requestOnboarding(
       if (!r.ok) return r;
       superseded.push(id);
     }
+
+    // The ledger entry that states the provisional grant: the LAST write.
+    if (ledger && grantEntryId !== null) {
+      const draft: LedgerEntryDraft = {
+        entry_id: grantEntryId,
+        entry_type: BOOTSTRAP_ENTRY_TYPE,
+        gate_instance_id: null,
+        gate_id: null,
+        subject_kind: 's0_record',
+        subject_id: s0Id,
+        subject_hash: null,
+        decision: null,
+        actor,
+        sod_waiver: false,
+        policy_bundle_version: DEFAULT_POLICY_BUNDLE_VERSION,
+        body: {
+          kind: 'bootstrap_grant',
+          project_id: req.project_id,
+          grantee: actor,
+          slot: BOOTSTRAP_SLOT,
+          cards: [...BOOTSTRAP_CARDS],
+          basis: 'first_onboarding_no_role_map',
+          s0_ref: s0.record.intake_ref,
+        },
+        created_at: clockOf(deps).now().toISOString(),
+      };
+      const w = await appendLedgerEntryTx(tx, ledger, draft);
+      if (!w.ok) return err(coreError('unavailable', w.error.message));
+      pending.push(...w.value.pending);
+    }
     return ok({
-      s0_id: s0Id,
-      s0_ref: s0.record.intake_ref,
-      project_id: req.project_id,
-      repo: req.repo,
-      project_created: projectCreated,
-      superseded,
-      duplicate: false,
+      value: {
+        s0_id: s0Id,
+        s0_ref: s0.record.intake_ref,
+        project_id: req.project_id,
+        repo: req.repo,
+        project_created: projectCreated,
+        superseded,
+        duplicate: false,
+        bootstrap: grantEntryId === null ? null : { grantee: actor, ledger_entry_id: grantEntryId },
+      },
+      pending,
     });
+  };
+  if (deps.ledger) {
+    const ledger = deps.ledger;
+    return inCoreLedgerTx<OnboardResult>({ ...deps, ledger }, (j, tx) => body(j, tx, ledger));
+  }
+  return inCoreTx<OnboardResult>(deps, async (j, tx) => {
+    const r = await body(j, tx, null);
+    return r.ok ? ok(r.value.value) : r;
   });
 }
 
@@ -613,7 +719,7 @@ const TIER_RANK: Readonly<Record<Tier, number>> = { T0: 0, T1: 1, T2: 2 };
  * signed level is at most the record's `signable_level` (DEC-9: requested and signable are both
  * kept, and the human may sign a lower one), and the tier is never below a floor attested at the
  * request (raise-only). This writes the Project and Repo streams only: the S0 record's own move to
- * `done` (and the PRR) belong to M7.5.
+ * `done` and the PRR's activation are `approveM4In`'s (m4.ts), in the same transaction.
  */
 export async function recordSigned(
   deps: CoreDeps,
@@ -622,41 +728,51 @@ export async function recordSigned(
   return inCoreTx<{ project_id: string; repo: string }>(deps, async (j, tx) => {
     const opened = await open(j, input.s0_id);
     if (!opened.ok) return opened;
-    const s0 = opened.value;
-    await lockKeys(tx, [`project:${s0.record.project_id}`, `repo:${repoKeyOf(s0.repo)}`]);
-    if (s0.record.status === 'withdrawn' || s0.record.status === 'superseded') {
-      return err(coreError('conflict', `the S0 record is ${s0.record.status}`));
-    }
-    if (levelRank(input.level) > levelRank(s0.record.signable_level)) {
-      return err(
-        coreError(
-          'refused',
-          `this onboarding can sign ${s0.record.signable_level} at most (requested ${s0.record.requested_level})`,
-        ),
-      );
-    }
-    const project = await j.project(s0.record.project_id);
-    if (!project) return err(coreError('not_found', 'the project of the record is missing'));
-    const floor = project.attestations.tier_floor;
-    if (floor !== undefined && TIER_RANK[input.tier] < TIER_RANK[floor]) {
-      return err(
-        coreError('refused', `the tier cannot be signed below the attested floor ${floor}`),
-      );
-    }
-    const signed = await j.emit(
-      projectStream(project.project.project_id),
-      PROJECT_EVENT.signed,
-      { s0_id: input.s0_id, tier: input.tier, level: input.level, by: input.actor },
-      input.actor,
-    );
-    if (!signed.ok) return signed;
-    const lvl = await j.emit(
-      repoStream(s0.repo),
-      REPO_EVENT.level_set,
-      { level: input.level, s0_id: input.s0_id },
-      input.actor,
-    );
-    if (!lvl.ok) return lvl;
-    return ok({ project_id: project.project.project_id, repo: s0.repo });
+    return recordSignedIn(j, tx, opened.value, input);
   });
+}
+
+/**
+ * `recordSigned` inside a transaction that holds the record's lock (M4's apply, PLAN M7.5). The
+ * caller also holds the project and repo locks, taken together with the record's, in that order.
+ */
+export async function recordSignedIn(
+  j: Journal,
+  tx: PoolClient,
+  s0: S0State,
+  input: { s0_id: string; tier: Tier; level: Level; actor: string },
+): Promise<Result<{ project_id: string; repo: string }, CoreError>> {
+  await lockKeys(tx, [`project:${s0.record.project_id}`, `repo:${repoKeyOf(s0.repo)}`]);
+  if (s0.record.status === 'withdrawn' || s0.record.status === 'superseded') {
+    return err(coreError('conflict', `the S0 record is ${s0.record.status}`));
+  }
+  if (levelRank(input.level) > levelRank(s0.record.signable_level)) {
+    return err(
+      coreError(
+        'refused',
+        `this onboarding can sign ${s0.record.signable_level} at most (requested ${s0.record.requested_level})`,
+      ),
+    );
+  }
+  const project = await j.project(s0.record.project_id);
+  if (!project) return err(coreError('not_found', 'the project of the record is missing'));
+  const floor = project.attestations.tier_floor;
+  if (floor !== undefined && TIER_RANK[input.tier] < TIER_RANK[floor]) {
+    return err(coreError('refused', `the tier cannot be signed below the attested floor ${floor}`));
+  }
+  const signed = await j.emit(
+    projectStream(project.project.project_id),
+    PROJECT_EVENT.signed,
+    { s0_id: input.s0_id, tier: input.tier, level: input.level, by: input.actor },
+    input.actor,
+  );
+  if (!signed.ok) return signed;
+  const lvl = await j.emit(
+    repoStream(s0.repo),
+    REPO_EVENT.level_set,
+    { level: input.level, s0_id: input.s0_id },
+    input.actor,
+  );
+  if (!lvl.ok) return lvl;
+  return ok({ project_id: project.project.project_id, repo: s0.repo });
 }

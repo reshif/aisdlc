@@ -9,6 +9,7 @@ import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreApp } from './app.js';
+import { BootstrapEligibility } from './bootstrap.js';
 import { coreConfigFromEnv } from './config.js';
 import { migrateCore } from './migrations.js';
 import { DbProjectSettings, registerCoreConfig } from './settings.js';
@@ -77,10 +78,16 @@ export async function bootCore(env: Env): Promise<RunningService> {
         ? {
             pool,
             ledger: { notary, notaryKey: notaryKey.value },
-            eligibility: new IdentityEligibility({
-              pool: eligibilityPool,
-              settings: new DbProjectSettings({ pool: eligibilityPool, registry }),
-            }),
+            // The bootstrap decider (PLAN M7.4): until a project's first role map is published, the
+            // requester of its first onboarding is the provisional admin of the M1 gate that
+            // publishes it. Everything else is identity's answer.
+            eligibility: new BootstrapEligibility(
+              new IdentityEligibility({
+                pool: eligibilityPool,
+                settings: new DbProjectSettings({ pool: eligibilityPool, registry }),
+              }),
+              { pool: eligibilityPool },
+            ),
             stepUp: new NoStepUp(),
             registry,
           }

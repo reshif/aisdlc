@@ -216,12 +216,14 @@ export const CardPayloadItem = z.discriminatedUnion('kind', [
     gating_profile: GatingProfile,
     kill_delegations: z.array(KillDelegation),
   }),
-  /** Card 5: the hashes the sign-off covers (OB §6.2 row 0.5). */
+  /** Card 5: the hashes the sign-off covers (OB §6.2 row 0.5), and the PRR M4 binds to. */
   z.strictObject({
     kind: z.literal('m4_package'),
     census_hash: Sha256Hex,
     gap_ledger_hash: Sha256Hex,
     controls_report_hash: Sha256Hex,
+    /** The `record_hash` of the proposed Project Readiness Record: the M4 gate's subject hash. */
+    prr_record_hash: Sha256Hex,
   }),
   /** The security card: a finding's new state. The reason stays in the Security store. */
   z.strictObject({

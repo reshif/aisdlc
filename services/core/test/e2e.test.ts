@@ -11,6 +11,7 @@ import {
 } from '@aisdlc/codehost/testing';
 import { S0_EVENT, s0Stream } from '@aisdlc/contracts';
 import {
+  FakeDecisionVerifier,
   FakePrincipalDirectory,
   HttpBundleSource,
   JobRunner,
@@ -130,6 +131,7 @@ beforeAll(async () => {
     callers: { core: ['census'] },
     runner,
     principals: new FakePrincipalDirectory(),
+    decisions: new FakeDecisionVerifier(),
   });
   apps.push(knowledge);
   const knowledgeUrl = await listen(knowledge);

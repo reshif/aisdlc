@@ -10,12 +10,29 @@ import {
   type PrincipalId,
   type S0StepChangedPayload,
 } from '@aisdlc/contracts';
-import { openCard, readCardState, withdrawCard, type CardState } from '@aisdlc/decisions';
+import {
+  openCard,
+  readCardState,
+  withdrawCard,
+  withdrawGate,
+  type CardState,
+} from '@aisdlc/decisions';
 import { err, ok, type Result } from '@aisdlc/kernel';
+import type { PoolClient } from 'pg';
 import { coreError, type CoreError } from '../errors.js';
 import { isTerminal } from '../fold.js';
 import { inCoreTx, type Journal } from '../journal.js';
-import { applySignableLevel, changeStep, completeStepIn, openS0, sendBackIn } from '../s0.js';
+import {
+  applySignableLevel,
+  changeStatus,
+  changeStep,
+  completeStepIn,
+  openS0,
+  sendBackIn,
+} from '../s0.js';
+import { approveM4In, ensurePrrProposed } from '../m4.js';
+import { lockKeys } from '../journal.js';
+import { repoKeyOf } from '@aisdlc/contracts';
 import { s0Stream } from '@aisdlc/contracts';
 import { proposeProjectSettings } from '../settings.js';
 import {
@@ -23,11 +40,13 @@ import {
   SLOT_OF_CARD,
   SYSTEM_CARDS_ACTOR,
   cardKey,
+  configFor,
+  decisionsFor,
   type CardDeps,
   type HandledCard,
 } from './model.js';
 import { loadS0, raisesOf, s0Cards, type LoadedS0, type OnboardingCard } from './read.js';
-import { settingsOf } from './views.js';
+import { c5Context, c5View, evidenceHashOf, settingsOf } from './views.js';
 
 // Keeping the cards and the S0 record in step (PLAN M7.3). `syncCards` is idempotent and safe to
 // run from several places (the portal, a loop): it
@@ -120,16 +139,90 @@ export async function syncCards(
         ? !openFindings.has(card.finding_id)
         : false;
     if (isLive(loaded, card) && !gone) continue;
-    const w = await withdrawCard(deps.decisions, {
-      card_id: card.card_id,
-      reason: gone ? 'finding no longer open' : 'the record moved on',
-      by: SYSTEM_CARDS_ACTOR,
-    });
+    const w = await closeCard(deps, card, gone ? 'finding no longer open' : 'the record moved on');
     if (w.ok) {
-      if (w.value.withdrawn) report.withdrawn.push(card.card_id);
+      if (w.value) report.withdrawn.push(card.card_id);
     } else report.pending.push(`withdraw ${card.card_id}: ${w.error.message}`);
   }
   return ok(report);
+}
+
+/**
+ * Closes a card nobody can decide any more: a card without a gate is withdrawn; card 5 carries the
+ * M4 gate, which is closed with a `withdraw` decision of the system (never a vote). The PRR it
+ * bound to stays `proposed`. `true` when something was closed.
+ */
+async function closeCard(
+  deps: CardDeps,
+  card: OnboardingCard,
+  reason: string,
+): Promise<Result<boolean, CoreError>> {
+  if (card.state.gates.length === 0) {
+    const w = await withdrawCard(deps.decisions, {
+      card_id: card.card_id,
+      reason,
+      by: SYSTEM_CARDS_ACTOR,
+    });
+    return w.ok ? ok(w.value.withdrawn) : err(coreError('unavailable', w.error.message));
+  }
+  let closed = false;
+  for (const g of card.state.gates) {
+    if (g.state.status !== 'pending') continue;
+    const w = await withdrawGate(deps.decisions, {
+      gate_instance_id: g.gate_instance_id,
+      actor: SYSTEM_CARDS_ACTOR,
+      reason,
+    });
+    if (!w.ok) return err(coreError('unavailable', w.error.message));
+    closed = true;
+  }
+  return ok(closed);
+}
+
+/**
+ * Card 5 (PLAN M7.5): the PRR is built and proposed first (the record the sign-off is about), then
+ * ONE card carries the 0.5 sign-off step and the M4 gate on the S0 record's UUID, whose subject
+ * hash is the PRR's `record_hash`. The gate requires a step-up bound to that hash.
+ */
+async function openSignoffCard(
+  deps: CardDeps,
+  loaded: LoadedS0,
+  occurrence: number,
+): Promise<Result<string, CoreError>> {
+  const { s0 } = loaded;
+  const prr = await ensurePrrProposed(deps, s0.record.s0_id, occurrence);
+  if (!prr.ok) return prr;
+  const cards = await s0Cards(deps.pool, s0.record.s0_id);
+  const ctx = c5Context(loaded, cards, prr.value);
+  if (!ctx.ok) return ctx;
+  const evidence = evidenceHashOf(c5View(ctx.value));
+  const r = await openCard(decisionsFor(deps, s0.record.s0_id), {
+    project_id: s0.record.project_id,
+    subject_kind: 's0_record',
+    subject_id: s0.record.s0_id,
+    gates: [
+      {
+        gate_id: 'M4',
+        subject_hash: prr.value.record_hash,
+        evidence_pack_hash: evidence,
+        facts: {
+          s0_ref: s0.record.intake_ref,
+          prr_record_id: prr.value.record_id,
+          prr_version: prr.value.version,
+          level: prr.value.level.signed,
+        },
+      },
+    ],
+    steps: [{ step: STEP_OF_CARD.C5, slot: SLOT_OF_CARD.C5 }],
+    // The onboarding is not a delivery request: separation of duties here is the slots and the
+    // two-person setting, not a "requester" who cannot sign.
+    requester: null,
+    label: 'C5',
+    opened_by: SYSTEM_CARDS_ACTOR,
+  });
+  return r.ok
+    ? ok(r.value.card_id)
+    : err(coreError(r.error.code === 'database' ? 'database' : 'unavailable', r.error.message));
 }
 
 async function openStepCard(
@@ -139,8 +232,9 @@ async function openStepCard(
   occurrence: number,
   finding?: string,
 ): Promise<Result<string, CoreError>> {
+  if (kind === 'C5') return openSignoffCard(deps, loaded, occurrence);
   const { s0 } = loaded;
-  const r = await openCard(deps.decisions, {
+  const r = await openCard(decisionsFor(deps, s0.record.s0_id), {
     project_id: s0.record.project_id,
     subject_kind: 's0_record',
     subject_id: s0.record.s0_id,
@@ -190,6 +284,11 @@ export async function applyCard(
   }
   const decision = stepDecision.decision;
   const by = stepDecision.actor as PrincipalId;
+  // Card 5 is also the M4 gate: it is applied once the whole card is decided, not on the first
+  // approval of a two-person M4 (the card stays open until the gate reaches its quorum).
+  if (kind === 'C5' && state.status === 'open') {
+    return err(coreError('conflict', 'the M4 gate on the card is still waiting for a decision'));
+  }
   const payload: CardPayloadItem[] = state.payload?.payload ?? [];
   const payloadHash = (state.payload?.payload_hash ??
     state.decided[0]?.payload_hash ??
@@ -211,8 +310,9 @@ export async function applyCard(
     refs['controls_report_hash'] = report.report_hash;
     // Only on a live card: a stale decision proposes nothing.
     if (waitingAt(before.s0, step)) {
-      if (!deps.config) return err(coreError('unavailable', 'no decision kernel is configured'));
-      const p = await proposeProjectSettings(deps.config, {
+      const config = configFor(deps, s0Id);
+      if (!config) return err(coreError('unavailable', 'no decision kernel is configured'));
+      const p = await proposeProjectSettings(config, {
         project: before.s0.record.project_id,
         change: {
           role_map: settings.role_map,
@@ -240,13 +340,24 @@ export async function applyCard(
       principal_id: by,
       // The person's own words when this runs right after the decision; afterwards a pointer to the ledger.
       reason: o.reason ?? `decided on card ${cardId} (payload ${payloadHash})`,
+      // Knowledge accepts the change only on this decision, verified against the ledger (PLAN M7.4).
+      decision_ref: {
+        card_id: cardId as never,
+        ledger_entry_id: stepDecision.ledger_entry_id as never,
+      },
     });
     if (!set.ok) return err(coreError('unavailable', `knowledge: ${set.error.message}`));
     release = await shouldRelease(deps, before);
   }
 
   // ---- the record
-  const applied = await inCoreTx(deps, async (j) => {
+  const applied = await inCoreTx(deps, async (j, tx) => {
+    // The same order everywhere a record, its project and its repo are locked together.
+    await lockKeys(tx, [
+      `project:${before.s0.record.project_id}`,
+      `repo:${repoKeyOf(before.s0.repo)}`,
+      `s0:${s0Id}`,
+    ]);
     const opened = await openS0(j, s0Id);
     if (!opened.ok) return opened;
     const s0 = opened.value;
@@ -270,8 +381,16 @@ export async function applyCard(
           if (!r.ok) return r;
         }
       } else if (decision === 'approve') {
-        if (kind === 'C5') outcome = 'signoff_ready';
-        else {
+        if (kind === 'C5') {
+          const m4 = await approveSignoff(deps, j, tx, s0, {
+            card: state,
+            payload,
+            payloadHash,
+            by,
+          });
+          if (!m4.ok) return m4;
+          outcome = 'm4_approved';
+        } else {
           const c = await completeStepIn(j, s0, step, { actor: by });
           if (!c.ok) return c;
           outcome = 'step_done';
@@ -285,29 +404,6 @@ export async function applyCard(
         if (!sb.ok) return sb;
         outcome = sb.value.outcome === 'rejected' ? 'rejected' : 'sent_back';
       }
-    }
-    if (outcome === 'signoff_ready') {
-      const pkg = payload.find((p) => p.kind === 'm4_package');
-      if (pkg?.kind !== 'm4_package') {
-        return err(coreError('conflict', 'the decided card carries no package'));
-      }
-      const w = await j.emit(
-        s0Stream(s0Id),
-        S0_EVENT.signoff_ready,
-        S0SignoffReadyPayload.parse({
-          card_id: cardId,
-          signoff_entry_id: stepDecision.ledger_entry_id,
-          package: {
-            census_hash: pkg.census_hash,
-            gap_ledger_hash: pkg.gap_ledger_hash,
-            controls_report_hash: pkg.controls_report_hash,
-          },
-          payload_hash: payloadHash,
-          by,
-        }),
-        by,
-      );
-      if (!w.ok) return w;
     }
     const w = await j.emit(
       s0Stream(s0Id),
@@ -327,6 +423,76 @@ export async function applyCard(
     return w.ok ? ok('applied' as const) : w;
   });
   return applied;
+}
+
+/**
+ * An approved card 5 in the record (PLAN M7.5): the sign-off and M4 are both on the ledger. The M4
+ * entry must be the decision of the gate that was opened for exactly the PRR the card's payload
+ * names; then the record goes active, the repo and project are signed, the held work is fanned
+ * out, and the S0 record's step 0.5 and the record itself are done. One transaction, all or none.
+ */
+async function approveSignoff(
+  deps: CardDeps,
+  j: Journal,
+  tx: PoolClient,
+  s0Start: LoadedS0['s0'],
+  o: { card: CardState; payload: CardPayloadItem[]; payloadHash: string; by: PrincipalId },
+): Promise<Result<true, CoreError>> {
+  const pkg = o.payload.find((p) => p.kind === 'm4_package');
+  const gate = o.card.gates[0];
+  const signoff = o.card.steps[0];
+  if (pkg?.kind !== 'm4_package' || !gate || !signoff?.ledger_entry_id) {
+    return err(coreError('conflict', 'the decided card carries no package, M4 gate or sign-off'));
+  }
+  const last = gate.state.effective_seqs.at(-1);
+  const deciding = gate.state.decisions.find((d) => d.ledger_seq === last);
+  if (gate.state.status !== 'decided' || gate.state.outcome !== 'approve' || !deciding) {
+    return err(coreError('conflict', 'the M4 gate was not approved'));
+  }
+  if (gate.state.open.payload.subject_hash !== pkg.prr_record_hash) {
+    return err(coreError('conflict', 'the M4 gate is bound to another record than the card names'));
+  }
+  const entry = await tx.query<{ entry_hash: string }>(
+    'SELECT entry_hash FROM ledger.ledger_entry WHERE entry_id = $1',
+    [deciding.entry_id],
+  );
+  const decisionHash = entry.rows[0]?.entry_hash;
+  if (!decisionHash) return err(coreError('conflict', 'the M4 entry is not on the ledger'));
+
+  const m4 = await approveM4In(deps, j, tx, s0Start, {
+    prr_hash: pkg.prr_record_hash,
+    m4: { ledger_entry_id: deciding.entry_id, decision_hash: decisionHash },
+    by: deciding.actor as PrincipalId,
+  });
+  if (!m4.ok) return m4;
+  const ready = await j.emit(
+    s0Stream(s0Start.record.s0_id),
+    S0_EVENT.signoff_ready,
+    S0SignoffReadyPayload.parse({
+      card_id: o.card.card_id,
+      signoff_entry_id: signoff.ledger_entry_id,
+      package: {
+        census_hash: pkg.census_hash,
+        gap_ledger_hash: pkg.gap_ledger_hash,
+        controls_report_hash: pkg.controls_report_hash,
+        prr_record_hash: pkg.prr_record_hash,
+      },
+      payload_hash: o.payloadHash,
+      by: o.by,
+    }),
+    o.by,
+  );
+  if (!ready.ok) return ready;
+  // "running --> done : C5 M4 decision, readiness record active" (DM §6.3).
+  const s0 = (await j.s0(s0Start.record.s0_id)) as LoadedS0['s0'];
+  const stepDone = await completeStepIn(j, s0, STEP_OF_CARD.C5, { actor: o.by });
+  if (!stepDone.ok) return stepDone;
+  const done = await changeStatus(j, stepDone.value, 'done', {
+    actor: o.by,
+    cause: 'm4.approved',
+    reason: `PRR ${m4.value.version} is active`,
+  });
+  return done.ok ? ok(true as const) : done;
 }
 
 /**

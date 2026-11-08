@@ -1,4 +1,8 @@
 import {
+  PRR_EVENT,
+  PrrActivatedPayload,
+  PrrProposedPayload,
+  PrrStatusChangedPayload,
   PROJECT_EVENT,
   ProjectAttestedPayload,
   ProjectRegisteredPayload,
@@ -11,6 +15,7 @@ import {
   S0CensusReadyPayload,
   S0JobStartedPayload,
   S0MachineFailedPayload,
+  S0PrrProposedPayload,
   S0RequestedPayload,
   S0SendBackPayload,
   S0SignableLevelPayload,
@@ -23,6 +28,8 @@ import {
   s0RefOf,
   type OnboardAttestations,
   type OnboardingStatus,
+  type ProjectReadinessRecord,
+  type ReadinessStatus,
   type OnboardingStepState,
   type Project,
   type RecordEvent,
@@ -328,6 +335,13 @@ export function foldS0(events: readonly RecordEvent[]): S0State | null {
         upd(step, (s) => ({ ...s, overdue: true }));
         break;
       }
+      case S0_EVENT.prr_proposed:
+        // The PRR version this record produced (the latest it proposed).
+        record = {
+          ...record,
+          readiness_version: S0PrrProposedPayload.parse(e.payload).version,
+        };
+        break;
       case S0_EVENT.signable_level_set:
         record = {
           ...record,
@@ -355,3 +369,71 @@ export const REGISTERED_STATUSES: readonly OnboardingStatus[] = [
   'done',
   'rejected',
 ];
+
+// ---------------------------------------------------------------- PRR
+
+/** One version of a Project Readiness Record as its stream folds it. */
+export interface PrrVersion {
+  readonly version: number;
+  /** The record as stored, with the status and M4 the stream has given it since. */
+  readonly prr: ProjectReadinessRecord;
+  readonly status: ReadinessStatus;
+  readonly s0_id: string;
+  readonly proposed_at: string;
+  readonly activated_at: string | null;
+}
+
+export interface PrrState {
+  /** Ascending by version. */
+  readonly versions: readonly PrrVersion[];
+}
+
+/**
+ * Folds a `prr:<project>:<repo_id>` stream. A version is `proposed` until an `activated` event (only
+ * an M4 decision writes one) and then moves by `status_changed` events. `record_hash` never changes:
+ * status, M4 and freshness are outside it (OB §2.4).
+ */
+export function foldPrr(events: readonly RecordEvent[]): PrrState {
+  const versions = new Map<number, PrrVersion>();
+  const set = (n: number, f: (v: PrrVersion) => PrrVersion): void => {
+    const cur = versions.get(n);
+    if (cur) versions.set(n, f(cur));
+  };
+  for (const e of events) {
+    if (e.type === PRR_EVENT.proposed) {
+      const p = PrrProposedPayload.parse(e.payload);
+      versions.set(p.prr.version, {
+        version: p.prr.version,
+        prr: p.prr,
+        status: 'proposed',
+        s0_id: p.s0_id,
+        proposed_at: e.occurred_at,
+        activated_at: null,
+      });
+    } else if (e.type === PRR_EVENT.activated) {
+      const p = PrrActivatedPayload.parse(e.payload);
+      set(p.version, (v) => ({
+        ...v,
+        status: 'active',
+        activated_at: e.occurred_at,
+        prr: { ...v.prr, status: 'active', m4: p.m4 },
+      }));
+    } else if (e.type === PRR_EVENT.status_changed) {
+      const p = PrrStatusChangedPayload.parse(e.payload);
+      set(p.version, (v) => ({ ...v, status: p.to, prr: { ...v.prr, status: p.to } }));
+    }
+  }
+  return { versions: [...versions.values()].sort((a, b) => a.version - b.version) };
+}
+
+/** The statuses of a version that has been made active at some point. */
+const ONCE_ACTIVE: readonly ReadinessStatus[] = ['active', 'stale', 'suspended', 'expired'];
+
+/**
+ * The version that governs a repo: the newest one that an M4 made active and that has not been
+ * superseded. `null` when no M4 has ever signed one (N8: no active PRR). A newer version that is
+ * only `proposed` governs nothing.
+ */
+export function governingPrr(state: PrrState): PrrVersion | null {
+  return [...state.versions].reverse().find((v) => ONCE_ACTIVE.includes(v.status)) ?? null;
+}

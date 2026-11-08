@@ -335,6 +335,12 @@ export interface DecideCardInput {
   readonly steps?: ReadonlyArray<{ readonly step: StepId; readonly decision: string }>;
   /** A list payload (per-gap disposition, per-claim affirm). Its hash goes into every entry. */
   readonly payload?: readonly unknown[];
+  /**
+   * Write the step decisions' ledger entries before the gates' (default: gates first, as the card
+   * reads). Card 5 of onboarding is "sign-off, then M4" (OB §6.2 row 0.5, DEC-6(c)): the sign-off
+   * entry precedes the M4 entry on the ledger.
+   */
+  readonly steps_first?: boolean;
 }
 
 export interface CardDecisionResult {
@@ -400,6 +406,13 @@ export async function decideCard(
             ? 'a card without a gate is decided with its step nonce and no votes'
             : 'one distinct nonce per pending gate, at least one',
         ),
+      );
+    }
+
+    // A later approver of a card (a two-person gate) decides the same payload: it is recorded once.
+    if (payload && state.payload && state.payload.payload_hash !== payloadHash) {
+      return err(
+        decisionError('invalid_input', 'the card was decided on another payload; this one differs'),
       );
     }
 
@@ -544,7 +557,7 @@ export async function decideCard(
       payload_hash: payload ? payloadHash : null,
     });
     const cardEvents: NewEvent[] = [];
-    if (payload) {
+    if (payload && !state.payload) {
       cardEvents.push({
         type: CARD_EVENT.payload_recorded,
         actor,
@@ -593,6 +606,19 @@ export async function decideCard(
     const pending: PendingConfirm[] = [...entered.value];
     const entries: LedgerEntry[] = [];
     const results: VoteResult[] = [];
+    const writeSteps = async (): Promise<Result<void, DecisionError>> => {
+      for (const st of stepDrafts) {
+        const w = await writeDecision(tx, deps, st.draft);
+        if (!w.ok) return w;
+        pending.push(...w.value.pending);
+        entries.push(w.value.entry);
+      }
+      return ok(undefined);
+    };
+    if (input.steps_first) {
+      const written = await writeSteps();
+      if (!written.ok) return written;
+    }
     for (const p of planned) {
       const w = await writeDecision(tx, deps, p.draft);
       if (!w.ok) return w;
@@ -600,11 +626,9 @@ export async function decideCard(
       entries.push(w.value.entry);
       results.push({ entry: w.value.entry, after: stateAfter(p.state, w.value.entry) });
     }
-    for (const s of stepDrafts) {
-      const w = await writeDecision(tx, deps, s.draft);
-      if (!w.ok) return w;
-      pending.push(...w.value.pending);
-      entries.push(w.value.entry);
+    if (!input.steps_first) {
+      const written = await writeSteps();
+      if (!written.ok) return written;
     }
     const statusAfter = results.some((r) => r.after.status === 'pending')
       ? 'open'

@@ -1,6 +1,7 @@
 import { gatePolicy, type CardKind, type OnboardingStepId, type RoleSlot } from '@aisdlc/contracts';
 import type { ConfigDeps, ConfigRegistry } from '@aisdlc/config';
 import type { DecisionDeps } from '@aisdlc/decisions';
+import { BootstrapEligibility } from '../bootstrap.js';
 import type { Clock } from '@aisdlc/kernel';
 import type { CodeHostPort } from '@aisdlc/ports';
 import type pg from 'pg';
@@ -64,6 +65,31 @@ export interface CardDeps {
   >;
   readonly links: PrincipalLinksPort;
   readonly settings?: () => S0Settings;
+  /**
+   * The bootstrap decider (PLAN M7.4): when set, the card operations of an S0 record that holds a
+   * provisional grant resolve the `admin` slot to its requester while the project has no published
+   * role map. Off by default: nothing is granted unless the deployment says so.
+   */
+  readonly bootstrap?: boolean;
+}
+
+/** The decision kernel's dependencies for one S0 record's card operations (bootstrap-aware when on). */
+export function decisionsFor(deps: CardDeps, s0Id: string): DecisionDeps {
+  if (!deps.bootstrap) return deps.decisions;
+  return {
+    ...deps.decisions,
+    eligibility: new BootstrapEligibility(deps.decisions.eligibility, {
+      pool: deps.pool,
+      s0_id: s0Id,
+    }),
+  };
+}
+
+/** `decisionsFor` for the config publishing side (card 4 proposes the settings as a revision). */
+export function configFor(deps: CardDeps, s0Id: string): ConfigDeps | undefined {
+  if (!deps.config) return undefined;
+  if (!deps.bootstrap) return deps.config;
+  return { ...deps.config, eligibility: decisionsFor(deps, s0Id).eligibility };
 }
 
 export const SYSTEM_CARDS_ACTOR = 'system.cards';

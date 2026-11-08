@@ -4,8 +4,11 @@ import {
   levelRank,
   type CensusRecord,
   type ControlsReport,
+  type CardPayloadItem,
   type Gap,
+  type M4Package,
   type PrincipalId,
+  type ProjectReadinessRecord,
   type ProjectSettingsWire,
   type RoleSlot,
   type Tier,
@@ -18,7 +21,7 @@ import { getProjectState } from '../queries.js';
 import { loadProjectSettings } from '../settings.js';
 import { allowedDispositions, defaultDisposition, isPrivateOnly } from './gaps.js';
 import { buildControlsReport } from './controls.js';
-import type { CardDeps } from './model.js';
+import { decisionsFor, type CardDeps } from './model.js';
 import { approvedPayload, type LoadedS0, type OnboardingCard } from './read.js';
 import { proposeRoleMap, type RoleProposal } from './roles.js';
 
@@ -61,8 +64,9 @@ export async function decidersOf(
   deps: CardDeps,
   project: string,
   slot: RoleSlot,
+  s0Id?: string,
 ): Promise<Deciders> {
-  const e = deps.decisions.eligibility;
+  const e = (s0Id === undefined ? deps.decisions : decisionsFor(deps, s0Id)).eligibility;
   const h = await e.holders(project as never, slot);
   const p = await e.policy(project as never);
   if (!h.ok || !p.ok) {
@@ -288,16 +292,20 @@ export function c4View(c: C4Ctx): Record<string, unknown> {
 
 // ---------------------------------------------------------------- card 5
 
-export interface C5Ctx {
+/** What cards 1 and 4 decided, as the sign-off and the PRR builder need it. */
+export interface C5Base {
+  readonly c1: { card: OnboardingCard; payload: CardPayloadItem[] };
+  readonly c4: { card: OnboardingCard; payload: CardPayloadItem[] };
   readonly package: { census_hash: string; gap_ledger_hash: string; controls_report_hash: string };
   readonly owners: readonly string[];
   readonly tier: Tier;
 }
 
-export function c5Context(
+/** Cards 1 and 4 are decided, and the census they decided on is the one the record holds. */
+export function c5Base(
   loaded: LoadedS0,
   cards: readonly OnboardingCard[],
-): Result<C5Ctx, CoreError> {
+): Result<C5Base, CoreError> {
   const c1 = approvedPayload(cards, 'C1');
   const c4 = approvedPayload(cards, 'C4');
   if (!c1 || !c4) {
@@ -320,6 +328,8 @@ export function c5Context(
     return err(coreError('conflict', 'the census moved on since card 1 was decided'));
   }
   return ok({
+    c1,
+    c4,
     package: {
       census_hash: ledger.census_hash,
       gap_ledger_hash: ledger.gap_ledger_hash,
@@ -330,17 +340,74 @@ export function c5Context(
   });
 }
 
-export function c5View(c: C5Ctx, s0: LoadedS0['s0']): Record<string, unknown> {
+export interface C5Ctx {
+  /** The three hashes and the PRR they went into: the card's `m4_package` payload row. */
+  readonly package: M4Package;
+  readonly owners: readonly string[];
+  readonly tier: Tier;
+  /** The proposed record M4 will bind to. */
+  readonly prr: ProjectReadinessRecord;
+}
+
+/** The card's context: the base, and the PRR proposed for it (found by the gate's subject hash). */
+export function c5Context(
+  loaded: LoadedS0,
+  cards: readonly OnboardingCard[],
+  prr: ProjectReadinessRecord,
+): Result<C5Ctx, CoreError> {
+  const base = c5Base(loaded, cards);
+  if (!base.ok) return base;
+  return ok({
+    package: { ...base.value.package, prr_record_hash: prr.record_hash },
+    owners: base.value.owners,
+    tier: base.value.tier,
+    prr,
+  });
+}
+
+/**
+ * What the person is shown on card 5: the proposed Project Readiness Record, which is what M4
+ * signs. A pure function of the record and the package, so its hash is stable and is the evidence
+ * pack of the M4 gate. Counts and hashes only: no finding, no value, no path.
+ */
+export function c5View(c: C5Ctx): Record<string, unknown> {
+  const p = c.prr;
+  const gapCount = (f: (g: ProjectReadinessRecord['gaps'][number]) => boolean) =>
+    p.gaps.filter(f).length;
   return {
     card: 'C5',
-    repo: s0.repo,
-    requested_level: s0.record.requested_level,
-    signable_level: s0.record.signable_level,
+    repo: `${p.repo.owner}/${p.repo.name}`,
+    requested_level: p.level.requested,
+    signed_level: p.level.signed,
     owners: c.owners,
-    tier: c.tier,
+    tier: { value: p.tier.value, floor: p.tier.floor, raised_by: p.tier.raised_by },
     m4_package: c.package,
-    // M4 itself is the next decision (M7.5); this card is the sign-off of step 0.5.
-    next: 'm4',
+    prr: {
+      record_id: p.record_id,
+      version: p.version,
+      supersedes: p.supersedes,
+      record_hash: p.record_hash,
+      status: p.status,
+      issued_at: p.issued_at,
+      fresh_until: p.fresh_until,
+      review_by: p.review_by,
+      baseline_sha: p.baseline_sha,
+      composite: p.composite,
+      pillars: p.pillars.map((x) => ({ pillar: x.pillar, level: x.level })),
+      autonomy: p.autonomy,
+      writes: p.writes,
+      gating_profile: p.gating_profile,
+      two_person: p.role_map.two_person,
+      signer: p.signer,
+      security_summary: p.security_summary,
+      gaps: {
+        total: p.gaps.length,
+        blocking: gapCount((g) => g.severity === 'blocking'),
+        waived: gapCount((g) => g.status === 'waived'),
+      },
+    },
+    // M4 is decided on this same card, with a step-up bound to the record's hash.
+    m4: { gate: 'M4', subject_hash: p.record_hash, step_up: 'bound to record_hash' },
   };
 }
 

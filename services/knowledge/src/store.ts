@@ -45,6 +45,7 @@ import {
   type Tx,
 } from '@aisdlc/record';
 import type pg from 'pg';
+import type { DecisionVerifier } from './decision-ref.js';
 import { knowledgeError, type KnowledgeError } from './errors.js';
 import type { PrincipalDirectory } from './principals.js';
 import type { ScannedFinding } from './scan.js';
@@ -523,7 +524,11 @@ export async function getFinding(db: Executor, id: string): Promise<SecurityFind
  * the reason, never the reason. (The ledger entry for it comes with the ledger writer, later.)
  */
 export async function setFindingState(
-  deps: StoreDeps & { readonly principals: PrincipalDirectory },
+  deps: StoreDeps & {
+    readonly principals: PrincipalDirectory;
+    /** Checks the card decision the change rests on (PLAN M7.4); without one nothing changes. */
+    readonly decisions: DecisionVerifier;
+  },
   id: string,
   req: SetFindingStateRequest,
 ): Promise<Result<SecurityFinding, KnowledgeError>> {
@@ -551,6 +556,14 @@ export async function setFindingState(
         );
         const row = cur.rows[0];
         if (!row) throw new Refuse(knowledgeError('not_found', 'no such finding'));
+        // The card is the only path: the decision is verified in this transaction, under the row lock.
+        const authorised = await deps.decisions.verify(tx, req.decision_ref, {
+          finding_id: id,
+          repo: row.repo,
+          state: req.state,
+          principal_id: req.principal_id,
+        });
+        if (!authorised.ok) throw new Refuse(authorised.error);
         const edge = FindingMachine.assertTransition(row.state, req.state);
         if (!edge.ok) {
           throw new Refuse(

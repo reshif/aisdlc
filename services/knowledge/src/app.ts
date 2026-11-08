@@ -11,6 +11,7 @@ import { newApp, sendError, type ServiceAuth } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { KNOWLEDGE_STATUS, knowledgeError, type KnowledgeError } from './errors.js';
+import type { DecisionVerifier } from './decision-ref.js';
 import type { PrincipalDirectory } from './principals.js';
 import { getLatestCensus } from './census/store.js';
 import type { JobRunner } from './runner.js';
@@ -38,6 +39,8 @@ export interface KnowledgeAppOptions {
   readonly callers: Record<string, readonly KnowledgeScope[]>;
   readonly runner: JobRunner;
   readonly principals: PrincipalDirectory;
+  /** Checks the ledgered card decision a finding state change rests on (PLAN M7.4). */
+  readonly decisions: DecisionVerifier;
   readonly clock?: Clock;
 }
 
@@ -162,7 +165,9 @@ export function createKnowledgeApp(o: KnowledgeAppOptions): FastifyInstance {
   /**
    * Human-only state change. The caller (the bff, with the `security` scope) names the human it acts
    * for; that principal must be an active HUMAN in identity. A service principal, an unknown one, or
-   * an identity service that cannot answer is refused.
+   * an identity service that cannot answer is refused. The change also names the decided, ledgered
+   * security-card decision it rests on (`decision_ref`), verified against the ledger for exactly
+   * this finding, state and human; without one nothing changes (PLAN M7.4).
    */
   app.post('/v1/security/findings/:id/state', async (req, reply) => {
     if (!allowed(req, 'security')) return forbid(reply, 'security');
@@ -171,7 +176,7 @@ export function createKnowledgeApp(o: KnowledgeAppOptions): FastifyInstance {
     const body = SetFindingStateRequest.safeParse(req.body);
     if (!body.success) return bad(reply, body.error.message);
     const r = await setFindingState(
-      { pool: o.pool, clock, principals: o.principals },
+      { pool: o.pool, clock, principals: o.principals, decisions: o.decisions },
       id,
       body.data,
     );

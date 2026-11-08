@@ -53,7 +53,8 @@ import {
 //        which also lowers the signable level to Census: Light and Full are blocked).
 //   0.2, 0.3 only if requested (recorded `skip` at the intake otherwise, DEC-3); 0.4, 0.5 always,
 //        Census included (a reduced 0.4). For now each only advances to "card needed": a
-//        `card_required` event with the card kind is the hand-off to the card layer (M7.3, M7.4, M7.5).
+//        `card_required` event with the card kind is the hand-off to the card layer (cards 1, 4 and 5
+//        and the security card: M7.3; card 5 builds the PRR and carries the M4 gate: M7.4, M7.5).
 //
 //   DEC-9 failure model, all of it configuration (`s0.failure_model`):
 //        a machine failure is recorded with a cause code and retried after a delay; once the
@@ -189,7 +190,7 @@ export async function driveS0(d: DriverDeps, s0Id: string): Promise<DriveOutcome
   });
   if (!step) return out('none');
   if (step === '0.1') return out(await step01(d, s0));
-  // 0.2 to 0.5 only advance to "card needed" for now (M7.3, M7.4, M7.5 own what the cards do).
+  // 0.2 to 0.5 only advance to "card needed": the card layer owns what each card does.
   const done = await act(d, s0, (j, cur) => raiseCard(j, cur, step, { actor: SYSTEM_ACTOR }));
   return out(done === 'stale' ? 'stale' : 'card_raised');
 }

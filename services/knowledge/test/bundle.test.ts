@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDatabase, type TestDatabase } from '@aisdlc/db/testing';
 import { startTestKms, type TestKms } from '@aisdlc/kms-local/testing';
+import { migrateLedger } from '@aisdlc/ledger';
 import { migrateRecord } from '@aisdlc/record';
 import { listen, newApp } from '@aisdlc/service-kit';
 import { makeCanary } from '@aisdlc/secrets-rules';
@@ -136,6 +137,7 @@ describe('the knowledge bundle as a process', () => {
   beforeAll(async () => {
     db = await createTestDatabase();
     await migrateRecord(db.pool);
+    await migrateLedger(db.pool);
     kms = await startTestKms();
   });
   afterAll(async () => {
@@ -256,15 +258,22 @@ describe('the knowledge bundle as a process', () => {
     );
     // The human check goes to identity: alice is a human, the service is not.
     const fid = findings.findings[0]?.finding_id;
+    const ref = {
+      card_id: '01a1ba7f-5e9c-7048-b519-93e50b1776a9',
+      ledger_entry_id: '01a1ba7f-5e9c-7048-b519-93e50b1776aa',
+    };
     expect(
       (
         await call(SEC, 'POST', `/v1/security/findings/${fid}/state`, {
           state: 'rotated',
           principal_id: 'svc',
           reason: 'x',
+          decision_ref: ref,
         })
       ).status,
     ).toBe(403);
+    // The card is the only path (PLAN M7.4): no reference is invalid, and one that names no
+    // decision on this database's ledger is refused by the real verifier. Nothing changes.
     expect(
       (
         await call(SEC, 'POST', `/v1/security/findings/${fid}/state`, {
@@ -273,14 +282,22 @@ describe('the knowledge bundle as a process', () => {
           reason: 'rotated',
         })
       ).status,
-    ).toBe(200);
+    ).toBe(400);
+    const direct = await call(SEC, 'POST', `/v1/security/findings/${fid}/state`, {
+      state: 'rotated',
+      principal_id: 'alice',
+      reason: 'rotated',
+      decision_ref: ref,
+    });
+    expect(direct.status).toBe(403);
+    expect(direct.json).toMatchObject({ error: { code: 'decision_refused' } });
     expect(
       (
         (await call(CEN, 'GET', '/v1/repos/acme/app/security-summary')).json as {
           b1_blocked: boolean;
         }
       ).b1_blocked,
-    ).toBe(false);
+    ).toBe(true);
     expect(asked[0]).toContain('/v1/repos/acme/app/bundle?refs=all');
 
     const exited = new Promise<number | null>((resolve) => child?.once('exit', (c) => resolve(c)));

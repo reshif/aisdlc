@@ -28,6 +28,7 @@ import { createKnowledgeApp, type KnowledgeScope } from './app.js';
 import { kmsFingerprinter } from './fingerprint.js';
 import type { BundleSource } from './http-bundle.js';
 import { migrateKnowledge } from './migrations.js';
+import { FakeDecisionVerifier } from './decision-ref.js';
 import { FakePrincipalDirectory } from './principals.js';
 import { JobRunner, type RunnerOptions } from './runner.js';
 import { getJob } from './store.js';
@@ -186,6 +187,8 @@ export interface KnowledgeStack {
   readonly url: string;
   readonly source: FileBundleSource;
   readonly principals: FakePrincipalDirectory;
+  /** What the state API asks of the ledger: accepts every reference unless a test says otherwise. */
+  readonly decisions: FakeDecisionVerifier;
   readonly workRoot: string;
   readonly tokens: { census: string; security: string; both: string; none: string };
   call(
@@ -225,6 +228,7 @@ export async function startKnowledgeStack(opts: StackOptions): Promise<Knowledge
       ...rest,
     });
     const principals = new FakePrincipalDirectory();
+    const decisions = new FakeDecisionVerifier();
     const tokens = {
       census: 'census-token-'.padEnd(32, 'x'),
       security: 'security-token-'.padEnd(32, 'x'),
@@ -243,6 +247,7 @@ export async function startKnowledgeStack(opts: StackOptions): Promise<Knowledge
       callers,
       runner,
       principals,
+      decisions,
     });
     const url = await listen(app);
     const call: KnowledgeStack['call'] = async (token, method, path, body) => {
@@ -271,6 +276,7 @@ export async function startKnowledgeStack(opts: StackOptions): Promise<Knowledge
       url,
       source,
       principals,
+      decisions,
       workRoot,
       tokens,
       call,

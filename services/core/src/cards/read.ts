@@ -47,18 +47,33 @@ export async function s0Cards(pool: pg.Pool, s0Id: string): Promise<OnboardingCa
         AND body ->> 'subject_id' = $1 ORDER BY global_seq`,
     [s0Id],
   );
+  // Card 5 carries the M4 gate, so it has no opener key: its raising is the one whose proposed PRR
+  // has the gate's subject hash (`s0.prr_proposed` says which raising proposed which record).
+  const proposals = await pool.query<{ body: { record_hash: string; occurrence: number } }>(
+    'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2',
+    [s0Stream(s0Id), S0_EVENT.prr_proposed],
+  );
+  const raisingOf = new Map(proposals.rows.map((r) => [r.body.record_hash, r.body.occurrence]));
   const out: OnboardingCard[] = [];
   for (const { card_id } of ids.rows) {
     const state = await readCardState(pool, card_id);
     if (!state) continue;
     const label = state.open.label;
+    if (!isHandled(label)) continue;
     const key = parseCardKey(state.open.key);
-    if (!isHandled(label) || !key) continue;
+    const gateHash = state.gates[0]?.state.open.payload.subject_hash;
+    const occurrence =
+      key !== null
+        ? key.occurrence
+        : label === 'C5' && gateHash !== undefined
+          ? raisingOf.get(gateHash)
+          : undefined;
+    if (occurrence === undefined) continue;
     out.push({
       card_id,
       kind: label,
-      occurrence: key.occurrence,
-      finding_id: key.finding_id,
+      occurrence,
+      finding_id: key?.finding_id ?? null,
       state,
     });
   }

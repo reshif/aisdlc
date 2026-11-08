@@ -26,6 +26,13 @@ export interface CensusOptions {
   readonly tierFloor?: Tier;
   /** The scan did not complete: B2 is not met in this census. */
   readonly b2Unknown?: boolean;
+  /**
+   * The census as assembled before card 1: the owner has attested nothing yet, so M4 cannot sign
+   * until T0, regulatory and criticality are attested (OB §2.2, DEC-4).
+   */
+  readonly unattested?: boolean;
+  /** The detectors did not finish: the tier floor is only a lower bound. */
+  readonly detectorsIncomplete?: boolean;
 }
 
 export function censusFixture(repo: string, o: CensusOptions = {}): CensusLatest {
@@ -61,6 +68,21 @@ export function censusFixture(repo: string, o: CensusOptions = {}): CensusLatest
     body['risk_category'] = {
       ...(raw['risk_category'] as object),
       tier_floor: o.tierFloor,
+    };
+  }
+  if (o.unattested || o.detectorsIncomplete) {
+    const reasons = [
+      ...(o.unattested ? ['t0_unattested', 'regulatory_unattested', 'criticality_unattested'] : []),
+      ...(o.detectorsIncomplete ? ['detectors_incomplete'] : []),
+    ];
+    body['risk_category'] = {
+      ...((body['risk_category'] ?? raw['risk_category']) as object),
+      ...(o.unattested
+        ? { regulatory: 'unattested', criticality: 'unattested', t0: 'unattested' }
+        : {}),
+      ...(o.detectorsIncomplete ? { floor_basis: 'incomplete' } : {}),
+      blocks_m4_until_attested: true,
+      blocks_m4_reasons: reasons,
     };
   }
   if (o.b2Unknown) {

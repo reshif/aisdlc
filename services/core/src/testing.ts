@@ -59,7 +59,7 @@ export async function startCoreStack(): Promise<CoreStack> {
         clock: id.clock,
         registry,
       },
-      deps: { pool: id.record.pool, clock: id.clock },
+      deps: { pool: id.record.pool, clock: id.clock, ledger: id.ledger },
       stop: () => id.stop(),
     };
   } catch (e) {

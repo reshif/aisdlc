@@ -6,6 +6,7 @@ import {
   KnowledgeJobState,
   type PrincipalId,
   type ProjectId,
+  type SetFindingStateRequest,
 } from '@aisdlc/contracts';
 import { err, ok, taggedError, type Result, type TaggedError } from '@aisdlc/kernel';
 import { callJson } from '@aisdlc/service-kit';
@@ -96,11 +97,13 @@ export interface KnowledgePort {
   openFindings(repo: string): Promise<Result<FindingRef[], RemoteError>>;
   /**
    * Sets a finding's state, as the named human (scope `security`; knowledge refuses a service
-   * principal). Idempotent: a finding already in that state is `ok`.
+   * principal), on the authority of the decided, ledgered security-card decision `decision_ref`
+   * names: knowledge verifies it against the ledger and refuses anything else (PLAN M7.4).
+   * Idempotent: a finding already in that state is `ok`.
    */
   setFindingState(
     findingId: string,
-    req: { state: Exclude<FindingState, 'open'>; principal_id: PrincipalId; reason: string },
+    req: SetFindingStateRequest,
   ): Promise<Result<{ state: FindingState }, RemoteError>>;
 }
 
@@ -218,10 +221,7 @@ export class HttpKnowledge implements KnowledgePort {
     return ok(p.data.findings.map((f) => ({ finding_id: f.finding_id })));
   }
 
-  async setFindingState(
-    findingId: string,
-    req: { state: Exclude<FindingState, 'open'>; principal_id: PrincipalId; reason: string },
-  ) {
+  async setFindingState(findingId: string, req: SetFindingStateRequest) {
     const path = `/v1/security/findings/${encodeURIComponent(findingId)}/state`;
     const r = await call(this.o, 'POST', path, req);
     if (!r.reached) return err(remoteError('unreachable', 'knowledge did not answer'));
@@ -330,7 +330,12 @@ export class FakeKnowledge implements KnowledgePort {
     { repo: string; state: FindingState; by: string | null; reason: string | null }
   >();
   /** Every state change asked of the store, in order (the test reads it). */
-  readonly stateCalls: Array<{ finding_id: string; state: string; principal_id: string }> = [];
+  readonly stateCalls: Array<{
+    finding_id: string;
+    state: string;
+    principal_id: string;
+    decision_ref: SetFindingStateRequest['decision_ref'];
+  }> = [];
   /** Makes the next `setFindingState` calls fail as an unreachable service would. */
   failStateChanges = false;
   private f = 0;
@@ -378,10 +383,7 @@ export class FakeKnowledge implements KnowledgePort {
     );
   }
 
-  async setFindingState(
-    findingId: string,
-    req: { state: Exclude<FindingState, 'open'>; principal_id: PrincipalId; reason: string },
-  ) {
+  async setFindingState(findingId: string, req: SetFindingStateRequest) {
     if (this.down || this.failStateChanges) {
       return err(remoteError('unreachable', 'knowledge is down'));
     }
@@ -397,6 +399,7 @@ export class FakeKnowledge implements KnowledgePort {
       finding_id: findingId,
       state: req.state,
       principal_id: req.principal_id,
+      decision_ref: req.decision_ref,
     });
     f.state = req.state;
     f.by = req.principal_id;

@@ -1,5 +1,6 @@
 import {
   C1DecisionContent,
+  gatePolicy,
   C4DecisionContent,
   C5DecisionContent,
   S0_EVENT,
@@ -23,11 +24,19 @@ import {
 } from '@aisdlc/decisions';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import { z } from 'zod';
+import { prrByHash, recordControlsSeen } from '../m4.js';
 import { coreError, type CoreError } from '../errors.js';
 import { inCoreTx } from '../journal.js';
 import { openS0 } from '../s0.js';
 import { planC1, planC4, planC5, planSecr } from './content.js';
-import { SLOT_OF_CARD, STEP_OF_CARD, isHandled, type CardDeps, type HandledCard } from './model.js';
+import {
+  SLOT_OF_CARD,
+  STEP_OF_CARD,
+  decisionsFor,
+  isHandled,
+  type CardDeps,
+  type HandledCard,
+} from './model.js';
 import { loadS0, s0Cards, type LoadedS0, type OnboardingCard } from './read.js';
 import {
   c1Context,
@@ -116,8 +125,14 @@ async function contextOf(
         : c;
     }
     case 'C5': {
-      const c = c5Context(loaded, cards);
-      return c.ok ? ok({ ctx: { kind: 'C5', c: c.value }, view: c5View(c.value, loaded.s0) }) : c;
+      // The M4 gate on this card binds to a proposed PRR: that record is what the card shows.
+      const hash = card.state.gates[0]?.state.open.payload.subject_hash;
+      const found = hash
+        ? await prrByHash(deps.pool, loaded.s0.record.project_id, loaded.s0.record.repo_id, hash)
+        : null;
+      if (!found) return err(coreError('not_found', 'the record this card binds to is gone'));
+      const c = c5Context(loaded, cards, found.prr);
+      return c.ok ? ok({ ctx: { kind: 'C5', c: c.value }, view: c5View(c.value) }) : c;
     }
     case 'SECR': {
       const v = await secrView(deps, loaded.s0, card, cards);
@@ -164,6 +179,8 @@ export interface CardDetail {
   readonly evidence_hash: string;
   /** Who decides, from the project's role map; whether the decision rests on a `sod_waiver`. */
   readonly deciders: Deciders;
+  /** Card 5 only: who decides its M4 gate (the `m4` slot), and whether that rests on a `sod_waiver`. */
+  readonly m4_deciders: Deciders | null;
   /** JSON Schema of the `content` a decision sends (absent for a send-back or a rejection). */
   readonly decision_schema: object;
   readonly decisions_allowed: readonly string[];
@@ -187,7 +204,17 @@ export async function cardDetail(
       deps,
       r.value.card.state.open.project_id,
       SLOT_OF_CARD[r.value.card.kind],
+      r.value.loaded.s0.record.s0_id,
     ),
+    m4_deciders:
+      r.value.card.kind === 'C5'
+        ? await decidersOf(
+            deps,
+            r.value.card.state.open.project_id,
+            gatePolicy('M4').slot,
+            r.value.loaded.s0.record.s0_id,
+          )
+        : null,
     decision_schema: z.toJSONSchema(SCHEMAS[r.value.card.kind], {
       target: 'draft-2020-12',
       io: 'input',
@@ -209,10 +236,18 @@ const needsOpenLive = (r: Resolved): CoreError | null =>
       ? coreError('conflict', 'the record no longer waits for this card')
       : null;
 
+export interface PreparedOnboardingCard {
+  readonly nonce: string;
+  readonly expires_at: string;
+  readonly evidence_hash: string;
+  /** Card 5: the M4 gate needs a step-up proof bound to this hash (the PRR's `record_hash`). */
+  readonly step_up: { readonly required: boolean; readonly bound_hash: string } | null;
+}
+
 export async function prepareOnboardingCard(
   deps: CardDeps,
   input: { card_id: string; principal: PrincipalId },
-): Promise<Result<{ nonce: string; expires_at: string; evidence_hash: string }, CoreError>> {
+): Promise<Result<PreparedOnboardingCard, CoreError>> {
   const r = await resolve(deps, input.card_id);
   if (!r.ok) return r;
   const refused = needsOpenLive(r.value);
@@ -220,15 +255,30 @@ export async function prepareOnboardingCard(
   const built = await contextOf(deps, r.value);
   if (!built.ok) return built;
   const evidence = evidenceHashOf(built.value.view);
-  const p = await prepareCard(deps.decisions, {
+  const decisions = decisionsFor(deps, r.value.loaded.s0.record.s0_id);
+  const p = await prepareCard(decisions, {
     card_id: input.card_id,
     principal: input.principal,
     evidence_hash: evidence as Sha256Hex,
   });
   if (!p.ok) return err(decisionRefusal(p.error));
+  if (r.value.card.kind === 'C5') {
+    // A card with a gate: the nonce is the M4 gate's, bound to the evidence pack opened with it.
+    const g = p.value.gates[0];
+    if (!g) return err(coreError('conflict', 'the card has no M4 gate waiting'));
+    if (g.evidence_hash !== evidence) {
+      return err(coreError('conflict', 'the card changed since it was opened: reopen it'));
+    }
+    return ok({
+      nonce: g.nonce,
+      expires_at: g.expires_at,
+      evidence_hash: g.evidence_hash,
+      step_up: g.step_up,
+    });
+  }
   const n = p.value.step_nonce;
   if (!n) return err(coreError('conflict', 'the card has no step to decide'));
-  return ok({ nonce: n.nonce, expires_at: n.expires_at, evidence_hash: evidence });
+  return ok({ nonce: n.nonce, expires_at: n.expires_at, evidence_hash: evidence, step_up: null });
 }
 
 export async function recordOnboardingEvidence(
@@ -272,6 +322,8 @@ export async function decideOnboardingCard(
     decision: string;
     content?: unknown;
     reason?: string;
+    /** Card 5: the step-up proof the M4 gate needs, bound to the PRR's `record_hash`. */
+    step_up?: { proof: string };
   },
 ): Promise<Result<OnboardingDecision, CoreError>> {
   const vote = VoteDecision.safeParse(input.decision);
@@ -318,14 +370,46 @@ export async function decideOnboardingCard(
     );
   }
   const evidence = evidenceHashOf(built.value.view);
-  const d = await decideCard(deps.decisions, {
-    card_id: input.card_id,
-    votes: [],
-    step_nonce: input.nonce,
-    step_evidence_hash: evidence as Sha256Hex,
-    steps: [{ step: STEP_OF_CARD[card.kind], decision: vote.data }],
-    ...(payload.length > 0 ? { payload } : {}),
-  });
+  const s0Id = r.value.loaded.s0.record.s0_id;
+  // What card 4 was decided on is recorded in full: the PRR's `controls` are read from it.
+  if (vote.data === 'approve' && built.value.ctx.kind === 'C4') {
+    const seen = await recordControlsSeen(deps, s0Id, {
+      report: built.value.ctx.c.report,
+      collaborators_read: built.value.ctx.c.proposal.basis.collaborators_read,
+      by: input.principal,
+    });
+    if (!seen.ok) return seen;
+  }
+  const decisions = decisionsFor(deps, s0Id);
+  const d =
+    card.kind === 'C5'
+      ? // Card 5 carries two decisions: the 0.5 sign-off and the M4 gate, as two ledger entries
+        // in one transaction, sign-off first (DEC-6(c)). The gate's nonce is the one prepared.
+        await decideCard(decisions, {
+          card_id: input.card_id,
+          votes: [
+            {
+              nonce: input.nonce,
+              decision: vote.data,
+              ...(input.step_up ? { step_up: input.step_up } : {}),
+            },
+          ],
+          // The sign-off is decided with the first decision; a second approver of a two-person
+          // M4 decides the gate only.
+          steps: card.state.steps
+            .filter((x) => x.decision === null)
+            .map((x) => ({ step: x.step, decision: vote.data })),
+          ...(payload.length > 0 ? { payload } : {}),
+          steps_first: true,
+        })
+      : await decideCard(decisions, {
+          card_id: input.card_id,
+          votes: [],
+          step_nonce: input.nonce,
+          step_evidence_hash: evidence as Sha256Hex,
+          steps: [{ step: STEP_OF_CARD[card.kind], decision: vote.data }],
+          ...(payload.length > 0 ? { payload } : {}),
+        });
   if (!d.ok) return err(decisionRefusal(d.error));
 
   const reason = findingReason ?? input.reason;
@@ -353,7 +437,7 @@ export async function recheckControls(
   }
   const refused = needsOpenLive(r.value);
   if (refused) return err(refused);
-  const holders = await deps.decisions.eligibility.holders(
+  const holders = await decisionsFor(deps, r.value.loaded.s0.record.s0_id).eligibility.holders(
     r.value.card.state.open.project_id,
     SLOT_OF_CARD.C4,
   );

@@ -188,6 +188,8 @@ export const CardDecideRequest = z.strictObject({
   on_behalf_of: PrincipalId,
   nonce: z.string().min(1),
   decision: VoteDecision,
+  /** Card 5 carries the M4 gate, which needs a step-up proof bound to the PRR's `record_hash`. */
+  step_up: z.strictObject({ proof: z.string().min(1) }).optional(),
   /** The card's decision content (`C1DecisionContent`...); absent on a send-back or a rejection. */
   content: z.unknown().optional(),
   reason: z.string().min(1).max(500).optional(),

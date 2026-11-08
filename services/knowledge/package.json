@@ -29,6 +29,7 @@
     "@aisdlc/db": "0.0.0",
     "@aisdlc/kernel": "0.0.0",
     "@aisdlc/kms-local": "0.0.0",
+    "@aisdlc/ledger": "0.0.0",
     "@aisdlc/ports": "0.0.0",
     "@aisdlc/record": "0.0.0",
     "@aisdlc/secrets-rules": "0.0.0",
@@ -41,7 +42,6 @@
   },
   "devDependencies": {
     "@aisdlc/codehost": "0.0.0",
-    "@aisdlc/identity": "0.0.0",
-    "@aisdlc/ledger": "0.0.0"
+    "@aisdlc/identity": "0.0.0"
   }
 }

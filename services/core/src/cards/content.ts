@@ -58,6 +58,22 @@ export function planC1(
       ),
     );
   }
+  // What the census says M4 cannot sign without, and the owner can attest here (OB §2.2, DEC-4).
+  // `detectors_incomplete` is not the owner's to attest: it blocks M4 when the record is built.
+  const reasons = c.census.risk_category.blocks_m4_reasons;
+  if (reasons.includes('regulatory_unattested') && d.regulatory_attested !== true) {
+    return err(
+      coreError(
+        'refused',
+        'regulatory: the owner attests there is no regulatory obligation, or M4 cannot sign (any "yes" means stop)',
+      ),
+    );
+  }
+  if (reasons.includes('criticality_unattested') && d.criticality_attested !== true) {
+    return err(
+      coreError('refused', 'criticality: the owner attests it, or M4 cannot sign (DEC-4)'),
+    );
+  }
   const refs = new Set<string>();
   for (const x of d.disputes ?? []) {
     if (refs.has(x.ref)) return err(coreError('invalid_input', `${x.ref} is disputed twice`));
@@ -246,6 +262,7 @@ export function planC4(
 export function planC5(c: C5Ctx, content: unknown): Result<CardPayloadItem[], CoreError> {
   const p = parse(C5DecisionContent, content);
   if (!p.ok) return p;
+  // One row binds the three hashes and the PRR; the M4 gate binds to the PRR's hash itself.
   return ok([{ kind: 'm4_package', ...c.package } as CardPayloadItem]);
 }
 

@@ -6,6 +6,8 @@ export type KnowledgeErrorCode =
   | 'conflict'
   /** The acting principal is unknown, not active, or not a human. */
   | 'principal_refused'
+  /** The state change names no decided, ledgered security-card decision for this finding and state. */
+  | 'decision_refused'
   | 'unavailable'
   | 'database';
 
@@ -22,6 +24,7 @@ export const KNOWLEDGE_STATUS: Record<KnowledgeErrorCode, number> = {
   not_found: 404,
   conflict: 409,
   principal_refused: 403,
+  decision_refused: 403,
   unavailable: 503,
   database: 500,
 };

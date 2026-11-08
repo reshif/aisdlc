@@ -9,7 +9,13 @@ import {
   type Gap,
 } from '@aisdlc/contracts';
 import { configPublish } from '@aisdlc/config';
-import { decideCard, listInbox, readCardState, verifyCardPayload } from '@aisdlc/decisions';
+import {
+  decideCard,
+  listInbox,
+  readCardState,
+  verifyCardPayload,
+  type FakeStepUp,
+} from '@aisdlc/decisions';
 import { readUnknown, type FakeGitHub } from '@aisdlc/ports';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -186,6 +192,12 @@ async function decideAs(
     evidence_hash: p.value.evidence_hash,
   });
   if (!e.ok) return e;
+  // Card 5 carries the M4 gate, which needs a step-up proof bound to the PRR's record_hash.
+  const stepUp = p.value.step_up?.required
+    ? {
+        proof: (s.config.stepUp as FakeStepUp).issue(p.value.step_up.bound_hash, principal),
+      }
+    : undefined;
   return decideOnboardingCard(c.deps, {
     card_id: cardId,
     principal: pr(principal),
@@ -193,6 +205,7 @@ async function decideAs(
     decision,
     ...(content === undefined ? {} : { content }),
     ...(reason === undefined ? {} : { reason }),
+    ...(stepUp ? { step_up: stepUp } : {}),
   });
 }
 
@@ -1013,8 +1026,8 @@ describe('card 4 (0.4): the controls report, the attestations, the role map, the
 
 import { hostSeed as hostSeedOf } from './cards-fixtures.js';
 
-describe('card 5 (0.5): the sign-off and the hand-off to M4', () => {
-  it('assembles the package hashes, signs step 0.5 on the ledger, records s0.signoff_ready, and writes NO M4 decision', async () => {
+describe('card 5 (0.5): the sign-off and M4 on one card (PLAN M7.5)', () => {
+  it('assembles the package and the PRR, carries the 0.5 sign-off and the M4 gate as two ledgered entries, and activates the record', async () => {
     const c = await scenario({ census: { extraGaps: 3 } });
     const c1 = await throughC1(c);
     const c4 = await throughC4(c);
@@ -1023,33 +1036,62 @@ describe('card 5 (0.5): the sign-off and the hand-off to M4', () => {
     const card = await actionable(c, 'C5');
     const d = await detail(c, card.card_id);
     expect(d.summary).toMatchObject({ card: 'C5', step: '0.5', slot: 'admin' });
-    // the package: census hash, the gap ledger as card 1 disposed it, the controls report of card 4
+    // The card carries a step AND the M4 gate, opened on the S0 record's UUID and bound to the PRR.
+    const st = (await readCardState(s.record.pool, card.card_id))!;
+    expect(st.open.targets).toEqual([
+      expect.objectContaining({ target: 'gate', gate_id: 'M4' }),
+      { target: 'step', step: '0.5', slot: 'admin' },
+    ]);
+    const gate = st.gates[0]!.state.open.payload;
+    expect(gate).toMatchObject({
+      gate_id: 'M4',
+      subject_kind: 's0_record',
+      subject_id: c.s0,
+      step_up: { required: true },
+    });
+    // the package: census hash, the gap ledger as card 1 disposed it, the controls report of card 4, the PRR
     const c1rows = (await readCardState(s.record.pool, c1.card.card_id))?.payload?.payload ?? [];
     const gapRows = c1rows.filter((x) => x.kind === 'gap_disposition');
     expect(d.view.m4_package).toEqual({
       census_hash: c.census.census_hash,
       gap_ledger_hash: gapLedgerHash(c.census.gaps as Gap[], gapRows),
       controls_report_hash: c4.d.view.controls_report.report_hash,
+      prr_record_hash: gate.subject_hash,
     });
-    expect(d.view).toMatchObject({ owners: ['alice'], tier: 'T0', next: 'm4' });
-    const ledgerBefore = await s.record.pool.query(
+    expect(d.view).toMatchObject({ owners: ['alice'], tier: { value: 'T0' } });
+    expect(gate.step_up.bound_hash).toBe(gate.subject_hash);
+    const before = await s.record.pool.query(
       `SELECT count(*)::int AS n FROM ledger.ledger_entry WHERE subject_id = $1`,
       [c.s0],
     );
     const r = ok(await decideAs(c, card.card_id, 'alice', 'approve', {}));
-    expect(r.value.decision.entries).toHaveLength(1);
+    // two ledgered entries on the one card, the sign-off first, then M4 bound to the PRR's hash
+    expect(r.value.decision.entries).toHaveLength(2);
     expect(r.value.decision.entries[0]).toMatchObject({
       entry_type: CARD_STEP_ENTRY_TYPE,
       decision: 'approve',
       sod_waiver: true,
       body: { step: '0.5', card_id: card.card_id },
     });
-    const ledgerAfter = await s.record.pool.query(
+    expect(r.value.decision.entries[1]).toMatchObject({
+      entry_type: 'decision',
+      gate_id: 'M4',
+      decision: 'approve',
+      subject_kind: 's0_record',
+      subject_id: c.s0,
+      subject_hash: gate.subject_hash,
+      sod_waiver: true,
+    });
+    expect(r.value.decision.entries[0]!.ledger_seq).toBeLessThan(
+      r.value.decision.entries[1]!.ledger_seq,
+    );
+    const after = await s.record.pool.query(
       `SELECT count(*)::int AS n FROM ledger.ledger_entry WHERE subject_id = $1`,
       [c.s0],
     );
-    expect(ledgerAfter.rows[0].n).toBe(ledgerBefore.rows[0].n + 1);
-    // the hand-off point
+    expect(after.rows[0].n).toBe(before.rows[0].n + 2);
+    expect(r.value.applied).toBe('applied');
+    // the hand-off point and what M4 did
     const ready = await events(c, S0_EVENT.signoff_ready);
     expect(ready).toEqual([
       expect.objectContaining({
@@ -1060,14 +1102,10 @@ describe('card 5 (0.5): the sign-off and the hand-off to M4', () => {
         by: 'alice',
       }),
     ]);
-    // M4 is the next task's: no gate was opened for the record and no M4 entry exists
-    const m4 = await s.record.pool.query(
-      `SELECT count(*)::int AS n FROM ledger.ledger_entry WHERE gate_id = 'M4'`,
-    );
-    expect(m4.rows[0].n).toBe(0);
     const s0 = await stateOf(c);
-    expect(s0.record.status).toBe('card');
-    expect(s0.steps.get('0.5')?.state).toBe('card');
+    expect(s0.record.status).toBe('done');
+    expect(s0.steps.get('0.5')?.state).toBe('done');
+    expect(s0.record.readiness_version).toBe(1);
     // a second sync neither re-opens nor re-applies it
     const again = await sync(c);
     expect([again.opened, again.applied]).toEqual([[], []]);

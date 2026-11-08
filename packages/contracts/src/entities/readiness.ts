@@ -334,6 +334,8 @@ export const PrrSecuritySummary = z.strictObject({
   }),
 });
 
+export type PrrSecuritySummary = z.infer<typeof PrrSecuritySummary>;
+
 export const SignerMode = z.enum(['solo', 'team']);
 export type SignerMode = z.infer<typeof SignerMode>;
 
@@ -383,6 +385,13 @@ export function prrRecordHash(prr: object): string {
 export function prrRecordId(projectId: string, repoId: string): string {
   return `prr:${projectId}:${repoId}`;
 }
+
+/**
+ * The `pins.governance_cap_map` of a record: the rule that sets the "earned" autonomy cap. No
+ * governance earn rule exists yet (PLAN M5), so every record pins this one and its earned cap is
+ * none; loosening past probation always needs a human (OB §2.3).
+ */
+export const PRR_GOVERNANCE_CAP_MAP = 'governance-caps/1';
 
 const FORBIDDEN_KEY = /secret|fingerprint|hmac|password|private_key|api_key/i;
 

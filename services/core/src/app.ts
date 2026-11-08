@@ -11,6 +11,7 @@ import {
   RoleMap,
   RepoFullName,
   TwoPerson,
+  Lane,
   Level,
   pdpResource,
   type ActionId,
@@ -24,6 +25,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
 import { CORE_STATUS, coreError, type CoreError } from './errors.js';
+import { laneEligibility } from './lane-eligibility.js';
 import {
   getProject,
   getS0Overview,
@@ -74,7 +76,8 @@ const Reason = z.string().min(1).max(500).optional();
 export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   const app = newApp();
   const clock = o.clock ?? systemClock;
-  const deps = { pool: o.pool, clock };
+  // The ledger is needed for the one ledger entry core's own writes make: the bootstrap grant.
+  const deps = { pool: o.pool, clock, ...(o.config ? { ledger: o.config.ledger } : {}) };
 
   app.get('/healthz', async () => ({ ok: true }));
 
@@ -157,6 +160,24 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return await registeredRepos(o.pool);
     } catch {
       return fail(reply, coreError('unavailable', 'the registered repos could not be read'));
+    }
+  });
+
+  /**
+   * `eligibility(repo, lane)` (PLAN M7.6): whether the lane runs for the repo and where a request
+   * for it goes: `normal`, `n8_hold` (no active PRR) or `l8` (the 1.4 rule: level too low, or the
+   * PRR is stale, suspended or expired).
+   */
+  app.get('/v1/repos/:owner/:name/eligibility', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
+    if (!repo.success) return fail(reply, coreError('invalid_input', 'owner/name is required'));
+    const lane = Lane.safeParse((req.query as { lane?: string }).lane);
+    if (!lane.success) return fail(reply, coreError('invalid_input', 'lane must be L0 to L8'));
+    try {
+      return await laneEligibility(o.pool, repo.data, lane.data, clock);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the eligibility could not be read'));
     }
   });
 
@@ -373,6 +394,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         decision: b.decision,
         ...(b.content === undefined ? {} : { content: b.content }),
         ...(b.reason === undefined ? {} : { reason: b.reason }),
+        ...(b.step_up === undefined ? {} : { step_up: b.step_up }),
       }),
     ),
   );

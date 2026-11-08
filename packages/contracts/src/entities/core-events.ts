@@ -14,6 +14,7 @@ import {
   S0RecordId,
   Sha256Hex,
   TeamId,
+  WorkRequestId,
 } from './ids.js';
 import {
   CardKind,
@@ -23,6 +24,9 @@ import {
   S0Record,
 } from './onboarding.js';
 import { OnboardingStatus } from '../states/onboarding.js';
+import { ReadinessActor, ReadinessStatus } from '../states/readiness.js';
+import { Lane } from '../values.js';
+import { ControlsReport } from './onboarding-cards.js';
 import {
   GatingProfile,
   KillDelegation,
@@ -34,8 +38,9 @@ import {
   TwoPerson,
   type RoleSlot,
 } from './projects.js';
-import { SignerMode } from './readiness.js';
+import { ProjectReadinessRecord, SignerMode } from './readiness.js';
 import { VoteDecision } from './decisions.js';
+import { EntryChannel } from '../values.js';
 
 // The Projects and Onboarding context of core (PLAN M7.1, M7.2): the record streams of the Project,
 // Repo and S0 aggregates with their event payloads, the `project.onboard` request, the S0 step
@@ -48,6 +53,10 @@ export const projectStream = (project: string): string => `project:${project}`;
 /** One stream per repo; repo names compare without case, like the code host's. */
 export const repoStream = (repo: string): string => `repo:${repo.toLowerCase()}`;
 export const s0Stream = (s0Id: string): string => `s0:${s0Id}`;
+/** The versions of one Project Readiness Record (`prr:<project>:<repo_id>`, OB §2.4) are one stream. */
+export const prrStream = (project: string, repoId: string): string => `prr:${project}:${repoId}`;
+/** A work request (PLAN M7.6, the minimal intake; the full lifecycle is M9). */
+export const workStream = (requestId: string): string => `work:${requestId}`;
 
 /** The stream prefixes the `core` read model folds. */
 export const CORE_STREAM_PREFIXES = ['project:', 'repo:', 's0:'] as const;
@@ -65,6 +74,8 @@ export const PROJECT_EVENT = {
   attested: 'project.attested',
   /** M4 signed the onboarding: the project's tier and level (M7.5 writes it). */
   signed: 'project.signed',
+  /** The PRR is active: the repo may take work in the lanes it lists (`project.ready`, OB §6.2 row 0.5). */
+  ready: 'project.ready',
 } as const;
 
 export const REPO_EVENT = {
@@ -90,10 +101,41 @@ export const S0_EVENT = {
   signable_level_set: 's0.signable_level_set',
   /** A decided card was applied to the S0 record (M7.3). */
   card_applied: 's0.card_applied',
-  /** Card 5 signed off step 0.5: the hand-off to M4 (M7.5). */
+  /** Card 5 was approved: the 0.5 sign-off and M4 are on the ledger, and the PRR goes active (M7.5). */
   signoff_ready: 's0.signoff_ready',
   /** Card 4's re-check read the code host again. */
   controls_checked: 's0.controls_checked',
+  /** The bootstrap decider (PLAN M7.4): the requester is the provisional admin of cards 1, 4 and 5. */
+  bootstrap_granted: 's0.bootstrap_granted',
+  /** The controls report card 4 was decided on, in full: the PRR's `controls` are read from it. */
+  controls_recorded: 's0.controls_recorded',
+  /** A PRR was built and proposed for the sign-off (PLAN M7.4, M7.5); its hash is the M4 subject. */
+  prr_proposed: 's0.prr_proposed',
+} as const;
+
+/** The events of a PRR stream (`prr:<project>:<repo_id>`). */
+export const PRR_EVENT = {
+  /** A version, whole, in status `proposed`. */
+  proposed: 'prr.proposed',
+  /** Only an M4 decision does this (`proposed -> active`). */
+  activated: 'prr.activated',
+  /** A later status: stale, suspended, expired (mechanical, tighten-only) or superseded (a newer M4). */
+  status_changed: 'prr.status_changed',
+} as const;
+
+/** The events of a work request (PLAN M7.6). */
+export const WORK_EVENT = {
+  requested: 'work.requested',
+  /** N8: no active PRR, so the request waits. */
+  held: 'work.held',
+  /** The lane was eligible: the request goes on to the normal lifecycle (M9 owns it). */
+  admitted: 'work.admitted',
+  /** The 1.4 rule: a PRR that is too low, suspended, stale or expired sends the request to L8. */
+  routed_l8: 'work.routed_l8',
+  /** A held request was released into its lane by an M4 (the project-level fan-out). */
+  released: 'work.released',
+  /** An M4 made the PRR active but not for this request's lane: L8 human-led is offered. */
+  l8_offered: 'work.l8_offered',
 } as const;
 
 // ---------------------------------------------------------------- The request
@@ -316,6 +358,8 @@ export const S0CardAppliedPayload = z.strictObject({
     'rejected',
     'finding_resolved',
     'signoff_ready',
+    /** Card 5, approved: the sign-off and M4 are on the ledger, the PRR is active, the record is done. */
+    'm4_approved',
     'stale',
   ]),
   by: PrincipalId,
@@ -324,15 +368,19 @@ export const S0CardAppliedPayload = z.strictObject({
 });
 export type S0CardAppliedPayload = z.infer<typeof S0CardAppliedPayload>;
 
-/** The three hashes M4 will sign over (OB §6.2 row 0.5); M7.4 and M7.5 add the PRR and the gate. */
+/** What M4 signs over (OB §6.2 row 0.5): the three hashes, and the PRR they went into. */
 export const M4Package = z.strictObject({
   census_hash: Sha256Hex,
   gap_ledger_hash: Sha256Hex,
   controls_report_hash: Sha256Hex,
+  prr_record_hash: Sha256Hex,
 });
 export type M4Package = z.infer<typeof M4Package>;
 
-/** Card 5 is decided: the sign-off of step 0.5 is on the ledger, and M4 is the next decision (M7.5). */
+/**
+ * Card 5 was approved (PLAN M7.5): the sign-off of step 0.5 and the M4 gate are both on the ledger
+ * (two entries, one card). Written in the transaction that makes the PRR active.
+ */
 export const S0SignoffReadyPayload = z.strictObject({
   card_id: CardId,
   signoff_entry_id: LedgerEntryId,
@@ -350,6 +398,176 @@ export const S0ControlsCheckedPayload = z.strictObject({
   by: PrincipalId,
 });
 export type S0ControlsCheckedPayload = z.infer<typeof S0ControlsCheckedPayload>;
+
+// ---------------------------------------------------------------- Bootstrap, PRR and work events
+
+/** The cards the bootstrap decider covers (PLAN M7.4). The security card, M4 and every other gate are not among them. */
+export const BOOTSTRAP_CARDS = ['C1', 'C4', 'C5'] as const;
+export const BootstrapCard = z.enum(BOOTSTRAP_CARDS);
+
+/**
+ * User decision 2026-11-08: on a project's first onboarding (no published role map, no other live
+ * bootstrap) the requester, who passed `project.onboard`, is the provisional admin of this S0
+ * record's cards 1, 4 and 5. It ends when card 4's revision is published, or when the record ends.
+ * `ledger_entry_id` is the ledger entry that states the grant.
+ */
+export const S0BootstrapGrantedPayload = z.strictObject({
+  s0_id: S0RecordId,
+  project_id: ProjectId,
+  grantee: PrincipalId,
+  slot: z.literal('admin'),
+  cards: z.array(BootstrapCard).min(1),
+  basis: z.literal('first_onboarding_no_role_map'),
+  ledger_entry_id: LedgerEntryId,
+});
+export type S0BootstrapGrantedPayload = z.infer<typeof S0BootstrapGrantedPayload>;
+
+/** The `entry_type` of the ledger entry that states a bootstrap grant. */
+export const BOOTSTRAP_ENTRY_TYPE = 's0.bootstrap_grant';
+
+export const S0ControlsRecordedPayload = z.strictObject({
+  report: ControlsReport,
+  /** When the factory read the code host for this report (the card 4 decision). */
+  read_at: IsoDateTime,
+  /** What reading the collaborators gave when the role map was proposed. */
+  collaborators_read: z.enum(['ok', 'unknown', 'unreadable']),
+});
+export type S0ControlsRecordedPayload = z.infer<typeof S0ControlsRecordedPayload>;
+
+export const S0PrrProposedPayload = z.strictObject({
+  /** Which raising of card 5 this PRR belongs to (the n-th `s0.card_required` for C5). */
+  occurrence: z.number().int().min(1),
+  record_id: z.string().min(1),
+  version: z.number().int().min(1),
+  record_hash: Sha256Hex,
+  level_signed: Level,
+  tier: Tier,
+});
+export type S0PrrProposedPayload = z.infer<typeof S0PrrProposedPayload>;
+
+export const PrrProposedPayload = z.strictObject({
+  s0_id: S0RecordId,
+  prr: ProjectReadinessRecord,
+});
+export type PrrProposedPayload = z.infer<typeof PrrProposedPayload>;
+
+export const PrrActivatedPayload = z.strictObject({
+  s0_id: S0RecordId,
+  version: z.number().int().min(1),
+  record_hash: Sha256Hex,
+  /** The M4 ledger entry and its `entry_hash`: the decision this version was made active by. */
+  m4: z.strictObject({ ledger_entry_id: LedgerEntryId, decision_hash: Sha256Hex }),
+});
+export type PrrActivatedPayload = z.infer<typeof PrrActivatedPayload>;
+
+export const PrrStatusChangedPayload = z.strictObject({
+  version: z.number().int().min(1),
+  record_hash: Sha256Hex,
+  from: ReadinessStatus,
+  to: ReadinessStatus,
+  actor: ReadinessActor,
+  cause: CauseCode,
+});
+export type PrrStatusChangedPayload = z.infer<typeof PrrStatusChangedPayload>;
+
+export const ProjectReadyPayload = z.strictObject({
+  project_id: ProjectId,
+  repo: RepoFullName,
+  s0_id: S0RecordId,
+  prr_version: z.number().int().min(1),
+  record_hash: Sha256Hex,
+  level: Level,
+  lanes_eligible: z.array(Lane),
+});
+export type ProjectReadyPayload = z.infer<typeof ProjectReadyPayload>;
+
+/** Why a lane was or was not open to a repo (PLAN M7.6). */
+export const EligibilityReason = z.enum([
+  'eligible',
+  /** N8: no PRR has ever been active for the repo. */
+  'no_active_prr',
+  'prr_stale',
+  'prr_suspended',
+  'prr_expired',
+  'level_too_low',
+  /** L0 and L7 are `unspecified` at every level (OB §2.1): not eligible. */
+  'lane_unspecified',
+  'tier_requires_full',
+  'posture_red',
+  'staging_separation_not_attested',
+]);
+export type EligibilityReason = z.infer<typeof EligibilityReason>;
+
+export const EligibilityRoute = z.enum(['normal', 'n8_hold', 'l8']);
+export type EligibilityRoute = z.infer<typeof EligibilityRoute>;
+
+/** `eligibility(repo, lane)`: whether the lane runs, and where a request for it goes (DEC-8). */
+export const LaneEligibility = z.strictObject({
+  repo: RepoFullName,
+  lane: Lane,
+  eligible: z.boolean(),
+  route: EligibilityRoute,
+  reason: EligibilityReason,
+  prr: z
+    .strictObject({
+      version: z.number().int().min(1),
+      status: ReadinessStatus,
+      level: Level,
+      record_hash: Sha256Hex,
+      fresh_until: IsoDateTime,
+    })
+    .nullable(),
+});
+export type LaneEligibility = z.infer<typeof LaneEligibility>;
+
+export const WorkRequestedPayload = z.strictObject({
+  request_id: WorkRequestId,
+  project_id: ProjectId,
+  repo: RepoFullName,
+  lane: Lane,
+  channel: EntryChannel,
+  requester: PrincipalId,
+  catalogue_ref: CatalogueRef,
+});
+export type WorkRequestedPayload = z.infer<typeof WorkRequestedPayload>;
+
+export const WorkHeldPayload = z.strictObject({
+  request_id: WorkRequestId,
+  channel: z.literal('N8'),
+  reason: z.literal('no_active_prr'),
+  /** The held card offers "Onboard" or "Continue as L8 human-led" (OB §N8). */
+  offers: z.array(z.enum(['onboard', 'continue_as_l8'])),
+});
+export type WorkHeldPayload = z.infer<typeof WorkHeldPayload>;
+
+export const WorkAdmittedPayload = z.strictObject({
+  request_id: WorkRequestId,
+  lane: Lane,
+  prr_version: z.number().int().min(1),
+  record_hash: Sha256Hex,
+});
+export type WorkAdmittedPayload = z.infer<typeof WorkAdmittedPayload>;
+
+export const WorkRoutedL8Payload = z.strictObject({
+  request_id: WorkRequestId,
+  requested_lane: Lane,
+  reason: EligibilityReason,
+  prr_version: z.number().int().min(1).nullable(),
+});
+export type WorkRoutedL8Payload = z.infer<typeof WorkRoutedL8Payload>;
+
+/** The fan-out of an M4: a held request released, or offered L8. */
+export const WorkFanOutPayload = z.strictObject({
+  request_id: WorkRequestId,
+  requested_lane: Lane,
+  /** The M4 behind it: the PRR version and its hash. */
+  prr_version: z.number().int().min(1),
+  record_hash: Sha256Hex,
+  s0_id: S0RecordId,
+  /** `released`: the lane is eligible now. `l8_offered`: it is not, and nothing else starts. */
+  reason: EligibilityReason,
+});
+export type WorkFanOutPayload = z.infer<typeof WorkFanOutPayload>;
 
 // ---------------------------------------------------------------- Config: S0 driver
 

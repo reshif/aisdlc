@@ -1,15 +1,31 @@
-import { projectStream, repoStream, s0Stream, type RecordEvent } from '@aisdlc/contracts';
-import { inTransaction } from '@aisdlc/ledger';
+import {
+  prrStream,
+  projectStream,
+  repoStream,
+  s0Stream,
+  type RecordEvent,
+} from '@aisdlc/contracts';
+import {
+  confirmAll,
+  inTransaction,
+  type LedgerClientDeps,
+  type PendingConfirm,
+} from '@aisdlc/ledger';
 import { err, ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
 import { EVENT_COLUMNS, appendEvents, toRecordEvent, type EventRow, type Tx } from '@aisdlc/record';
 import type pg from 'pg';
 import { coreError, type CoreError } from './errors.js';
-import { foldProject, foldRepo, foldS0 } from './fold.js';
+import { foldPrr, foldProject, foldRepo, foldS0 } from './fold.js';
 
-/** What a writer needs: the record database and a clock. Core's S0 writes never touch the ledger. */
+/**
+ * What a writer needs: the record database and a clock. Core's S0 writes touch the ledger in one
+ * place only, the bootstrap grant at the intake (PLAN M7.4), which needs `ledger`; without it no
+ * grant is made (fail closed).
+ */
 export interface CoreDeps {
   readonly pool: pg.Pool;
   readonly clock?: Clock;
+  readonly ledger?: LedgerClientDeps;
 }
 
 export const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
@@ -84,6 +100,9 @@ export class Journal {
   async s0(id: string) {
     return foldS0(await this.events(s0Stream(id)));
   }
+  async prr(project: string, repoId: string) {
+    return foldPrr(await this.events(prrStream(project, repoId)));
+  }
 }
 
 /** Runs `fn` in one transaction with a `Journal`. An `Err` or a throw rolls everything back. */
@@ -96,6 +115,29 @@ export function inCoreTx<T>(
     (tx) => fn(new Journal(tx, clockOf(deps)), tx),
     (e) => coreError('database', e instanceof Error ? e.message : String(e)),
   );
+}
+
+/**
+ * `inCoreTx` for a transaction that also writes a ledger entry: `fn` takes the ledger lock before its
+ * first record append and writes the entry last (AGENTS.md lock order), returning what the Notary
+ * signed; after COMMIT those entries are confirmed.
+ */
+export async function inCoreLedgerTx<T>(
+  deps: CoreDeps & { readonly ledger: LedgerClientDeps },
+  fn: (
+    j: Journal,
+    tx: pg.PoolClient,
+  ) => Promise<Result<{ value: T; pending: readonly PendingConfirm[] }, CoreError>>,
+): Promise<Result<T, CoreError>> {
+  const done = await inTransaction(
+    deps.pool,
+    (tx) => fn(new Journal(tx, clockOf(deps)), tx),
+    (e) => coreError('database', e instanceof Error ? e.message : String(e)),
+  );
+  if (!done.ok) return done;
+  // A failed confirm is finished by the Notary reconciler (M2.3): the entry is signed and in the record.
+  await confirmAll(deps.ledger.notary, done.value.pending);
+  return ok(done.value.value);
 }
 
 /** Reads the streams outside a transaction (a driver deciding what to do next). */
