@@ -1,3 +1,4 @@
+import { dbUrlRef } from '@aisdlc/db/testing';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -120,7 +121,7 @@ describe('aisdlc-migrate from source', () => {
   it('migrates a fresh database completely with one call, and a second run changes nothing', async () => {
     const db = await createTestDatabase();
     try {
-      const env = { AISDLC_DATABASE_URL: db.url };
+      const env = { ...dbUrlRef('AISDLC_DATABASE_URL', db.url) };
       const first = capture();
       expect(await runMigrateCli([], env, first.io)).toBe(0);
       expect(first.err).toEqual([]);
@@ -163,9 +164,9 @@ describe('aisdlc-migrate from source', () => {
     const wit = await createTestDatabase();
     try {
       const env = {
-        AISDLC_DATABASE_URL: rec.url,
-        AISDLC_NOTARY_DATABASE_URL: not.url,
-        AISDLC_WITNESS_DATABASE_URL: wit.url,
+        ...dbUrlRef('AISDLC_DATABASE_URL', rec.url),
+        ...dbUrlRef('AISDLC_NOTARY_DATABASE_URL', not.url),
+        ...dbUrlRef('AISDLC_WITNESS_DATABASE_URL', wit.url),
       };
       const run = capture();
       expect(await runMigrateCli(['--notary', '--witness'], env, run.io)).toBe(0);
@@ -246,10 +247,16 @@ describe('the aisdlc-migrate bundle: the SQL is embedded, not read from disk', (
     const viaBundle = await createTestDatabase();
     const viaSource = await createTestDatabase();
     try {
-      const r1 = run([], { AISDLC_DATABASE_URL: viaBundle.url });
+      const r1 = run([], { ...dbUrlRef('AISDLC_DATABASE_URL', viaBundle.url) });
       expect(r1.status, r1.stderr).toBe(0);
       expect(r1.stdout).toMatch(/record\/record: applied 0001_record_event\.sql/);
-      expect(await runMigrateCli([], { AISDLC_DATABASE_URL: viaSource.url }, capture().io)).toBe(0);
+      expect(
+        await runMigrateCli(
+          [],
+          { ...dbUrlRef('AISDLC_DATABASE_URL', viaSource.url) },
+          capture().io,
+        ),
+      ).toBe(0);
       const strip = (rows: Array<{ scope: string; name: string; checksum: string }>) =>
         rows.map(({ scope, name, checksum }) => ({ scope, name, checksum }));
       expect(strip(await ledgerOfMigrations(viaBundle))).toEqual(
@@ -257,7 +264,7 @@ describe('the aisdlc-migrate bundle: the SQL is embedded, not read from disk', (
       );
       expect(await tables(viaBundle)).toEqual(await tables(viaSource));
       const before = await ledgerOfMigrations(viaBundle);
-      const r2 = run([], { AISDLC_DATABASE_URL: viaBundle.url });
+      const r2 = run([], { ...dbUrlRef('AISDLC_DATABASE_URL', viaBundle.url) });
       expect(r2.status, r2.stderr).toBe(0);
       expect(
         r2.stdout
@@ -285,7 +292,7 @@ describe('services start against a database that one command migrated, with no e
   beforeAll(async () => {
     db = await createTestDatabase();
     const r = spawnSync(process.execPath, [cli], {
-      env: { PATH: process.env['PATH'] ?? '', AISDLC_DATABASE_URL: db.url },
+      env: { PATH: process.env['PATH'] ?? '', ...dbUrlRef('AISDLC_DATABASE_URL', db.url) },
       encoding: 'utf8',
     });
     expect(r.status, r.stderr).toBe(0);
@@ -328,7 +335,7 @@ describe('services start against a database that one command migrated, with no e
 
   it('identity', async () => {
     await startsAndStops('identity', join(scratch, 'identity', 'dist', 'main.js'), {
-      IDENTITY_DATABASE_URL: db.url,
+      ...dbUrlRef('IDENTITY_DATABASE_URL', db.url),
       IDENTITY_CALLERS: JSON.stringify({ admin: { token_ref: 'env:T', scopes: ['read'] } }),
       T: 'a'.repeat(32),
       IDENTITY_ACCESS_SYNC: 'off',
@@ -338,7 +345,7 @@ describe('services start against a database that one command migrated, with no e
 
   it('bff', async () => {
     await startsAndStops('bff', join(scratch, 'bff', 'dist', 'main.js'), {
-      BFF_DATABASE_URL: db.url,
+      ...dbUrlRef('BFF_DATABASE_URL', db.url),
       BFF_PUBLIC_URL: 'http://127.0.0.1:1',
       BFF_COOKIE_SECURE: 'false',
       BFF_OIDC_ISSUER: 'http://127.0.0.1:2',
@@ -354,7 +361,7 @@ describe('services start against a database that one command migrated, with no e
 
   it('knowledge', async () => {
     await startsAndStops('knowledge', join(scratch, 'knowledge', 'dist', 'main.js'), {
-      KNOWLEDGE_DATABASE_URL: db.url,
+      ...dbUrlRef('KNOWLEDGE_DATABASE_URL', db.url),
       KNOWLEDGE_CALLERS: JSON.stringify({ core: { token_ref: 'env:T', scopes: ['census'] } }),
       T: 'a'.repeat(32),
       KNOWLEDGE_CODEHOST_URL: 'http://127.0.0.1:1',

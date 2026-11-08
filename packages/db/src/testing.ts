@@ -86,3 +86,13 @@ export async function withTestDatabase<T>(fn: (t: TestDatabase) => Promise<T>): 
     await t.drop();
   }
 }
+
+/**
+ * Environment for a child process that must receive `url` as a database URL. Services refuse a
+ * literal URL carrying a password (secrets only as `env:`/`file:` references), and CI's database has
+ * one, so tests pass the URL the way production must: `NAME=env:<var>` plus `<var>=<url>`.
+ */
+export function dbUrlRef(name: string, url: string): Record<string, string> {
+  const ref = `AISDLC_TEST_REF_${name}`;
+  return { [name]: `env:${ref}`, [ref]: url };
+}

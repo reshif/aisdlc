@@ -1,3 +1,4 @@
+import { dbUrlRef } from '@aisdlc/db/testing';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import {
   createReadStream,
@@ -185,7 +186,7 @@ describe('the knowledge bundle as a process', () => {
     child = spawn(process.execPath, ['--enable-source-maps', dist], {
       env: {
         PATH: process.env['PATH'] ?? '',
-        KNOWLEDGE_DATABASE_URL: db.url,
+        ...dbUrlRef('KNOWLEDGE_DATABASE_URL', db.url),
         KNOWLEDGE_CALLERS: JSON.stringify({
           core: { token_ref: 'env:CEN', scopes: ['census'] },
           bff: { token_ref: 'env:SEC', scopes: ['security'] },

@@ -1,3 +1,4 @@
+import { dbUrlRef } from '@aisdlc/db/testing';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -90,7 +91,11 @@ describe('the bff bundle fails fast on bad configuration', () => {
   it('refuses to start against a database whose other schemas are not migrated', async () => {
     const empty = await createTestDatabase();
     try {
-      const r = runOnce(bundle, { ...GOOD, BFF_DATABASE_URL: empty.url, BFF_PORT: '0' });
+      const r = runOnce(bundle, {
+        ...GOOD,
+        ...dbUrlRef('BFF_DATABASE_URL', empty.url),
+        BFF_PORT: '0',
+      });
       expect(r.status).toBe(1);
       expect(r.stderr).toMatch(/schema\(s\) are missing/);
     } finally {
@@ -191,7 +196,7 @@ describe('the bff bundle as a process (plain node, no TypeScript loader)', () =>
     child = spawn(process.execPath, ['--enable-source-maps', bundle], {
       env: {
         PATH: process.env['PATH'] ?? '',
-        BFF_DATABASE_URL: stack.record.url,
+        ...dbUrlRef('BFF_DATABASE_URL', stack.record.url),
         BFF_PUBLIC_URL: publicUrl,
         BFF_OIDC_ISSUER: oidc.issuer,
         BFF_OIDC_CLIENT_ID: CLIENT.client_id,
