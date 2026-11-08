@@ -27,6 +27,23 @@ describe('HttpCodeHostReads', () => {
     expect(rules.state === 'ok' && rules.value.required_checks).toHaveLength(2);
   });
 
+  it('reads a file, CODEOWNERS, its errors and the collaborators as the port would', async () => {
+    const c = new HttpCodeHostReads({ baseUrl: ch.url, token: TOKEN });
+    const head = await ch.gh.branch_head({ repo: 'acme/app', branch: 'main' });
+    if (head.state !== 'ok') throw new Error('no head');
+    const repo = 'acme/app';
+    // Whatever the port answers for these four reads, the HTTP client answers the same.
+    expect(await c.collaborators({ repo })).toEqual(await ch.gh.collaborators({ repo }));
+    expect(await c.codeowners({ repo, sha: head.value })).toEqual(
+      await ch.gh.codeowners({ repo, sha: head.value }),
+    );
+    expect(await c.codeowners_errors({ repo })).toEqual(await ch.gh.codeowners_errors({ repo }));
+    expect(await c.read_at_sha({ repo, sha: head.value, path: 'AGENTS.md' })).toEqual(
+      await ch.gh.read_at_sha({ repo, sha: head.value, path: 'AGENTS.md' }),
+    );
+    expect(await c.collaborators({ repo: 'acme/nope' })).toMatchObject({ state: 'unreadable' });
+  });
+
   it('passes a read that is not ok through, and never turns a failure into a value', async () => {
     const c = new HttpCodeHostReads({ baseUrl: ch.url, token: TOKEN });
     expect(await c.branch_head({ repo: 'acme/app', branch: 'nope' })).toMatchObject({

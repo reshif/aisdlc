@@ -1,0 +1,30 @@
+{
+  "issuer": "http://dev-oidc.localhost:8390",
+  "groups": [],
+  "subjects": [
+    {
+      "issuer": "http://dev-oidc.localhost:8390",
+      "subject": "00000000-0000-4000-8000-000000000001",
+      "principal_id": "alice",
+      "kind": "human",
+      "status": "active",
+      "upn": "alice@example.test",
+      "display_handle": "alice",
+      "display_name": "Alice Example (factory admin)",
+      "logins": ["reshif"],
+      "groups": []
+    },
+    {
+      "issuer": "http://dev-oidc.localhost:8390",
+      "subject": "00000000-0000-4000-8000-000000000002",
+      "principal_id": "bob",
+      "kind": "human",
+      "status": "active",
+      "upn": "bob@example.test",
+      "display_handle": "bob",
+      "display_name": "Bob Example",
+      "logins": [],
+      "groups": []
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { RULES, scanText } from '../src/index.js';
 
@@ -36,11 +36,21 @@ const SKIP_DIRS = new Set([
   'tmp',
 ]);
 
+// What `platform/compose/init-secrets` generates on a developer's machine (service tokens, database
+// URLs, a throwaway App key) is git-ignored and never committed; only its README is part of the
+// repository. Everything else in that directory is skipped, so running the stack does not fail this
+// test, while the README and the script that writes the files are still scanned.
+const GENERATED_SECRETS = join('platform', 'compose', 'secrets');
+
 function* walk(dir: string): Generator<string> {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (e.isDirectory()) {
       if (!SKIP_DIRS.has(e.name)) yield* walk(join(dir, e.name));
-    } else if (e.isFile()) yield join(dir, e.name);
+    } else if (e.isFile()) {
+      const rel = relative(root, join(dir, e.name));
+      if (dirname(rel) === GENERATED_SECRETS && e.name !== 'README.md') continue;
+      yield join(dir, e.name);
+    }
   }
 }
 

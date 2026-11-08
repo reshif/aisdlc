@@ -13,7 +13,7 @@ import { startDevOidcProvider } from './dev-oidc/provider.js';
 //   DEV_OIDC_USERS_FILE    JSON [{subject, name, email?}]
 //   DEV_OIDC_CLIENT_ID, DEV_OIDC_CLIENT_SECRET_REF (env:/file:), DEV_OIDC_REDIRECT_URIS (comma list)
 //   DEV_OIDC_ISSUER        optional; default the URL it listens on
-//   DEV_OIDC_HOST / _PORT  default 127.0.0.1:8350
+//   DEV_OIDC_HOST / _PORT  default 127.0.0.1:8390
 // It refuses to start unless FACTORY_ENV=local.
 
 const Users = z.array(
@@ -37,7 +37,7 @@ await runService('dev-oidc', async () => {
   }
   const users = Users.safeParse(raw);
   if (!users.success) throw new ServiceConfigError(`${file}: ${users.error.message}`);
-  const listenOpts = listenConfig(process.env, 'DEV_OIDC', 8350);
+  const listenOpts = listenConfig(process.env, 'DEV_OIDC', 8390);
   const p = await startDevOidcProvider({
     users: users.data.map((u) => ({
       subject: u.subject,

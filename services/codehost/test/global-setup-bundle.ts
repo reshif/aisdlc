@@ -9,7 +9,7 @@ const root = join(import.meta.dirname, '..', '..', '..');
  * test never runs a stale bundle.
  */
 export default function setup(): void {
-  execFileSync(process.execPath, [join(root, 'scripts', 'bundle.mjs'), 'main'], {
+  execFileSync(process.execPath, [join(root, 'scripts', 'bundle.mjs'), 'main', 'fake-github'], {
     cwd: join(root, 'services', 'codehost'),
     stdio: 'pipe',
   });

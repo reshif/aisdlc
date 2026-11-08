@@ -29,6 +29,27 @@ export async function startFakeCodehost(token: string, gh = new FakeGitHub(contr
   app.get('/v1/repos/:owner/:name/rules', async (req, reply) =>
     send(reply, await gh.rules_for_branch({ repo: p(req), branch: q(req)['branch'] ?? '' })),
   );
+  app.get('/v1/repos/:owner/:name/file', async (req, reply) =>
+    send(
+      reply,
+      await gh.read_at_sha({ repo: p(req), sha: q(req)['sha'] ?? '', path: q(req)['path'] ?? '' }),
+    ),
+  );
+  app.get('/v1/repos/:owner/:name/codeowners', async (req, reply) =>
+    send(reply, await gh.codeowners({ repo: p(req), sha: q(req)['sha'] ?? '' })),
+  );
+  app.get('/v1/repos/:owner/:name/codeowners/errors', async (req, reply) =>
+    send(
+      reply,
+      await gh.codeowners_errors({
+        repo: p(req),
+        ...(q(req)['ref'] === undefined ? {} : { ref: q(req)['ref'] as string }),
+      }),
+    ),
+  );
+  app.get('/v1/repos/:owner/:name/collaborators', async (req, reply) =>
+    send(reply, await gh.collaborators({ repo: p(req) })),
+  );
   const url = await listen(app);
   return {
     url,

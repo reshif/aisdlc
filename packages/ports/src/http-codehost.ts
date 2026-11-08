@@ -1,12 +1,25 @@
 import {
   BranchRules,
   CodeHostNotOk,
+  Collaborator,
+  CodeownersError,
+  CodeownersFile,
+  FileAtSha,
   GitSha,
   InstallationInfo,
   InstallationRepo,
   type CodeHostRead,
 } from '@aisdlc/contracts';
-import { readOk, readUnknown, type BranchRequest, type CodeHostPort } from './codehost.js';
+import {
+  readOk,
+  readUnknown,
+  type BranchRequest,
+  type CodeHostPort,
+  type CodeownersErrorsRequest,
+  type CodeownersRequest,
+  type ReadAtShaRequest,
+  type RepoRequest,
+} from './codehost.js';
 import { z } from 'zod';
 
 // The read half of `CodeHostPort` over the codehost's HTTP API (PLAN M5.2 routes). core-worker (and
@@ -25,10 +38,20 @@ export interface HttpCodeHostOptions {
 
 const enc = encodeURIComponent;
 
-/** What the polls and the S0 driver read: the read half of `CodeHostPort`. */
+/**
+ * What the polls, the S0 driver and the onboarding cards read: the read half of `CodeHostPort`
+ * (everything but the bundle and the two write-shaped interfaces).
+ */
 export type CodeHostReads = Pick<
   CodeHostPort,
-  'list_repos' | 'installation' | 'branch_head' | 'rules_for_branch'
+  | 'list_repos'
+  | 'installation'
+  | 'branch_head'
+  | 'rules_for_branch'
+  | 'read_at_sha'
+  | 'codeowners'
+  | 'codeowners_errors'
+  | 'collaborators'
 >;
 
 export class HttpCodeHostReads implements CodeHostReads {
@@ -81,5 +104,32 @@ export class HttpCodeHostReads implements CodeHostReads {
 
   rules_for_branch(req: BranchRequest) {
     return this.get(`/v1/repos/${req.repo}/rules?branch=${enc(req.branch)}`, BranchRules);
+  }
+
+  /** `census` scope. A 200 `ok` with a `null` value is "the repo has no such file there". */
+  read_at_sha(req: ReadAtShaRequest) {
+    return this.get(
+      `/v1/repos/${req.repo}/file?sha=${enc(req.sha)}&path=${enc(req.path)}`,
+      FileAtSha.nullable(),
+    );
+  }
+
+  /** `census` scope. */
+  codeowners(req: CodeownersRequest) {
+    return this.get(
+      `/v1/repos/${req.repo}/codeowners?sha=${enc(req.sha)}`,
+      CodeownersFile.nullable(),
+    );
+  }
+
+  /** `posture` scope. */
+  codeowners_errors(req: CodeownersErrorsRequest) {
+    const ref = req.ref === undefined ? '' : `?ref=${enc(req.ref)}`;
+    return this.get(`/v1/repos/${req.repo}/codeowners/errors${ref}`, z.array(CodeownersError));
+  }
+
+  /** `posture` scope. */
+  collaborators(req: RepoRequest) {
+    return this.get(`/v1/repos/${req.repo}/collaborators`, z.array(Collaborator));
   }
 }

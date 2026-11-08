@@ -164,6 +164,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
+| M8.0b | Follow-ups from M8.0: wire the ledger reconciler and the Witness checkpoint loop into core-worker (the Witness has no caller yet); a non-local genesis for the first factory admin and the first PDP bundle (the local `aisdlc-seed` is refused outside FACTORY_ENV=local); verify the default `docker compose build` path that installs git with apt (untestable in this sandbox) on the user's machine at M8.5 | Checkpoints co-signed every 5 min in the running stack; verify-ledger passes against it |
 | M8.1 | `services/web` shell through the bff; project list and detail; login rate limiting on `/auth/login` and the step-up start route (follow-up from M4.5) | Playwright smoke test |
 | M8.2 | Onboarding wizard: request, App status ("0.1 waiting: App not installed"), step progress | Wizard reads one Project and one S0Record |
 | M8.3 | Inbox and Decide for cards 1, 4, 5 and security, with step-up | Deciding in the browser writes a verifiable ledger entry |
