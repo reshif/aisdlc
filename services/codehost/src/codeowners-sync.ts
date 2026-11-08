@@ -16,7 +16,7 @@ import {
   type TaggedError,
 } from '@aisdlc/kernel';
 import { repoKey } from '@aisdlc/ports';
-import { parseCodeowners } from './codeowners.js';
+import { parseCodeowners } from '@aisdlc/codeowners';
 import type { IdentityLinksError, IdentityLinksPort } from './identity-client.js';
 import type { AllowListedCodeHost } from './repo-allow-list.js';
 

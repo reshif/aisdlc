@@ -1,3 +1,4 @@
+import { dbUrlRef } from '@aisdlc/db/testing';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -43,7 +44,7 @@ describe('the core-worker bundle fails fast on bad configuration', () => {
     const empty = await createTestDatabase();
     try {
       const r = runOnce({
-        CORE_WORKER_DATABASE_URL: empty.url,
+        ...dbUrlRef('CORE_WORKER_DATABASE_URL', empty.url),
         CORE_WORKER_REGISTERED_REPOS_FILE: '/nonexistent.json',
         CORE_WORKER_CODEHOST_URL: 'http://127.0.0.1:1',
         CORE_WORKER_CODEHOST_TOKEN_REF: 'env:T',
@@ -85,7 +86,7 @@ describe('the core-worker bundle as a process (plain node, no TypeScript loader)
     child = spawn(process.execPath, ['--enable-source-maps', bundle], {
       env: {
         PATH: process.env['PATH'] ?? '',
-        CORE_WORKER_DATABASE_URL: db.url,
+        ...dbUrlRef('CORE_WORKER_DATABASE_URL', db.url),
         CORE_WORKER_CODEHOST_URL: ch.url,
         CORE_WORKER_CODEHOST_TOKEN_REF: 'env:CW_TOKEN',
         CW_TOKEN: token,

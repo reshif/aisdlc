@@ -1,3 +1,4 @@
+import { dbUrlRef } from '@aisdlc/db/testing';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -63,7 +64,7 @@ describe('the identity bundle without a migrated record database', () => {
     const empty = await createTestDatabase();
     try {
       const r = runOnce({
-        IDENTITY_DATABASE_URL: empty.url,
+        ...dbUrlRef('IDENTITY_DATABASE_URL', empty.url),
         IDENTITY_CALLERS: JSON.stringify({ admin: { token_ref: 'env:T', scopes: ['read'] } }),
         T: 'a'.repeat(32),
         IDENTITY_ACCESS_SYNC: 'off',
@@ -113,7 +114,7 @@ describe('the identity bundle as a process (plain node, no TypeScript loader)', 
     child = spawn(process.execPath, ['--enable-source-maps', bundle], {
       env: {
         PATH: process.env['PATH'] ?? '',
-        IDENTITY_DATABASE_URL: db.url,
+        ...dbUrlRef('IDENTITY_DATABASE_URL', db.url),
         IDENTITY_CALLERS: JSON.stringify({
           admin: {
             token_ref: 'env:ID_ADMIN_TOKEN',

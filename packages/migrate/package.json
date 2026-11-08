@@ -30,6 +30,7 @@
     "@aisdlc/directory": "0.0.0",
     "@aisdlc/identity": "0.0.0",
     "@aisdlc/kms-local": "0.0.0",
+    "@aisdlc/knowledge": "0.0.0",
     "@aisdlc/ledger": "0.0.0",
     "@aisdlc/notary": "0.0.0",
     "@aisdlc/record": "0.0.0",

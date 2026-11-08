@@ -31,7 +31,9 @@ packages/
   loops/    loop supervisor (per-loop backoff, aggregated health, loop-prefixed logs, metrics), the code-host poll loops, inbound facts, WorkInFlightPort and its fake
   migrate/  `aisdlc-migrate`: one command that applies every schema in dependency order (`plan.json`); the bundle embeds the SQL
   pdp/      Cedar policies generated from the role catalogue, bundles published through config, embedded fail-closed evaluator, decision log
-services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity, bff, codehost, core-worker)
+  codeowners/ the ONE CODEOWNERS parser and matcher (GitHub syntax, pure string work), shared by the codehost and knowledge
+  secrets-rules/ the ONE shared secret ruleset (rules, keyword prefilter, entropy, fixtures built at run time, `scanText`, `rulesVersion`), used by the knowledge scan and later the push broker and S7 7.4; a repo self-test runs it over the whole tree
+services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity, bff, codehost, core-worker, knowledge)
 docs/       PLAN.md, adr/, specs/
 ```
 

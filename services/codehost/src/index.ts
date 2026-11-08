@@ -7,7 +7,6 @@ export * from './app.js';
 export * from './b4.js';
 export * from './boot.js';
 export * from './codeowners-sync.js';
-export * from './codeowners.js';
 export * from './config.js';
 export * from './git-bundle.js';
 export * from './identity-client.js';

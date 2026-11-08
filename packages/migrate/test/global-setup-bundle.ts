@@ -27,7 +27,7 @@ export default function setup(): void {
     '--embed-migrations=plan.json',
     'aisdlc-migrate',
   );
-  for (const svc of ['identity', 'bff', 'codehost']) {
+  for (const svc of ['identity', 'bff', 'codehost', 'knowledge']) {
     bundle(join(root, 'services', svc), `--outdir=${join(scratch, svc, 'dist')}`, 'main');
     // codehost has no database, so no migrations of its own.
     if (existsSync(join(root, 'services', svc, 'migrations'))) {

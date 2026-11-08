@@ -16,7 +16,7 @@ const CallersConfig = z.record(
 
 /**
  * Reads the environment: `FACTORY_ENV`, `KMS_DIR`, and `KMS_CALLERS`, a JSON object
- * `{"notary": {"token_ref": "file:/run/secrets/kms_notary"}, ...}`. A caller's `keys` default to
+ * `{"notary": {"token_ref": "<file: or env: reference>"}, ...}`. A caller's `keys` default to
  * the allow-list in RV §2 (notary: dev:notary, witness: dev:witness, knowledge:
  * dev:fingerprint-hmac); a caller with no default must list its keys.
  */

@@ -1,3 +1,4 @@
+// The CODEOWNERS parser, shared by the codehost (owner sync) and knowledge (detectors); one parser, never two.
 import type { CodeownersOwner, CodeownersParseError } from '@aisdlc/contracts';
 
 // A CODEOWNERS parser (GitHub syntax). Pure string processing: it never executes anything, never
@@ -156,4 +157,49 @@ export function parseCodeowners(text: string): ParsedCodeowners {
     owners: [...owners.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, o]) => o),
     errors,
   };
+}
+
+// ---------------------------------------------------------------- Matching
+
+const escapeRe = (s: string): string => s.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+
+/** A CODEOWNERS pattern as a regular expression over a repo-relative path (no leading slash). */
+export function patternRegex(pattern: string): RegExp {
+  let p = pattern;
+  const dirOnly = p.endsWith('/');
+  if (dirOnly) p = p.slice(0, -1);
+  const anchored = p.startsWith('/') || p.includes('/');
+  if (p.startsWith('/')) p = p.slice(1);
+  let re = '';
+  for (let i = 0; i < p.length; i++) {
+    const ch = p[i] as string;
+    if (ch === '*') {
+      if (p[i + 1] === '*') {
+        // `**/` any directories (also none), `/**` everything inside, `**` anything.
+        i += 1;
+        if (p[i + 1] === '/') {
+          i += 1;
+          re += '(?:.*/)?';
+        } else re += '.*';
+      } else re += '[^/]*';
+    } else if (ch === '?') re += '[^/]';
+    else re += escapeRe(ch);
+  }
+  const last = p.split('/').pop() ?? '';
+  const wildLast = /[*?]/.test(last) && !p.endsWith('/**');
+  // A pattern naming a directory covers what is inside it, except where its last segment is a wildcard
+  // (`docs/*` is the files directly in docs, as on GitHub).
+  const inside = wildLast && !dirOnly ? '' : '(?:/.*)?';
+  return new RegExp(`^${anchored ? '' : '(?:.*/)?'}${re}${inside}$`);
+}
+
+/**
+ * The rule that owns `path`: the last rule in file order that matches (GitHub's precedence). `null`
+ * when no rule matches. A matching rule with no owners is returned as is: the path is explicitly unowned.
+ */
+export function ruleFor(parsed: ParsedCodeowners, path: string): CodeownersRule | null {
+  const p = path.replace(/^\/+/, '');
+  let hit: CodeownersRule | null = null;
+  for (const r of parsed.rules) if (patternRegex(r.pattern).test(p)) hit = r;
+  return hit;
 }
