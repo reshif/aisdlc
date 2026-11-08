@@ -19,6 +19,7 @@ import {
   groupStream,
   identityLinkKey,
   identityLinkStream,
+  isCodeownersGroup,
   isRoleMapGroup,
   normalizeLinkValue,
   principalStream,
@@ -454,11 +455,11 @@ export interface AddMemberInput {
   readonly active_from?: string;
   readonly active_until?: string | null;
   readonly via?: Membership['via'];
-  /** The writer's own sources: `sync` (IdP sync) and `role_map` (reconcile). Default `oidc_token_dev`. */
+  /** The writer's own sources: `sync` (IdP sync), `role_map` (reconcile), `codeowners` (code owner sync). Default `oidc_token_dev`. */
   readonly source?: Membership['source'];
 }
 
-/** `internal`: the caller is the reconcile (`role_map`) or the IdP sync (`sync`), which may touch their groups. */
+/** `internal`: the caller is the reconcile (`role_map`), the code owner sync (`codeowners`) or the IdP sync (`sync`), which may touch their groups. */
 export async function addMemberTx(
   deps: IdentityDeps,
   j: Journal,
@@ -476,14 +477,23 @@ export async function addMemberTx(
   });
   if (!m.success) return err(invalid(m.error.message));
   const group = isRoleMapGroup(m.data.group_id);
-  if (group !== (m.data.source === 'role_map') || (group && !internal)) {
+  const source = m.data.source;
+  if (group && (!internal || (source !== 'role_map' && source !== 'codeowners'))) {
     return err(
       identityError(
-        group ? 'protected_group' : 'invalid_input',
-        group
-          ? `${m.data.group_id} is generated from a role map; its members change only with the role map`
-          : 'source role_map is for generated groups',
+        'protected_group',
+        `${m.data.group_id} is generated from a role map; its members change only with the role map`,
       ),
+    );
+  }
+  if (source === 'role_map' && !group) {
+    return err(identityError('invalid_input', 'source role_map is for generated groups'));
+  }
+  // The one membership a role map does not generate: the g4 group of a project whose g4 slot is
+  // `codeowners`, set by `setCodeownerMembers` (codeowners.ts) and by nothing else.
+  if (source === 'codeowners' && !isCodeownersGroup(m.data.group_id)) {
+    return err(
+      identityError('invalid_input', 'source codeowners is only for the g4 group of a project'),
     );
   }
   await lockKeys(j.tx, [`group:${m.data.group_id}`]);
@@ -494,8 +504,30 @@ export async function addMemberTx(
   if (p.principal.status === 'deleted')
     return err(identityError('refused', 'principal is deleted'));
   const have = g.members.get(m.data.principal_id);
-  if (have && canonicalJson(have) === canonicalJson(m.data)) return ok(unchanged);
-  const r = await emit(j, groupStream(m.data.group_id), IDENTITY_EVENT.member_added, m.data, actor);
+  // The same membership (group, principal, source, via, active_until) is unchanged whatever
+  // `active_from` the caller stamped: asking again must not move the start of a membership, and
+  // must not write an event (each one becomes an access ledger entry).
+  if (
+    have &&
+    have.source === m.data.source &&
+    have.via === m.data.via &&
+    have.active_until === m.data.active_until
+  ) {
+    return ok(unchanged);
+  }
+  // A real change keeps the original start unless the caller named one.
+  const next =
+    have && input.active_from === undefined
+      ? Membership.safeParse({ ...m.data, active_from: have.active_from })
+      : m;
+  if (!next.success) return err(invalid(next.error.message));
+  const r = await emit(
+    j,
+    groupStream(m.data.group_id),
+    IDENTITY_EVENT.member_added,
+    next.data,
+    actor,
+  );
   return r.ok ? ok(changed) : r;
 }
 

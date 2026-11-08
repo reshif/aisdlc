@@ -429,6 +429,10 @@ export const isRoleMapGroup = (id: string): boolean => id.startsWith(ROLE_MAP_GR
 export const roleMapGroupId = (project: ProjectId, slot: RoleSlot): GroupId =>
   GroupId.parse(`${ROLE_MAP_GROUP_PREFIX}${project}.${slot}`);
 
+/** The group of the g4 slot of any project (`rm.<project>.g4`): the one generated group whose members come from CODEOWNERS. */
+export const isCodeownersGroup = (id: string): boolean =>
+  isRoleMapGroup(id) && id.endsWith('.g4') && id.length > `${ROLE_MAP_GROUP_PREFIX}.g4`.length;
+
 /** The stable id of a binding; the same (group, role, scope) is always the same binding. */
 export const bindingIdFor = (group: string, role: string, scope: Scope): BindingId =>
   deterministicId<'Binding'>(`aisdlc.binding:${group}|${role}|${scopeKey(scope)}`) as BindingId;

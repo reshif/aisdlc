@@ -238,6 +238,24 @@ async function applySpec(
       if (!r.ok) return r;
       if (r.value.changed) c.members_removed += 1;
     }
+  } else {
+    // A `codeowners` slot has no generated members. Members left from when the slot was held by
+    // named principals (source `role_map`) would keep its approval rights until a code owner sync
+    // ran: remove them now (fail closed). Members the code owner sync set are left alone.
+    const state = await j.group(spec.group_id);
+    for (const [id, m] of [...(state?.members ?? [])].sort(([a], [b]) => (a < b ? -1 : 1))) {
+      if (m.source !== 'role_map') continue;
+      const r = await removeMemberTx(
+        j,
+        spec.group_id,
+        id,
+        'the slot is now held by code owners',
+        actor,
+        true,
+      );
+      if (!r.ok) return r;
+      if (r.value.changed) c.members_removed += 1;
+    }
   }
 
   const cur = await j.binding(spec.binding_id);
