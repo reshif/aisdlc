@@ -18,12 +18,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "demo:ledger": "npm run build && node scripts/demo-ledger.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "22.19.1",
     "@types/pg": "8.23.1",
+    "esbuild": "0.28.2",
     "eslint": "10.14.0",
     "fast-check": "4.10.2",
     "prettier": "3.9.10",

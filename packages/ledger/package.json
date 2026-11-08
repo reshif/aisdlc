@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ../../scripts/bundle.mjs verify-ledger demo-writer",
     "typecheck": "tsc -p tsconfig.check.json"
   },
   "dependencies": {
@@ -27,6 +27,6 @@
     "@aisdlc/witness": "0.0.0"
   },
   "bin": {
-    "aisdlc": "./dist/cli.js"
+    "aisdlc": "./dist/verify-ledger.js"
   }
 }

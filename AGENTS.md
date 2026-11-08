@@ -11,7 +11,8 @@ npm run typecheck      # tsc --noEmit in every workspace
 npm run lint           # ESLint flat config, typescript-eslint
 npm run format         # Prettier write (format:check to verify)
 npm test               # Vitest (all projects); starts a throwaway Postgres unless DATABASE_URL is set
-npm run build          # tsc emit to dist/ in every workspace
+npm run build          # tsc emit (libraries) and esbuild bundles: dist/main.js per service, dist/verify-ledger.js
+npm run demo:ledger    # M2 exit demo: real services as processes, ledger, checkpoint, verify, tamper
 npx vitest run --project kernel   # one package
 ```
 

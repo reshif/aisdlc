@@ -1,4 +1,10 @@
-import { loadServiceAuth, ServiceConfigError, type SecretRefDeps } from '@aisdlc/service-kit';
+import {
+  jsonEnv,
+  loadServiceAuth,
+  requiredEnv,
+  ServiceConfigError,
+  type SecretRefDeps,
+} from '@aisdlc/service-kit';
 import { z } from 'zod';
 import type { KmsAppOptions } from './app.js';
 import { DEFAULT_KEY_ALLOW_LIST } from './keys.js';
@@ -18,10 +24,8 @@ export function kmsOptionsFromEnv(
   env: Record<string, string | undefined>,
   deps: SecretRefDeps = {},
 ): KmsAppOptions {
-  const dir = env['KMS_DIR'];
-  if (!dir) throw new ServiceConfigError('KMS_DIR is required');
-  const parsed = CallersConfig.safeParse(JSON.parse(env['KMS_CALLERS'] ?? '{}'));
-  if (!parsed.success) throw new ServiceConfigError(`KMS_CALLERS: ${parsed.error.message}`);
+  const dir = requiredEnv(env, 'KMS_DIR');
+  const parsed = { data: jsonEnv(env, 'KMS_CALLERS', CallersConfig) };
   const allow: Record<string, readonly string[]> = {};
   for (const [name, c] of Object.entries(parsed.data)) {
     const keys = c.keys ?? DEFAULT_KEY_ALLOW_LIST[name];

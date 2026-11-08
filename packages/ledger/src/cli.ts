@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { Jwk } from '@aisdlc/kernel';
 import pg from 'pg';
@@ -127,11 +126,4 @@ export async function main(
     io.err(`verify-ledger could not run: ${e instanceof Error ? e.message : String(e)}`);
     return 2;
   }
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await main(process.argv.slice(2), {
-    out: (l) => console.log(l),
-    err: (l) => console.error(l),
-  });
 }

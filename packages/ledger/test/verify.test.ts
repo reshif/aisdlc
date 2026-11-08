@@ -245,16 +245,12 @@ describe('aisdlc verify-ledger', () => {
   });
 
   it('runs as a real process: exit 0 on a good ledger, exit 1 with a clear message on a tampered one', async () => {
-    const hook = join(import.meta.dirname, 'ts-hook.mjs');
-    const cli = join(import.meta.dirname, '..', 'src', 'cli.ts');
+    // The bundle `npm run build` produces (the globalSetup builds it), run with plain node.
+    const cli = join(import.meta.dirname, '..', 'dist', 'verify-ledger.js');
     const node = (extra: string[]) =>
-      run(
-        process.execPath,
-        ['--no-warnings', '--experimental-transform-types', '--import', hook, cli, ...extra],
-        {
-          env: { ...process.env, NODE_NO_WARNINGS: '1' },
-        },
-      ).then(
+      run(process.execPath, [cli, ...extra], {
+        env: { ...process.env, NODE_NO_WARNINGS: '1' },
+      }).then(
         (r) => ({ code: 0, out: r.stdout, err: r.stderr }),
         (e: { code: number; stdout: string; stderr: string }) => ({
           code: e.code,

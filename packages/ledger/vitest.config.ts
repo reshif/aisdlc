@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     name: 'ledger',
     include: ['test/**/*.test.ts'],
-    globalSetup: ['../../packages/db/src/global-setup.ts'],
+    globalSetup: ['../../packages/db/src/global-setup.ts', './test/global-setup-bundles.ts'],
     testTimeout: 30_000,
     hookTimeout: 60_000,
   },

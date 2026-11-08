@@ -8,7 +8,14 @@ import {
   type KeyCustodyErrorKind,
   type KeyCustodyPort,
 } from '@aisdlc/ports';
-import { callJson } from '@aisdlc/service-kit';
+import {
+  callJson,
+  httpUrlEnv,
+  requiredEnv,
+  resolveSecretRef,
+  type Env,
+  type SecretRefDeps,
+} from '@aisdlc/service-kit';
 import { z } from 'zod';
 
 export interface HttpKeyCustodyOptions {
@@ -90,4 +97,15 @@ export class HttpKeyCustody implements KeyCustodyPort {
     const r = await this.call('POST', keyId, 'hmac', { data: b64urlEncode(data) }, KmsHmacResponse);
     return r.ok ? ok(r.value.mac) : r;
   }
+}
+
+/**
+ * The key-custody client of a service, from `KMS_URL` and `KMS_TOKEN_REF` (`env:NAME` or
+ * `file:PATH`; the token itself is never in configuration). Throws `ServiceConfigError`.
+ */
+export function httpKeyCustodyFromEnv(env: Env, deps: SecretRefDeps = {}): HttpKeyCustody {
+  return new HttpKeyCustody({
+    baseUrl: httpUrlEnv(env, 'KMS_URL'),
+    token: resolveSecretRef(requiredEnv(env, 'KMS_TOKEN_REF'), { env, ...deps }),
+  });
 }
