@@ -12,6 +12,7 @@ import {
   RevisionEvidenceRequest,
   RevisionPrepareRequest,
   RoleMap,
+  SubmitRequestBody,
   RepoFullName,
   TwoPerson,
   Lane,
@@ -39,6 +40,9 @@ import {
   registeredRepos,
 } from './queries.js';
 import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.js';
+import { itemView } from './work-view.js';
+import { submitRequest } from './requests.js';
+import { readItem } from './work-items.js';
 import { loadProjectSettings, proposeProjectSettings } from './settings.js';
 import { readS0 } from './journal.js';
 import {
@@ -70,9 +74,11 @@ import {
  * about that human), `settings` (propose a settings revision, the BFF likewise), `registry` (the
  * codehost's allow-list reads the repos that have an S0 record), `portal` (the BFF's fleet-wide
  * listings for the portal: every project, a project with all of its records; the BFF filters them
- * by the PDP for the signed-in human, so no other caller has a reason to hold this scope).
+ * by the PDP for the signed-in human, so no other caller has a reason to hold this scope), `work`
+ * (requests and items, M9.1: the BFF for a signed-in human, or an API client; the PDP decides about the
+ * human named in `on_behalf_of`).
  */
-export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry' | 'portal';
+export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry' | 'portal' | 'work';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -248,15 +254,80 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return sendError(reply, 403, 'forbidden', 'scope onboard is needed');
     const b = parse(OnboardRequest, req.body);
     if (!b.ok) return fail(reply, b.error);
-    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', pdpResource.fleet()))) return;
+    // A request that names a team is asked about that team, so a team-scoped onboarder reaches it.
+    const target = b.value.team_id ? pdpResource.team(b.value.team_id) : pdpResource.fleet();
+    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', target))) return;
     const r = await requestOnboarding(deps, b.value);
     if (!r.ok) return fail(reply, r.error);
     return reply.code(r.value.duplicate ? 200 : 201).send(r.value);
   });
 
+  // ------------------------------------------------------------ requests and items (PLAN M9.1)
+
+  app.post('/v1/requests', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(SubmitRequestBody, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    if (
+      !(await guard(
+        reply,
+        b.value.on_behalf_of,
+        'work.request',
+        pdpResource.project(b.value.project_id),
+      ))
+    ) {
+      return;
+    }
+    const r = await submitRequest(deps, {
+      project_id: b.value.project_id,
+      repo: b.value.repo,
+      lane: b.value.lane,
+      requester: b.value.on_behalf_of,
+      channel: b.value.channel,
+      text: b.value.text,
+      ...(b.value.request_id ? { request_id: b.value.request_id } : {}),
+    });
+    if (!r.ok) return fail(reply, r.error);
+    return reply.code(r.value.duplicate ? 200 : 201).send(r.value);
+  });
+
+  app.get('/v1/items/:id', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const id = params(req)['id'] as string;
+    if (!z.uuid().safeParse(id).success) return fail(reply, coreError('invalid_input', 'bad id'));
+    const who = PrincipalId.safeParse((req.query as Record<string, string>)['on_behalf_of']);
+    if (!who.success) return fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+    let item;
+    try {
+      item = await readItem(o.pool, id);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the item could not be read'));
+    }
+    if (!item) return fail(reply, coreError('not_found', 'no such item'));
+    const s = item.state;
+    if (
+      !(await guard(
+        reply,
+        who.data,
+        'item.view_floor',
+        pdpResource.item(s.project_id, s.item_id, s.lane ?? s.proposed_lane),
+      ))
+    ) {
+      return;
+    }
+    return itemView(s);
+  });
+
   // ------------------------------------------------------------ the owner's moves on a record
 
   const Move = z.strictObject({ on_behalf_of: PrincipalId, reason: Reason });
+
+  /** The resource an onboarding move on S0 record `id` is asked about: its project's team, else the fleet. */
+  async function moveTarget(id: string): Promise<PdpResource> {
+    const rec = await readS0(o.pool, id);
+    const team = rec ? (await getProject(o.pool, rec.record.project_id))?.team_id : null;
+    return team ? pdpResource.team(team) : pdpResource.fleet();
+  }
 
   async function move(
     req: FastifyRequest,
@@ -273,7 +344,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!z.uuid().safeParse(id).success) return fail(reply, coreError('invalid_input', 'bad id'));
     const b = parse(Move, req.body);
     if (!b.ok) return fail(reply, b.error);
-    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', pdpResource.fleet()))) return;
+    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', await moveTarget(id))))
+      return;
     const r = await run(id, b.value.on_behalf_of, b.value.reason);
     if (!r.ok) return fail(reply, r.error);
     return (
@@ -299,7 +371,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!z.uuid().safeParse(id).success) return fail(reply, coreError('invalid_input', 'bad id'));
     const b = parse(z.strictObject({ level: Level, on_behalf_of: PrincipalId }), req.body);
     if (!b.ok) return fail(reply, b.error);
-    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', pdpResource.fleet()))) return;
+    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', await moveTarget(id))))
+      return;
     const r = await setSignableLevel(deps, id, b.value.level, {
       actor: b.value.on_behalf_of,
       reason: 'human',

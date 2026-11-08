@@ -5,6 +5,7 @@ entity Role;
 entity Group;
 entity Principal in [Group, Role] = { "kind": String, "status": String, "breakglass": Bool };
 entity Fleet;
+entity Team in [Fleet];
 entity Project in [Fleet];
 entity Lane in [Project];
 entity Repo in [Project];
@@ -12,7 +13,8 @@ entity Item in [Lane, Project];
 entity Gate in [Item, Lane, Project] = { "gate_id": String, "slot": String, "family": String };
 entity Card in [Item, Lane, Project];
 
-action "project.onboard" appliesTo { principal: [Principal], resource: [Fleet] };
+action "project.onboard" appliesTo { principal: [Principal], resource: [Fleet, Team] };
+action "work.request" appliesTo { principal: [Principal], resource: [Project] };
 action "project.view" appliesTo { principal: [Principal], resource: [Project] };
 action "project.settings.edit" appliesTo { principal: [Principal], resource: [Project] };
 action "floor.read" appliesTo { principal: [Principal], resource: [Fleet, Project] };

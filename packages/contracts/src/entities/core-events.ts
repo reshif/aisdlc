@@ -14,6 +14,7 @@ import {
   S0RecordId,
   Sha256Hex,
   TeamId,
+  WorkItemId,
   WorkRequestId,
 } from './ids.js';
 import {
@@ -43,6 +44,7 @@ import {
 import { ProjectReadinessRecord, SignerMode } from './readiness.js';
 import { VoteDecision } from './decisions.js';
 import { EntryChannel } from '../values.js';
+import { TaintedText } from './work-lifecycle.js';
 
 // The Projects and Onboarding context of core (PLAN M7.1, M7.2): the record streams of the Project,
 // Repo and S0 aggregates with their event payloads, the `project.onboard` request, the S0 step
@@ -138,6 +140,8 @@ export const WORK_EVENT = {
   released: 'work.released',
   /** An M4 made the PRR active but not for this request's lane: L8 human-led is offered. */
   l8_offered: 'work.l8_offered',
+  /** M9.1: the item made from this request (the request's own marker, so it is made once). */
+  item_created: 'work.item_created',
 } as const;
 
 // ---------------------------------------------------------------- The request
@@ -530,8 +534,19 @@ export const WorkRequestedPayload = z.strictObject({
   channel: EntryChannel,
   requester: PrincipalId,
   catalogue_ref: CatalogueRef,
+  /**
+   * M9.1: the request's text after S1 step 1.1 (normalised, taint-marked, with its provenance and
+   * any injection flags). Absent on a request made by the M7.6 minimal intake.
+   */
+  request_text: TaintedText.nullable().optional(),
 });
 export type WorkRequestedPayload = z.infer<typeof WorkRequestedPayload>;
+
+export const WorkItemCreatedPayload = z.strictObject({
+  request_id: WorkRequestId,
+  item_id: WorkItemId,
+});
+export type WorkItemCreatedPayload = z.infer<typeof WorkItemCreatedPayload>;
 
 export const WorkHeldPayload = z.strictObject({
   request_id: WorkRequestId,

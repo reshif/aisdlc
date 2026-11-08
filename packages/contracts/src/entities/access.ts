@@ -256,7 +256,7 @@ export const RoleDef = z.strictObject({
 export type RoleDef = z.infer<typeof RoleDef>;
 
 /** Bump with any change to `ROLE_CATALOGUE`; ledger entries and PDP bundles name it. */
-export const ROLES_VERSION = '1.0.0';
+export const ROLES_VERSION = '1.1.0';
 /** The `policy_bundle_version` the access ledger entries carry. */
 export const ACCESS_POLICY_BUNDLE_VERSION = `roles-${ROLES_VERSION}`;
 
@@ -341,7 +341,8 @@ export const ROLE_CATALOGUE: readonly RoleDef[] = [
   }),
   RoleDef.parse({
     role_id: 'factory.admin',
-    description: 'Factory administrator: factory configuration and the fleet kill (DEC-29)',
+    description:
+      'Factory administrator: every administrative action (onboard, settings, kill, config, audit, access explain, floor) and the fleet kill (DEC-29); no gate or card decision unless it holds the slot through a project role map',
     scope_kinds: ['fleet'],
     slot: null,
     approval_capable: true,
@@ -351,6 +352,22 @@ export const ROLE_CATALOGUE: readonly RoleDef[] = [
     requires_qualification: null,
     view_level: 'V3',
     data_class_default: 'D2',
+  }),
+  // M9.0 (user decision): who may start an onboarding is a grant, not a property of being an admin.
+  // At team scope the role reaches only onboarding requests that name that team (`Team` resource);
+  // team-to-project containment is not assumed, so only a fleet binding sees projects (V1 reads).
+  RoleDef.parse({
+    role_id: 'factory.onboarder',
+    description: 'May request an onboarding (project.onboard); decides no gate and no card',
+    scope_kinds: ['fleet', 'team'],
+    slot: null,
+    approval_capable: false,
+    privileged: false,
+    service_only: false,
+    implicit_grant: false,
+    requires_qualification: null,
+    view_level: 'V1',
+    data_class_default: 'D1',
   }),
   RoleDef.parse({
     role_id: 'factory.auditor',

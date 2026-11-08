@@ -208,7 +208,7 @@ The bff serves the web bundle (`services/web`, built inside the image to `/app/s
 `BFF_WEB_DIR`) on its own origin with `default-src 'self'` and `frame-ancestors 'none'`, and is the
 only API the browser calls: `/api/projects`, `/api/onboard`, `/api/s0/...`, `/api/cards/...`. Each
 route asks the PDP for the signed-in principal, then calls core (`BFF_CORE_URL`) with the bff's own
-token (`tok-bff-core`, scopes `read`, `onboard`, `portal`); core gets the principal as `on_behalf_of`
+token (`tok-bff-core`, scopes `read`, `onboard`, `portal`, `work`); core gets the principal as `on_behalf_of`
 from the session, never a browser cookie or token, and asks the PDP again for every write.
 `/auth/login` and the step-up start are rate limited (token buckets, 429 with `Retry-After`).
 `npm run e2e:compose` (`e2e.sh`) runs the whole Census onboarding of the fixture repo in Chromium as

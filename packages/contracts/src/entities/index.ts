@@ -9,6 +9,7 @@ export * from './onboarding.js';
 export * from './onboarding-cards.js';
 export * from './decisions.js';
 export * from './work.js';
+export * from './work-lifecycle.js';
 export * from './gate-lifecycle.js';
 export * from './inbox.js';
 export * from './policy.js';

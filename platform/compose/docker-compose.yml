@@ -363,7 +363,7 @@ services:
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard"]},
-        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal"]}}
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work"]}}
       CORE_NOTARY_URL: http://notary:8310
       CORE_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-notary
       KMS_URL: http://kms-local:8300
@@ -558,7 +558,7 @@ services:
       BFF_OIDC_CLIENT_SECRET_REF: file:/run/secrets/bff-oidc-client-secret
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-bff-kms
-      # The portal's API calls: core with the bff's own token (scopes read, onboard, portal), and the
+      # The portal's API calls: core with the bff's own token (scopes read, onboard, portal, work), and the
       # web bundle the image carries, served same-origin with a strict CSP.
       BFF_CORE_URL: http://core:8380
       BFF_CORE_TOKEN_REF: file:/run/secrets/tok-bff-core

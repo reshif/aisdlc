@@ -49,6 +49,21 @@ permit (principal in Role::"factory.auditor", action == Action::"item.view_floor
 @id("role/factory.auditor/project.view")
 permit (principal in Role::"factory.auditor", action == Action::"project.view", resource);
 
+@id("role/factory.onboarder/floor.read")
+permit (principal in Role::"factory.onboarder", action == Action::"floor.read", resource);
+
+@id("role/factory.onboarder/gate.view")
+permit (principal in Role::"factory.onboarder", action == Action::"gate.view", resource);
+
+@id("role/factory.onboarder/item.view_floor")
+permit (principal in Role::"factory.onboarder", action == Action::"item.view_floor", resource);
+
+@id("role/factory.onboarder/project.onboard")
+permit (principal in Role::"factory.onboarder", action == Action::"project.onboard", resource);
+
+@id("role/factory.onboarder/project.view")
+permit (principal in Role::"factory.onboarder", action == Action::"project.view", resource);
+
 @id("role/project.admin/access.explain")
 permit (principal in Role::"project.admin", action == Action::"access.explain", resource);
 
@@ -85,6 +100,9 @@ permit (principal in Role::"project.admin", action == Action::"project.settings.
 
 @id("role/project.admin/project.view")
 permit (principal in Role::"project.admin", action == Action::"project.view", resource);
+
+@id("role/project.admin/work.request")
+permit (principal in Role::"project.admin", action == Action::"work.request", resource);
 
 @id("role/project.code_owner/card.decide")
 permit (principal in Role::"project.code_owner", action == Action::"card.decide", resource);
@@ -236,6 +254,9 @@ permit (principal in Role::"project.requester", action == Action::"item.view_flo
 
 @id("role/project.requester/project.view")
 permit (principal in Role::"project.requester", action == Action::"project.view", resource);
+
+@id("role/project.requester/work.request")
+permit (principal in Role::"project.requester", action == Action::"work.request", resource);
 
 @id("role/project.security_approver/card.decide")
 permit (principal in Role::"project.security_approver", action == Action::"card.decide", resource);

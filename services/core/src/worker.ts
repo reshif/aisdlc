@@ -7,3 +7,11 @@ export * from './registry.js';
 export * from './settings.js';
 export { cardsLoop, type CardsLoopOptions } from './cards/loop.js';
 export * from './card-wiring.js';
+export {
+  DbWorkInFlight,
+  WORK_DRIVER_INTERVAL_MS,
+  driveWork,
+  workDriverLoop,
+  type WorkDriverDeps,
+  type WorkDriverLoopOptions,
+} from './work-driver.js';

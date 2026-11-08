@@ -81,9 +81,9 @@ const cases: Record<string, Case> = {
       S7 -> Handoff | Quarantined | S5 | S4 | S3 | S2 | Held
       G4 -> Handoff | S3 | Held
       S8a -> S7 | Held
-      S8b -> Held
+      S8b -> S9 | Held
       G5 -> Held
-      S9 -> Held
+      S9 -> Done | Held
       G6 -> Held
       Held -> S2 | S3 | S4 | S5 | S6 | S7 | Scheduling | Clarifying | G4 | S8a | S8b | G5 | S9 | G6 | Handoff | Quarantined | Parked
       Handoff -> S5 | S3 | Held
@@ -96,8 +96,8 @@ const cases: Record<string, Case> = {
       ['S5', 'S6'],
       ['S6', 'S8a'],
       ['S7', 'S9'],
+      ['S8a', 'S9'],
       ['G4', 'G5'],
-      ['S8b', 'S9'],
       ['G6', 'Abandoned'],
       ['Done', 'S1'],
       ['Declined', 'S1'],
@@ -105,7 +105,6 @@ const cases: Record<string, Case> = {
       ['Abandoned', 'S1'],
       ['Held', 'Done'],
       ['Quarantined', 'S7'],
-      ['S9', 'Done'],
       ['S1', 'S1'],
       ['Superseded', 'S1'],
       ['S3', 'Superseded'],

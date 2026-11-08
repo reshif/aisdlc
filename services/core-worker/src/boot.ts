@@ -1,6 +1,7 @@
 import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
 import {
   DbRegisteredRepos,
+  DbWorkInFlight,
   HttpKnowledge,
   HttpRoleMapReconciler,
   RefusingStepUp,
@@ -11,13 +12,13 @@ import {
   roleMapSyncLoop,
   s0DriverLoop,
   s0SettingsFrom,
+  workDriverLoop,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
 import {
   LoopSupervisor,
-  FakeWorkInFlight,
   defaultBranchHeadLoop,
   effectiveRulesLoop,
   installationLoop,
@@ -27,7 +28,7 @@ import {
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import { HttpWitness } from '@aisdlc/witness/client';
-import { FileRegisteredRepos } from '@aisdlc/ports';
+import { FakeStagePorts, FileRegisteredRepos, type StagePorts } from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreWorkerApp } from './app.js';
 import { HttpCodeHostReads } from './codehost-client.js';
@@ -45,13 +46,21 @@ import { coreWorkerConfigFromEnv } from './config.js';
  * too: its decision kernel is the Notary, the identity read model (plain eligibility, bootstrap
  * decider on) and the codehost's reads; it never takes a decision itself (its step-up refuses).
  *
- * Until the work engine exists (M9) there is no source of "work in flight": the fake says none, so
- * effective rules are polled nightly. That is the slower, never the faster, rate, so the real port
- * must be wired in before agent work can start (M9.1 owns that).
+ * M9.2: "work in flight" is the work engine's: a repo with an item in S6 or S7 holding an agent
+ * lease or session (`DbWorkInFlight`, over the `work_item` read model), so effective rules are
+ * polled hourly while agent work runs. An unreadable read model polls at the faster rate. The
+ * `work_driver` loop (PLAN M9.2) executes the commands the lifecycle interpreter issues, through the
+ * outbox, behind the stage ports. Until the real ports exist (M11-M14) the only implementation is the
+ * deterministic fake, which does no work: so the loop runs only when asked for with
+ * `CORE_WORKER_STAGE_PORTS=fake`, and needs the Notary (it opens gates through the decision kernel).
  */
 export async function bootCoreWorker(
   env: Env,
-  deps: { workInFlight?: WorkInFlightPort; log?: (line: string) => void } = {},
+  deps: {
+    workInFlight?: WorkInFlightPort;
+    stagePorts?: StagePorts;
+    log?: (line: string) => void;
+  } = {},
 ): Promise<RunningService> {
   const cfg = coreWorkerConfigFromEnv(env);
   const listenOpts = listenConfig(env, 'CORE_WORKER', 8360);
@@ -101,7 +110,7 @@ export async function bootCoreWorker(
       .add(installationLoop(poll, { intervalMs: cfg.installationIntervalMs, startDelayMs: 1_000 }))
       .add(
         effectiveRulesLoop(
-          { ...poll, workInFlight: deps.workInFlight ?? new FakeWorkInFlight() },
+          { ...poll, workInFlight: deps.workInFlight ?? new DbWorkInFlight(pool) },
           {
             inFlightIntervalMs: cfg.rulesInFlightIntervalMs,
             idleIntervalMs: cfg.rulesIdleIntervalMs,
@@ -141,6 +150,38 @@ export async function bootCoreWorker(
             startDelayMs: 4_000,
           }),
         );
+    }
+    if (cfg.stagePorts !== 'none') {
+      if (!ledger)
+        throw new Error(
+          'CORE_WORKER_STAGE_PORTS needs the Notary (gates are opened through the decision kernel)',
+        );
+      const registry = registerCoreConfig(new ConfigRegistry());
+      supervisor.add(
+        workDriverLoop(
+          {
+            pool,
+            ports: deps.stagePorts ?? new FakeStagePorts(),
+            decisions: {
+              pool,
+              ledger,
+              eligibility: identityEligibility(readPool, registry),
+              stepUp: new RefusingStepUp(),
+            },
+          },
+          {
+            intervalMs: cfg.workDriverIntervalMs,
+            startDelayMs: 2_500,
+            onPass: (r) => {
+              if (r.items_created + r.gates_recorded + r.dispatched + r.failed + r.dead > 0) {
+                log(
+                  `work_driver: items ${r.items_created}, gates ${r.gates_recorded}, commands ${r.dispatched} ok / ${r.failed} retry / ${r.dead} dead`,
+                );
+              }
+            },
+          },
+        ),
+      );
     }
     if (cfg.knowledge || cfg.identity) {
       const registry = registerCoreConfig(new ConfigRegistry());

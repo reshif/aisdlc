@@ -27,6 +27,12 @@ export interface CoreWorkerConfig {
    * Needs `ledger` (the Notary). `null`: neither loop runs.
    */
   readonly witness: { readonly url: string; readonly token: string } | null;
+  /**
+   * The stage ports behind the work driver (PLAN M9.2). `none`: the `work_driver` loop does not run.
+   * `fake`: the deterministic fakes (no real stage work exists before M11-M14). Needs the Notary.
+   */
+  readonly stagePorts: 'none' | 'fake';
+  readonly workDriverIntervalMs: number;
   readonly reconcileIntervalMs: number;
   readonly checkpointIntervalMs: number;
   readonly cardsIntervalMs: number;
@@ -71,6 +77,8 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   CORE_WORKER_WITNESS_URL, CORE_WORKER_WITNESS_TOKEN_REF   the Witness's API: with it AND the Notary the
  *                                   `ledger_reconciler` and `checkpointer` loops run (the checkpoint is
  *                                   co-signed by the Witness). The Witness without the Notary is an error
+ *   CORE_WORKER_STAGE_PORTS (none | fake; default none): `fake` runs the `work_driver` loop over the
+ *                                   deterministic stage-port fakes (needs the Notary); CORE_WORKER_WORK_DRIVER_INTERVAL_MS (5000)
  *   CORE_WORKER_CHECKPOINT_INTERVAL_MS (300000, 5 min), CORE_WORKER_RECONCILE_INTERVAL_MS (60000)
  *   CORE_WORKER_CARDS_INTERVAL_MS (10000)
  *   CORE_WORKER_S0_DRIVER_INTERVAL_MS (15000), CORE_WORKER_ROLE_MAP_SYNC_INTERVAL_MS (10000)
@@ -109,6 +117,16 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_WITNESS_URL checkpoints the Notary ledger, which also needs CORE_WORKER_NOTARY_URL',
     );
   }
+  const sp = env['CORE_WORKER_STAGE_PORTS'] ?? 'none';
+  if (sp !== 'none' && sp !== 'fake') {
+    throw new ServiceConfigError('CORE_WORKER_STAGE_PORTS must be `none` or `fake`');
+  }
+  const stagePorts: 'none' | 'fake' = sp;
+  if (stagePorts !== 'none' && ledger === null) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_STAGE_PORTS needs the Notary (CORE_WORKER_NOTARY_URL): gates open through the decision kernel',
+    );
+  }
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
@@ -117,6 +135,8 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     knowledge,
     ledger,
     witness,
+    stagePorts,
+    workDriverIntervalMs: intEnv(env, 'CORE_WORKER_WORK_DRIVER_INTERVAL_MS', 5_000, 100),
     reconcileIntervalMs: intEnv(env, 'CORE_WORKER_RECONCILE_INTERVAL_MS', 60_000, 100),
     checkpointIntervalMs: intEnv(env, 'CORE_WORKER_CHECKPOINT_INTERVAL_MS', 300_000, 100),
     cardsIntervalMs: intEnv(env, 'CORE_WORKER_CARDS_INTERVAL_MS', 10_000, 100),

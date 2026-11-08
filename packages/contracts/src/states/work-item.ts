@@ -26,6 +26,8 @@ import { defineMachine, type TransitionTable } from './machine.js';
  *  - Held is reachable from every non-terminal phase but Draft, and resumes to any of them.
  *  - Blocked, ReleaseHeld and SpikeReport (`WaitState`) are not WorkItem phases: DM draws them as
  *    named waits on a stage, not as phases.
+ *  - `S8b -> S9` (G5 off) and `S9 -> Done` (G6 off, and L7's spike report) are added by M9.2: a gate that
+ *    is off is absent, never auto-approved, so the phase after it follows directly.
  *  - Superseded and Deferred are terminals with no incoming edge: DM §6.1 says they are "not drawn".
  *    No edge is invented; a later append-only change adds them when the catalogue defines the cause.
  */
@@ -101,9 +103,11 @@ export const WORK_ITEM_TRANSITIONS: TransitionTable<WorkItemPhase> = {
   G4: ['S8a', 'S6', 'Handoff', 'S3', 'Held'],
   // S8a -> S7: B15a clean rebase. S8a -> S6: B15b conflict.
   S8a: ['S8b', 'S6', 'S7', 'Held'],
-  S8b: ['G5', 'Held'],
+  // S8b -> S9 and S9 -> Done are the gate-off edges (M9.2): G5 and G6 are per-project (OB §1C), and a
+  // gate that is off is ABSENT, so release goes on to close-out and close-out ends the item.
+  S8b: ['G5', 'S9', 'Held'],
   G5: ['S9', 'S8b', 'Held'],
-  S9: ['G6', 'Held'],
+  S9: ['G6', 'Done', 'Held'],
   G6: ['Done', 'Held'],
   Held: [...HOLDABLE, 'Abandoned'],
   // Handoff -> S6: E4 resume / hand back (D4); -> S5 re-plan; -> S3 re-spec; Held.

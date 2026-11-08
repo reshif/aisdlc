@@ -26,6 +26,7 @@ const EXPECTED: Record<
   'project.admin': {
     actions: [
       ...VIEWS,
+      'work.request',
       'project.settings.edit',
       'kill.request',
       'kill.release',
@@ -36,7 +37,11 @@ const EXPECTED: Record<
     decides: (g) => GATE_POLICIES[g as keyof typeof GATE_POLICIES].slot === 'admin',
     cards: true,
   },
-  'project.requester': { actions: VIEWS, decides: (g) => g === 'G6', cards: true },
+  'project.requester': {
+    actions: [...VIEWS, 'work.request'],
+    decides: (g) => g === 'G6',
+    cards: true,
+  },
   'project.intent_approver': {
     actions: VIEWS,
     decides: (g) => ['G0', 'G1', 'G1f', 'G2'].includes(g),
@@ -74,6 +79,8 @@ const EXPECTED: Record<
     ],
     decides: () => false,
   },
+  // Fleet-bound: onboarding anywhere, and V1 reads. It decides no gate and no card.
+  'factory.onboarder': { actions: [...VIEWS, 'project.onboard'], decides: () => false },
   'factory.auditor': { actions: [...VIEWS, 'audit.read', 'access.explain'], decides: () => false },
 };
 

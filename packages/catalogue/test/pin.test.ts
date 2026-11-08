@@ -24,9 +24,9 @@ describe('catalogue pinning (M1.6)', () => {
     expect(catalogueHash(CATALOGUE, flow)).not.toBe(catalogueHash());
   });
 
-  it('is version 1.0.0 and validates against its schema', () => {
-    expect(CATALOGUE_VERSION).toBe('1.0.0');
-    expect(CATALOGUE.version).toBe('1.0.0');
+  it('is version 1.1.0 and validates against its schema', () => {
+    expect(CATALOGUE_VERSION).toBe('1.1.0');
+    expect(CATALOGUE.version).toBe('1.1.0');
     expect(CatalogueData.safeParse(CATALOGUE).success).toBe(true);
   });
 
@@ -34,7 +34,7 @@ describe('catalogue pinning (M1.6)', () => {
     const ref = currentCatalogueRef();
     expect(CatalogueRef.safeParse(ref).success).toBe(true);
     expect(ref).toEqual({
-      version: '1.0.0',
+      version: '1.1.0',
       hash: hashCanonical({ catalogue: CATALOGUE, flow: PINNED_FLOW_TABLES }),
     });
     expect(isCurrentCatalogue(ref)).toBe(true);

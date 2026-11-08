@@ -13,3 +13,4 @@ export * from './fake-github.js';
 export * from './registered-repos.js';
 export * from './core-clients.js';
 export * from './http-codehost.js';
+export * from './stage-ports.js';

@@ -4,6 +4,7 @@ import {
   ProjectSettings,
   RoleSlotValues,
   type RoleSlot,
+  type Scope,
   type Tier,
 } from '@aisdlc/contracts';
 import { createTestDatabase, type TestDatabase } from '@aisdlc/db/testing';
@@ -200,9 +201,19 @@ export async function setStatusForTest(
 export async function grantFleetRole(
   deps: IdentityDeps,
   principal: string,
-  role: 'factory.admin' | 'factory.auditor',
+  role: 'factory.admin' | 'factory.auditor' | 'factory.onboarder',
 ): Promise<void> {
-  const group = `grp-${role}`;
+  return grantRole(deps, principal, role, { kind: 'fleet', ref: '*' });
+}
+
+/** Gives a principal a role at any scope the role may be bound at (a group named after role and scope); throws on failure. */
+export async function grantRole(
+  deps: IdentityDeps,
+  principal: string,
+  role: string,
+  scope: Scope,
+): Promise<void> {
+  const group = scope.kind === 'fleet' ? `grp-${role}` : `grp-${role}-${scope.kind}-${scope.ref}`;
   const g = await createGroup(
     deps,
     { group_id: group, display: role, pim_managed: false, protected: false },
@@ -215,11 +226,7 @@ export async function grantFleetRole(
     'system.test',
   );
   if (!m.ok) throw new Error(m.error.message);
-  const b = await createBinding(
-    deps,
-    { group_id: group, role_id: role, scope: { kind: 'fleet', ref: '*' } },
-    'system.test',
-  );
+  const b = await createBinding(deps, { group_id: group, role_id: role, scope }, 'system.test');
   if (!b.ok) throw new Error(b.error.message);
 }
 

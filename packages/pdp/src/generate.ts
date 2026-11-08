@@ -34,6 +34,7 @@ export function generateSchema(actions: Actions = DEFAULT_ACTIONS): string {
     'entity Group;',
     'entity Principal in [Group, Role] = { "kind": String, "status": String, "breakglass": Bool };',
     'entity Fleet;',
+    'entity Team in [Fleet];',
     'entity Project in [Fleet];',
     'entity Lane in [Project];',
     'entity Repo in [Project];',
