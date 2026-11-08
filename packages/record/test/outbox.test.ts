@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { withTransaction } from '@aisdlc/db';
+import { manualClock } from '@aisdlc/kernel';
 import {
+  PermanentDeliveryError,
   appendEvents,
   claimOutbox,
+  deadOutboxCount,
   dispatchOutbox,
   enqueueOutbox,
+  listDeadOutbox,
   markDispatched,
   pendingOutboxCount,
+  requeueDeadOutbox,
 } from '../src/index.js';
 import { appendCommitted, bigPool, ev, withRecordDb } from './helpers.js';
 
@@ -173,10 +178,17 @@ describe('transactional outbox', () => {
     await withRecordDb(async (t) => {
       await withTransaction(t.pool, (tx) => enqueueOutbox(tx, [msg(1), msg(2)]));
 
-      const first = await dispatchOutbox(t.pool, 'dest', 10, async (row) => {
-        if (row.payload['i'] === 1) throw new Error('downstream 503');
-      });
-      expect(first).toEqual({ dispatched: 1, failed: 1 });
+      const clock = manualClock(Date.now());
+      const first = await dispatchOutbox(
+        t.pool,
+        'dest',
+        10,
+        async (row) => {
+          if (row.payload['i'] === 1) throw new Error('downstream 503');
+        },
+        { clock },
+      );
+      expect(first).toEqual({ dispatched: 1, failed: 1, dead: 0 });
       const state = await t.pool.query(
         'SELECT idempotency_key AS k, attempts, last_error, dispatched_at IS NOT NULL AS done FROM record.outbox ORDER BY id',
       );
@@ -185,11 +197,13 @@ describe('transactional outbox', () => {
         { k: 'dest-2', attempts: 1, last_error: null, done: true },
       ]);
 
-      // Crash after the handler ran but before COMMIT: the row is delivered again, same key.
+      // Crash after the handler ran but before COMMIT: the row is delivered again, same key (once
+      // its backoff, one second after the failure, has passed).
+      clock.advance(1_000);
       const seen: string[] = [];
       await expect(
         withTransaction(t.pool, async (tx) => {
-          const rows = await claimOutbox(tx, 'dest', 10);
+          const rows = await claimOutbox(tx, 'dest', 10, { now: clock.now() });
           seen.push(...rows.map((r) => r.idempotency_key));
           await markDispatched(
             tx,
@@ -198,9 +212,15 @@ describe('transactional outbox', () => {
           throw new Error('process died');
         }),
       ).rejects.toThrow();
-      const retry = await dispatchOutbox(t.pool, 'dest', 10, async (row) => {
-        seen.push(row.idempotency_key);
-      });
+      const retry = await dispatchOutbox(
+        t.pool,
+        'dest',
+        10,
+        async (row) => {
+          seen.push(row.idempotency_key);
+        },
+        { clock },
+      );
       expect(retry.dispatched).toBe(1);
       expect(seen).toEqual(['dest-1', 'dest-1']);
       const done = await t.pool.query(
@@ -208,6 +228,159 @@ describe('transactional outbox', () => {
         ['dest-1'],
       );
       expect(done.rows).toEqual([{ attempts: 2, last_error: null }]);
+    });
+  });
+});
+
+describe('outbox delivery limits: backoff and dead letters (PLAN M5.4)', () => {
+  const policy = { maxAttempts: 3, baseDelayMs: 1_000, maxDelayMs: 4_000 };
+
+  it('a failing message backs off exponentially, is dead-lettered after maxAttempts and then never claimed', async () => {
+    await withRecordDb(async (t) => {
+      await withTransaction(t.pool, (tx) => enqueueOutbox(tx, [msg(1)]));
+      const clock = manualClock('2026-11-08T10:00:00.000Z');
+      let calls = 0;
+      const fail = async () => {
+        calls += 1;
+        throw new Error('rejected by the destination');
+      };
+      const at = async () =>
+        (await t.pool.query('SELECT attempts, next_attempt_at, dead_at FROM record.outbox'))
+          .rows[0];
+
+      expect(await dispatchOutbox(t.pool, 'dest', 5, fail, { clock, policy })).toEqual({
+        dispatched: 0,
+        failed: 1,
+        dead: 0,
+      });
+      expect((await at()).next_attempt_at.toISOString()).toBe('2026-11-08T10:00:01.000Z');
+      // Not due yet: the handler is not even called.
+      clock.advance(999);
+      expect(await dispatchOutbox(t.pool, 'dest', 5, fail, { clock, policy })).toEqual({
+        dispatched: 0,
+        failed: 0,
+        dead: 0,
+      });
+      expect(calls).toBe(1);
+      clock.advance(1);
+      await dispatchOutbox(t.pool, 'dest', 5, fail, { clock, policy });
+      expect((await at()).next_attempt_at.toISOString()).toBe('2026-11-08T10:00:03.000Z'); // +2 s
+      clock.advance(2_000);
+      expect(await dispatchOutbox(t.pool, 'dest', 5, fail, { clock, policy })).toEqual({
+        dispatched: 0,
+        failed: 0,
+        dead: 1,
+      });
+      expect(calls).toBe(3);
+      const row = await at();
+      expect(row.attempts).toBe(3);
+      expect(row.dead_at.toISOString()).toBe('2026-11-08T10:00:03.000Z');
+      expect(await pendingOutboxCount(t.pool, 'dest')).toBe(0);
+      expect(await deadOutboxCount(t.pool)).toEqual([
+        { destination: 'dest', dead: 1, oldest_dead_at: row.dead_at },
+      ]);
+
+      // Dead is final: a year later nothing is claimed and the handler is not called.
+      clock.advance(365 * 86_400_000);
+      expect(await dispatchOutbox(t.pool, 'dest', 5, fail, { clock, policy })).toEqual({
+        dispatched: 0,
+        failed: 0,
+        dead: 0,
+      });
+      expect(calls).toBe(3);
+      const dead = await listDeadOutbox(t.pool);
+      expect(dead.map((r) => [r.idempotency_key, r.last_error])).toEqual([
+        ['dest-1', 'rejected by the destination'],
+      ]);
+    });
+  });
+
+  it('the delay is capped at maxDelayMs', async () => {
+    await withRecordDb(async (t) => {
+      await withTransaction(t.pool, (tx) => enqueueOutbox(tx, [msg(1)]));
+      const clock = manualClock('2026-11-08T10:00:00.000Z');
+      const p = { maxAttempts: 10, baseDelayMs: 1_000, maxDelayMs: 4_000 };
+      const delays: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        await dispatchOutbox(t.pool, 'dest', 1, () => Promise.reject(new Error('x')), {
+          clock,
+          policy: p,
+        });
+        const r = await t.pool.query('SELECT next_attempt_at FROM record.outbox');
+        const due = (r.rows[0].next_attempt_at as Date).getTime();
+        delays.push(due - clock.nowMs());
+        clock.set(due);
+      }
+      expect(delays).toEqual([1_000, 2_000, 4_000, 4_000, 4_000]);
+    });
+  });
+
+  it('a permanently failing message is dead-lettered and does not delay the others', async () => {
+    await withRecordDb(async (t) => {
+      // The poison message is FIRST in line, ahead of ten good ones.
+      await withTransaction(t.pool, (tx) =>
+        enqueueOutbox(tx, [msg(0), ...Array.from({ length: 10 }, (_, i) => msg(i + 1))]),
+      );
+      const clock = manualClock('2026-11-08T10:00:00.000Z');
+      const delivered: number[] = [];
+      const handler = async (row: { payload: Record<string, unknown> }) => {
+        if (row.payload['i'] === 0) throw new Error('poison');
+        delivered.push(row.payload['i'] as number);
+      };
+      // Round 1: the good ones are delivered in the same call that fails the poison one.
+      const r1 = await dispatchOutbox(t.pool, 'dest', 20, handler, { clock, policy });
+      expect(r1).toEqual({ dispatched: 10, failed: 1, dead: 0 });
+      // A limit of 1 would have been blocked by it forever without backoff; now it is skipped.
+      await withTransaction(t.pool, (tx) => enqueueOutbox(tx, [msg(11)]));
+      const r2 = await dispatchOutbox(t.pool, 'dest', 1, handler, { clock, policy });
+      expect(r2.dispatched).toBe(1);
+      expect(delivered).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+      // The poison message runs out its attempts without ever touching the rest.
+      for (const advance of [1_000, 2_000]) {
+        clock.advance(advance);
+        await dispatchOutbox(t.pool, 'dest', 20, handler, { clock, policy });
+      }
+      const dead = await listDeadOutbox(t.pool);
+      expect(dead.map((r) => r.payload)).toEqual([{ i: 0 }]);
+      expect(await pendingOutboxCount(t.pool, 'dest')).toBe(0);
+    });
+  });
+
+  it('a PermanentDeliveryError dead-letters at the first failure; requeueing is an explicit act', async () => {
+    await withRecordDb(async (t) => {
+      await withTransaction(t.pool, (tx) => enqueueOutbox(tx, [msg(1), msg(2, 'other')]));
+      const clock = manualClock('2026-11-08T10:00:00.000Z');
+      const out = await dispatchOutbox(
+        t.pool,
+        'dest',
+        5,
+        () => Promise.reject(new PermanentDeliveryError('invalid payload')),
+        { clock, policy },
+      );
+      expect(out).toEqual({ dispatched: 0, failed: 0, dead: 1 });
+      expect(await deadOutboxCount(t.pool, 'other')).toEqual([]);
+      const [row] = await listDeadOutbox(t.pool, { destination: 'dest' });
+      expect(row?.attempts).toBe(1);
+      expect(await withTransaction(t.pool, (tx) => requeueDeadOutbox(tx, [row?.id ?? 0]))).toBe(1);
+      const ok = await dispatchOutbox(t.pool, 'dest', 5, async () => undefined, { clock, policy });
+      expect(ok.dispatched).toBe(1);
+      expect(await deadOutboxCount(t.pool)).toEqual([]);
+    });
+  });
+
+  it('the record rules still hold: only delivery bookkeeping can change, dead rows cannot be dispatched', async () => {
+    await withRecordDb(async (t) => {
+      await withTransaction(t.pool, (tx) => enqueueOutbox(tx, [msg(1)]));
+      await dispatchOutbox(t.pool, 'dest', 1, () =>
+        Promise.reject(new PermanentDeliveryError('x')),
+      );
+      await expect(t.pool.query('UPDATE record.outbox SET dispatched_at = now()')).rejects.toThrow(
+        /outbox_dead_is_not_dispatched/,
+      );
+      await expect(t.pool.query("UPDATE record.outbox SET payload = '{}'::jsonb")).rejects.toThrow(
+        /immutable/,
+      );
+      await expect(t.pool.query('DELETE FROM record.outbox')).rejects.toThrow(/immutable/);
     });
   });
 });

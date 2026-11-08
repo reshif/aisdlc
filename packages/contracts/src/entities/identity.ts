@@ -62,8 +62,12 @@ export type Group = z.infer<typeof Group>;
 
 export const MembershipVia = z.enum(['direct', 'pim_activation']);
 export type MembershipVia = z.infer<typeof MembershipVia>;
-/** `role_map`: generated from a project's role map (PLAN M4.4); only the reconcile writes it. */
-export const MembershipSource = z.enum(['sync', 'oidc_token_dev', 'role_map']);
+/**
+ * `role_map`: generated from a project's role map (PLAN M4.4); only the reconcile writes it.
+ * `codeowners`: the members of a project's g4 group when its slot is `codeowners` (PLAN M5.2); only
+ * the "set code owner members" command writes it.
+ */
+export const MembershipSource = z.enum(['sync', 'oidc_token_dev', 'role_map', 'codeowners']);
 export type MembershipSource = z.infer<typeof MembershipSource>;
 
 export const Membership = z

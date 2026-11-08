@@ -34,7 +34,7 @@ const Callers = z.record(
   z.string(),
   z.strictObject({
     token_ref: z.string(),
-    scopes: z.array(z.enum(['read', 'write', 'reconcile', 'sync'])),
+    scopes: z.array(z.enum(['read', 'write', 'reconcile', 'sync', 'codeowners'])),
   }),
 );
 
@@ -78,7 +78,7 @@ function settingsFromEnv(env: Env): ProjectSettingsPort {
  * Starts the identity service from the environment:
  *   IDENTITY_DATABASE_URL    the record database; the record and ledger schemas must already be migrated,
  *                            the identity schema is migrated at start
- *   IDENTITY_CALLERS         JSON {caller: {token_ref, scopes: [read|write|reconcile|sync]}}
+ *   IDENTITY_CALLERS         JSON {caller: {token_ref, scopes: [read|write|reconcile|sync|codeowners]}}
  *   IDENTITY_HOST / _PORT    default 127.0.0.1:8330
  *   NOTARY_URL, IDENTITY_NOTARY_TOKEN_REF, KMS_URL, KMS_TOKEN_REF
  *                            the access-sync loop's Notary client and key lookup (required unless
@@ -117,8 +117,8 @@ export async function bootIdentity(env: Env): Promise<RunningService> {
   const pool = createPool(dbUrl, 8);
   try {
     // The record and the ledger are core's: their migrations ship in their own packages and are run
-    // by whoever owns the record database (a bundle cannot find another package's migrations
-    // directory). Identity migrates only its own schema, and refuses to start without theirs.
+    // by `aisdlc-migrate` (a bundle cannot find another package's migrations directory, so that
+    // one CLI embeds the SQL of every schema). Identity migrates only its own schema, and refuses to start without theirs.
     const have = await pool.query<{ record: string | null; ledger: string | null }>(
       `SELECT to_regclass('record.record_event')::text AS record,
               to_regclass('ledger.ledger_entry')::text AS ledger`,

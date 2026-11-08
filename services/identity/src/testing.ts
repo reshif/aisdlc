@@ -14,6 +14,7 @@ import { migrateLedger, type LedgerClientDeps } from '@aisdlc/ledger';
 import { startTestNotary, type TestNotary } from '@aisdlc/notary/testing';
 import { FakeIdentityProvider, FakeProjectSettings, type IdpSnapshot } from '@aisdlc/ports';
 import { migrateRecord } from '@aisdlc/record';
+import { ServiceAuth, listen } from '@aisdlc/service-kit';
 import { syncAccessLedger, type AccessSyncReport } from './access-sync.js';
 import type { NewPrincipal } from './commands.js';
 import {
@@ -24,6 +25,7 @@ import {
   linkIdentity,
   setPrincipalStatus,
 } from './commands.js';
+import { createIdentityApp, type IdentityScope } from './app.js';
 import { reconcileProject } from './reconcile.js';
 import { migrateIdentity } from './migrations.js';
 import type { IdentityDeps } from './tx.js';
@@ -228,4 +230,36 @@ export async function bindProject(
     { project_id: pid(project) },
   );
   if (!r.ok) throw new Error(`reconcile ${project}: ${r.error.message}`);
+}
+
+/** Links a GitHub login to a principal (`github_login`); throws on failure. */
+export async function linkGithubLogin(
+  deps: IdentityDeps,
+  principal: string,
+  login: string,
+): Promise<void> {
+  const r = await linkIdentity(
+    deps,
+    { principal_id: principal, kind: 'github_login', issuer: null, value: login },
+    'system.test',
+  );
+  if (!r.ok) throw new Error(`link ${login}: ${r.error.message}`);
+}
+
+/** The identity HTTP API over a stack, on a loopback port, for tests of other services. */
+export async function startTestIdentityApi(
+  s: IdentityStack,
+  callers: Record<string, { token: string; scopes: readonly IdentityScope[] }>,
+): Promise<{ url: string; stop(): Promise<void> }> {
+  const app = createIdentityApp({
+    pool: s.record.pool,
+    auth: new ServiceAuth(
+      Object.fromEntries(Object.entries(callers).map(([n, c]) => [n, c.token])),
+    ),
+    callers: Object.fromEntries(Object.entries(callers).map(([n, c]) => [n, c.scopes])),
+    settings: s.settings,
+    clock: s.clock,
+  });
+  const url = await listen(app);
+  return { url, stop: () => app.close() };
 }

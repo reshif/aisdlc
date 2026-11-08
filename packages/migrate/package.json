@@ -1,0 +1,38 @@
+{
+  "name": "@aisdlc/migrate",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "aisdlc-migrate": "dist/aisdlc-migrate.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/bundle.mjs --embed-migrations=plan.json aisdlc-migrate",
+    "typecheck": "tsc -p tsconfig.check.json"
+  },
+  "dependencies": {
+    "@aisdlc/db": "0.0.0",
+    "@aisdlc/service-kit": "0.0.0",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@aisdlc/bff": "0.0.0",
+    "@aisdlc/codehost": "0.0.0",
+    "@aisdlc/config": "0.0.0",
+    "@aisdlc/decisions": "0.0.0",
+    "@aisdlc/directory": "0.0.0",
+    "@aisdlc/identity": "0.0.0",
+    "@aisdlc/kms-local": "0.0.0",
+    "@aisdlc/ledger": "0.0.0",
+    "@aisdlc/notary": "0.0.0",
+    "@aisdlc/record": "0.0.0",
+    "@aisdlc/witness": "0.0.0"
+  }
+}

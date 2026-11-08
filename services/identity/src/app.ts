@@ -7,6 +7,7 @@ import {
   PrincipalStatus,
   ProjectId,
   Qualification,
+  SetCodeownerMembersRequest,
   Team,
   parseScopeKey,
   type Scope,
@@ -33,6 +34,7 @@ import {
   updatePrincipal,
   NewPrincipal,
 } from './commands.js';
+import { setCodeownerMembers } from './codeowners.js';
 import { explainGate, explainProject } from './explain.js';
 import { freshReadModel } from './eligibility.js';
 import { IDENTITY_STATUS, identityError, type IdentityError } from './errors.js';
@@ -40,8 +42,11 @@ import { syncFromIdp } from './idp-sync.js';
 import { effectiveBindings, getPrincipal, resolveGroups, resolveLink } from './queries.js';
 import { reconcileProject } from './reconcile.js';
 
-/** What a caller may do: read the model, change principals/groups/bindings, reconcile, sync. */
-export type IdentityScope = 'read' | 'write' | 'reconcile' | 'sync';
+/**
+ * What a caller may do: read the model, change principals/groups/bindings, reconcile, sync, and
+ * (`codeowners`, the codehost only) set the members of a project's g4 group from CODEOWNERS.
+ */
+export type IdentityScope = 'read' | 'write' | 'reconcile' | 'sync' | 'codeowners';
 
 export interface IdentityAppOptions {
   readonly pool: pg.Pool;
@@ -438,6 +443,27 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
           actor: actorOf(b.value, caller),
           ...(b.value.config_rev !== undefined ? { config_rev: b.value.config_rev } : {}),
           ...(b.value.m_gate_ref !== undefined ? { m_gate_ref: b.value.m_gate_ref } : {}),
+        },
+      );
+    },
+    true,
+  );
+
+  route(
+    'post',
+    '/v1/projects/:project/codeowners/members',
+    'codeowners',
+    async (req) => {
+      const project = ProjectId.safeParse(params(req)['project']);
+      if (!project.success) return bad('bad project id');
+      const b = parse(SetCodeownerMembersRequest, req.body);
+      if (!b.ok) return b;
+      return setCodeownerMembers(
+        { ...deps, settings: o.settings },
+        {
+          project_id: project.data,
+          principals: b.value.principals,
+          source_ref: b.value.source_ref,
         },
       );
     },
