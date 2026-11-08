@@ -1,6 +1,7 @@
 import { expect } from 'vitest';
 import type pg from 'pg';
 import {
+  feedCheckpointName,
   readCheckpoint,
   rebuild,
   runProjection,
@@ -20,9 +21,9 @@ import type { Executor } from './types.js';
  *
  * `snapshotFn` defaults to `projection.snapshot`. Returns the rebuilt snapshot.
  */
-export async function expectRebuildEqualsLive<State>(
+export async function expectRebuildEqualsLive<State, FeedItem = unknown>(
   pool: pg.Pool,
-  projection: Projection<State>,
+  projection: Projection<State, FeedItem>,
   snapshotFn: (db: Executor) => Promise<State> = (db) => projection.snapshot(db),
   opts: RunOptions = {},
 ): Promise<State> {
@@ -42,6 +43,15 @@ export async function expectRebuildEqualsLive<State>(
   );
   const cp = await readCheckpoint(pool, projection.name);
   expect(cp).toEqual({ version: projection.version, last_global_seq: first.last_global_seq });
+
+  for (const f of projection.feeds ?? []) {
+    const fcp = await readCheckpoint(pool, feedCheckpointName(projection.name, f.name));
+    expect(fcp, `${projection.name}#${f.name}: feed checkpoint sits at the feed head`).toEqual({
+      version: projection.version,
+      last_global_seq: await f.head(pool),
+    });
+    expect(first.feeds?.[f.name]).toBe(await f.head(pool));
+  }
 
   await rebuild(pool, projection, opts);
   expect(await snapshotFn(pool), `${projection.name}: rebuild is repeatable`).toEqual(rebuilt);

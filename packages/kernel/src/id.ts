@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { err, ok, taggedError, type Result } from './result.js';
 
 declare const brand: unique symbol;
@@ -80,4 +80,17 @@ export function newId<K extends string>(nowMs?: number): Id<K> {
 /** Milliseconds since epoch encoded in a UUID v7. */
 export function uuidv7Timestamp(id: string): number {
   return Number.parseInt(id.replaceAll('-', '').slice(0, 12), 16);
+}
+
+/**
+ * A stable id derived from `seed` (sha256, first 128 bits, version nibble 8 = "custom", RFC 9562
+ * variant). The same seed always gives the same id, so a writer can make a retry idempotent
+ * without a lookup. It carries no timestamp, so `uuidv7Timestamp` means nothing for it.
+ */
+export function deterministicId<K extends string>(seed: string): Id<K> {
+  const h = createHash('sha256').update(seed).digest();
+  h[6] = 0x80 | ((h[6] ?? 0) & 0x0f);
+  h[8] = 0x80 | ((h[8] ?? 0) & 0x3f);
+  const x = h.subarray(0, 16).toString('hex');
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}` as Id<K>;
 }

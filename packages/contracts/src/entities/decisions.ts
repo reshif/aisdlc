@@ -52,8 +52,11 @@ export type RecordEvent = z.infer<typeof RecordEvent>;
 
 // ---------------------------------------------------------------- Gate subject
 
-/** What a gate decides on: a work item, or an S0 record (fix #32). */
-export const SubjectKind = z.enum(['item', 's0_record']);
+/**
+ * What a gate decides on: a work item, an S0 record (fix #32), or a config lineage (an M1 gate
+ * decides a proposed `rev_hash` of one layer and scope; PLAN M3.5).
+ */
+export const SubjectKind = z.enum(['item', 's0_record', 'config']);
 export type SubjectKind = z.infer<typeof SubjectKind>;
 export const SubjectKindValues: readonly SubjectKind[] = SubjectKind.options;
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { hashCanonical } from '@aisdlc/kernel';
+import { hashCanonical, sha256Hex } from '@aisdlc/kernel';
 import {
   Card,
   Checkpoint,
   ConfigRevision,
+  configRevHash,
+  configSubjectId,
   CatalogueRef,
   GateInstance,
   GateVote,
@@ -223,22 +225,58 @@ describe('decisions', () => {
 });
 
 describe('config and work', () => {
-  it('ConfigRevision round-trips', () => {
+  it('ConfigRevision round-trips, binds rev_hash to the document and layer to scope', () => {
+    const doc = { 'ops.flag': true };
+    const scope = { kind: 'fleet', ref: '*' } as const;
+    const rev_hash = configRevHash({ layer: 'factory', scope, parent_rev_hash: H('r1'), doc });
     const r = {
-      rev_hash: H('r2'),
-      layer: 'catalogue',
-      scope: { kind: 'fleet', ref: '*' },
+      rev_hash,
+      layer: 'factory',
+      scope,
       previous_rev_hash: H('r1'),
       state: 'current',
+      gate_instance_id: U4,
       ledger_entry_id: U4,
-      content: { x: 1 },
+      content: doc,
+      proposed_by: 'alice',
+      proposed_at: T0,
       published_at: T0,
     };
     expect(ConfigRevision.parse(r)).toEqual(r);
     expect(ConfigRevision.safeParse({ ...r, state: 'draft' }).success).toBe(false);
+    expect(ConfigRevision.safeParse({ ...r, content: { 'ops.flag': false } }).success).toBe(false);
     expect(ConfigRevision.safeParse({ ...r, previous_rev_hash: r.rev_hash }).success).toBe(false);
     expect(ConfigRevision.safeParse({ ...r, scope: { kind: 'fleet', ref: 'x' } }).success).toBe(
       false,
+    );
+    expect(ConfigRevision.safeParse({ ...r, layer: 'project' }).success).toBe(false);
+    expect(ConfigRevision.safeParse({ ...r, content: { 'Bad Key': 1 } }).success).toBe(false);
+    // published iff it has its ledger entry
+    expect(ConfigRevision.safeParse({ ...r, ledger_entry_id: null }).success).toBe(false);
+    expect(
+      ConfigRevision.safeParse({
+        ...r,
+        state: 'proposed',
+        ledger_entry_id: null,
+        published_at: null,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rev_hash recipe: sha256 of canonical {layer, scope, parent_rev_hash, doc}', () => {
+    const a = configRevHash({
+      layer: 'project',
+      scope: { kind: 'project', ref: 'acme' },
+      parent_rev_hash: null,
+      doc: { b: 1, a: 2 },
+    });
+    expect(a).toBe(
+      sha256Hex(
+        '{"doc":{"a":2,"b":1},"layer":"project","parent_rev_hash":null,"scope":{"kind":"project","ref":"acme"}}',
+      ),
+    );
+    expect(configSubjectId({ layer: 'project', scope: { kind: 'project', ref: 'acme' } })).toBe(
+      configSubjectId({ layer: 'project', scope: { kind: 'project', ref: 'acme' } }),
     );
   });
 
