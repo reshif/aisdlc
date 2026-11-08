@@ -16,7 +16,7 @@ const Callers = z.record(
   z.string().min(1),
   z.strictObject({
     token_ref: z.string().min(1),
-    scopes: z.array(z.enum(['read', 'onboard', 'settings', 'registry'])).min(1),
+    scopes: z.array(z.enum(['read', 'onboard', 'settings', 'registry', 'portal'])).min(1),
   }),
 );
 
@@ -41,7 +41,7 @@ export interface CoreConfig {
  *   CORE_DATABASE_URL        the record database; the record, ledger, decisions, config and identity
  *                            schemas must already be migrated (`aisdlc-migrate`), the core schema is
  *                            migrated at start
- *   CORE_CALLERS             JSON {caller: {token_ref, scopes: [read|onboard|settings|registry]}}
+ *   CORE_CALLERS             JSON {caller: {token_ref, scopes: [read|onboard|settings|registry|portal]}}
  *   CORE_HOST / _PORT        default 127.0.0.1:8380
  *   CORE_NOTARY_URL, CORE_NOTARY_TOKEN_REF, KMS_URL, KMS_TOKEN_REF
  *                            the decision kernel's Notary client and key lookup; without them a

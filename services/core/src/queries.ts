@@ -5,6 +5,8 @@ import {
   repoStream,
   type OnboardingStepId,
   type Project,
+  type ProjectDetail,
+  type ProjectSummary,
   type RegisteredRepo,
   type Repo,
   type S0Overview,
@@ -114,4 +116,70 @@ export async function registeredRepos(pool: pg.Pool): Promise<RegisteredRepo[]> 
     [REGISTERED_STATUSES],
   );
   return q.rows.map((r) => ({ project_id: r.project_id, repo: r.repo_ref })) as RegisteredRepo[];
+}
+
+/** Every project the record knows, by id, with its repos and its newest S0 record (the read model, caught up). */
+export async function listProjects(pool: pg.Pool): Promise<ProjectSummary[]> {
+  await catchUp(pool);
+  const ids = await pool.query<{ project_id: string }>(
+    'SELECT project_id FROM core.project ORDER BY project_id',
+  );
+  const out: ProjectSummary[] = [];
+  for (const { project_id } of ids.rows) {
+    const d = await getProjectDetail(pool, project_id);
+    if (!d) continue;
+    const s0 = d.s0[0];
+    out.push({
+      project: d.project,
+      repos: d.repos,
+      latest_s0: s0
+        ? {
+            s0_id: s0.record.s0_id,
+            repo: (await repoRefOfRecord(pool, s0.record.s0_id)) as never,
+            status: s0.record.status,
+            requested_level: s0.record.requested_level,
+            signable_level: s0.record.signable_level,
+            waiting: s0.waiting,
+            updated_at: s0.record.updated_at,
+          }
+        : null,
+    });
+  }
+  return out;
+}
+
+async function repoRefOfRecord(pool: pg.Pool, s0Id: string): Promise<string> {
+  const q = await pool.query<{ repo_ref: string }>(
+    `SELECT r.repo_ref FROM core.s0_record s JOIN core.repo r ON r.repo_key = s.repo_key
+      WHERE s.s0_id = $1`,
+    [s0Id],
+  );
+  return q.rows[0]?.repo_ref ?? '';
+}
+
+/** One project with its repos and every S0 record of those repos, newest first, from the authoritative streams. */
+export async function getProjectDetail(pool: pg.Pool, id: string): Promise<ProjectDetail | null> {
+  const project = await getProject(pool, id);
+  if (!project) return null;
+  await catchUp(pool);
+  const repos = await pool.query<{ repo_ref: string }>(
+    'SELECT repo_ref FROM core.repo WHERE project_id = $1 ORDER BY repo_ref',
+    [id],
+  );
+  const repoList: Repo[] = [];
+  const s0: S0Overview[] = [];
+  for (const { repo_ref } of repos.rows) {
+    const r = await getRepo(pool, repo_ref);
+    if (r) repoList.push(r);
+    s0.push(...(await listS0ForRepo(pool, repo_ref)));
+  }
+  // Stable: records created in the same instant keep the per-repo order (newest event first).
+  s0.sort((a, b) =>
+    a.record.created_at === b.record.created_at
+      ? 0
+      : a.record.created_at < b.record.created_at
+        ? 1
+        : -1,
+  );
+  return { project, repos: repoList, s0 };
 }

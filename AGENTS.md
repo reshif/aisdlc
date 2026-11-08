@@ -14,6 +14,7 @@ npm test               # Vitest (all projects); starts a throwaway Postgres unle
 npm run build          # tsc emit (libraries) and esbuild bundles: dist/main.js per service, dist/verify-ledger.js
 npm run demo:ledger    # M2 exit demo: real services as processes, ledger, checkpoint, verify, tamper
 npm run smoke:compose  # M8.0: the local-prod compose stack (fake GitHub) up, checked, down; needs Docker
+npm run e2e:compose    # M8.1: the same stack, a real Chromium signs in and onboards a repo (Playwright)
 npx vitest run --project kernel   # one package
 ```
 
@@ -34,7 +35,7 @@ packages/
   pdp/      Cedar policies generated from the role catalogue, bundles published through config, embedded fail-closed evaluator, decision log
   codeowners/ the ONE CODEOWNERS parser and matcher (GitHub syntax, pure string work), shared by the codehost and knowledge
   secrets-rules/ the ONE shared secret ruleset (rules, keyword prefilter, entropy, fixtures built at run time, `scanText`, `rulesVersion`), used by the knowledge scan and later the push broker and S7 7.4; a repo self-test runs it over the whole tree
-services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity, bff, codehost, core-worker, knowledge, core)
+services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity, bff, codehost, core-worker, knowledge, core, web: the React + Vite SPA, built to static files the bff serves)
 platform/compose/  local-prod docker compose: one image, db-init/migrate/seed jobs, secrets as files, the fake GitHub profile, smoke.sh (README.md says why each container exists)
 docs/       PLAN.md, adr/, specs/
 ```

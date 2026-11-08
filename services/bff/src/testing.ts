@@ -210,6 +210,12 @@ export async function startBffStack(o: StartOptions = {}): Promise<BffStack> {
       publicUrl: base,
       cookieSecure: o.cookieSecure ?? false,
       clock: identity.clock,
+      // Tests sign in many times on a clock that does not move; the limits have tests of their own.
+      rateLimits: {
+        login: { capacity: 1_000_000, refillPerSecond: 1 },
+        stepUpIp: { capacity: 1_000_000, refillPerSecond: 1 },
+        stepUpPrincipal: { capacity: 1_000_000, refillPerSecond: 1 },
+      },
       ...(o.idleSeconds !== undefined ? { idleSeconds: o.idleSeconds } : {}),
       ...(o.absoluteSeconds !== undefined ? { absoluteSeconds: o.absoluteSeconds } : {}),
       ...(o.stepUpMode !== undefined ? { stepUpMode: o.stepUpMode } : {}),

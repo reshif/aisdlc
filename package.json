@@ -20,7 +20,8 @@
     "test": "vitest run",
     "check": "node scripts/check-workspace-deps.mjs && npm run typecheck && npm run lint && npm run format:check && npm run test",
     "demo:ledger": "npm run build && node scripts/demo-ledger.mjs",
-    "smoke:compose": "bash platform/compose/smoke.sh"
+    "smoke:compose": "bash platform/compose/smoke.sh",
+    "e2e:compose": "bash platform/compose/e2e.sh"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

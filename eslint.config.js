@@ -24,6 +24,10 @@ export default tseslint.config(
         clearTimeout: 'readonly',
         fetch: 'readonly',
         AbortSignal: 'readonly',
+        // The browser test (platform/compose/e2e-portal.mjs) runs small functions inside the page.
+        document: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
       },
     },
   },

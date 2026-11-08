@@ -29,6 +29,8 @@ import { Lane } from '../values.js';
 import { ControlsReport } from './onboarding-cards.js';
 import {
   GatingProfile,
+  Project,
+  Repo,
   KillDelegation,
   ProjectSettings,
   RepoOwnerType,
@@ -712,6 +714,36 @@ export const S0Overview = z.strictObject({
   failures: z.record(OnboardingStepId, z.number().int().min(0)),
 });
 export type S0Overview = z.infer<typeof S0Overview>;
+
+/** The newest S0 record of a repo, as the portal's project list and detail show it. */
+export const S0Brief = z.strictObject({
+  s0_id: S0RecordId,
+  repo: RepoFullName,
+  status: OnboardingStatus,
+  requested_level: Level,
+  signable_level: Level,
+  /** `0.1 waiting: App not installed`, or `null`. */
+  waiting: z.string().nullable(),
+  updated_at: IsoDateTime,
+});
+export type S0Brief = z.infer<typeof S0Brief>;
+
+/** One row of the portal's project list (`GET /v1/projects`): the Project and its latest S0 record. */
+export const ProjectSummary = z.strictObject({
+  project: Project,
+  repos: z.array(Repo),
+  latest_s0: S0Brief.nullable(),
+});
+export type ProjectSummary = z.infer<typeof ProjectSummary>;
+
+/** The portal's project page (`GET /v1/projects/:id/overview`): the Project, its repos, every S0 record. */
+export const ProjectDetail = z.strictObject({
+  project: Project,
+  repos: z.array(Repo),
+  /** Newest first, with their steps. */
+  s0: z.array(S0Overview),
+});
+export type ProjectDetail = z.infer<typeof ProjectDetail>;
 
 /** The levels in order, lowest first: `census < light < full`. */
 export const levelRank = (l: Level): number => LevelValues.indexOf(l);

@@ -87,6 +87,7 @@ secrets:
   tok-witness-kms: { file: ./secrets/tok-witness-kms }
   tok-knowledge-kms: { file: ./secrets/tok-knowledge-kms }
   tok-bff-kms: { file: ./secrets/tok-bff-kms }
+  tok-bff-core: { file: ./secrets/tok-bff-core }
   tok-core-kms: { file: ./secrets/tok-core-kms }
   tok-core-worker-kms: { file: ./secrets/tok-core-worker-kms }
   tok-identity-kms: { file: ./secrets/tok-identity-kms }
@@ -361,7 +362,8 @@ services:
       CORE_CALLERS: >-
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
-        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard"]}}
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal"]}}
       CORE_NOTARY_URL: http://notary:8310
       CORE_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-notary
       KMS_URL: http://kms-local:8300
@@ -378,6 +380,7 @@ services:
         tok-codehost-core,
         tok-identity-core,
         tok-operator-core,
+        tok-bff-core,
         tok-core-notary,
         tok-core-kms,
         tok-core-knowledge,
@@ -548,13 +551,18 @@ services:
       BFF_OIDC_CLIENT_SECRET_REF: file:/run/secrets/bff-oidc-client-secret
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-bff-kms
+      # The portal's API calls: core with the bff's own token (scopes read, onboard, portal), and the
+      # web bundle the image carries, served same-origin with a strict CSP.
+      BFF_CORE_URL: http://core:8380
+      BFF_CORE_TOKEN_REF: file:/run/secrets/tok-bff-core
+      BFF_WEB_DIR: /app/services/web/dist
       # Plain http on localhost only; behind TLS this is true.
       BFF_COOKIE_SECURE: 'false'
       BFF_HOST: 0.0.0.0
       BFF_PORT: '8340'
     ports:
       - '127.0.0.1:8340:8340'
-    secrets: [db-url-aisdlc, bff-oidc-client-secret, tok-bff-kms]
+    secrets: [db-url-aisdlc, bff-oidc-client-secret, tok-bff-kms, tok-bff-core]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
       interval: 5s
@@ -566,6 +574,7 @@ services:
       seed: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
       dev-oidc: { condition: service_healthy }
+      core: { condition: service_healthy }
     networks: [edge, data-record, kms-clients]
     mem_limit: 256m
 

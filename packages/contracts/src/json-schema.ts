@@ -397,6 +397,7 @@ export const SCHEMAS = {
   CardDecideRequest: entities.CardDecideRequest,
   CardRecheckRequest: entities.CardRecheckRequest,
   OnboardingCardSummary: entities.OnboardingCardSummary,
+  PortalCardSummary: entities.PortalCardSummary,
   S0FailureModel: entities.S0FailureModel,
   S0StepTimebox: entities.S0StepTimebox,
   S0TimeBoxes: entities.S0TimeBoxes,
@@ -404,6 +405,9 @@ export const SCHEMAS = {
   ProjectSettingsDoc: entities.ProjectSettingsDoc,
   ProjectSettingsWire: entities.ProjectSettingsWire,
   S0Overview: entities.S0Overview,
+  S0Brief: entities.S0Brief,
+  ProjectSummary: entities.ProjectSummary,
+  ProjectDetail: entities.ProjectDetail,
 } as const satisfies Record<string, z.ZodType>;
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';

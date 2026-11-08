@@ -26351,6 +26351,110 @@
       ],
       "additionalProperties": false
     },
+    "PortalCardSummary": {
+      "type": "object",
+      "properties": {
+        "card_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "card": {
+          "type": "string",
+          "enum": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "SECR",
+            "BATCH",
+            "X2"
+          ]
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "decided",
+            "sent_back",
+            "rejected",
+            "withdrawn",
+            "expired",
+            "superseded"
+          ]
+        },
+        "slot": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "requesters",
+            "intent",
+            "design",
+            "g4",
+            "g5",
+            "x",
+            "sec",
+            "m4",
+            "kill"
+          ]
+        },
+        "opened_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "payload_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actionable": {
+          "type": "boolean"
+        },
+        "may_decide": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "card_id",
+        "s0_id",
+        "project_id",
+        "card",
+        "step",
+        "status",
+        "slot",
+        "opened_at",
+        "payload_hash",
+        "actionable",
+        "may_decide"
+      ],
+      "additionalProperties": false
+    },
     "PostureReason": {
       "oneOf": [
         {
@@ -27161,6 +27265,542 @@
         "s0_id",
         "attestations",
         "by"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectDetail": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "team_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "internal",
+                "confidential"
+              ]
+            },
+            "stack": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "deploys": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "tier": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "T0",
+                    "T1",
+                    "T2"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "level": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "owner": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "project_id",
+            "name",
+            "team_id",
+            "classification",
+            "stack",
+            "deploys",
+            "tier",
+            "level",
+            "owner",
+            "version",
+            "updated_at"
+          ],
+          "additionalProperties": false
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.-]+$"
+              },
+              "repo_ref": {
+                "type": "string",
+                "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+              },
+              "project_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "host": {
+                "type": "string",
+                "minLength": 1
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visibility": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "private",
+                      "internal"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "owner_type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "org"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "plan": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "default_branch": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stack": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "onboarding_level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "none"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "census",
+                      "light",
+                      "full"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "repo_id",
+              "repo_ref",
+              "project_id",
+              "host",
+              "owner",
+              "name",
+              "visibility",
+              "owner_type",
+              "plan",
+              "default_branch",
+              "stack",
+              "onboarding_level"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "s0": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "record": {
+                "type": "object",
+                "properties": {
+                  "s0_id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                  },
+                  "repo_id": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.-]+$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "app",
+                      "running",
+                      "card",
+                      "blocked",
+                      "starter",
+                      "parked",
+                      "done",
+                      "rejected",
+                      "superseded",
+                      "withdrawn"
+                    ]
+                  },
+                  "requested_level": {
+                    "type": "string",
+                    "enum": [
+                      "census",
+                      "light",
+                      "full"
+                    ]
+                  },
+                  "signable_level": {
+                    "type": "string",
+                    "enum": [
+                      "census",
+                      "light",
+                      "full"
+                    ]
+                  },
+                  "intake_ref": {
+                    "type": "string",
+                    "pattern": "^record:\\S+$"
+                  },
+                  "rejected_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "0.1",
+                          "0.2",
+                          "0.3",
+                          "0.4",
+                          "0.5"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "readiness_version": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "catalogue_ref": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      },
+                      "hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "hash"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "updated_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": [
+                  "s0_id",
+                  "project_id",
+                  "repo_id",
+                  "status",
+                  "requested_level",
+                  "signable_level",
+                  "intake_ref",
+                  "rejected_at",
+                  "readiness_version",
+                  "catalogue_ref",
+                  "version",
+                  "created_at",
+                  "updated_at"
+                ],
+                "additionalProperties": false
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "s0_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "step": {
+                      "type": "string",
+                      "enum": [
+                        "0.1",
+                        "0.2",
+                        "0.3",
+                        "0.4",
+                        "0.5"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "todo",
+                        "running",
+                        "card",
+                        "blocked",
+                        "done",
+                        "skip"
+                      ]
+                    },
+                    "blocked_cause": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "started_at": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "finished_at": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "s0_id",
+                    "step",
+                    "state",
+                    "blocked_cause",
+                    "started_at",
+                    "finished_at"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "waiting": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "send_backs": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "enum": [
+                    "0.1",
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5"
+                  ]
+                },
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "required": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5"
+                ]
+              },
+              "failures": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "enum": [
+                    "0.1",
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5"
+                  ]
+                },
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "required": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5"
+                ]
+              }
+            },
+            "required": [
+              "record",
+              "steps",
+              "waiting",
+              "send_backs",
+              "failures"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "project",
+        "repos",
+        "s0"
       ],
       "additionalProperties": false
     },
@@ -29845,6 +30485,333 @@
         "tier",
         "level",
         "by"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectSummary": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "team_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "internal",
+                "confidential"
+              ]
+            },
+            "stack": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "deploys": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "tier": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "T0",
+                    "T1",
+                    "T2"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "level": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "owner": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "project_id",
+            "name",
+            "team_id",
+            "classification",
+            "stack",
+            "deploys",
+            "tier",
+            "level",
+            "owner",
+            "version",
+            "updated_at"
+          ],
+          "additionalProperties": false
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.-]+$"
+              },
+              "repo_ref": {
+                "type": "string",
+                "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+              },
+              "project_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "host": {
+                "type": "string",
+                "minLength": 1
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visibility": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "private",
+                      "internal"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "owner_type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "org"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "plan": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "default_branch": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stack": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "onboarding_level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "none"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "census",
+                      "light",
+                      "full"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "repo_id",
+              "repo_ref",
+              "project_id",
+              "host",
+              "owner",
+              "name",
+              "visibility",
+              "owner_type",
+              "plan",
+              "default_branch",
+              "stack",
+              "onboarding_level"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "latest_s0": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "s0_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "repo": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "app",
+                    "running",
+                    "card",
+                    "blocked",
+                    "starter",
+                    "parked",
+                    "done",
+                    "rejected",
+                    "superseded",
+                    "withdrawn"
+                  ]
+                },
+                "requested_level": {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                },
+                "signable_level": {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                },
+                "waiting": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "s0_id",
+                "repo",
+                "status",
+                "requested_level",
+                "signable_level",
+                "waiting",
+                "updated_at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "project",
+        "repos",
+        "latest_s0"
       ],
       "additionalProperties": false
     },
@@ -33893,6 +34860,72 @@
         "cards",
         "basis",
         "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "S0Brief": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "app",
+            "running",
+            "card",
+            "blocked",
+            "starter",
+            "parked",
+            "done",
+            "rejected",
+            "superseded",
+            "withdrawn"
+          ]
+        },
+        "requested_level": {
+          "type": "string",
+          "enum": [
+            "census",
+            "light",
+            "full"
+          ]
+        },
+        "signable_level": {
+          "type": "string",
+          "enum": [
+            "census",
+            "light",
+            "full"
+          ]
+        },
+        "waiting": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "repo",
+        "status",
+        "requested_level",
+        "signable_level",
+        "waiting",
+        "updated_at"
       ],
       "additionalProperties": false
     },

@@ -165,9 +165,21 @@ SMOKE_SKIP_BUILD=1 npm run smoke:compose      # or: docker compose up -d --wait 
 | Network separation            | Docker networks (reach, not packet filtering)                                                                                       | accounts, VPCs, security groups                                |
 | Secrets                       | files in `secrets/`, bind-mounted                                                                                                   | Secrets Manager                                                |
 | Core and core-worker          | two containers                                                                                                                      | ECS services, same images                                      |
-| Not here yet                  | web, killswitch, gate-check, gate-relay, sandbox pieces, audit services, gateway                                                    | later milestones                                               |
+| Not here yet                  | killswitch, gate-check, gate-relay, sandbox pieces, audit services, gateway                                                         | later milestones                                               |
 
-Not done yet and visible here: the bff has no route that takes a gate decision or calls core
-(M8.1 and M8.3), so the "bootstrap eligibility wrapper in the bff" of the M8.0 row has nothing to
-wrap; decisions are taken in core, where the bootstrap decider is on. The Witness has no caller until
-the checkpointer loop exists.
+## The portal (M8.1, M8.2)
+
+The bff serves the web bundle (`services/web`, built inside the image to `/app/services/web/dist`,
+`BFF_WEB_DIR`) on its own origin with `default-src 'self'` and `frame-ancestors 'none'`, and is the
+only API the browser calls: `/api/projects`, `/api/onboard`, `/api/s0/...`, `/api/cards/...`. Each
+route asks the PDP for the signed-in principal, then calls core (`BFF_CORE_URL`) with the bff's own
+token (`tok-bff-core`, scopes `read`, `onboard`, `portal`); core gets the principal as `on_behalf_of`
+from the session, never a browser cookie or token, and asks the PDP again for every write.
+`/auth/login` and the step-up start are rate limited (token buckets, 429 with `Retry-After`).
+`npm run e2e:compose` (`e2e.sh`) signs alice in through the dev IdP in Chromium, requests the
+onboarding of the fixture repo and waits on the S0 page for step 0.1 `card` with card C1.
+
+Not done yet and visible here: the "bootstrap eligibility wrapper in the bff" of the M8.0 row is not
+in the bff. The bff takes no gate decision itself (its pre-check is the PDP's `card.decide`), and the
+only code that asks "who holds this slot" is the card layer in core, where the bootstrap decider is
+on (card detail shows its `deciders`). The Witness has no caller until the checkpointer loop exists.

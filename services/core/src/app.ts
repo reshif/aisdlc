@@ -28,7 +28,9 @@ import { CORE_STATUS, coreError, type CoreError } from './errors.js';
 import { laneEligibility } from './lane-eligibility.js';
 import {
   getProject,
+  getProjectDetail,
   getS0Overview,
+  listProjects,
   listS0ForRepo,
   overviewOf,
   registeredRepos,
@@ -39,6 +41,7 @@ import { readS0 } from './journal.js';
 import {
   cardDetail,
   cardHeader,
+  cardSummary,
   decideOnboardingCard,
   listCards,
   prepareOnboardingCard,
@@ -51,9 +54,11 @@ import {
 /**
  * What a caller may do: `read` the model, `onboard` (the BFF, for a signed-in human: the PDP decides
  * about that human), `settings` (propose a settings revision, the BFF likewise), `registry` (the
- * codehost's allow-list reads the repos that have an S0 record).
+ * codehost's allow-list reads the repos that have an S0 record), `portal` (the BFF's fleet-wide
+ * listings for the portal: every project, a project with all of its records; the BFF filters them
+ * by the PDP for the signed-in human, so no other caller has a reason to hold this scope).
  */
-export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry';
+export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry' | 'portal';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -131,6 +136,31 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   };
 
   // ------------------------------------------------------------ reads
+
+  app.get('/v1/projects', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    try {
+      return await listProjects(o.pool);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the projects could not be read'));
+    }
+  });
+
+  app.get('/v1/projects/:id/overview', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    const id = projectIdOf(req);
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    try {
+      return (
+        (await getProjectDetail(o.pool, id)) ??
+        fail(reply, coreError('not_found', 'no such project'))
+      );
+    } catch {
+      return fail(reply, coreError('unavailable', 'the project could not be read'));
+    }
+  });
 
   app.get('/v1/projects/:id', async (req, reply) => {
     if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
@@ -329,6 +359,16 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     const id = uuidParam(req, reply, 'id');
     if (!cards || !id) return;
     const r = await syncCards(cards, id);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  /** A card's header (its project, S0 record, status and who decides it), without building its view. */
+  app.get('/v1/cards/:cardId/summary', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const cards = cardsOr(reply);
+    const id = uuidParam(req, reply, 'cardId');
+    if (!cards || !id) return;
+    const r = await cardSummary(cards, id);
     return r.ok ? r.value : fail(reply, r.error);
   });
 
