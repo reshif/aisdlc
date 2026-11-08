@@ -1,6 +1,6 @@
 # ADR-0001: TypeScript end to end, Postgres-native jobs, no Temporal at first
 
-Status: accepted, 2026-11-08.
+Status: accepted, 2026-11-08. The user confirmed dropping Temporal the same day (decision D-T).
 
 ## Context
 
@@ -27,3 +27,7 @@ The domain model's gap list (§8) and the runtime review show what that cost:
 - Repository analysis that the earlier code did in Python (detectors, CODEOWNERS parse, secret scan) is written in TypeScript. Third-party scanners (gitleaks rules, zizmor, OSV-Scanner, Semgrep) are separate binaries that run in sandbox class K anyway, so their language does not matter.
 - The process count drops: one core API, one core worker, no Temporal server, UI or database.
 - The trust boundaries in the review §2 are unchanged: the Notary, Witness, kms-local, kill switch, gate plane, codehost, gateway and the sandbox drivers remain separate processes.
+
+## Departure from the runtime review
+
+RV §2 keeps Temporal and a separate `postgres-temporal` as boundaries, and RV §10 items 4 and 9 say not to merge or remove them. Those rules protect two things: dropping execution state never loses a decision (AR1), and the "drop it and rebuild from the record" drill. This build keeps both properties without Temporal. Execution state (worker jobs, timers, projections) is disposable and lives in its own Postgres schema, and M9.2 has a drill test: stop the worker mid-flight, wipe all execution state, refold from the record, and every item resumes unchanged. What is lost is layout parity with an AWS deployment that runs Temporal on ECS; if the cloud target needs Temporal later, the `WorkflowPort` is where it plugs in.

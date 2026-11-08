@@ -37,7 +37,7 @@ TypeScript end to end, on Node 22, in one npm-workspaces monorepo. The reasoning
 | Database | PostgreSQL 16. The record, read models and config share one database with a Postgres schema per bounded context. **Key holders and AR9 services get their own database and role**: notary, witness, kms-local, killswitch, gate-check, gate-relay. None has a route to core's write APIs |
 | API | Fastify, behind the `bff` |
 | Jobs and loops | graphile-worker (Postgres-native queue, cron tasks, jobs enqueued in the same transaction as the record write). It plays the role RV §2.2 gave Procrastinate. One `core-worker` process with per-loop supervision |
-| Lifecycle engine | **Pending decision D-T (§7).** Default: a deterministic interpreter over the item's event stream, driven by the catalogue, with timers as worker jobs and a `WorkflowPort` so Temporal can be added later. Alternative: Temporal (TypeScript SDK) with its own Postgres, as RV §2 and §10 keep it |
+| Lifecycle engine | **D-T decided 2026-11-08: no Temporal.** A deterministic interpreter over the item's event stream, driven by the catalogue, with timers as worker jobs. A `WorkflowPort` keeps Temporal possible later. This departs from RV §2 and §10 items 4 and 9; see ADR-0001 |
 | Policy | Cedar (`@cedar-policy/cedar-wasm`), embedded in-process at every enforcement point (AR2) |
 | Signing | ES256 through a `KeyCustodyPort`: `kms-local` locally, AWS KMS in the cloud. The Notary is the only signer; the Witness co-signs checkpoints with its own key |
 | Agents | Claude Agent SDK (TypeScript) inside the sandbox. Every model call goes through the `gateway` (AR5, AR7) |
@@ -53,12 +53,14 @@ packages/
   db/          pg + Drizzle, migrations, test database helper
   contracts/   Zod schemas, enums, events, JSON Schema export
   catalogue/   versioned catalogue data: lanes, stages, gates, back-edges, ET triggers, terminals, criteria
-  record/      record_event, ledger_entry, outbox, chain verification, rebuild harness
+  record/      record_event, outbox, chain verification, rebuild harness
+  ledger/      ledger_entry and checkpoint tables (scope `ledger`), writer (reserve, sign, insert, confirm), reconciler, checkpoint loop, offline verifier and `aisdlc verify-ledger`
   decisions/   gate kernel: GateInstance, votes, quorum, SoD, nonces, step-up binding
   pdp/         Cedar schema, policies, embedded evaluator
-  ports/       port interfaces plus deterministic fakes
+  ports/       port interfaces plus deterministic fakes (KeyCustody, Notary, Witness so far)
+  service-kit/ bearer service tokens, Fastify helpers, JSON client for the services
   secrets-rules/ the one shared secret ruleset (onboarding, push broker, S7 7.4)
-services/      one directory per deployable service, added when its milestone starts
+services/      one directory per deployable service, added when its milestone starts (kms-local, notary, witness so far)
 docs/          PLAN.md, adr/, specs/
 platform/      compose files, deploy script
 ```
@@ -98,6 +100,7 @@ Spikes from OB §10.1 become tests or demos where they still apply to a rebuild;
 | M2.3 | `services/notary`: the only signer; two-phase sign of ledger entries (reserve, sign, commit), own database; reconciler loop that re-imports signed-but-uncommitted entries | Entry verifies offline with the public key and chain; crash between sign and commit recovers |
 | M2.4 | `services/witness` and the checkpoint loop: signed tree head every 5 min (injectable clock), co-signed with the Witness's own key and database | `aisdlc verify-ledger` checks chain, signatures and checkpoints offline |
 | M2.5 | Rebuild harness: drop and refold any projection; shared test asserts rebuilt = live | Used by every later projection |
+| M2.6 | Runnable services: a build step that makes each service start with plain `node` (bundle per service), `start` scripts, config from env/file references | **M2 exit demo:** kms-local, notary and witness start as separate processes; a script writes ledger entries, runs a checkpoint, and `aisdlc verify-ledger` passes against the real processes |
 
 ### M3 — Decision kernel, inbox and config publishing
 
@@ -105,7 +108,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
-| M3.1 | `decisions`: GateInstance lifecycle (pending, decided, superseded, expired, closed); subject = item id **or** S0 record id (fix #32); subject hash; facts; TTL sweep that only expires | A sweep never decides; a decided instance is never changed |
+| M3.1 | `decisions`: GateInstance lifecycle (pending, decided, superseded, expired, closed); subject = item id **or** S0 record id (fix #32); subject hash; facts; TTL sweep that only expires. **Gate status is a projection of ledger decisions**: a Notary-signed entry survives a rolled-back caller transaction (M2.3), so nothing may read a decision from anywhere but the ledger, and the ledger entry is written last in its transaction | A sweep never decides; a decided instance is never changed; a decision whose caller transaction rolled back still shows as decided after reconcile |
 | M3.2 | Votes and quorum; SoD rules; two-person rules per project; `sod_waiver` stamped only when the role has one person or two-person is off, never for T2; decisions `approve reject request_changes supersede expire withdraw` | Table-driven tests per gate kind; a T2 single-person M4 is refused |
 | M3.3 | PreparedDecision with a server nonce and evidence-viewed check; step-up binding to a hash (`subject_hash`, `text_sha256`) for D37 uses; the decision writes one ledger entry through the Notary | Replayed nonce refused; decision without evidence viewed refused |
 | M3.4 | Inbox: `Card` read model (one card can carry several ledgered decisions, e.g. 0.5 + M4), list payloads (per-gap disposition, per-claim affirm), SOLO consolidation rules (FL PROFILES), SLA timer B21 escalating to a backup approver, never auto-approving | SP-PROC-2 equivalent: a 50-row payload decides and hashes into one entry |
@@ -128,7 +131,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | M5.1 | One `CodeHostPort` (list_repos, installation, read_at_sha, bundle, rules_for_branch, codeowners_errors, collaborators, apply_patch, pr_status) with the forbidden verbs (merge, enqueue, approve, auto_merge, force, delete, dismiss, admin); a fake GitHub with a request log | Contract suite runs against the fake and, when enabled, the real App |
 | M5.2 | `services/codehost` GitHub App adapter: token broker with forbidden permissions; request allow-list (`GET /rules/branches/{b}` and `/codeowners/errors` allowed, `GET /rulesets` refused); repo allow-list = installation repos ∩ repos with an S0 record (P-MUST-3); B4a/B4b/B4c from installation permissions | Fake-GitHub log shows GETs only for a Census run; B4a fixture blocks M4 |
 | M5.3 | Credential-free `git bundle` of all refs, or `refs_covered: default_only` recorded; 256 MiB cap; head = `X-Base-Sha`; size and time measured (SP-PROC-4) | No credential string in any artefact (grep test); timings logged |
-| M5.4 | Poll loops in core-worker (no webhooks): default-branch head and installation every 10 min; effective rules hourly with work in flight, else nightly; one inbound-facts inbox; registry reload path | Idempotent on repeat; latency equals the poll interval |
+| M5.4 | Poll loops in core-worker (no webhooks): default-branch head and installation every 10 min; effective rules hourly with work in flight, else nightly; one inbound-facts inbox; registry reload path. Outbox delivery gets a max-attempts limit with backoff and a dead-letter state surfaced as a health alert (follow-up from M2.1, RV §3.1 poison row) | Idempotent on repeat; latency equals the poll interval; a permanently failing message is dead-lettered and does not delay the others |
 | M5.5 | Live read-only check of the testbed App: `rules/branches` returns required checks with `integration_id`; bypass actors not visible (SP-FID-2) | Recorded output; feeds the H-attestation on card 4 |
 
 ### M6 — Knowledge: census, security blockers (OB R0 fixes, R1a)
@@ -167,7 +170,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | Task | Deliverable | Acceptance |
 |---|---|---|
 | M9.1 | Requests and WorkItems; S1 1.1–1.6 deterministic parts (normalise, taint-mark, de-dupe, eligibility 1.4); untrusted-input boundary with B27; Question entity; SpawnLink for "new linked item" edges | Injection-like text is fenced and flagged on the G0 card |
-| M9.2 | Interpreter: lane profile bound at G0, gates from the project's gating profile, stage ports (`PlanningPort`, `CodingPort`, `VerifyPort`, `ReleasePort`) with deterministic fakes; replay determinism | Every FL edge has a test against the fake stages |
+| M9.2 | Interpreter: lane profile bound at G0, gates from the project's gating profile, stage ports (`PlanningPort`, `CodingPort`, `VerifyPort`, `ReleasePort`) with deterministic fakes; replay determinism | Every FL edge has a test against the fake stages; the rebuild drill that replaces Temporal's: kill core-worker mid-flight, wipe all execution state (jobs, timers, projections), refold from the record, and every item resumes in the same state |
 | M9.3 | Holds and terminals: HELD H1–H3 and WIP, N8, PARK (5 bd), BLOCKED (→ L2 remediation item), DECLINED (B22), ABANDONED with cause codes, RELHOLD (B26), prior-phase resume; MM-2 maintenance (timers frozen, decisions disabled, drafts kept) | Test per terminal and hold |
 | M9.4 | Back-edges B1–B28 with limits; per-item rework budget (B28 → E4); Handoff (one id) D1–D3 → E4 with its five choices, E3/E5 extension ≤ +50%, D4 hand-back and D5 complete; Assumption (one shape) | Scenario test per back-edge and E4 choice |
 | M9.5 | Re-laning: R1 upshift (insert first missing stage), R2 downshift needs E1 and re-runs G0, R3 circuit breaker ET14 per project × lane, R4 hotfix follow-up blocking new agent items after 5 bd overdue | Scenario tests |
@@ -255,14 +258,14 @@ Pre-push full-history scan, squashed push, multi-repo allow-list, Census + 0.4 +
 
 | Group | Containers |
 |---|---|
-| Data | postgres (record, read models, config, queue), plus separate databases on the same server for notary, witness, kms-local, killswitch, gate-check, gate-relay; temporal and its postgres only if D-T picks Temporal |
+| Data | postgres (record, read models, config, queue), plus separate databases on the same server for notary, witness, kms-local, killswitch, gate-check, gate-relay |
 | Edge and identity | web, bff, oidc (dev IdP), identity |
 | Core | core, core-worker |
 | Trust plane | kms-local, notary, witness, killswitch, sandbox-origin, audit-exporter, audit-backend |
 | Code and gate plane | codehost, gate-check, gate-relay, cvw, docker-proxy-cvw, docker-proxy-coding, package-mirror |
 | Agents and models | workflow, coding-worker, gateway, knowledge |
 
-That is 25 containers without Temporal (27 with), against RV §8.2's 26: no minio (a WORM stand-in comes with audit-exporter only when exports exist), no temporal-ui, one extra socket proxy, Temporal per D-T. core-worker exposes one aggregated `/healthz` (503 while any loop is down or an access-sync alert is active), the access-sync lag metric, loop-prefixed logs, and per-loop supervision so a poison row in one loop cannot stall the others (RV §3.1).
+That is 25 containers, against RV §8.2's 26: no temporal, postgres-temporal or temporal-ui (D-T), no minio until audit exports exist, one extra socket proxy. core-worker exposes one aggregated `/healthz` (503 while any loop is down or an access-sync alert is active), the access-sync lag metric, loop-prefixed logs, and per-loop supervision so a poison row in one loop cannot stall the others (RV §3.1).
 
 ## 6. How the build runs
 
@@ -277,7 +280,6 @@ Decided already: DEC-27..30 (OB §12.6). For the OB "decide now" set (DEC-1..9, 
 
 | When | Decision |
 |---|---|
-| **Before M9** | **D-T: Temporal or not.** RV §2 and §10 keep Temporal and its separate database. The default here drops it (ADR-0001), which loses the "drop and rebuild Temporal" drill and Aurora layout parity but removes 2–3 containers and a second state machine. Either way the record stays authoritative |
 | Before M4 | DM §9 Q1: is a Team owned by the factory, or a label imported from the IdP? Q2: does the wizard edit the ten-slot role map (default) or bindings directly? |
 | M5 | DEC-7: remove `statuses:write` from the GitHub App (on GitHub) |
 | M8.5 | DEC-4 attestation for the testbed ("no prod, no real data, no dependants") |

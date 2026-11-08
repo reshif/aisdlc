@@ -11,7 +11,8 @@ npm run typecheck      # tsc --noEmit in every workspace
 npm run lint           # ESLint flat config, typescript-eslint
 npm run format         # Prettier write (format:check to verify)
 npm test               # Vitest (all projects); starts a throwaway Postgres unless DATABASE_URL is set
-npm run build          # tsc emit to dist/ in every workspace
+npm run build          # tsc emit (libraries) and esbuild bundles: dist/main.js per service, dist/verify-ledger.js
+npm run demo:ledger    # M2 exit demo: real services as processes, ledger, checkpoint, verify, tamper
 npx vitest run --project kernel   # one package
 ```
 
@@ -23,7 +24,10 @@ Tests use a real Postgres through `@aisdlc/db/testing` (`withTestDatabase`). Nev
 packages/
   kernel/   canonical JSON (RFC 8785), sha256, UUID v7 ids, Result, tagged errors, Clock
   db/       pg + Drizzle, SQL migration runner, test database helper
-services/   one directory per deployable service, added when its milestone starts
+  record/   record_event, outbox, projections
+  ledger/   ledger_entry, checkpoints, writer, reconciler, verify-ledger CLI
+  ports/    port interfaces and fakes (key custody, Notary, Witness)
+services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness)
 docs/       PLAN.md, adr/, specs/
 ```
 

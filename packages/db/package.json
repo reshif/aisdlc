@@ -11,6 +11,10 @@
     "./testing": {
       "types": "./src/testing.ts",
       "default": "./src/testing.ts"
+    },
+    "./global-setup": {
+      "types": "./src/global-setup.ts",
+      "default": "./src/global-setup.ts"
     }
   },
   "scripts": {

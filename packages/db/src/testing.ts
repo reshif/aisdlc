@@ -57,6 +57,18 @@ export async function createTestDatabase(): Promise<TestDatabase> {
       await pool.end();
       const p = createPool(admin, 1);
       try {
+        // pool.end() returns before the server has seen every Terminate message. Dropping with
+        // FORCE in that window kills a half-closed connection, and node-pg then raises an
+        // unhandled 'error' on it. Wait for the backends to leave first.
+        const deadline = Date.now() + 5_000;
+        while (Date.now() < deadline) {
+          const left = await p.query(
+            'SELECT 1 FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
+            [name],
+          );
+          if (left.rowCount === 0) break;
+          await new Promise((r) => setTimeout(r, 10));
+        }
         await p.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
       } finally {
         await p.end();

@@ -4,3 +4,4 @@ coverage
 .cache
 package-lock.json
 docs
+packages/contracts/generated
