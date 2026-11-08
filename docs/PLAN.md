@@ -102,6 +102,7 @@ Spikes from OB §10.1 become tests or demos where they still apply to a rebuild;
 | M2.4 | `services/witness` and the checkpoint loop: signed tree head every 5 min (injectable clock), co-signed with the Witness's own key and database | `aisdlc verify-ledger` checks chain, signatures and checkpoints offline |
 | M2.5 | Rebuild harness: drop and refold any projection; shared test asserts rebuilt = live | Used by every later projection |
 | M2.6 | Runnable services: a build step that makes each service start with plain `node` (bundle per service), `start` scripts, config from env/file references | **M2 exit demo:** kms-local, notary and witness start as separate processes; a script writes ledger entries, runs a checkpoint, and `aisdlc verify-ledger` passes against the real processes |
+| M2.7 | Migration runner for bundles: a `migrate` entrypoint (or core's) that applies record, ledger and each service's schemas in order, since a bundled service can only find its own `migrations/` (follow-up from M4.1); wired into the M8 local-prod compose | Fresh database: one command migrates everything; services start without manual steps |
 
 ### M3 — Decision kernel, inbox and config publishing
 
@@ -130,7 +131,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | Task | Deliverable | Acceptance |
 |---|---|---|
 | M5.1 | One `CodeHostPort` (list_repos, installation, read_at_sha, bundle, rules_for_branch, codeowners_errors, collaborators, apply_patch, pr_status) with the forbidden verbs (merge, enqueue, approve, auto_merge, force, delete, dismiss, admin); a fake GitHub with a request log | Contract suite runs against the fake and, when enabled, the real App |
-| M5.2 | `services/codehost` GitHub App adapter: token broker with forbidden permissions; request allow-list (`GET /rules/branches/{b}` and `/codeowners/errors` allowed, `GET /rulesets` refused); repo allow-list = installation repos ∩ repos with an S0 record (P-MUST-3); B4a/B4b/B4c from installation permissions | Fake-GitHub log shows GETs only for a Census run; B4a fixture blocks M4 |
+| M5.2 | `services/codehost` GitHub App adapter (also feeds CODEOWNERS owners into the generated `g4` slot group, which has no holders until then — follow-up from M4.4): token broker with forbidden permissions; request allow-list (`GET /rules/branches/{b}` and `/codeowners/errors` allowed, `GET /rulesets` refused); repo allow-list = installation repos ∩ repos with an S0 record (P-MUST-3); B4a/B4b/B4c from installation permissions | Fake-GitHub log shows GETs only for a Census run; B4a fixture blocks M4 |
 | M5.3 | Credential-free `git bundle` of all refs, or `refs_covered: default_only` recorded; 256 MiB cap; head = `X-Base-Sha`; size and time measured (SP-PROC-4) | No credential string in any artefact (grep test); timings logged |
 | M5.4 | Poll loops in core-worker (no webhooks): default-branch head and installation every 10 min; effective rules hourly with work in flight, else nightly; one inbound-facts inbox; registry reload path. Outbox delivery gets a max-attempts limit with backoff and a dead-letter state surfaced as a health alert (follow-up from M2.1, RV §3.1 poison row) | Idempotent on repeat; latency equals the poll interval; a permanently failing message is dead-lettered and does not delay the others |
 | M5.5 | Live read-only check of the testbed App: `rules/branches` returns required checks with `integration_id`; bypass actors not visible (SP-FID-2) | Recorded output; feeds the H-attestation on card 4 |
@@ -149,7 +150,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
-| M7.1 | Project and Repo aggregates; `project.onboard` request as `s0_ref = record:<intake event>` (DEC-2); S0Record state machine incl. `starter` for a blank repo | Rebuild test; illegal transitions refused |
+| M7.1 | Project and Repo aggregates; a `ProjectSettingsPort` adapter replacing identity's fixture; publishing a project's role map through `config_publish` triggers identity `reconcileProject` (follow-up from M4.4); `project.onboard` request as `s0_ref = record:<intake event>` (DEC-2); S0Record state machine incl. `starter` for a blank repo | Rebuild test; illegal transitions refused |
 | M7.2 | Step driver 0.1–0.5 (DEC-3), failure model DEC-9 (one send-back, PARK at 5 business days, BLOCKED after 3 retries with a cause code, sign below requested); a business-day calendar | Each failure edge has a named scenario test with a manual clock |
 | M7.3 | Cards 1, 4, 5 and the security card; card 4 proposes the role map from CODEOWNERS and collaborators, takes the H-attestations (bypass list, App scope, read-only `GITHUB_TOKEN`, secret scanning) and the gating profile; reduced 0.4 at Census | Card decisions ledgered with payload hashes |
 | M7.4 | PRR builder: level per area, tier raise-only with positive T0 attestation (DEC-4), pillars (composite = min), autonomy = min(tier, level, readiness, posture, probation A1 ≥4 weeks, earned), `writes: none` lets a read-only Census sign without B3, `fresh_until` 90 d, `review_by` | Golden test per cap |
@@ -160,7 +161,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
-| M8.1 | `services/web` shell through the bff; project list and detail | Playwright smoke test |
+| M8.1 | `services/web` shell through the bff; project list and detail; login rate limiting on `/auth/login` and the step-up start route (follow-up from M4.5) | Playwright smoke test |
 | M8.2 | Onboarding wizard: request, App status ("0.1 waiting: App not installed"), step progress | Wizard reads one Project and one S0Record |
 | M8.3 | Inbox and Decide for cards 1, 4, 5 and security, with step-up | Deciding in the browser writes a verifiable ledger entry |
 | M8.4 | PRR view; ledger audit view | Each decision links to its ledger entry |
@@ -281,7 +282,7 @@ Decided already: DEC-27..30 (OB §12.6). For the OB "decide now" set (DEC-1..9, 
 
 | When | Decision |
 |---|---|
-| Before M4 | DM §9 Q1: is a Team owned by the factory, or a label imported from the IdP? Q2: does the wizard edit the ten-slot role map (default) or bindings directly? |
+| Defaulted at M4 (2026-11-08, user did not object; change by config later) | DM §9 Q1: a Team is owned by the factory, with an optional mapping to an IdP group. Q2: the wizard edits the ten-slot role map and bindings are generated from it. B21: a backup approver is notified only and gains no decision right |
 | M5 | DEC-7: remove `statuses:write` from the GitHub App (on GitHub) |
 | M8.5 | DEC-4 attestation for the testbed ("no prod, no real data, no dependants") |
 | M10 | DM §9 Q4: one Integration registry for code hosts and model providers (default) or two. RV §11 Q1: is Codex a model route in the gateway or a harness in the sandbox? |

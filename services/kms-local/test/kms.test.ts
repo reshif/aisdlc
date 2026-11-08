@@ -151,7 +151,7 @@ describe('key files', () => {
       const first = loadOrCreateKeys(dir);
       expect(statSync(dir).mode & 0o777).toBe(0o700);
       const files = readdirSync(dir);
-      expect(files).toHaveLength(3);
+      expect(files).toHaveLength(4);
       for (const f of files) expect(statSync(join(dir, f)).mode & 0o777).toBe(0o600);
 
       const second = loadOrCreateKeys(dir);

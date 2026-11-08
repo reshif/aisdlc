@@ -96,8 +96,20 @@ describe('identity', () => {
     expect(SodRule.parse(r)).toEqual(r);
     expect(SodRule.safeParse({ ...r, role_b: 'requester' }).success).toBe(false);
     expect(SodRule.safeParse({ ...r, kind: 'other' }).success).toBe(false);
-    const t = { team_id: 'platform', name: 'Platform', classification: 'internal' };
+    const t = {
+      team_id: 'platform',
+      name: 'Platform',
+      classification: 'internal',
+      idp_group: null,
+    };
     expect(Team.parse(t)).toEqual(t);
+    expect(Team.parse({ ...t, idp_group: 'g-platform' })).toEqual({
+      ...t,
+      idp_group: 'g-platform',
+    });
+    expect(
+      Team.safeParse({ team_id: t.team_id, name: t.name, classification: 'internal' }).success,
+    ).toBe(false);
     expect(Team.safeParse({ ...t, classification: 'secret' }).success).toBe(false);
   });
 });

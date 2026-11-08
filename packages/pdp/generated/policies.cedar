@@ -1,0 +1,281 @@
+@id("role/factory.admin/access.explain")
+permit (principal in Role::"factory.admin", action == Action::"access.explain", resource);
+
+@id("role/factory.admin/audit.read")
+permit (principal in Role::"factory.admin", action == Action::"audit.read", resource);
+
+@id("role/factory.admin/config.propose")
+permit (principal in Role::"factory.admin", action == Action::"config.propose", resource);
+
+@id("role/factory.admin/floor.read")
+permit (principal in Role::"factory.admin", action == Action::"floor.read", resource);
+
+@id("role/factory.admin/gate.view")
+permit (principal in Role::"factory.admin", action == Action::"gate.view", resource);
+
+@id("role/factory.admin/item.view_floor")
+permit (principal in Role::"factory.admin", action == Action::"item.view_floor", resource);
+
+@id("role/factory.admin/kill.release")
+permit (principal in Role::"factory.admin", action == Action::"kill.release", resource);
+
+@id("role/factory.admin/kill.request")
+permit (principal in Role::"factory.admin", action == Action::"kill.request", resource);
+
+@id("role/factory.admin/project.onboard")
+permit (principal in Role::"factory.admin", action == Action::"project.onboard", resource);
+
+@id("role/factory.admin/project.settings.edit")
+permit (principal in Role::"factory.admin", action == Action::"project.settings.edit", resource);
+
+@id("role/factory.admin/project.view")
+permit (principal in Role::"factory.admin", action == Action::"project.view", resource);
+
+@id("role/factory.auditor/access.explain")
+permit (principal in Role::"factory.auditor", action == Action::"access.explain", resource);
+
+@id("role/factory.auditor/audit.read")
+permit (principal in Role::"factory.auditor", action == Action::"audit.read", resource);
+
+@id("role/factory.auditor/floor.read")
+permit (principal in Role::"factory.auditor", action == Action::"floor.read", resource);
+
+@id("role/factory.auditor/gate.view")
+permit (principal in Role::"factory.auditor", action == Action::"gate.view", resource);
+
+@id("role/factory.auditor/item.view_floor")
+permit (principal in Role::"factory.auditor", action == Action::"item.view_floor", resource);
+
+@id("role/factory.auditor/project.view")
+permit (principal in Role::"factory.auditor", action == Action::"project.view", resource);
+
+@id("role/project.admin/access.explain")
+permit (principal in Role::"project.admin", action == Action::"access.explain", resource);
+
+@id("role/project.admin/audit.read")
+permit (principal in Role::"project.admin", action == Action::"audit.read", resource);
+
+@id("role/project.admin/card.decide")
+permit (principal in Role::"project.admin", action == Action::"card.decide", resource);
+
+@id("role/project.admin/config.propose")
+permit (principal in Role::"project.admin", action == Action::"config.propose", resource);
+
+@id("role/project.admin/floor.read")
+permit (principal in Role::"project.admin", action == Action::"floor.read", resource);
+
+@id("role/project.admin/gate.decide")
+permit (principal in Role::"project.admin", action == Action::"gate.decide", resource)
+when { resource.slot == "admin" };
+
+@id("role/project.admin/gate.view")
+permit (principal in Role::"project.admin", action == Action::"gate.view", resource);
+
+@id("role/project.admin/item.view_floor")
+permit (principal in Role::"project.admin", action == Action::"item.view_floor", resource);
+
+@id("role/project.admin/kill.release")
+permit (principal in Role::"project.admin", action == Action::"kill.release", resource);
+
+@id("role/project.admin/kill.request")
+permit (principal in Role::"project.admin", action == Action::"kill.request", resource);
+
+@id("role/project.admin/project.settings.edit")
+permit (principal in Role::"project.admin", action == Action::"project.settings.edit", resource);
+
+@id("role/project.admin/project.view")
+permit (principal in Role::"project.admin", action == Action::"project.view", resource);
+
+@id("role/project.code_owner/card.decide")
+permit (principal in Role::"project.code_owner", action == Action::"card.decide", resource);
+
+@id("role/project.code_owner/floor.read")
+permit (principal in Role::"project.code_owner", action == Action::"floor.read", resource);
+
+@id("role/project.code_owner/gate.decide")
+permit (principal in Role::"project.code_owner", action == Action::"gate.decide", resource)
+when { resource.slot == "g4" };
+
+@id("role/project.code_owner/gate.view")
+permit (principal in Role::"project.code_owner", action == Action::"gate.view", resource);
+
+@id("role/project.code_owner/item.view_floor")
+permit (principal in Role::"project.code_owner", action == Action::"item.view_floor", resource);
+
+@id("role/project.code_owner/project.view")
+permit (principal in Role::"project.code_owner", action == Action::"project.view", resource);
+
+@id("role/project.design_approver/card.decide")
+permit (principal in Role::"project.design_approver", action == Action::"card.decide", resource);
+
+@id("role/project.design_approver/floor.read")
+permit (principal in Role::"project.design_approver", action == Action::"floor.read", resource);
+
+@id("role/project.design_approver/gate.decide")
+permit (principal in Role::"project.design_approver", action == Action::"gate.decide", resource)
+when { resource.slot == "design" };
+
+@id("role/project.design_approver/gate.view")
+permit (principal in Role::"project.design_approver", action == Action::"gate.view", resource);
+
+@id("role/project.design_approver/item.view_floor")
+permit (principal in Role::"project.design_approver", action == Action::"item.view_floor", resource);
+
+@id("role/project.design_approver/project.view")
+permit (principal in Role::"project.design_approver", action == Action::"project.view", resource);
+
+@id("role/project.exception_approver/card.decide")
+permit (principal in Role::"project.exception_approver", action == Action::"card.decide", resource);
+
+@id("role/project.exception_approver/floor.read")
+permit (principal in Role::"project.exception_approver", action == Action::"floor.read", resource);
+
+@id("role/project.exception_approver/gate.decide")
+permit (principal in Role::"project.exception_approver", action == Action::"gate.decide", resource)
+when { resource.slot == "x" };
+
+@id("role/project.exception_approver/gate.view")
+permit (principal in Role::"project.exception_approver", action == Action::"gate.view", resource);
+
+@id("role/project.exception_approver/item.view_floor")
+permit (principal in Role::"project.exception_approver", action == Action::"item.view_floor", resource);
+
+@id("role/project.exception_approver/project.view")
+permit (principal in Role::"project.exception_approver", action == Action::"project.view", resource);
+
+@id("role/project.intent_approver/card.decide")
+permit (principal in Role::"project.intent_approver", action == Action::"card.decide", resource);
+
+@id("role/project.intent_approver/floor.read")
+permit (principal in Role::"project.intent_approver", action == Action::"floor.read", resource);
+
+@id("role/project.intent_approver/gate.decide")
+permit (principal in Role::"project.intent_approver", action == Action::"gate.decide", resource)
+when { resource.slot == "intent" };
+
+@id("role/project.intent_approver/gate.view")
+permit (principal in Role::"project.intent_approver", action == Action::"gate.view", resource);
+
+@id("role/project.intent_approver/item.view_floor")
+permit (principal in Role::"project.intent_approver", action == Action::"item.view_floor", resource);
+
+@id("role/project.intent_approver/project.view")
+permit (principal in Role::"project.intent_approver", action == Action::"project.view", resource);
+
+@id("role/project.kill_holder/floor.read")
+permit (principal in Role::"project.kill_holder", action == Action::"floor.read", resource);
+
+@id("role/project.kill_holder/gate.view")
+permit (principal in Role::"project.kill_holder", action == Action::"gate.view", resource);
+
+@id("role/project.kill_holder/item.view_floor")
+permit (principal in Role::"project.kill_holder", action == Action::"item.view_floor", resource);
+
+@id("role/project.kill_holder/kill.release")
+permit (principal in Role::"project.kill_holder", action == Action::"kill.release", resource);
+
+@id("role/project.kill_holder/kill.request")
+permit (principal in Role::"project.kill_holder", action == Action::"kill.request", resource);
+
+@id("role/project.kill_holder/project.view")
+permit (principal in Role::"project.kill_holder", action == Action::"project.view", resource);
+
+@id("role/project.onboarding_signer/card.decide")
+permit (principal in Role::"project.onboarding_signer", action == Action::"card.decide", resource);
+
+@id("role/project.onboarding_signer/floor.read")
+permit (principal in Role::"project.onboarding_signer", action == Action::"floor.read", resource);
+
+@id("role/project.onboarding_signer/gate.decide")
+permit (principal in Role::"project.onboarding_signer", action == Action::"gate.decide", resource)
+when { resource.slot == "m4" };
+
+@id("role/project.onboarding_signer/gate.view")
+permit (principal in Role::"project.onboarding_signer", action == Action::"gate.view", resource);
+
+@id("role/project.onboarding_signer/item.view_floor")
+permit (principal in Role::"project.onboarding_signer", action == Action::"item.view_floor", resource);
+
+@id("role/project.onboarding_signer/project.view")
+permit (principal in Role::"project.onboarding_signer", action == Action::"project.view", resource);
+
+@id("role/project.release_approver/card.decide")
+permit (principal in Role::"project.release_approver", action == Action::"card.decide", resource);
+
+@id("role/project.release_approver/floor.read")
+permit (principal in Role::"project.release_approver", action == Action::"floor.read", resource);
+
+@id("role/project.release_approver/gate.decide")
+permit (principal in Role::"project.release_approver", action == Action::"gate.decide", resource)
+when { resource.slot == "g5" };
+
+@id("role/project.release_approver/gate.view")
+permit (principal in Role::"project.release_approver", action == Action::"gate.view", resource);
+
+@id("role/project.release_approver/item.view_floor")
+permit (principal in Role::"project.release_approver", action == Action::"item.view_floor", resource);
+
+@id("role/project.release_approver/project.view")
+permit (principal in Role::"project.release_approver", action == Action::"project.view", resource);
+
+@id("role/project.requester/card.decide")
+permit (principal in Role::"project.requester", action == Action::"card.decide", resource);
+
+@id("role/project.requester/floor.read")
+permit (principal in Role::"project.requester", action == Action::"floor.read", resource);
+
+@id("role/project.requester/gate.decide")
+permit (principal in Role::"project.requester", action == Action::"gate.decide", resource)
+when { resource.slot == "requesters" };
+
+@id("role/project.requester/gate.view")
+permit (principal in Role::"project.requester", action == Action::"gate.view", resource);
+
+@id("role/project.requester/item.view_floor")
+permit (principal in Role::"project.requester", action == Action::"item.view_floor", resource);
+
+@id("role/project.requester/project.view")
+permit (principal in Role::"project.requester", action == Action::"project.view", resource);
+
+@id("role/project.security_approver/card.decide")
+permit (principal in Role::"project.security_approver", action == Action::"card.decide", resource);
+
+@id("role/project.security_approver/floor.read")
+permit (principal in Role::"project.security_approver", action == Action::"floor.read", resource);
+
+@id("role/project.security_approver/gate.decide")
+permit (principal in Role::"project.security_approver", action == Action::"gate.decide", resource)
+when { resource.slot == "sec" };
+
+@id("role/project.security_approver/gate.view")
+permit (principal in Role::"project.security_approver", action == Action::"gate.view", resource);
+
+@id("role/project.security_approver/item.view_floor")
+permit (principal in Role::"project.security_approver", action == Action::"item.view_floor", resource);
+
+@id("role/project.security_approver/project.view")
+permit (principal in Role::"project.security_approver", action == Action::"project.view", resource);
+
+@id("role/project.viewer/floor.read")
+permit (principal in Role::"project.viewer", action == Action::"floor.read", resource);
+
+@id("role/project.viewer/gate.view")
+permit (principal in Role::"project.viewer", action == Action::"gate.view", resource);
+
+@id("role/project.viewer/item.view_floor")
+permit (principal in Role::"project.viewer", action == Action::"item.view_floor", resource);
+
+@id("role/project.viewer/project.view")
+permit (principal in Role::"project.viewer", action == Action::"project.view", resource);
+
+@id("xcut/disabled_principal_denied")
+forbid (principal, action, resource)
+when { principal.status != "active" };
+
+@id("xcut/fleet_kill_factory_admin_only")
+forbid (principal, action in [Action::"kill.request", Action::"kill.release"], resource is Fleet)
+unless { principal in Role::"factory.admin" };
+
+@id("xcut/service_principal_never_decides")
+forbid (principal, action in [Action::"gate.decide", Action::"card.decide"], resource)
+when { principal.kind == "service" };

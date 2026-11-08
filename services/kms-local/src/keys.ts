@@ -10,6 +10,7 @@ export type KeyKind = 'es256' | 'hmac';
 export const KEY_REGISTRY: Readonly<Record<string, KeyKind>> = {
   'dev:notary': 'es256',
   'dev:witness': 'es256',
+  'dev:bff-stepup': 'es256',
   'dev:fingerprint-hmac': 'hmac',
 };
 
@@ -18,6 +19,8 @@ export const DEFAULT_KEY_ALLOW_LIST: Readonly<Record<string, readonly string[]>>
   notary: ['dev:notary'],
   witness: ['dev:witness'],
   knowledge: ['dev:fingerprint-hmac'],
+  // The bff signs step-up proofs (PLAN M4.5); verifiers need only the public key, which is open.
+  bff: ['dev:bff-stepup'],
 };
 
 export class KeyStoreError extends Error {

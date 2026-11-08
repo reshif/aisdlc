@@ -10,7 +10,7 @@ import { DEFAULT_KEY_ALLOW_LIST } from './keys.js';
 export interface TestKms {
   url: string;
   dir: string;
-  /** Service token per caller: notary, witness, knowledge. */
+  /** Service token per caller: notary, witness, knowledge, bff. */
   tokens: Record<string, string>;
   /** A key-custody client authenticated as `caller`. */
   custodyFor(caller: string): HttpKeyCustody;

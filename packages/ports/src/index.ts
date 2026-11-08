@@ -3,3 +3,7 @@ export * from './key-custody.js';
 export * from './notary.js';
 export * from './witness.js';
 export * from './wire.js';
+export * from './identity-provider.js';
+export * from './project-settings.js';
+export * from './pdp-entities.js';
+export * from './oidc.js';
