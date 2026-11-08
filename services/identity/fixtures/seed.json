@@ -1,0 +1,85 @@
+{
+  "issuer": "local-dev",
+  "groups": [
+    {
+      "group_id": "grp-engineering",
+      "display": "Engineering",
+      "pim_managed": false,
+      "protected": false
+    },
+    {
+      "group_id": "grp-operations",
+      "display": "Operations",
+      "pim_managed": false,
+      "protected": false
+    },
+    {
+      "group_id": "grp-release-managers",
+      "display": "Release managers",
+      "pim_managed": true,
+      "protected": true
+    }
+  ],
+  "subjects": [
+    {
+      "issuer": "local-dev",
+      "subject": "00000000-0000-4000-8000-000000000001",
+      "principal_id": "alice",
+      "kind": "human",
+      "status": "active",
+      "upn": "alice@example.test",
+      "display_handle": "alice",
+      "display_name": "Alice Example",
+      "logins": ["alice-gh"],
+      "groups": ["grp-engineering", "grp-release-managers"]
+    },
+    {
+      "issuer": "local-dev",
+      "subject": "00000000-0000-4000-8000-000000000002",
+      "principal_id": "bob",
+      "kind": "human",
+      "status": "active",
+      "upn": "bob@example.test",
+      "display_handle": "bob",
+      "display_name": "Bob Example",
+      "logins": [],
+      "groups": ["grp-engineering"]
+    },
+    {
+      "issuer": "local-dev",
+      "subject": "00000000-0000-4000-8000-000000000003",
+      "principal_id": "carol",
+      "kind": "human",
+      "status": "active",
+      "upn": "carol@example.test",
+      "display_handle": "carol",
+      "display_name": "Carol Example",
+      "logins": ["carol-gh"],
+      "groups": ["grp-operations", "grp-release-managers"]
+    },
+    {
+      "issuer": "local-dev",
+      "subject": "00000000-0000-4000-8000-000000000004",
+      "principal_id": "dave",
+      "kind": "human",
+      "status": "disabled",
+      "upn": "dave@example.test",
+      "display_handle": "dave",
+      "display_name": "Dave Example (left)",
+      "logins": [],
+      "groups": []
+    },
+    {
+      "issuer": "local-dev",
+      "subject": "svc-runner",
+      "principal_id": "svc.runner",
+      "kind": "service",
+      "status": "active",
+      "upn": null,
+      "display_handle": "svc.runner",
+      "display_name": "Local runner service",
+      "logins": [],
+      "groups": ["grp-operations"]
+    }
+  ]
+}

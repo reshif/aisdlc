@@ -26,8 +26,9 @@ packages/
   db/       pg + Drizzle, SQL migration runner, test database helper
   record/   record_event, outbox, projections
   ledger/   ledger_entry, checkpoints, writer, reconciler, verify-ledger CLI
-  ports/    port interfaces and fakes (key custody, Notary, Witness)
-services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness)
+  ports/    port interfaces and fakes (key custody, Notary, Witness, IdentityProvider, ProjectSettings)
+  directory/ Principal and Team read models over the identity journal (for core)
+services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity)
 docs/       PLAN.md, adr/, specs/
 ```
 

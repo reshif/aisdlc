@@ -62,7 +62,8 @@ export type Group = z.infer<typeof Group>;
 
 export const MembershipVia = z.enum(['direct', 'pim_activation']);
 export type MembershipVia = z.infer<typeof MembershipVia>;
-export const MembershipSource = z.enum(['sync', 'oidc_token_dev']);
+/** `role_map`: generated from a project's role map (PLAN M4.4); only the reconcile writes it. */
+export const MembershipSource = z.enum(['sync', 'oidc_token_dev', 'role_map']);
 export type MembershipSource = z.infer<typeof MembershipSource>;
 
 export const Membership = z
@@ -133,9 +134,14 @@ export const Classification = z.enum(['internal', 'confidential']);
 export type Classification = z.infer<typeof Classification>;
 export const ClassificationValues: readonly Classification[] = Classification.options;
 
+/**
+ * A Team is owned by the factory (PLAN §7, defaulted at M4: DM §9 Q1). `idp_group` optionally maps
+ * it to a group the identity provider syncs; `null` is a team with no mapping.
+ */
 export const Team = z.strictObject({
   team_id: TeamId,
   name: z.string().min(1),
   classification: Classification,
+  idp_group: GroupId.nullable(),
 });
 export type Team = z.infer<typeof Team>;
