@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  GitHttpTestServer,
+  createFixtureRepo,
   generateTestAppKey,
   startTestCodeHost,
   TEST_APP_ID,
@@ -45,6 +47,9 @@ describe('the codehost bundle fails fast on bad configuration', () => {
       [{ ...good, CODEHOST_GITHUB_APP_KEY_REF: `file:${join(dir, 'none')}` }, /cannot read secret/],
       [{ ...good, CODEHOST_GITHUB_API_URL: 'http://github.example.com' }, /must be https/],
       [{ ...good, CODEHOST_MODE: 'write' }, /must be census/],
+      [{ ...good, CODEHOST_GIT_URL: 'http://git.example.com' }, /CODEHOST_GIT_URL must be https/],
+      [{ ...good, CODEHOST_BUNDLE_CAP_BYTES: '0' }, /CODEHOST_BUNDLE_CAP_BYTES/],
+      [{ ...good, CODEHOST_BUNDLE_TIMEOUT_MS: '5' }, /CODEHOST_BUNDLE_TIMEOUT_MS/],
       [
         { ...good, CODEHOST_CALLERS: '{"x":{"token_ref":"env:T","scopes":["admin"]}}' },
         /CODEHOST_CALLERS/,
@@ -67,6 +72,7 @@ describe('the codehost bundle as a process (plain node, no TypeScript loader)', 
   let child: ChildProcess | undefined;
   let output = '';
   let keyPem = '';
+  let gitServer: GitHttpTestServer;
 
   beforeAll(async () => {
     gh = await startTestCodeHost({ seed: seedWithOwners('* @alice\n') });
@@ -75,11 +81,23 @@ describe('the codehost bundle as a process (plain node, no TypeScript loader)', 
   afterAll(async () => {
     if (child && child.exitCode === null) child.kill('SIGKILL');
     await gh.stop();
+    await gitServer?.stop();
     rmSync(dir, { recursive: true, force: true });
   });
 
   it('starts, reads through the broker against the fake GitHub, never leaks the key, stops on SIGTERM', async () => {
     keyPem = gh.keyPem;
+    // A git server for the bundle route: it accepts the installation tokens the fake GitHub issued.
+    const reposDir = join(dir, 'repos');
+    const fixture = createFixtureRepo(reposDir, { name: 'acme/app', commits: 2, tags: ['v1'] });
+    gitServer = await new GitHttpTestServer({
+      root: reposDir,
+      isAuthorized: (h) =>
+        h !== undefined &&
+        gh.server.issued.some(
+          (t) => h === `Basic ${Buffer.from(`x-access-token:${t.token}`).toString('base64')}`,
+        ),
+    }).start();
     const reg = join(dir, 'registered.json');
     writeFileSync(reg, JSON.stringify([{ project_id: 'acme', repo: 'acme/app' }]));
     const token = 'c'.repeat(32);
@@ -97,6 +115,8 @@ describe('the codehost bundle as a process (plain node, no TypeScript loader)', 
         CODEHOST_IDENTITY_URL: 'http://127.0.0.1:1',
         CODEHOST_IDENTITY_TOKEN_REF: 'env:CH_TOKEN',
         CODEHOST_REGISTERED_REPOS_FILE: reg,
+        CODEHOST_GIT_URL: gitServer.baseUrl,
+        NO_PROXY: '127.0.0.1',
         CODEHOST_PORT: '0',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -132,6 +152,15 @@ describe('the codehost bundle as a process (plain node, no TypeScript loader)', 
     expect(JSON.parse(inst.text).value.installation_id).toBe(4242);
     const b4 = await get('/v1/repos/acme/app/b4');
     expect(JSON.parse(b4.text).report.b4b.status).toBe('blocked'); // statuses:write + an unpinned 'lint'
+    // The bundle, made by git inside the bundled process: a credential-free git bundle at the head.
+    const res = await fetch(new URL('/v1/repos/acme/app/bundle?refs=all', base), {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-base-sha')).toBe(fixture.head);
+    const bundleBytes = Buffer.from(await res.arrayBuffer());
+    expect(bundleBytes.subarray(0, 16).toString()).toBe('# v2 git bundle\n');
+    for (const t of gh.server.issued) expect(bundleBytes.includes(t.token)).toBe(false);
     // A different, unregistered repo is refused.
     expect((await get('/v1/repos/acme/lib/rules?branch=trunk')).status).toBe(403);
 

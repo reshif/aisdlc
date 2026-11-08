@@ -1,0 +1,15 @@
+{
+  "databases": {
+    "record": [
+      { "scope": "record", "dir": "../record/migrations" },
+      { "scope": "ledger", "dir": "../ledger/migrations" },
+      { "scope": "decisions", "dir": "../decisions/migrations" },
+      { "scope": "config", "dir": "../config/migrations" },
+      { "scope": "identity", "dir": "../../services/identity/migrations" },
+      { "scope": "directory", "dir": "../directory/migrations" },
+      { "scope": "bff", "dir": "../../services/bff/migrations" }
+    ],
+    "notary": [{ "scope": "notary", "dir": "../../services/notary/migrations" }],
+    "witness": [{ "scope": "witness", "dir": "../../services/witness/migrations" }]
+  }
+}

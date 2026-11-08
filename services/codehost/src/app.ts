@@ -1,4 +1,5 @@
 import {
+  BundleRefs,
   CodeownersSyncRequest,
   GitSha,
   ProjectId,
@@ -17,8 +18,8 @@ import type { AllowListedCodeHost } from './repo-allow-list.js';
 import type { TokenBroker } from './token-broker.js';
 
 /**
- * What a caller may do (PLAN M5.2): `census` reads repo facts for the Census (the repos, files,
- * heads, CODEOWNERS), `posture` reads the posture facts (installation, effective rules,
+ * What a caller may do (PLAN M5.2, M5.3): `census` reads repo facts for the Census (the repos,
+ * files, heads, CODEOWNERS) and the credential-free bundle, `posture` reads the posture facts (installation, effective rules,
  * collaborators, CODEOWNERS errors, the B4 verdict), `codeowners_sync` feeds CODEOWNERS owners into
  * the project's g4 group.
  */
@@ -39,6 +40,7 @@ const statusOf = (r: CodeHostNotOk): number => {
   if (r.state === 'unknown') return 503;
   if (r.reason === 'repo_not_allowed' || r.reason === 'refused') return 403;
   if (r.reason === 'not_found') return 404;
+  if (r.reason === 'head_moved') return 409;
   return 422;
 };
 
@@ -116,6 +118,36 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     const sha = GitSha.safeParse(q(req)['sha']);
     if (!repo || !sha.success) return bad(reply, 'owner/name and sha are required');
     return send(reply, await o.host.codeowners({ repo, sha: sha.data }));
+  });
+
+  /**
+   * The credential-free bundle (M5.3): `?refs=all|default_only` (default all) and optionally
+   * `base_sha`. The body is the bundle, streamed from an already-unlinked file; `X-Base-Sha` is the
+   * default branch's head and `X-Bundle-Manifest` the manifest as one line of JSON.
+   */
+  app.get('/v1/repos/:owner/:name/bundle', async (req, reply) => {
+    if (!allowed(req, 'census')) return forbid(reply, 'census');
+    const repo = repoOf(req);
+    const refs = BundleRefs.safeParse(q(req)['refs'] ?? 'all');
+    const baseRaw = q(req)['base_sha'];
+    const base = baseRaw === undefined ? undefined : GitSha.safeParse(baseRaw);
+    if (!repo || !refs.success || (base !== undefined && !base.success)) {
+      return bad(reply, 'owner/name, refs (all|default_only) and base_sha must be valid');
+    }
+    const r = await o.host.bundle({
+      repo,
+      refs: refs.data,
+      ...(base?.success ? { base_sha: base.data } : {}),
+    });
+    if (r.state !== 'ok') return send(reply, r);
+    const { manifest, stream } = r.value;
+    reply.raw.once('close', () => r.value.dispose());
+    return reply
+      .header('content-type', 'application/x-git-bundle')
+      .header('content-length', String(manifest.bytes))
+      .header('x-base-sha', manifest.head_sha)
+      .header('x-bundle-manifest', JSON.stringify(manifest))
+      .send(stream);
   });
 
   // ------------------------------------------------------------ posture

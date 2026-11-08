@@ -121,6 +121,8 @@ export const CodeHostReason = z.enum([
   'not_a_file',
   'too_large',
   'not_implemented',
+  /** A bundle was asked to end at a head that is no longer the default branch's head. */
+  'head_moved',
   // unknown
   'network',
   'timeout',
@@ -362,6 +364,47 @@ export const SetCodeownerMembersResult = z.strictObject({
   removed: z.array(PrincipalId),
 });
 export type SetCodeownerMembersResult = z.infer<typeof SetCodeownerMembersResult>;
+
+// ---------------------------------------------------------------- Bundle (M5.3)
+
+/** 256 MiB: the largest bundle the codehost produces (OB §6.5 "Bytes flow", SP-PROC-4). */
+export const BUNDLE_DEFAULT_CAP_BYTES = 256 * 1024 * 1024;
+/** 180 s: the time one bundle call may take, git included (OB §5.3 item 3). */
+export const BUNDLE_DEFAULT_TIMEOUT_MS = 180_000;
+
+/**
+ * Which refs a bundle covers. `all`: every branch and tag, plus `refs/pull/<n>/head` on a public repo
+ * (OB §5.3 item 3). `default_only`: the default branch alone, recorded as such.
+ */
+export const BundleRefs = z.enum(['all', 'default_only']);
+export type BundleRefs = z.infer<typeof BundleRefs>;
+
+/**
+ * Asks for a credential-free `git bundle` of a repo. `refs: 'all'` falls back to `default_only`
+ * (and says so in the manifest) when all refs would exceed the size cap.
+ */
+export const BundleRequest = z.strictObject({
+  repo: RepoFullName,
+  /** The head the bundle must end at (`X-Base-Sha`). Absent: whatever the default branch is at. */
+  base_sha: GitSha.optional(),
+  refs: BundleRefs,
+});
+export type BundleRequest = z.infer<typeof BundleRequest>;
+
+/** What a bundle holds and what it cost. Sent as the `X-Bundle-Manifest` header. */
+export const BundleManifest = z.strictObject({
+  repo: RepoFullName,
+  /** The default branch's head: the bundle's `HEAD` and the value of `X-Base-Sha`. */
+  head_sha: GitSha,
+  /** What the bundle actually covers: recorded, never assumed from the request. */
+  refs_covered: BundleRefs,
+  /** Refs in the bundle, not counting `HEAD`. */
+  ref_count: z.number().int().min(1),
+  commit_count: z.number().int().min(1),
+  bytes: z.number().int().min(1),
+  duration_ms: z.number().int().min(0),
+});
+export type BundleManifest = z.infer<typeof BundleManifest>;
 
 // ---------------------------------------------------------------- Registered repos (P-MUST-3)
 

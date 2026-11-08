@@ -70,8 +70,9 @@ export async function startCodeHostApp(
   registered: Array<{ project_id: string; repo: string }> = [
     { project_id: 'acme', repo: 'acme/app' },
   ],
+  git?: NonNullable<Parameters<typeof startTestCodeHost>[0]>['git'],
 ): Promise<CodeHostTestApp> {
-  const gh = await startTestCodeHost({ seed });
+  const gh = await startTestCodeHost({ seed, ...(git ? { git } : {}) });
   gh.registered.set(registered as never);
   const host = new AllowListedCodeHost(gh.rest, gh.registered);
   const callers: Record<string, readonly CodeHostScope[]> = {

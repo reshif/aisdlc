@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { pgSchema, serial, text } from 'drizzle-orm/pg-core';
 import { asc } from 'drizzle-orm';
-import { migrate, MigrationError } from '../src/index.js';
+import { migrate, MigrationError, readMigrationDir } from '../src/index.js';
 import { createTestDatabase, withTestDatabase } from '../src/testing.js';
 
 const fixtures = join(import.meta.dirname, 'fixtures', 'migrations');
@@ -105,6 +105,43 @@ describe('test database + migrations', () => {
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
+    });
+  });
+
+  it('migrates from files in memory exactly as from a directory (same checksums, so each is a no-op for the other)', async () => {
+    await withTestDatabase(async (t) => {
+      const files = await readMigrationDir(fixtures);
+      expect(files.map((f) => f.name)).toEqual([
+        '0001_create_widgets.sql',
+        '0002_seed_widgets.sql',
+      ]);
+      // In memory, out of order: applied in name order.
+      const first = await migrate(t.pool, { scope: 'demo', files: [...files].reverse() });
+      expect(first.applied).toEqual(['0001_create_widgets.sql', '0002_seed_widgets.sql']);
+      const again = await migrate(t.pool, { scope: 'demo', dir: fixtures });
+      expect(again).toEqual({
+        applied: [],
+        skipped: ['0001_create_widgets.sql', '0002_seed_widgets.sql'],
+      });
+      // An in-memory file edited after it was applied is refused, like an edited file on disk.
+      await expect(
+        migrate(t.pool, {
+          scope: 'demo',
+          files: [{ name: '0001_create_widgets.sql', sql: 'SELECT 2;' }],
+        }),
+      ).rejects.toThrow(/changed after being applied/);
+      await expect(
+        migrate(t.pool, { scope: 'x', files: [{ name: 'bad.sql', sql: 'SELECT 1;' }] }),
+      ).rejects.toThrow(/bad migration file name/);
+      await expect(
+        migrate(t.pool, {
+          scope: 'x',
+          files: [
+            { name: '0001_a.sql', sql: 'SELECT 1;' },
+            { name: '0001_b.sql', sql: 'SELECT 1;' },
+          ],
+        }),
+      ).rejects.toThrow(/duplicate migration number/);
     });
   });
 });

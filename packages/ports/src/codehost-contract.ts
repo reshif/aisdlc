@@ -154,7 +154,13 @@ const notOk = (r: CodeHostRead<unknown>): CodeHostNotOk => {
 export function codeHostContract(
   name: string,
   make: (seed: CodeHostSeed) => Promise<CodeHostHarness>,
+  /**
+   * `bundle: false` for an implementation whose bundle needs a real git server (the REST adapter
+   * has its own suite in services/codehost); then the bundle is only asserted to be refused.
+   */
+  opts: { bundle?: boolean } = {},
 ): void {
+  const bundleSupported = opts.bundle ?? true;
   describe(`CodeHostPort contract: ${name}`, () => {
     const withHost = async (
       fn: (h: CodeHostHarness) => Promise<void>,
@@ -314,6 +320,7 @@ export function codeHostContract(
             await h.port.codeowners({ repo: 'acme/app', sha: SHA_A }),
             await h.port.codeowners_errors({ repo: 'acme/app', ref: 'main' }),
             await h.port.collaborators({ repo: 'acme/app' }),
+            ...(bundleSupported ? [await h.port.bundle({ repo: 'acme/app', refs: 'all' })] : []),
           ];
           for (const r of reads) {
             expect(r.state).toBe(as.state);
@@ -325,11 +332,42 @@ export function codeHostContract(
         expect((await h.port.list_repos()).state).toBe('ok');
       }));
 
-    it('bundle, apply_patch and pr_status are interface only: unreadable/not_implemented', () =>
+    it.runIf(bundleSupported)(
+      'bundle: a stream plus a manifest whose head is the default branch head, recorded refs, head_moved on a stale base',
+      () =>
+        withHost(async ({ port, requests }) => {
+          const r = await port.bundle({ repo: 'acme/app', base_sha: SHA_A, refs: 'all' });
+          if (r.state !== 'ok') throw new Error(`bundle: ${r.state}/${r.reason}`);
+          const chunks: Buffer[] = [];
+          for await (const c of r.value.stream) chunks.push(c as Buffer);
+          const bytes = Buffer.concat(chunks);
+          expect(r.value.manifest).toMatchObject({
+            repo: 'acme/app',
+            head_sha: SHA_A,
+            refs_covered: 'all',
+          });
+          expect(r.value.manifest.bytes).toBe(bytes.length);
+          expect(r.value.manifest.ref_count).toBeGreaterThanOrEqual(1);
+          const only = await port.bundle({ repo: 'acme/app', refs: 'default_only' });
+          expect(only.state === 'ok' && only.value.manifest.refs_covered).toBe('default_only');
+          if (only.state === 'ok') only.value.dispose();
+          expect(
+            notOk(await port.bundle({ repo: 'acme/app', base_sha: SHA_B, refs: 'all' })),
+          ).toMatchObject({
+            state: 'unreadable',
+            reason: 'head_moved',
+          });
+          expect(notOk(await port.bundle({ repo: 'nobody/none', refs: 'all' })).state).not.toBe(
+            'ok',
+          );
+          expect(requests().every((q) => q.method === 'GET')).toBe(true);
+        }),
+    );
+
+    it('apply_patch and pr_status are interface only: unreadable/not_implemented', () =>
       withHost(async ({ port, requests }) => {
         const before = requests().length;
         const reads = [
-          await port.bundle({ repo: 'acme/app', base_sha: SHA_A, refs: 'all' }),
           await port.apply_patch({
             repo: 'acme/app',
             branch: 'agent/x/y',

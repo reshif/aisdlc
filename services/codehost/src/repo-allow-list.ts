@@ -1,5 +1,6 @@
 import type {
   BranchRules,
+  BundleRequest,
   CodeHostRead,
   CodeownersError,
   CodeownersFile,
@@ -20,7 +21,6 @@ import {
   type AppliedPatch,
   type ApplyPatchRequest,
   type BranchRequest,
-  type BundleRequest,
   type BundleResult,
   type CodeHostPort,
   type CodeownersErrorsRequest,

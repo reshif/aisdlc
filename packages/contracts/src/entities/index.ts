@@ -13,3 +13,4 @@ export * from './inbox.js';
 export * from './policy.js';
 export * from './step-up.js';
 export * from './codehost.js';
+export * from './inbound-facts.js';

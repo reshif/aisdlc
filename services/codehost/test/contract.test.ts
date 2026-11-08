@@ -5,7 +5,10 @@ import { z } from 'zod';
 
 // The CodeHostPort contract (PLAN M5.1) against the REST adapter over the in-repo fake GitHub HTTP
 // server: the same suite the in-memory FakeGitHub passes in @aisdlc/ports.
-codeHostContract('GitHubRestCodeHost over the fake GitHub HTTP server', restHarness);
+// `bundle` needs a real git server, so it has its own suites (git-bundle.test.ts, bundle-route.test.ts).
+codeHostContract('GitHubRestCodeHost over the fake GitHub HTTP server', restHarness, {
+  bundle: false,
+});
 
 // The same port against the real App, read-only. Skipped unless CODEHOST_LIVE_CONTRACT is set to
 //   {"app_id":"123","installation_id":456,"key_ref":"file:/path/app.pem","repo":"owner/name","api_url":"https://api.github.com"}

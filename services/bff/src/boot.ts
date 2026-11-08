@@ -39,8 +39,8 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
 /**
  * Starts the bff from the environment:
  *   BFF_DATABASE_URL         the record database. The record, ledger, decisions, config, identity and
- *                            directory schemas must already be migrated (they are other services'); the
- *                            bff schema is migrated at start
+ *                            directory schemas must already be migrated (`aisdlc-migrate`); the bff schema
+ *                            is migrated at start
  *   BFF_PUBLIC_URL           the browser-visible base, e.g. https://factory.example (redirect URI base)
  *   BFF_OIDC_ISSUER, BFF_OIDC_CLIENT_ID, BFF_OIDC_CLIENT_SECRET_REF
  *                            the confidential client; the secret is an `env:NAME` or `file:PATH` reference

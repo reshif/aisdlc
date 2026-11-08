@@ -1,4 +1,13 @@
-import { canonicalJson, err, ok, taggedError, type Result, type TaggedError } from '@aisdlc/kernel';
+import {
+  canonicalJson,
+  err,
+  ok,
+  systemClock,
+  taggedError,
+  type Clock,
+  type Result,
+  type TaggedError,
+} from '@aisdlc/kernel';
 import { withTransaction } from '@aisdlc/db';
 import type pg from 'pg';
 import type { Executor, JsonObject, Tx } from './types.js';
@@ -18,6 +27,33 @@ export interface OutboxRow {
   created_at: Date;
   attempts: number;
   last_error: string | null;
+  /** Not claimed before this instant (backoff after a failure); `null`: due now. */
+  next_attempt_at: Date | null;
+  /** Set when the row is dead-lettered: it is never claimed again. */
+  dead_at: Date | null;
+}
+
+/**
+ * How a failing message is retried (PLAN M5.4): the n-th failure schedules the next attempt
+ * `min(maxDelayMs, baseDelayMs * 2^(n-1))` later, and the `maxAttempts`-th failure dead-letters it.
+ */
+export interface OutboxRetryPolicy {
+  readonly maxAttempts: number;
+  readonly baseDelayMs: number;
+  readonly maxDelayMs: number;
+}
+export const DEFAULT_OUTBOX_RETRY: OutboxRetryPolicy = {
+  maxAttempts: 8,
+  baseDelayMs: 1_000,
+  maxDelayMs: 300_000,
+};
+
+/**
+ * A handler throws this when retrying cannot help (the destination rejected the message as
+ * invalid): the row is dead-lettered at once instead of after `maxAttempts`.
+ */
+export class PermanentDeliveryError extends Error {
+  override readonly name = 'PermanentDeliveryError';
 }
 
 export const OutboxKeyMismatch = taggedError('OutboxKeyMismatch');
@@ -69,31 +105,41 @@ interface OutboxDbRow {
   created_at: Date;
   attempts: number;
   last_error: string | null;
+  next_attempt_at: Date | null;
+  dead_at: Date | null;
 }
+
+const OUTBOX_COLUMNS = `id::text AS id, destination, payload, idempotency_key, created_at, attempts,
+       last_error, next_attempt_at, dead_at`;
 
 const toRow = (r: OutboxDbRow): OutboxRow => ({ ...r, id: Number(r.id) });
 
 /**
- * Locks up to `limit` undispatched rows for `destination` with FOR UPDATE SKIP LOCKED, oldest
- * first. The locks last until the transaction ends, so two claimers never hold the same row, and a
- * claimer that dies releases its rows for redelivery (at least once). Order across concurrent
- * claimers is not guaranteed.
+ * Locks up to `limit` rows for `destination` that are undispatched, not dead and due (their
+ * `next_attempt_at` has passed) with FOR UPDATE SKIP LOCKED, oldest first (by the table's numeric
+ * `id`: the select list aliases `id` as text, so `ORDER BY id` alone would sort as text). A row waiting out its
+ * backoff, or dead, is not returned, so one failing message never holds up the ones behind it. The
+ * locks last until the transaction ends, so two claimers never hold the same row, and a claimer
+ * that dies releases its rows for redelivery (at least once). Order across concurrent claimers is
+ * not guaranteed.
  */
 export async function claimOutbox(
   tx: Tx,
   destination: string,
   limit: number,
+  opts: { now?: Date } = {},
 ): Promise<OutboxRow[]> {
   if (!Number.isInteger(limit) || limit < 1)
     throw new RangeError('claimOutbox: limit must be >= 1');
   const r = await tx.query<OutboxDbRow>(
-    `SELECT id::text AS id, destination, payload, idempotency_key, created_at, attempts, last_error
+    `SELECT ${OUTBOX_COLUMNS}
        FROM record.outbox
-      WHERE destination = $1 AND dispatched_at IS NULL
-      ORDER BY id
+      WHERE destination = $1 AND dispatched_at IS NULL AND dead_at IS NULL
+        AND (next_attempt_at IS NULL OR next_attempt_at <= $3::timestamptz)
+      ORDER BY outbox.id
       LIMIT $2
         FOR UPDATE SKIP LOCKED`,
-    [destination, limit],
+    [destination, limit, (opts.now ?? new Date()).toISOString()],
   );
   return r.rows.map(toRow);
 }
@@ -104,60 +150,160 @@ export async function markDispatched(tx: Tx, ids: readonly number[]): Promise<vo
   await tx.query(
     `UPDATE record.outbox
         SET dispatched_at = now(), attempts = attempts + 1, last_error = NULL
-      WHERE id = ANY($1::bigint[]) AND dispatched_at IS NULL`,
+      WHERE id = ANY($1::bigint[]) AND dispatched_at IS NULL AND dead_at IS NULL`,
     [ids.map(String)],
   );
 }
 
-/** Records a failed delivery attempt; the row stays pending and is claimed again later. */
-export async function markFailed(tx: Tx, id: number, error: string): Promise<void> {
-  await tx.query(
-    `UPDATE record.outbox SET attempts = attempts + 1, last_error = $2
-      WHERE id = $1 AND dispatched_at IS NULL`,
-    [String(id), error.slice(0, 2000)],
+export interface FailureOutcome {
+  attempts: number;
+  /** The row is now dead-lettered. */
+  dead: boolean;
+  /** When it will be claimed again; the failure time if it is dead. */
+  next_attempt_at: Date;
+}
+
+/**
+ * Records a failed delivery attempt. The row is claimed again after an exponential backoff, or, on
+ * the `policy.maxAttempts`-th failure (or when `permanent`), dead-lettered. `null`: the row is not
+ * pending any more (already dispatched or dead).
+ */
+export async function markFailed(
+  tx: Tx,
+  id: number,
+  error: string,
+  opts: { policy?: OutboxRetryPolicy; now?: Date; permanent?: boolean } = {},
+): Promise<FailureOutcome | null> {
+  const p = opts.policy ?? DEFAULT_OUTBOX_RETRY;
+  const now = (opts.now ?? new Date()).toISOString();
+  const r = await tx.query<{ attempts: number; dead: boolean; next_attempt_at: Date }>(
+    `UPDATE record.outbox
+        SET attempts = attempts + 1,
+            last_error = $2,
+            dead_at = CASE WHEN $3::boolean OR attempts + 1 >= $4::int THEN $5::timestamptz END,
+            next_attempt_at = CASE
+              WHEN $3::boolean OR attempts + 1 >= $4::int THEN $5::timestamptz
+              ELSE $5::timestamptz
+                   + LEAST($7::double precision, $6::double precision * power(2, attempts))
+                     * interval '1 millisecond'
+            END
+      WHERE id = $1 AND dispatched_at IS NULL AND dead_at IS NULL
+      RETURNING attempts, dead_at IS NOT NULL AS dead, next_attempt_at`,
+    [
+      String(id),
+      error.slice(0, 2000),
+      opts.permanent === true,
+      p.maxAttempts,
+      now,
+      p.baseDelayMs,
+      p.maxDelayMs,
+    ],
   );
+  return r.rows[0] ?? null;
 }
 
 export interface DispatchOutcome {
   dispatched: number;
+  /** Attempts that failed and will be retried later. */
   failed: number;
+  /** Messages dead-lettered by this call. */
+  dead: number;
+}
+
+export interface DispatchOptions {
+  readonly policy?: OutboxRetryPolicy;
+  readonly clock?: Clock;
 }
 
 /**
  * Claim, deliver, mark, commit in one transaction. `handler` is called once per claimed row; a
- * throw marks that row failed and the others continue. If the process dies after a handler
- * succeeded but before COMMIT, the row is delivered again, so handlers must dedupe on
- * `idempotency_key`.
+ * throw schedules a retry with backoff for that row (or dead-letters it: after `maxAttempts`
+ * failures, or at once for a `PermanentDeliveryError`) and the others continue. If the process dies
+ * after a handler succeeded but before COMMIT, the row is delivered again, so handlers must dedupe
+ * on `idempotency_key`.
  */
 export async function dispatchOutbox(
   pool: pg.Pool,
   destination: string,
   limit: number,
   handler: (row: OutboxRow) => Promise<void>,
+  opts: DispatchOptions = {},
 ): Promise<DispatchOutcome> {
+  const clock = opts.clock ?? systemClock;
   return withTransaction(pool, async (tx) => {
-    const rows = await claimOutbox(tx, destination, limit);
+    const rows = await claimOutbox(tx, destination, limit, { now: clock.now() });
     const done: number[] = [];
     let failed = 0;
+    let dead = 0;
     for (const row of rows) {
       try {
         await handler(row);
         done.push(row.id);
       } catch (e) {
-        failed += 1;
-        await markFailed(tx, row.id, e instanceof Error ? e.message : String(e));
+        const out = await markFailed(tx, row.id, e instanceof Error ? e.message : String(e), {
+          ...(opts.policy ? { policy: opts.policy } : {}),
+          now: clock.now(),
+          permanent: e instanceof PermanentDeliveryError,
+        });
+        if (out?.dead) dead += 1;
+        else failed += 1;
       }
     }
     await markDispatched(tx, done);
-    return { dispatched: done.length, failed };
+    return { dispatched: done.length, failed, dead };
   });
 }
 
-/** Number of rows still waiting for `destination`. */
+/** Number of rows still waiting for `destination` (not dispatched, not dead). */
 export async function pendingOutboxCount(db: Executor, destination: string): Promise<number> {
   const r = await db.query<{ n: string }>(
-    'SELECT count(*)::text AS n FROM record.outbox WHERE destination = $1 AND dispatched_at IS NULL',
+    `SELECT count(*)::text AS n FROM record.outbox
+      WHERE destination = $1 AND dispatched_at IS NULL AND dead_at IS NULL`,
     [destination],
   );
   return Number(r.rows[0]?.n ?? 0);
+}
+
+/** Dead-lettered rows, per destination (all destinations when `destination` is absent). */
+export async function deadOutboxCount(
+  db: Executor,
+  destination?: string,
+): Promise<Array<{ destination: string; dead: number; oldest_dead_at: Date }>> {
+  const r = await db.query<{ destination: string; dead: string; oldest_dead_at: Date }>(
+    `SELECT destination, count(*)::text AS dead, min(dead_at) AS oldest_dead_at
+       FROM record.outbox
+      WHERE dead_at IS NOT NULL AND ($1::text IS NULL OR destination = $1)
+      GROUP BY destination ORDER BY destination`,
+    [destination ?? null],
+  );
+  return r.rows.map((x) => ({ ...x, dead: Number(x.dead) }));
+}
+
+/** The dead-lettered rows themselves, oldest first, for an operator to read. */
+export async function listDeadOutbox(
+  db: Executor,
+  opts: { destination?: string; limit?: number } = {},
+): Promise<OutboxRow[]> {
+  const r = await db.query<OutboxDbRow>(
+    `SELECT ${OUTBOX_COLUMNS} FROM record.outbox
+      WHERE dead_at IS NOT NULL AND ($1::text IS NULL OR destination = $1)
+      ORDER BY outbox.id LIMIT $2`,
+    [opts.destination ?? null, opts.limit ?? 100],
+  );
+  return r.rows.map(toRow);
+}
+
+/**
+ * An operator's decision to try dead rows again: they become pending with a fresh attempt count.
+ * Nothing requeues a row by itself.
+ */
+export async function requeueDeadOutbox(tx: Tx, ids: readonly number[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const r = await tx.query(
+    `UPDATE record.outbox
+        SET dead_at = NULL, attempts = 0, next_attempt_at = NULL
+      WHERE id = ANY($1::bigint[]) AND dead_at IS NOT NULL AND dispatched_at IS NULL`,
+    [ids.map(String)],
+  );
+  return r.rowCount ?? 0;
 }

@@ -8,6 +8,10 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./migrations": {
+      "types": "./src/migrations.ts",
+      "default": "./src/migrations.ts"
+    },
     "./read": {
       "types": "./src/read.ts",
       "default": "./src/read.ts"

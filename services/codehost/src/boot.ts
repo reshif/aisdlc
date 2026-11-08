@@ -1,18 +1,17 @@
 import { systemClock } from '@aisdlc/kernel';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
-import { FakeRegisteredRepos } from '@aisdlc/ports';
+import { FakeRegisteredRepos, FileRegisteredRepos } from '@aisdlc/ports';
 import { GitHubRestCodeHost } from './adapter.js';
 import { createCodeHostApp } from './app.js';
 import { codeHostConfigFromEnv } from './config.js';
 import { HttpIdentityLinks } from './identity-client.js';
-import { FileRegisteredRepos } from './registered-repos-file.js';
 import { AllowListedCodeHost } from './repo-allow-list.js';
 import { TokenBroker } from './token-broker.js';
 import { GitHubTransport } from './transport.js';
 
 /**
  * Starts the codehost from the environment (see `codeHostConfigFromEnv`), plus
- * `CODEHOST_HOST` (127.0.0.1) and `CODEHOST_PORT` (8350). It makes no network call at start: the
+ * `CODEHOST_HOST` (127.0.0.1) and `CODEHOST_PORT` (8350). It makes no network call at start, and runs `git` only when a bundle is asked for: the
  * first token is minted by the first request that needs one.
  */
 export async function bootCodeHost(env: Env): Promise<RunningService> {
@@ -38,7 +37,18 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
     : new FakeRegisteredRepos().breakIt();
   const app = createCodeHostApp({
     host: new AllowListedCodeHost(
-      new GitHubRestCodeHost({ transport, installationId: cfg.installationId, clock }),
+      new GitHubRestCodeHost({
+        transport,
+        installationId: cfg.installationId,
+        clock,
+        git: {
+          broker,
+          gitBaseUrl: cfg.gitUrl,
+          capBytes: cfg.bundleCapBytes,
+          timeoutMs: cfg.bundleTimeoutMs,
+          log: (line) => console.log(`codehost: ${line}`),
+        },
+      }),
       registered,
     ),
     identity: new HttpIdentityLinks({ baseUrl: cfg.identityUrl, token: cfg.identityToken }),

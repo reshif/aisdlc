@@ -6,6 +6,7 @@ import { manualClock, type ManualClock } from '@aisdlc/kernel';
 import { FakeRegisteredRepos, emptySeed, type CodeHostSeed } from '@aisdlc/ports';
 import { type CodeHostHarness } from '@aisdlc/ports/testing';
 import { GitHubRestCodeHost } from './adapter.js';
+import type { GitBundleOptions } from './git-bundle.js';
 import { AppKey } from './app-key.js';
 import { FakeGitHubServer, generateTestAppKey } from './fake-github-server.js';
 import { TokenBroker } from './token-broker.js';
@@ -13,6 +14,7 @@ import { GitHubTransport } from './transport.js';
 import type { CodeHostMode } from './allow-list.js';
 
 export * from './fake-github-server.js';
+export * from './git-server-testing.js';
 
 export interface TestCodeHost {
   readonly server: FakeGitHubServer;
@@ -26,6 +28,8 @@ export interface TestCodeHost {
   readonly keyFile: string;
   /** Log lines the transport wrote. */
   readonly logs: string[];
+  /** Lines the bundle code logged (phase timings), when `git` was configured. */
+  readonly bundleLogs: string[];
   stop(): Promise<void>;
 }
 
@@ -33,7 +37,14 @@ export const TEST_APP_ID = '123456';
 
 /** A fake GitHub HTTP server, a real App key in a temp file, and the real broker, transport and adapter over them. */
 export async function startTestCodeHost(
-  opts: { seed?: CodeHostSeed; mode?: CodeHostMode; tokenTtlMs?: number; timeoutMs?: number } = {},
+  opts: {
+    seed?: CodeHostSeed;
+    mode?: CodeHostMode;
+    tokenTtlMs?: number;
+    timeoutMs?: number;
+    /** Lets `bundle` run: where git clones from, and the limits. */
+    git?: Omit<GitBundleOptions, 'token' | 'log'>;
+  } = {},
 ): Promise<TestCodeHost> {
   const seed = opts.seed ?? emptySeed();
   // Frozen at the real current time, so a separate process (the bundle) agrees with it to within seconds.
@@ -65,10 +76,12 @@ export async function startTestCodeHost(
     log: (l) => logs.push(l),
     ...(opts.timeoutMs === undefined ? {} : { timeoutMs: opts.timeoutMs }),
   });
+  const bundleLogs: string[] = [];
   const rest = new GitHubRestCodeHost({
     transport,
     installationId: seed.installation.installation_id,
     clock,
+    ...(opts.git ? { git: { ...opts.git, broker, log: (l: string) => bundleLogs.push(l) } } : {}),
   });
   const registered = new FakeRegisteredRepos();
   return {
@@ -81,6 +94,7 @@ export async function startTestCodeHost(
     keyPem: keys.privatePem,
     keyFile,
     logs,
+    bundleLogs,
     async stop() {
       await server.stop();
       rmSync(dir, { recursive: true, force: true });

@@ -117,8 +117,8 @@ export async function bootIdentity(env: Env): Promise<RunningService> {
   const pool = createPool(dbUrl, 8);
   try {
     // The record and the ledger are core's: their migrations ship in their own packages and are run
-    // by whoever owns the record database (a bundle cannot find another package's migrations
-    // directory). Identity migrates only its own schema, and refuses to start without theirs.
+    // by `aisdlc-migrate` (a bundle cannot find another package's migrations directory, so that
+    // one CLI embeds the SQL of every schema). Identity migrates only its own schema, and refuses to start without theirs.
     const have = await pool.query<{ record: string | null; ledger: string | null }>(
       `SELECT to_regclass('record.record_event')::text AS record,
               to_regclass('ledger.ledger_entry')::text AS ledger`,

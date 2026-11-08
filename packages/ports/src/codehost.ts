@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
+import type { Readable } from 'node:stream';
 import {
   CODEHOST_FORBIDDEN_VERBS,
   CODEOWNERS_PATHS,
   type BranchRules,
+  type BundleManifest,
+  type BundleRequest,
   type CodeHostNotOk,
   type CodeHostRead,
   type CodeHostReason,
@@ -19,8 +22,7 @@ import {
 import { z } from 'zod';
 
 // CodeHostPort (PLAN M5.1; DM §4 and §8 gap 7: one port for the code host). The domain talks to
-// GitHub only through this interface. It has reads, and two writes (`apply_patch`, `bundle` is a
-// read of git objects) that the factory may need later; it has NO method able to merge, enqueue,
+// GitHub only through this interface. It has reads (`bundle` reads git objects), and one write (`apply_patch`) that the factory may need later; it has NO method able to merge, enqueue,
 // approve, auto-merge, force-push, delete, dismiss a review or administer anything: those verbs are
 // `CODEHOST_FORBIDDEN_VERBS`, and `codehost-port.test.ts` and the type check below keep every
 // method name clear of them.
@@ -75,18 +77,17 @@ export interface CodeownersErrorsRequest extends RepoRequest {
   readonly ref?: string;
 }
 
-/** Implemented in M5.3. */
-export interface BundleRequest extends RepoRequest {
-  /** The head the bundle must end at (`X-Base-Sha`). */
-  readonly base_sha: GitSha;
-  readonly refs: 'all' | 'default_only';
-}
+/**
+ * A credential-free `git bundle` and what it holds (`BundleRequest` and `BundleManifest` are
+ * contracts). The bytes are a stream, read once: the codehost removes its work directory before it
+ * returns, so there is nothing on disk to clean up and nothing for a caller to leak but the stream
+ * itself. `dispose` destroys the stream (idempotent); reading it to the end or destroying it also
+ * releases it.
+ */
 export interface BundleResult {
-  /** A credential-free `git bundle` on disk. */
-  readonly path: string;
-  readonly size_bytes: number;
-  readonly refs_covered: 'all' | 'default_only';
-  readonly head_sha: GitSha;
+  readonly manifest: BundleManifest;
+  readonly stream: Readable;
+  dispose(): void;
 }
 
 /** Implemented in M13. The branch must be an `agent/<s0-uuid>/...` branch, never a protected one. */
@@ -136,7 +137,7 @@ export interface CodeHostPort {
   codeowners_errors(req: CodeownersErrorsRequest): Promise<CodeHostRead<CodeownersError[]>>;
   /** Who can access the repo, and with which role. */
   collaborators(req: RepoRequest): Promise<CodeHostRead<Collaborator[]>>;
-  /** Interface only until M5.3. */
+  /** A credential-free `git bundle` of the repo, at the default branch's head. */
   bundle(req: BundleRequest): Promise<CodeHostRead<BundleResult>>;
   /** Interface only until M13. */
   apply_patch(req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>>;

@@ -949,6 +949,90 @@
       ],
       "additionalProperties": false
     },
+    "BundleManifest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "refs_covered": {
+          "type": "string",
+          "enum": [
+            "all",
+            "default_only"
+          ]
+        },
+        "ref_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "commit_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "repo",
+        "head_sha",
+        "refs_covered",
+        "ref_count",
+        "commit_count",
+        "bytes",
+        "duration_ms"
+      ],
+      "additionalProperties": false
+    },
+    "BundleRefs": {
+      "type": "string",
+      "enum": [
+        "all",
+        "default_only"
+      ]
+    },
+    "BundleRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "refs": {
+          "type": "string",
+          "enum": [
+            "all",
+            "default_only"
+          ]
+        }
+      },
+      "required": [
+        "repo",
+        "refs"
+      ],
+      "additionalProperties": false
+    },
     "Card": {
       "type": "object",
       "properties": {
@@ -2362,6 +2446,7 @@
             "not_a_file",
             "too_large",
             "not_implemented",
+            "head_moved",
             "network",
             "timeout",
             "rate_limited",
@@ -2402,6 +2487,7 @@
         "not_a_file",
         "too_large",
         "not_implemented",
+        "head_moved",
         "network",
         "timeout",
         "rate_limited",
@@ -4970,6 +5056,78 @@
         "github_login",
         "email"
       ]
+    },
+    "InboundFactEventType": {
+      "type": "string",
+      "const": "inbound.fact_observed"
+    },
+    "InboundFactKind": {
+      "type": "string",
+      "enum": [
+        "default_branch_head",
+        "installation",
+        "effective_rules"
+      ]
+    },
+    "InboundFactPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "default_branch_head",
+            "installation",
+            "effective_rules"
+          ]
+        },
+        "value": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "value_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "previous_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "poll_interval_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "kind",
+        "value",
+        "value_hash",
+        "previous_hash",
+        "poll_interval_ms"
+      ],
+      "additionalProperties": false
     },
     "InboxCard": {
       "type": "object",

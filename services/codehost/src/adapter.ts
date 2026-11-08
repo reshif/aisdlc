@@ -4,6 +4,7 @@ import {
   InstallationRepo,
   RepoFullName,
   type BranchRules,
+  type BundleRequest,
   type CodeHostNotOk,
   type CodeHostRead,
   type CodeownersError,
@@ -12,7 +13,7 @@ import {
   type FileAtSha,
   type GithubPermissions,
 } from '@aisdlc/contracts';
-import { systemClock, type Clock } from '@aisdlc/kernel';
+import { ok, systemClock, type Clock } from '@aisdlc/kernel';
 import {
   badRepoPath,
   effectiveBranchRules,
@@ -25,7 +26,6 @@ import {
   type AppliedPatch,
   type ApplyPatchRequest,
   type BranchRequest,
-  type BundleRequest,
   type BundleResult,
   type CodeHostPort,
   type CodeownersErrorsRequest,
@@ -36,6 +36,8 @@ import {
   type RepoRequest,
 } from '@aisdlc/ports';
 import { z } from 'zod';
+import { makeGitBundle, type GitBundleOptions } from './git-bundle.js';
+import type { TokenBroker } from './token-broker.js';
 import type { GitHubTransport } from './transport.js';
 
 // The GitHub REST adapter of `CodeHostPort` (PLAN M5.2). Reads only; each method names one row of
@@ -134,6 +136,11 @@ export interface GitHubRestOptions {
   readonly clock?: Clock;
   /** How long the installation's repo list is trusted for file reads. Default one minute. */
   readonly repoCacheMs?: number;
+  /**
+   * What `bundle` needs: the token broker (role `hub`) and where git clones from. Without it
+   * `bundle` is `unreadable/not_implemented` (the REST-only harness of the contract suite).
+   */
+  readonly git?: Omit<GitBundleOptions, 'token'> & { readonly broker: TokenBroker };
 }
 
 export class GitHubRestCodeHost implements CodeHostPort {
@@ -346,8 +353,41 @@ export class GitHubRestCodeHost implements CodeHostPort {
     return readOk(out);
   }
 
-  async bundle(_req: BundleRequest): Promise<CodeHostRead<BundleResult>> {
-    return notImplemented('bundle (M5.3)');
+  async bundle(req: BundleRequest): Promise<CodeHostRead<BundleResult>> {
+    const git = this.o.git;
+    if (!git) return notImplemented('bundle (no git configuration)');
+    const repo = this.parseRepo(req.repo);
+    if ('state' in repo) return repo;
+    // The default branch and visibility are read fresh: a renamed default branch must not be bundled
+    // from a minute-old answer, and `refs/pull/*` is fetched for public repos only.
+    const repos = await this.list_repos();
+    if (repos.state !== 'ok') return repos;
+    const info = repos.value.find((r) => repoKey(r.full_name) === repoKey(req.repo));
+    if (!info) {
+      return readUnreadable(
+        'not_found',
+        `repository ${req.repo} is not reachable by this installation`,
+      );
+    }
+    const bad = badBranch(info.default_branch);
+    if (bad) return readUnreadable('refused', bad);
+    const { broker, ...gitOptions } = git;
+    return makeGitBundle(
+      {
+        ...gitOptions,
+        token: async () => {
+          const t = await broker.token('hub');
+          return t.ok ? ok(t.value.secret) : t;
+        },
+      },
+      {
+        repo: info.full_name,
+        default_branch: info.default_branch,
+        is_private: info.private,
+        base_sha: req.base_sha,
+        refs: req.refs,
+      },
+    );
   }
 
   async apply_patch(_req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>> {

@@ -165,6 +165,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | M8.2 | Onboarding wizard: request, App status ("0.1 waiting: App not installed"), step progress | Wizard reads one Project and one S0Record |
 | M8.3 | Inbox and Decide for cards 1, 4, 5 and security, with step-up | Deciding in the browser writes a verifiable ledger entry |
 | M8.4 | PRR view; ledger audit view | Each decision links to its ledger entry |
+| M8.0 | Local-prod compose: every service with its own port (bff dev-oidc and codehost both default to 8350 today), `aisdlc-migrate` run first, secrets as file references, the five boundary reasons checked per container | `docker compose up` brings the stack up healthy from a clean checkout |
 | M8.5 | **Live exit:** Census onboarding of `reshif/asf-factory-testbed` on local prod; GitHub request log shows GETs only; PRR active after M4 | Recorded demo and log |
 
 ### M9 — Work lifecycle engine (stage work behind fake ports)
@@ -172,7 +173,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | Task | Deliverable | Acceptance |
 |---|---|---|
 | M9.1 | Requests and WorkItems; S1 1.1–1.6 deterministic parts (normalise, taint-mark, de-dupe, eligibility 1.4); untrusted-input boundary with B27; Question entity; SpawnLink for "new linked item" edges | Injection-like text is fenced and flagged on the G0 card |
-| M9.2 | Interpreter: lane profile bound at G0, gates from the project's gating profile, stage ports (`PlanningPort`, `CodingPort`, `VerifyPort`, `ReleasePort`) with deterministic fakes; replay determinism | Every FL edge has a test against the fake stages; the rebuild drill that replaces Temporal's: kill core-worker mid-flight, wipe all execution state (jobs, timers, projections), refold from the record, and every item resumes in the same state |
+| M9.2 | Interpreter (also wires the real `WorkInFlightPort` into core-worker, replacing the M5.4 fake that reports no work, so effective rules are polled hourly while agent work is in flight): lane profile bound at G0, gates from the project's gating profile, stage ports (`PlanningPort`, `CodingPort`, `VerifyPort`, `ReleasePort`) with deterministic fakes; replay determinism | Every FL edge has a test against the fake stages; the rebuild drill that replaces Temporal's: kill core-worker mid-flight, wipe all execution state (jobs, timers, projections), refold from the record, and every item resumes in the same state |
 | M9.3 | Holds and terminals: HELD H1–H3 and WIP, N8, PARK (5 bd), BLOCKED (→ L2 remediation item), DECLINED (B22), ABANDONED with cause codes, RELHOLD (B26), prior-phase resume; MM-2 maintenance (timers frozen, decisions disabled, drafts kept) | Test per terminal and hold |
 | M9.4 | Back-edges B1–B28 with limits; per-item rework budget (B28 → E4); Handoff (one id) D1–D3 → E4 with its five choices, E3/E5 extension ≤ +50%, D4 hand-back and D5 complete; Assumption (one shape) | Scenario test per back-edge and E4 choice |
 | M9.5 | Re-laning: R1 upshift (insert first missing stage), R2 downshift needs E1 and re-runs G0, R3 circuit breaker ET14 per project × lane, R4 hotfix follow-up blocking new agent items after 5 bd overdue | Scenario tests |

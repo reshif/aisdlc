@@ -4,12 +4,14 @@ import {
   InstallationInfo,
   InstallationRepo,
   type BranchRules,
+  type BundleRequest,
   type CodeHostNotOk,
   type CodeHostRead,
   type CodeownersFile,
   type FileAtSha,
   type GitSha,
 } from '@aisdlc/contracts';
+import { Readable } from 'node:stream';
 import { z } from 'zod';
 import {
   badRepoPath,
@@ -22,7 +24,6 @@ import {
   type AppliedPatch,
   type ApplyPatchRequest,
   type BranchRequest,
-  type BundleRequest,
   type BundleResult,
   type CODEHOST_PORT_METHODS,
   type CodeHostPort,
@@ -124,6 +125,7 @@ export class FakeGitHub implements CodeHostPort {
       'codeowners',
       'codeowners_errors',
       'collaborators',
+      'bundle',
     ] as const) {
       this.broken.set(m, as);
     }
@@ -237,8 +239,46 @@ export class FakeGitHub implements CodeHostPort {
     return readOk(structuredClone(c?.collaborators ?? []));
   }
 
-  async bundle(_req: BundleRequest): Promise<CodeHostRead<BundleResult>> {
-    return notImplemented('bundle (M5.3)');
+  /**
+   * A deterministic stand-in bundle: text that names the repo, the refs and the head, never a real
+   * git bundle (the real bytes are the codehost's). Its manifest follows the same rules as the real
+   * one: `head_sha` is the default branch's head, `default_only` covers one ref, and a `base_sha`
+   * that is not the head is `head_moved`.
+   */
+  async bundle(req: BundleRequest): Promise<CodeHostRead<BundleResult>> {
+    const b = this.gate('bundle', 'GET', `/${req.repo}.git/info/refs?service=git-upload-pack`);
+    if (b) return b;
+    const repo = this.seed.repos.find((r) => repoKey(r.full_name) === repoKey(req.repo));
+    if (!repo) return this.missingRepo(req.repo);
+    const heads = this.seed.heads.filter((x) => repoKey(x.repo) === repoKey(req.repo));
+    const head = heads.find((x) => x.branch === repo.default_branch);
+    if (!head) return readUnreadable('not_found', `no branch ${repo.default_branch}`);
+    if (req.base_sha !== undefined && req.base_sha !== head.sha) {
+      return readUnreadable('head_moved', `the default branch is no longer at ${req.base_sha}`);
+    }
+    const covered = req.refs === 'all' ? heads : [head];
+    const text = [
+      '# FakeGitHub bundle (not a git bundle)',
+      `repo ${repo.full_name}`,
+      `head ${head.sha}`,
+      ...covered.map((x) => `${x.sha} refs/heads/${x.branch}`),
+      '',
+    ].join('\n');
+    const bytes = Buffer.from(text);
+    const stream = Readable.from([bytes]);
+    return readOk({
+      manifest: {
+        repo: repo.full_name,
+        head_sha: head.sha,
+        refs_covered: req.refs,
+        ref_count: covered.length,
+        commit_count: covered.length,
+        bytes: bytes.length,
+        duration_ms: 0,
+      },
+      stream,
+      dispose: () => void stream.destroy(),
+    });
   }
 
   async apply_patch(_req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>> {

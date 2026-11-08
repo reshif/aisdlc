@@ -28,8 +28,10 @@ packages/
   ledger/   ledger_entry, checkpoints, writer, reconciler, verify-ledger CLI
   ports/    port interfaces and fakes (key custody, Notary, Witness, IdentityProvider, ProjectSettings, PdpEntity, Oidc, CodeHost with FakeGitHub and its contract suite, RegisteredRepos)
   directory/ Principal and Team read models over the identity journal (for core)
+  loops/    loop supervisor (per-loop backoff, aggregated health, loop-prefixed logs, metrics), the code-host poll loops, inbound facts, WorkInFlightPort and its fake
+  migrate/  `aisdlc-migrate`: one command that applies every schema in dependency order (`plan.json`); the bundle embeds the SQL
   pdp/      Cedar policies generated from the role catalogue, bundles published through config, embedded fail-closed evaluator, decision log
-services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity, bff, codehost)
+services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness, identity, bff, codehost, core-worker)
 docs/       PLAN.md, adr/, specs/
 ```
 
@@ -45,6 +47,6 @@ Packages export TypeScript source (`exports` -> `src/index.ts`), so no build ste
 - Never commit secrets, `dist/`, `node_modules/` or `.env` files. Pin dependency versions exactly.
 - TypeScript is strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`). No `any` without a comment saying why.
 - Lock order: a transaction that writes both the record and the ledger takes the gate lock, then the ledger lock, before its first record append, and writes the ledger entry last. Gate status is read only from ledger decisions (`foldDecisions`), never from a projection on a write path.
-- Migrations are append-only `NNNN_name.sql` files; never edit one after it is applied.
+- Migrations are append-only `NNNN_name.sql` files; never edit one after it is applied. A new schema (a new `migrations/` directory) also gets an entry in `packages/migrate/plan.json`, in dependency order; a test fails until it has one.
 - Conventional Commits (`feat(kernel): ...`, `fix(db): ...`, `chore: ...`). Small commits.
 - One task in flight at a time. Do not start the next task until the current one passes `npm run check` and has been reviewed.
