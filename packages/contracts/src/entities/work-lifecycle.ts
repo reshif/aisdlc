@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BackEdgeId, GateId, HoldReason, AbandonCause, RelaneId } from '../flow.js';
+import { BackEdgeId, GateId, HoldReason, AbandonCause, RelaneId, TriggerId } from '../flow.js';
 import { EntryChannel, Lane, StageId, StepId, Tier } from '../values.js';
 import { CatalogueRef } from './config.js';
 import { LintRuleId } from './detectors.js';
@@ -11,6 +11,7 @@ import {
   Sha256Hex,
   WorkItemId,
   WorkRequestId,
+  uuidId,
 } from './ids.js';
 import { RepoFullName } from './codehost.js';
 
@@ -141,9 +142,12 @@ export type QuestionDraft = z.infer<typeof QuestionDraft>;
 
 // ---------------------------------------------------------------- SpawnLink
 
-/** The edges that start a NEW linked item (FL `REQ` targets): B16 B17 B18 B19, RELHOLD (B26), R4. */
+/**
+ * The edges that start a NEW linked item (FL `REQ` targets): B16 B17 B18 B19, RELHOLD (B26), R4, and
+ * B6 (BLOCKED spawns an L2 remediation item, OB §7 "Remediation path").
+ */
 export const SpawnEdge = z.union([
-  BackEdgeId.extract(['B16', 'B17', 'B18', 'B19', 'B26']),
+  BackEdgeId.extract(['B6', 'B16', 'B17', 'B18', 'B19', 'B26']),
   RelaneId.extract(['R4']),
 ]);
 export type SpawnEdge = z.infer<typeof SpawnEdge>;
@@ -155,8 +159,26 @@ export const SpawnKind = z.enum([
   'audit_miss',
   'release_change',
   'hotfix_follow_up',
+  'remediation',
 ]);
 export type SpawnKind = z.infer<typeof SpawnKind>;
+
+/**
+ * What each new-item edge may create: its kind and the lanes the flow names (B16 and B17 say "NEW
+ * L0/L1"; B6 says L2 remediation, OB §7). `null` lanes: the flow names none, any lane may be asked
+ * for. One table, so the interpreter, the stage ports and the tests cannot drift.
+ */
+export const SPAWN_RULES: Readonly<
+  Record<SpawnEdge, { readonly kind: SpawnKind; readonly lanes: readonly Lane[] | null }>
+> = {
+  B6: { kind: 'remediation', lanes: ['L2'] },
+  B16: { kind: 'rollback', lanes: ['L0', 'L1'] },
+  B17: { kind: 'escape', lanes: ['L0', 'L1'] },
+  B18: { kind: 'rejected_rework', lanes: null },
+  B19: { kind: 'audit_miss', lanes: null },
+  B26: { kind: 'release_change', lanes: null },
+  R4: { kind: 'hotfix_follow_up', lanes: ['L1'] },
+};
 
 /** DM `SpawnLink`: the new item, where it came from (origin item and event) and which edge made it. */
 export const SpawnLink = z.strictObject({
@@ -183,14 +205,141 @@ export const ItemHold = z.strictObject({
 });
 export type ItemHold = z.infer<typeof ItemHold>;
 
+// ---------------------------------------------------------------- Holds placed by admission
+
+/** The holds 6.0 admission can place (FL `HELD`: H1 approver pool, H2 capacity, H3 env, and WIP). */
+export const AdmissionHold = HoldReason.extract(['H1', 'H2', 'H3', 'WIP']);
+export type AdmissionHold = z.infer<typeof AdmissionHold>;
+
+/** The id prefix of a hold the engine placed at admission: the release loop frees only these, never a kill or MM-2 hold. */
+export const ADMISSION_HOLD_PREFIX = 'adm:';
+
+// ---------------------------------------------------------------- Handoff (one id)
+
+/** DM `Handoff.code`: D1 (from S6), D2 (from S7), D3 (from G4), or E4 reached directly (B2, B23-B25, B28). */
+export const HandoffCode = z.enum(['D1', 'D2', 'D3', 'E4']);
+export type HandoffCode = z.infer<typeof HandoffCode>;
+
+/**
+ * E4's choices (FL): answer and resume in the same envelope; one extension (E3/E5); re-plan -> 5.1;
+ * re-spec -> 3.2; developer takes over (lane L8, lease epoch +1); abandon. `hand_over_close` is DM's
+ * `Handoff -> HandedOverClosed` (the developer takes the work outside the factory and the item closes).
+ */
+export const HandoffChoice = z.enum([
+  'resume',
+  'extend',
+  'replan',
+  'respec',
+  'takeover',
+  'hand_over_close',
+  'abandon',
+]);
+export type HandoffChoice = z.infer<typeof HandoffChoice>;
+
+export const HandoffUuid = uuidId<'Handoff'>();
+export type HandoffUuid = z.infer<typeof HandoffUuid>;
+
+/** The Handoff Pack (A11): a reference, not the pack. The pack's content is the agent runtime's (M11+). */
+export const HandoffPackRef = z.strictObject({
+  pack_id: z.string().min(1),
+  /** sha256 of the facts the engine held when it handed off (trigger, counters, the last stage outputs). */
+  content_sha256: Sha256Hex,
+});
+export type HandoffPackRef = z.infer<typeof HandoffPackRef>;
+
+/**
+ * DM `Handoff` with ONE id (DM §8 gap 5): `handoff_id` is derived from the item and the handoff's
+ * ordinal; the E4 gate instance and the pack are attributes, not other ids.
+ */
+export const Handoff = z.strictObject({
+  handoff_id: HandoffUuid,
+  item_id: WorkItemId,
+  /** 1 for the item's first handoff. */
+  n: z.number().int().min(1),
+  code: HandoffCode,
+  /** What caused it: an ET trigger id, a back-edge id, `X1`, `X2`, `E6`... */
+  trigger: z.string().min(1),
+  origin_phase: z.string().min(1),
+  origin_step: StepId.nullable(),
+  pack: HandoffPackRef,
+  e4_gate_instance_id: z.string().min(1).nullable(),
+  /** E4 was decided in the ledger: the owner may now record the choice. */
+  e4_decided: z.boolean(),
+  status: z.enum(['open', 'chosen']),
+  choice: HandoffChoice.nullable(),
+  chosen_by: PrincipalId.nullable(),
+  /** The envelope extension asked for (E3 or E5), and whether the gate approved it. */
+  extension: z
+    .strictObject({
+      percent: z.number().positive(),
+      via: z.enum(['E3', 'E5']),
+      approved: z.boolean().nullable(),
+    })
+    .nullable(),
+  opened_at: IsoDateTime,
+  chosen_at: IsoDateTime.nullable(),
+});
+export type Handoff = z.infer<typeof Handoff>;
+
+// ---------------------------------------------------------------- Assumption (one shape)
+
+/** The four places an assumption comes from today (DM §8 gap 4): thread, event, agent output, intent open questions. */
+export const AssumptionOrigin = z.enum(['thread', 'event', 'agent_output', 'open_question']);
+export type AssumptionOrigin = z.infer<typeof AssumptionOrigin>;
+
+/** What the assumption is about: the engine's own, the intent block's, or a planner's output (spec, design, plan). */
+export const AssumptionKind = z.enum(['engine', 'intent', 'plan', 'spec', 'design']);
+export type AssumptionKind = z.infer<typeof AssumptionKind>;
+
+export const AssumptionState = z.enum(['open', 'accepted', 'overridden']);
+export type AssumptionState = z.infer<typeof AssumptionState>;
+
+/** DM `Assumption`: one entity (id, item, origin run, text hash, state, overridden_by), fed by all four sources. */
+export const Assumption = z.strictObject({
+  assumption_id: z.string().min(1),
+  item_id: WorkItemId,
+  origin: AssumptionOrigin,
+  kind: AssumptionKind,
+  /** The agent run or command that produced it; `null` for a person's or the thread's. */
+  origin_run: z.string().min(1).nullable(),
+  text_hash: Sha256Hex,
+  state: AssumptionState,
+  overridden_by: PrincipalId.nullable(),
+  raised_at: IsoDateTime,
+});
+export type Assumption = z.infer<typeof Assumption>;
+
+/** What a planner reports of an assumption in its output (`spec`, `design`, `plan`); the engine stamps the rest. */
+export const AssumptionReport = z.strictObject({
+  kind: AssumptionKind,
+  text_hash: Sha256Hex,
+});
+export type AssumptionReport = z.infer<typeof AssumptionReport>;
+
+// ---------------------------------------------------------------- Config (MM-2)
+
+/** The ops flag of maintenance mode MM-2: timers frozen, decisions disabled, drafts kept (FL `MM`). */
+export const MAINTENANCE_FLAG_KEY = 'ops.maintenance.mm2';
+/** The id of the hold MM-2 puts on every active item; its `origin` says which flag put it there. */
+export const MAINTENANCE_HOLD_ID = 'mm2';
+export const MAINTENANCE_HOLD_ORIGIN = 'mm-2';
+
+// ---------------------------------------------------------------- Causes
+
+/** Cause codes (lowercase dotted tokens, `AbandonCause`) the engine itself ends or declines an item with. */
+export const CAUSE_PARK_TIMEOUT = 'park.timeout';
+export const CAUSE_E4_ABANDON = 'e4.abandon';
+export const CAUSE_E4_HANDED_OVER = 'e4.handed_over';
+export const CAUSE_B18_REJECTED = 'b18.requester_rejected';
+
 // ---------------------------------------------------------------- Stage ports
 
 /** The four stage ports (PLAN M9.2). The step decides which one runs it (`portOfStep` in `@aisdlc/work`). */
 export const StagePortName = z.enum(['planning', 'coding', 'verify', 'release']);
 export type StagePortName = z.infer<typeof StagePortName>;
 
-/** The conditional gates a stage can raise mid-step (FL: G3o, X1, X2, X3, E2; E6 is M9.4). */
-export const RaisableGate = GateId.extract(['G3o', 'X1', 'X2', 'X3', 'E2']);
+/** The conditional gates a stage can raise mid-step (FL: G3o, X1, X2, X3, E2, E6). */
+export const RaisableGate = GateId.extract(['G3o', 'X1', 'X2', 'X3', 'E2', 'E6']);
 export type RaisableGate = z.infer<typeof RaisableGate>;
 
 /** What a stage port answers. The fakes are deterministic; a real one is an agent or a service. */
@@ -200,6 +349,29 @@ export const StageOutcome = z.discriminatedUnion('outcome', [
     output_hash: Sha256Hex,
     /** 6.0: the lease epoch the admission granted (M13 owns leases; the engine only counts them). */
     lease_epoch: z.number().int().min(1).optional(),
+    /** The assumptions the planner reports in its output (spec, design, plan). */
+    assumptions: z.array(AssumptionReport).optional(),
+  }),
+  /** 6.0 admission refused: the item is HELD (H1 approver pool, H2 capacity, H3 env, WIP). */
+  z.strictObject({ outcome: z.literal('held'), reason: AdmissionHold }),
+  /**
+   * A back-edge the step raised (B2, B3, B6-B12). `loop` names which of the edge's catalogue limits this
+   * round counts against (B7: `et3_rounds`, `et2_ci_rounds`, `et2_time_multiple`); `observed` is the
+   * measure for a limit that is not a count (the time multiple); `variant` picks B15's a or b.
+   */
+  z.strictObject({
+    outcome: z.literal('rework'),
+    edge: BackEdgeId,
+    variant: z.enum(['a', 'b']).optional(),
+    loop: z.string().min(1).optional(),
+    observed: z.number().optional(),
+    reason_code: z.string().min(1).max(64),
+  }),
+  /** An ET trigger the step hit (ET1 budget, ET2 time, ET3 repeat fail, ET8 gave up...): a handoff. */
+  z.strictObject({
+    outcome: z.literal('trigger'),
+    trigger: TriggerId,
+    reason_code: z.string().min(1).max(64),
   }),
   /** 1.3: the lane the classifier proposes. G0 binds it; 1.4 checks it. */
   z.strictObject({ outcome: z.literal('classified'), lane: Lane, output_hash: Sha256Hex }),
@@ -227,6 +399,8 @@ export const StageRequest = z.strictObject({
   attempt: z.number().int().min(1),
   /** Gates already approved for this item at this step (a resume after X1, X3, G3o...). */
   approved_gates: z.array(GateId),
+  /** Gates denied at this step: the stage must find another way (X3 "find an alternative", G3o). */
+  denied_gates: z.array(GateId).default([]),
   catalogue_ref: CatalogueRef,
 });
 export type StageRequest = z.infer<typeof StageRequest>;
@@ -247,6 +421,7 @@ export const ItemCommand = z.discriminatedUnion('type', [
     attempt: z.number().int().min(1),
     lane: Lane,
     approved_gates: z.array(GateId),
+    denied_gates: z.array(GateId).default([]),
   }),
   /** 1.4: `eligibility(repo, lane)` of the repo's PRR, deterministic, never a port to an agent. */
   z.strictObject({ type: z.literal('check_eligibility'), key: z.string().min(1), lane: Lane }),
@@ -310,6 +485,16 @@ export const ITEM_EVENT = {
   spawn_requested: 'item.spawn_requested',
   spawned: 'item.spawned',
   command_done: 'item.command_done',
+  stage_held: 'item.stage_held',
+  rework_requested: 'item.rework_requested',
+  trigger_fired: 'item.trigger_fired',
+  timer_fired: 'item.timer_fired',
+  handoff_chosen: 'item.handoff_chosen',
+  hand_back: 'item.hand_back',
+  env_fixed: 'item.env_fixed',
+  release_re_requested: 'item.release_re_requested',
+  assumption_raised: 'item.assumption_raised',
+  assumption_decided: 'item.assumption_decided',
 } as const;
 export type ItemEventType = (typeof ITEM_EVENT)[keyof typeof ITEM_EVENT];
 export const ItemEventTypeValues: readonly ItemEventType[] = Object.values(ITEM_EVENT);
@@ -372,6 +557,7 @@ export const ItemStagePayloads = {
     output_hash: Sha256Hex,
     lane: Lane.optional(),
     lease_epoch: z.number().int().min(1).optional(),
+    assumptions: z.array(AssumptionReport).optional(),
   }),
   [ITEM_EVENT.stage_failed]: z.strictObject({ ...Answers, step: StepId, code: z.string().min(1) }),
   [ITEM_EVENT.stage_gate_needed]: z.strictObject({
@@ -459,6 +645,71 @@ export const ItemEventPayloads = {
   [ITEM_EVENT.spawned]: z.strictObject({ ...Answers, link: SpawnLink }),
   /** A command with no result of its own (withdrawing gates) was carried out. */
   [ITEM_EVENT.command_done]: z.strictObject({ ...Answers }),
+  /** 6.0 admission said no: the item is held (H1, H2, H3, WIP) until the release loop frees it. */
+  [ITEM_EVENT.stage_held]: z.strictObject({
+    ...Answers,
+    step: StepId,
+    reason: AdmissionHold,
+  }),
+  /**
+   * A back-edge was asked for: by a stage (with its `command_key`), or observed (a merge conflict, a
+   * requester's amendment, an approver who is unsure). The catalogue's limit decides what happens.
+   */
+  [ITEM_EVENT.rework_requested]: z.strictObject({
+    edge: BackEdgeId,
+    step: StepId.nullable(),
+    command_key: z.string().min(1).optional(),
+    variant: z.enum(['a', 'b']).optional(),
+    loop: z.string().min(1).optional(),
+    observed: z.number().optional(),
+    reason_code: z.string().min(1).max(64),
+    by: PrincipalId.optional(),
+  }),
+  /** An ET trigger fired (a stage, the gateway or a monitor): the item is handed off (D1, D2 or D3). */
+  [ITEM_EVENT.trigger_fired]: z.strictObject({
+    trigger: TriggerId,
+    step: StepId,
+    command_key: z.string().min(1).optional(),
+    reason_code: z.string().min(1).max(64),
+  }),
+  /**
+   * A timer of the item ran out. Core computes `due_at` on the business calendar from the facts the
+   * item's own stream holds (`since`, the frozen time), so the fold stays deterministic.
+   */
+  [ITEM_EVENT.timer_fired]: z.strictObject({
+    timer: z.enum(['park', 'clarify_silence', 'item_age']),
+    since: IsoDateTime,
+    due_at: IsoDateTime,
+    frozen_ms: z.number().int().min(0),
+  }),
+  /** The owner of record's E4 choice. It is taken only once E4 itself is decided in the ledger. */
+  [ITEM_EVENT.handoff_chosen]: z.strictObject({
+    handoff_id: HandoffUuid,
+    choice: HandoffChoice,
+    by: PrincipalId,
+    /** `extend`: how much more envelope, in percent (at most the catalogue's `max_percent`). */
+    extension_percent: z.number().positive().optional(),
+    via: z.enum(['E3', 'E5']).optional(),
+    /** `abandon`: the cause code (default `e4.abandon`). */
+    cause: AbandonCause.optional(),
+  }),
+  /** D4: the developer hands the item back, once. `plan_changed` sends it through G3 again. */
+  [ITEM_EVENT.hand_back]: z.strictObject({ by: PrincipalId, plan_changed: z.boolean() }),
+  /** BLOCKED's exit: the environment is fixed; the item goes on at 6.1. */
+  [ITEM_EVENT.env_fixed]: z.strictObject({ by: PrincipalId }),
+  /** RELHOLD's exit: re-request the release (G5 again) after the fix window. */
+  [ITEM_EVENT.release_re_requested]: z.strictObject({ by: PrincipalId }),
+  [ITEM_EVENT.assumption_raised]: z.strictObject({
+    origin: AssumptionOrigin,
+    kind: AssumptionKind,
+    origin_run: z.string().min(1).nullable(),
+    text_hash: Sha256Hex,
+  }),
+  [ITEM_EVENT.assumption_decided]: z.strictObject({
+    assumption_id: z.string().min(1),
+    state: z.enum(['accepted', 'overridden']),
+    by: PrincipalId,
+  }),
 } as const satisfies Record<ItemEventType, z.ZodType>;
 
 export type ItemEventPayload<T extends ItemEventType> = z.infer<(typeof ItemEventPayloads)[T]>;
@@ -515,6 +766,13 @@ export const ItemView = z.strictObject({
     }),
   ),
   outstanding: z.number().int().min(0),
+  /** The cause code of a terminal state (Declined, Abandoned...), told to the requester. */
+  terminal_cause: z.string().nullable(),
+  /** The item's rework count (FIX 14): back-edges taken against its budget. */
+  rework_total: z.number().int().min(0),
+  /** The open handoff, if any. */
+  handoff: Handoff.nullable(),
+  assumptions: z.array(Assumption),
   catalogue_ref: CatalogueRef,
   /** B27: the request text was flagged (the card says which rules). */
   injection_suspected: z.boolean(),

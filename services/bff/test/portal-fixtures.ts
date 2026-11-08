@@ -38,6 +38,10 @@ export function itemViewFixture() {
     gates: [],
     outstanding: 1,
     catalogue_ref: { version: '1.0.0', hash: 'a'.repeat(64) },
+    terminal_cause: null,
+    rework_total: 0,
+    handoff: null,
+    assumptions: [],
     injection_suspected: false,
     dedupe_links: [],
   };

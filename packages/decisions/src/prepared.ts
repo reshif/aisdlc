@@ -14,6 +14,7 @@ import {
   appendGateEvents,
   clockOf,
   inDecisionTx,
+  inMaintenance,
   lockKey,
   type DecisionDeps,
   type Written,
@@ -274,6 +275,9 @@ export async function decide(
   const decision = VoteDecision.safeParse(input.decision);
   if (!decision.success) {
     return err(decisionError('invalid_input', `${input.decision} is not a vote decision`));
+  }
+  if (await inMaintenance(deps)) {
+    return err(decisionError('maintenance', 'maintenance mode MM-2: decisions are disabled'));
   }
   const h = hashOfNonce(input.nonce);
   return inDecisionTx(deps, async (tx) => {

@@ -72,19 +72,20 @@ const cases: Record<string, Case> = {
     inferred: `
       Parked -> Abandoned | Held
       Clarifying -> Parked | Held
-      S2 -> S1 | S3
-      S3 -> Held
-      S4 -> S3 | S1 | Held
-      S5 -> Held
-      Scheduling -> S3
+      S1 -> Handoff
+      S2 -> S1 | S3 | Handoff
+      S3 -> Held | Handoff
+      S4 -> S3 | S1 | Held | Handoff
+      S5 -> Held | Handoff
+      Scheduling -> S3 | Handoff
       S6 -> Quarantined | S5 | S4 | S3 | S2
       S7 -> Handoff | Quarantined | S5 | S4 | S3 | S2 | Held
       G4 -> Handoff | S3 | Held
-      S8a -> S7 | Held
-      S8b -> S9 | Held
-      G5 -> Held
-      S9 -> Done | Held
-      G6 -> Held
+      S8a -> S7 | Held | Handoff
+      S8b -> S9 | Held | Handoff
+      G5 -> Held | Handoff
+      S9 -> Done | Held | Handoff
+      G6 -> Held | Handoff
       Held -> S2 | S3 | S4 | S5 | S6 | S7 | Scheduling | Clarifying | G4 | S8a | S8b | G5 | S9 | G6 | Handoff | Quarantined | Parked
       Handoff -> S5 | S3 | Held
       Quarantined -> S6 | Held`,

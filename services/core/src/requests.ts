@@ -12,7 +12,7 @@ import {
 import { deterministicId, err, ok, type Result } from '@aisdlc/kernel';
 import { injectionReportOf, taintMark } from '@aisdlc/work';
 import { coreError, type CoreError } from './errors.js';
-import { clockOf, type CoreDeps } from './journal.js';
+import { clockOf, maintenanceRefusal, type CoreDeps } from './journal.js';
 import { ingestItem, readItem } from './work-items.js';
 import { requestWork, type WorkState } from './work.js';
 
@@ -89,7 +89,9 @@ export async function submitRequest(
  * 1.6, the Ready decision: a person says the request is ready for G0. Authorisation is the caller's
  * (the PDP in the route); here it is one signal with a key, so a repeat is a no-op.
  */
-export function decideReady(deps: CoreDeps, itemId: string, by: PrincipalId) {
+export async function decideReady(deps: CoreDeps, itemId: string, by: PrincipalId) {
+  const mm = maintenanceRefusal(deps);
+  if (mm) return err(mm);
   return ingestItem(deps, itemId, {
     type: ITEM_EVENT.ready_decided,
     payload: { by },

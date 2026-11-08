@@ -11,8 +11,10 @@ import {
   registerCoreConfig,
   roleMapSyncLoop,
   s0DriverLoop,
+  maintenanceFrom,
   s0SettingsFrom,
   workDriverLoop,
+  workSettingsFrom,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
@@ -28,7 +30,13 @@ import {
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import { HttpWitness } from '@aisdlc/witness/client';
-import { FakeStagePorts, FileRegisteredRepos, type StagePorts } from '@aisdlc/ports';
+import {
+  FakeCapacity,
+  FakeStagePorts,
+  FileRegisteredRepos,
+  type CapacityPort,
+  type StagePorts,
+} from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreWorkerApp } from './app.js';
 import { HttpCodeHostReads } from './codehost-client.js';
@@ -59,6 +67,8 @@ export async function bootCoreWorker(
   deps: {
     workInFlight?: WorkInFlightPort;
     stagePorts?: StagePorts;
+    /** Who says how many HELD items may go on (M9.3). Until M13.1 the fake grants nothing. */
+    capacity?: CapacityPort;
     log?: (line: string) => void;
   } = {},
 ): Promise<RunningService> {
@@ -97,6 +107,20 @@ export async function bootCoreWorker(
       }
     }
     const supervisor = new LoopSupervisor({ log });
+    // One config reader for the process: MM-2 (the maintenance flag) and the business calendar are read
+    // from it by the work driver, the S0 driver and the decision kernel's probe.
+    const registry = registerCoreConfig(new ConfigRegistry());
+    const ensureReader = async (): Promise<ConfigReader> => {
+      if (!reader) {
+        reader = await ConfigReader.create({
+          pool,
+          registry,
+          onError: (e) => log(`config reader: ${e instanceof Error ? e.message : String(e)}`),
+        });
+        await reader.start();
+      }
+      return reader;
+    };
     const source = new HttpCodeHostReads({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken });
     const poll = {
       pool,
@@ -156,17 +180,20 @@ export async function bootCoreWorker(
         throw new Error(
           'CORE_WORKER_STAGE_PORTS needs the Notary (gates are opened through the decision kernel)',
         );
-      const registry = registerCoreConfig(new ConfigRegistry());
+      const rd = await ensureReader();
       supervisor.add(
         workDriverLoop(
           {
             pool,
             ports: deps.stagePorts ?? new FakeStagePorts(),
+            capacity: deps.capacity ?? new FakeCapacity(),
+            settings: workSettingsFrom(rd),
             decisions: {
               pool,
               ledger,
               eligibility: identityEligibility(readPool, registry),
               stepUp: new RefusingStepUp(),
+              maintenance: maintenanceFrom(rd),
             },
           },
           {
@@ -184,13 +211,7 @@ export async function bootCoreWorker(
       );
     }
     if (cfg.knowledge || cfg.identity) {
-      const registry = registerCoreConfig(new ConfigRegistry());
-      reader = await ConfigReader.create({
-        pool,
-        registry,
-        onError: (e) => log(`config reader: ${e instanceof Error ? e.message : String(e)}`),
-      });
-      await reader.start();
+      const rd = await ensureReader();
       if (cfg.knowledge) {
         supervisor.add(
           s0DriverLoop(
@@ -201,7 +222,8 @@ export async function bootCoreWorker(
                 baseUrl: cfg.knowledge.url,
                 token: cfg.knowledge.token,
               }),
-              settings: s0SettingsFrom(reader),
+              settings: s0SettingsFrom(rd),
+              maintenance: maintenanceFrom(rd),
             },
             {
               intervalMs: cfg.s0DriverIntervalMs,
@@ -231,7 +253,8 @@ export async function bootCoreWorker(
                 token: cfg.knowledge.token,
               }),
               source,
-              settings: s0SettingsFrom(reader),
+              settings: s0SettingsFrom(rd),
+              maintenance: maintenanceFrom(rd),
             }),
             {
               intervalMs: cfg.cardsIntervalMs,

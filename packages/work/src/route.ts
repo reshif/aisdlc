@@ -70,21 +70,57 @@ export const HUMAN_GATE_STEPS: Readonly<Partial<Record<StepId, GateId>>> = {
 /** 9.5 is the async mode-E audit sample (FIX 4): a branch off 9.3, not part of the route. */
 const ASYNC_STEPS: readonly StepId[] = ['9.5'];
 
+/** What an approval of a conditional gate does (see `CONDITIONAL_GATES`). */
+export type ConditionalApprove =
+  /** The step runs again with the gate approved (X1, X3 at 6.4: "approved: rehydrate, resume"). */
+  | 'resume'
+  /** The step is taken as done and the item goes on. */
+  | 'continue'
+  /** The next conditional gate of the same step opens (E6 -> G3o, FL: `E6 -.-> G3o`). */
+  | { readonly chain: GateId }
+  /** The item goes back to a step (G3o after E6 -> 6.4). */
+  | { readonly jump: StepId };
+
 /**
  * What a stage can raise mid-step, and what an approval does: `resume` runs the step again with the
  * gate approved (X1, X3 at 6.4: "approved: rehydrate, resume"); `continue` takes the step as done
- * (G3o after 6.3 -> 6.4; X2 after 7.4 -> 7.5; E2 after 4.5 -> 4.6 and after 7.5 -> 7.6). A denial is
- * an edge of M9.4 (D1, D2, B25) and is not taken here.
+ * (G3o after 6.3 -> 6.4; X2 after 7.4 -> 7.5; E2 after 4.5 -> 4.6 and after 7.5 -> 7.6). B12 is the
+ * chain at 7.2: E6 (the Test Change Request) -> G3o -> back to 6.4. `approve_at` overrides the
+ * default for one step. A denial is the item's edge to a handoff or a back-edge (`onDenied`, interpret.ts).
  */
 export const CONDITIONAL_GATES: Readonly<
-  Record<RaisableGate, { steps: readonly StepId[]; on_approve: 'resume' | 'continue' }>
+  Record<
+    RaisableGate,
+    {
+      steps: readonly StepId[];
+      on_approve: ConditionalApprove;
+      approve_at?: Readonly<Partial<Record<StepId, ConditionalApprove>>>;
+    }
+  >
 > = {
-  G3o: { steps: ['6.3'], on_approve: 'continue' },
+  G3o: { steps: ['6.3', '7.2'], on_approve: 'continue', approve_at: { '7.2': { jump: '6.4' } } },
   X1: { steps: ['6.4'], on_approve: 'resume' },
   X3: { steps: ['6.4'], on_approve: 'resume' },
   X2: { steps: ['7.4'], on_approve: 'continue' },
   E2: { steps: ['4.5', '7.5'], on_approve: 'continue' },
+  E6: { steps: ['7.2'], on_approve: { chain: 'G3o' } },
 };
+
+/** What approving `gate` raised at `step` does. */
+export const approveOf = (gate: RaisableGate, step: StepId): ConditionalApprove =>
+  CONDITIONAL_GATES[gate].approve_at?.[step] ?? CONDITIONAL_GATES[gate].on_approve;
+
+/** The index of the station that runs `step` (a gate's step is the station that holds its gate), or -1. */
+export function stationOfStep(route: readonly Station[], step: StepId): number {
+  const gate = HUMAN_GATE_STEPS[step];
+  if (gate !== undefined) return stationOfGate(route, gate);
+  return route.findIndex((s) => (s.kind === 'step' || s.kind === 'human') && s.step === step);
+}
+
+/** The index of the station that opens `gate`, or -1. */
+export function stationOfGate(route: readonly Station[], gate: GateId): number {
+  return route.findIndex((s) => s.kind === 'gates' && s.gates.includes(gate));
+}
 
 /** Which stage port runs a step: planning S1-S5, coding S6, verify S7, release S8-S9. */
 export function portOfStep(step: StepId): StagePortName {

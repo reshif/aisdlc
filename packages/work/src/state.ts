@@ -1,5 +1,7 @@
 import {
+  type Assumption,
   type GateId,
+  type Handoff,
   type ItemCommand,
   type ItemCreatedPayload,
   type ItemHold,
@@ -26,6 +28,11 @@ export interface GateInstanceState {
   readonly outcome: string | null;
   /** The station (or conditional step) the gate belongs to. */
   readonly station: string;
+  /**
+   * The station was left (approved, or an edge was taken): this instance never counts again. A back-edge
+   * brings the item to the same station, and an old decision must not decide the new visit.
+   */
+  readonly consumed?: boolean;
 }
 
 export type Waiting =
@@ -39,10 +46,31 @@ export type Waiting =
       /** Set when a stage raised the gate mid-step. */
       readonly conditional: { readonly step: StepId; readonly gate: GateId } | null;
     }
-  | { readonly kind: 'human'; readonly what: 'ready' | 'schedule' | 'merge' | 'human_led' }
+  | {
+      readonly kind: 'human';
+      readonly what: 'ready' | 'schedule' | 'merge' | 'human_led' | 'plan';
+    }
   | { readonly kind: 'questions'; readonly ids: readonly string[] }
-  /** B1's round limit: PARKED (its exits are M9.3). */
-  | { readonly kind: 'parked'; readonly cause: string }
+  /** PARKED (B1's round limit, or silence while clarifying): answers arrive -> 1.5, 5 bd -> Abandoned. */
+  | { readonly kind: 'parked'; readonly cause: string; readonly ids: readonly string[] }
+  /** BLOCKED (B6): the platform owner fixes the environment; "env fixed" -> 6.1. */
+  | {
+      readonly kind: 'blocked';
+      readonly cause: string;
+      readonly owner: 'platform_owner';
+    }
+  /** RELEASE HELD (B26): merged, not deployed. Re-request -> G5, or a NEW linked item. */
+  | { readonly kind: 'release_held'; readonly since: string }
+  /**
+   * A handoff is open (D1/D2/D3/E4): `e4` waits for the E4 gate, `choice` for the owner's choice, `e3`
+   * for the envelope-extension gate the choice asked for.
+   */
+  | {
+      readonly kind: 'handoff';
+      readonly handoff_id: string;
+      readonly station: string;
+      readonly stage: 'e4' | 'choice' | 'e3';
+    }
   /** An outcome whose edge belongs to M9.3-M9.5: the item does not move (fail closed). */
   | {
       readonly kind: 'stuck';
@@ -89,8 +117,45 @@ export interface ItemState {
   /** The agent lease (M13 owns it): set when 6.0 admits, cleared when S6 ends. */
   lease: { readonly epoch: number } | null;
   spawns: SpawnLink[];
-  /** Back-edge counters and the item's rework budget (M9.4 fills them; they survive re-lane and handoff). */
-  rework: { total: number; by_edge: Record<string, number> };
+  /**
+   * Back-edge counters and the item's rework budget (FIX 14): `total` counts every back-edge B2-B26 the
+   * item has asked for, `by_edge` per edge, `by_loop` per catalogue limit (`B7:et3_rounds`). They survive
+   * re-lane and handoff: nothing resets them.
+   */
+  rework: { total: number; by_edge: Record<string, number>; by_loop: Record<string, number> };
+  /** What counts toward the ET14 circuit breaker (the breaker itself is M9.5): the recorded counts. */
+  et14: Record<string, number>;
+  /** Timers: business-day timers run on `since`, and time frozen by MM-2 does not count. */
+  clock: {
+    /** Total ms the item spent under a maintenance hold. */
+    frozen_ms: number;
+    frozen_since: string | null;
+    /** The item is older than the catalogue's `item_age` (B28), and E4 is not yet asked. */
+    age_exceeded: boolean;
+    age_pending: boolean;
+  };
+  /** Set while the item is PARKED or clarifying: when it started, and the frozen time before it. */
+  park: { since: string; frozen_base: number } | null;
+  clarify: { since: string; frozen_base: number } | null;
+  /** Handoffs of the item, oldest first; the open one is the last with status `open`. */
+  handoffs: Handoff[];
+  /** Highest agent lease epoch granted so far: a new lease after a handoff is the next one. */
+  lease_seq: number;
+  /** G4 review mode: E (evidence approver) until B14 sends it to C (codeowner); `null` until known. */
+  review_mode: 'E' | 'C' | null;
+  /** The lane before a developer took over (E4 takeover): D4 hands back to it, once. */
+  takeover: { lane_before: Lane; hand_backs: number } | null;
+  /** Gate denials by `gate@step` (X3 "find an alternative, 1x"). */
+  denials: Record<string, number>;
+  /** Gates denied at a step: the stage is told, and must find another way. */
+  denied: Record<string, GateId[]>;
+  /** E3/E5 extensions approved on this item. */
+  extensions: number;
+  /** A human wrote the plan after B5's rejections. */
+  human_plan: boolean;
+  /** The last output hash of each step (the Handoff Pack's contents). */
+  outputs: Record<string, string>;
+  assumptions: Assumption[];
   terminal: TerminalState | null;
   terminal_cause: string | null;
   /** The last event types the interpreter did not act on, and why (bounded). */
@@ -100,6 +165,8 @@ export interface ItemState {
   trail: WorkItemPhase[];
   /** The seq of the last event folded. */
   seq: number;
+  /** The instant of the last event folded (the stream's, not a clock). */
+  at: string;
 }
 
 export type { ItemCreatedPayload };

@@ -369,9 +369,15 @@ export function witnessConformance(name: string, make: () => Promise<WitnessHarn
       withHarness(async (h) => {
         const entries = await signEntries(h.notary, 2);
         const req = await checkpointRequest(h.notary, entries, 1, 0, 2, T1);
+        // Change one character in the middle of the signature, to a different one: the bytes change for
+        // certain. (Replacing the last two characters with 'AA' left the signature unchanged whenever it
+        // already ended in 'AA', which a random ES256 signature does once in 256 runs: the flake.)
+        const sig = req.notary.value;
+        const at = Math.floor(sig.length / 2);
+        const flipped = sig.slice(0, at) + (sig[at] === 'A' ? 'B' : 'A') + sig.slice(at + 1);
         const bad = await h.witness.cosign({
           ...req,
-          notary: { ...req.notary, value: req.notary.value.slice(0, -2) + 'AA' },
+          notary: { ...req.notary, value: flipped },
         });
         expect(!bad.ok && bad.error.code).toBe('invalid_notary_signature');
         const changed = await h.witness.cosign({ ...req, core: { ...req.core, created_at: T3 } });

@@ -24,6 +24,8 @@ export type DecisionErrorCode =
   | 'evidence_mismatch'
   | 'step_up_required'
   | 'step_up_invalid'
+  // MM-2
+  | 'maintenance'
   // infrastructure
   | 'conflict'
   | 'ledger'

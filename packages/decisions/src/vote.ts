@@ -18,6 +18,7 @@ import {
   decisionDraft,
   enterLedger,
   inDecisionTx,
+  inMaintenance,
   lockKey,
   newEntryId,
   writeDecision,
@@ -197,10 +198,13 @@ export async function applyVote(
 }
 
 /** Policy and persistence of one vote, in its own transaction (see the module note). */
-export function castVote(
+export async function castVote(
   deps: DecisionDeps,
   req: VoteRequest,
 ): Promise<Result<Written<VoteResult>, DecisionError>> {
+  if (await inMaintenance(deps)) {
+    return err(decisionError('maintenance', 'maintenance mode MM-2: decisions are disabled'));
+  }
   return inDecisionTx(deps, async (tx) => {
     const loaded = await enterGate(tx, deps, req.gate_instance_id);
     if (!loaded.ok) return loaded;

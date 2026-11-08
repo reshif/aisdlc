@@ -256,12 +256,16 @@ describe('gate outcomes', () => {
     legal(sim.phases);
   });
 
-  it('a rejection whose edge is not built yet stops the item where it is (fail closed)', () => {
-    const sim = new Sim('g2-reject', { lane: 'L4' });
+  it('a refusal that no flow edge leaves through stops the item where it is (fail closed)', () => {
+    const sim = new Sim('g1-changes', { lane: 'L4' });
     sim.submit();
-    sim.run({ decide: (g) => (g === 'G2' ? 'reject' : 'approve') });
+    sim.run({ decide: (g) => (g === 'G1' ? 'request_changes' : 'approve') });
     expect(sim.state.terminal).toBeNull();
-    expect(sim.state.waiting).toMatchObject({ kind: 'stuck', reason: 'G2:reject', gate: 'G2' });
+    expect(sim.state.waiting).toMatchObject({
+      kind: 'stuck',
+      reason: 'G1:request_changes',
+      gate: 'G1',
+    });
     // and nothing advances it: not another run, not a second decision
     const before = sim.state.cursor;
     sim.run();

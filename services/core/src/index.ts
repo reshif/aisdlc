@@ -20,6 +20,8 @@ export * from './work-items.js';
 export * from './work-projection.js';
 export * from './requests.js';
 export * from './work-driver.js';
+export * from './work-control.js';
+export * from './work-signals.js';
 export * from './work-view.js';
 export * from './portal-reads.js';
 export * from './settings.js';

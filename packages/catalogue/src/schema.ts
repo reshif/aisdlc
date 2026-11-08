@@ -93,6 +93,16 @@ export const ReworkBudget = z.strictObject({
 });
 export type ReworkBudget = z.infer<typeof ReworkBudget>;
 
+/**
+ * Limits the flow draws on edges that are not B1-B28: D4 "hand back once" and X3 "find alternative,
+ * 1x". Keyed by name so a number is never written in the engine.
+ */
+export const FlowLimits = z.strictObject({
+  d4_hand_back: Limit,
+  x3_alternative: Limit,
+});
+export type FlowLimits = z.infer<typeof FlowLimits>;
+
 export const EnvelopeExtension = z.strictObject({
   max_extensions: Limit,
   max_percent: Limit,
@@ -286,6 +296,7 @@ export const CatalogueData = z.strictObject({
   back_edge_limits: z.record(BackEdgeId, BackEdgeLimit),
   rework_budget: ReworkBudget,
   envelope_extension: EnvelopeExtension,
+  flow_limits: FlowLimits,
   triggers: z.record(TriggerId, TriggerDef),
   gating: GatingCatalogue,
   eligibility: EligibilityCatalogue,

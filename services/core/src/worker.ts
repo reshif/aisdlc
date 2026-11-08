@@ -15,3 +15,4 @@ export {
   type WorkDriverDeps,
   type WorkDriverLoopOptions,
 } from './work-driver.js';
+export { DEFAULT_WORK_SETTINGS, workSettingsFrom, type WorkSettings } from './work-control.js';

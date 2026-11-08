@@ -10,7 +10,7 @@ import {
   type Tier,
 } from '@aisdlc/contracts';
 import { sha256Hex } from '@aisdlc/kernel';
-import { FakeStagePorts } from '@aisdlc/ports';
+import { FakeStagePorts, type CapacityPort } from '@aisdlc/ports';
 import {
   decideReady,
   driveWork,
@@ -177,13 +177,14 @@ export function approvers(
 
 export function driverOver(
   s: CoreStack,
-  o: { ports?: FakeStagePorts; decisions?: boolean } = {},
+  o: { ports?: FakeStagePorts; decisions?: boolean; capacity?: CapacityPort } = {},
 ): WorkDriverDeps & { readonly ports: FakeStagePorts } {
   const ports = o.ports ?? new FakeStagePorts();
   return {
     pool: s.record.pool,
     clock: s.clock,
     ports,
+    ...(o.capacity ? { capacity: o.capacity } : {}),
     ...(o.decisions === false ? {} : { decisions: s.config }),
   };
 }

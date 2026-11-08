@@ -2,6 +2,7 @@ export * from './taint.js';
 export * from './injection.js';
 export * from './dedupe.js';
 export * from './route.js';
+export * from './limits.js';
 export * from './state.js';
 export * from './interpret.js';
 export * from './fold.js';

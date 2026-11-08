@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AdmissionHold,
+  Assumption,
+  Handoff,
+  HandoffChoice,
+  HandoffCode,
+  HoldReasonValues,
+  SPAWN_RULES,
+  SpawnEdge,
   ENTRY_CHANNEL_SOURCES,
   EntryChannelValues,
   ITEM_EVENT,
@@ -75,6 +83,7 @@ describe('work lifecycle vocabulary (PLAN M9.1, M9.2)', () => {
         'attempt',
         'catalogue_ref',
         'command_key',
+        'denied_gates',
         'item_id',
         'lane',
         'project_id',
@@ -104,5 +113,72 @@ describe('work lifecycle vocabulary (PLAN M9.1, M9.2)', () => {
     }
     for (const edge of ['B1', 'B22', 'R1'])
       expect(SpawnLink.safeParse({ ...link, edge }).success, edge).toBe(false);
+  });
+});
+
+describe('M9.3 and M9.4 vocabulary', () => {
+  it('names a kind (and the lanes the flow names) for every edge that starts a NEW linked item', () => {
+    expect(Object.keys(SPAWN_RULES).sort()).toEqual([
+      'B16',
+      'B17',
+      'B18',
+      'B19',
+      'B26',
+      'B6',
+      'R4',
+    ]);
+    for (const e of Object.keys(SPAWN_RULES)) expect(SpawnEdge.safeParse(e).success, e).toBe(true);
+    expect(SpawnEdge.safeParse('B7').success).toBe(false);
+    expect(SPAWN_RULES.B6).toEqual({ kind: 'remediation', lanes: ['L2'] });
+    expect(SPAWN_RULES.B16.lanes).toEqual(['L0', 'L1']);
+    expect(SPAWN_RULES.B17.lanes).toEqual(['L0', 'L1']);
+  });
+
+  it('admission holds are H1-H3 and WIP, all of them hold reasons', () => {
+    expect([...AdmissionHold.options]).toEqual(['H1', 'H2', 'H3', 'WIP']);
+    for (const r of AdmissionHold.options) expect(HoldReasonValues).toContain(r);
+  });
+
+  it('a handoff has one id, the E4 gate instance and the pack are attributes, and its code is D1, D2, D3 or E4', () => {
+    expect([...HandoffCode.options]).toEqual(['D1', 'D2', 'D3', 'E4']);
+    expect([...HandoffChoice.options]).toContain('takeover');
+    // `handoff_id` is the only id the handoff has of its own; the item is its parent, the gate instance an attribute
+    const ids = Object.keys(Handoff.shape).filter((k) => k.endsWith('_id'));
+    expect(ids.sort()).toEqual(['e4_gate_instance_id', 'handoff_id', 'item_id']);
+    expect(Object.keys(Handoff.shape)).toContain('pack');
+  });
+
+  it('an assumption is one shape whatever raised it', () => {
+    expect(Object.keys(Assumption.shape).sort()).toEqual(
+      [
+        'assumption_id',
+        'item_id',
+        'kind',
+        'origin',
+        'origin_run',
+        'overridden_by',
+        'raised_at',
+        'state',
+        'text_hash',
+      ].sort(),
+    );
+  });
+
+  it('a stage can report a hold, a back-edge or a trigger, and nothing else about them', () => {
+    expect(StageOutcome.safeParse({ outcome: 'held', reason: 'H2' }).success).toBe(true);
+    expect(StageOutcome.safeParse({ outcome: 'held', reason: 'kill' }).success).toBe(false);
+    expect(
+      StageOutcome.safeParse({ outcome: 'rework', edge: 'B7', reason_code: 'x', observed: 2.5 })
+        .success,
+    ).toBe(true);
+    expect(
+      StageOutcome.safeParse({ outcome: 'rework', edge: 'B99', reason_code: 'x' }).success,
+    ).toBe(false);
+    expect(
+      StageOutcome.safeParse({ outcome: 'trigger', trigger: 'ET1', reason_code: 'x' }).success,
+    ).toBe(true);
+    expect(
+      StageOutcome.safeParse({ outcome: 'gate_needed', gate: 'E6', reason_code: 'x' }).success,
+    ).toBe(true);
   });
 });

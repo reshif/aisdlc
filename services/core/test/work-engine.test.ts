@@ -299,6 +299,7 @@ describe('stage work goes through the stage ports', () => {
           'attempt',
           'catalogue_ref',
           'command_key',
+          'denied_gates',
           'item_id',
           'lane',
           'project_id',

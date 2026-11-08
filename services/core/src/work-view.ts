@@ -24,7 +24,11 @@ export function itemView(s: ItemState): ItemView {
               ? `stuck:${w.reason}`
               : w.kind === 'parked'
                 ? `parked:${w.cause}`
-                : w.kind,
+                : w.kind === 'blocked'
+                  ? `blocked:${w.cause}`
+                  : w.kind === 'handoff'
+                    ? `handoff:${w.stage}`
+                    : w.kind,
     holds: s.holds,
     questions: s.questions.map(({ answer, ...q }) => ({
       ...q,
@@ -38,6 +42,10 @@ export function itemView(s: ItemState): ItemView {
       outcome: g.outcome,
     })),
     outstanding: s.outstanding.length,
+    terminal_cause: s.terminal_cause,
+    rework_total: s.rework.total,
+    handoff: s.handoffs.find((h) => h.status === 'open') ?? null,
+    assumptions: s.assumptions,
     catalogue_ref: s.catalogue_ref,
     injection_suspected: s.intake.injection?.suspected ?? false,
     dedupe_links: s.intake.dedupe_links,

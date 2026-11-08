@@ -34,7 +34,15 @@ export interface CoreDeps {
   readonly pool: pg.Pool;
   readonly clock?: Clock;
   readonly ledger?: LedgerClientDeps;
+  /** MM-2 is on (`maintenanceFrom`): the human decisions of the work lifecycle are refused. */
+  readonly maintenance?: () => boolean;
 }
+
+/** The refusal of a decision while maintenance mode MM-2 is on, or `null`. Drafts and answers are not decisions. */
+export const maintenanceRefusal = (d: Pick<CoreDeps, 'maintenance'>): CoreError | null =>
+  d.maintenance?.() === true
+    ? coreError('refused', 'maintenance mode MM-2: decisions are disabled')
+    : null;
 
 export const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
 

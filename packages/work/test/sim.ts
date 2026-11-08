@@ -191,6 +191,33 @@ export class Sim {
           step: c.step,
           output_hash: out.output_hash,
           ...(out.lease_epoch ? { lease_epoch: out.lease_epoch } : {}),
+          ...(out.assumptions ? { assumptions: out.assumptions } : {}),
+        });
+        return;
+      case 'held':
+        this.apply(ITEM_EVENT.stage_held, {
+          command_key: c.key,
+          step: c.step,
+          reason: out.reason,
+        });
+        return;
+      case 'rework':
+        this.apply(ITEM_EVENT.rework_requested, {
+          command_key: c.key,
+          step: c.step,
+          edge: out.edge,
+          ...(out.variant ? { variant: out.variant } : {}),
+          ...(out.loop ? { loop: out.loop } : {}),
+          ...(out.observed !== undefined ? { observed: out.observed } : {}),
+          reason_code: out.reason_code,
+        });
+        return;
+      case 'trigger':
+        this.apply(ITEM_EVENT.trigger_fired, {
+          command_key: c.key,
+          step: c.step,
+          trigger: out.trigger,
+          reason_code: out.reason_code,
         });
         return;
       case 'classified':
@@ -245,6 +272,7 @@ export class Sim {
           step: next.step,
           attempt: next.attempt,
           approved_gates: next.approved_gates,
+          denied_gates: next.denied_gates,
           catalogue_ref: this.state.catalogue_ref,
         });
         if (!r.ok) throw new Error(r.error.message);
@@ -298,7 +326,13 @@ export class Sim {
     if (w?.kind !== 'human') return false;
     if (o.stopAtHuman?.includes(w.what)) return false;
     this.visited.push(
-      { ready: 'h:1.6', schedule: 'h:5.7', merge: 'h:8.2', human_led: 'human_led' }[w.what],
+      {
+        ready: 'h:1.6',
+        schedule: 'h:5.7',
+        merge: 'h:8.2',
+        human_led: 'human_led',
+        plan: 'human_plan',
+      }[w.what],
     );
     switch (w.what) {
       case 'ready':
@@ -311,6 +345,7 @@ export class Sim {
         this.apply(ITEM_EVENT.merge_observed, { merged_sha: 'abcdef1234' });
         return true;
       case 'human_led':
+      case 'plan':
         this.apply(ITEM_EVENT.human_work_done, { by: 'alice' });
         return true;
     }
@@ -345,7 +380,7 @@ export interface RunOptions {
     c: ItemCommand,
   ) => 'approve' | 'reject' | 'request_changes' | 'expired' | 'pending';
   eligibility?: 'normal' | 'n8_hold' | 'l8';
-  stopAtHuman?: Array<'ready' | 'schedule' | 'merge' | 'human_led'>;
+  stopAtHuman?: Array<'ready' | 'schedule' | 'merge' | 'human_led' | 'plan'>;
 }
 
 export const hash = (s: string): string => sha256Hex(s);

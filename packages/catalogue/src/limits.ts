@@ -2,6 +2,7 @@ import { BackEdgeIdValues, type BackEdgeId, type TriggerId } from '@aisdlc/contr
 import type {
   BackEdgeLimit,
   EnvelopeExtension,
+  FlowLimits,
   Limit,
   LimitUnit,
   ReworkBudget,
@@ -170,6 +171,12 @@ export const ENVELOPE_EXTENSION: z.infer<typeof EnvelopeExtension> = {
   max_extensions: lim('max_extensions', 1, 'times'),
   max_percent: lim('max_percent', 50, 'percent'),
   via: 'E3',
+};
+
+/** D4 "hand back once" (the E4 takeover is handed back at most once) and X3 "denied: find alternative, 1x, else D1". */
+export const FLOW_LIMITS: z.infer<typeof FlowLimits> = {
+  d4_hand_back: lim('times', 1, 'times'),
+  x3_alternative: lim('times', 1, 'times'),
 };
 
 const unknownLimit = (key: string): Limit => lim(key, null, 'count');

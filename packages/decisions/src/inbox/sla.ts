@@ -13,7 +13,14 @@ import { err, ok, type Result } from '@aisdlc/kernel';
 import type { PendingConfirm } from '@aisdlc/ledger';
 import { appendEvents, runProjection } from '@aisdlc/record';
 import { decisionError, type DecisionError } from '../errors.js';
-import { clockOf, enterLedger, inDecisionTx, lockKey, type DecisionDeps } from '../internal.js';
+import {
+  clockOf,
+  enterLedger,
+  inDecisionTx,
+  inMaintenance,
+  lockKey,
+  type DecisionDeps,
+} from '../internal.js';
 import { gateInstanceProjection } from '../projection.js';
 import { gateIdsOf, readCardOpened, readCardState } from './state.js';
 import { inboxProjection, readCardViews } from './projection.js';
@@ -53,6 +60,8 @@ export interface SlaReport {
  * imported) is left alone.
  */
 export async function sweepSla(deps: DecisionDeps): Promise<Result<SlaReport, DecisionError>> {
+  // MM-2: timers are frozen, nothing escalates until the maintenance ends.
+  if (await inMaintenance(deps)) return ok({ escalated: [], skipped: [], failed: [] });
   const caught = await catchUp(deps);
   if (!caught.ok) return caught;
   const due = await deps.pool.query<{ card_id: string }>(

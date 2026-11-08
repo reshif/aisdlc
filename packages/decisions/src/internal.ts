@@ -47,6 +47,23 @@ export interface DecisionDeps {
   readonly slaBusinessDays?: number;
   /** B21: the slot whose holders get the escalation entry. Default `admin`. */
   readonly backupSlot?: RoleSlot;
+  /**
+   * Maintenance mode MM-2 (FL `MM`): true while the ops flag is on. Decisions are refused (`maintenance`)
+   * and the timers of this kernel (gate expiry, the B21 SLA sweep) do nothing: they are frozen, and
+   * what was pending stays pending. Drafts (opened gates, prepared decisions, evidence views) are kept.
+   * A probe that fails counts as maintenance on: unknown means unmet.
+   */
+  readonly maintenance?: () => boolean | Promise<boolean>;
+}
+
+/** MM-2 is on (or its flag could not be read). */
+export async function inMaintenance(deps: Pick<DecisionDeps, 'maintenance'>): Promise<boolean> {
+  if (!deps.maintenance) return false;
+  try {
+    return (await deps.maintenance()) !== false;
+  } catch {
+    return true;
+  }
 }
 
 export const clockOf = (d: DecisionDeps): Clock => d.clock ?? systemClock;

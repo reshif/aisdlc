@@ -20,9 +20,10 @@ import {
 import { err, ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
 import type { LoopSpec, WorkInFlightPort } from '@aisdlc/loops';
 import { WorkInFlightError } from '@aisdlc/loops';
-import type { StagePorts } from '@aisdlc/ports';
+import type { CapacityPort, StagePorts } from '@aisdlc/ports';
 import { PermanentDeliveryError, dispatchOutbox, type OutboxRow } from '@aisdlc/record';
-import type { ItemState } from '@aisdlc/work';
+import { itemAgeLimitBd, type ItemState } from '@aisdlc/work';
+import { CATALOGUE } from '@aisdlc/catalogue';
 import type pg from 'pg';
 import type { CoreError } from './errors.js';
 import { governingPrr } from './fold.js';
@@ -37,6 +38,14 @@ import {
   reconcileItemOutbox,
   type ItemDraft,
 } from './work-items.js';
+import {
+  DEFAULT_WORK_SETTINGS,
+  fireTimers,
+  releaseAdmissionHolds,
+  releaseN8Holds,
+  syncMaintenance,
+  type WorkSettings,
+} from './work-control.js';
 import { catchUpWork } from './work-projection.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
 
@@ -67,6 +76,10 @@ export interface WorkDriverDeps {
   readonly decisions?: DecisionDeps;
   /** Commands taken from the outbox per claim. */
   readonly batch?: number;
+  /** The business calendar of the timers and MM-2 (the config reader's). Default: weekends off, MM-2 off. */
+  readonly settings?: () => WorkSettings;
+  /** Who says how many HELD items may go on (M9.3). Absent, no held item is ever released by the driver. */
+  readonly capacity?: CapacityPort;
 }
 
 const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
@@ -200,6 +213,41 @@ function resultDraft(
           step: c.step,
           output_hash: out.output_hash,
           ...(out.lease_epoch ? { lease_epoch: out.lease_epoch } : {}),
+          ...(out.assumptions ? { assumptions: out.assumptions } : {}),
+        },
+      };
+    case 'held':
+      return {
+        type: ITEM_EVENT.stage_held,
+        actor: WORK_ACTOR,
+        idempotency_key: key,
+        payload: { command_key: c.key, step: c.step, reason: out.reason },
+      };
+    case 'rework':
+      return {
+        type: ITEM_EVENT.rework_requested,
+        actor: WORK_ACTOR,
+        idempotency_key: key,
+        payload: {
+          command_key: c.key,
+          step: c.step,
+          edge: out.edge,
+          ...(out.variant ? { variant: out.variant } : {}),
+          ...(out.loop ? { loop: out.loop } : {}),
+          ...(out.observed !== undefined ? { observed: out.observed } : {}),
+          reason_code: out.reason_code,
+        },
+      };
+    case 'trigger':
+      return {
+        type: ITEM_EVENT.trigger_fired,
+        actor: WORK_ACTOR,
+        idempotency_key: key,
+        payload: {
+          command_key: c.key,
+          step: c.step,
+          trigger: out.trigger,
+          reason_code: out.reason_code,
         },
       };
     case 'classified':
@@ -277,6 +325,7 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
         step: c.step,
         attempt: c.attempt,
         approved_gates: c.approved_gates,
+        denied_gates: c.denied_gates,
         catalogue_ref: s.catalogue_ref,
       });
       if (!r.ok) throw new Error(`${c.port} port: ${r.error.message}`);
@@ -421,18 +470,38 @@ export interface WorkPassReport {
   readonly items_created: number;
   readonly gates_recorded: number;
   readonly enqueued: number;
+  /** MM-2: items put under, or released from, the maintenance hold. */
+  readonly maintenance_holds: number;
+  readonly timers_fired: number;
+  readonly holds_released: number;
+  /** The maintenance flag was on during the pass. */
+  readonly maintenance: boolean;
   readonly dispatched: number;
   readonly failed: number;
   readonly dead: number;
 }
 
+/** What the read model says of an item the driver looks at: enough to know which items need a closer look. */
+export interface DriverRow {
+  readonly item_id: string;
+  readonly terminal: string | null;
+  readonly holds: number;
+  readonly underlying: string;
+  readonly created_at: Date;
+}
+
 /** The items the driver looks at: active ones, and finished ones that still have a command out. */
-export async function driverItemIds(pool: pg.Pool): Promise<string[]> {
+export async function driverItemRows(pool: pg.Pool): Promise<DriverRow[]> {
   await catchUpWork(pool);
-  const q = await pool.query<{ item_id: string }>(
-    `SELECT item_id FROM core.work_item WHERE terminal IS NULL OR outstanding > 0 ORDER BY created_at, item_id`,
+  const q = await pool.query<DriverRow>(
+    `SELECT item_id, terminal, holds, underlying, created_at FROM core.work_item
+      WHERE terminal IS NULL OR outstanding > 0 ORDER BY created_at, item_id`,
   );
-  return q.rows.map((r) => r.item_id);
+  return q.rows;
+}
+
+export async function driverItemIds(pool: pg.Pool): Promise<string[]> {
+  return (await driverItemRows(pool)).map((r) => r.item_id);
 }
 
 /**
@@ -443,10 +512,59 @@ export async function driveWork(
   d: WorkDriverDeps,
   o: { readonly onItemError?: (item: string, e: unknown) => void; readonly rounds?: number } = {},
 ): Promise<WorkPassReport> {
-  const created = await ensureItems(d);
-  const ids = await driverItemIds(d.pool);
+  const settings = (d.settings ?? (() => DEFAULT_WORK_SETTINGS))();
+  const mm = settings.maintenance();
+  // MM-2: no new item is made while it is on (the request waits, admitted); everything already in
+  // flight is held, its timers frozen, its drafts kept.
+  const created = mm ? { created: [] as string[] } : await ensureItems(d);
+  const rows = await driverItemRows(d.pool);
+  const ids = rows.map((r) => r.item_id);
+  const active = rows.filter((r) => r.terminal === null);
   let gates_recorded = 0;
   let enqueued = 0;
+  let maintenance_holds = 0;
+  let timers_fired = 0;
+  let holds_released = 0;
+  try {
+    // Only items that can change need a closer look: with MM-2 off, the ones that carry a hold.
+    const m = await syncMaintenance(
+      d,
+      (mm ? active : active.filter((r) => r.holds > 0)).map((r) => r.item_id),
+      mm,
+    );
+    maintenance_holds = m.placed + m.released;
+  } catch (e) {
+    if (o.onItemError) o.onItemError('maintenance', e);
+    else throw e;
+  }
+  if (!mm) {
+    try {
+      // A timer is due for an item that is parked or clarifying, or that is old enough that its age
+      // limit may have passed (the limit's business days are at least as many calendar days).
+      const ageDays = itemAgeLimitBd(CATALOGUE);
+      const oldBefore = ageDays === null ? 0 : clockOf(d).nowMs() - ageDays * 86_400_000;
+      const timed = active.filter(
+        (r) =>
+          r.underlying === 'Parked' ||
+          r.underlying === 'Clarifying' ||
+          ageDays === null ||
+          r.created_at.getTime() <= oldBefore,
+      );
+      timers_fired = (
+        await fireTimers(
+          d,
+          timed.map((r) => r.item_id),
+        )
+      ).fired;
+      const held = active.filter((r) => r.holds > 0).map((r) => r.item_id);
+      holds_released =
+        (await releaseN8Holds(d, held)).released.length +
+        (await releaseAdmissionHolds(d, held)).released.length;
+    } catch (e) {
+      if (o.onItemError) o.onItemError('control', e);
+      else throw e;
+    }
+  }
   for (const id of ids) {
     try {
       gates_recorded += await watchGates(d, id);
@@ -477,6 +595,10 @@ export async function driveWork(
     items_created: created.created.length,
     gates_recorded,
     enqueued,
+    maintenance_holds,
+    timers_fired,
+    holds_released,
+    maintenance: mm,
     dispatched,
     failed,
     dead,
