@@ -14,6 +14,7 @@ export * from './registry.js';
 export * from './clients.js';
 export * from './driver.js';
 export * from './role-map-sync.js';
+export * from './cards/index.js';
 export * from './app.js';
 export * from './config.js';
 export * from './boot.js';

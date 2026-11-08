@@ -48,8 +48,17 @@ export interface OpenCardInput {
   readonly project_id: ProjectId;
   readonly subject_kind: SubjectKind;
   readonly subject_id: string;
-  /** At least one gate. Several only if they are consolidatable gates of one SOLO card. */
+  /**
+   * At least one gate, or none when the card carries step decisions only (the S0 step cards of
+   * onboarding, PLAN M7.3). Several only if they are consolidatable gates of one SOLO card.
+   */
   readonly gates: readonly CardGateInput[];
+  /**
+   * Makes the card id unique among cards over the same targets. Required for a card without a gate
+   * (its id would otherwise be the same for every record); not allowed with one (its gate
+   * instances already say which card it is).
+   */
+  readonly key?: string;
   /**
    * Step decisions that ride on the card (card 5 of onboarding: the 0.5 sign-off with M4). They are
    * decided in the same transaction as the gates, each as its own ledger entry.
@@ -91,9 +100,15 @@ export function checkConsolidation(gates: readonly GateId[]): DecisionError | nu
 }
 
 /** The card id of a set of targets: stable, so reopening the same gates is a no-op. */
-export const cardIdOf = (gateInstanceIds: readonly string[], steps: readonly string[]): string =>
+export const cardIdOf = (
+  gateInstanceIds: readonly string[],
+  steps: readonly string[],
+  key?: string,
+): string =>
   deterministicId<'Card'>(
-    `aisdlc.card:${[...gateInstanceIds].sort().join(',')}|${[...steps].sort().join(',')}`,
+    `aisdlc.card:${[...gateInstanceIds].sort().join(',')}|${[...steps].sort().join(',')}${
+      key === undefined ? '' : `|${key}`
+    }`,
   );
 
 /**
@@ -106,10 +121,18 @@ export async function openCard(
   deps: DecisionDeps,
   input: OpenCardInput,
 ): Promise<Result<Written<OpenCardResult>, DecisionError>> {
-  if (input.gates.length === 0) return err(decisionError('invalid_input', 'a card has a gate'));
+  const steps = input.steps ?? [];
+  if (input.gates.length === 0 && steps.length === 0) {
+    return err(decisionError('invalid_input', 'a card has a gate or a step'));
+  }
+  if (input.gates.length === 0 && input.key === undefined) {
+    return err(decisionError('invalid_input', 'a card without a gate needs a key'));
+  }
+  if (input.gates.length > 0 && input.key !== undefined) {
+    return err(decisionError('invalid_input', 'a key is for a card without a gate'));
+  }
   const bad = checkConsolidation(input.gates.map((g) => g.gate_id));
   if (bad) return err(bad);
-  const steps = input.steps ?? [];
   if (new Set(steps.map((s) => s.step)).size !== steps.length) {
     return err(decisionError('invalid_input', 'a step appears twice on one card'));
   }
@@ -134,10 +157,11 @@ export async function openCard(
   const cardId = cardIdOf(
     opened.map((o) => o.id),
     steps.map((s) => s.step),
+    input.key,
   );
-  const first = input.gates[0] as CardGateInput;
-  const group: CardGroup = soloCardOf(first.gate_id) ?? 'single';
-  const role = gatePolicy(first.gate_id).slot;
+  const first = input.gates[0] as CardGateInput | undefined;
+  const group: CardGroup = first ? (soloCardOf(first.gate_id) ?? 'single') : 'single';
+  const role = first ? gatePolicy(first.gate_id).slot : (steps[0] as { slot: RoleSlot }).slot;
 
   const wrote = await inDecisionTx<{ opened: boolean }>(deps, async (tx) => {
     await lockKey(tx, `card:${cardId}`);
@@ -172,6 +196,7 @@ export async function openCard(
       requester: input.requester ?? null,
       sla_due_at: slaDue,
       opened_by: input.opened_by ?? 'system.gate',
+      key: input.key ?? null,
     });
     if (!payload.success) return err(decisionError('invalid_input', payload.error.message));
     const w = await appendEvents(

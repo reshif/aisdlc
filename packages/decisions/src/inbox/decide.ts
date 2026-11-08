@@ -7,6 +7,7 @@ import {
   CardPayloadRecordedPayload,
   VoteDecision,
   cardPayloadHash,
+  cardPayloadItemKey,
   cardStream,
   gateStream,
   type JsonObject,
@@ -18,9 +19,11 @@ import {
 } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import type { PendingConfirm } from '@aisdlc/ledger';
-import { appendEvents, type NewEvent } from '@aisdlc/record';
+import { appendEvents, type NewEvent, type Tx } from '@aisdlc/record';
+import { randomBytes } from 'node:crypto';
 import { decisionError, type DecisionError } from '../errors.js';
 import {
+  DEFAULT_NONCE_TTL_MS,
   clockOf,
   inDecisionTx,
   lockKey,
@@ -30,6 +33,7 @@ import {
   type DecisionDeps,
   type Written,
 } from '../internal.js';
+import { isT2 } from '../policy.js';
 import { consumeNonce, prepare, recordEvidenceViewed, type Prepared } from '../prepared.js';
 import {
   requirePending,
@@ -56,17 +60,34 @@ import { sha256Hex } from '@aisdlc/kernel';
 export interface PrepareCardInput {
   readonly card_id: string;
   readonly principal: PrincipalId;
+  /**
+   * What the principal is to be shown, for a card without a gate (its steps are bound to this hash
+   * the way a gate is bound to its evidence pack). Required there, ignored on a card with gates.
+   */
+  readonly evidence_hash?: Sha256Hex;
+}
+
+/** The nonce of a card without a gate. Only its hash is stored. */
+export interface PreparedStep {
+  readonly nonce: string;
+  readonly expires_at: string;
+  readonly card_id: string;
+  readonly evidence_hash: string;
 }
 
 export interface PreparedCard {
   readonly card_id: string;
   /** One per pending gate: hand each nonce to the principal's client once. */
   readonly gates: readonly Prepared[];
+  /** A card without a gate: its one nonce. `null` on a card with gates. */
+  readonly step_nonce: PreparedStep | null;
   /** Steps still to be decided with the first decision. */
   readonly steps: readonly StepId[];
   /** `cardPayloadHash([])`: what a decision without a list payload binds to. */
   readonly empty_payload_hash: string;
 }
+
+const hashOfNonce = (nonce: string): string => sha256Hex(nonce);
 
 export async function prepareCard(
   deps: DecisionDeps,
@@ -87,12 +108,111 @@ export async function prepareCard(
     if (!p.ok) return p;
     gates.push(p.value);
   }
+  let step_nonce: PreparedStep | null = null;
+  if (state.gates.length === 0) {
+    const st = await prepareStepNonce(deps, input, state);
+    if (!st.ok) return st;
+    step_nonce = st.value;
+  }
   return ok({
     card_id: input.card_id,
     gates,
+    step_nonce,
     steps: state.steps.filter((s) => s.decision === null).map((s) => s.step),
     empty_payload_hash: cardPayloadHash([]),
   });
+}
+
+async function prepareStepNonce(
+  deps: DecisionDeps,
+  input: PrepareCardInput,
+  state: CardState,
+): Promise<Result<PreparedStep, DecisionError>> {
+  if (!input.evidence_hash) {
+    return err(decisionError('invalid_input', 'a card without a gate needs the evidence hash'));
+  }
+  const open = state.steps.filter((s) => s.decision === null);
+  if (open.length === 0) return err(decisionError('gate_not_pending', 'no step is waiting'));
+  // Every undecided step is decided by the same person: they must hold each step's slot.
+  for (const st of open) {
+    const holders = await deps.eligibility.holders(state.open.project_id, st.slot as never);
+    if (!holders.ok) return err(decisionError('eligibility_unavailable', holders.error.message));
+    if (!holders.value.includes(input.principal)) {
+      return err(decisionError('not_eligible', `${input.principal} does not hold the slot`));
+    }
+  }
+  const clock = clockOf(deps);
+  const nonce = randomBytes(32).toString('base64url');
+  const created = clock.now();
+  const expires = new Date(created.getTime() + (deps.nonceTtlMs ?? DEFAULT_NONCE_TTL_MS));
+  const done = await inDecisionTx<PreparedStep>(deps, async (tx) => {
+    await tx.query(
+      `INSERT INTO decisions.card_nonce
+         (nonce_sha256, card_id, principal, evidence_hash, created_at, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [hashOfNonce(nonce), input.card_id, input.principal, input.evidence_hash, created, expires],
+    );
+    return ok({
+      value: {
+        nonce,
+        expires_at: expires.toISOString(),
+        card_id: input.card_id,
+        evidence_hash: input.evidence_hash as string,
+      },
+      pending: [],
+    });
+  });
+  return done.ok ? ok(done.value) : done;
+}
+
+interface CardNonceRow {
+  nonce_sha256: string;
+  card_id: string;
+  principal: string;
+  evidence_hash: string;
+  evidence_viewed_at: Date | null;
+  expires_at: Date;
+  consumed_at: Date | null;
+}
+const CARD_NONCE_COLUMNS =
+  'nonce_sha256, card_id, principal, evidence_hash, evidence_viewed_at, expires_at, consumed_at';
+
+/** Reports the evidence the principal was shown for the nonce of a card without a gate. */
+async function recordStepEvidenceViewed(
+  deps: DecisionDeps,
+  view: { nonce: string; evidence_hash: string },
+): Promise<Result<true, DecisionError>> {
+  const clock = clockOf(deps);
+  const h = hashOfNonce(view.nonce);
+  const done = await inDecisionTx<{ ok: true }>(deps, async (tx) => {
+    const peek = await tx.query<{ card_id: string }>(
+      'SELECT card_id FROM decisions.card_nonce WHERE nonce_sha256 = $1',
+      [h],
+    );
+    const first = peek.rows[0];
+    if (!first) return err(decisionError('nonce_unknown', 'unknown nonce'));
+    await lockKey(tx, `card:${first.card_id}`);
+    const locked = await tx.query<CardNonceRow>(
+      `SELECT ${CARD_NONCE_COLUMNS} FROM decisions.card_nonce WHERE nonce_sha256 = $1 FOR UPDATE`,
+      [h],
+    );
+    const row = locked.rows[0] as CardNonceRow;
+    if (row.consumed_at) return err(decisionError('nonce_replayed', 'nonce already used'));
+    if (!(clock.nowMs() < row.expires_at.getTime())) {
+      return err(decisionError('nonce_expired', 'nonce expired'));
+    }
+    if (row.evidence_hash !== view.evidence_hash) {
+      return err(decisionError('evidence_mismatch', 'not the evidence this nonce is bound to'));
+    }
+    if (!row.evidence_viewed_at) {
+      await tx.query(
+        'UPDATE decisions.card_nonce SET evidence_viewed_at = $2 WHERE nonce_sha256 = $1',
+        [h, clock.now()],
+      );
+    }
+    return ok({ value: { ok: true as const }, pending: [] });
+  });
+  return done.ok ? ok(true) : done;
 }
 
 /** Reports the evidence the principal was shown for each nonce of a prepared card. */
@@ -101,10 +221,98 @@ export async function recordCardEvidenceViewed(
   views: ReadonlyArray<{ nonce: string; evidence_hash: string }>,
 ): Promise<Result<number, DecisionError>> {
   for (const v of views) {
-    const r = await recordEvidenceViewed(deps, v);
+    const isStep = await deps.pool.query(
+      'SELECT 1 FROM decisions.card_nonce WHERE nonce_sha256 = $1',
+      [hashOfNonce(v.nonce)],
+    );
+    const r =
+      isStep.rows.length > 0
+        ? await recordStepEvidenceViewed(deps, v)
+        : await recordEvidenceViewed(deps, v);
     if (!r.ok) return r;
   }
   return ok(views.length);
+}
+
+interface ConsumedStepNonce {
+  readonly principal: PrincipalId;
+  readonly evidence: {
+    evidence_hash: Sha256Hex;
+    evidence_viewed_at: string;
+    nonce_sha256: Sha256Hex;
+  };
+}
+
+/** Checks and consumes the nonce of a card without a gate; the caller holds the card and ledger locks. */
+async function consumeStepNonce(
+  tx: Tx,
+  deps: DecisionDeps,
+  cardId: string,
+  nonce: string,
+  expectedEvidence: string | undefined,
+): Promise<Result<ConsumedStepNonce, DecisionError>> {
+  const clock = clockOf(deps);
+  const h = hashOfNonce(nonce);
+  const locked = await tx.query<CardNonceRow>(
+    `SELECT ${CARD_NONCE_COLUMNS} FROM decisions.card_nonce WHERE nonce_sha256 = $1 FOR UPDATE`,
+    [h],
+  );
+  const row = locked.rows[0];
+  if (!row) return err(decisionError('nonce_unknown', 'unknown nonce'));
+  if (row.card_id !== cardId)
+    return err(decisionError('nonce_unknown', 'nonce is bound to another card'));
+  if (row.consumed_at) return err(decisionError('nonce_replayed', 'nonce already used'));
+  if (!(clock.nowMs() < row.expires_at.getTime())) {
+    return err(decisionError('nonce_expired', 'nonce expired'));
+  }
+  if (!row.evidence_viewed_at) {
+    return err(decisionError('evidence_not_viewed', 'evidence_viewed was not recorded'));
+  }
+  if (expectedEvidence !== undefined && row.evidence_hash !== expectedEvidence) {
+    return err(decisionError('evidence_mismatch', 'the card changed since the evidence was shown'));
+  }
+  await tx.query('UPDATE decisions.card_nonce SET consumed_at = $2 WHERE nonce_sha256 = $1', [
+    h,
+    clock.now(),
+  ]);
+  return ok({
+    principal: row.principal as PrincipalId,
+    evidence: {
+      evidence_hash: row.evidence_hash as Sha256Hex,
+      evidence_viewed_at: row.evidence_viewed_at.toISOString(),
+      nonce_sha256: h as Sha256Hex,
+    },
+  });
+}
+
+/**
+ * A step decision relies on a `sod_waiver` when the person is the only holder of the step's slot
+ * (the single operator, OB §1B). T2 allows no waiver at all, so a sole holder at T2 cannot decide.
+ */
+async function stepWaiver(
+  deps: DecisionDeps,
+  project: CardState['open']['project_id'],
+  slot: string,
+  actor: PrincipalId,
+): Promise<Result<boolean, DecisionError>> {
+  const holders = await deps.eligibility.holders(project, slot as never);
+  if (!holders.ok) return err(decisionError('eligibility_unavailable', holders.error.message));
+  const unique = [...new Set(holders.value)];
+  if (!unique.includes(actor)) {
+    return err(decisionError('not_eligible', `${actor} does not hold the slot ${slot}`));
+  }
+  if (unique.length > 1) return ok(false);
+  const ctx = await deps.eligibility.policy(project);
+  if (!ctx.ok) return err(decisionError('eligibility_unavailable', ctx.error.message));
+  if (isT2(ctx.value)) {
+    return err(
+      decisionError(
+        'quorum_infeasible',
+        `${slot}: T2 allows no waiver and one person holds the slot`,
+      ),
+    );
+  }
+  return ok(true);
 }
 
 export interface DecideCardInput {
@@ -115,6 +323,14 @@ export interface DecideCardInput {
     readonly decision: string;
     readonly step_up?: { readonly proof: string };
   }>;
+  /** A card without a gate: the nonce from `prepareCard`. Not allowed on a card with gates. */
+  readonly step_nonce?: string;
+  /**
+   * With `step_nonce`: the evidence the caller holds NOW for the card. The nonce is refused
+   * (`evidence_mismatch`) unless it was prepared for exactly this, so a decision on a page that
+   * changed since the person saw it is refused.
+   */
+  readonly step_evidence_hash?: Sha256Hex;
   /** One per step still undecided, exactly (all in the first decision that carries any vote). */
   readonly steps?: ReadonlyArray<{ readonly step: StepId; readonly decision: string }>;
   /** A list payload (per-gap disposition, per-claim affirm). Its hash goes into every entry. */
@@ -145,8 +361,8 @@ export async function decideCard(
     if (!d.success) return err(decisionError('invalid_input', `${v.decision} is not a vote`));
     decisions.set(v.nonce, d.data);
   }
-  if (decisions.size !== input.votes.length || input.votes.length === 0) {
-    return err(decisionError('invalid_input', 'one distinct nonce per pending gate, at least one'));
+  if (decisions.size !== input.votes.length) {
+    return err(decisionError('invalid_input', 'one distinct nonce per pending gate'));
   }
   const stepDecisions = new Map<string, VoteDecision>();
   for (const s of input.steps ?? []) {
@@ -168,6 +384,23 @@ export async function decideCard(
     if (!state) return err(decisionError('gate_not_found', `no card ${input.card_id}`));
     if (state.status !== 'open') {
       return err(decisionError('gate_not_pending', `card is ${state.status}, not open`));
+    }
+
+    // ---- A card with gates is decided by votes; one without, by the nonce of its steps.
+    const gateless = state.gates.length === 0;
+    if (
+      gateless
+        ? input.votes.length > 0 || !input.step_nonce
+        : input.votes.length === 0 || input.step_nonce
+    ) {
+      return err(
+        decisionError(
+          'invalid_input',
+          gateless
+            ? 'a card without a gate is decided with its step nonce and no votes'
+            : 'one distinct nonce per pending gate, at least one',
+        ),
+      );
     }
 
     // ---- Coverage: every pending gate, each exactly once, and the undecided steps.
@@ -236,6 +469,19 @@ export async function decideCard(
       if (!plan.ok) return plan;
       planned.push(plan.value);
     }
+    let stepEvidence: ConsumedStepNonce['evidence'] | null = null;
+    if (gateless) {
+      const used = await consumeStepNonce(
+        tx,
+        deps,
+        input.card_id,
+        input.step_nonce as string,
+        input.step_evidence_hash,
+      );
+      if (!used.ok) return used;
+      principal = used.value.principal;
+      stepEvidence = used.value.evidence;
+    }
     const actor = principal as PrincipalId;
     const stepDrafts: Array<{ step: StepId; decision: VoteDecision; draft: LedgerEntryDraft }> = [];
     for (const s of undecidedSteps) {
@@ -244,6 +490,8 @@ export async function decideCard(
       if (!holders.value.includes(actor)) {
         return err(decisionError('not_eligible', `${actor} does not hold the slot of ${s.step}`));
       }
+      const waiver = await stepWaiver(deps, state.open.project_id, s.slot, actor);
+      if (!waiver.ok) return waiver;
       const entry_id = newEntryId(deps);
       const decision = stepDecisions.get(s.step) as VoteDecision;
       stepDrafts.push({
@@ -259,13 +507,14 @@ export async function decideCard(
           subject_hash: null,
           decision,
           actor,
-          sod_waiver: false,
+          sod_waiver: waiver.value,
           policy_bundle_version: deps.policyBundleVersion ?? 'decisions-1.0.0',
           body: {
             kind: 'step_decision',
             card_id: input.card_id,
             step: s.step,
             payload_hash: payloadHash,
+            ...(stepEvidence ? { evidence: stepEvidence } : {}),
           },
           created_at: clockOf(deps).now().toISOString(),
         } as LedgerEntryDraft,
@@ -385,8 +634,7 @@ function parsePayload(raw: readonly unknown[]): Result<CardPayloadItem[], Decisi
     const p = CardPayloadItem.safeParse(r);
     if (!p.success)
       return err(decisionError('invalid_input', `payload row ${i}: ${p.error.message}`));
-    const key =
-      p.data.kind === 'gap_disposition' ? `gap:${p.data.gap_id}` : `claim:${p.data.claim_id}`;
+    const key = cardPayloadItemKey(p.data);
     if (seen.has(key)) return err(decisionError('invalid_input', `payload row ${i}: ${key} twice`));
     seen.add(key);
     rows.push(p.data);

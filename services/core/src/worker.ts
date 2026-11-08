@@ -5,3 +5,4 @@ export * from './role-map-sync.js';
 export * from './clients.js';
 export * from './registry.js';
 export * from './settings.js';
+export { cardsLoop, type CardsLoopOptions } from './cards/loop.js';

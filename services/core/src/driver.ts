@@ -21,6 +21,7 @@ import { ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
 import type { LoopSpec } from '@aisdlc/loops';
 import { repoKey, type CodeHostPort } from '@aisdlc/ports';
 import type pg from 'pg';
+import { z } from 'zod';
 import type { KnowledgePort, RemoteError } from './clients.js';
 import type { CoreError } from './errors.js';
 import { STEPS, type S0State, type StepProgress } from './fold.js';
@@ -64,6 +65,8 @@ export interface S0Settings {
   readonly failure: S0FailureModel;
   readonly timeboxes: S0TimeBoxes;
   readonly calendar: BusinessCalendar;
+  /** DEC-4: a T0 tier needs the owner's positive attestation on card 1 (behind config, default on). */
+  readonly t0AttestationRequired: boolean;
 }
 
 export const DEFAULT_S0_SETTINGS: S0Settings = {
@@ -74,6 +77,7 @@ export const DEFAULT_S0_SETTINGS: S0Settings = {
     holidays: S0_DEFAULT_CALENDAR.holidays,
     utcOffsetMinutes: S0_DEFAULT_CALENDAR.utc_offset_minutes,
   }),
+  t0AttestationRequired: true,
 };
 
 /** The settings in force from a config reader; a value that no longer fits its schema keeps the default. */
@@ -83,7 +87,10 @@ export function s0SettingsFrom(reader: ConfigReader): () => S0Settings {
     const failure = S0FailureModel.safeParse(v.get(S0_CONFIG_KEYS.failure_model));
     const boxes = S0TimeBoxes.safeParse(v.get(S0_CONFIG_KEYS.timeboxes));
     const cal = S0Calendar.safeParse(v.get(S0_CONFIG_KEYS.calendar));
+    const t0 = z.boolean().safeParse(v.get(S0_CONFIG_KEYS.t0_attestation));
     return {
+      // A value that is not a boolean keeps the default, which is the stricter one (on).
+      t0AttestationRequired: t0.success ? t0.data : DEFAULT_S0_SETTINGS.t0AttestationRequired,
       failure: failure.success ? failure.data : DEFAULT_S0_SETTINGS.failure,
       timeboxes: boxes.success ? boxes.data : DEFAULT_S0_SETTINGS.timeboxes,
       calendar: cal.success

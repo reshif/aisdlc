@@ -1,4 +1,8 @@
 import {
+  CardDecideRequest,
+  CardEvidenceRequest,
+  CardPrepareRequest,
+  CardRecheckRequest,
   GatingProfile,
   KillDelegation,
   OnboardRequest,
@@ -13,7 +17,7 @@ import {
   type PdpResource,
 } from '@aisdlc/contracts';
 import type { ConfigDeps, ConfigRegistry } from '@aisdlc/config';
-import { systemClock, type Clock, type Result } from '@aisdlc/kernel';
+import { ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
 import type { Pdp } from '@aisdlc/pdp';
 import { newApp, sendError, type ServiceAuth } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -30,6 +34,17 @@ import {
 import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.js';
 import { loadProjectSettings, proposeProjectSettings } from './settings.js';
 import { readS0 } from './journal.js';
+import {
+  cardDetail,
+  cardHeader,
+  decideOnboardingCard,
+  listCards,
+  prepareOnboardingCard,
+  recheckControls,
+  recordOnboardingEvidence,
+  syncCards,
+  type CardDeps,
+} from './cards/index.js';
 
 /**
  * What a caller may do: `read` the model, `onboard` (the BFF, for a signed-in human: the PDP decides
@@ -49,6 +64,8 @@ export interface CoreAppOptions {
   /** The decision kernel's dependencies; without them a settings change cannot be proposed. */
   readonly config?: ConfigDeps;
   readonly clock?: Clock;
+  /** The onboarding cards (M7.3); without them the card routes answer `unavailable`. */
+  readonly cards?: CardDeps;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -259,6 +276,112 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!r.ok) return fail(reply, r.error);
     return reply.code(202).send(r.value);
   });
+
+  // ------------------------------------------------------------ the onboarding cards (M7.3)
+
+  const cardsOr = (reply: FastifyReply): CardDeps | null => {
+    if (o.cards) return o.cards;
+    fail(reply, coreError('unavailable', 'the onboarding cards are not configured'));
+    return null;
+  };
+  const uuidParam = (req: FastifyRequest, reply: FastifyReply, name: string): string | null => {
+    const v = params(req)[name] as string;
+    if (z.uuid().safeParse(v).success) return v;
+    fail(reply, coreError('invalid_input', 'bad id'));
+    return null;
+  };
+
+  app.get('/v1/s0/:id/cards', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const cards = cardsOr(reply);
+    const id = uuidParam(req, reply, 'id');
+    if (!cards || !id) return;
+    const r = await listCards(cards, id);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  /** Opens the cards the record waits for, applies decided ones, closes stale ones. Idempotent. */
+  app.post('/v1/s0/:id/cards/sync', async (req, reply) => {
+    if (!allowed(req, 'onboard'))
+      return sendError(reply, 403, 'forbidden', 'scope onboard is needed');
+    const cards = cardsOr(reply);
+    const id = uuidParam(req, reply, 'id');
+    if (!cards || !id) return;
+    const r = await syncCards(cards, id);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  app.get('/v1/cards/:cardId', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const cards = cardsOr(reply);
+    const id = uuidParam(req, reply, 'cardId');
+    if (!cards || !id) return;
+    const r = await cardDetail(cards, id);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  /** The PDP decides about the human (`card.decide`), then the decision kernel does the rest. */
+  async function cardAction<S extends z.ZodType<{ on_behalf_of: string }>>(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    schema: S,
+    run: (cards: CardDeps, id: string, body: z.infer<S>) => Promise<Result<unknown, CoreError>>,
+  ) {
+    if (!allowed(req, 'onboard'))
+      return sendError(reply, 403, 'forbidden', 'scope onboard is needed');
+    const cards = cardsOr(reply);
+    const id = uuidParam(req, reply, 'cardId');
+    if (!cards || !id) return;
+    const b = parse(schema, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const head = await cardHeader(cards, id);
+    if (!head) return fail(reply, coreError('not_found', 'no such card'));
+    if (
+      !(await guard(
+        reply,
+        b.value.on_behalf_of,
+        'card.decide',
+        pdpResource.card(head.project_id, id),
+      ))
+    ) {
+      return;
+    }
+    const r = await run(cards, id, b.value);
+    return r.ok ? r.value : fail(reply, r.error);
+  }
+
+  app.post('/v1/cards/:cardId/prepare', (req, reply) =>
+    cardAction(req, reply, CardPrepareRequest, (c, id, b) =>
+      prepareOnboardingCard(c, { card_id: id, principal: b.on_behalf_of }),
+    ),
+  );
+  app.post('/v1/cards/:cardId/evidence', (req, reply) =>
+    cardAction(req, reply, CardEvidenceRequest, async (c, _id, b) => {
+      const r = await recordOnboardingEvidence(c, {
+        nonce: b.nonce,
+        evidence_hash: b.evidence_hash,
+      });
+      return r.ok ? ok({ evidence_viewed: true }) : r;
+    }),
+  );
+  app.post('/v1/cards/:cardId/decide', (req, reply) =>
+    cardAction(req, reply, CardDecideRequest, (c, id, b) =>
+      decideOnboardingCard(c, {
+        card_id: id,
+        principal: b.on_behalf_of,
+        nonce: b.nonce,
+        decision: b.decision,
+        ...(b.content === undefined ? {} : { content: b.content }),
+        ...(b.reason === undefined ? {} : { reason: b.reason }),
+      }),
+    ),
+  );
+  /** Card 4: reads the code host again. The factory fixes nothing; the person did, on GitHub. */
+  app.post('/v1/cards/:cardId/recheck', (req, reply) =>
+    cardAction(req, reply, CardRecheckRequest, (c, id, b) =>
+      recheckControls(c, { card_id: id, principal: b.on_behalf_of }),
+    ),
+  );
 
   return app;
 }

@@ -199,6 +199,11 @@ export async function listInbox(
       const h = await holdersOf(card.project_id, gatePolicy(g.gate_id).slot);
       if (h?.includes(principal)) eligible = true;
     }
+    // A card without a gate (an S0 step card) is the inbox of the slot it was opened for.
+    if (card.gates.length === 0 && card.status === 'open') {
+      const h = await holdersOf(card.project_id, card.role);
+      if (h?.includes(principal)) eligible = true;
+    }
     if (!eligible && !backupFor.has(card.card_id)) continue;
     items.push({
       card,

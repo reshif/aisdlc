@@ -15,6 +15,7 @@ import {
   readCardViews,
   recordCardEvidenceViewed,
   verifyCardPayload,
+  withdrawCard,
   type DecisionDeps,
   type PreparedCard,
 } from '../src/index.js';
@@ -604,5 +605,165 @@ describe('inbox read model', () => {
     const status = (id: string) => views.find((v) => v.card_id === id)?.status;
     expect(status(first.value.card_id)).toBe('superseded');
     expect(status(second.value.card_id)).toBe('open');
+  });
+});
+
+describe('cards without a gate (S0 step cards, PLAN M7.3)', () => {
+  const evidence = hash('what the person is shown');
+  const stepCard = async (key: string, project = 'solo', slot = 'admin') => {
+    const a = await openCard(s.deps, {
+      project_id: project as never,
+      subject_kind: 's0_record',
+      subject_id: uuid(),
+      gates: [],
+      key,
+      steps: [{ step: '0.1' as never, slot: slot as never }],
+      label: 'C1',
+    });
+    if (!a.ok) throw new Error(JSON.stringify(a.error));
+    return a.value;
+  };
+  /** prepare, evidence viewed, decide a card without a gate. */
+  async function decideStep(
+    cardId: string,
+    principal: string,
+    decision: string,
+    o: { payload?: readonly unknown[]; evidence?: string; skipView?: boolean } = {},
+  ) {
+    const p = await prepareCard(s.deps, {
+      card_id: cardId,
+      principal: pr(principal),
+      evidence_hash: (o.evidence ?? evidence) as never,
+    });
+    if (!p.ok) return p;
+    const nonce = p.value.step_nonce?.nonce as string;
+    if (!o.skipView) {
+      const v = await recordCardEvidenceViewed(s.deps, [
+        { nonce, evidence_hash: o.evidence ?? evidence },
+      ]);
+      if (!v.ok) return v;
+    }
+    return decideCard(s.deps, {
+      card_id: cardId,
+      votes: [],
+      step_nonce: nonce,
+      steps: [{ step: '0.1' as never, decision }],
+      ...(o.payload ? { payload: o.payload } : {}),
+    });
+  }
+
+  it('opens once under a key, is decided by its step nonce, and writes one ledger entry stamped sod_waiver', async () => {
+    const a = await stepCard('k1');
+    expect(a.opened).toBe(true);
+    expect(a.gate_instance_ids).toEqual([]);
+    expect((await stepCard('k1')).card_id).toBe(a.card_id);
+    expect((await stepCard('k2')).card_id).not.toBe(a.card_id);
+    const before = await ledgerCount(s);
+    const d = await decideStep(a.card_id, 'ann', 'approve');
+    expect(d.ok).toBe(true);
+    if (!d.ok) return;
+    expect(await ledgerCount(s)).toBe(before + 1);
+    expect(d.value.status).toBe('decided');
+    expect(d.value.entries[0]).toMatchObject({
+      entry_type: 'card.step_decision',
+      decision: 'approve',
+      actor: 'ann',
+      sod_waiver: true,
+      body: { card_id: a.card_id, step: '0.1', evidence: { evidence_hash: evidence } },
+    });
+    const st = await readCardState(s.record.pool, a.card_id);
+    expect(st?.steps[0]).toMatchObject({ decision: 'approve', actor: 'ann', sod_waiver: true });
+  });
+
+  it('refuses without a key, without the evidence hash, with votes, and a second decision', async () => {
+    const noKey = await openCard(s.deps, {
+      project_id: 'solo' as never,
+      subject_kind: 's0_record',
+      subject_id: uuid(),
+      gates: [],
+      steps: [{ step: '0.1' as never, slot: 'admin' }],
+    });
+    expect(noKey.ok).toBe(false);
+    const a = await stepCard('k3');
+    const noEvidence = await prepareCard(s.deps, { card_id: a.card_id, principal: pr('ann') });
+    expect(noEvidence.ok).toBe(false);
+    const notViewed = await decideStep(a.card_id, 'ann', 'approve', { skipView: true });
+    expect(notViewed.ok).toBe(false);
+    if (!notViewed.ok) expect(notViewed.error.code).toBe('evidence_not_viewed');
+    const strangers = await decideStep(a.card_id, 'mallory', 'approve');
+    expect(strangers.ok).toBe(false);
+    if (!strangers.ok) expect(strangers.error.code).toBe('not_eligible');
+    expect((await decideStep(a.card_id, 'ann', 'approve')).ok).toBe(true);
+    expect((await decideStep(a.card_id, 'ann', 'approve')).ok).toBe(false);
+  });
+
+  it('binds the nonce to the evidence it was prepared for', async () => {
+    const a = await stepCard('k4');
+    const p = await prepareCard(s.deps, {
+      card_id: a.card_id,
+      principal: pr('ann'),
+      evidence_hash: evidence as never,
+    });
+    if (!p.ok) throw new Error('prepare');
+    const wrong = await recordCardEvidenceViewed(s.deps, [
+      { nonce: p.value.step_nonce?.nonce as string, evidence_hash: hash('another page') },
+    ]);
+    expect(wrong.ok).toBe(false);
+    if (!wrong.ok) expect(wrong.error.code).toBe('evidence_mismatch');
+  });
+
+  it('a send-back and a rejection are decisions of the card, with the payload hash on the entry', async () => {
+    const a = await stepCard('k5');
+    const d = await decideStep(a.card_id, 'ann', 'request_changes');
+    expect(d.ok && d.value.status).toBe('sent_back');
+    const b = await stepCard('k6');
+    const r = await decideStep(b.card_id, 'ann', 'reject');
+    expect(r.ok && r.value.status).toBe('rejected');
+    if (r.ok) expect(r.value.payload_hash).toBe(cardPayloadHash([]));
+  });
+
+  it('T2: a sole holder cannot decide (no waiver of any kind); two holders can', async () => {
+    setupProject(s, 't2one', { tier: 'T2', slots: { admin: ['ann'] } });
+    setupProject(s, 't2two', { tier: 'T2', slots: { admin: ['ann', 'bob'] } });
+    const one = await stepCard('k7', 't2one');
+    const refused = await decideStep(one.card_id, 'ann', 'approve');
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe('quorum_infeasible');
+    const two = await stepCard('k8', 't2two');
+    const ok = await decideStep(two.card_id, 'ann', 'approve');
+    expect(ok.ok && ok.value.entries[0]?.sod_waiver).toBe(false);
+  });
+
+  it('is open in the inbox of the slot, not of others, and a withdrawn card leaves it', async () => {
+    const a = await stepCard('k9', 'team', 'admin');
+    await sync();
+    const root = await listInbox(s.deps, pr('root'));
+    expect(root.ok && root.value.map((i) => i.card.card_id)).toContain(a.card_id);
+    const ann = await listInbox(s.deps, pr('ann'));
+    expect(ann.ok && ann.value.map((i) => i.card.card_id)).not.toContain(a.card_id);
+    const w = await withdrawCard(s.deps, {
+      card_id: a.card_id,
+      reason: 'parked',
+      by: 'system.core',
+    });
+    expect(w.ok && w.value.withdrawn).toBe(true);
+    // idempotent, and no ledger entry
+    const again = await withdrawCard(s.deps, {
+      card_id: a.card_id,
+      reason: 'parked',
+      by: 'system.core',
+    });
+    expect(again.ok && again.value.withdrawn).toBe(false);
+    await sync();
+    const after = await listInbox(s.deps, pr('root'));
+    expect(after.ok && after.value.map((i) => i.card.card_id)).not.toContain(a.card_id);
+    expect((await readCardState(s.record.pool, a.card_id))?.status).toBe('withdrawn');
+    // a withdrawn card cannot be decided
+    const late = await decideStep(a.card_id, 'root', 'approve');
+    expect(late.ok).toBe(false);
+  });
+
+  it('rebuild equals live with step cards in the record', async () => {
+    await expectRebuildEqualsLive(s.record.pool, inboxProjection);
   });
 });

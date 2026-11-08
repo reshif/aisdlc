@@ -30,12 +30,15 @@ export const CARD_EVENT = {
   payload_recorded: 'card.payload_recorded',
   decided: 'card.decided',
   escalated: 'card.escalated',
+  /** A card with no gate (an S0 step card) that nobody can decide any more: its record moved on. */
+  withdrawn: 'card.withdrawn',
 } as const;
 export const CardEventType = z.enum([
   CARD_EVENT.opened,
   CARD_EVENT.payload_recorded,
   CARD_EVENT.decided,
   CARD_EVENT.escalated,
+  CARD_EVENT.withdrawn,
 ]);
 export type CardEventType = z.infer<typeof CardEventType>;
 
@@ -109,6 +112,8 @@ export const CardOpenedPayload = z.strictObject({
   /** B21: one business day after opening, by the calendar in force at opening. */
   sla_due_at: IsoDateTime,
   opened_by: z.string().min(1),
+  /** The opener's key of a card without a gate (what makes its id unique); `null` on a card with gates. */
+  key: z.string().min(1).max(300).nullable().default(null),
 });
 export type CardOpenedPayload = z.infer<typeof CardOpenedPayload>;
 
@@ -158,12 +163,31 @@ export const CardEscalatedPayload = z.strictObject({
 });
 export type CardEscalatedPayload = z.infer<typeof CardEscalatedPayload>;
 
+/**
+ * A card that carries no gate (the S0 step cards) is closed without a decision when its record
+ * moves on: parked, withdrawn, superseded, or the step went back to the factory. Never an approval.
+ */
+export const CardWithdrawnPayload = z.strictObject({
+  card_id: CardId,
+  reason: z.string().min(1).max(200),
+  by: z.string().min(1),
+});
+export type CardWithdrawnPayload = z.infer<typeof CardWithdrawnPayload>;
+
 /** `body` of the ledger entry of a card step decision. */
 export const CardStepDecisionBody = z.strictObject({
   kind: z.literal('step_decision'),
   card_id: CardId,
   step: StepId,
   payload_hash: Sha256Hex,
+  /** A card without a gate: what the person was shown (the nonce's evidence hash), like a gate vote's. */
+  evidence: z
+    .strictObject({
+      evidence_hash: Sha256Hex,
+      evidence_viewed_at: IsoDateTime,
+      nonce_sha256: Sha256Hex,
+    })
+    .optional(),
 });
 export type CardStepDecisionBody = z.infer<typeof CardStepDecisionBody>;
 

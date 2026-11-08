@@ -404,43 +404,54 @@ export async function sendBackStep(
   return inCoreTx<{ outcome: 'sent_back' | 'rejected'; count: number }>(deps, async (j) => {
     const opened = await open(j, s0Id);
     if (!opened.ok) return opened;
-    let s0 = opened.value;
-    const refused = requireStatus(s0, 'card');
-    if (refused) return err(refused);
-    const st = s0.steps.get(step);
-    if (!st || st.state !== 'card') {
-      return err(coreError('conflict', `step ${step} has no card waiting for a person`));
-    }
-    const count = st.send_backs + 1;
-    const w = await j.emit(
-      s0Stream(s0Id),
-      S0_EVENT.send_back,
-      { step, count, by: o.actor, reason: o.reason ?? null },
-      o.actor,
-    );
-    if (!w.ok) return w;
-    s0 = (await j.s0(s0Id)) as S0State;
-    if (count > o.limit) {
-      const r = await changeStatus(j, s0, 'rejected', {
-        actor: o.actor,
-        cause: 'send_back.exhausted',
-        reason: o.reason ?? null,
-        rejected_at: step,
-      });
-      return r.ok ? ok({ outcome: 'rejected' as const, count }) : r;
-    }
-    const c = await changeStep(j, s0, step, 'running', {
-      actor: o.actor,
-      reason: 'sent_back',
-    });
-    if (!c.ok) return c;
-    const r = await changeStatus(j, c.value, 'running', {
-      actor: o.actor,
-      cause: 'send_back',
-      reason: o.reason ?? null,
-    });
-    return r.ok ? ok({ outcome: 'sent_back' as const, count }) : r;
+    return sendBackIn(j, opened.value, step, o);
   });
+}
+
+/** `sendBackStep` inside a transaction that holds the record's lock (the card layer's apply). */
+export async function sendBackIn(
+  j: Journal,
+  s0Start: S0State,
+  step: OnboardingStepId,
+  o: { actor: string; reason?: string; limit: number },
+): Promise<Result<{ outcome: 'sent_back' | 'rejected'; count: number }, CoreError>> {
+  let s0 = s0Start;
+  const s0Id = s0.record.s0_id;
+  const refused = requireStatus(s0, 'card');
+  if (refused) return err(refused);
+  const st = s0.steps.get(step);
+  if (!st || st.state !== 'card') {
+    return err(coreError('conflict', `step ${step} has no card waiting for a person`));
+  }
+  const count = st.send_backs + 1;
+  const w = await j.emit(
+    s0Stream(s0Id),
+    S0_EVENT.send_back,
+    { step, count, by: o.actor, reason: o.reason ?? null },
+    o.actor,
+  );
+  if (!w.ok) return w;
+  s0 = (await j.s0(s0Id)) as S0State;
+  if (count > o.limit) {
+    const r = await changeStatus(j, s0, 'rejected', {
+      actor: o.actor,
+      cause: 'send_back.exhausted',
+      reason: o.reason ?? null,
+      rejected_at: step,
+    });
+    return r.ok ? ok({ outcome: 'rejected' as const, count }) : r;
+  }
+  const c = await changeStep(j, s0, step, 'running', {
+    actor: o.actor,
+    reason: 'sent_back',
+  });
+  if (!c.ok) return c;
+  const r = await changeStatus(j, c.value, 'running', {
+    actor: o.actor,
+    cause: 'send_back',
+    reason: o.reason ?? null,
+  });
+  return r.ok ? ok({ outcome: 'sent_back' as const, count }) : r;
 }
 
 /**
@@ -456,15 +467,25 @@ export async function completeStep(
   return inCoreTx(deps, async (j) => {
     const opened = await open(j, s0Id);
     if (!opened.ok) return opened;
-    const refused = requireStatus(opened.value, 'card');
-    if (refused) return err(refused);
-    if (opened.value.steps.get(step)?.state !== 'card') {
-      return err(coreError('conflict', `step ${step} has no card waiting for a person`));
-    }
-    const c = await changeStep(j, opened.value, step, 'done', { actor: o.actor });
-    if (!c.ok) return c;
-    return changeStatus(j, c.value, 'running', { actor: o.actor, cause: 'card.decided' });
+    return completeStepIn(j, opened.value, step, o);
   });
+}
+
+/** `completeStep` inside a transaction that holds the record's lock (the card layer's apply). */
+export async function completeStepIn(
+  j: Journal,
+  s0: S0State,
+  step: OnboardingStepId,
+  o: { actor: string },
+): Promise<Result<S0State, CoreError>> {
+  const refused = requireStatus(s0, 'card');
+  if (refused) return err(refused);
+  if (s0.steps.get(step)?.state !== 'card') {
+    return err(coreError('conflict', `step ${step} has no card waiting for a person`));
+  }
+  const c = await changeStep(j, s0, step, 'done', { actor: o.actor });
+  if (!c.ok) return c;
+  return changeStatus(j, c.value, 'running', { actor: o.actor, cause: 'card.decided' });
 }
 
 /**

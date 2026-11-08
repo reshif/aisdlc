@@ -1,4 +1,12 @@
-import { KnowledgeJobState, type ProjectId } from '@aisdlc/contracts';
+import {
+  CensusLatest,
+  FindingCounts,
+  FindingMachine,
+  FindingState,
+  KnowledgeJobState,
+  type PrincipalId,
+  type ProjectId,
+} from '@aisdlc/contracts';
 import { err, ok, taggedError, type Result, type TaggedError } from '@aisdlc/kernel';
 import { callJson } from '@aisdlc/service-kit';
 import { z } from 'zod';
@@ -59,11 +67,41 @@ export interface CensusSummary {
   readonly secrets_not_met: boolean;
 }
 
+/**
+ * What the security card sees of a finding: its opaque id, nothing else. The Security store holds
+ * the fingerprint and the locations; they never cross into core (OB §5.3 items 4, 10).
+ */
+export interface FindingRef {
+  readonly finding_id: string;
+}
+
+/** The counts of a repo's scan, and whether B1/B2 block (counts only). */
+export interface SecuritySummary {
+  readonly scanned: boolean;
+  readonly finding_counts: FindingCounts | null;
+  readonly b1_blocked: boolean;
+  readonly b2_reasons: readonly string[];
+}
+
 export interface KnowledgePort {
   startCensus(repo: string): Promise<Result<{ job_id: string }, RemoteError>>;
   job(jobId: string): Promise<Result<JobView, RemoteError>>;
   /** The newest census of the repo, or `null` when there is none. */
   latestCensus(repo: string): Promise<Result<CensusSummary | null, RemoteError>>;
+  /** The newest census with its whole record and gap ledger (card 1), or `null`. */
+  census(repo: string): Promise<Result<CensusLatest | null, RemoteError>>;
+  /** The scan's counts (scope `census`). */
+  securitySummary(repo: string): Promise<Result<SecuritySummary, RemoteError>>;
+  /** The findings of the repo that are still open: ids only (scope `security`). */
+  openFindings(repo: string): Promise<Result<FindingRef[], RemoteError>>;
+  /**
+   * Sets a finding's state, as the named human (scope `security`; knowledge refuses a service
+   * principal). Idempotent: a finding already in that state is `ok`.
+   */
+  setFindingState(
+    findingId: string,
+    req: { state: Exclude<FindingState, 'open'>; principal_id: PrincipalId; reason: string },
+  ): Promise<Result<{ state: FindingState }, RemoteError>>;
 }
 
 const JobShape = z.looseObject({
@@ -80,10 +118,23 @@ const CensusShape = z.looseObject({
   }),
 });
 
+const SummaryShape = z.looseObject({
+  scanned: z.boolean(),
+  finding_counts: FindingCounts.optional(),
+  b1_blocked: z.boolean(),
+  b2_reasons: z.array(z.string()),
+});
+const FindingRow = z.looseObject({ finding_id: z.string().min(1), state: FindingState });
+const FindingsShape = z.looseObject({ findings: z.array(FindingRow) });
+
 const failFor = (status: number, what: string): RemoteError =>
   remoteError(status >= 500 ? 'unreachable' : 'refused', `${what}: ${status}`);
 
-/** `KnowledgePort` over knowledge's HTTP API (scope `census`). */
+/**
+ * `KnowledgePort` over knowledge's HTTP API. Scope `census` for the job and the census; the security
+ * card (M7.3) also needs scope `security` (finding ids and the state change, as the named human).
+ * The finding rows are read for their id only: no fingerprint or location is kept.
+ */
 export class HttpKnowledge implements KnowledgePort {
   constructor(private readonly o: RemoteOptions) {}
 
@@ -124,6 +175,72 @@ export class HttpKnowledge implements KnowledgePort {
       // Unknown, absent and not evaluated are not met (fail closed).
       secrets_not_met: status('B1') !== 'met' || status('B2') !== 'met',
     });
+  }
+
+  async census(repo: string) {
+    const r = await call(this.o, 'GET', `/v1/repos/${repo}/census/latest`);
+    if (!r.reached) return err(remoteError('unreachable', 'knowledge did not answer'));
+    if (r.status === 404) return ok(null);
+    if (r.status !== 200) return err(failFor(r.status, 'knowledge'));
+    const p = CensusLatest.safeParse(r.json);
+    return p.success
+      ? ok(p.data)
+      : err(remoteError('invalid', 'knowledge answered with an unexpected shape'));
+  }
+
+  async securitySummary(repo: string) {
+    const r = await call(this.o, 'GET', `/v1/repos/${repo}/security-summary`);
+    if (!r.reached) return err(remoteError('unreachable', 'knowledge did not answer'));
+    if (r.status !== 200) return err(failFor(r.status, 'knowledge'));
+    const p = SummaryShape.safeParse(r.json);
+    if (!p.success)
+      return err(remoteError('invalid', 'knowledge answered with an unexpected shape'));
+    return ok({
+      scanned: p.data.scanned,
+      finding_counts: p.data.finding_counts ?? null,
+      b1_blocked: p.data.b1_blocked,
+      b2_reasons: p.data.b2_reasons,
+    });
+  }
+
+  async openFindings(repo: string) {
+    const r = await call(
+      this.o,
+      'GET',
+      `/v1/security/findings?repo=${encodeURIComponent(repo)}&state=open`,
+    );
+    if (!r.reached) return err(remoteError('unreachable', 'knowledge did not answer'));
+    if (r.status !== 200) return err(failFor(r.status, 'knowledge'));
+    const p = FindingsShape.safeParse(r.json);
+    if (!p.success)
+      return err(remoteError('invalid', 'knowledge answered with an unexpected shape'));
+    // Only the id is kept: the rest of the row (fingerprint, locations) is dropped here.
+    return ok(p.data.findings.map((f) => ({ finding_id: f.finding_id })));
+  }
+
+  async setFindingState(
+    findingId: string,
+    req: { state: Exclude<FindingState, 'open'>; principal_id: PrincipalId; reason: string },
+  ) {
+    const path = `/v1/security/findings/${encodeURIComponent(findingId)}/state`;
+    const r = await call(this.o, 'POST', path, req);
+    if (!r.reached) return err(remoteError('unreachable', 'knowledge did not answer'));
+    if (r.status === 409) {
+      // A repeat: the finding may already be in the state asked for.
+      const cur = await call(
+        this.o,
+        'GET',
+        `/v1/security/findings/${encodeURIComponent(findingId)}`,
+      );
+      const f = cur.reached && cur.status === 200 ? FindingRow.safeParse(cur.json) : null;
+      if (f?.success && f.data.state === req.state) return ok({ state: f.data.state });
+      return err(remoteError('refused', 'the finding is not in a state that can change'));
+    }
+    if (r.status !== 200) return err(failFor(r.status, 'knowledge'));
+    const p = FindingRow.safeParse(r.json);
+    return p.success
+      ? ok({ state: p.data.state })
+      : err(remoteError('invalid', 'knowledge answered with an unexpected shape'));
   }
 }
 
@@ -203,6 +320,89 @@ export class FakeKnowledge implements KnowledgePort {
     if (this.down) return err(remoteError('unreachable', 'knowledge is down'));
     return ok(this.censuses.get(repo.toLowerCase()) ?? null);
   }
+
+  // ---- the full census and the Security store (card 1 and the security card)
+
+  private readonly records = new Map<string, CensusLatest>();
+  /** Findings by id, in the order they were added; `repo` keys are lower-case. */
+  readonly findings = new Map<
+    string,
+    { repo: string; state: FindingState; by: string | null; reason: string | null }
+  >();
+  /** Every state change asked of the store, in order (the test reads it). */
+  readonly stateCalls: Array<{ finding_id: string; state: string; principal_id: string }> = [];
+  /** Makes the next `setFindingState` calls fail as an unreachable service would. */
+  failStateChanges = false;
+  private f = 0;
+
+  /** The full census of `repo` (the summary a job makes is `setCensus`/`finish`). */
+  setCensusRecord(repo: string, latest: CensusLatest): void {
+    this.records.set(repo.toLowerCase(), latest);
+  }
+
+  /** Adds open findings for `repo`; returns their ids. */
+  addFindings(repo: string, n: number): string[] {
+    const ids: string[] = [];
+    for (let i = 0; i < n; i++) {
+      this.f += 1;
+      const id = `00000000-0000-4000-8000-${String(this.f).padStart(12, '0')}`;
+      this.findings.set(id, { repo: repo.toLowerCase(), state: 'open', by: null, reason: null });
+      ids.push(id);
+    }
+    return ids;
+  }
+
+  async census(repo: string) {
+    if (this.down) return err(remoteError('unreachable', 'knowledge is down'));
+    return ok(this.records.get(repo.toLowerCase()) ?? null);
+  }
+
+  async securitySummary(repo: string) {
+    if (this.down) return err(remoteError('unreachable', 'knowledge is down'));
+    const counts = { open: 0, rotated: 0, false_positive: 0, accepted_test_fixture: 0 };
+    for (const f of this.findings.values()) if (f.repo === repo.toLowerCase()) counts[f.state] += 1;
+    return ok({
+      scanned: true,
+      finding_counts: counts,
+      b1_blocked: counts.open > 0,
+      b2_reasons: [],
+    });
+  }
+
+  async openFindings(repo: string) {
+    if (this.down) return err(remoteError('unreachable', 'knowledge is down'));
+    return ok(
+      [...this.findings.entries()]
+        .filter(([, f]) => f.repo === repo.toLowerCase() && f.state === 'open')
+        .map(([finding_id]) => ({ finding_id })),
+    );
+  }
+
+  async setFindingState(
+    findingId: string,
+    req: { state: Exclude<FindingState, 'open'>; principal_id: PrincipalId; reason: string },
+  ) {
+    if (this.down || this.failStateChanges) {
+      return err(remoteError('unreachable', 'knowledge is down'));
+    }
+    const f = this.findings.get(findingId);
+    if (!f) return err(remoteError('refused', 'no such finding'));
+    if (f.state === req.state) return ok({ state: f.state });
+    if (!FindingMachine.canTransition(f.state, req.state)) {
+      return err(
+        remoteError('refused', `a finding in state ${f.state} cannot become ${req.state}`),
+      );
+    }
+    this.stateCalls.push({
+      finding_id: findingId,
+      state: req.state,
+      principal_id: req.principal_id,
+    });
+    f.state = req.state;
+    f.by = req.principal_id;
+    f.reason = req.reason;
+    return ok({ state: f.state });
+  }
 }
 
 // ---------------------------------------------------------------- Identity
@@ -265,5 +465,38 @@ export class FakeRoleMapReconciler implements RoleMapReconcilerPort {
     if (this.refuse) return err(remoteError('refused', 'identity refused'));
     this.calls.push({ project, ...o });
     return ok({ events: 1 });
+  }
+}
+
+// ---------------------------------------------------------------- GitHub logins -> principals
+
+/**
+ * Maps GitHub logins to principals through identity's `github_login` links (card 4 proposes the
+ * role map from CODEOWNERS and the collaborators). A login with no link is `null`: reported,
+ * never invented. An error is a refusal, never "unlinked".
+ */
+export interface PrincipalLinksPort {
+  githubLogins(
+    logins: readonly string[],
+  ): Promise<Result<Record<string, PrincipalId | null>, RemoteError>>;
+}
+
+/** Deterministic `PrincipalLinksPort`. */
+export class FakePrincipalLinks implements PrincipalLinksPort {
+  private readonly links = new Map<string, PrincipalId>();
+  down = false;
+
+  link(login: string, principal: PrincipalId | string): this {
+    this.links.set(login.toLowerCase(), principal as PrincipalId);
+    return this;
+  }
+
+  async githubLogins(logins: readonly string[]) {
+    if (this.down) return err(remoteError('unreachable', 'identity is down'));
+    return ok(
+      Object.fromEntries(
+        logins.map((l) => [l.toLowerCase(), this.links.get(l.toLowerCase()) ?? null]),
+      ),
+    );
   }
 }

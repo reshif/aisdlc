@@ -11,7 +11,9 @@ import { startIdentityStack, type IdentityStack } from '@aisdlc/identity/testing
 import { registerPdpConfig } from '@aisdlc/pdp';
 import { FakeGitHub, emptySeed, type CodeHostSeed } from '@aisdlc/ports';
 import type { DriverDeps } from './driver.js';
-import type { KnowledgePort } from './clients.js';
+import type { KnowledgePort, PrincipalLinksPort } from './clients.js';
+import { FakePrincipalLinks } from './clients.js';
+import type { CardDeps } from './cards/model.js';
 import type { CoreDeps } from './journal.js';
 import { migrateCore } from './migrations.js';
 import { proposeProjectSettings, registerCoreConfig, type SettingsChange } from './settings.js';
@@ -180,4 +182,38 @@ export function driverDeps(
   over: Partial<DriverDeps> = {},
 ): DriverDeps {
   return { pool: s.record.pool, clock: s.clock, source: host, knowledge, ...over };
+}
+
+/**
+ * Who holds each slot of a project and its tier, for the fake eligibility (the decision kernel's
+ * port). Slots not listed are empty: nobody can decide what they decide.
+ */
+export function setSlots(
+  s: CoreStack,
+  project: string,
+  slots: Partial<Record<RoleSlot, string[]>>,
+  tier: 'T0' | 'T1' | 'T2' | null = 'T1',
+): void {
+  s.elig.setPolicy(pid(project), { tier });
+  for (const slot of SLOTS) s.elig.setHolders(pid(project), slot, (slots[slot] ?? []).map(pr));
+}
+
+/** The card layer's dependencies over the stack, a host and a knowledge. */
+export function cardDeps(
+  s: CoreStack,
+  host: FakeGitHub,
+  knowledge: KnowledgePort,
+  over: Partial<CardDeps> & { links?: PrincipalLinksPort } = {},
+): CardDeps {
+  return {
+    pool: s.record.pool,
+    clock: s.clock,
+    decisions: s.config,
+    config: s.config,
+    registry: s.registry,
+    knowledge,
+    source: host,
+    links: over.links ?? new FakePrincipalLinks(),
+    ...over,
+  };
 }

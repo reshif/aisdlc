@@ -96,6 +96,12 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
       description: 'S0 step time boxes (OB §6.2), with the reminder at 2 business days on 0.1',
     })
     .setting({
+      key: S0_CONFIG_KEYS.t0_attestation,
+      schema: z.boolean(),
+      default: true,
+      description: "DEC-4: a T0 tier needs the owner's positive attestation on card 1",
+    })
+    .setting({
       key: S0_CONFIG_KEYS.calendar,
       schema: S0Calendar,
       default: S0_DEFAULT_CALENDAR,

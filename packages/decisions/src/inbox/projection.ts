@@ -167,9 +167,19 @@ export async function readCardViews(
     where.push(`c.project_id = $${args.length}`);
   }
   if (filter.open_only) {
-    where.push(`EXISTS (SELECT 1 FROM decisions.inbox_card_gate og
+    // A pending gate, or (a card without a gate) a step with no decision on the ledger that is not
+    // withdrawn.
+    where.push(`(EXISTS (SELECT 1 FROM decisions.inbox_card_gate og
         LEFT JOIN decisions.gate_instance oi USING (gate_instance_id)
-       WHERE og.card_id = c.card_id AND (oi.status = 'pending' OR oi.status IS NULL))`);
+       WHERE og.card_id = c.card_id AND (oi.status = 'pending' OR oi.status IS NULL))
+      OR (NOT EXISTS (SELECT 1 FROM decisions.inbox_card_gate g0 WHERE g0.card_id = c.card_id)
+        AND EXISTS (SELECT 1 FROM decisions.inbox_card_step os
+          WHERE os.card_id = c.card_id
+            AND NOT EXISTS (SELECT 1 FROM ledger.ledger_entry l
+              WHERE l.entry_type = '${CARD_STEP_ENTRY_TYPE}' AND l.body ->> 'card_id' = c.card_id::text
+                AND l.body ->> 'step' = os.step))
+        AND NOT EXISTS (SELECT 1 FROM record.record_event w
+          WHERE w.stream = 'card:' || c.card_id::text AND w.type = '${CARD_EVENT.withdrawn}')))`);
   }
   if (filter.subject) {
     args.push(filter.subject.kind, filter.subject.id);
@@ -203,6 +213,11 @@ export async function readCardViews(
        FROM decisions.inbox_card_step s WHERE s.card_id = ANY($1::uuid[]) ORDER BY s.card_id, s.position`,
     [ids, CARD_STEP_ENTRY_TYPE],
   );
+  const withdrawnRows = await db.query<{ stream: string }>(
+    `SELECT stream FROM record.record_event WHERE type = $1 AND stream = ANY($2::text[])`,
+    [CARD_EVENT.withdrawn, ids.map((id) => `card:${id}`)],
+  );
+  const withdrawn = new Set(withdrawnRows.rows.map((r) => r.stream));
   return cards.rows.map((c) => {
     const g = gates.rows
       .filter((r) => r.card_id === c.card_id)
@@ -227,6 +242,7 @@ export async function readCardViews(
       status: deriveCardStatus(
         g,
         s.map((x) => x.decision),
+        withdrawn.has(`card:${c.card_id}`),
       ),
       gates: g,
       steps: s,

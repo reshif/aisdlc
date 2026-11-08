@@ -5,7 +5,9 @@ import { CatalogueRef } from './config.js';
 import { Classification } from './identity.js';
 import {
   CauseCode,
+  CardId,
   IsoDateTime,
+  LedgerEntryId,
   PrincipalId,
   ProjectId,
   RepoId,
@@ -33,6 +35,7 @@ import {
   type RoleSlot,
 } from './projects.js';
 import { SignerMode } from './readiness.js';
+import { VoteDecision } from './decisions.js';
 
 // The Projects and Onboarding context of core (PLAN M7.1, M7.2): the record streams of the Project,
 // Repo and S0 aggregates with their event payloads, the `project.onboard` request, the S0 step
@@ -85,6 +88,12 @@ export const S0_EVENT = {
   reminder: 's0.reminder',
   timebox_exceeded: 's0.timebox_exceeded',
   signable_level_set: 's0.signable_level_set',
+  /** A decided card was applied to the S0 record (M7.3). */
+  card_applied: 's0.card_applied',
+  /** Card 5 signed off step 0.5: the hand-off to M4 (M7.5). */
+  signoff_ready: 's0.signoff_ready',
+  /** Card 4's re-check read the code host again. */
+  controls_checked: 's0.controls_checked',
 } as const;
 
 // ---------------------------------------------------------------- The request
@@ -289,6 +298,59 @@ export const S0SignableLevelPayload = z.strictObject({
 });
 export type S0SignableLevelPayload = z.infer<typeof S0SignableLevelPayload>;
 
+/** What a decided card did to the record (M7.3). Written in the transaction that moves the step. */
+export const S0CardAppliedPayload = z.strictObject({
+  card_id: CardId,
+  card: CardKind,
+  step: OnboardingStepId,
+  decision: VoteDecision,
+  /** The hash of the list payload the ledger entries carry. */
+  payload_hash: Sha256Hex,
+  /**
+   * `stale`: the person decided, but the record had moved on (parked, withdrawn): the decision is
+   * on the ledger and nothing was applied; the step is raised again.
+   */
+  outcome: z.enum([
+    'step_done',
+    'sent_back',
+    'rejected',
+    'finding_resolved',
+    'signoff_ready',
+    'stale',
+  ]),
+  by: PrincipalId,
+  /** Pointers to what the decision caused (a config revision hash, its M1 gate); never a value. */
+  refs: z.record(z.string().min(1), z.string().min(1)),
+});
+export type S0CardAppliedPayload = z.infer<typeof S0CardAppliedPayload>;
+
+/** The three hashes M4 will sign over (OB §6.2 row 0.5); M7.4 and M7.5 add the PRR and the gate. */
+export const M4Package = z.strictObject({
+  census_hash: Sha256Hex,
+  gap_ledger_hash: Sha256Hex,
+  controls_report_hash: Sha256Hex,
+});
+export type M4Package = z.infer<typeof M4Package>;
+
+/** Card 5 is decided: the sign-off of step 0.5 is on the ledger, and M4 is the next decision (M7.5). */
+export const S0SignoffReadyPayload = z.strictObject({
+  card_id: CardId,
+  signoff_entry_id: LedgerEntryId,
+  package: M4Package,
+  payload_hash: Sha256Hex,
+  by: PrincipalId,
+});
+export type S0SignoffReadyPayload = z.infer<typeof S0SignoffReadyPayload>;
+
+export const S0ControlsCheckedPayload = z.strictObject({
+  step: OnboardingStepId.extract(['0.4']),
+  report_hash: Sha256Hex,
+  /** Ids of the blocking controls that are not met (empty: the card can be decided). */
+  blocking_open: z.array(z.string().min(1)),
+  by: PrincipalId,
+});
+export type S0ControlsCheckedPayload = z.infer<typeof S0ControlsCheckedPayload>;
+
 // ---------------------------------------------------------------- Config: S0 driver
 
 /** DEC-9 and OB §6.2. `send_backs_per_step` is 1: a second reject is `rejected_at:<step>`. */
@@ -333,6 +395,8 @@ export const S0_CONFIG_KEYS = {
   failure_model: 's0.failure_model',
   timeboxes: 's0.timeboxes',
   calendar: 's0.calendar',
+  /** DEC-4: a T0 tier needs the owner's positive attestation on card 1. Default on. */
+  t0_attestation: 's0.t0_attestation_required',
 } as const;
 
 export const S0_DEFAULT_FAILURE_MODEL: S0FailureModel = {
