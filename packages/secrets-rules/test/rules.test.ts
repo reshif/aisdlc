@@ -87,8 +87,18 @@ describe('the shared ruleset', () => {
     expect(shannonEntropy('abcd')).toBeCloseTo(2, 5);
     expect(scanText(`token = "${'ab'.repeat(12)}"`, generic)).toEqual([]);
     expect(scanText(`secret = "my-example-secret-value-1234"`, generic)).toEqual([]);
-    expect(scanText(`secret = "dev-client-secret-0123456789"`, generic)).toEqual([]);
+    // Structural placeholders and references are skipped; word-like values are NOT (M6.2b).
+    for (const v of [
+      '${DATABASE_PASSWORD_VALUE}',
+      '{{ vault_db_password }}',
+      '<your-token-here-xx>',
+    ]) {
+      expect(scanText(`${'pass'}word = "${v}"`, generic), v).toEqual([]);
+    }
+    expect(scanText(`secret = "dev-client-secret-0123456789"`, generic)).toHaveLength(1);
+    // A key that names a reference (`token_ref`, `secret_file`, `api_key_header`) holds no secret.
     expect(scanText(`token_ref: "file:/run/secrets/kms_notary"`, generic)).toEqual([]);
+    expect(scanText(`token: "file:/run/secrets/kms_notary"`, generic)).toHaveLength(1);
     expect(scanText(`${'sec'}ret = "${'q8Zr2Lx7Vm4Bn9Tc3Wk6'}"`, generic)).toHaveLength(1);
   });
 
@@ -114,5 +124,32 @@ describe('the shared ruleset', () => {
     const t = performance.now();
     scanText(text);
     expect(performance.now() - t).toBeLessThan(2000);
+  });
+
+  it('url-credentials is not subject to the key-name exclusion, and skips only obvious placeholders', () => {
+    const url = (pw: string, user = 'app'): string =>
+      ['post', 'gres://', user, ':', pw, '@db/app'].join('');
+    const pw = 'Zq7xW2mB9tRk4';
+    for (const key of ['DATABASE_URL=', 'cache_url: ', 'db_name_ref = "', 'token_url: ']) {
+      expect(
+        scanText(`${key}${url(pw)}`).map((m) => m.rule_id),
+        key,
+      ).toContain('url-credentials');
+    }
+    expect(scanText(url(pw, ''))).toHaveLength(1);
+    expect(scanText(url(pw))[0]?.value).toBe(pw);
+    for (const p of [
+      'password',
+      'pass',
+      'changeme',
+      '***',
+      '${DB_PASS}',
+      '%DB_PASS%',
+      '<pw>',
+      '$DB_PASS',
+    ])
+      expect(scanText(url(p)), p).toEqual([]);
+    expect(scanText(['post', 'gres://app@db/app'].join(''))).toEqual([]);
+    expect(scanText('git@github.com:org/repo.git and a@b.example')).toEqual([]);
   });
 });

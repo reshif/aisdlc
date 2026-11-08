@@ -2,7 +2,7 @@ import { hashCanonical } from '@aisdlc/kernel';
 import { RULES } from './rules.js';
 
 /** Bumped by hand when the meaning of the ruleset changes; the hash below catches every edit. */
-export const RULESET_REVISION = 1;
+export const RULESET_REVISION = 2;
 
 /**
  * `secrets-rules/<revision>:<12 hex of a hash over every rule's id, regex, keywords, entropy and

@@ -86,6 +86,18 @@ describe('configuration', () => {
     expect(knowledgeConfigFromEnv(good).commitCap).toBe(50_000);
     expect(knowledgeConfigFromEnv(good).maxFileBytes).toBe(5 * 1024 * 1024);
     expect(knowledgeConfigFromEnv(good).bundleCapBytes).toBe(256 * 1024 * 1024);
+    // The content lint's URL allow-list: unset is the built-in list, set is exactly what was given.
+    expect(knowledgeConfigFromEnv(good).urlAllowList).toBeUndefined();
+    expect(
+      knowledgeConfigFromEnv({ ...good, KNOWLEDGE_URL_ALLOW_LIST: 'Docs.Corp.test, *.wiki.test' })
+        .urlAllowList,
+    ).toEqual(['docs.corp.test', '*.wiki.test']);
+    expect(knowledgeConfigFromEnv({ ...good, KNOWLEDGE_URL_ALLOW_LIST: '' }).urlAllowList).toEqual(
+      [],
+    );
+    expect(() =>
+      knowledgeConfigFromEnv({ ...good, KNOWLEDGE_URL_ALLOW_LIST: 'https://x.test/path' }),
+    ).toThrow(/not a host/);
   });
 });
 

@@ -41,6 +41,7 @@ export async function bootKnowledge(env: Env): Promise<RunningService> {
       commitCap: cfg.commitCap,
       jobTimeoutMs: cfg.jobTimeoutMs,
       maxConcurrent: cfg.maxConcurrentJobs,
+      ...(cfg.urlAllowList ? { urlAllowList: cfg.urlAllowList } : {}),
       log: (line) => console.log(line),
     });
     const recovered = await runner.recover();

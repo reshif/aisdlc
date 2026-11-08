@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineMachine, type TransitionTable } from '../states/machine.js';
 import { BundleManifest, BundleRefs, RepoFullName } from './codehost.js';
+import { DetectorsResult } from './detectors.js';
 import { GitSha, IsoDateTime, PrincipalId, Sha256Hex, uuidId } from './ids.js';
 import { PrrSecuritySummary } from './readiness.js';
 
@@ -79,6 +80,12 @@ export const CoverageKind = z.enum([
   'commit_cap',
   'time_cap',
   'list_truncated',
+  /** A detector could not parse a file (broken YAML, JSON, TOML): its facts are missing, not "none". */
+  'unparseable_file',
+  /** A file is over a parser limit (size, alias count): not parsed. */
+  'parse_limit',
+  /** A detector stopped at its file-count cap: its heuristic saw only part of the tree. */
+  'detector_cap',
 ]);
 export type CoverageKind = z.infer<typeof CoverageKind>;
 
@@ -216,6 +223,8 @@ export const IntakeResult = z.strictObject({
   security_summary: PrrSecuritySummary,
   /** The same counts, with the fourth state the PRR shape has no slot for. */
   finding_counts: FindingCounts,
+  /** The detectors (M6.3) and the content lint (M6.4); `null` only in results recorded before they existed. */
+  detectors: DetectorsResult.nullable().default(null),
 });
 export type IntakeResult = z.infer<typeof IntakeResult>;
 

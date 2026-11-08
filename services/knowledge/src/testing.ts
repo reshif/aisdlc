@@ -32,6 +32,17 @@ import { FakePrincipalDirectory } from './principals.js';
 import { JobRunner, type RunnerOptions } from './runner.js';
 import { getJob } from './store.js';
 import { Readable } from 'node:stream';
+import { Git } from './git.js';
+import type { Mirror } from './intake.js';
+import { readHeadTree } from './intake.js';
+import {
+  GitTreeReader,
+  buildDetectors,
+  defaultBranchOf,
+  runDetectors,
+  type DetectorOptions,
+  type DetectorRun,
+} from './detectors/index.js';
 
 // Test infrastructure for knowledge: fixture repositories built with real git, real bundles of them,
 // a bundle source that serves a file, and a full stack (real Postgres, real kms-local, the real
@@ -293,4 +304,75 @@ export function kmsHmacKeyOf(kms: TestKms): Buffer {
     k: string;
   };
   return Buffer.from(j.k, 'base64url');
+}
+
+export interface OpenedFixture {
+  readonly reader: GitTreeReader;
+  readonly git: Git;
+  readonly mirror: Mirror;
+  dispose(): Promise<void>;
+}
+
+/**
+ * A fixture repository fetched into a hardened bare mirror through the same git runner the service
+ * uses, and a tree reader over its head: what a detector sees in a job, without the bundle and the
+ * database. `dispose` closes the object readers and removes the mirror.
+ */
+export async function openFixture(
+  repo: FixtureRepo,
+  opts: { maxFileBytes?: number } = {},
+): Promise<OpenedFixture> {
+  const scratch = scratchDir('aisdlc-knowledge-fixture-');
+  const home = join(scratch.dir, 'home');
+  mkdirSync(home);
+  const ac = new AbortController();
+  const g = new Git({ home, signal: ac.signal });
+  const dir = join(scratch.dir, 'mirror.git');
+  mkdirSync(dir);
+  await g.must('init', ['init', '--bare', '--quiet', dir]);
+  await g.must(
+    'fetch',
+    ['fetch', '--quiet', '--no-tags', '--', repo.dir, '+refs/heads/*:refs/heads/*'],
+    { gitDir: dir, allowFile: true },
+  );
+  const head = repo.head();
+  const mirror: Mirror = {
+    dir,
+    base_sha: head,
+    refs: [{ name: `refs/heads/${repo.defaultBranch}`, sha: head }],
+  };
+  const tree = await readHeadTree(g, mirror);
+  const reader = new GitTreeReader(
+    g,
+    mirror,
+    tree,
+    opts.maxFileBytes ?? 5 * 1024 * 1024,
+    defaultBranchOf(mirror),
+  );
+  return {
+    reader,
+    git: g,
+    mirror,
+    async dispose() {
+      await reader.close();
+      g.killAll();
+      scratch.dispose();
+    },
+  };
+}
+
+/** Commits nothing: runs the whole detector set over a fixture repository's head. */
+export async function detect(
+  repo: FixtureRepo,
+  opts: DetectorOptions & { maxFileBytes?: number } = {},
+): Promise<DetectorRun> {
+  const f = await openFixture(
+    repo,
+    opts.maxFileBytes === undefined ? {} : { maxFileBytes: opts.maxFileBytes },
+  );
+  try {
+    return await runDetectors(f.reader, buildDetectors(opts));
+  } finally {
+    await f.dispose();
+  }
 }

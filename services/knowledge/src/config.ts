@@ -36,6 +36,25 @@ export interface KnowledgeConfig {
   readonly commitCap: number;
   readonly jobTimeoutMs: number;
   readonly maxConcurrentJobs: number;
+  /** Hosts a repo doc may link to without a content-lint finding; `undefined` is the built-in list. */
+  readonly urlAllowList: readonly string[] | undefined;
+}
+
+/** `a.com, b.org` -> hosts; unset -> `undefined` (the built-in list); a host must be a bare DNS name or IP. */
+function hostList(raw: string | undefined): readonly string[] | undefined {
+  if (raw === undefined) return undefined;
+  const hosts = raw
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter((h) => h !== '');
+  for (const h of hosts) {
+    if (!/^(?:\*\.)?[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(h)) {
+      throw new ServiceConfigError(
+        `KNOWLEDGE_URL_ALLOW_LIST has an entry that is not a host: ${h}`,
+      );
+    }
+  }
+  return hosts;
 }
 
 const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
@@ -78,6 +97,9 @@ export function assertNoForbiddenEnv(env: Env): void {
  *   KNOWLEDGE_COMMIT_CAP          default 50000: more commits is `truncated`, recorded
  *   KNOWLEDGE_JOB_TIMEOUT_MS      default 600000, for intake and scan together
  *   KNOWLEDGE_MAX_CONCURRENT_JOBS default 2
+ *   KNOWLEDGE_URL_ALLOW_LIST      comma-separated hosts (and subdomains) a repo doc may link to; the
+ *                                 content lint (L-URL) flags every other URL. Default: github.com,
+ *                                 localhost, 127.0.0.1, example.com/.org/.net. An empty value allows none.
  *   KNOWLEDGE_GIT_BIN             default `git`
  *   KNOWLEDGE_HOST (127.0.0.1), KNOWLEDGE_PORT (8370)
  */
@@ -101,5 +123,6 @@ export function knowledgeConfigFromEnv(env: Env): KnowledgeConfig {
     commitCap: intEnv(env, 'KNOWLEDGE_COMMIT_CAP', KNOWLEDGE_DEFAULTS.commit_cap, 1),
     jobTimeoutMs: intEnv(env, 'KNOWLEDGE_JOB_TIMEOUT_MS', KNOWLEDGE_DEFAULTS.job_timeout_ms, 1000),
     maxConcurrentJobs: intEnv(env, 'KNOWLEDGE_MAX_CONCURRENT_JOBS', 2, 1),
+    urlAllowList: hostList(env['KNOWLEDGE_URL_ALLOW_LIST']),
   };
 }

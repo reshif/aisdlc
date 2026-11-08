@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CODEOWNERS_BYTES, parseCodeowners } from '../src/codeowners.js';
+import { MAX_CODEOWNERS_BYTES, ownerKey, parseCodeowners, ruleFor } from '../src/index.js';
 
 describe('parseCodeowners', () => {
   it('reads users, teams and e-mails, lower-cases, and ignores comments and blank lines', () => {
@@ -100,5 +100,44 @@ describe('parseCodeowners', () => {
     const t = Date.now();
     parseCodeowners(`${'\\'.repeat(100_000)} @a\n${'a '.repeat(100_000)}\n`);
     expect(Date.now() - t).toBeLessThan(2000);
+  });
+});
+
+describe('ruleFor', () => {
+  const owned = (file: string, path: string): string[] => {
+    const r = ruleFor(parseCodeowners(file), path);
+    return r === null ? [] : r.owners.map(ownerKey);
+  };
+
+  it('the last matching rule wins, and no match is no owner', () => {
+    const f = '* @all\n/docs/ @docs\n*.md @md\n';
+    expect(owned(f, 'src/a.ts')).toEqual(['user:all']);
+    expect(owned(f, 'docs/guide.txt')).toEqual(['user:docs']);
+    expect(owned(f, 'docs/guide.md')).toEqual(['user:md']);
+    expect(owned('/docs/ @docs\n', 'src/a.ts')).toEqual([]);
+  });
+
+  it('anchors a pattern with a slash, and matches an unslashed one at any depth', () => {
+    expect(owned('/AGENTS.md @a\n', 'AGENTS.md')).toEqual(['user:a']);
+    expect(owned('/AGENTS.md @a\n', 'pkg/AGENTS.md')).toEqual([]);
+    expect(owned('AGENTS.md @a\n', 'pkg/AGENTS.md')).toEqual(['user:a']);
+    expect(owned('docs/*.md @a\n', 'docs/x.md')).toEqual(['user:a']);
+    expect(owned('docs/*.md @a\n', 'other/docs/x.md')).toEqual([]);
+  });
+
+  it('a directory pattern covers what is inside, `docs/*` only the files directly in it, `**` anything', () => {
+    expect(owned('.factory/ @a\n', '.factory/knowledge/index.yaml')).toEqual(['user:a']);
+    expect(owned('/docs/* @a\n', 'docs/a.md')).toEqual(['user:a']);
+    expect(owned('/docs/* @a\n', 'docs/deep/a.md')).toEqual([]);
+    expect(owned('/docs/** @a\n', 'docs/deep/a.md')).toEqual(['user:a']);
+    expect(owned('**/workflows/ @a\n', '.github/workflows/ci.yml')).toEqual(['user:a']);
+    expect(owned('/.github/workflows/*.yml @a\n', '.github/workflows/ci.yml')).toEqual(['user:a']);
+  });
+
+  it('a rule with no owners clears ownership, and a hostile pattern cannot hang the matcher', () => {
+    expect(owned('* @a\n/x/\n', 'x/y')).toEqual([]);
+    const t = performance.now();
+    ruleFor(parseCodeowners(`${'*/'.repeat(40)}x @a\n`), `${'a/'.repeat(200)}x`);
+    expect(performance.now() - t).toBeLessThan(500);
   });
 });

@@ -22,6 +22,14 @@ import {
   readHeadTree,
   sourceRefusal,
 } from './intake.js';
+import { mergeCoverage } from './coverage.js';
+import {
+  GitTreeReader,
+  buildDetectors,
+  defaultBranchOf,
+  runDetectors,
+  type DetectorRun,
+} from './detectors/index.js';
 import { scanMirror } from './scan.js';
 import { enqueueJob, failJob, finishJob, markRunning, type StoreDeps } from './store.js';
 
@@ -37,6 +45,8 @@ export interface RunnerOptions extends StoreDeps {
   readonly jobTimeoutMs?: number;
   readonly maxConcurrent?: number;
   readonly rules?: readonly SecretRule[];
+  /** Hosts a doc may link to without a content-lint finding (default: the repo host, loopback, reserved example hosts). */
+  readonly urlAllowList?: readonly string[];
   readonly log?: (line: string) => void;
   /** Test seam: called with the mirror directory after it is built, before the scan. */
   readonly afterMirror?: (mirrorDir: string) => Promise<void> | void;
@@ -194,6 +204,30 @@ export class JobRunner {
         },
         ac.signal,
       );
+
+      // The detectors (M6.3) and the content lint (M6.4) read the head tree through the same hardened
+      // object reader. A failed detector is recorded in its result, never an empty "found nothing".
+      const reader = new GitTreeReader(
+        git,
+        mirror,
+        headTree,
+        o.maxFileBytes ?? KNOWLEDGE_DEFAULTS.max_file_bytes,
+        defaultBranchOf(mirror),
+      );
+      let detected: DetectorRun;
+      try {
+        detected = await runDetectors(
+          reader,
+          buildDetectors({
+            ...(o.urlAllowList ? { urlAllowList: o.urlAllowList } : {}),
+            secretRules: rules,
+          }),
+          ac.signal,
+        );
+      } finally {
+        await reader.close();
+      }
+      const coverage = mergeCoverage(scan.items, scan.counts, detected.coverage);
       const files = headTree.filter((e) => e.type === 'blob');
       const job = await finishJob(o, id, {
         base: {
@@ -204,11 +238,12 @@ export class JobRunner {
           bundle_bytes: download.bytes,
           refs: [...mirror.refs],
           head_tree: { files: files.length, bytes: files.reduce((n, e) => n + (e.size ?? 0), 0) },
-          coverage_items: scan.items,
-          coverage_counts: scan.counts as Partial<Record<CoverageKind, number>>,
+          coverage_items: coverage.items,
+          coverage_counts: coverage.counts as Partial<Record<CoverageKind, number>>,
           scan_status: scan.status,
           scan_error: scan.error,
           scan_coverage: scan.coverage,
+          detectors: detected.result,
         },
         findings: scan.findings,
       });

@@ -5,6 +5,8 @@ export * from './migrations.js';
 export * from './git.js';
 export * from './intake.js';
 export * from './scan.js';
+export * from './coverage.js';
+export * from './detectors/index.js';
 export * from './fingerprint.js';
 export * from './principals.js';
 export * from './store.js';

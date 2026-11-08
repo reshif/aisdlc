@@ -43,6 +43,29 @@ const UPPER_DIGITS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const PLACEHOLDER =
   /(?:example|placeholder|changeme|change-me|dummy|sample|your[_-]|xxxx|<[a-z_ -]+>)/i;
 
+/** A value that is a reference to a secret held elsewhere, never the secret: `${VAR}`, `{{ var }}`, `%VAR%`, `<token>`. */
+const REFERENCE: readonly RegExp[] = [
+  /^\$\{[A-Za-z_][A-Za-z0-9_.:-]{0,80}\}$/,
+  /^\{\{[^{}]{1,80}\}\}$/,
+  /^%[A-Za-z_][A-Za-z0-9_]{0,80}%$/,
+  /^<[^<>\s]{1,80}>$/,
+];
+
+/** A password part that is an obvious stand-in, not a secret. */
+const URL_PASSWORD_PLACEHOLDER =
+  /^(?:password|passwd|pass|pwd|secret|changeme|change-me|redacted|username|your[_-]?password|\*+|x+|\.{3,})$/i;
+
+/** `process.env.X`, `os.environ.X`, `settings.X`: reading a secret from somewhere, not holding one. */
+const ACCESSOR_CHAIN =
+  /^(?:process\.env|os\.environ|os\.getenv|ENV|env|settings|config|self|this|args|opts|options|params|secrets|vault|context|req|request)\.[A-Za-z_][\w.]*$/;
+
+/**
+ * Floor for the generic rules, in bits per character. Random credentials sit above 4; a password
+ * made of a few repeated words sits near 3.2. Placeholders and references are removed by `allow`,
+ * not by a high floor.
+ */
+const GENERIC_ENTROPY = 3;
+
 export const RULES: readonly SecretRule[] = [
   {
     id: 'aws-access-key-id',
@@ -121,7 +144,7 @@ export const RULES: readonly SecretRule[] = [
     description: 'PEM private key block (RSA, EC, DSA, OpenSSH, PGP, PKCS8, encrypted)',
     regex:
       /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----[\s\S]{16,8192}?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----/g,
-    keywords: ['private key-----'],
+    keywords: ['private key-----', 'private key block-----'],
     fixtures: {
       positive: () => {
         const body = `${fill(ALNUM, 64)}\n${fill(ALNUM, 64)}`;
@@ -234,16 +257,15 @@ export const RULES: readonly SecretRule[] = [
     description:
       'High-entropy string assigned to a variable named api key, secret, token or password',
     regex:
-      /(?:api[_-]?key|secret|token|passw(?:or)?d|pwd)[\w-]{0,20}["']?\s*[:=]\s*["']([^"'\s]{16,128})["']/gi,
-    keywords: ['api', 'secret', 'token', 'passw', 'pwd'],
+      /(?:api[_-]?key|secret|token|passw(?:or)?d|passphrase|pwd)(?![\w.-]{0,20}?(?:id|ids|name|url|uri|ref|file|path|type|field|header|endpoint|policy|length)[ \t]*["']?[ \t]*[:=])[\w-]{0,20}["']?\s*[:=]\s*["']([^"'\s]{16,128})["']/gi,
+    keywords: ['api', 'secret', 'token', 'passw', 'passphrase', 'pwd'],
     secretGroup: 1,
-    entropy: 3.5,
-    // Placeholders, and word-like values: words (lower case, UPPER or Capitalised) and numbers joined by - _ . : / (a
-    // file path, a secret reference, `dev-client-secret-0123`), which a random secret is not.
-    allow: [
-      PLACEHOLDER,
-      /^(?:[a-z]+|[A-Z]+[a-z]*|[0-9]+)(?:[-_.:/]+(?:[a-z]+|[A-Z]+[a-z]*|[0-9]+))+$/,
-    ],
+    entropy: GENERIC_ENTROPY,
+    // Explicit placeholders and structural references only (`changeme`, `<token>`, `${VAR}`,
+    // `{{ var }}`, `%VAR%`). There is NO skip for word-like values: a password made of words
+    // ("Correct-Horse-Battery-Staple") is a real secret shape, and the repo self-test excludes its
+    // own fixture paths instead of the rule weakening detection in every scanned repo (PLAN M6.2b).
+    allow: [PLACEHOLDER, ...REFERENCE],
     fixtures: {
       positive: () => [
         cat('api_key', ' = "', 'k8Zq3vN7xW2mB9tR5yL1pC6dF4hJ0sGa', '"'),
@@ -255,7 +277,67 @@ export const RULES: readonly SecretRule[] = [
         cat('to', 'ken = process.env.', 'TOKEN'),
         cat('sec', 'ret: "', 'a'.repeat(32), '"'),
         cat('api_key', ' = "', 'short', '"'),
-        cat('to', 'ken: "', 'dev:fingerprint-hmac', '"'),
+        cat('pass', 'word = "', '${DATABASE_PASSWORD_VALUE}', '"'),
+      ],
+    },
+  },
+  {
+    id: 'generic-unquoted-assignment',
+    description:
+      'High-entropy unquoted value on a whole-line `key = value` or `key: value` (.env, INI, YAML) whose key names an api key, secret, token, password or passphrase',
+    regex:
+      /^[ \t]*(?:export[ \t]+)?[\w.-]{0,40}?(?:api[_-]?key|secret|token|passw(?:or)?d|passphrase|pwd)(?![\w.-]{0,20}?(?:id|ids|name|url|uri|ref|file|path|type|field|header|endpoint|policy|length)[ \t]*["']?[ \t]*[:=])[\w.-]{0,20}[ \t]*[:=][ \t]*([^\s"'#;,(){}<>[\]]{16,128})[ \t]*(?:[#;].*)?$/gim,
+    keywords: ['api', 'secret', 'token', 'passw', 'passphrase', 'pwd'],
+    secretGroup: 1,
+    entropy: GENERIC_ENTROPY,
+    // As the quoted rule: placeholders and references only. Code that reads a secret from the
+    // environment or a settings object is an accessor chain, not a value.
+    allow: [PLACEHOLDER, ...REFERENCE, ACCESSOR_CHAIN],
+    fixtures: {
+      positive: () => [
+        cat('DB_PASS', 'WORD=', 'n4Xv8Qz2Lr6Tm1Wb9Kc3'),
+        cat('api_', 'key: ', 'h7Yd2Pq9Vs4Nx8Zc1Mb5'),
+        cat('[db]\npass', 'word = ', 'Lq3Zr8Xv2Nm7Tc4Wk9Hd'),
+      ],
+      negative: () => [
+        cat('DB_PASS', 'WORD=', '${DATABASE_PASSWORD_VALUE}'),
+        cat('to', 'ken = process.env.', 'GITHUB_ACCESS_TOKEN'),
+        cat('pass', 'word: ', 'a'.repeat(24)),
+        cat('api_', 'key = ', 'short'),
+        cat('to', 'ken = ', 'x'.repeat(8), ' # a comment'),
+      ],
+    },
+  },
+  {
+    id: 'url-credentials',
+    description:
+      'Password in the userinfo of a URL (scheme://user:password@host: postgres, mysql, mongodb, redis, amqp, https, ftp, smtp, any scheme)',
+    // Provider-independent and NOT subject to the generic rules' key-name exclusion: a
+    // `DATABASE_URL=` or `*_url:` key still holds a secret when its value carries a password.
+    regex:
+      /\b[a-z][a-z0-9+.-]{1,19}:\/\/[^\s:@/?#"'<>]{0,64}:([^\s@/?#"'<>]{1,128})@[^\s/?#"'<>]{1,255}/gi,
+    keywords: ['://'],
+    secretGroup: 1,
+    // Only obvious placeholders in the password part (an empty password does not match at all).
+    allow: [
+      URL_PASSWORD_PLACEHOLDER,
+      ...REFERENCE,
+      /^\$[A-Za-z_][A-Za-z0-9_]*$/,
+      /^\$\([^)]{1,80}\)$/,
+    ],
+    fixtures: {
+      positive: () => [
+        cat('postgres', '://app:', 'Zq7!xW2mB9tR', '@db.internal:5432/app'),
+        cat('mongodb+srv', '://u:', 'p4Ss%40w0rd%21', '@cluster0.example.net/db'),
+        cat('DATABASE_URL=', 'redis', '://default:', 'hunter2hunter2', '@cache:6379/0'),
+      ],
+      negative: () => [
+        cat('https', '://example.com/path'),
+        cat('postgres', '://app@db.internal/app'),
+        cat('postgres', '://app:', 'password', '@db/app'),
+        cat('amqp', '://u:', '${AMQP_PASSWORD}', '@mq/'),
+        cat('git@github.com', ':org/repo.git'),
+        cat('https', '://host:8080/a@b'),
       ],
     },
   },
