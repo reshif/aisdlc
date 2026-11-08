@@ -101,8 +101,8 @@ Spikes from OB §10.1 become tests or demos where they still apply to a rebuild;
 | M2.3 | `services/notary`: the only signer; two-phase sign of ledger entries (reserve, sign, commit), own database; reconciler loop that re-imports signed-but-uncommitted entries | Entry verifies offline with the public key and chain; crash between sign and commit recovers |
 | M2.4 | `services/witness` and the checkpoint loop: signed tree head every 5 min (injectable clock), co-signed with the Witness's own key and database | `aisdlc verify-ledger` checks chain, signatures and checkpoints offline |
 | M2.5 | Rebuild harness: drop and refold any projection; shared test asserts rebuilt = live | Used by every later projection |
-| M2.7 | Migration runner for bundles: a `migrate` entrypoint (or core's) that applies record, ledger and each service's schemas in order, since a bundled service can only find its own `migrations/` (follow-up from M4.1); wired into the M8 local-prod compose | Fresh database: one command migrates everything; services start without manual steps |
 | M2.6 | Runnable services: a build step that makes each service start with plain `node` (bundle per service), `start` scripts, config from env/file references | **M2 exit demo:** kms-local, notary and witness start as separate processes; a script writes ledger entries, runs a checkpoint, and `aisdlc verify-ledger` passes against the real processes |
+| M2.7 | Migration runner for bundles: a `migrate` entrypoint (or core's) that applies record, ledger and each service's schemas in order, since a bundled service can only find its own `migrations/` (follow-up from M4.1); wired into the M8 local-prod compose | Fresh database: one command migrates everything; services start without manual steps |
 
 ### M3 — Decision kernel, inbox and config publishing
 
