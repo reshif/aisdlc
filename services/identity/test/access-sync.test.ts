@@ -213,6 +213,13 @@ describe('the access-sync loop', () => {
   });
 
   it('the loop function keeps the ledger within the SLO on its own', async () => {
+    // Wait for the real invariant (every access event has its entry), not for lag: lag is in
+    // seconds on a manual clock, so it reads 0 while an event is still unledgered, and a
+    // runOnce racing the loop's own tick is correctly skipped (single flight).
+    const events = () =>
+      count(`SELECT count(*)::text AS n FROM record.record_event WHERE type = ANY($1::text[])`, [
+        [...ACCESS_EVENT_TYPES],
+      ]);
     const loop = startAccessSyncLoop(
       { pool: s.record.pool, ledger: s.ledger, clock: s.clock },
       { intervalMs: 30 },
@@ -220,18 +227,12 @@ describe('the access-sync loop', () => {
     try {
       await makeGroup('g7', ['a1', 'a2']);
       const deadline = Date.now() + 10_000;
-      while ((await lag()) > 0 && Date.now() < deadline)
+      while ((await entries()) !== (await events()) && Date.now() < deadline)
         await new Promise((r) => setTimeout(r, 50));
       expect(await lag()).toBe(0);
-      await loop.runOnce();
     } finally {
       await loop.stop();
     }
-    expect(await entries()).toBe(
-      await count(
-        `SELECT count(*)::text AS n FROM record.record_event WHERE type = ANY($1::text[])`,
-        [[...ACCESS_EVENT_TYPES]],
-      ),
-    );
+    expect(await entries()).toBe(await events());
   });
 });
