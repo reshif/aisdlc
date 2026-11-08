@@ -9,6 +9,8 @@ import { createTestDatabase, type TestDatabase } from '@aisdlc/db/testing';
 import * as directory from '@aisdlc/directory';
 // Not the package root: nothing outside services/identity imports its writer (single-writer test).
 import * as identity from '@aisdlc/identity/migrations';
+// Not the package root either: the migrations entry only.
+import * as knowledge from '@aisdlc/knowledge/migrations';
 import * as ledger from '@aisdlc/ledger';
 import * as notary from '@aisdlc/notary';
 import * as record from '@aisdlc/record';
@@ -29,6 +31,7 @@ const OWNERS = [
   ['identity', identity],
   ['directory', directory],
   ['bff', bff],
+  ['knowledge', knowledge],
   ['notary', notary],
   ['witness', witness],
 ] as const;
@@ -97,6 +100,7 @@ describe('the plan', () => {
       'identity',
       'directory',
       'bff',
+      'knowledge',
     ]);
   });
 
@@ -129,6 +133,8 @@ describe('aisdlc-migrate from source', () => {
         'identity',
         'directory',
         'bff',
+        'knowledge',
+        'security_findings',
       ]) {
         expect(t[schema], `schema ${schema}`).toBeGreaterThan(0);
       }
@@ -343,6 +349,22 @@ describe('services start against a database that one command migrated, with no e
       KMS_TOKEN_REF: 'env:K',
       K: 'b'.repeat(32),
       BFF_PORT: '0',
+    });
+  });
+
+  it('knowledge', async () => {
+    await startsAndStops('knowledge', join(scratch, 'knowledge', 'dist', 'main.js'), {
+      KNOWLEDGE_DATABASE_URL: db.url,
+      KNOWLEDGE_CALLERS: JSON.stringify({ core: { token_ref: 'env:T', scopes: ['census'] } }),
+      T: 'a'.repeat(32),
+      KNOWLEDGE_CODEHOST_URL: 'http://127.0.0.1:1',
+      KNOWLEDGE_CODEHOST_TOKEN_REF: 'env:T',
+      KNOWLEDGE_IDENTITY_URL: 'http://127.0.0.1:2',
+      KNOWLEDGE_IDENTITY_TOKEN_REF: 'env:T',
+      KMS_URL: 'http://127.0.0.1:3',
+      KMS_TOKEN_REF: 'env:T',
+      KNOWLEDGE_WORK_DIR: join(dir, 'knowledge-work'),
+      KNOWLEDGE_PORT: '0',
     });
   });
 

@@ -14,3 +14,4 @@ export * from './policy.js';
 export * from './step-up.js';
 export * from './codehost.js';
 export * from './inbound-facts.js';
+export * from './knowledge.js';

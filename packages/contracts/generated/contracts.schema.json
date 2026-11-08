@@ -3337,6 +3337,69 @@
         "witness"
       ]
     },
+    "CoverageItem": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "file_over_cap",
+            "lfs_pointer",
+            "submodule",
+            "unreadable_object",
+            "commit_cap",
+            "time_cap",
+            "list_truncated"
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "object": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "object",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "CoverageKind": {
+      "type": "string",
+      "enum": [
+        "file_over_cap",
+        "lfs_pointer",
+        "submodule",
+        "unreadable_object",
+        "commit_cap",
+        "time_cap",
+        "list_truncated"
+      ]
+    },
     "Criterion": {
       "type": "object",
       "properties": {
@@ -3723,6 +3786,169 @@
         "blob_sha",
         "size",
         "content"
+      ],
+      "additionalProperties": false
+    },
+    "FindingCounts": {
+      "type": "object",
+      "properties": {
+        "open": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rotated": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "false_positive": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "accepted_test_fixture": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "open",
+        "rotated",
+        "false_positive",
+        "accepted_test_fixture"
+      ],
+      "additionalProperties": false
+    },
+    "FindingDetectedPayload": {
+      "type": "object",
+      "properties": {
+        "finding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "rule_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "finding_id",
+        "job_id",
+        "repo",
+        "rule_id"
+      ],
+      "additionalProperties": false
+    },
+    "FindingId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "FindingLocation": {
+      "type": "object",
+      "properties": {
+        "blob_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "first_commit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "blob_id",
+        "paths",
+        "line",
+        "first_commit"
+      ],
+      "additionalProperties": false
+    },
+    "FindingState": {
+      "type": "string",
+      "enum": [
+        "open",
+        "rotated",
+        "false_positive",
+        "accepted_test_fixture"
+      ]
+    },
+    "FindingStateChangedPayload": {
+      "type": "object",
+      "properties": {
+        "finding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "open",
+            "rotated",
+            "false_positive",
+            "accepted_test_fixture"
+          ]
+        },
+        "to": {
+          "type": "string",
+          "enum": [
+            "open",
+            "rotated",
+            "false_positive",
+            "accepted_test_fixture"
+          ]
+        },
+        "principal_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "reason_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "finding_id",
+        "repo",
+        "from",
+        "to",
+        "principal_id",
+        "reason_sha256"
       ],
       "additionalProperties": false
     },
@@ -5675,6 +5901,409 @@
       ],
       "additionalProperties": false
     },
+    "IntakeResult": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "manifest": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "head_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "refs_covered": {
+              "type": "string",
+              "enum": [
+                "all",
+                "default_only"
+              ]
+            },
+            "ref_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "commit_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "duration_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "repo",
+            "head_sha",
+            "refs_covered",
+            "ref_count",
+            "commit_count",
+            "bytes",
+            "duration_ms"
+          ],
+          "additionalProperties": false
+        },
+        "bundle_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bundle_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            },
+            "required": [
+              "name",
+              "sha"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "head_tree": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "files",
+            "bytes"
+          ],
+          "additionalProperties": false
+        },
+        "coverage_items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "file_over_cap",
+                  "lfs_pointer",
+                  "submodule",
+                  "unreadable_object",
+                  "commit_cap",
+                  "time_cap",
+                  "list_truncated"
+                ]
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "object": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "kind",
+              "path",
+              "object",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "coverage_counts": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "file_over_cap",
+              "lfs_pointer",
+              "submodule",
+              "unreadable_object",
+              "commit_cap",
+              "time_cap",
+              "list_truncated"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "scan_status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "error"
+          ]
+        },
+        "scan_error": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "git_failed",
+                    "parse_failed",
+                    "unreadable_object",
+                    "timeout",
+                    "fingerprint_unavailable",
+                    "store_failed"
+                  ]
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scan_coverage": {
+          "type": "object",
+          "properties": {
+            "refs_covered": {
+              "type": "string",
+              "enum": [
+                "all",
+                "default_only"
+              ]
+            },
+            "ref_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "commits_scanned": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "blobs_scanned": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "cap_reached": {
+              "type": "boolean"
+            },
+            "lfs_unscanned": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "submodules_listed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "rules_version": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "refs_covered",
+            "ref_count",
+            "commits_scanned",
+            "blobs_scanned",
+            "truncated",
+            "cap_reached",
+            "lfs_unscanned",
+            "submodules_listed",
+            "rules_version"
+          ],
+          "additionalProperties": false
+        },
+        "security_summary": {
+          "type": "object",
+          "properties": {
+            "history_scan": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "error"
+                  ]
+                },
+                "refs_covered": {
+                  "type": "string",
+                  "enum": [
+                    "all",
+                    "default_only"
+                  ]
+                },
+                "commits_scanned": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "open": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "rotated": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "false_positive": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "rules_version": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "refs_covered",
+                "commits_scanned",
+                "truncated",
+                "open",
+                "rotated",
+                "false_positive",
+                "rules_version"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "history_scan"
+          ],
+          "additionalProperties": false
+        },
+        "finding_counts": {
+          "type": "object",
+          "properties": {
+            "open": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "rotated": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "false_positive": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "accepted_test_fixture": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "open",
+            "rotated",
+            "false_positive",
+            "accepted_test_fixture"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "repo",
+        "base_sha",
+        "manifest",
+        "bundle_sha256",
+        "bundle_bytes",
+        "refs",
+        "head_tree",
+        "coverage_items",
+        "coverage_counts",
+        "scan_status",
+        "scan_error",
+        "scan_coverage",
+        "security_summary",
+        "finding_counts"
+      ],
+      "additionalProperties": false
+    },
     "IsoDateTime": {
       "type": "string",
       "format": "date-time",
@@ -5790,6 +6419,1043 @@
         "revoked_at"
       ],
       "additionalProperties": false
+    },
+    "KjobDonePayload": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "base_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "manifest": {
+              "type": "object",
+              "properties": {
+                "repo": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                },
+                "head_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "refs_covered": {
+                  "type": "string",
+                  "enum": [
+                    "all",
+                    "default_only"
+                  ]
+                },
+                "ref_count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "commit_count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "duration_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "repo",
+                "head_sha",
+                "refs_covered",
+                "ref_count",
+                "commit_count",
+                "bytes",
+                "duration_ms"
+              ],
+              "additionalProperties": false
+            },
+            "bundle_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "bundle_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "refs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sha": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  }
+                },
+                "required": [
+                  "name",
+                  "sha"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "head_tree": {
+              "type": "object",
+              "properties": {
+                "files": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "files",
+                "bytes"
+              ],
+              "additionalProperties": false
+            },
+            "coverage_items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "file_over_cap",
+                      "lfs_pointer",
+                      "submodule",
+                      "unreadable_object",
+                      "commit_cap",
+                      "time_cap",
+                      "list_truncated"
+                    ]
+                  },
+                  "path": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "object": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "kind",
+                  "path",
+                  "object",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "coverage_counts": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "enum": [
+                  "file_over_cap",
+                  "lfs_pointer",
+                  "submodule",
+                  "unreadable_object",
+                  "commit_cap",
+                  "time_cap",
+                  "list_truncated"
+                ]
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "scan_status": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "error"
+              ]
+            },
+            "scan_error": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "git_failed",
+                        "parse_failed",
+                        "unreadable_object",
+                        "timeout",
+                        "fingerprint_unavailable",
+                        "store_failed"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scan_coverage": {
+              "type": "object",
+              "properties": {
+                "refs_covered": {
+                  "type": "string",
+                  "enum": [
+                    "all",
+                    "default_only"
+                  ]
+                },
+                "ref_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "commits_scanned": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "blobs_scanned": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "cap_reached": {
+                  "type": "boolean"
+                },
+                "lfs_unscanned": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "submodules_listed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "rules_version": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "refs_covered",
+                "ref_count",
+                "commits_scanned",
+                "blobs_scanned",
+                "truncated",
+                "cap_reached",
+                "lfs_unscanned",
+                "submodules_listed",
+                "rules_version"
+              ],
+              "additionalProperties": false
+            },
+            "security_summary": {
+              "type": "object",
+              "properties": {
+                "history_scan": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "refs_covered": {
+                      "type": "string",
+                      "enum": [
+                        "all",
+                        "default_only"
+                      ]
+                    },
+                    "commits_scanned": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "open": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rotated": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "false_positive": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rules_version": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "refs_covered",
+                    "commits_scanned",
+                    "truncated",
+                    "open",
+                    "rotated",
+                    "false_positive",
+                    "rules_version"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "history_scan"
+              ],
+              "additionalProperties": false
+            },
+            "finding_counts": {
+              "type": "object",
+              "properties": {
+                "open": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "rotated": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "false_positive": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "accepted_test_fixture": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "open",
+                "rotated",
+                "false_positive",
+                "accepted_test_fixture"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "repo",
+            "base_sha",
+            "manifest",
+            "bundle_sha256",
+            "bundle_bytes",
+            "refs",
+            "head_tree",
+            "coverage_items",
+            "coverage_counts",
+            "scan_status",
+            "scan_error",
+            "scan_coverage",
+            "security_summary",
+            "finding_counts"
+          ],
+          "additionalProperties": false
+        },
+        "result_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "job_id",
+        "result",
+        "result_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "KjobErrorPayload": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "error": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "job_id",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "KjobQueuedPayload": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "census_intake"
+          ]
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "refs_requested": {
+          "type": "string",
+          "enum": [
+            "all",
+            "default_only"
+          ]
+        },
+        "base_sha_requested": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "job_id",
+        "kind",
+        "repo",
+        "refs_requested",
+        "base_sha_requested"
+      ],
+      "additionalProperties": false
+    },
+    "KjobStartedPayload": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeJob": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "census_intake"
+          ]
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "error"
+          ]
+        },
+        "refs_requested": {
+          "type": "string",
+          "enum": [
+            "all",
+            "default_only"
+          ]
+        },
+        "base_sha_requested": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "repo": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                },
+                "base_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "manifest": {
+                  "type": "object",
+                  "properties": {
+                    "repo": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                    },
+                    "head_sha": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    },
+                    "refs_covered": {
+                      "type": "string",
+                      "enum": [
+                        "all",
+                        "default_only"
+                      ]
+                    },
+                    "ref_count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "commit_count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "bytes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "duration_ms": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "repo",
+                    "head_sha",
+                    "refs_covered",
+                    "ref_count",
+                    "commit_count",
+                    "bytes",
+                    "duration_ms"
+                  ],
+                  "additionalProperties": false
+                },
+                "bundle_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "bundle_bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "sha": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "sha"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "head_tree": {
+                  "type": "object",
+                  "properties": {
+                    "files": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "bytes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "files",
+                    "bytes"
+                  ],
+                  "additionalProperties": false
+                },
+                "coverage_items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "file_over_cap",
+                          "lfs_pointer",
+                          "submodule",
+                          "unreadable_object",
+                          "commit_cap",
+                          "time_cap",
+                          "list_truncated"
+                        ]
+                      },
+                      "path": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "object": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{40}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "path",
+                      "object",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "coverage_counts": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "enum": [
+                      "file_over_cap",
+                      "lfs_pointer",
+                      "submodule",
+                      "unreadable_object",
+                      "commit_cap",
+                      "time_cap",
+                      "list_truncated"
+                    ]
+                  },
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "scan_status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "error"
+                  ]
+                },
+                "scan_error": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "git_failed",
+                            "parse_failed",
+                            "unreadable_object",
+                            "timeout",
+                            "fingerprint_unavailable",
+                            "store_failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "scan_coverage": {
+                  "type": "object",
+                  "properties": {
+                    "refs_covered": {
+                      "type": "string",
+                      "enum": [
+                        "all",
+                        "default_only"
+                      ]
+                    },
+                    "ref_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "commits_scanned": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "blobs_scanned": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "cap_reached": {
+                      "type": "boolean"
+                    },
+                    "lfs_unscanned": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "submodules_listed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rules_version": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "refs_covered",
+                    "ref_count",
+                    "commits_scanned",
+                    "blobs_scanned",
+                    "truncated",
+                    "cap_reached",
+                    "lfs_unscanned",
+                    "submodules_listed",
+                    "rules_version"
+                  ],
+                  "additionalProperties": false
+                },
+                "security_summary": {
+                  "type": "object",
+                  "properties": {
+                    "history_scan": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "refs_covered": {
+                          "type": "string",
+                          "enum": [
+                            "all",
+                            "default_only"
+                          ]
+                        },
+                        "commits_scanned": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        },
+                        "open": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "rotated": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "false_positive": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "rules_version": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "refs_covered",
+                        "commits_scanned",
+                        "truncated",
+                        "open",
+                        "rotated",
+                        "false_positive",
+                        "rules_version"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "history_scan"
+                  ],
+                  "additionalProperties": false
+                },
+                "finding_counts": {
+                  "type": "object",
+                  "properties": {
+                    "open": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rotated": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "false_positive": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "accepted_test_fixture": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "open",
+                    "rotated",
+                    "false_positive",
+                    "accepted_test_fixture"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "repo",
+                "base_sha",
+                "manifest",
+                "bundle_sha256",
+                "bundle_bytes",
+                "refs",
+                "head_tree",
+                "coverage_items",
+                "coverage_counts",
+                "scan_status",
+                "scan_error",
+                "scan_coverage",
+                "security_summary",
+                "finding_counts"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "job_id",
+        "kind",
+        "repo",
+        "state",
+        "refs_requested",
+        "base_sha_requested",
+        "created_at",
+        "started_at",
+        "finished_at",
+        "error",
+        "result",
+        "result_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeJobId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "KnowledgeJobKind": {
+      "type": "string",
+      "enum": [
+        "census_intake"
+      ]
+    },
+    "KnowledgeJobState": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "done",
+        "error"
+      ]
     },
     "Lane": {
       "type": "string",
@@ -11006,6 +12672,24 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
+    "RefEntry": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "required": [
+        "name",
+        "sha"
+      ],
+      "additionalProperties": false
+    },
     "RegisteredRepo": {
       "type": "object",
       "properties": {
@@ -11558,6 +13242,98 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
+    "ScanCoverage": {
+      "type": "object",
+      "properties": {
+        "refs_covered": {
+          "type": "string",
+          "enum": [
+            "all",
+            "default_only"
+          ]
+        },
+        "ref_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "commits_scanned": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "blobs_scanned": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "cap_reached": {
+          "type": "boolean"
+        },
+        "lfs_unscanned": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "submodules_listed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rules_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "refs_covered",
+        "ref_count",
+        "commits_scanned",
+        "blobs_scanned",
+        "truncated",
+        "cap_reached",
+        "lfs_unscanned",
+        "submodules_listed",
+        "rules_version"
+      ],
+      "additionalProperties": false
+    },
+    "ScanError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "git_failed",
+            "parse_failed",
+            "unreadable_object",
+            "timeout",
+            "fingerprint_unavailable",
+            "store_failed"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ScanStatus": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "error"
+      ]
+    },
     "ScheduleMode": {
       "type": "string",
       "enum": [
@@ -11640,6 +13416,144 @@
         "fleet"
       ]
     },
+    "SecurityFinding": {
+      "type": "object",
+      "properties": {
+        "finding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "rule_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "rotated",
+            "false_positive",
+            "accepted_test_fixture"
+          ]
+        },
+        "first_job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "first_commit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "blob_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "first_commit": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "blob_id",
+              "paths",
+              "line",
+              "first_commit"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "state_changed_by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state_changed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detected_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "finding_id",
+        "repo",
+        "rule_id",
+        "fingerprint",
+        "state",
+        "first_job_id",
+        "first_commit",
+        "locations",
+        "state_changed_by",
+        "state_changed_at",
+        "state_reason",
+        "detected_at"
+      ],
+      "additionalProperties": false
+    },
     "SetCodeownerMembersRequest": {
       "type": "object",
       "properties": {
@@ -11707,6 +13621,35 @@
         "members",
         "added",
         "removed"
+      ],
+      "additionalProperties": false
+    },
+    "SetFindingStateRequest": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "rotated",
+            "false_positive",
+            "accepted_test_fixture"
+          ]
+        },
+        "principal_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "state",
+        "principal_id",
+        "reason"
       ],
       "additionalProperties": false
     },
@@ -11810,6 +13753,31 @@
         "S8b",
         "S9"
       ]
+    },
+    "StartCensusIntakeRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "refs": {
+          "type": "string",
+          "enum": [
+            "all",
+            "default_only"
+          ]
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "additionalProperties": false
     },
     "StepId": {
       "type": "string",
