@@ -20,7 +20,7 @@ import {
   TierSignalId,
 } from './detectors.js';
 import { AreaId, GitSha, PrincipalId, RepoId, Sha256Hex } from './ids.js';
-import { RepoOwnerType, RepoVisibility } from './projects.js';
+import { RepoOwnerType, RepoPlan, RepoVisibility } from './projects.js';
 import {
   Gap,
   GapId,
@@ -124,7 +124,7 @@ export const CensusAttestations = z.strictObject({
     .strictObject({
       visibility: RepoVisibility,
       owner_type: RepoOwnerType,
-      plan: z.string().min(1).nullable(),
+      plan: RepoPlan.nullable(),
     })
     .optional(),
   /** The App installation as the code host reports it (RS-ID-1, B4). */
@@ -190,7 +190,7 @@ export const CensusRepo = z.strictObject({
   /** `null`: not supplied by the code host (unknown). */
   visibility: RepoVisibility.nullable(),
   owner_type: RepoOwnerType.nullable(),
-  plan: z.string().min(1).nullable(),
+  plan: RepoPlan.nullable(),
   /** The branch the head belongs to (from the mirror); `null` if it could not be told. */
   default_branch: z.string().min(1).nullable(),
   archetype: z.string().min(1).nullable(),

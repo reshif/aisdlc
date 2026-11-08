@@ -110,7 +110,7 @@ export const EVALUATORS: Readonly<Record<string, Evaluator>> = {
   'RS-ID-4': (c) => {
     const r = c.att.repo;
     if (r === undefined) return unknown('repo_facts_unknown');
-    return r.plan === null
+    return r.plan === null || r.plan === 'unknown'
       ? unknown('plan_unknown', [ref('codehost', 'codehost:repo')])
       : pass([ref('codehost', 'codehost:repo')]);
   },

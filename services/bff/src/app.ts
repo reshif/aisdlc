@@ -16,6 +16,7 @@ import { newApp, sendError } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
+import { type CoreClient } from './core-client.js';
 import { collectProof, createAttempt, storeProof, takeAttempt } from './attempts.js';
 import { cookieName, readCookie, serializeCookie } from './cookies.js';
 import {
@@ -27,6 +28,9 @@ import {
   sha256b64,
   type SessionRow,
 } from './sessions.js';
+import { registerPortalRoutes } from './portal.js';
+import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
+import { registerWebFiles } from './static.js';
 import type { StepUpIssuer } from './stepup/issuer.js';
 
 // The bff: the browser edge (PLAN M4.5, RV §1.4 "Browser edge"). It holds the OIDC client secret
@@ -40,6 +44,12 @@ import type { StepUpIssuer } from './stepup/issuer.js';
 //   POST /api/logout        revoke the session
 //   POST /api/step-up       start a step-up bound to a hash (re-authentication, or DEC-11(c-ii))
 //   GET  /api/step-up/:id   collect the proof once, after the re-authentication returned
+//   /api/projects, /api/onboard, /api/s0/*, /api/cards/*   the portal's calls to core (portal.ts)
+//   everything else         the web bundle (`webDir`), single-page app, strict CSP (static.ts)
+//
+// Rate limits (rate-limit.ts): `/auth/login` 10 at once then 10 a minute per client IP; the step-up
+// start 20 at once then 20 a minute per IP and 5 at once then 5 a minute per principal. An empty
+// bucket answers 429 with `Retry-After` (seconds). Buckets are in memory (one bff process).
 
 export type StepUpMode = 'reauth' | 'reconfirm';
 
@@ -63,6 +73,12 @@ export interface BffAppOptions {
    */
   readonly stepUpMode?: StepUpMode;
   readonly clock?: Clock;
+  /** Core, for the portal's `/api/*` routes; without it they answer 503 (after the session and CSRF checks). */
+  readonly core?: CoreClient;
+  /** The built web bundle (`index.html` and `assets/`) to serve; without it the bff serves only its API. */
+  readonly webDir?: string;
+  /** Overrides of `DEFAULT_RATE_LIMITS`. */
+  readonly rateLimits?: Partial<RateLimits>;
 }
 
 export const DEFAULT_IDLE_SECONDS = 30 * 60;
@@ -106,12 +122,30 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
   const redirectUri = `${o.publicUrl}/auth/callback`;
   const origins = new Set([new URL(o.publicUrl).origin, ...(o.allowedOrigins ?? [])]);
 
+  // API and redirect responses carry no content, so their policy is the strictest; the web files set
+  // their own (static.ts) before this hook runs, and it leaves a header that is already there.
   app.addHook('onSend', async (_req, reply) => {
-    reply.header('cache-control', 'no-store');
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'no-referrer');
-    reply.header('content-security-policy', "default-src 'none'; frame-ancestors 'none'");
+    if (!reply.hasHeader('content-security-policy')) {
+      reply.header('content-security-policy', "default-src 'none'; frame-ancestors 'none'");
+    }
   });
+
+  const limits: RateLimits = { ...DEFAULT_RATE_LIMITS, ...o.rateLimits };
+  const loginByIp = new TokenBuckets(limits.login, clock);
+  const stepUpByIp = new TokenBuckets(limits.stepUpIp, clock);
+  const stepUpByPrincipal = new TokenBuckets(limits.stepUpPrincipal, clock);
+  /** Takes one token from each bucket; a refusal is the 429 with the longest wait. */
+  const limited = (reply: FastifyReply, ...takes: Array<ReturnType<TokenBuckets['take']>>) => {
+    const waits = takes.flatMap((t) => (t.ok ? [] : [t.retryAfterSeconds]));
+    if (waits.length === 0) return false;
+    const wait = Math.max(...waits);
+    reply.header('retry-after', String(wait));
+    sendError(reply, 429, 'rate_limited', `too many attempts, try again in ${wait} seconds`);
+    return true;
+  };
 
   const setCookies = (reply: FastifyReply, cookies: string[]): void => {
     reply.header('set-cookie', cookies);
@@ -163,6 +197,7 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
   // ------------------------------------------------------------ sign-in
 
   app.get('/auth/login', async (req, reply) => {
+    if (limited(reply, loginByIp.take(req.ip))) return;
     const q = req.query as { return_to?: string };
     const now = clock.now();
     const state = randomToken();
@@ -390,6 +425,8 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
 
   app.post('/api/step-up', async (req, reply) => {
     const { session, sessionHash } = ctx(req);
+    if (limited(reply, stepUpByIp.take(req.ip), stepUpByPrincipal.take(session.principal_id)))
+      return;
     const body = StepUpBody.safeParse(req.body ?? {});
     if (!body.success) return sendError(reply, 400, 'invalid_request', body.error.message);
     const bound = (body.data.subject_hash ?? body.data.text_sha256) as string;
@@ -463,6 +500,22 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
       );
     return { status: 'ready', method: 'reauth', proof: got.token, bound_hash: got.bound_hash };
   });
+
+  registerPortalRoutes({
+    app,
+    pdp: o.pdp,
+    core: o.core,
+    principalOf: (req) => ctx(req).session.principal_id,
+    namesOf: async (ids) => {
+      const out: Record<string, string> = {};
+      for (const id of ids) {
+        const p = await getDirectoryPrincipal(o.pool, id);
+        if (p) out[id] = p.display_name;
+      }
+      return out;
+    },
+  });
+  if (o.webDir) registerWebFiles(app, o.webDir);
 
   return app;
 }

@@ -1,0 +1,242 @@
+# Local-prod compose
+
+The whole factory as it exists after M7, on one machine, from a clean checkout:
+
+```
+cd platform/compose
+./init-secrets && docker compose --profile fake-github up -d --wait
+```
+
+That builds one image, starts 12 long-running containers and 3 one-shot jobs, and returns when every
+service is healthy. The `fake-github` profile runs an in-repo stand-in for GitHub with a seeded
+testbed repository, so no credential is needed. When it is up:
+
+| What                                                              | Where                                                                                  |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| bff (the browser edge)                                            | <http://localhost:8340> (`/api/me`, `/auth/login`)                                     |
+| dev identity provider (the browser is redirected here to sign in) | <http://dev-oidc.localhost:8390>                                                       |
+| the people the seed knows                                         | `alice` (factory admin, GitHub login `reshif`) and `bob`, picked on the dev IdP's page |
+| everything else                                                   | inside the Docker networks only                                                        |
+
+`npm run smoke:compose` (or `platform/compose/smoke.sh`) does all of this, proves the services talk
+and the boundaries hold, prints the fake GitHub's request log, and removes everything again.
+`docker compose --profile fake-github down -v` removes the stack and its volumes.
+
+Needs Docker with Compose v2 (tested on Docker 29, Compose 5) and `openssl`. The first build takes a
+few minutes (`npm ci` and `npm run build` inside the image).
+
+## One image, many services
+
+`Dockerfile` builds every bundle in a builder stage and copies only `dist/`, each service's
+`migrations/` and the Cedar wasm into a `node:22.23.4-bookworm-slim` runtime (pinned by digest) with
+`git` (codehost and knowledge run it) and a non-root user (uid 10001). Each service is that image
+with a different `command` and environment (RV §5.2, "image x config"); there is no per-service
+image because none has a different dependency set worth a second build. Containers run read-only,
+with all capabilities dropped, `no-new-privileges`, an init process, a memory limit, a restart
+policy and a `/healthz` health check (the dev IdP's is its discovery document). No container
+mounts the Docker socket; the smoke test checks it.
+
+`migrate` builds the image and runs `aisdlc-migrate --notary --witness` first, after `db-init` has
+created the roles and databases; every other service waits for it (`service_completed_successfully`).
+`seed` runs next (see below), then the services in dependency order.
+
+## Why each container is a container
+
+RV §2: a boundary is real when it separates **K**ey custody, a **D**ocker or socket right, network
+**E**gress, an **I**ndependence requirement (AR9 and its kin), or an untrusted **O**rigin. No
+container here needs a Docker right (sandboxes arrive with M13).
+
+| Container                    | Port               | Published          | Networks                                               | Boundary      | Why                                                                                                                                                            |
+| ---------------------------- | ------------------ | ------------------ | ------------------------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `postgres`                   | 5432               | no                 | data-\*                                                | I             | record vs key-holder databases: one server here, three databases and three roles (`aisdlc`, `notary`, `witness`); a role cannot connect to another's database  |
+| `kms-local`                  | 8300               | no                 | kms-\*                                                 | K             | the only holder of the Notary, Witness, step-up and fingerprint keys; signs by key id, never hands one out                                                     |
+| `notary`                     | 8310               | no                 | kms-notary, notary-api, data-notary                    | K, I          | the only ledger signer (C08n); own database and role                                                                                                           |
+| `witness`                    | 8320               | no                 | kms-witness, witness-api, data-witness                 | K, I          | the second signer (C33); own key, database and role, no route to the Notary                                                                                    |
+| `identity`                   | 8330               | no                 | app, data-record, kms-clients, notary-api              | I             | policy source and its journal are not shared with the systems it polices (AR2); PDP evaluation is embedded in core and the bff                                 |
+| `bff`                        | 8340               | **yes**, 127.0.0.1 | edge, data-record, kms-clients                         | O, K          | the browser edge: tokens never reach the browser, session store and the IdP client secret stay out of core; signs step-up proofs through kms-local             |
+| `dev-oidc`                   | 8390               | **yes**, 127.0.0.1 | edge                                                   | O             | the stand-in identity provider, a different party the browser is redirected to; `FACTORY_ENV=local` only                                                       |
+| `codehost`                   | 8350               | no                 | app, egress                                            | K, E          | the only holder of the GitHub App key (mounted nowhere else) and the only container with a route out; reads only                                               |
+| `knowledge`                  | 8370               | no                 | app, data-record, kms-clients                          | O, E          | analyses untrusted repo content; holds no code-host credential, no HMAC key, and **has no route to GitHub**: it gets credential-free bundles from the codehost |
+| `core`                       | 8380               | no                 | app, data-record, kms-clients, notary-api              | none          | see below                                                                                                                                                      |
+| `core-worker`                | 8360               | no                 | app, data-record, kms-clients, notary-api, witness-api | none          | see below                                                                                                                                                      |
+| `fake-github`                | 8353 api, 8354 git | no                 | (codehost's own)                                       | stand-in      | not part of the factory: the far end of the codehost's egress; profile `fake-github`                                                                           |
+| `db-init`, `migrate`, `seed` | none               | no                 | data-\* (and app, kms, notary for `seed`)              | one-shot jobs | roles and databases; schemas; first-run bootstrap                                                                                                              |
+
+`core` and `core-worker` do **not** separate a key, an egress, an independence requirement or an
+origin. They are two containers because PLAN §5 keeps the API and the one process that hosts every
+loop apart (an API that keeps answering while a loop restarts, loops that never take a request). That
+is a deploy choice, not a boundary: they could run as one process, and the boundary check says so
+rather than inventing a reason.
+
+### Networks
+
+Docker has no packet filter inside a network, so a network is the unit of "can reach". The cuts below
+make the forbidden paths not exist; between services that legitimately share a network only a token
+and its scopes stand in the way.
+
+| Network                                  | Members                                                                       | Purpose                                                                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `edge`                                   | bff, dev-oidc                                                                 | the only network with published ports; not internal because a published port needs a route in                                 |
+| `app` (internal)                         | core, core-worker, identity, knowledge, codehost, seed                        | the service-to-service calls                                                                                                  |
+| `data-record` (internal)                 | postgres, db-init, migrate, bff, core, core-worker, identity, knowledge, seed | the record database. The record services share it, so they can reach each other's ports; each API still demands its own token |
+| `data-notary`, `data-witness` (internal) | postgres and the Notary / the Witness                                         | the key holders' databases, on networks no record service joins                                                               |
+| `kms-notary`, `kms-witness` (internal)   | kms-local and the Notary / the Witness                                        | the signers' route to their key: **the Notary and the Witness have no route to each other** (AR9, C33)                        |
+| `kms-clients` (internal)                 | kms-local, bff, core, core-worker, identity, knowledge, seed                  | public-key lookups, step-up signing (bff) and the fingerprint MAC (knowledge)                                                 |
+| `notary-api` (internal)                  | notary, core, core-worker, identity, seed                                     | the ledger's writers. Knowledge, codehost, bff and the dev IdP are not on it                                                  |
+| `witness-api` (internal)                 | witness, core-worker                                                          | the checkpointer's route (core-worker's `checkpointer` loop is the Witness's one caller)                                      |
+| `egress`                                 | codehost                                                                      | the only way out. **Knowledge is on no network with a route out**, so it cannot reach GitHub                                  |
+
+The `fake-github` container joins the codehost's network namespace (`network_mode: service:codehost`)
+because the codehost accepts a plain-http GitHub only on loopback (it carries credentials), so the
+fake listens on the codehost's `127.0.0.1:8353` (REST) and `:8354` (git) and is reachable from nowhere
+else. The smoke test asserts the paths above that must not exist (knowledge to GitHub and the Notary,
+the codehost to the trust plane and postgres, the Notary and the Witness to each other, ...).
+
+## Secrets are files
+
+`./init-secrets` creates `secrets/` (git-ignored but for its README), mode 0600, owned by the uid the
+containers run as. It generates one token per (caller, callee) pair, the Postgres passwords and the
+database URLs built from them, the bff's OIDC client secret, and a throwaway GitHub App key. Each
+service mounts only its own files at `/run/secrets/<name>` and reads them through `file:` references;
+there are no secrets in environment variables or in the image. The bff keeps sessions in the
+database, so it has no cookie signing key. Running it again changes nothing; `--rotate` makes new
+tokens and passwords (down -v first). See `secrets/README.md` for who mounts what.
+
+The files are read through a bind mount, so the containers must run as their owner:
+`init-secrets` writes `AISDLC_UID`/`AISDLC_GID` into `.env` (your own uid; 10001 when run as root).
+
+## First run: the seed
+
+A new factory denies every decision (no policy bundle) and nobody holds any role, yet the bundle
+can only be published through an M1 gate. `seed` (`aisdlc-seed`, built from `services/core`) breaks
+that circle once, in the open, and refuses unless `FACTORY_ENV=local`: it syncs the dev IdP's people
+into identity, makes `alice` a `factory.admin` through identity's own API (journal events), and
+proposes, decides (as alice, a real Notary-signed ledger entry) and publishes the policy bundle.
+What is not real is who clicked: its eligibility names alice as the only admin of the `factory`
+pseudo-project and its step-up refuses everything, so a gate that needed a step-up would fail the
+seed, not pass it. It is the local stub of "the first admin is provisioned with the cloud account"
+and is idempotent. This is a design decision for you to confirm (see the report).
+
+## What the stack proves
+
+With the fake GitHub, `smoke.sh` has alice (the factory admin from the seed) ask core to onboard
+`reshif/asf-factory-testbed`; step 0.1 then runs codehost -> knowledge -> census until the S0 record
+waits at `card` with card 1 required, and core-worker's cards loop opens it by itself (Notary,
+codehost reads and knowledge scopes `census` and `security` wired, bootstrap decider on, so alice
+may decide it as the project's provisional admin). Core verifies step-up proofs with
+`SignedStepUp`, with the public key of the bff's `dev:bff-stepup` key from kms-local (core never
+signs). `docker compose logs fake-github` is the request log: GETs on resources, plus the App's
+token mint and `git-upload-pack` fetches, never a push.
+
+## Using a real GitHub App
+
+(`live-census.sh` does all of this for you, see "The first live exit" below; the manual steps are:)
+
+1. Create the App with read-only permissions (contents, metadata) and install it on the repo (OB §5.5).
+2. Put its private key at `secrets/github-app.pem` (replacing the throwaway) and run
+   `GITHUB_APP_ID=<id> GITHUB_INSTALLATION_ID=<id> ./init-secrets --real-github`. This rewrites `.env`
+   (App id, installation id, and empty GitHub URLs, so the codehost uses api.github.com and github.com).
+3. `docker compose up -d --wait` **without** `--profile fake-github`. The codehost is the only
+   container that reaches out, and the only one that mounts the key.
+4. Allow-list and onboard the repo through core as before (the registered repos come from core).
+
+The dev IdP and the seed stay: the people who may sign in are still `alice` and `bob`. Set the
+GitHub login of the person who owns the repo in `config/idp-seed.json` (alice's `logins`).
+
+The default image build installs `git` with apt only when the base image has none: `git=1:2.39.*`
+(the bookworm line, security fixes included; `--build-arg GIT_APT_VERSION=...` pins an exact version),
+`--no-install-recommends`, `ca-certificates`, the apt lists removed in the same layer, and
+`git --version` as the proof. That path cannot be run in a sandbox without apt; it runs on your machine
+at M8.5.
+
+Behind an egress allow-list or a TLS-inspecting proxy the image build may not reach apt or the npm
+registry. Build the image yourself (the Dockerfile skips apt when `git` is already there) and let
+compose use it:
+
+```
+docker build --network=host --secret id=extra_ca,src=/path/ca.pem --build-arg HTTPS_PROXY=... \
+  --build-arg RUNTIME_IMAGE=<a node:22 bookworm-slim image that has git> \
+  -f platform/compose/Dockerfile -t aisdlc/factory:local .
+SMOKE_SKIP_BUILD=1 npm run smoke:compose      # or: docker compose up -d --wait (it uses the image)
+```
+
+## The ledger loops (M8.0b)
+
+core-worker runs two more loops when it has the Notary and the Witness (`CORE_WORKER_WITNESS_URL`,
+`CORE_WORKER_WITNESS_TOKEN_REF`, the `tok-core-worker-witness` secret, mounted only there and in the
+Witness): `ledger_reconciler` (every `CORE_WORKER_RECONCILE_INTERVAL_MS`, 60 s) finishes what a crashed
+writer left, and `checkpointer` (the Notary gives core-worker the `checkpoint` scope for it) (every `CORE_WORKER_CHECKPOINT_INTERVAL_MS`, **5 min**) has the Notary
+sign a tree head and the Witness co-sign it. Compose reads the interval from `CHECKPOINT_INTERVAL_MS`;
+`smoke.sh`, `e2e.sh` and the live dry run set 15 s. `verify-ledger.sh [--wait S]` waits for a checkpoint
+that covers the ledger head, then runs the bundled `verify-ledger` inside core-worker against the record
+database with the Notary's and the Witness's public keys fetched from kms-local (read-only, nothing
+written). `smoke.sh` runs it and it must pass.
+
+## The first live exit (M8.5)
+
+`live-census.sh` (`npm run live:census`) is the kit for onboarding a real repository with a real
+read-only App on your own machine: it checks the prerequisites (docker, compose, the key at
+`secrets/github-app.pem` with mode 0600, the App and installation ids), runs
+`init-secrets --real-github`, builds the image the default way, starts the stack **without** the
+`fake-github` profile and tells you where to sign in. `--wait-for-prr` waits for the readiness record;
+`--report` prints the codehost's request log to GitHub grouped by method and path template (asserting
+GETs on resources, the token mint listed apart, git fetches read-only), the installation's permissions
+(asserting `statuses` is absent), the S0 status, the PRR status, level and `record_hash`, and a
+`verify-ledger` run; `--down [--purge]` tears down. `--fake-github` is a dry run of every step but GitHub.
+The codehost writes the log as one JSON line per request (`codehost: ghreq {...}`: method, path
+template, status, role; no token, no header, no query values). The step-by-step guide for the person
+running it is `docs/runbooks/m8.5-live-census.md`.
+
+## What local-prod stubs, and the cloud target (RV §7)
+
+| Piece                         | Here                                                                                                                                | Cloud target                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Record and ledger database    | one Postgres container, three databases and roles; one owner role (`aisdlc`, with CREATEROLE) migrates and runs the record services | Aurora Multi-AZ, IAM auth, separate migrator and service roles |
+| Key custody                   | `kms-local` (`dev:` keys, refuses unless `FACTORY_ENV=local`)                                                                       | AWS KMS asymmetric; Notary and Witness in separate accounts    |
+| Identity provider             | `dev-oidc` plus the seed file (`alice`, `bob`)                                                                                      | Entra                                                          |
+| First admin and policy bundle | `seed`, local only                                                                                                                  | provisioned with the account, bundle through the real M1 gate  |
+| Code host                     | `codehost` plus the fake GitHub, or a real non-prod App                                                                             | `codehost-core` on ECS, App keys in KMS                        |
+| Browser edge                  | bff on `localhost`, plain http, secure cookies off                                                                                  | CloudFront, WAF, Verified Access, TLS                          |
+| Network separation            | Docker networks (reach, not packet filtering)                                                                                       | accounts, VPCs, security groups                                |
+| Secrets                       | files in `secrets/`, bind-mounted                                                                                                   | Secrets Manager                                                |
+| Core and core-worker          | two containers                                                                                                                      | ECS services, same images                                      |
+| Not here yet                  | killswitch, gate-check, gate-relay, sandbox pieces, audit services, gateway                                                         | later milestones                                               |
+
+## The portal (M8.1 to M8.4)
+
+The bff serves the web bundle (`services/web`, built inside the image to `/app/services/web/dist`,
+`BFF_WEB_DIR`) on its own origin with `default-src 'self'` and `frame-ancestors 'none'`, and is the
+only API the browser calls: `/api/projects`, `/api/onboard`, `/api/s0/...`, `/api/cards/...`. Each
+route asks the PDP for the signed-in principal, then calls core (`BFF_CORE_URL`) with the bff's own
+token (`tok-bff-core`, scopes `read`, `onboard`, `portal`); core gets the principal as `on_behalf_of`
+from the session, never a browser cookie or token, and asks the PDP again for every write.
+`/auth/login` and the step-up start are rate limited (token buckets, 429 with `Retry-After`).
+`npm run e2e:compose` (`e2e.sh`) runs the whole Census onboarding of the fixture repo in Chromium as
+alice (see below), checks accessibility and the strict CSP on every page, and checks the fake
+GitHub's request log afterwards.
+
+### Deciding in the portal (M8.3, M8.4)
+
+More bff routes, all behind the same session, CSRF and PDP checks: `GET /api/inbox` (what waits for
+the person, split into what they decide and what they only see, with who decides),
+`GET /api/s0/:id/revision` and `/api/revisions/:gate` with `prepare`, `evidence`, `decide` and
+`publish` (the M1 gate that publishes card 4's role map, decided by the admin slot), the card moves
+(`/api/cards/:id/prepare|evidence|decide|recheck`, a card 5 decision carries the step-up proof from
+`/api/step-up`), `GET /api/projects/:id/prr` (`project.view`) and `GET /api/projects/:id/ledger`
+(`audit.read`, optionally `?s0=`).
+
+The first onboarding of a project has no role map, so nobody holds any slot. The requester is its
+provisional admin (M7.4). The PDP sees that too: `BootstrapPdpEntities` (in `@aisdlc/onboarding`,
+wrapped around identity's entity source in core and in the bff) gives the live grantee the project
+admin role for one request at a time, and only `card.decide` on cards 1, 4 and 5 of the record that
+holds the grant and `gate.decide` on the M1 gate over a config revision. Never the security card,
+M4, another project or anything else, and it ends the moment card 4's revision is published.
+
+The e2e flow: alice requests the onboarding, decides card 1 (gaps, T0, regulatory, criticality),
+card 4 (attestations, role map with alice in `admin` and `m4`, two-person off at T0), then the
+settings revision card 4 proposed (a "Settings revision pending" page: card 5 cannot open until the
+role map is published and identity has bound it), then card 5 after a step-up re-login at the dev IdP
+bound to the record hash. The readiness record page and the ledger page then show the result.
+Screenshots (deviceScaleFactor 2) are in `docs/screenshots/`.
+
+Not done yet and visible here: the cards C2 and C3 (Light and Full) have no Decide screen because core has no card for them yet.

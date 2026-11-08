@@ -192,6 +192,9 @@ describe('the onboarding card routes', () => {
       }),
     ]);
     const id = list.json[0].card_id as string;
+    const summary = await call(TOKENS.reader, 'GET', `/v1/cards/${id}/summary`);
+    expect(summary.json).toEqual(list.json[0]);
+    expect((await call(null, 'GET', `/v1/cards/${id}/summary`)).status).toBe(401);
     const detail = await call(TOKENS.reader, 'GET', `/v1/cards/${id}`);
     expect(detail.status).toBe(200);
     expect(detail.json.view.card).toBe('C1');
@@ -277,6 +280,7 @@ describe('the onboarding card routes', () => {
         actions_cannot_approve_prs: true,
         fork_pr_approval_required: true,
         secret_scanning: 'on',
+        plan: 'free',
       },
       role_map: view.role_map.proposed,
       two_person_enabled: true,

@@ -1,0 +1,6 @@
+# Everything under secrets/ except its README, and the generated .env.
+secrets/*
+!secrets/README.md
+secrets/.*
+.env
+.env.bak

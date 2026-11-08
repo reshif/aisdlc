@@ -14,6 +14,13 @@ import { GitHubTransport } from './transport.js';
  * `CODEHOST_HOST` (127.0.0.1) and `CODEHOST_PORT` (8350). It makes no network call at start, and runs `git` only when a bundle is asked for: the
  * first token is minted by the first request that needs one.
  */
+/**
+ * The structured request log (M8.5): one JSON line per request to GitHub, `codehost: ghreq {...}`,
+ * with the method, the path template, the status and the role. `live-census.sh` groups these.
+ */
+const requestLog = (e: { method: string; path: string; status: number; auth: string }): void =>
+  console.log(`codehost: ghreq ${JSON.stringify(e)}`);
+
 export async function bootCodeHost(env: Env): Promise<RunningService> {
   const cfg = codeHostConfigFromEnv(env);
   const listenOpts = listenConfig(env, 'CODEHOST', 8350);
@@ -25,12 +32,14 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
     baseUrl: cfg.apiUrl,
     mode: cfg.mode,
     clock,
+    onMint: (e) => requestLog(e),
   });
   const transport = new GitHubTransport({
     baseUrl: cfg.apiUrl,
     broker,
     mode: cfg.mode,
     log: (line) => console.log(`codehost: ${line}`),
+    onRequest: (e) => requestLog(e),
   });
   const registered = cfg.core
     ? new HttpRegisteredRepos({ baseUrl: cfg.core.url, token: cfg.core.token })
@@ -49,6 +58,7 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
           capBytes: cfg.bundleCapBytes,
           timeoutMs: cfg.bundleTimeoutMs,
           log: (line) => console.log(`codehost: ${line}`),
+          onFetch: (e) => requestLog(e),
         },
       }),
       registered,

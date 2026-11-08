@@ -141,6 +141,7 @@ export class Pdp {
       principal as PrincipalId,
       resourceScopes(resource),
       now,
+      { action, resource },
     );
     if (!facts.ok) return deny('entity_source_error', stamp);
     if (facts.value === null) return deny('unknown_principal', stamp);

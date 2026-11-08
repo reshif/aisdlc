@@ -16,6 +16,7 @@ export * from './prr-status.js';
 export * from './m4.js';
 export * from './lane-eligibility.js';
 export * from './work.js';
+export * from './portal-reads.js';
 export * from './settings.js';
 export * from './registry.js';
 export * from './clients.js';

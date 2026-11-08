@@ -18,7 +18,14 @@ import {
   Sha256Hex,
 } from './ids.js';
 import { GapDisposition } from './readiness.js';
-import { GatingProfile, KillDelegation, RoleMap, RoleSlot, TwoPerson } from './projects.js';
+import {
+  GatingProfile,
+  KillDelegation,
+  RepoPlan,
+  RoleMap,
+  RoleSlot,
+  TwoPerson,
+} from './projects.js';
 import { CriterionId } from './criteria.js';
 import { FindingId, FindingState } from './knowledge.js';
 
@@ -143,6 +150,8 @@ export const ControlsAttestation = z.strictObject({
   actions_cannot_approve_prs: z.literal(true),
   fork_pr_approval_required: z.literal(true),
   secret_scanning: z.enum(['on', 'plan_unavailable']),
+  /** The owner states the GitHub plan (the App cannot read it, CF4). `unknown` leaves RS-ID-4 open. */
+  plan: RepoPlan,
   /** At Light and above (OB §6.2 row 0.4). */
   operations_md: z.literal(true).optional(),
 });

@@ -255,8 +255,11 @@ export async function linkGithubLogin(
 export async function startTestIdentityApi(
   s: IdentityStack,
   callers: Record<string, { token: string; scopes: readonly IdentityScope[] }>,
-  /** Another source of project settings than the stack's fake (core's HTTP adapter, say). */
-  over: { settings?: ProjectSettingsPort } = {},
+  /**
+   * Another source of project settings than the stack's fake (core's HTTP adapter, say); the stack's
+   * IdP and ledger on request (`POST /v1/idp/sync` and the access-sync routes need them).
+   */
+  over: { settings?: ProjectSettingsPort; withIdp?: boolean; withLedger?: boolean } = {},
 ): Promise<{ url: string; stop(): Promise<void> }> {
   const app = createIdentityApp({
     pool: s.record.pool,
@@ -265,6 +268,8 @@ export async function startTestIdentityApi(
     ),
     callers: Object.fromEntries(Object.entries(callers).map(([n, c]) => [n, c.scopes])),
     settings: over.settings ?? s.settings,
+    ...(over.withIdp ? { idp: s.idp } : {}),
+    ...(over.withLedger ? { ledger: s.ledger } : {}),
     clock: s.clock,
   });
   const url = await listen(app);

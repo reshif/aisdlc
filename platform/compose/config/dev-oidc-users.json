@@ -1,0 +1,12 @@
+[
+  {
+    "subject": "00000000-0000-4000-8000-000000000001",
+    "name": "Alice Example (factory admin)",
+    "email": "alice@example.test"
+  },
+  {
+    "subject": "00000000-0000-4000-8000-000000000002",
+    "name": "Bob Example",
+    "email": "bob@example.test"
+  }
+]

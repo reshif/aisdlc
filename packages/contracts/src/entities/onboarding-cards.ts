@@ -215,3 +215,10 @@ export const OnboardingCardSummary = z.strictObject({
   actionable: z.boolean(),
 });
 export type OnboardingCardSummary = z.infer<typeof OnboardingCardSummary>;
+
+/**
+ * A card in the portal's list: the summary plus whether the signed-in person may decide it. The
+ * flag is the PDP's answer to `card.decide` for them (what the button shows); deciding asks again.
+ */
+export const PortalCardSummary = OnboardingCardSummary.extend({ may_decide: z.boolean() });
+export type PortalCardSummary = z.infer<typeof PortalCardSummary>;

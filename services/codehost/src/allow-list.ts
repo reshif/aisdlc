@@ -11,6 +11,8 @@ export type CodeHostMode = 'census';
 
 export interface AllowRow {
   readonly id: string;
+  /** The path with its variable parts named: what the request log shows (no repo, no ref, no id). */
+  readonly template: string;
   readonly method: 'GET';
   /** Matches the URL path (not decoded). */
   readonly path: RegExp;
@@ -25,6 +27,7 @@ const R = `/repos/(${SEG})/(${SEG})`;
 export const ALLOW_LIST: readonly AllowRow[] = [
   {
     id: 'installation_repos',
+    template: '/installation/repositories',
     method: 'GET',
     path: /^\/installation\/repositories$/,
     auth: 'hub',
@@ -32,6 +35,7 @@ export const ALLOW_LIST: readonly AllowRow[] = [
   },
   {
     id: 'app_installation',
+    template: '/app/installations/{installation_id}',
     method: 'GET',
     path: /^\/app\/installations\/(\d+)$/,
     auth: 'jwt',
@@ -39,14 +43,23 @@ export const ALLOW_LIST: readonly AllowRow[] = [
   },
   {
     id: 'contents',
+    template: '/repos/{owner}/{repo}/contents/{path}',
     method: 'GET',
     path: new RegExp(`^${R}/contents/(.+)$`),
     auth: 'hub',
     query: ['ref'],
   },
-  { id: 'git_ref', method: 'GET', path: new RegExp(`^${R}/git/ref/(.+)$`), auth: 'hub', query: [] },
+  {
+    id: 'git_ref',
+    template: '/repos/{owner}/{repo}/git/ref/{ref}',
+    method: 'GET',
+    path: new RegExp(`^${R}/git/ref/(.+)$`),
+    auth: 'hub',
+    query: [],
+  },
   {
     id: 'git_matching_refs',
+    template: '/repos/{owner}/{repo}/git/matching-refs/{ref}',
     method: 'GET',
     path: new RegExp(`^${R}/git/matching-refs/(.+)$`),
     auth: 'hub',
@@ -54,6 +67,7 @@ export const ALLOW_LIST: readonly AllowRow[] = [
   },
   {
     id: 'commit',
+    template: '/repos/{owner}/{repo}/commits/{sha}',
     method: 'GET',
     path: new RegExp(`^${R}/commits/([^/]+)$`),
     auth: 'hub',
@@ -61,6 +75,7 @@ export const ALLOW_LIST: readonly AllowRow[] = [
   },
   {
     id: 'rules_for_branch',
+    template: '/repos/{owner}/{repo}/rules/branches/{branch}',
     method: 'GET',
     path: new RegExp(`^${R}/rules/branches/([^/]+)$`),
     auth: 'posture',
@@ -68,6 +83,7 @@ export const ALLOW_LIST: readonly AllowRow[] = [
   },
   {
     id: 'codeowners_errors',
+    template: '/repos/{owner}/{repo}/codeowners/errors',
     method: 'GET',
     path: new RegExp(`^${R}/codeowners/errors$`),
     auth: 'hub',
@@ -75,6 +91,7 @@ export const ALLOW_LIST: readonly AllowRow[] = [
   },
   {
     id: 'collaborators',
+    template: '/repos/{owner}/{repo}/collaborators',
     method: 'GET',
     path: new RegExp(`^${R}/collaborators$`),
     auth: 'posture',

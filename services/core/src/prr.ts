@@ -17,6 +17,7 @@ import {
   type CatalogueRef,
   type CensusRecord,
   type ControlsAttestation,
+  type RepoPlan,
   type ControlsReport,
   type Gap,
   type GatingProfile,
@@ -294,6 +295,53 @@ const controlsOf = (c4: PrrC4): Result<ProjectReadinessRecord['controls'], PrrBu
   });
 };
 
+// ---------------------------------------------------------------- identity gaps closed by the cards
+
+/**
+ * RS-ID-1 to RS-ID-4 are the four identity criteria of the Census floor, and what satisfies them is
+ * not in the repo: the App scoped to selected repositories (card 4's controls report), the owner
+ * confirmed and the tier signed (card 1), the visibility and owner type recorded (the code host's
+ * answer, kept on the Repo). The census is assembled before any card, and in the deployed wiring
+ * knowledge is told none of these, so it raises all four as blocking gaps that nothing in the repo
+ * can close and that card 1 would have to "fix". When the facts are on the record, they close:
+ * the gap is `closed_verified` and keeps card 1's disposition. A fact that is not there leaves its
+ * gap open (unknown means unmet).
+ *
+ * RS-ID-4 also names the owner's plan. The App cannot read it (CF4), so the code host records it as
+ * `unknown` and card 4 asks the owner to state it (free, pro, team, enterprise). The gap closes only
+ * when visibility and owner type are recorded AND the plan is attested; `unknown` is not an
+ * attestation, so a gap whose plan the owner could not state stays open.
+ */
+export function closeOwnerCardGaps(
+  census: CensusRecord,
+  f: {
+    owner_confirmed: boolean;
+    tier_signed: boolean;
+    app_scoped: boolean;
+    /** The plan card 4 attested; `unknown` or absent means not attested. */
+    plan_attested: RepoPlan | null;
+  },
+): CensusRecord {
+  const satisfied: Readonly<Record<string, boolean>> = {
+    'RS-ID-1': f.app_scoped && census.repo.default_branch !== null,
+    'RS-ID-2': f.owner_confirmed,
+    'RS-ID-3': f.tier_signed,
+    'RS-ID-4':
+      census.repo.visibility !== null &&
+      census.repo.owner_type !== null &&
+      f.plan_attested !== null &&
+      f.plan_attested !== 'unknown',
+  };
+  return {
+    ...census,
+    gaps: census.gaps.map((g) =>
+      satisfied[g.criterion] === true && g.status === 'open'
+        ? { ...g, status: 'closed_verified' as const }
+        : g,
+    ),
+  };
+}
+
 // ---------------------------------------------------------------- the builder
 
 export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildError> {
@@ -410,7 +458,7 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
       repo_id: repo.repo_id,
       visibility: repo.visibility,
       owner_type: repo.owner_type,
-      plan: repo.plan,
+      plan: repo.plan ?? 'unknown',
       default_branch: repo.default_branch,
       archetype: repo.archetype,
     },

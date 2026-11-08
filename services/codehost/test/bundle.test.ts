@@ -195,5 +195,13 @@ describe('the codehost bundle as a process (plain node, no TypeScript loader)', 
       expect(output.includes(n), n.slice(0, 10)).toBe(false);
     }
     expect(output).toMatch(/GET \/installation\/repositories -> 200/);
+    // The structured request log: path templates and statuses, the one POST is the mint, no query values.
+    expect(output).toContain(
+      'codehost: ghreq {"method":"GET","path":"/installation/repositories","status":200,"auth":"hub"}',
+    );
+    expect(output).toMatch(
+      /codehost: ghreq \{"method":"POST","path":"\/app\/installations\/\{installation_id\}\/access_tokens","status":201,"auth":"hub"\}/,
+    );
+    expect(output).not.toMatch(/ghreq .*(per_page|page=|\?)/);
   }, 60_000);
 });

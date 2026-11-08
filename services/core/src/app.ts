@@ -8,6 +8,9 @@ import {
   OnboardRequest,
   PrincipalId,
   ProjectId,
+  RevisionDecideRequest,
+  RevisionEvidenceRequest,
+  RevisionPrepareRequest,
   RoleMap,
   RepoFullName,
   TwoPerson,
@@ -28,7 +31,9 @@ import { CORE_STATUS, coreError, type CoreError } from './errors.js';
 import { laneEligibility } from './lane-eligibility.js';
 import {
   getProject,
+  getProjectDetail,
   getS0Overview,
+  listProjects,
   listS0ForRepo,
   overviewOf,
   registeredRepos,
@@ -37,8 +42,20 @@ import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.
 import { loadProjectSettings, proposeProjectSettings } from './settings.js';
 import { readS0 } from './journal.js';
 import {
+  coreInbox,
+  decideRevision,
+  ledgerAudit,
+  prepareRevision,
+  projectPrr,
+  publishRevision,
+  recordRevisionEvidence,
+  revisionOfS0,
+  settingsRevision,
+} from './portal-reads.js';
+import {
   cardDetail,
   cardHeader,
+  cardSummary,
   decideOnboardingCard,
   listCards,
   prepareOnboardingCard,
@@ -51,9 +68,11 @@ import {
 /**
  * What a caller may do: `read` the model, `onboard` (the BFF, for a signed-in human: the PDP decides
  * about that human), `settings` (propose a settings revision, the BFF likewise), `registry` (the
- * codehost's allow-list reads the repos that have an S0 record).
+ * codehost's allow-list reads the repos that have an S0 record), `portal` (the BFF's fleet-wide
+ * listings for the portal: every project, a project with all of its records; the BFF filters them
+ * by the PDP for the signed-in human, so no other caller has a reason to hold this scope).
  */
-export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry';
+export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry' | 'portal';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -131,6 +150,31 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   };
 
   // ------------------------------------------------------------ reads
+
+  app.get('/v1/projects', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    try {
+      return await listProjects(o.pool);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the projects could not be read'));
+    }
+  });
+
+  app.get('/v1/projects/:id/overview', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    const id = projectIdOf(req);
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    try {
+      return (
+        (await getProjectDetail(o.pool, id)) ??
+        fail(reply, coreError('not_found', 'no such project'))
+      );
+    } catch {
+      return fail(reply, coreError('unavailable', 'the project could not be read'));
+    }
+  });
 
   app.get('/v1/projects/:id', async (req, reply) => {
     if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
@@ -332,6 +376,16 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return r.ok ? r.value : fail(reply, r.error);
   });
 
+  /** A card's header (its project, S0 record, status and who decides it), without building its view. */
+  app.get('/v1/cards/:cardId/summary', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const cards = cardsOr(reply);
+    const id = uuidParam(req, reply, 'cardId');
+    if (!cards || !id) return;
+    const r = await cardSummary(cards, id);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
   app.get('/v1/cards/:cardId', async (req, reply) => {
     if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
     const cards = cardsOr(reply);
@@ -404,6 +458,139 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       recheckControls(c, { card_id: id, principal: b.on_behalf_of }),
     ),
   );
+
+  // ------------------------------------------------------------ inbox, settings revisions (M8.3)
+
+  const configOr = (reply: FastifyReply): ConfigDeps | null => {
+    const c = o.config ?? o.cards?.config;
+    if (c) return c;
+    fail(reply, coreError('unavailable', 'no decision kernel is configured'));
+    return null;
+  };
+
+  /** Everything open and waiting for a person, across projects (the bff filters it for the person). */
+  app.get('/v1/inbox', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    const cards = cardsOr(reply);
+    if (!cards) return;
+    try {
+      return await coreInbox({ cards, config: o.config ?? cards.config, clock });
+    } catch {
+      return fail(reply, coreError('unavailable', 'the inbox could not be read'));
+    }
+  });
+
+  /** The settings revision card 4 proposed for an S0 record, in whatever state. */
+  app.get('/v1/s0/:id/revision', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    const id = uuidParam(req, reply, 'id');
+    if (!config || !id) return;
+    const r = await revisionOfS0({ pool: o.pool, config }, id);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  app.get('/v1/revisions/:gate', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    const gate = uuidParam(req, reply, 'gate');
+    if (!config || !gate) return;
+    const r = await settingsRevision({ pool: o.pool, config }, gate);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  /** The PDP's `gate.decide` on the M1 gate for the human, then the decision kernel. */
+  async function revisionAction<S extends z.ZodType<{ on_behalf_of: string }>>(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    schema: S,
+    run: (
+      deps: { pool: pg.Pool; config: ConfigDeps },
+      gate: string,
+      body: z.infer<S>,
+    ) => Promise<Result<unknown, CoreError>>,
+  ) {
+    if (!allowed(req, 'onboard'))
+      return sendError(reply, 403, 'forbidden', 'scope onboard is needed');
+    const config = configOr(reply);
+    const gate = uuidParam(req, reply, 'gate');
+    if (!config || !gate) return;
+    const b = parse(schema, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const deps = { pool: o.pool, config };
+    const view = await settingsRevision(deps, gate);
+    if (!view.ok) return fail(reply, view.error);
+    if (
+      !(await guard(
+        reply,
+        b.value.on_behalf_of,
+        'gate.decide',
+        pdpResource.gate(view.value.project_id, gate, 'M1'),
+      ))
+    ) {
+      return;
+    }
+    const r = await run(deps, gate, b.value);
+    return r.ok ? r.value : fail(reply, r.error);
+  }
+
+  app.post('/v1/revisions/:gate/prepare', (req, reply) =>
+    revisionAction(req, reply, RevisionPrepareRequest, (d, gate, b) =>
+      prepareRevision(d, { gate, principal: b.on_behalf_of }),
+    ),
+  );
+  app.post('/v1/revisions/:gate/evidence', (req, reply) =>
+    revisionAction(req, reply, RevisionEvidenceRequest, (d, _gate, b) =>
+      recordRevisionEvidence(d, { nonce: b.nonce, evidence_hash: b.evidence_hash }),
+    ),
+  );
+  app.post('/v1/revisions/:gate/decide', (req, reply) =>
+    revisionAction(req, reply, RevisionDecideRequest, (d, _gate, b) =>
+      decideRevision(d, { nonce: b.nonce, decision: b.decision }),
+    ),
+  );
+  /** Retries the publish of an approved revision (the decision is already on the ledger). */
+  app.post('/v1/revisions/:gate/publish', (req, reply) =>
+    revisionAction(req, reply, RevisionPrepareRequest, (d, gate) => publishRevision(d, gate)),
+  );
+
+  // ------------------------------------------------------------ readiness record and ledger (M8.4)
+
+  app.get('/v1/projects/:id/prr', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const id = projectIdOf(req);
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    try {
+      return (
+        (await projectPrr(o.pool, id, clock)) ??
+        fail(reply, coreError('not_found', 'no such project'))
+      );
+    } catch {
+      return fail(reply, coreError('unavailable', 'the readiness record could not be read'));
+    }
+  });
+
+  app.get('/v1/projects/:id/ledger', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const id = projectIdOf(req);
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    const q = req.query as { s0?: string; limit?: string };
+    if (q.s0 !== undefined && !z.uuid().safeParse(q.s0).success) {
+      return fail(reply, coreError('invalid_input', 'bad s0 id'));
+    }
+    try {
+      if (!(await getProject(o.pool, id))) {
+        return fail(reply, coreError('not_found', 'no such project'));
+      }
+      return await ledgerAudit(o.pool, id, {
+        ...(q.s0 ? { s0_id: q.s0 } : {}),
+        ...(q.limit ? { limit: Number(q.limit) || 500 } : {}),
+      });
+    } catch {
+      return fail(reply, coreError('unavailable', 'the ledger entries could not be read'));
+    }
+  });
 
   return app;
 }

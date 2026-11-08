@@ -82,6 +82,11 @@ async function newHost(
   const token = t.value.secret.reveal();
   accepted.add(`Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`);
   writeFileSync(TOKEN_FILE, token);
+  // The wrapper greps with -f so the token never sits in any process's argv (ps would see it).
+  writeFileSync(
+    `${TOKEN_FILE}.patterns`,
+    `${token}\n${Buffer.from(`x-access-token:${token}`).toString('base64')}\n`,
+  );
   return { host, token };
 }
 
@@ -121,8 +126,8 @@ const listHeads = (file: string): string[] =>
 type WrapperMode = 'record' | 'hold' | 'hang' | 'bloat';
 
 /**
- * A git that records what it was given and scans the temp directory for the token (read from a
- * file at run time, so the script itself never holds it), and can stall: `hold` sleeps before a
+ * A git that records what it was given and scans the temp directory for the token (patterns read
+ * from a file with grep -f, so neither the script nor any argv holds it), and can stall: `hold` sleeps before a
  * fetch (a long-running child for `ps`), `hang` never finishes a fetch (and leaves a grandchild),
  * `bloat` sleeps after an all-refs fetch (the size guard sees the objects before git exits).
  */
@@ -133,13 +138,12 @@ function writeWrapper(mode: WrapperMode, log: string): string {
     path,
     `#!/bin/sh
 LOG='${log}'
-TOKEN="$(cat '${TOKEN_FILE}')"
-B64="$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+PATTERNS='${TOKEN_FILE}.patterns'
 sub="$1"
 echo "ARGV: $*" >> "$LOG"
 echo "TMPMODE: $(stat -c %a "$(dirname "$HOME")")" >> "$LOG"
 echo "HOME: $HOME" >> "$LOG"
-for v in $(env | grep -F -e "$TOKEN" -e "$B64" | cut -d= -f1); do echo "ENV_HAS_TOKEN: $v" >> "$LOG"; done
+for v in $(env | grep -F -f "$PATTERNS" | cut -d= -f1); do echo "ENV_HAS_TOKEN: $v" >> "$LOG"; done
 env | grep -E '^(GIT_TERMINAL_PROMPT|GIT_CONFIG_NOSYSTEM|GIT_CONFIG_GLOBAL|GIT_CONFIG_COUNT)=' >> "$LOG"
 env | grep -E '^GIT_CONFIG_KEY_' >> "$LOG"
 echo "ENV_NAMES: $(env | cut -d= -f1 | sort | tr '\\n' ' ')" >> "$LOG"
@@ -148,7 +152,7 @@ ${mode === 'hang' ? `if [ "$sub" = fetch ]; then sleep 31.737 & wait; fi` : ''}
 '${real}' "$@"
 rc=$?
 ${mode === 'bloat' ? `if [ "$sub" = fetch ] && echo "$*" | grep -q 'refs/tags'; then sleep 20; fi` : ''}
-if grep -rlaF -e "$TOKEN" -e "$B64" "$(dirname "$HOME")" > "$LOG.found" 2>/dev/null; then
+if grep -rlaF -f "$PATTERNS" "$(dirname "$HOME")" > "$LOG.found" 2>/dev/null; then
   while read -r f; do echo "FOUND_IN: $f" >> "$LOG"; done < "$LOG.found"
 fi
 exit $rc

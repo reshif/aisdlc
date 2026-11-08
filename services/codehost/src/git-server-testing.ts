@@ -150,12 +150,19 @@ export class GitHttpTestServer {
       readonly root: string;
       /** Is this `Authorization` header (or its absence) acceptable? */
       readonly isAuthorized: (header: string | undefined) => boolean;
+      /** Default a random loopback port. */
+      readonly port?: number;
+      readonly host?: string;
+      /** Called for every request (the compose stack prints them as its request log). */
+      readonly onRequest?: (r: GitServerRequest) => void;
     },
   ) {}
 
   async start(): Promise<this> {
     this.server = createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((r) => this.server?.listen(0, '127.0.0.1', r));
+    await new Promise<void>((r) =>
+      this.server?.listen(this.o.port ?? 0, this.o.host ?? '127.0.0.1', r),
+    );
     this.baseUrl = `http://127.0.0.1:${(this.server?.address() as AddressInfo).port}`;
     return this;
   }
@@ -170,12 +177,9 @@ export class GitHttpTestServer {
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://x');
     const authorized = this.o.isAuthorized(req.headers.authorization);
-    this.requests.push({
-      method: req.method ?? '',
-      path: url.pathname,
-      query: url.search,
-      authorized,
-    });
+    const entry = { method: req.method ?? '', path: url.pathname, query: url.search, authorized };
+    this.requests.push(entry);
+    this.o.onRequest?.(entry);
     const chunks: Buffer[] = [];
     for await (const c of req) chunks.push(c as Buffer);
     const body = Buffer.concat(chunks);

@@ -164,18 +164,21 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
+| M8.0b | Follow-ups from M8.0: wire the ledger reconciler and the Witness checkpoint loop into core-worker (the Witness has no caller yet); a non-local genesis for the first factory admin and the first PDP bundle (the local `aisdlc-seed` is refused outside FACTORY_ENV=local); verify the default `docker compose build` path that installs git with apt (untestable in this sandbox) on the user's machine at M8.5 | Checkpoints co-signed every 5 min in the running stack; verify-ledger passes against it |
 | M8.1 | `services/web` shell through the bff; project list and detail; login rate limiting on `/auth/login` and the step-up start route (follow-up from M4.5) | Playwright smoke test |
 | M8.2 | Onboarding wizard: request, App status ("0.1 waiting: App not installed"), step progress | Wizard reads one Project and one S0Record |
 | M8.3 | Inbox and Decide for cards 1, 4, 5 and security, with step-up | Deciding in the browser writes a verifiable ledger entry |
 | M8.4 | PRR view; ledger audit view | Each decision links to its ledger entry |
 | M7.7 | Single-flight S0 driver: a per-S0-record lease (advisory lock or claimed-job row) so two core-worker instances never start two knowledge jobs for one record (found in M7.2; harmless while one worker runs) | Two concurrent drivers on one record start exactly one census job |
 | M8.0 | Local-prod compose (also wires core's `SignedStepUp` in place of `NoStepUp` so M4 can be decided, `bootstrap: true` on core's card deps, the bootstrap eligibility wrapper in the bff, and core's `cardsLoop` with its Notary, codehost-read and knowledge `security`-scope clients, which M7.3 left unwired; cards open through the sync route until then): every service with its own port (bff dev-oidc and codehost both default to 8350 today), `aisdlc-migrate` run first, secrets as file references, the five boundary reasons checked per container | `docker compose up` brings the stack up healthy from a clean checkout |
+| M8.3b | Found while building M8.3 (all done in it): the first-onboarding requester held only `factory.admin`, so the PDP denied them `card.decide` and they could never decide card 1 (M8.1 finding): `BootstrapPdpEntities` in `@aisdlc/onboarding` (core and bff) gives the live grantee the project admin role for `card.decide` on cards 1, 4, 5 of their record and `gate.decide` on the M1 gate over a config revision, nothing else; card 4's M1 revision had no UI or route (a "settings revision pending" page and `/v1/revisions/*`: prepare, evidence, decide, publish), so card 5 could never open; the code host's repo list did not say who owns the repo, so the PRR builder refused with `repo_facts_unknown` in the real wiring (`InstallationRepo.owner_type` from GitHub's `owner.type`, recorded by the driver) | `npm run e2e:compose` onboards the testbed in the browser through card 5 and the PRR is active |
 | M8.5 | **Live exit:** Census onboarding of `reshif/asf-factory-testbed` on local prod; GitHub request log shows GETs only; PRR active after M4 | Recorded demo and log |
 
 ### M9 — Work lifecycle engine (stage work behind fake ports)
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
+| M9.0 | Grantable onboarding role (user decision): `project.onboard` held by a new `factory.onboarder` role grantable at fleet or team scope, and every administrative action for `factory.admin`, without giving admins any gate decision | PDP tests per role; an admin still cannot decide a gate it holds no slot for |
 | M9.1 | Requests and WorkItems; S1 1.1–1.6 deterministic parts (normalise, taint-mark, de-dupe, eligibility 1.4); untrusted-input boundary with B27; Question entity; SpawnLink for "new linked item" edges | Injection-like text is fenced and flagged on the G0 card |
 | M9.2 | Interpreter (also wires the real `WorkInFlightPort` into core-worker, replacing the M5.4 fake that reports no work, so effective rules are polled hourly while agent work is in flight): lane profile bound at G0, gates from the project's gating profile, stage ports (`PlanningPort`, `CodingPort`, `VerifyPort`, `ReleasePort`) with deterministic fakes; replay determinism | Every FL edge has a test against the fake stages; the rebuild drill that replaces Temporal's: kill core-worker mid-flight, wipe all execution state (jobs, timers, projections), refold from the record, and every item resumes in the same state |
 | M9.3 | Holds and terminals: HELD H1–H3 and WIP, N8, PARK (5 bd), BLOCKED (→ L2 remediation item), DECLINED (B22), ABANDONED with cause codes, RELHOLD (B26), prior-phase resume; MM-2 maintenance (timers frozen, decisions disabled, drafts kept) | Test per terminal and hold |
@@ -280,6 +283,23 @@ That is 25 containers, against RV §8.2's 26: no temporal, postgres-temporal or 
 - Each task goes to one implementation agent with a written brief: goal, spec sections, files it may touch, acceptance tests. One task in flight at a time.
 - After each task: review the diff, run `npm run check`, commit (Conventional Commits). Milestones end with a pull request for human review. A human merges.
 - Decisions that belong to the user are asked at the milestone that needs them.
+
+## 7a. Decisions taken by the user (2026-11-08)
+
+| Topic | Decision |
+|---|---|
+| D-T | No Temporal (ADR-0001) |
+| Team, role map | Team is factory-owned with an optional IdP group mapping; the wizard edits the ten-slot role map and bindings are generated |
+| B21 backup approver | Notified only; gains no decision right |
+| Bootstrap decider | On a project's first onboarding the requester decides that S0 record's admin-slot cards (C1, C4, C5) and the first M1 config gate until the role map is published; never the security card or M4 |
+| Who may start an onboarding | A grantable onboarding role (any principal it is granted to, at fleet or team scope); factory admins hold every administrative action. Gate decisions still follow the project role map, two-person rules and the safety floor: no admin decides gates alone (G4 human code owner, no auto-approve, T2 two-person) |
+| Pillar mapping | VRL = BT/ST/TH, ERL = EN/SEC/CC, ORL = ID/OP/PUB, KRL = AI/KN |
+| Codex | A model route through the gateway (an OpenAI-compatible provider row), not a sandbox harness |
+| Registries | One Integration registry for code hosts and model providers, with a shared health shape |
+| Evals | Factory-wide, with an optional project tag |
+| DEC-18 | Decide container-class execution of repo code after the SEC-OB-3 hostile-probe evidence; the probe stays `pending` until then |
+| DEC-10, 11, 12, 13, 16, 17, 20 | The roadmap's recommendations: 10(a) the human never pushes, the factory pushes under an L8 gate-check profile; 11(a) affirmed text is fenced guidance, never control, with (c-i) step-up falling back to (c-ii); 12(a) record-first; 13(a) S0 and L8 gate-check profiles, (i) wait for the X2 path; 16(b) agent chores on T0/T1 only, T2 needs Full; 17 mirror wheels first, each scanner approved one at a time; 20(a) record is truth, issue is a twin, timing (i) right after R1b, blocking public-safe gaps by default |
+| DEC-7 | Done by the user: `statuses:write` removed from the GitHub App |
 
 ## 7. Decisions still open for the user
 

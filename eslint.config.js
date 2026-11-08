@@ -15,7 +15,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'platform/**/*.mjs'],
     languageOptions: {
       globals: {
         process: 'readonly',
@@ -24,6 +24,10 @@ export default tseslint.config(
         clearTimeout: 'readonly',
         fetch: 'readonly',
         AbortSignal: 'readonly',
+        // The browser test (platform/compose/e2e-portal.mjs) runs small functions inside the page.
+        document: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
       },
     },
   },

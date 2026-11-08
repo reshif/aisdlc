@@ -155,6 +155,7 @@ function hostSeed(o: HostOptions, installed: readonly string[], blank: Set<strin
       default_branch: 'main',
       private: true,
       archived: false,
+      owner_type: 'org' as const,
     })),
     heads: installed
       .filter((r) => !blank.has(r))

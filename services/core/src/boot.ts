@@ -1,25 +1,22 @@
 import { ConfigReader, ConfigRegistry, type ConfigDeps } from '@aisdlc/config';
+import { PgProofStore, SignedStepUp } from '@aisdlc/bff/stepup';
 import { createPool } from '@aisdlc/db';
-import { PortError, type StepUpPort } from '@aisdlc/decisions';
 import { IdentityEligibility } from '@aisdlc/identity/read';
-import { err } from '@aisdlc/kernel';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
+import { BootstrapPdpEntities } from '@aisdlc/onboarding';
+import { HttpCodeHostReads } from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreApp } from './app.js';
 import { BootstrapEligibility } from './bootstrap.js';
+import { cardDepsFrom, identityEligibility } from './card-wiring.js';
+import { HttpKnowledge } from './clients.js';
 import { coreConfigFromEnv } from './config.js';
+import { s0SettingsFrom } from './driver.js';
 import { migrateCore } from './migrations.js';
 import { DbProjectSettings, registerCoreConfig } from './settings.js';
-
-/** Core runs no step-up: the proof is checked where the person authenticates (the BFF). Fail closed. */
-class NoStepUp implements StepUpPort {
-  async verify() {
-    return err(PortError({ message: 'step-up is not available in core' }));
-  }
-}
 
 /**
  * Starts core from the environment (see `coreConfigFromEnv`). All configuration is read before the
@@ -29,19 +26,23 @@ class NoStepUp implements StepUpPort {
  */
 export async function bootCore(env: Env): Promise<RunningService> {
   const cfg = coreConfigFromEnv(env);
-  const listenOpts = listenConfig(env, 'CORE', 8370);
+  const listenOpts = listenConfig(env, 'CORE', 8380);
   let notary: HttpNotary | undefined;
   let notaryKey:
     Awaited<ReturnType<ReturnType<typeof httpKeyCustodyFromEnv>['publicKey']>> | undefined;
+  let custody: ReturnType<typeof httpKeyCustodyFromEnv> | undefined;
   if (cfg.ledger) {
     notary = new HttpNotary({ baseUrl: cfg.ledger.notaryUrl, token: cfg.ledger.notaryToken });
-    notaryKey = await httpKeyCustodyFromEnv(env).publicKey('dev:notary');
+    custody = httpKeyCustodyFromEnv(env);
+    notaryKey = await custody.publicKey('dev:notary');
     if (!notaryKey.ok) throw new Error(`notary public key: ${notaryKey.error.message}`);
   }
 
   const pool = createPool(cfg.databaseUrl, 8);
   // A pool of its own for the eligibility adapter, which catches a read model up on every call.
   const eligibilityPool = createPool(cfg.databaseUrl, 3);
+  // And one for the card layer's identity link reads (it is called inside decision transactions).
+  const linksPool = createPool(cfg.databaseUrl, 2);
   let reader: ConfigReader | undefined;
   try {
     const have = await pool.query<Record<string, string | null>>(
@@ -69,12 +70,19 @@ export async function bootCore(env: Env): Promise<RunningService> {
     await reader.start();
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
-      entities: new IdentityPdpEntities({ pool }),
+      entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
       log: new RecordDecisionLog({ pool }),
       onError: (e) => console.error(`core: ${e instanceof Error ? e.message : String(e)}`),
     });
+    const stepUp = custody
+      ? new SignedStepUp({
+          // Only the public key is ever read from kms-local here.
+          custody,
+          store: new PgProofStore(pool),
+        })
+      : undefined;
     const config: ConfigDeps | undefined =
-      notary && notaryKey?.ok
+      notary && notaryKey?.ok && stepUp
         ? {
             pool,
             ledger: { notary, notaryKey: notaryKey.value },
@@ -88,9 +96,29 @@ export async function bootCore(env: Env): Promise<RunningService> {
               }),
               { pool: eligibilityPool },
             ),
-            stepUp: new NoStepUp(),
+            stepUp,
             registry,
           }
+        : undefined;
+    const cards =
+      config && cfg.cards
+        ? cardDepsFrom({
+            pool,
+            readPool: linksPool,
+            registry,
+            ledger: config.ledger,
+            eligibility: identityEligibility(eligibilityPool, registry),
+            stepUp: config.stepUp,
+            knowledge: new HttpKnowledge({
+              baseUrl: cfg.cards.knowledge.url,
+              token: cfg.cards.knowledge.token,
+            }),
+            source: new HttpCodeHostReads({
+              baseUrl: cfg.cards.codehost.url,
+              token: cfg.cards.codehost.token,
+            }),
+            settings: s0SettingsFrom(reader),
+          })
         : undefined;
     const app = createCoreApp({
       pool,
@@ -99,6 +127,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
       pdp,
       registry,
       ...(config ? { config } : {}),
+      ...(cards ? { cards } : {}),
     });
     const url = await listen(app, listenOpts);
     const r = reader;
@@ -107,12 +136,14 @@ export async function bootCore(env: Env): Promise<RunningService> {
       close: async () => {
         await app.close();
         await r.stop();
+        await linksPool.end();
         await eligibilityPool.end();
         await pool.end();
       },
     };
   } catch (e) {
     await reader?.stop().catch(() => undefined);
+    await linksPool.end().catch(() => undefined);
     await eligibilityPool.end().catch(() => undefined);
     await pool.end().catch(() => undefined);
     throw e;

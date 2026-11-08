@@ -22,11 +22,12 @@
     }
   },
   "scripts": {
-    "build": "node ../../scripts/bundle.mjs main",
+    "build": "node ../../scripts/bundle.mjs main aisdlc-seed",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc -p tsconfig.check.json"
   },
   "dependencies": {
+    "@aisdlc/bff": "0.0.0",
     "@aisdlc/catalogue": "1.0.0",
     "@aisdlc/codeowners": "0.0.0",
     "@aisdlc/config": "0.0.0",
@@ -39,6 +40,7 @@
     "@aisdlc/ledger": "0.0.0",
     "@aisdlc/loops": "0.0.0",
     "@aisdlc/notary": "0.0.0",
+    "@aisdlc/onboarding": "0.0.0",
     "@aisdlc/pdp": "0.0.0",
     "@aisdlc/ports": "0.0.0",
     "@aisdlc/record": "0.0.0",

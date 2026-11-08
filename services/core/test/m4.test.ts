@@ -8,6 +8,7 @@ import {
   ProjectReadinessRecord,
   S0_EVENT,
   checkLedgerEntrySignature,
+  gapId,
   prrRecordHash,
   prrStream,
   projectStream,
@@ -241,6 +242,116 @@ describe('M4 approved on card 5', () => {
     expect(ok(await decideAs(c, card.card_id, 'alice', 'approve', {})).value.applied).toBe(
       'applied',
     );
+  });
+});
+
+describe('what the code host said of the repo', () => {
+  it('fills in the repo facts a census was not given (knowledge is told none in the deployed wiring); the census hash is untouched', async () => {
+    const c = await scenario();
+    await throughC1(c);
+    await throughC4(c);
+    c.knowledge.setCensusRecord(c.repo, {
+      ...c.census,
+      census: {
+        ...c.census.census,
+        repo: { ...c.census.census.repo, visibility: null, owner_type: null, default_branch: null },
+      },
+    });
+    const { card } = await toC5(c);
+    const state = await readPrrState(s.record.pool, c.project, repoIdOf(c.repo));
+    const prr = state.versions[0]!.prr;
+    // what the fake host listed: a private repo of an organisation, default branch main
+    expect(prr.repo).toMatchObject({
+      visibility: 'private',
+      owner_type: 'org',
+      default_branch: 'main',
+    });
+    ok(await decideAs(c, card.card_id, 'alice', 'approve', {}));
+    expect(
+      (await readPrrState(s.record.pool, c.project, repoIdOf(c.repo))).versions[0]?.status,
+    ).toBe('active');
+  });
+});
+
+describe('the identity gaps the cards close', () => {
+  it('RS-ID-1 to RS-ID-4 are blocking in a census nobody told the facts; card 1, card 4 and the Repo close them, and the record signs at Census', async () => {
+    const c = await scenario();
+    const repoId = c.repo.toLowerCase().replace('/', '.');
+    const idGaps = ['RS-ID-1', 'RS-ID-2', 'RS-ID-3', 'RS-ID-4'].map((criterion) => ({
+      gap_id: gapId(repoId, criterion, '.'),
+      repo_id: repoId,
+      criterion,
+      area: '.',
+      severity: 'blocking',
+      blocks_level: 'census',
+      disposition: null,
+      status: 'open',
+      issue: null,
+      remediation_item_ref: null,
+      waiver: null,
+      visibility_class: 'public_safe',
+    }));
+    c.knowledge.setCensusRecord(c.repo, {
+      ...c.census,
+      census: { ...c.census.census, gaps: [...c.census.census.gaps, ...idGaps] } as never,
+    });
+    await throughC1(c);
+    await throughC4(c);
+    const { card } = await toC5(c);
+    const prr = (await readPrrState(s.record.pool, c.project, repoIdOf(c.repo))).versions[0]!.prr;
+    expect(prr.gaps.filter((g) => g.criterion.startsWith('RS-ID')).map((g) => g.status)).toEqual([
+      'closed_verified',
+      'closed_verified',
+      'closed_verified',
+      'closed_verified',
+    ]);
+    expect(prr.repo.plan).toBe('free');
+    ok(await decideAs(c, card.card_id, 'alice', 'approve', {}));
+  });
+
+  it('RS-ID-4 stays open when the owner cannot state the plan (unknown is not an attestation), and the PRR refuses to sign at Census', async () => {
+    const c = await scenario();
+    const repoId = c.repo.toLowerCase().replace('/', '.');
+    c.knowledge.setCensusRecord(c.repo, {
+      ...c.census,
+      census: {
+        ...c.census.census,
+        gaps: [
+          ...c.census.census.gaps,
+          {
+            gap_id: gapId(repoId, 'RS-ID-4', '.'),
+            repo_id: repoId,
+            criterion: 'RS-ID-4',
+            area: '.',
+            severity: 'blocking',
+            blocks_level: 'census',
+            disposition: null,
+            status: 'open',
+            issue: null,
+            remediation_item_ref: null,
+            waiver: null,
+            visibility_class: 'public_safe',
+          },
+        ],
+      } as never,
+    });
+    await throughC1(c);
+    await throughC4(c, {
+      attestations: {
+        bypass_has_no_factory_app: true,
+        app_scope_selected: true,
+        github_token_readonly: true,
+        actions_cannot_approve_prs: true,
+        fork_pr_approval_required: true,
+        secret_scanning: 'on',
+        plan: 'unknown',
+      },
+    });
+    await c.drive();
+    await sync(c);
+    const r = await sync(c);
+    expect(r.opened).toEqual([]);
+    expect(r.pending.join(' ')).toMatch(/blocking_gap_open|RS-ID-4|gap/);
   });
 });
 

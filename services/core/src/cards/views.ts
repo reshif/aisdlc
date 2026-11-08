@@ -1,6 +1,7 @@
 import {
   MAX_WAIVER_DAYS,
   PROJECT_CONFIG_KEYS,
+  RepoPlan,
   levelRank,
   type CensusRecord,
   type ControlsReport,
@@ -13,6 +14,7 @@ import {
   type RoleSlot,
   type Tier,
 } from '@aisdlc/contracts';
+import type { EligibilityPort } from '@aisdlc/decisions';
 import { hashCanonical, err, ok, type Result } from '@aisdlc/kernel';
 import type { RemoteError } from '../clients.js';
 import { DEFAULT_S0_SETTINGS, type S0Settings } from '../driver.js';
@@ -67,6 +69,15 @@ export async function decidersOf(
   s0Id?: string,
 ): Promise<Deciders> {
   const e = (s0Id === undefined ? deps.decisions : decisionsFor(deps, s0Id)).eligibility;
+  return decidersFrom(e, project, slot);
+}
+
+/** Who holds `slot` on `project` according to an eligibility port, and what that means for deciding. */
+export async function decidersFrom(
+  e: EligibilityPort,
+  project: string,
+  slot: RoleSlot,
+): Promise<Deciders> {
   const h = await e.holders(project as never, slot);
   const p = await e.policy(project as never);
   if (!h.ok || !p.ok) {
@@ -265,9 +276,11 @@ export function c4View(c: C4Ctx): Record<string, unknown> {
         'actions_cannot_approve_prs',
         'fork_pr_approval_required',
         'secret_scanning',
+        'plan',
         ...(c.level_needs_operations ? ['operations_md'] : []),
       ],
       secret_scanning_values: ['on', 'plan_unavailable'],
+      plan_values: RepoPlan.options,
     },
     tier: c.tier,
     role_map: {

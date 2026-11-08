@@ -2,6 +2,7 @@ import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
 import { STEP_UP_KEY_ID } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
+import { BootstrapPdpEntities } from '@aisdlc/onboarding';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
 import {
@@ -21,6 +22,9 @@ import {
   createBffApp,
   type StepUpMode,
 } from './app.js';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { HttpCoreClient } from './core-client.js';
 import { migrateBff } from './migrations.js';
 import { HttpOidcClient } from './oidc/http-client.js';
 import { PgProofStore } from './stepup/store.js';
@@ -50,6 +54,10 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   BFF_STEP_UP_MODE         `reauth` (default, D37) or `reconfirm` (DEC-11(c-ii): plain confirm)
  *   BFF_ALLOWED_ORIGINS      comma-separated extra origins allowed on state-changing requests
  *   BFF_PDP_SAMPLE_RATE      fraction (0..1) of other allows to log as pdp.decision, default 0
+ *   BFF_CORE_URL, BFF_CORE_TOKEN_REF
+ *                            core's API and the bff's service token there (scopes read, onboard, portal);
+ *                            both or neither (without them the portal's /api routes answer 503)
+ *   BFF_WEB_DIR              the built web bundle to serve (contains index.html); unset: API only
  *   BFF_HOST / BFF_PORT      default 127.0.0.1:8340
  * All configuration is read, and every secret resolved, before the database is touched.
  */
@@ -83,6 +91,25 @@ export async function bootBff(env: Env): Promise<RunningService> {
   if (!(sampleRaw >= 0 && sampleRaw <= 1)) {
     throw new ServiceConfigError('BFF_PDP_SAMPLE_RATE must be between 0 and 1');
   }
+  const coreUrl = env['BFF_CORE_URL'];
+  const hasCore = coreUrl !== undefined && coreUrl !== '';
+  if (hasCore !== (env['BFF_CORE_TOKEN_REF'] !== undefined && env['BFF_CORE_TOKEN_REF'] !== '')) {
+    throw new ServiceConfigError(
+      'BFF_CORE_URL and BFF_CORE_TOKEN_REF are set together or not at all',
+    );
+  }
+  const core = hasCore
+    ? new HttpCoreClient({
+        baseUrl: httpUrlEnv(env, 'BFF_CORE_URL'),
+        token: resolveSecretRef(requiredEnv(env, 'BFF_CORE_TOKEN_REF'), { env }),
+      })
+    : undefined;
+  const webDir = env['BFF_WEB_DIR'] === '' ? undefined : env['BFF_WEB_DIR'];
+  if (webDir !== undefined && !existsSync(join(webDir, 'index.html'))) {
+    throw new ServiceConfigError(
+      `BFF_WEB_DIR ${webDir} has no index.html: build services/web first`,
+    );
+  }
   const listenOpts = listenConfig(env, 'BFF', 8340);
 
   const pool = createPool(dbUrl, 10);
@@ -113,7 +140,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
     await reader.start();
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
-      entities: new IdentityPdpEntities({ pool }),
+      entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
       log: new RecordDecisionLog({ pool }),
       sampleRate: sampleRaw,
       onError: (e) => console.error(`bff: ${e instanceof Error ? e.message : String(e)}`),
@@ -129,6 +156,8 @@ export async function bootBff(env: Env): Promise<RunningService> {
       idleSeconds,
       absoluteSeconds,
       stepUpMode,
+      ...(core ? { core } : {}),
+      ...(webDir ? { webDir } : {}),
     });
     const url = await listen(app, listenOpts);
     const r = reader;

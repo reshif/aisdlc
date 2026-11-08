@@ -23,8 +23,8 @@ import type { PoolClient } from 'pg';
 import type { KnowledgePort } from './clients.js';
 import { coreError, type CoreError } from './errors.js';
 import { clockOf, inCoreTx, lockKeys, type CoreDeps, type Journal } from './journal.js';
-import { buildPrr, expectedSigner } from './prr.js';
-import { getProjectState } from './queries.js';
+import { buildPrr, closeOwnerCardGaps, expectedSigner } from './prr.js';
+import { getProjectState, getRepo } from './queries.js';
 import { readPrrState } from './prr-store.js';
 import { recordSignedIn } from './s0.js';
 import { fanOutHeld, type FanOutReport } from './work.js';
@@ -143,7 +143,30 @@ export async function ensurePrrProposed(
   if (latest.value === null || latest.value.census_hash !== base.value.package.census_hash) {
     return err(coreError('conflict', 'the census moved on since card 1 was decided'));
   }
-  const census = latest.value.census;
+  const fromKnowledge = latest.value.census;
+  // What the code host said of the repo (core records it on the Repo: visibility, who owns it, the
+  // default branch) fills in what the census was not given. Knowledge is not told these by anyone in
+  // the deployed wiring, so its census leaves them null; they are not part of the census hash.
+  const coreRepo = await getRepo(deps.pool, s0.repo);
+  const attRow = c4.payload.find((p) => p.kind === 'controls_attestation');
+  const parsedAtt =
+    attRow?.kind === 'controls_attestation'
+      ? ControlsAttestation.safeParse(attRow.attestation)
+      : null;
+  const attestedPlan = parsedAtt?.success ? parsedAtt.data.plan : 'unknown';
+  const census: typeof fromKnowledge = coreRepo
+    ? {
+        ...fromKnowledge,
+        repo: {
+          ...fromKnowledge.repo,
+          visibility: fromKnowledge.repo.visibility ?? coreRepo.visibility,
+          owner_type: fromKnowledge.repo.owner_type ?? coreRepo.owner_type,
+          default_branch: fromKnowledge.repo.default_branch ?? coreRepo.default_branch,
+          // The code host cannot read the plan: what the PRR records is what card 4 attested.
+          plan: attestedPlan,
+        },
+      }
+    : fromKnowledge;
   const sec = await deps.knowledge.securitySummary(s0.repo);
   if (!sec.ok) return err(coreError('unavailable', `knowledge: ${sec.error.message}`));
   const security = {
@@ -162,7 +185,6 @@ export async function ensurePrrProposed(
   }
 
   // ---- card 4
-  const attRow = c4.payload.find((p) => p.kind === 'controls_attestation');
   const setRow = c4.payload.find((p) => p.kind === 'settings_decision');
   const c4Entry = await entryMeta(deps.pool, c4.card.state.steps[0]?.ledger_entry_id ?? null);
   if (attRow?.kind !== 'controls_attestation' || setRow?.kind !== 'settings_decision' || !c4Entry) {
@@ -213,7 +235,14 @@ export async function ensurePrrProposed(
       now: clockOf(deps).now(),
       version,
       supersedes: governingPrr(state)?.prr.record_hash ?? null,
-      census,
+      census: closeOwnerCardGaps(census, {
+        owner_confirmed: c1.payload.some((p) => p.kind === 'owner_confirmation'),
+        tier_signed: tierRow.kind === 'tier_decision',
+        plan_attested: attestedPlan,
+        app_scoped:
+          seen.data.report.app_installation.read === 'ok' &&
+          seen.data.report.app_installation.repository_selection === 'selected',
+      }),
       s0: {
         requested_level: s0.record.requested_level,
         signable_level: s0.record.signable_level,

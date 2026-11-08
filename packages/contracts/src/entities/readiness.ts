@@ -19,6 +19,7 @@ import {
   GatingProfile,
   KillDelegation,
   RepoOwnerType,
+  RepoPlan,
   RepoVisibility,
   RoleMap,
   TwoPerson,
@@ -162,7 +163,8 @@ export const PrrRepo = z.strictObject({
   repo_id: RepoId,
   visibility: RepoVisibility,
   owner_type: RepoOwnerType,
-  plan: z.string().min(1).nullable(),
+  /** The plan the owner attested on card 4 (`unknown` when they could not say). */
+  plan: RepoPlan,
   default_branch: z.string().min(1),
   archetype: z.string().min(1).nullable(),
 });

@@ -40,6 +40,8 @@ export interface TokenBrokerOptions {
   /** A token is renewed when it has less than this long to live. Default two minutes. */
   readonly skewMs?: number;
   readonly timeoutMs?: number;
+  /** The mint is the one POST: it is reported like a request (template path, status, role). */
+  readonly onMint?: (e: { method: 'POST'; path: string; status: number; auth: string }) => void;
 }
 
 const MintResponse = z.looseObject({
@@ -48,6 +50,7 @@ const MintResponse = z.looseObject({
   permissions: z.record(z.string(), z.string()),
 });
 
+const MINT_TEMPLATE = '/app/installations/{installation_id}/access_tokens';
 const LEVEL = { read: 1, write: 2, admin: 3 } as const;
 const levelOf = (l: string): number => (LEVEL as Record<string, number>)[l] ?? 99;
 
@@ -144,9 +147,11 @@ export class TokenBroker {
         signal: AbortSignal.timeout(this.o.timeoutMs ?? 10_000),
       });
     } catch (e) {
+      this.o.onMint?.({ method: 'POST', path: MINT_TEMPLATE, status: 0, auth: role });
       return err(notOkFromFetchError(e, what));
     }
     this.mints += 1;
+    this.o.onMint?.({ method: 'POST', path: MINT_TEMPLATE, status: res.status, auth: role });
     if (res.status !== 201 && res.status !== 200) {
       await res.body?.cancel().catch(() => undefined);
       // 422: the installation does not hold a permission the role asks for.

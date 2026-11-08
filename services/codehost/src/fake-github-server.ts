@@ -37,6 +37,11 @@ export interface FakeGitHubServerOptions {
   readonly seed?: CodeHostSeed;
   /** Token lifetime. Default one hour, as GitHub. */
   readonly tokenTtlMs?: number;
+  /** Where to listen. Default a random loopback port; the compose stack's fake host fixes both. */
+  readonly listenPort?: number;
+  readonly listenHost?: string;
+  /** Called for every request after it was answered (the compose stack prints them as its request log). */
+  readonly onRequest?: (r: FakeGitHubRequest) => void;
 }
 
 const ISO = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -130,7 +135,9 @@ export class FakeGitHubServer {
         res.writeHead(500).end();
       });
     });
-    await new Promise<void>((resolve) => this.server?.listen(0, '127.0.0.1', resolve));
+    await new Promise<void>((resolve) =>
+      this.server?.listen(this.o.listenPort ?? 0, this.o.listenHost ?? '127.0.0.1', resolve),
+    );
     this.baseUrl = `http://127.0.0.1:${(this.server?.address() as AddressInfo).port}`;
     return this;
   }
@@ -211,8 +218,15 @@ export class FakeGitHubServer {
     const bearer = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '');
     if (bearer) this.seenBearers.add(bearer[1] as string);
     const who = this.who(req);
+    if (path === '/healthz' && method === 'GET') {
+      // Not GitHub, not logged: the compose healthcheck's door.
+      res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
     const log = (status: number): void => {
-      this.requests.push({ method, path, query: url.search.slice(1), auth: who.kind, status });
+      const entry = { method, path, query: url.search.slice(1), auth: who.kind, status };
+      this.requests.push(entry);
+      this.o.onRequest?.(entry);
     };
 
     const mint = /^\/app\/installations\/(\d+)\/access_tokens$/.exec(path);

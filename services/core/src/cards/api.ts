@@ -172,6 +172,15 @@ export async function listCards(
   return ok(cards.map((card) => summaryOf({ loaded, cards, card })));
 }
 
+/** The summary of one card (no view built): what the portal's list shows, for one id. */
+export async function cardSummary(
+  deps: CardDeps,
+  cardId: string,
+): Promise<Result<OnboardingCardSummary, CoreError>> {
+  const r = await resolve(deps, cardId);
+  return r.ok ? ok(summaryOf(r.value)) : r;
+}
+
 export interface CardDetail {
   readonly summary: OnboardingCardSummary;
   /** What the person is shown. Its hash is the evidence a decision is bound to. */
@@ -289,7 +298,7 @@ export async function recordOnboardingEvidence(
   return r.ok ? ok(true) : err(decisionRefusal(r.error));
 }
 
-function decisionRefusal(e: { code: string; message: string }): CoreError {
+export function decisionRefusal(e: { code: string; message: string }): CoreError {
   const code =
     e.code === 'invalid_input'
       ? 'invalid_input'

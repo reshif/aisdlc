@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.tmp
+**/.vitest
+**/.cache
+**/coverage
+**/*.tsbuildinfo
+.git
+.pgdata
+.env
+.env.*
+platform/compose/secrets
+platform/compose/.env
