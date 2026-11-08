@@ -145,6 +145,7 @@ describe('a secret planted in history and deleted at the head', () => {
         open: 1,
         rotated: 0,
         false_positive: 0,
+        accepted_test_fixture: 0,
         rules_version: RULES_VERSION,
       });
 

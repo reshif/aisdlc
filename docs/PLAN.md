@@ -147,6 +147,8 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | M6.4 | Content lint (OB §3.4 "must not contain"): every doc whose body exists, repo front-matter ignored, claim and unknown text linted before indexing | `protected: true` front-matter and broken YAML are still linted |
 | M6.5 | Census assembly: census record, RiskCategory with evidence, posture (red/amber/green from B1–B5), gap ledger (`gap:<repo_id>:<criterion>[:<area>]`), pre-score, probe `pending` (B7: only K-exec counts) | Census of fixture repos produces every PRR input |
 
+| M6.6 | Presence detector for the criteria the Census could not observe (README, LICENSE, SECURITY.md, CONTRIBUTING, PR template, `.env.example` placeholders, Dependabot/Renovate, CI workflow running `check`, generated/vendored path declarations, quarantine manifest, decision records, runbook pointers, repo size/LFS/binaries) so a clean repo is not reported with ~19 unknown gaps | The clean golden census has no `no_detector` gaps; each newly observed criterion has a fixture test |
+
 ### M7 — Projects and S0 onboarding (OB R1b)
 
 | Task | Deliverable | Acceptance |

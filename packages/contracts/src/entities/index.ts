@@ -16,3 +16,4 @@ export * from './codehost.js';
 export * from './inbound-facts.js';
 export * from './detectors.js';
 export * from './knowledge.js';
+export * from './census.js';

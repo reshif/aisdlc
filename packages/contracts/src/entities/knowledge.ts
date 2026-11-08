@@ -19,6 +19,9 @@ export type FindingId = z.infer<typeof FindingId>;
 
 export const kjobStream = (id: string): string => `kjob:${id}`;
 export const findingStream = (id: string): string => `finding:${id}`;
+/** The Census stream (M6.5): `census:<repo_id>:<baseline_sha>`; each assembly at that head appends one event. */
+export const censusStream = (repoId: string, baselineSha: string): string =>
+  `census:${repoId}:${baselineSha}`;
 
 export const KNOWLEDGE_EVENT = {
   job_queued: 'kjob.queued',
@@ -27,6 +30,7 @@ export const KNOWLEDGE_EVENT = {
   job_error: 'kjob.error',
   finding_detected: 'finding.detected',
   finding_state_changed: 'finding.state_changed',
+  census_assembled: 'census.assembled',
 } as const;
 
 // ---------------------------------------------------------------- Caps (DEC-5 condition 2)

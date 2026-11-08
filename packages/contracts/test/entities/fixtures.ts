@@ -250,6 +250,7 @@ export function prrBody(over: PrrOver = {}): PrrBody {
         open: 0,
         rotated: 1,
         false_positive: 2,
+        accepted_test_fixture: 0,
         rules_version: 'rules@1',
       },
     },

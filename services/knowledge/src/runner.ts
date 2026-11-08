@@ -8,7 +8,9 @@ import {
   type KnowledgeJobId,
   type StartCensusIntakeRequest,
 } from '@aisdlc/contracts';
-import { BUNDLE_DEFAULT_CAP_BYTES } from '@aisdlc/contracts';
+import { BUNDLE_DEFAULT_CAP_BYTES, type CensusAttestations, type Level } from '@aisdlc/contracts';
+import { CATALOGUE, type CatalogueData } from '@aisdlc/catalogue';
+import { assembleCensus } from './census/index.js';
 import type { Result } from '@aisdlc/kernel';
 import { rulesVersion, RULES, type SecretRule } from '@aisdlc/secrets-rules';
 import type { KnowledgeError } from './errors.js';
@@ -47,6 +49,15 @@ export interface RunnerOptions extends StoreDeps {
   readonly rules?: readonly SecretRule[];
   /** Hosts a doc may link to without a content-lint finding (default: the repo host, loopback, reserved example hosts). */
   readonly urlAllowList?: readonly string[];
+  /** The catalogue the census is assembled against (default: the one this build carries). */
+  readonly catalogue?: CatalogueData;
+  /** The level the census is assembled for (default `census`: step 0.1 of every onboarding). */
+  readonly censusLevel?: Level;
+  /**
+   * What the code host and the owner attested for a repo (B4, CF1, CF4, card 1); a seam for M7. An
+   * absent answer, or a refusal, leaves every one of those facts unknown, which counts as unmet.
+   */
+  readonly attestations?: (repo: string) => Promise<CensusAttestations | undefined>;
   readonly log?: (line: string) => void;
   /** Test seam: called with the mirror directory after it is built, before the scan. */
   readonly afterMirror?: (mirrorDir: string) => Promise<void> | void;
@@ -229,24 +240,34 @@ export class JobRunner {
       }
       const coverage = mergeCoverage(scan.items, scan.counts, detected.coverage);
       const files = headTree.filter((e) => e.type === 'blob');
-      const job = await finishJob(o, id, {
-        base: {
-          repo: req.repo,
-          base_sha: mirror.base_sha,
-          manifest,
-          bundle_sha256: download.sha256 as never,
-          bundle_bytes: download.bytes,
-          refs: [...mirror.refs],
-          head_tree: { files: files.length, bytes: files.reduce((n, e) => n + (e.size ?? 0), 0) },
-          coverage_items: coverage.items,
-          coverage_counts: coverage.counts as Partial<Record<CoverageKind, number>>,
-          scan_status: scan.status,
-          scan_error: scan.error,
-          scan_coverage: scan.coverage,
-          detectors: detected.result,
+      // Attestations are read before the job's transaction; a failing source means "nothing attested".
+      const attested = await (o.attestations?.(req.repo) ?? Promise.resolve(undefined)).catch(
+        () => undefined,
+      );
+      const catalogue = o.catalogue ?? CATALOGUE;
+      const job = await finishJob(
+        o,
+        id,
+        {
+          base: {
+            repo: req.repo,
+            base_sha: mirror.base_sha,
+            manifest,
+            bundle_sha256: download.sha256 as never,
+            bundle_bytes: download.bytes,
+            refs: [...mirror.refs],
+            head_tree: { files: files.length, bytes: files.reduce((n, e) => n + (e.size ?? 0), 0) },
+            coverage_items: coverage.items,
+            coverage_counts: coverage.counts as Partial<Record<CoverageKind, number>>,
+            scan_status: scan.status,
+            scan_error: scan.error,
+            scan_coverage: scan.coverage,
+            detectors: detected.result,
+          },
+          findings: scan.findings,
         },
-        findings: scan.findings,
-      });
+        (result) => assembleCensus(result, catalogue, o.censusLevel ?? 'census', attested ?? {}),
+      );
       this.log(
         `knowledge: job ${id}: done in ${Math.round(performance.now() - t0)} ms (scan ${job.result?.scan_status}, ` +
           `${scan.coverage.commits_scanned} commits, ${scan.coverage.blobs_scanned} blobs)`,

@@ -215,6 +215,7 @@ export const PrrPillar = z.strictObject({
   /** Per-area levels. OB §2.4 writes `by_area` without a shape; area to level. */
   by_area: z.record(AreaId, RlLevel).optional(),
 });
+export type PrrPillar = z.infer<typeof PrrPillar>;
 
 /** `gating_profile` of OB §1C plus whether the project deploys, which the G5 floor needs. */
 export const PrrGatingProfile = GatingProfile.extend({
@@ -327,6 +328,8 @@ export const PrrSecuritySummary = z.strictObject({
     open: z.number().int().min(0),
     rotated: z.number().int().min(0),
     false_positive: z.number().int().min(0),
+    /** A human accepted the finding as a test fixture (OB §5.2 B1): counted apart, never folded into another state. */
+    accepted_test_fixture: z.number().int().min(0),
     rules_version: z.string().min(1),
   }),
 });
@@ -384,7 +387,7 @@ export function prrRecordId(projectId: string, repoId: string): string {
 const FORBIDDEN_KEY = /secret|fingerprint|hmac|password|private_key|api_key/i;
 
 /** Key names that would carry a secret value or fingerprint, anywhere in the record. */
-function forbiddenKeys(value: unknown, path: string, out: string[]): void {
+export function forbiddenKeys(value: unknown, path: string, out: string[]): void {
   if (Array.isArray(value)) {
     value.forEach((v, i) => forbiddenKeys(v, `${path}[${i}]`, out));
   } else if (value !== null && typeof value === 'object') {

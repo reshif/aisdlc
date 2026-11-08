@@ -22,6 +22,9 @@ import {
   type SetFindingStateRequest,
   type StartCensusIntakeRequest,
   FindingDetectedPayload,
+  CensusAssembledPayload,
+  censusStream,
+  type CensusRecord,
   type CoverageItem,
 } from '@aisdlc/contracts';
 import { withTransaction } from '@aisdlc/db';
@@ -45,6 +48,7 @@ import type pg from 'pg';
 import { knowledgeError, type KnowledgeError } from './errors.js';
 import type { PrincipalDirectory } from './principals.js';
 import type { ScannedFinding } from './scan.js';
+import { censusProjection } from './census/store.js';
 
 // The job store and the Security-only findings store (PLAN M6.1, M6.2).
 //
@@ -151,6 +155,11 @@ async function catchUp(pool: pg.Pool): Promise<void> {
   if (!r.ok)
     throw new Error(
       `knowledge-jobs projection: version mismatch (${r.error.stored_version} != ${r.error.code_version})`,
+    );
+  const c = await runProjection(pool, censusProjection);
+  if (!c.ok)
+    throw new Error(
+      `knowledge-census projection: version mismatch (${c.error.stored_version} != ${c.error.code_version})`,
     );
 }
 
@@ -296,6 +305,7 @@ export function securitySummary(
       open: c.open,
       rotated: c.rotated,
       false_positive: c.false_positive,
+      accepted_test_fixture: c.accepted_test_fixture,
       rules_version: cov.rules_version,
     },
   };
@@ -316,6 +326,12 @@ export async function finishJob(
   deps: StoreDeps,
   id: KnowledgeJobId,
   out: JobOutput,
+  /**
+   * Assembles the census from the finished result (PLAN M6.5). It runs in the same transaction, so
+   * a job is `done` with its census or not at all, and it sees the counts that include earlier
+   * human decisions. A throw rolls the whole job back; the caller then fails the job.
+   */
+  assemble?: (result: IntakeResult) => CensusRecord,
 ): Promise<KnowledgeJob> {
   const clock = clockOf(deps);
   await withTransaction(deps.pool, async (tx) => {
@@ -391,6 +407,34 @@ export async function finishJob(
       { clock },
     );
     if (!done.ok) throw new Error(`append failed: ${done.error._tag}`);
+    if (assemble !== undefined) {
+      const census = assemble(result);
+      const stream = censusStream(census.repo.repo_id, census.baseline_sha);
+      const head = await tx.query<{ seq: string }>(
+        'SELECT coalesce(max(seq), 0)::text AS seq FROM record.record_event WHERE stream = $1',
+        [stream],
+      );
+      const a = await appendEvents(
+        tx,
+        stream,
+        Number(head.rows[0]?.seq ?? 0),
+        [
+          {
+            type: KNOWLEDGE_EVENT.census_assembled,
+            actor: KNOWLEDGE_ACTOR,
+            idempotency_key: `census:${id}`,
+            body: CensusAssembledPayload.parse({
+              job_id: id,
+              repo,
+              census_hash: census.census_hash,
+              census,
+            }),
+          },
+        ],
+        { clock },
+      );
+      if (!a.ok) throw new Error(`append failed: ${a.error._tag}`);
+    }
   });
   await catchUp(deps.pool);
   const job = await getJob(deps.pool, id);

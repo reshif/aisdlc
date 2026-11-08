@@ -12,6 +12,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { KNOWLEDGE_STATUS, knowledgeError, type KnowledgeError } from './errors.js';
 import type { PrincipalDirectory } from './principals.js';
+import { getLatestCensus } from './census/store.js';
 import type { JobRunner } from './runner.js';
 import {
   countFindings,
@@ -119,6 +120,18 @@ export function createKnowledgeApp(o: KnowledgeAppOptions): FastifyInstance {
       b1_blocked: b1Blocked(counts),
       b2_reasons: b2Reasons(r),
     };
+  });
+
+  /**
+   * The newest census of a repo and its gap ledger (PLAN M6.5). Counts only where secrets are
+   * concerned: the record holds no finding, fingerprint, path or commit, and neither does this.
+   */
+  app.get('/v1/repos/:owner/:name/census/latest', async (req, reply) => {
+    if (!allowed(req, 'census')) return forbid(reply, 'census');
+    const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
+    if (!repo.success) return bad(reply, 'owner/name is not a repository');
+    const latest = await getLatestCensus(o.pool, repo.data);
+    return latest ?? fail(reply, knowledgeError('not_found', 'no census for this repository'));
   });
 
   // ------------------------------------------------------------ Security only
