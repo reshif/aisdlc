@@ -1,6 +1,6 @@
 import { systemClock } from '@aisdlc/kernel';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
-import { FakeRegisteredRepos, FileRegisteredRepos } from '@aisdlc/ports';
+import { FakeRegisteredRepos, FileRegisteredRepos, HttpRegisteredRepos } from '@aisdlc/ports';
 import { GitHubRestCodeHost } from './adapter.js';
 import { createCodeHostApp } from './app.js';
 import { codeHostConfigFromEnv } from './config.js';
@@ -32,9 +32,11 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
     mode: cfg.mode,
     log: (line) => console.log(`codehost: ${line}`),
   });
-  const registered = cfg.registeredReposFile
-    ? new FileRegisteredRepos(cfg.registeredReposFile)
-    : new FakeRegisteredRepos().breakIt();
+  const registered = cfg.core
+    ? new HttpRegisteredRepos({ baseUrl: cfg.core.url, token: cfg.core.token })
+    : cfg.registeredReposFile
+      ? new FileRegisteredRepos(cfg.registeredReposFile)
+      : new FakeRegisteredRepos().breakIt();
   const app = createCodeHostApp({
     host: new AllowListedCodeHost(
       new GitHubRestCodeHost({

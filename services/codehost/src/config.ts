@@ -34,6 +34,8 @@ export interface CodeHostConfig {
   readonly identityUrl: string;
   readonly identityToken: string;
   readonly registeredReposFile: string | null;
+  /** Core's API, the source of the registered repos (PLAN M7.1); `null`: the file, or nothing. */
+  readonly core: { readonly url: string; readonly token: string } | null;
   /** Where git clones from (`https://github.com`); the token goes there in a header. */
   readonly gitUrl: string;
   readonly bundleCapBytes: number;
@@ -62,8 +64,11 @@ const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
  *   CODEHOST_IDENTITY_URL, CODEHOST_IDENTITY_TOKEN_REF   identity API and the codehost's token there
  *   CODEHOST_GIT_URL              default https://github.com; plain http only to loopback (tests)
  *   CODEHOST_BUNDLE_CAP_BYTES     default 268435456 (256 MiB); CODEHOST_BUNDLE_TIMEOUT_MS  default 180000
- *   CODEHOST_REGISTERED_REPOS_FILE  JSON [{project_id, repo}] standing in for Projects until M7;
- *                                 without it no repo is registered, so none is allowed
+ *   CODEHOST_CORE_URL, CODEHOST_CORE_TOKEN_REF   core's API (scope `registry`): the repos that have an
+ *                                 S0 record or request (PLAN M7.1)
+ *   CODEHOST_REGISTERED_REPOS_FILE  JSON [{project_id, repo}] for a development setup without core
+ *                                 (not together with CODEHOST_CORE_URL); with neither no repo is
+ *                                 registered, so none is allowed
  */
 export function codeHostConfigFromEnv(env: Env): CodeHostConfig {
   const appId = requiredEnv(env, 'CODEHOST_GITHUB_APP_ID');
@@ -96,6 +101,12 @@ export function codeHostConfigFromEnv(env: Env): CodeHostConfig {
   if (mode !== 'census') throw new ServiceConfigError('CODEHOST_MODE must be census');
   const callers = jsonEnv(env, 'CODEHOST_CALLERS', Callers);
   const file = env['CODEHOST_REGISTERED_REPOS_FILE'];
+  const coreUrl = env['CODEHOST_CORE_URL'];
+  if (coreUrl !== undefined && coreUrl !== '' && file !== undefined && file !== '') {
+    throw new ServiceConfigError(
+      'CODEHOST_CORE_URL and CODEHOST_REGISTERED_REPOS_FILE are two sources for the same thing: set one',
+    );
+  }
   if (file !== undefined && file !== '') {
     try {
       readFileSync(file, 'utf8');
@@ -118,6 +129,13 @@ export function codeHostConfigFromEnv(env: Env): CodeHostConfig {
     identityUrl: httpUrlEnv(env, 'CODEHOST_IDENTITY_URL'),
     identityToken: resolveSecretRef(requiredEnv(env, 'CODEHOST_IDENTITY_TOKEN_REF'), { env }),
     registeredReposFile: file === undefined || file === '' ? null : file,
+    core:
+      coreUrl === undefined || coreUrl === ''
+        ? null
+        : {
+            url: httpUrlEnv(env, 'CODEHOST_CORE_URL'),
+            token: resolveSecretRef(requiredEnv(env, 'CODEHOST_CORE_TOKEN_REF'), { env }),
+          },
     gitUrl,
     bundleCapBytes: intEnv(env, 'CODEHOST_BUNDLE_CAP_BYTES', BUNDLE_DEFAULT_CAP_BYTES, 1),
     bundleTimeoutMs: intEnv(env, 'CODEHOST_BUNDLE_TIMEOUT_MS', BUNDLE_DEFAULT_TIMEOUT_MS, 1000),

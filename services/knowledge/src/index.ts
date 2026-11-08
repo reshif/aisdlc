@@ -10,6 +10,7 @@ export * from './detectors/index.js';
 export * from './census/index.js';
 export * from './fingerprint.js';
 export * from './principals.js';
+export * from './decision-ref.js';
 export * from './store.js';
 export * from './http-bundle.js';
 export * from './runner.js';

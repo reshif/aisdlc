@@ -50,8 +50,17 @@ afterAll(async () => {
   scratch.dispose();
 });
 
+// The card decision a state change rests on. The verifier of this stack is a fake that accepts
+// it; the real one is exercised against the real ledger in core's tests (PLAN M7.4).
+const REF = {
+  card_id: '01a1ba7f-5e9c-7048-b519-93e50b1776a9',
+  ledger_entry_id: '01a1ba7f-5e9c-7048-b519-93e50b1776aa',
+};
 const setState = (token: string | null, body: unknown, id = findingId) =>
-  s.call(token, 'POST', `/v1/security/findings/${id}/state`, body);
+  s.call(token, 'POST', `/v1/security/findings/${id}/state`, {
+    decision_ref: REF,
+    ...(body as object),
+  });
 
 describe('scopes', () => {
   it('start and status need census; findings and states need security; nothing without a token', async () => {
@@ -111,6 +120,47 @@ describe('scopes', () => {
   });
 });
 
+describe('the state of a finding changes only on a ledgered card decision (PLAN M7.4)', () => {
+  it('a request with no decision reference is invalid, and one the ledger cannot confirm is refused: nothing changes', async () => {
+    const bare = await s.call(
+      s.tokens.security,
+      'POST',
+      `/v1/security/findings/${findingId}/state`,
+      {
+        state: 'rotated',
+        principal_id: 'alice',
+        reason: 'x',
+      },
+    );
+    expect(bare.status).toBe(400);
+    const asked = s.decisions.asked.length;
+    s.decisions.refuse = 'the decision is not on the ledger';
+    try {
+      const refused = await setState(s.tokens.security, {
+        state: 'rotated',
+        principal_id: 'alice',
+        reason: 'x',
+      });
+      expect(refused.status).toBe(403);
+      expect(refused.json).toMatchObject({ error: { code: 'decision_refused' } });
+    } finally {
+      s.decisions.refuse = null;
+    }
+    expect(s.decisions.asked.length).toBe(asked + 1);
+    expect(s.decisions.asked.at(-1)).toMatchObject({
+      ref: REF,
+      check: { finding_id: findingId, state: 'rotated', principal_id: 'alice', repo: 'acme/app' },
+    });
+    const f = (await s.call(s.tokens.security, 'GET', `/v1/security/findings/${findingId}`))
+      .json as { state: string };
+    expect(f.state).toBe('open');
+    const events = await s.db.pool.query(
+      `SELECT 1 FROM record.record_event WHERE type = 'finding.state_changed'`,
+    );
+    expect(events.rowCount).toBe(0);
+  });
+});
+
 describe('the state of a finding is set only by a human principal', () => {
   it('refuses a service principal, an unknown principal, a disabled one, and an identity service that cannot answer', async () => {
     const body = (principal_id: string) => ({ state: 'rotated', principal_id, reason: 'done' });
@@ -145,6 +195,7 @@ describe('the state of a finding is set only by a human principal', () => {
           state: 'rotated',
           principal_id: 'alice',
           reason: 'x',
+          decision_ref: REF,
         },
       );
       expect(r.status).toBe(503);

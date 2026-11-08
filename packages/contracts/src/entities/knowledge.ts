@@ -2,7 +2,15 @@ import { z } from 'zod';
 import { defineMachine, type TransitionTable } from '../states/machine.js';
 import { BundleManifest, BundleRefs, RepoFullName } from './codehost.js';
 import { DetectorsResult } from './detectors.js';
-import { GitSha, IsoDateTime, PrincipalId, Sha256Hex, uuidId } from './ids.js';
+import {
+  CardId,
+  GitSha,
+  IsoDateTime,
+  LedgerEntryId,
+  PrincipalId,
+  Sha256Hex,
+  uuidId,
+} from './ids.js';
 import { PrrSecuritySummary } from './readiness.js';
 
 // Knowledge (PLAN M6.1, M6.2; OB §5.3, §6.5 "Bytes flow", DEC-5): bundle intake into a hardened
@@ -193,10 +201,23 @@ export const SecurityFinding = z.strictObject({
 });
 export type SecurityFinding = z.infer<typeof SecurityFinding>;
 
+/**
+ * The ledgered decision that authorises a finding's state change (PLAN M7.4): the security card
+ * and its `card.step_decision` entry. Knowledge accepts a state change only with a reference it can
+ * verify against the ledger, so the card is the only path.
+ */
+export const FindingDecisionRef = z.strictObject({
+  card_id: CardId,
+  ledger_entry_id: LedgerEntryId,
+});
+export type FindingDecisionRef = z.infer<typeof FindingDecisionRef>;
+
 /** The human's request. The principal is bound by the caller (the bff); a service principal is refused. */
 export const SetFindingStateRequest = z.strictObject({
   state: FindingState.exclude(['open']),
   principal_id: PrincipalId,
+  /** The decided, ledgered security-card decision for exactly this finding and state. */
+  decision_ref: FindingDecisionRef,
   /** Free text from the human. It stays in the Security store; the record holds its hash. */
   reason: z.string().min(1).max(2000),
 });

@@ -49,6 +49,21 @@ describe('the identity bundle fails fast on bad configuration', () => {
     expect(port.stderr).toMatch(/IDENTITY_PORT must be an integer/);
   });
 
+  it('takes the project settings from core or from a file, never both, and core needs its token', () => {
+    const base = {
+      IDENTITY_DATABASE_URL: 'postgres://localhost/db',
+      IDENTITY_CALLERS: JSON.stringify({ a: { token_ref: 'env:T', scopes: ['read'] } }),
+      T: 'a'.repeat(32),
+      IDENTITY_CORE_URL: 'http://127.0.0.1:1',
+    };
+    const both = runOnce({ ...base, IDENTITY_PROJECT_SETTINGS_FILE: '/nowhere.json' });
+    expect(both.status).toBe(78);
+    expect(both.stderr).toMatch(/two sources for the same thing/);
+    const noToken = runOnce(base);
+    expect(noToken.status).toBe(78);
+    expect(noToken.stderr).toMatch(/IDENTITY_CORE_TOKEN_REF is required/);
+  });
+
   it('refuses to run without a Notary unless access sync is explicitly off', () => {
     const r = runOnce({
       IDENTITY_DATABASE_URL: 'postgres://localhost/db',

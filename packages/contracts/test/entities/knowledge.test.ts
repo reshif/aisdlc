@@ -36,9 +36,23 @@ describe('knowledge contracts', () => {
     expect(KnowledgeJobMachine.canTransition('error', 'running')).toBe(false);
   });
 
-  it('a state change names a human principal, a non-open state and a reason', () => {
-    const good = { state: 'rotated', principal_id: 'alice', reason: 'rotated in the console' };
+  it('a state change names a human principal, a non-open state, a reason and the ledgered card decision (PLAN M7.4)', () => {
+    const good = {
+      state: 'rotated',
+      principal_id: 'alice',
+      reason: 'rotated in the console',
+      decision_ref: {
+        card_id: '01a1ba7f-5e9c-7048-b519-93e50b1776a9',
+        ledger_entry_id: '01a1ba7f-5e9c-7048-b519-93e50b1776aa',
+      },
+    };
     expect(SetFindingStateRequest.safeParse(good).success).toBe(true);
+    // No reference to a decision: the card is the only path, so this is not a request at all.
+    const bare = { ...good, decision_ref: undefined };
+    expect(SetFindingStateRequest.safeParse(bare).success).toBe(false);
+    expect(
+      SetFindingStateRequest.safeParse({ ...good, decision_ref: { card_id: 'x' } }).success,
+    ).toBe(false);
     expect(SetFindingStateRequest.safeParse({ ...good, state: 'open' }).success).toBe(false);
     expect(SetFindingStateRequest.safeParse({ ...good, reason: '' }).success).toBe(false);
     expect(SetFindingStateRequest.safeParse({ state: 'rotated', reason: 'x' }).success).toBe(false);

@@ -12,7 +12,12 @@ import { manualClock, type Jwk, type ManualClock } from '@aisdlc/kernel';
 import { startTestKms, type TestKms } from '@aisdlc/kms-local/testing';
 import { migrateLedger, type LedgerClientDeps } from '@aisdlc/ledger';
 import { startTestNotary, type TestNotary } from '@aisdlc/notary/testing';
-import { FakeIdentityProvider, FakeProjectSettings, type IdpSnapshot } from '@aisdlc/ports';
+import {
+  FakeIdentityProvider,
+  FakeProjectSettings,
+  type IdpSnapshot,
+  type ProjectSettingsPort,
+} from '@aisdlc/ports';
 import { migrateRecord } from '@aisdlc/record';
 import { ServiceAuth, listen } from '@aisdlc/service-kit';
 import { syncAccessLedger, type AccessSyncReport } from './access-sync.js';
@@ -250,6 +255,8 @@ export async function linkGithubLogin(
 export async function startTestIdentityApi(
   s: IdentityStack,
   callers: Record<string, { token: string; scopes: readonly IdentityScope[] }>,
+  /** Another source of project settings than the stack's fake (core's HTTP adapter, say). */
+  over: { settings?: ProjectSettingsPort } = {},
 ): Promise<{ url: string; stop(): Promise<void> }> {
   const app = createIdentityApp({
     pool: s.record.pool,
@@ -257,7 +264,7 @@ export async function startTestIdentityApi(
       Object.fromEntries(Object.entries(callers).map(([n, c]) => [n, c.token])),
     ),
     callers: Object.fromEntries(Object.entries(callers).map(([n, c]) => [n, c.scopes])),
-    settings: s.settings,
+    settings: over.settings ?? s.settings,
     clock: s.clock,
   });
   const url = await listen(app);

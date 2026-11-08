@@ -26,8 +26,10 @@ import {
   GapId,
   PrrSecuritySummary,
   ReadinessPillar,
+  ReadinessPillarValues,
   SignerMode,
   forbiddenKeys,
+  type PrrPillar,
 } from './readiness.js';
 
 // The Census record (PLAN M6.5; OB §2.1-§2.4, §3.1-§3.3, §5.1-§5.2, §6.2 row 0.1, §7; DM §3.2,
@@ -51,6 +53,14 @@ export const CENSUS_AREA = '.';
 
 export const censusId = (repoId: string, baselineSha: string): string =>
   `census:${repoId}:${baselineSha}`;
+
+/**
+ * The factory's repo id: `<owner>.<name>` lowercase. GitHub owners never contain `.`, so it is
+ * unambiguous. Core's Repo and the Census use this one rule.
+ */
+export function repoIdOf(fullName: string): string {
+  return fullName.toLowerCase().replace('/', '.');
+}
 
 // ---------------------------------------------------------------- Mapping and N/A rules
 
@@ -485,6 +495,39 @@ export type CensusBody = Omit<CensusRecord, 'census_hash'>;
 
 export function sealCensus(body: CensusBody): CensusRecord {
   return { ...body, census_hash: censusHash(body) };
+}
+
+/**
+ * The Census's pillars in the PRR's shape (`PrrPillar`), for the PRR builder (M7.4): the criteria
+ * evaluated at the requested level (N/A ones are left out: the PRR has no N/A), `met` true, false
+ * or `unknown`, and the gap each unmet or unknown one opened. One definition: knowledge re-exports
+ * it and core's builder imports it.
+ */
+export function toPrrPillars(census: CensusRecord): PrrPillar[] {
+  return ReadinessPillarValues.map((pillar) => {
+    const score = census.pre_score.pillars.find((p) => p.pillar === pillar);
+    const criteria = census.criteria
+      .filter((c) => c.pillar === pillar && c.status !== 'na' && c.class !== null)
+      .map((c) => {
+        const e = c.evidence[0];
+        return {
+          id: c.id,
+          class: c.class as NonNullable<typeof c.class>,
+          met: c.status === 'met' ? true : c.status === 'unmet' ? false : ('unknown' as const),
+          evidence_ref:
+            e === undefined
+              ? null
+              : `${e.ref}${e.path === undefined ? '' : `@${e.path}${e.line === undefined ? '' : `:${e.line}`}`}`,
+          ...(c.gap_id === undefined ? {} : { gap_id: c.gap_id }),
+        };
+      });
+    return {
+      pillar,
+      level: score?.level ?? 0,
+      criteria,
+      by_area: score?.by_area ?? {},
+    };
+  });
 }
 
 // ---------------------------------------------------------------- Event and HTTP shapes

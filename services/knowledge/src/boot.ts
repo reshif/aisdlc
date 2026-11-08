@@ -4,6 +4,7 @@ import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/ser
 import { createKnowledgeApp } from './app.js';
 import { knowledgeConfigFromEnv } from './config.js';
 import { kmsFingerprinter } from './fingerprint.js';
+import { LedgerDecisionVerifier } from './decision-ref.js';
 import { HttpBundleSource } from './http-bundle.js';
 import { migrateKnowledge } from './migrations.js';
 import { HttpPrincipalDirectory } from './principals.js';
@@ -23,12 +24,14 @@ export async function bootKnowledge(env: Env): Promise<RunningService> {
   const custody = httpKeyCustodyFromEnv(env);
   const pool = createPool(cfg.databaseUrl, 8);
   try {
-    const have = await pool.query<{ record: string | null }>(
-      `SELECT to_regclass('record.record_event')::text AS record`,
+    const have = await pool.query<{ record: string | null; ledger: string | null }>(
+      `SELECT to_regclass('record.record_event')::text AS record,
+              to_regclass('ledger.ledger_entry')::text AS ledger`,
     );
-    if (have.rows[0]?.record == null) {
-      throw new Error('the record schema is missing: migrate the record database first');
+    if (have.rows[0]?.record == null || have.rows[0]?.ledger == null) {
+      throw new Error('the record or ledger schema is missing: migrate the record database first');
     }
+
     await migrateKnowledge(pool);
     const runner = new JobRunner({
       pool,
@@ -55,6 +58,15 @@ export async function bootKnowledge(env: Env): Promise<RunningService> {
       principals: new HttpPrincipalDirectory({
         baseUrl: cfg.identityUrl,
         token: cfg.identityToken,
+      }),
+      // The Notary's public key comes from kms-local on first use (a key lookup, never a signing
+      // call), so start makes no network call: a state change checks the signature of the card
+      // decision it rests on (PLAN M7.4).
+      decisions: new LedgerDecisionVerifier({
+        keySource: async () => {
+          const k = await custody.publicKey('dev:notary');
+          return k.ok ? k.value : null;
+        },
       }),
     });
     const url = await listen(app, listenOpts);

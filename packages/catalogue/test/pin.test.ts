@@ -149,6 +149,7 @@ describe('catalogue pinning (M1.6)', () => {
       repo_id: 'r1',
       status: 'app',
       requested_level: 'census',
+      signable_level: 'census',
       intake_ref: 'record:e1',
       rejected_at: null,
       readiness_version: null,

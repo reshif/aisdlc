@@ -58,9 +58,11 @@ export {
   type PayloadCheck,
   type PrepareCardInput,
   type PreparedCard,
+  type PreparedStep,
 } from './inbox/decide.js';
+export { withdrawCard, type WithdrawCardInput } from './inbox/withdraw.js';
 export { inboxProjection, readCardViews, type CardViewFilter } from './inbox/projection.js';
-export { deriveCardStatus, readCardState, type CardState } from './inbox/state.js';
+export { deriveCardStatus, readCardOpened, readCardState, type CardState } from './inbox/state.js';
 export { listInbox, sweepSla, type InboxItem, type SlaReport } from './inbox/sla.js';
 // What a package that appends to the record next to the decision kernel (config publishing) needs
 // from it: the same lock order (gate key, ledger lock, appends, entry last).

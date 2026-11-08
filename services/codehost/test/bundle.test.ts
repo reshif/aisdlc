@@ -56,6 +56,16 @@ describe('the codehost bundle fails fast on bad configuration', () => {
       ],
       [{ ...good, CODEHOST_IDENTITY_URL: 'ftp://x' }, /http\(s\) URL/],
       [{ ...good, CODEHOST_REGISTERED_REPOS_FILE: join(dir, 'missing.json') }, /not readable/],
+      [
+        {
+          ...good,
+          CODEHOST_CORE_URL: 'http://127.0.0.1:1',
+          CODEHOST_CORE_TOKEN_REF: 'env:T',
+          CODEHOST_REGISTERED_REPOS_FILE: join(dir, 'x.json'),
+        },
+        /two sources for the same thing/,
+      ],
+      [{ ...good, CODEHOST_CORE_URL: 'http://127.0.0.1:1' }, /CODEHOST_CORE_TOKEN_REF is required/],
     ];
     for (const [env, re] of cases) {
       const r = runOnce(env);

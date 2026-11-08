@@ -11,7 +11,14 @@ export interface CoreWorkerConfig {
   readonly databaseUrl: string;
   readonly codehostUrl: string;
   readonly codehostToken: string;
-  readonly registeredReposFile: string;
+  /** A JSON file standing in for core's registered repos; `null`: core's own read model. */
+  readonly registeredReposFile: string | null;
+  /** The S0 step driver (PLAN M7.2): knowledge's API; `null`: the driver does not run. */
+  readonly knowledge: { readonly url: string; readonly token: string } | null;
+  /** The role-map sync (PLAN M7.1): identity's API; `null`: the sync does not run. */
+  readonly identity: { readonly url: string; readonly token: string } | null;
+  readonly s0DriverIntervalMs: number;
+  readonly roleMapSyncIntervalMs: number;
   readonly headIntervalMs: number;
   readonly installationIntervalMs: number;
   readonly rulesInFlightIntervalMs: number;
@@ -36,19 +43,39 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   (`aisdlc-migrate`)
  *   CORE_WORKER_CODEHOST_URL, CORE_WORKER_CODEHOST_TOKEN_REF   the codehost and this worker's
  *                                   service token there (scopes census and posture)
- *   CORE_WORKER_REGISTERED_REPOS_FILE   JSON [{project_id, repo}] standing in for Projects until M7
+ *   CORE_WORKER_REGISTERED_REPOS_FILE   JSON [{project_id, repo}] for a development setup; without
+ *                                   it the polls read the repos that have an S0 record from core's own
+ *                                   read model (the core schema must be migrated)
+ *   CORE_WORKER_KNOWLEDGE_URL, CORE_WORKER_KNOWLEDGE_TOKEN_REF   knowledge's API (scope `census`);
+ *                                   with them the S0 step driver runs (it also needs the codehost
+ *                                   scopes census and posture and the core schema)
+ *   CORE_WORKER_IDENTITY_URL, CORE_WORKER_IDENTITY_TOKEN_REF   identity's API (scope `reconcile`);
+ *                                   with them a published project role map is reconciled
+ *   CORE_WORKER_S0_DRIVER_INTERVAL_MS (15000), CORE_WORKER_ROLE_MAP_SYNC_INTERVAL_MS (10000)
  *   CORE_WORKER_HEAD_INTERVAL_MS (600000), CORE_WORKER_INSTALLATION_INTERVAL_MS (600000),
  *   CORE_WORKER_RULES_IN_FLIGHT_INTERVAL_MS (3600000), CORE_WORKER_RULES_IDLE_INTERVAL_MS (86400000),
  *   CORE_WORKER_RULES_TICK_MS (300000), CORE_WORKER_OUTBOX_WATCH_INTERVAL_MS (30000)
  *   CORE_WORKER_HOST / _PORT        the health and metrics endpoint, default 127.0.0.1:8360
  */
 export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
-  const file = requiredEnv(env, 'CORE_WORKER_REGISTERED_REPOS_FILE');
+  const file = env['CORE_WORKER_REGISTERED_REPOS_FILE'];
+  const remote = (name: string) => {
+    const url = env[`CORE_WORKER_${name}_URL`];
+    if (url === undefined || url === '') return null;
+    return {
+      url: httpUrlEnv(env, `CORE_WORKER_${name}_URL`),
+      token: resolveSecretRef(requiredEnv(env, `CORE_WORKER_${name}_TOKEN_REF`), { env }),
+    };
+  };
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
     codehostToken: resolveSecretRef(requiredEnv(env, 'CORE_WORKER_CODEHOST_TOKEN_REF'), { env }),
-    registeredReposFile: file,
+    registeredReposFile: file === undefined || file === '' ? null : file,
+    knowledge: remote('KNOWLEDGE'),
+    identity: remote('IDENTITY'),
+    s0DriverIntervalMs: intEnv(env, 'CORE_WORKER_S0_DRIVER_INTERVAL_MS', 15_000, 100),
+    roleMapSyncIntervalMs: intEnv(env, 'CORE_WORKER_ROLE_MAP_SYNC_INTERVAL_MS', 10_000, 100),
     headIntervalMs: intEnv(env, 'CORE_WORKER_HEAD_INTERVAL_MS', 600_000, 100),
     installationIntervalMs: intEnv(env, 'CORE_WORKER_INSTALLATION_INTERVAL_MS', 600_000, 100),
     rulesInFlightIntervalMs: intEnv(env, 'CORE_WORKER_RULES_IN_FLIGHT_INTERVAL_MS', 3_600_000, 100),

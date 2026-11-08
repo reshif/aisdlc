@@ -6,6 +6,7 @@ import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import {
   FakeProjectSettings,
+  HttpProjectSettings,
   SeedIdentityProvider,
   projectSettingsError,
   type ProjectSettingsError,
@@ -42,7 +43,7 @@ const SettingsFile = z.array(
   z.strictObject({ settings: ProjectSettings, tier: z.enum(['T0', 'T1', 'T2']).nullable() }),
 );
 
-/** No Projects service until M7: without a fixture file every settings lookup is refused (fail closed). */
+/** Without a settings source every lookup is refused (fail closed). */
 class UnavailableSettings implements ProjectSettingsPort {
   async get(project: ProjectId): Promise<Result<ProjectSettingsView, ProjectSettingsError>> {
     return err(
@@ -56,6 +57,19 @@ class UnavailableSettings implements ProjectSettingsPort {
 
 function settingsFromEnv(env: Env): ProjectSettingsPort {
   const file = env['IDENTITY_PROJECT_SETTINGS_FILE'];
+  const coreUrl = env['IDENTITY_CORE_URL'];
+  if (coreUrl !== undefined && coreUrl !== '') {
+    if (file !== undefined && file !== '') {
+      throw new ServiceConfigError(
+        'IDENTITY_CORE_URL and IDENTITY_PROJECT_SETTINGS_FILE are two sources for the same thing: set one',
+      );
+    }
+    // Projects live in core (PLAN M7.1): the settings in force are core's, read over its HTTP API.
+    return new HttpProjectSettings({
+      baseUrl: httpUrlEnv(env, 'IDENTITY_CORE_URL'),
+      token: resolveSecretRef(requiredEnv(env, 'IDENTITY_CORE_TOKEN_REF'), { env }),
+    });
+  }
   if (file === undefined || file === '') return new UnavailableSettings();
   let raw: unknown;
   try {
@@ -85,7 +99,10 @@ function settingsFromEnv(env: Env): ProjectSettingsPort {
  *                            IDENTITY_ACCESS_SYNC=off, which only a test environment should set)
  *   IDENTITY_SYNC_INTERVAL_MS  access-sync tick, default 5000
  *   IDENTITY_IDP_SEED_FILE   JSON seed for the local identity provider (optional)
- *   IDENTITY_PROJECT_SETTINGS_FILE  JSON [{settings, tier}] standing in for Projects until M7 (optional)
+ *   IDENTITY_CORE_URL, IDENTITY_CORE_TOKEN_REF  core's API (scope `read`): where the project settings
+ *                            come from (PLAN M7.1)
+ *   IDENTITY_PROJECT_SETTINGS_FILE  JSON [{settings, tier}] for a development setup without core
+ *                            (optional; not together with IDENTITY_CORE_URL)
  * Every secret is an `env:NAME` or `file:PATH` reference. All configuration is read before the
  * database is touched.
  */

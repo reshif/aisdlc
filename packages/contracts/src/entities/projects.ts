@@ -27,11 +27,13 @@ export const Repo = z.strictObject({
   host: z.string().min(1),
   owner: z.string().min(1),
   name: z.string().min(1),
-  visibility: RepoVisibility,
-  owner_type: RepoOwnerType,
+  /** `null` until the code host has been read for this repo (unknown, never assumed). */
+  visibility: RepoVisibility.nullable(),
+  owner_type: RepoOwnerType.nullable(),
   plan: z.string().min(1).nullable(),
-  default_branch: z.string().min(1),
+  default_branch: z.string().min(1).nullable(),
   stack: z.string().min(1).nullable(),
+  /** The highest level an M4 signed for this repo; `none` until then (M7.5 sets it). */
   onboarding_level: OnboardingLevel,
 });
 export type Repo = z.infer<typeof Repo>;

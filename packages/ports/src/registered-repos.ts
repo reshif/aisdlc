@@ -5,7 +5,9 @@ import { err, ok, taggedError, type Result, type TaggedError } from '@aisdlc/ker
 
 // RegisteredReposPort (PLAN M5.2, OB §6.5 P-MUST-3): the repos that have an S0 record or request,
 // with the project each belongs to. The code-host allow-list is the installation's repos
-// intersected with these. The real source is Projects (M7); until then the fake and a JSON file (`FileRegisteredRepos`) stand in.
+// intersected with these. The real source is core's Projects context (M7.1): `DbRegisteredRepos` in
+// `@aisdlc/core`, and `HttpRegisteredRepos` (core-clients.ts) for the codehost. The fake and a JSON
+// file (`FileRegisteredRepos`) stay for tests and for a development setup without core.
 
 export type RegisteredReposErrorCode = 'unavailable';
 
@@ -55,7 +57,7 @@ export class FakeRegisteredRepos implements RegisteredReposPort {
 }
 
 /**
- * Stand-in for the Projects service until M7: a JSON file `[{project_id, repo}]`, read on every
+ * A JSON file `[{project_id, repo}]` for a development setup without core, read on every
  * call so an edit shows at once (the "registry reload path" of the poll loops and of the codehost's
  * allow-list). A missing or invalid file is an error, and an error allows nothing (fail closed).
  */

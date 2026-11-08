@@ -26,6 +26,7 @@
     "@aisdlc/bff": "0.0.0",
     "@aisdlc/codehost": "0.0.0",
     "@aisdlc/config": "0.0.0",
+    "@aisdlc/core": "0.0.0",
     "@aisdlc/decisions": "0.0.0",
     "@aisdlc/directory": "0.0.0",
     "@aisdlc/identity": "0.0.0",

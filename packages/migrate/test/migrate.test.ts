@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import * as bff from '@aisdlc/bff';
 import * as config from '@aisdlc/config';
+// The migrations entry only: the package root boots a service.
+import * as core from '@aisdlc/core/migrations';
 import * as decisions from '@aisdlc/decisions';
 import { createTestDatabase, type TestDatabase } from '@aisdlc/db/testing';
 import * as directory from '@aisdlc/directory';
@@ -33,6 +35,7 @@ const OWNERS = [
   ['directory', directory],
   ['bff', bff],
   ['knowledge', knowledge],
+  ['core', core],
   ['notary', notary],
   ['witness', witness],
 ] as const;
@@ -102,6 +105,7 @@ describe('the plan', () => {
       'directory',
       'bff',
       'knowledge',
+      'core',
     ]);
   });
 
