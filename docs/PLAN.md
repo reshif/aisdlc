@@ -53,12 +53,14 @@ packages/
   db/          pg + Drizzle, migrations, test database helper
   contracts/   Zod schemas, enums, events, JSON Schema export
   catalogue/   versioned catalogue data: lanes, stages, gates, back-edges, ET triggers, terminals, criteria
-  record/      record_event, ledger_entry, outbox, chain verification, rebuild harness
+  record/      record_event, outbox, chain verification, rebuild harness
+  ledger/      ledger_entry and checkpoint tables (scope `ledger`), writer (reserve, sign, insert, confirm), reconciler, checkpoint loop, offline verifier and `aisdlc verify-ledger`
   decisions/   gate kernel: GateInstance, votes, quorum, SoD, nonces, step-up binding
   pdp/         Cedar schema, policies, embedded evaluator
-  ports/       port interfaces plus deterministic fakes
+  ports/       port interfaces plus deterministic fakes (KeyCustody, Notary, Witness so far)
+  service-kit/ bearer service tokens, Fastify helpers, JSON client for the services
   secrets-rules/ the one shared secret ruleset (onboarding, push broker, S7 7.4)
-services/      one directory per deployable service, added when its milestone starts
+services/      one directory per deployable service, added when its milestone starts (kms-local, notary, witness so far)
 docs/          PLAN.md, adr/, specs/
 platform/      compose files, deploy script
 ```
@@ -98,6 +100,7 @@ Spikes from OB §10.1 become tests or demos where they still apply to a rebuild;
 | M2.3 | `services/notary`: the only signer; two-phase sign of ledger entries (reserve, sign, commit), own database; reconciler loop that re-imports signed-but-uncommitted entries | Entry verifies offline with the public key and chain; crash between sign and commit recovers |
 | M2.4 | `services/witness` and the checkpoint loop: signed tree head every 5 min (injectable clock), co-signed with the Witness's own key and database | `aisdlc verify-ledger` checks chain, signatures and checkpoints offline |
 | M2.5 | Rebuild harness: drop and refold any projection; shared test asserts rebuilt = live | Used by every later projection |
+| M2.6 | Runnable services: a build step that makes each service start with plain `node` (bundle per service), `start` scripts, config from env/file references | **M2 exit demo:** kms-local, notary and witness start as separate processes; a script writes ledger entries, runs a checkpoint, and `aisdlc verify-ledger` passes against the real processes |
 
 ### M3 — Decision kernel, inbox and config publishing
 
@@ -105,7 +108,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
-| M3.1 | `decisions`: GateInstance lifecycle (pending, decided, superseded, expired, closed); subject = item id **or** S0 record id (fix #32); subject hash; facts; TTL sweep that only expires | A sweep never decides; a decided instance is never changed |
+| M3.1 | `decisions`: GateInstance lifecycle (pending, decided, superseded, expired, closed); subject = item id **or** S0 record id (fix #32); subject hash; facts; TTL sweep that only expires. **Gate status is a projection of ledger decisions**: a Notary-signed entry survives a rolled-back caller transaction (M2.3), so nothing may read a decision from anywhere but the ledger, and the ledger entry is written last in its transaction | A sweep never decides; a decided instance is never changed; a decision whose caller transaction rolled back still shows as decided after reconcile |
 | M3.2 | Votes and quorum; SoD rules; two-person rules per project; `sod_waiver` stamped only when the role has one person or two-person is off, never for T2; decisions `approve reject request_changes supersede expire withdraw` | Table-driven tests per gate kind; a T2 single-person M4 is refused |
 | M3.3 | PreparedDecision with a server nonce and evidence-viewed check; step-up binding to a hash (`subject_hash`, `text_sha256`) for D37 uses; the decision writes one ledger entry through the Notary | Replayed nonce refused; decision without evidence viewed refused |
 | M3.4 | Inbox: `Card` read model (one card can carry several ledgered decisions, e.g. 0.5 + M4), list payloads (per-gap disposition, per-claim affirm), SOLO consolidation rules (FL PROFILES), SLA timer B21 escalating to a backup approver, never auto-approving | SP-PROC-2 equivalent: a 50-row payload decides and hashes into one entry |

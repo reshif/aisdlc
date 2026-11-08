@@ -147,6 +147,8 @@ export const SCHEMAS = {
   GateInstance: entities.GateInstance,
   VoteDecision: entities.VoteDecision,
   GateVote: entities.GateVote,
+  LedgerTimestamp: entities.LedgerTimestamp,
+  LedgerEntryDraft: entities.LedgerEntryDraft,
   LedgerEntry: entities.LedgerEntry,
   Cosigner: entities.Cosigner,
   Checkpoint: entities.Checkpoint,

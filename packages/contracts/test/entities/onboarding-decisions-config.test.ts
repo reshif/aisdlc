@@ -17,6 +17,7 @@ import {
 } from '../../src/index.js';
 import { CAT, H, T0, U1, U2, U3, U4, card } from './fixtures.js';
 
+const TL = '2026-11-08T10:00:00.000Z';
 const sig = { key_id: 'k1', alg: 'ES256', value: 'abc_DEF-123' };
 
 describe('onboarding', () => {
@@ -176,7 +177,7 @@ describe('decisions', () => {
     prev_hash: H('p'),
     entry_hash: H('h'),
     notary: sig,
-    created_at: T0,
+    created_at: TL,
   };
   it('LedgerEntry round-trips; decision entries need every gate field', () => {
     expect(LedgerEntry.parse(entry)).toEqual(entry);
@@ -207,12 +208,13 @@ describe('decisions', () => {
       cp_seq: 1,
       from_ledger_seq: 1,
       to_ledger_seq: 5,
+      root_hash: H('root'),
       head_hash: H('head'),
       signatures: [
         { signer: 'notary', signature: sig },
         { signer: 'witness', signature: { ...sig, key_id: 'w1' } },
       ],
-      created_at: T0,
+      created_at: TL,
     };
     expect(Checkpoint.parse(cp)).toEqual(cp);
     expect(Checkpoint.safeParse({ ...cp, signatures: [cp.signatures[0]] }).success).toBe(false);

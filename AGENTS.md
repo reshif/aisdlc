@@ -23,7 +23,10 @@ Tests use a real Postgres through `@aisdlc/db/testing` (`withTestDatabase`). Nev
 packages/
   kernel/   canonical JSON (RFC 8785), sha256, UUID v7 ids, Result, tagged errors, Clock
   db/       pg + Drizzle, SQL migration runner, test database helper
-services/   one directory per deployable service, added when its milestone starts
+  record/   record_event, outbox, projections
+  ledger/   ledger_entry, checkpoints, writer, reconciler, verify-ledger CLI
+  ports/    port interfaces and fakes (key custody, Notary, Witness)
+services/   one directory per deployable service, added when its milestone starts (kms-local, notary, witness)
 docs/       PLAN.md, adr/, specs/
 ```
 

@@ -110,49 +110,84 @@ export type GateVote = z.infer<typeof GateVote>;
 // ---------------------------------------------------------------- LedgerEntry
 
 /**
+ * An ISO 8601 UTC instant in the exact form `Date.prototype.toISOString` writes (milliseconds,
+ * `Z`). The ledger hashes this string and stores it as `timestamptz`, so only the form that
+ * round-trips is accepted.
+ */
+export const LedgerTimestamp = IsoDateTime.refine(
+  (s) => {
+    const d = new Date(s);
+    return !Number.isNaN(d.getTime()) && d.toISOString() === s;
+  },
+  { message: 'ISO 8601 UTC with milliseconds, as toISOString writes it' },
+);
+export type LedgerTimestamp = z.infer<typeof LedgerTimestamp>;
+
+/** The fields the writer chooses. The Notary adds `ledger_seq`, `prev_hash`, `entry_hash`, `notary`. */
+const ledgerDraftShape = {
+  entry_id: LedgerEntryId,
+  /** Dotted token. A `decision` entry carries every gate field; other types leave them `null`. */
+  entry_type: z.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/, 'dotted lowercase'),
+  gate_instance_id: GateInstanceId.nullable(),
+  gate_id: GateId.nullable(),
+  subject_kind: SubjectKind.nullable(),
+  subject_id: SubjectId.nullable(),
+  subject_hash: Sha256Hex.nullable(),
+  decision: LedgerDecision.nullable(),
+  actor: PrincipalId.nullable(),
+  /** Stamped when a single person holds the role or two-person is off; never for T2. */
+  sod_waiver: z.boolean(),
+  /** The policy bundle version the PDP decided under. */
+  policy_bundle_version: z.string().min(1),
+  body: JsonObject,
+  created_at: LedgerTimestamp,
+};
+
+const DECISION_FIELDS = [
+  'gate_instance_id',
+  'gate_id',
+  'subject_kind',
+  'subject_id',
+  'subject_hash',
+  'decision',
+  'actor',
+] as const;
+
+function requireDecisionFields(
+  e: { entry_type: string } & Record<(typeof DECISION_FIELDS)[number], unknown>,
+  ctx: z.RefinementCtx,
+): void {
+  if (e.entry_type !== 'decision') return;
+  for (const k of DECISION_FIELDS) {
+    if (e[k] === null) {
+      ctx.addIssue({ code: 'custom', path: [k], message: `a decision entry carries ${k}` });
+    }
+  }
+}
+
+/**
+ * What a writer hands the Notary to sign (PLAN M2.3): a ledger entry before it has a position.
+ * `body_hash` in the reserve step is the hash of this object.
+ */
+export const LedgerEntryDraft = z.strictObject(ledgerDraftShape).superRefine(requireDecisionFields);
+export type LedgerEntryDraft = z.infer<typeof LedgerEntryDraft>;
+
+/**
  * A hash-chained, Notary-signed ledger entry. `entry_type` is `decision` for a gate decision; DM
  * says the ledger has 17 types (`gate.bind`, `access`, `kill.event`, `config_publish`, ...) and names
- * only some, so the type is a dotted token. A `decision` entry carries every gate field; other types
- * leave them `null`.
+ * only some, so the type is a dotted token. `entry_hash` is sha256 of the canonical JSON of every
+ * other field except `notary` (see `ledger-format.ts`); `notary` signs that hash.
  */
 export const LedgerEntry = z
   .strictObject({
-    entry_id: LedgerEntryId,
+    ...ledgerDraftShape,
     ledger_seq: z.number().int().min(1),
-    entry_type: z.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/, 'dotted lowercase'),
-    gate_instance_id: GateInstanceId.nullable(),
-    gate_id: GateId.nullable(),
-    subject_kind: SubjectKind.nullable(),
-    subject_id: SubjectId.nullable(),
-    subject_hash: Sha256Hex.nullable(),
-    decision: LedgerDecision.nullable(),
-    actor: PrincipalId.nullable(),
-    /** Stamped when a single person holds the role or two-person is off; never for T2. */
-    sod_waiver: z.boolean(),
-    /** The policy bundle version the PDP decided under. */
-    policy_bundle_version: z.string().min(1),
-    body: JsonObject,
     prev_hash: Sha256Hex.nullable(),
     entry_hash: Sha256Hex,
     notary: Signature,
-    created_at: IsoDateTime,
   })
   .superRefine((e, ctx) => {
-    if (e.entry_type === 'decision') {
-      for (const k of [
-        'gate_instance_id',
-        'gate_id',
-        'subject_kind',
-        'subject_id',
-        'subject_hash',
-        'decision',
-        'actor',
-      ] as const) {
-        if (e[k] === null) {
-          ctx.addIssue({ code: 'custom', path: [k], message: `a decision entry carries ${k}` });
-        }
-      }
-    }
+    requireDecisionFields(e, ctx);
     if ((e.ledger_seq === 1) !== (e.prev_hash === null)) {
       ctx.addIssue({
         code: 'custom',
@@ -169,18 +204,23 @@ export const Cosigner = z.enum(['notary', 'witness']);
 export type Cosigner = z.infer<typeof Cosigner>;
 
 /**
- * A signed tree head over a range of ledger entries (DM `LedgerCheckpoint`, PLAN M2.4): every 5 min,
- * co-signed with the Witness's own key. A checkpoint without a witness signature is not valid.
+ * A signed tree head over ledger entries 1..`to_ledger_seq` (DM `LedgerCheckpoint`, PLAN M2.4):
+ * every 5 min, signed by the Notary and co-signed with the Witness's own key. `root_hash` is the
+ * RFC 6962 Merkle root over the entry hashes of those entries, `head_hash` the last one. A
+ * checkpoint without a witness signature is not valid. Both signatures cover the same digest, see
+ * `ledger-format.ts`.
  */
 export const Checkpoint = z
   .strictObject({
     cp_seq: z.number().int().min(1),
     from_ledger_seq: z.number().int().min(1),
     to_ledger_seq: z.number().int().min(1),
+    /** Merkle tree head over the `entry_hash` of entries `from_ledger_seq`..`to_ledger_seq`. */
+    root_hash: Sha256Hex,
     /** The `entry_hash` of the last covered entry, the head the signatures cover. */
     head_hash: Sha256Hex,
     signatures: z.array(z.strictObject({ signer: Cosigner, signature: Signature })).min(1),
-    created_at: IsoDateTime,
+    created_at: LedgerTimestamp,
   })
   .refine((c) => c.to_ledger_seq >= c.from_ledger_seq, {
     message: 'to_ledger_seq before from_ledger_seq',
