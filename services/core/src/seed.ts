@@ -1,8 +1,18 @@
-import { ConfigRegistry, configProjection, configPublish, loadEffective } from '@aisdlc/config';
+import {
+  ConfigRegistry,
+  registerGatewayConfig,
+  configProjection,
+  configPublish,
+  loadEffective,
+  proposeRevision,
+} from '@aisdlc/config';
 import type { ConfigDeps } from '@aisdlc/config';
 import {
+  ANTHROPIC_DEFAULT_MODELS,
   FACTORY_SCOPE,
+  GATEWAY_CONFIG_KEYS,
   PDP_CONFIG_KEY,
+  type JsonObject,
   PrincipalId,
   ProjectId,
   type RoleSlot,
@@ -16,10 +26,10 @@ import {
   type EligibilityPort,
   type StepUpPort,
 } from '@aisdlc/decisions';
-import { err, ok } from '@aisdlc/kernel';
+import { canonicalJson, err, ok } from '@aisdlc/kernel';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
-import { buildBundle, proposeBundle, registerPdpConfig } from '@aisdlc/pdp';
+import { buildBundle, registerPdpConfig, verifyBundle } from '@aisdlc/pdp';
 import { runProjection } from '@aisdlc/record';
 import {
   EXIT_CONFIG,
@@ -53,6 +63,45 @@ import { registerCoreConfig } from './settings.js';
 // role and the current bundle is the effective one.
 
 const FACTORY = ProjectId.parse('factory');
+
+/**
+ * Local-prod's model routing table. Prices are placeholders to be reviewed before any real spend
+ * (USD per million tokens); they only feed the budget meter.
+ */
+const claude = (model_id: string, usd_in_per_mtok: number, usd_out_per_mtok: number) => ({
+  model_id,
+  provider_id: 'anthropic',
+  provider_model: model_id,
+  tools_capable: true,
+  max_tokens_cap: 32_000,
+  usd_in_per_mtok,
+  usd_out_per_mtok,
+});
+export const LOCAL_GATEWAY_ROUTING = {
+  [GATEWAY_CONFIG_KEYS.providers]: [
+    { provider_id: 'fake', kind: 'fake', enabled: true },
+    { provider_id: 'anthropic', kind: 'anthropic', enabled: true },
+  ],
+  [GATEWAY_CONFIG_KEYS.models]: [
+    {
+      model_id: 'fake-model',
+      provider_id: 'fake',
+      provider_model: 'fake-model-1',
+      tools_capable: true,
+      max_tokens_cap: 4_096,
+      usd_in_per_mtok: 1,
+      usd_out_per_mtok: 2,
+    },
+    claude(ANTHROPIC_DEFAULT_MODELS.opus, 15, 75),
+    claude(ANTHROPIC_DEFAULT_MODELS.sonnet, 3, 15),
+    claude(ANTHROPIC_DEFAULT_MODELS.haiku, 1, 5),
+  ],
+  [GATEWAY_CONFIG_KEYS.routes]: (['D0', 'D1', 'D2'] as const).map((data_class) => ({
+    environment: 'local',
+    data_class,
+    model_id: 'fake-model',
+  })),
+};
 const SLOTS: readonly RoleSlot[] = [
   'admin',
   'requesters',
@@ -182,7 +231,9 @@ async function bundleStep(env: Env, cfg: SeedConfig, log: (l: string) => void): 
     const custody = httpKeyCustodyFromEnv(env);
     const key = await custody.publicKey('dev:notary');
     if (!key.ok) throw new Error(`notary public key: ${key.error.message}`);
-    const registry = registerCoreConfig(registerPdpConfig(new ConfigRegistry()));
+    const registry = registerGatewayConfig(
+      registerCoreConfig(registerPdpConfig(new ConfigRegistry())),
+    );
     const deps: ConfigDeps = {
       pool,
       ledger: {
@@ -197,33 +248,62 @@ async function bundleStep(env: Env, cfg: SeedConfig, log: (l: string) => void): 
       registry,
     };
     const bundle = buildBundle();
-    const caught = await runProjection(pool, configProjection);
-    if (!caught.ok) throw new Error(`config projection: ${JSON.stringify(caught.error)}`);
-    const current = await loadEffective(pool, { layer: 'factory', scope: FACTORY_SCOPE });
+    const mine = async () => {
+      const caught = await runProjection(pool, configProjection);
+      if (!caught.ok) throw new Error(`config projection: ${JSON.stringify(caught.error)}`);
+      return loadEffective(pool, { layer: 'factory', scope: FACTORY_SCOPE });
+    };
+    // Each step proposes one factory revision (the other keys carried over), has the genesis admin decide
+    // its M1 gate, and publishes it. The decision is a real ledger entry signed by the Notary.
+    const publish = async (what: string, doc: JsonObject) => {
+      const p = await proposeRevision(deps, { layer: 'factory', doc, proposed_by: cfg.admin });
+      if (!p.ok) throw new Error(`propose ${what}: ${p.error.code}: ${p.error.message}`);
+      const prep = await prepare(deps, {
+        gate_instance_id: p.value.gate_instance_id,
+        principal: cfg.admin,
+      });
+      if (!prep.ok) throw new Error(`prepare: ${JSON.stringify(prep.error)}`);
+      const viewed = await recordEvidenceViewed(deps, {
+        nonce: prep.value.nonce,
+        evidence_hash: prep.value.evidence_hash,
+      });
+      if (!viewed.ok) throw new Error(`evidence: ${JSON.stringify(viewed.error)}`);
+      const dec = await decide(deps, { nonce: prep.value.nonce, decision: 'approve' });
+      if (!dec.ok) throw new Error(`decide: ${JSON.stringify(dec.error)}`);
+      const pub = await configPublish(deps, { rev_hash: p.value.rev_hash });
+      if (!pub.ok) throw new Error(`publish: ${pub.error.message}`);
+      log(`seed: ${what} published (M1 gate ${p.value.gate_instance_id})`);
+    };
+
+    const current = await mine();
     const have = current?.doc[PDP_CONFIG_KEY] as { bundle_hash?: string } | undefined;
     if (have?.bundle_hash === bundle.bundle_hash) {
       log(`seed: policy bundle ${bundle.bundle_version} is already effective`);
-      return;
+    } else {
+      const v = verifyBundle(bundle);
+      if (!v.ok) throw new Error(`propose bundle: ${v.error.reason}: ${v.error.detail}`);
+      await publish(`policy bundle ${bundle.bundle_version}`, {
+        ...((current?.doc ?? {}) as JsonObject),
+        [PDP_CONFIG_KEY]: v.value,
+      });
     }
-    const p = await proposeBundle(deps, bundle, cfg.admin);
-    if (!p.ok) throw new Error(`propose bundle: ${p.error.reason}: ${p.error.detail}`);
-    const prep = await prepare(deps, {
-      gate_instance_id: p.value.gate_instance_id,
-      principal: cfg.admin,
-    });
-    if (!prep.ok) throw new Error(`prepare: ${JSON.stringify(prep.error)}`);
-    const viewed = await recordEvidenceViewed(deps, {
-      nonce: prep.value.nonce,
-      evidence_hash: prep.value.evidence_hash,
-    });
-    if (!viewed.ok) throw new Error(`evidence: ${JSON.stringify(viewed.error)}`);
-    const dec = await decide(deps, { nonce: prep.value.nonce, decision: 'approve' });
-    if (!dec.ok) throw new Error(`decide: ${JSON.stringify(dec.error)}`);
-    const pub = await configPublish(deps, { rev_hash: p.value.rev_hash });
-    if (!pub.ok) throw new Error(`publish: ${pub.error.message}`);
-    log(
-      `seed: policy bundle ${bundle.bundle_version} published (M1 gate ${p.value.gate_instance_id})`,
+
+    // The model gateway's routing table (M10.2), local-prod only: the fake provider answers for D0-D2 in
+    // `local`, and the Anthropic provider and its models are registered but unrouted. Pointing a route at
+    // Claude is a later, gated revision (a human decides it like any other config change). D3 has no route.
+    const routing = LOCAL_GATEWAY_ROUTING as unknown as JsonObject;
+    const effective = await mine();
+    const same = Object.entries(routing).every(
+      ([k, v]) => canonicalJson(effective?.doc[k] ?? null) === canonicalJson(v),
     );
+    if (same) {
+      log('seed: the local gateway routing table is already effective');
+    } else {
+      await publish('local gateway routing table', {
+        ...((effective?.doc ?? {}) as JsonObject),
+        ...routing,
+      });
+    }
   } finally {
     await pool.end();
   }

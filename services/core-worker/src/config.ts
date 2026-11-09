@@ -42,6 +42,8 @@ export interface CoreWorkerConfig {
   readonly workDriverIntervalMs: number;
   readonly killHoldersIntervalMs: number;
   readonly killObserverIntervalMs: number;
+  /** How often the gateway's ET1 events become item triggers (M10.3). */
+  readonly gatewayTriggersIntervalMs: number;
   readonly reconcileIntervalMs: number;
   readonly checkpointIntervalMs: number;
   readonly cardsIntervalMs: number;
@@ -160,6 +162,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     workDriverIntervalMs: intEnv(env, 'CORE_WORKER_WORK_DRIVER_INTERVAL_MS', 5_000, 100),
     killHoldersIntervalMs: intEnv(env, 'CORE_WORKER_KILL_HOLDERS_INTERVAL_MS', 10_000, 100),
     killObserverIntervalMs: intEnv(env, 'CORE_WORKER_KILL_OBSERVER_INTERVAL_MS', 5_000, 100),
+    gatewayTriggersIntervalMs: intEnv(env, 'CORE_WORKER_GATEWAY_TRIGGERS_INTERVAL_MS', 2_000, 100),
     reconcileIntervalMs: intEnv(env, 'CORE_WORKER_RECONCILE_INTERVAL_MS', 60_000, 100),
     checkpointIntervalMs: intEnv(env, 'CORE_WORKER_CHECKPOINT_INTERVAL_MS', 300_000, 100),
     cardsIntervalMs: intEnv(env, 'CORE_WORKER_CARDS_INTERVAL_MS', 10_000, 100),

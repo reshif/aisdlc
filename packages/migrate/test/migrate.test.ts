@@ -10,6 +10,7 @@ import * as core from '@aisdlc/core/migrations';
 import * as decisions from '@aisdlc/decisions';
 import { createTestDatabase, type TestDatabase } from '@aisdlc/db/testing';
 import * as directory from '@aisdlc/directory';
+import * as gateway from '@aisdlc/gateway';
 // Not the package root: nothing outside services/identity imports its writer (single-writer test).
 import * as identity from '@aisdlc/identity/migrations';
 // Not the package root either: the migrations entry only.
@@ -37,6 +38,7 @@ const OWNERS = [
   ['bff', bff],
   ['knowledge', knowledge],
   ['core', core],
+  ['gateway', gateway],
   ['notary', notary],
   ['witness', witness],
   ['killswitch', killswitch],
@@ -108,6 +110,7 @@ describe('the plan', () => {
       'bff',
       'knowledge',
       'core',
+      'gateway',
     ]);
   });
 

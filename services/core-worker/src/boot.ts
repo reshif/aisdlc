@@ -1,4 +1,4 @@
-import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
+import { ConfigReader, ConfigRegistry, registerGatewayConfig } from '@aisdlc/config';
 import {
   DbRegisteredRepos,
   DbWorkInFlight,
@@ -9,6 +9,7 @@ import {
   cardsLoop,
   identityEligibility,
   killHoldersLoop,
+  gatewayTriggersLoop,
   killObserverLoop,
   registerCoreConfig,
   roleMapSyncLoop,
@@ -112,7 +113,7 @@ export async function bootCoreWorker(
     const supervisor = new LoopSupervisor({ log });
     // One config reader for the process: MM-2 (the maintenance flag) and the business calendar are read
     // from it by the work driver, the S0 driver and the decision kernel's probe.
-    const registry = registerCoreConfig(new ConfigRegistry());
+    const registry = registerGatewayConfig(registerCoreConfig(new ConfigRegistry()));
     const ensureReader = async (): Promise<ConfigReader> => {
       if (!reader) {
         reader = await ConfigReader.create({
@@ -239,6 +240,16 @@ export async function bootCoreWorker(
               }
             },
           },
+        ),
+      );
+    }
+    if (cfg.stagePorts !== 'none') {
+      // ET1 from the model gateway (M10.3): a spent per-Unit budget is the item's D1 handoff. It reads
+      // the record only; the gateway has no route to core and core none to the gateway.
+      supervisor.add(
+        gatewayTriggersLoop(
+          { pool },
+          { startDelayMs: 3_000, intervalMs: cfg.gatewayTriggersIntervalMs },
         ),
       );
     }

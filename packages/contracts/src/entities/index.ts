@@ -23,3 +23,4 @@ export * from './knowledge.js';
 export * from './census.js';
 export * from './core-events.js';
 export * from './portal.js';
+export * from './gateway.js';

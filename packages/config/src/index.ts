@@ -21,3 +21,4 @@ export {
   type ConfigReaderOptions,
   type EffectiveConfig,
 } from './reader.js';
+export { registerGatewayConfig } from './gateway.js';

@@ -22,7 +22,12 @@
 #      probe answers `killed` for that project and `admitted` for another, core-worker records the kill
 #      switch's journal as `kill.observed` facts and `kill.event` ledger entries (through the Notary),
 #      the release (two factory admins) lifts it, and verify-ledger still passes
-#   9. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
+#   9. the model gateway (M10): the vendor key is mounted in the gateway and in no other container (nor in
+#      any environment or log), the gateway has no route to the trust plane and nobody but it is on its
+#      egress network, a fake-provider call through a per-Unit virtual key succeeds and is metered as a
+#      ModelCall record event (no text), a D3 call is refused, a spent budget stops the key and raises
+#      ET1, and a killed project's calls are refused by the real kill switch
+#  10. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
 #
 # SMOKE_SKIP_BUILD=1   use the image aisdlc/factory:local as it is (a network that blocks apt or
 #                      the npm registry: build it yourself, see README.md)
@@ -104,6 +109,19 @@ done || true)
 [ -z "$others" ] || fail "the GitHub App key is mounted in: $others"
 dc exec -T codehost test -s /run/secrets/github-app.pem || fail "the codehost has no App key"
 echo "  the GitHub App key is mounted in codehost and nowhere else"
+# M10.1: the model vendor key is a file only the gateway mounts; no other container can read it, and it
+# is in no container's environment.
+akey_others=$(for s in $(dc ps --format '{{.Service}}'); do
+  [ "$s" = gateway ] && continue
+  dc exec -T "$s" test -e /run/secrets/anthropic-api-key 2>/dev/null && echo "$s"
+done || true)
+[ -z "$akey_others" ] || fail "the vendor key is mounted in: $akey_others"
+dc exec -T gateway test -s /run/secrets/anthropic-api-key || fail "the gateway has no vendor key"
+akey_value="$(cat secrets/anthropic-api-key)"
+[ -n "$akey_value" ] || fail "the vendor key file is empty"
+akey_env=$(docker inspect $(dc ps -aq) --format '{{json .Config.Env}}' | grep -cF -- "$akey_value" || true)
+[ "$akey_env" = 0 ] || fail "the vendor key is in a container's environment"
+echo "  the vendor key is mounted in the gateway and nowhere else, and is in no environment"
 refused() { # service url: the request must fail (no route, no name, refused)
   if dc exec -T "$1" node -e "fetch('$2',{signal:AbortSignal.timeout(5000)}).then(()=>process.exit(0),()=>process.exit(1))" 2>/dev/null; then
     fail "$1 reached $2"
@@ -131,6 +149,25 @@ refused core http://killswitch:8400/healthz      # core is not on the kill switc
 refused notary http://killswitch:8400/healthz
 refused codehost http://killswitch:8400/healthz
 refused bff http://killswitch:8400/healthz
+# M10.1: the gateway holds a vendor key and has egress: it has no route to the trust plane or to core, and
+# nothing but it is on its egress network. (Its one link into the trust plane is the kill switch's READ
+# API, which it must ask before every call.)
+for t in http://kms-local:8300/healthz http://notary:8310/healthz http://witness:8320/healthz \
+         http://identity:8330/healthz http://core:8380/healthz http://core-worker:8360/healthz \
+         http://codehost:8350/healthz http://knowledge:8370/healthz http://bff:8340/healthz; do
+  refused gateway "$t"
+done
+for from in core core-worker identity knowledge codehost bff notary witness kms-local; do
+  refused "$from" http://gateway:8410/healthz     # nobody calls the gateway yet but a sandbox (M13) or core (M11), on gateway-api
+done
+dc exec -T gateway node -e "fetch('http://killswitch:8400/healthz',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || fail "the gateway cannot reach the kill switch it must ask"
+echo "  gateway can reach the kill switch (its read link), nothing else of the stack"
+gw_nets=$(docker inspect "$(dc ps -q gateway)" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}_//" | grep -v '^$' | sort | tr '\n' ' ')
+echo "  gateway networks: $gw_nets"
+[ "$gw_nets" = "data-gateway gateway-api gateway-egress killswitch-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
+on_egress=$(docker network inspect "${COMPOSE_PROJECT_NAME}_gateway-egress" --format '{{range .Containers}}{{.Name}} {{end}}')
+[ "$(printf '%s' "$on_egress" | wc -w)" = 1 ] || fail "something else is on the gateway's egress network: $on_egress"
+echo "  nothing but the gateway is on gateway-egress"
 if dc exec -T killswitch sh -c 'test -e /run/secrets/db-url-aisdlc || test -e /run/secrets/tok-core-notary || ls /run/secrets | grep -q "^tok-.*-core$"' 2>/dev/null; then
   fail "the kill switch holds a secret of core's"
 fi
@@ -254,6 +291,82 @@ step "a checkpoint co-signed by the Witness, and verify-ledger passes"
 cps=$(PGPW="$(cat secrets/pg-superuser)"; dc exec -T -e PGPASSWORD="$PGPW" postgres psql -U postgres -d aisdlc -At -c 'SELECT count(*) FROM ledger.checkpoint')
 echo "  checkpoints stored: $cps"
 dc logs --no-log-prefix --no-color core-worker 2>&1 | grep -E 'checkpointer.*checkpoint co-signed' | tail -2 | sed 's/^/  /'
+
+step "the model gateway: a per-Unit key, a fake-provider call metered, D3 refused, a spent budget stops the key and raises ET1, a kill is honoured"
+psqlq() { local pw; pw="$(cat secrets/pg-superuser)"; dc exec -T -e PGPASSWORD="$pw" postgres psql -U postgres -d aisdlc -At -c "$1"; }
+# The operator token reaches the admin API from inside the gateway (the way a person does until the work
+# engine mints keys, M11). Keys are minted for a project, an item and a unit; the secret comes back once.
+gwnode() { dc exec -T -e TOKEN="$(cat secrets/tok-operator-gateway)" -e KTOKEN="$(cat secrets/tok-operator-killswitch)" gateway node -e "$1"; }
+gwnode '
+const base = "http://127.0.0.1:8410";
+const h = { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" };
+const j = async (r) => [r.status, await r.json()];
+const must = (c, m) => { if (!c) { console.error("  FAIL: " + m); process.exit(1); } };
+const group = async (id, max_tokens) => must((await j(await fetch(base + "/v1/admin/budget-groups", { method: "POST", headers: h, body: JSON.stringify({ group_id: id, max_tokens, max_cost_micro_usd: 1000000 }) })))[0] === 201, "budget group " + id);
+const mint = async (over) => {
+  const [st, b] = await j(await fetch(base + "/v1/admin/vkeys", { method: "POST", headers: h, body: JSON.stringify({
+    scope: { kind: "unit", ref: over.unit }, project_id: over.project ?? "smoke-gw", data_class_max: over.dc ?? "D2",
+    models: ["fake-model"], tools: ["read_file"], budget_group: over.group, item_id: over.item ?? "smoke-item", unit_id: over.unit, step: "6.4",
+    expires_at: new Date(Date.now() + 3600000).toISOString() }) }));
+  must(st === 201 && /^aisk_[0-9a-f]{48}$/.test(b.key), "mint " + st + JSON.stringify(b));
+  return b.key;
+};
+const call = async (key, body, headers = {}) => j(await fetch(base + "/v1/messages", { method: "POST", headers: { "x-api-key": key, "content-type": "application/json", ...headers }, body: JSON.stringify(body) }));
+const ask = (text, max_tokens = 20) => ({ model: "claude-sonnet-5-5", max_tokens, messages: [{ role: "user", content: text }] });
+
+await group("smoke-g1", 100000); await group("smoke-g2", 60); await group("smoke-g3", 100000);
+const k1 = await mint({ group: "smoke-g1", unit: "smoke-u1" });
+const [s1, r1] = await call(k1, ask("smoke prompt one"));
+must(s1 === 200 && r1.type === "message" && r1.content[0].text.startsWith("fake reply") && r1.usage.input_tokens > 0, "the fake-provider call: " + s1 + JSON.stringify(r1));
+console.log(`  call through the virtual key: ${s1}, "${r1.content[0].text}", usage ${JSON.stringify(r1.usage)}`);
+// D3 is never routed, even for a key that says D3
+const kd3 = await mint({ group: "smoke-g1", unit: "smoke-u3", dc: "D3" });
+const [s3, r3] = await call(kd3, ask("smoke prompt d3"), { "x-aisdlc-data-class": "D3" });
+must(s3 === 403 && r3.error.code === "d3_never_routed", "D3 was not refused: " + s3 + JSON.stringify(r3));
+console.log(`  D3 call: ${s3} ${r3.error.code}`);
+const [sx] = await call("aisk_" + "0".repeat(48), ask("x"));
+must(sx === 401, "an unknown key was served");
+const [st] = await call(k1, { ...ask("smoke prompt tool"), tools: [{ name: "run_shell", input_schema: { type: "object" } }] });
+must(st === 403, "a tool outside the allow-list was served");
+console.log(`  unknown key: ${sx}, tool outside the allow-list: ${st}`);
+// a spent budget stops the key
+const k2 = await mint({ group: "smoke-g2", unit: "smoke-u2", item: "smoke-item-2" });
+let spent = 0;
+for (let i = 0; i < 8 && spent === 0; i++) { const [s] = await call(k2, ask("smoke prompt budget " + i, 30)); if (s === 429) spent = i + 1; }
+must(spent > 0, "the budget never stopped the key");
+const [s429, r429] = await call(k2, ask("again"));
+must(s429 === 429 && r429.error.code === "budget_exhausted", "a spent key was served");
+console.log(`  budget group smoke-g2 (60 tokens) stopped the key at call ${spent}: ${s429} ${r429.error.code}`);
+// the real kill switch is honoured
+const k3 = await mint({ group: "smoke-g3", unit: "smoke-u4", project: "smoke-gw-killed" });
+must((await call(k3, ask("before the kill")))[0] === 200, "pre-kill call");
+const kh = { authorization: `Bearer ${process.env.KTOKEN}`, "content-type": "application/json" };
+const [ks, kill] = await j(await fetch("http://killswitch:8400/v1/kills", { method: "POST", headers: kh, body: JSON.stringify({ on_behalf_of: "alice", scope: { kind: "project", ref: "smoke-gw-killed" }, reason: "gateway smoke" }) }));
+must(ks === 201, "kill " + ks);
+const [sk, rk] = await call(k3, ask("after the kill"));
+must(sk === 423 && rk.error.code === "killed", "a killed project was served: " + sk + JSON.stringify(rk));
+const rel = async (who) => (await j(await fetch(`http://killswitch:8400/v1/kills/${kill.kill_id}/release`, { method: "POST", headers: kh, body: JSON.stringify({ on_behalf_of: who }) })))[1];
+let k = await rel("alice"); if (k.state === "release_pending") k = await rel("bob");
+must(k.state === "released", "release " + k.state);
+must((await call(k3, ask("after the release")))[0] === 200, "a released project was refused");
+console.log(`  kill of project smoke-gw-killed: ${sk} ${rk.error.code}; after the release: 200`);
+' || fail "the gateway checks failed"
+okcalls=$(psqlq "SELECT count(*) FROM record.record_event WHERE type = 'gateway.model_call' AND body->>'outcome' = 'ok'")
+refused_calls=$(psqlq "SELECT count(*) FROM record.record_event WHERE type = 'gateway.model_call' AND body->>'outcome' = 'refused'")
+d3=$(psqlq "SELECT count(*) FROM record.record_event WHERE type = 'gateway.model_call' AND body->>'refusal' = 'd3_never_routed'")
+et1=$(psqlq "SELECT count(*) FROM record.record_event WHERE type = 'gateway.budget_exhausted' AND body->>'budget_group' = 'smoke-g2' AND body->>'trigger' = 'ET1' AND body->>'item_id' = 'smoke-item-2'")
+leaked=$(psqlq "SELECT count(*) FROM record.record_event WHERE type LIKE 'gateway.%' AND (body::text LIKE '%fake reply%' OR body::text LIKE '%smoke prompt%' OR body::text LIKE '%aisk_%')")
+echo "  ModelCall events: $okcalls ok, $refused_calls refused ($d3 D3); ET1 for smoke-g2: $et1; events holding text or a key: $leaked"
+[ "$okcalls" -ge 3 ] || fail "the calls were not metered as ModelCall events"
+[ "$d3" -ge 1 ] || fail "the D3 refusal was not recorded"
+[ "$et1" = 1 ] || fail "the spent budget did not raise ET1 exactly once"
+[ "$leaked" = 0 ] || fail "a gateway record event holds text or a key"
+tokens_seen=$(psqlq "SELECT coalesce(sum((body->>'tokens_in')::int + (body->>'tokens_out')::int), 0) FROM record.record_event WHERE type = 'gateway.model_call' AND body->>'budget_group' = 'smoke-g1'")
+[ "$tokens_seen" -gt 0 ] || fail "no tokens were metered"
+akey_logs=$(dc logs --no-log-prefix --no-color 2>&1 | grep -cF -- "$akey_value" || true)
+[ "$akey_logs" = 0 ] || fail "the vendor key is in a container log"
+echo "  the vendor key is in no log; $tokens_seen tokens metered for smoke-g1"
+dc logs --no-log-prefix --no-color core-worker 2>&1 | grep -qi 'gateway_triggers.*fail' && fail "the gateway trigger loop failed"
 
 step "memory at idle (docker stats, once)"
 docker stats --no-stream --format '  {{printf "%-34s" .Name}} {{.MemUsage}}' $(dc ps -q) | sort

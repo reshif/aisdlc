@@ -98,6 +98,15 @@ describe('aisdlc-seed', () => {
       buildBundle().bundle_hash,
     );
 
+    // The model gateway's local routing table went through its M1 gate too: D0-D2 in local, no D3.
+    expect(logs.join('\n')).toMatch(/local gateway routing table published/);
+    const routes = eff?.doc['gateway.routes'] as Array<{ environment: string; data_class: string }>;
+    expect(routes.map((r) => `${r.environment}/${r.data_class}`)).toEqual([
+      'local/D0',
+      'local/D1',
+      'local/D2',
+    ]);
+
     // The PDP, reading what the seed published, lets the admin ask for an onboarding and nobody else.
     const reader = await ConfigReader.create({
       pool: s.record.pool,
@@ -135,6 +144,7 @@ describe('aisdlc-seed', () => {
     ).toBe(0);
     expect(again.join('\n')).toMatch(/already holds factory.admin/);
     expect(again.join('\n')).toMatch(/already effective/);
+    expect(again.join('\n')).toMatch(/routing table is already effective/);
     expect(await ledgerCount()).toBe(before);
   });
 });
