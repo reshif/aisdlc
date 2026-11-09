@@ -11,6 +11,7 @@ export * from './config.js';
 export * from './git-bundle.js';
 export * from './identity-client.js';
 export * from './jwt.js';
+export * from './registry-runtime.js';
 export * from './repo-allow-list.js';
 export * from './token-broker.js';
 export * from './transport.js';

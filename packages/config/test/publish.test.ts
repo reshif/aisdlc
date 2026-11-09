@@ -557,11 +557,12 @@ describe('consumers reload by revision without a restart', () => {
       onError: (e) => errors.push(e),
     });
     const before = reader.current();
-    await s.record.pool.query('ALTER TABLE config.config_published RENAME TO config_published_x');
+    // the effective-config view (a view follows a renamed table, so break the view itself)
+    await s.record.pool.query('ALTER VIEW config.genuine_publish RENAME TO genuine_publish_x');
     try {
       await expect(reader.refresh()).rejects.toThrow();
     } finally {
-      await s.record.pool.query('ALTER TABLE config.config_published_x RENAME TO config_published');
+      await s.record.pool.query('ALTER VIEW config.genuine_publish_x RENAME TO genuine_publish');
     }
     expect(reader.current()).toBe(before);
   });

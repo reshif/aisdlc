@@ -62,6 +62,12 @@ beforeAll(async () => {
     SEED_IDENTITY_TOKEN_REF: 'env:SEED_ID',
     SEED_ID: tok,
     SEED_FACTORY_ADMIN: 'root',
+    // the GitHub App as the compose seed registers it: ids and a key REFERENCE
+    SEED_GITHUB_APP_ID: '123456',
+    SEED_GITHUB_INSTALLATION_ID: '1',
+    SEED_GITHUB_APP_KEY_REF: 'file:/run/secrets/github-app.pem',
+    SEED_GITHUB_API_URL: 'http://127.0.0.1:8353',
+    SEED_GITHUB_GIT_URL: 'http://127.0.0.1:8354',
   };
 }, 60_000);
 
@@ -96,6 +102,38 @@ describe('aisdlc-seed', () => {
     const eff = await loadEffective(s.record.pool, { layer: 'factory', scope: FACTORY_SCOPE });
     expect((eff?.doc[PDP_CONFIG_KEY] as { bundle_hash: string }).bundle_hash).toBe(
       buildBundle().bundle_hash,
+    );
+
+    // The model gateway's local routing table went through its M1 gate too: D0-D2 in local, no D3.
+    expect(logs.join('\n')).toMatch(/local gateway routing table published/);
+    const routes = eff?.doc['gateway.routes'] as Array<{ environment: string; data_class: string }>;
+    expect(routes.map((r) => `${r.environment}/${r.data_class}`)).toEqual([
+      'local/D0',
+      'local/D1',
+      'local/D2',
+    ]);
+
+    // And the first rows of the integration registry: the model providers that were already configured and
+    // the GitHub App (a code host, adapter github_app), with key REFERENCES only.
+    const rows = eff?.doc['integrations.registry'] as Array<{
+      integration_id: string;
+      kind: string;
+      adapter: string;
+      status: string;
+      credentials: Array<{ secret_ref: string }>;
+    }>;
+    expect(rows.map((r) => `${r.integration_id}:${r.kind}:${r.adapter}:${r.status}`)).toEqual([
+      'fake:model_provider:fake:enabled',
+      'anthropic:model_provider:anthropic:enabled',
+      'github-app:code_host:github_app:enabled',
+    ]);
+    expect(rows.flatMap((r) => r.credentials.map((c) => c.secret_ref))).toEqual([
+      'file:/run/secrets/anthropic-api-key',
+      'file:/run/secrets/github-app.pem',
+    ]);
+    expect(JSON.stringify(rows)).not.toContain('PRIVATE KEY');
+    expect(() => seedConfigFromEnv({ ...env, SEED_GITHUB_INSTALLATION_ID: 'x' })).toThrow(
+      /INSTALLATION_ID/,
     );
 
     // The PDP, reading what the seed published, lets the admin ask for an onboarding and nobody else.
@@ -135,6 +173,7 @@ describe('aisdlc-seed', () => {
     ).toBe(0);
     expect(again.join('\n')).toMatch(/already holds factory.admin/);
     expect(again.join('\n')).toMatch(/already effective/);
+    expect(again.join('\n')).toMatch(/routing table is already effective/);
     expect(await ledgerCount()).toBe(before);
   });
 });

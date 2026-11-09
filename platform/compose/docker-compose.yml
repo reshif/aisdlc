@@ -9,7 +9,7 @@
 #
 # Ports: every service has its own (postgres 5432, kms-local 8300, notary 8310, witness 8320,
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
-# killswitch 8400, fake GitHub 8353 api / 8354 git). Only the bff and dev-oidc are published, on 127.0.0.1.
+# killswitch 8400, gateway 8410, fake GitHub 8353 api / 8354 git). Only the bff and dev-oidc are published, on 127.0.0.1.
 
 x-factory:
   &factory # The one image, built by `migrate` below; every service picks its bundle with `command`.
@@ -75,6 +75,23 @@ networks:
   # writes); the kill switch has no client that calls it.
   killswitch-api:
     internal: true
+  # The model gateway (RV §2 "Model key custody"): the one container that holds a vendor key. Three
+  # networks and no more. `gateway-api` is its HTTP surface (the admin API for the work engine, the
+  # Messages endpoint for sandboxes: later milestones attach their callers here and to no other
+  # network of the gateway). `killswitch-gateway` is the one link it needs into the trust plane: the
+  # kill switch's read API, asked before every call (nothing else of the kill switch's is reachable
+  # from there, and the gateway is on no kms, notary or witness network). `gateway-egress` is its own
+  # way out (the model vendor's API) and nobody else is on it.
+  gateway-api:
+    internal: true
+  # The gateway's own way to Postgres. It shares the record database (the aisdlc role) but NOT the
+  # data-record network, so it has no route to identity, core, the bff or the rest of the record
+  # services that sit there: only Postgres is on it besides the gateway.
+  data-gateway:
+    internal: true
+  killswitch-gateway:
+    internal: true
+  gateway-egress: {}
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
   # network with a route out), so it has no route to GitHub and gets repo content only as bundles
   # from the codehost.
@@ -92,11 +109,14 @@ secrets:
   pg-pass-notary: { file: ./secrets/pg-pass-notary }
   pg-pass-witness: { file: ./secrets/pg-pass-witness }
   pg-pass-killswitch: { file: ./secrets/pg-pass-killswitch }
+  pg-pass-gateway: { file: ./secrets/pg-pass-gateway }
   db-url-aisdlc: { file: ./secrets/db-url-aisdlc }
   db-url-notary: { file: ./secrets/db-url-notary }
   db-url-witness: { file: ./secrets/db-url-witness }
   db-url-killswitch: { file: ./secrets/db-url-killswitch }
+  db-url-gateway: { file: ./secrets/db-url-gateway }
   bff-oidc-client-secret: { file: ./secrets/bff-oidc-client-secret }
+  anthropic-api-key: { file: ./secrets/anthropic-api-key }
   github-app.pem: { file: ./secrets/github-app.pem }
   github-app.pub.pem: { file: ./secrets/github-app.pub.pem }
   tok-notary-kms: { file: ./secrets/tok-notary-kms }
@@ -104,6 +124,10 @@ secrets:
   tok-killswitch-kms: { file: ./secrets/tok-killswitch-kms }
   tok-core-worker-killswitch: { file: ./secrets/tok-core-worker-killswitch }
   tok-operator-killswitch: { file: ./secrets/tok-operator-killswitch }
+  tok-gateway-killswitch: { file: ./secrets/tok-gateway-killswitch }
+  tok-core-gateway: { file: ./secrets/tok-core-gateway }
+  tok-operator-gateway: { file: ./secrets/tok-operator-gateway }
+  tok-operator-codehost: { file: ./secrets/tok-operator-codehost }
   tok-knowledge-kms: { file: ./secrets/tok-knowledge-kms }
   tok-bff-kms: { file: ./secrets/tok-bff-kms }
   tok-bff-core: { file: ./secrets/tok-bff-core }
@@ -147,7 +171,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
-    networks: [data-record, data-notary, data-witness, data-killswitch]
+    networks: [data-record, data-notary, data-witness, data-killswitch, data-gateway]
     mem_limit: 512m
     shm_size: 64m
 
@@ -165,7 +189,15 @@ services:
       PGHOST: postgres
     volumes:
       - ./db-init.sh:/db-init.sh:ro
-    secrets: [pg-superuser, pg-pass-aisdlc, pg-pass-notary, pg-pass-witness, pg-pass-killswitch]
+    secrets:
+      [
+        pg-superuser,
+        pg-pass-aisdlc,
+        pg-pass-notary,
+        pg-pass-witness,
+        pg-pass-killswitch,
+        pg-pass-gateway,
+      ]
     depends_on:
       postgres: { condition: service_healthy }
     networks: [data-record, data-notary, data-witness, data-killswitch]
@@ -315,14 +347,21 @@ services:
       KILLSWITCH_DATABASE_URL: file:/run/secrets/db-url-killswitch
       KILLSWITCH_CALLERS: >-
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-killswitch","scopes":["read","sync"]},
-        "operator":{"token_ref":"file:/run/secrets/tok-operator-killswitch","scopes":["act","read"]}}
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-killswitch","scopes":["act","read"]},
+        "gateway":{"token_ref":"file:/run/secrets/tok-gateway-killswitch","scopes":["read"]}}
       KILLSWITCH_FACTORY_ADMINS: '["alice","bob"]'
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-killswitch-kms
       KILLSWITCH_HOST: 0.0.0.0
       KILLSWITCH_PORT: '8400'
     secrets:
-      [db-url-killswitch, tok-core-worker-killswitch, tok-operator-killswitch, tok-killswitch-kms]
+      [
+        db-url-killswitch,
+        tok-core-worker-killswitch,
+        tok-operator-killswitch,
+        tok-gateway-killswitch,
+        tok-killswitch-kms,
+      ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8400']
       interval: 5s
@@ -332,8 +371,61 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
-    networks: [kms-killswitch, killswitch-api, data-killswitch]
+    networks: [kms-killswitch, killswitch-api, killswitch-gateway, data-killswitch]
     mem_limit: 128m
+
+  # Boundary: model key custody (RV §2, AR5, AR7). EVERY model call of the factory goes through here and
+  # this is the only container that mounts a vendor key (`anthropic-api-key`, a file; no other service
+  # can read it and it is in no environment, log, response or record event). It routes by (environment,
+  # data class) from the published config (D3 has no route), meters every call as a record event, holds
+  # the per-Unit virtual keys (hashed), budgets, redaction and the tool allow-list, and asks the kill
+  # switch before every call. It shares the record database (it appends `gateway.*` events and reads
+  # config) over a network of its own (`data-gateway`, shared with Postgres only) and has no route to
+  # kms-local, the Notary, the Witness, core or any other record service: its networks are its own
+  # API, the kill switch's read link, Postgres (a network of its own) and its egress. Egress is a whole network
+  # here; the cloud target is a security group or proxy that allows api.anthropic.com only.
+  # Local-prod routes D0-D2 to the deterministic fake provider (the seed publishes that table); a
+  # gated config revision points a route at Claude. `core` mounts tok-core-gateway when the work
+  # engine mints per-Unit keys (M11); the operator token is how a person (or smoke.sh) reaches it now.
+  gateway:
+    <<: *factory
+    command: ['node', '--enable-source-maps', '/app/services/gateway/dist/main.js']
+    environment:
+      # The least-privilege role `gateway` (db-init.sh, the gateway migration), NOT the `aisdlc` owner.
+      GATEWAY_DATABASE_URL: file:/run/secrets/db-url-gateway
+      GATEWAY_ENVIRONMENT: local
+      GATEWAY_CALLERS: >-
+        {"core":{"token_ref":"file:/run/secrets/tok-core-gateway","scopes":["admin","read"]},
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-gateway","scopes":["admin","read"]}}
+      # What this deployment lets a registry row do. The providers themselves (adapter, base URL, key
+      # reference, models) are rows of the integration registry, published through an M1 gate; a row naming
+      # another key file or host is refused.
+      GATEWAY_SECRET_REFS: '["file:/run/secrets/anthropic-api-key"]'
+      GATEWAY_EGRESS_HOSTS: '["api.anthropic.com"]'
+      GATEWAY_KILLSWITCH_URL: http://killswitch:8400
+      GATEWAY_KILLSWITCH_TOKEN_REF: file:/run/secrets/tok-gateway-killswitch
+      GATEWAY_MAX_PROVIDER_CALLS: ${GATEWAY_MAX_PROVIDER_CALLS:-1000}
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: '8410'
+    secrets:
+      [
+        db-url-gateway,
+        anthropic-api-key,
+        tok-core-gateway,
+        tok-operator-gateway,
+        tok-gateway-killswitch,
+      ]
+    healthcheck:
+      test: ['CMD', 'node', '/app/healthcheck.mjs', '8410']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 8s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      killswitch: { condition: service_healthy }
+    networks: [data-gateway, gateway-api, killswitch-gateway, gateway-egress]
+    mem_limit: 192m
 
   # ------------------------------------------------------------------- identity and the seed
 
@@ -403,6 +495,13 @@ services:
       SEED_IDENTITY_URL: http://identity:8330
       SEED_IDENTITY_TOKEN_REF: file:/run/secrets/tok-seed-identity
       SEED_FACTORY_ADMIN: alice
+      # The GitHub App is the first code-host row of the integration registry (ids and a key REFERENCE;
+      # the key itself stays in the codehost's own file).
+      SEED_GITHUB_APP_ID: ${GITHUB_APP_ID:?run ./init-secrets first}
+      SEED_GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID:?run ./init-secrets first}
+      SEED_GITHUB_APP_KEY_REF: file:/run/secrets/github-app.pem
+      SEED_GITHUB_API_URL: ${CODEHOST_GITHUB_API_URL:-}
+      SEED_GITHUB_GIT_URL: ${CODEHOST_GIT_URL:-}
     secrets: [db-url-aisdlc, tok-core-notary, tok-core-kms, tok-seed-identity]
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -422,9 +521,9 @@ services:
     environment:
       CORE_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       CORE_CALLERS: >-
-        {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry"]},
+        {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
-        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard"]},
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal"]},
         "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work"]}}
       CORE_NOTARY_URL: http://notary:8310
       CORE_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-notary
@@ -529,14 +628,17 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/codehost/dist/main.js']
     environment:
-      CODEHOST_GITHUB_APP_ID: ${GITHUB_APP_ID:?run ./init-secrets first}
-      CODEHOST_GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID:?run ./init-secrets first}
-      CODEHOST_GITHUB_APP_KEY_REF: file:/run/secrets/github-app.pem
-      # Empty: api.github.com and github.com. The fake profile points both at its own loopback.
-      CODEHOST_GITHUB_API_URL: ${CODEHOST_GITHUB_API_URL:-}
-      CODEHOST_GIT_URL: ${CODEHOST_GIT_URL:-}
+      # The GitHub App is a row of the integration registry (`github-app`, seeded from the compose settings and
+      # changed through an M1 gate), read from core and followed by config revision with no restart. The App
+      # key stays in its own file (the reference is in the row); this deployment allows that one file and these
+      # hosts (api.github.com and github.com; the fake profile adds its own loopback).
+      CODEHOST_REGISTRY_INTEGRATION: github-app
+      CODEHOST_SECRET_REFS: '["file:/run/secrets/github-app.pem"]'
+      CODEHOST_EGRESS_HOSTS: '["api.github.com","github.com","127.0.0.1"]'
+      CODEHOST_REGISTRY_INTERVAL_MS: ${CODEHOST_REGISTRY_INTERVAL_MS:-5000}
       CODEHOST_CALLERS: >-
         {"knowledge":{"token_ref":"file:/run/secrets/tok-knowledge-codehost","scopes":["census"]},
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-codehost","scopes":["reload"]},
         "core":{"token_ref":"file:/run/secrets/tok-core-codehost","scopes":["census","posture"]},
         "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-codehost","scopes":["census","posture"]}}
       CODEHOST_IDENTITY_URL: http://identity:8330
@@ -554,6 +656,7 @@ services:
         tok-knowledge-codehost,
         tok-core-codehost,
         tok-core-worker-codehost,
+        tok-operator-codehost,
         tok-codehost-identity,
         tok-codehost-core,
       ]

@@ -11,6 +11,7 @@ no secret is an environment variable and none is in the image.
 | `pg-superuser`                    | postgres, db-init                                                                                                                                                                           |
 | `pg-pass-<role>`, `db-url-<role>` | db-init (passwords); the services of that role (URLs): `aisdlc` for record services, `notary` for the Notary alone, `witness` for the Witness alone, `killswitch` for the kill switch alone |
 | `bff-oidc-client-secret`          | bff and dev-oidc                                                                                                                                                                            |
+| `anthropic-api-key`               | **gateway only** (the model vendor key; a placeholder until you give `init-secrets` a real one)                                                                                             |
 | `github-app.pem`                  | **codehost only** (the GitHub App private key)                                                                                                                                              |
 | `github-app.pub.pem`              | the fake GitHub only (its public half, to verify App JWTs)                                                                                                                                  |
 

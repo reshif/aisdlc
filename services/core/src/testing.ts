@@ -1,5 +1,11 @@
 import { PrincipalId, ProjectId, type OnboardRequest, type RoleSlot } from '@aisdlc/contracts';
-import { ConfigRegistry, configPublish, migrateConfig, type ConfigDeps } from '@aisdlc/config';
+import {
+  ConfigRegistry,
+  registerGatewayConfig,
+  configPublish,
+  migrateConfig,
+  type ConfigDeps,
+} from '@aisdlc/config';
 import {
   FakeEligibility,
   FakeStepUp,
@@ -8,6 +14,7 @@ import {
   recordEvidenceViewed,
 } from '@aisdlc/decisions';
 import { startIdentityStack, type IdentityStack } from '@aisdlc/identity/testing';
+import { migrateIntegrations } from '@aisdlc/integrations';
 import { registerPdpConfig } from '@aisdlc/pdp';
 import { FakeGitHub, emptySeed, type CodeHostSeed } from '@aisdlc/ports';
 import type { DriverDeps } from './driver.js';
@@ -42,8 +49,11 @@ export async function startCoreStack(): Promise<CoreStack> {
   const id = await startIdentityStack();
   try {
     await migrateConfig(id.record.pool);
+    await migrateIntegrations(id.record.pool);
     await migrateCore(id.record.pool);
-    const registry = registerCoreConfig(registerPdpConfig(new ConfigRegistry()));
+    const registry = registerGatewayConfig(
+      registerCoreConfig(registerPdpConfig(new ConfigRegistry())),
+    );
     const elig = new FakeEligibility();
     return {
       id,

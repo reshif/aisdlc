@@ -9,7 +9,6 @@ import {
   type RecordEvent,
 } from '@aisdlc/contracts';
 import type { Executor, Projection, Tx } from '@aisdlc/record';
-import { GENUINE_PUBLISH_SQL } from './lineage.js';
 
 // The `config` read model: revisions and publish records folded from the `config:` record streams
 // alone. Whether a publish is genuine is NOT decided here: `loadEffective` joins each published row
@@ -99,18 +98,17 @@ export async function loadEffective(
   db: Executor,
   lineage: ConfigLineage,
 ): Promise<EffectiveLayer | null> {
+  // Through the `config.genuine_publish` view (migration 0002): the same join to the ledger as
+  // GENUINE_PUBLISH_SQL, readable by a role that may not read the ledger itself.
   const q = await db.query<{
     rev_hash: string;
     parent_rev_hash: string | null;
     rev_parent: string | null;
     doc: ConfigDoc;
   }>(
-    `SELECT p.rev_hash, p.parent_rev_hash, r.parent_rev_hash AS rev_parent, r.doc
-       FROM config.config_published p
-       JOIN config.config_revision r ON r.rev_hash = p.rev_hash AND r.lineage = p.lineage
-       JOIN ledger.ledger_entry l ON l.entry_id = p.ledger_entry_id AND l.subject_id = $2
-        AND ${GENUINE_PUBLISH_SQL}
-      WHERE p.lineage = $1 ORDER BY p.global_seq`,
+    `SELECT rev_hash, parent_rev_hash, rev_parent, doc
+       FROM config.genuine_publish
+      WHERE lineage = $1 AND subject_id = $2 ORDER BY global_seq`,
     [configLineageKey(lineage), configSubjectId(lineage)],
   );
   let head: EffectiveLayer | null = null;

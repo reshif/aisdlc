@@ -210,6 +210,8 @@ AR10 says the same image runs in every environment. The same principle gives the
 - *Gateway holds every vendor key.* That is AR5's point. Mitigate with per-provider key references in the registry (D5: "secrets only as references"), a per-route kill leg and the `ASF_GATEWAY_MAX_PROVIDER_CALLS` spend guard (`LP:~24`).
 - *Dynamic registry vs static start-up config.* Today routes come from a file read at start (`ASF_GATEWAY_ROUTES`, `LP:19`) and codehost scope from env (`ASF_CODEHOST_REPOS`, `CODEHOST_REPOS_TTL_S`). A D5 settings page that edits providers or integrations must not mean "recreate the container": give gateway and codehost an authenticated **reload endpoint** (or a poll of the published config revision) before registry steps 6 and 7 of the model build order ship. Otherwise every settings save is a deploy.
 
+**Built (M10.4).** The reload path is both: the gateway follows the published config by revision (NOTIFY plus a poll) and has `POST /v1/admin/reload`; the codehost, which has no database, reads its row from core's API and follows it by a poll and its own `POST /v1/admin/reload`. Each deployment keeps an allow-list of the key references and hosts a registry row may name (`GATEWAY_SECRET_REFS`/`GATEWAY_EGRESS_HOSTS`, `CODEHOST_SECRET_REFS`/`CODEHOST_EGRESS_HOSTS`), so a published row cannot make a process read another file or send a credential to a new host: image x config, with the credential domain fixed by the container's own mounts.
+
 ### 5.4 Where it fits in the model build order
 
 Registry steps 6 and 7 are independent of each other (model section 9 dependencies). Neither needs a topology change. The only runtime prerequisite is the reload path above and a rule that adapter *classes* ship in the existing images.

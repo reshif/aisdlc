@@ -1,4 +1,9 @@
-import { ConfigReader, ConfigRegistry, type ConfigDeps } from '@aisdlc/config';
+import {
+  ConfigReader,
+  ConfigRegistry,
+  registerGatewayConfig,
+  type ConfigDeps,
+} from '@aisdlc/config';
 import { PgProofStore, SignedStepUp } from '@aisdlc/bff/stepup';
 import { createPool } from '@aisdlc/db';
 import { IdentityEligibility } from '@aisdlc/identity/read';
@@ -60,7 +65,9 @@ export async function bootCore(env: Env): Promise<RunningService> {
       );
     }
     await migrateCore(pool);
-    const registry = registerCoreConfig(registerPdpConfig(new ConfigRegistry()));
+    const registry = registerGatewayConfig(
+      registerCoreConfig(registerPdpConfig(new ConfigRegistry())),
+    );
     reader = await ConfigReader.create({
       pool,
       registry,

@@ -388,3 +388,4 @@ export function witnessConformance(name: string, make: () => Promise<WitnessHarn
   });
 }
 export * from './codehost-contract.js';
+export * from './model-provider-contract.js';

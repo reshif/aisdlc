@@ -7,6 +7,12 @@
 #   role notary  -> database notary    the Notary's own database
 #   role witness -> database witness   the Witness's own database
 #   role killswitch -> database killswitch  the kill switch's own database (AR9)
+#   role gateway -> database aisdlc    NOT the owner: a login role in the group role `aisdlc_gateway`, which
+#                                      the gateway migration grants exactly the gateway's own tables, INSERT
+#                                      and SELECT of its own `gateway:` record streams, and the effective-config
+#                                      view (never identity, core, knowledge, the ledger, or any UPDATE or DELETE
+#                                      of the record). The gateway holds the vendor keys, so it holds the least
+#                                      database right that works.
 #
 # Each role owns only its database and nobody else may connect to it, so a compromised record
 # service cannot read the Notary's or the Witness's state. Same server for all three: a declared
@@ -21,9 +27,18 @@ psql -v ON_ERROR_STOP=1 \
   -v pw_aisdlc="$(cat /run/secrets/pg-pass-aisdlc)" \
   -v pw_notary="$(cat /run/secrets/pg-pass-notary)" \
   -v pw_witness="$(cat /run/secrets/pg-pass-witness)" \
-  -v pw_killswitch="$(cat /run/secrets/pg-pass-killswitch)" <<'SQL'
+  -v pw_killswitch="$(cat /run/secrets/pg-pass-killswitch)" \
+  -v pw_gateway="$(cat /run/secrets/pg-pass-gateway)" <<'SQL'
 SELECT 'CREATE ROLE aisdlc_app NOLOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_app') \gexec
+
+-- The gateway's group role (its privileges are granted by the gateway migration) and its login role.
+SELECT 'CREATE ROLE aisdlc_gateway NOLOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_gateway') \gexec
+SELECT 'CREATE ROLE gateway LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gateway') \gexec
+SELECT format('ALTER ROLE gateway PASSWORD %L', :'pw_gateway') \gexec
+GRANT aisdlc_gateway TO gateway;
 
 SELECT format('CREATE ROLE %I LOGIN', r)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS r
@@ -46,5 +61,6 @@ SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', d)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS d \gexec
 SELECT format('GRANT CONNECT ON DATABASE %1$I TO %1$I', d)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS d \gexec
+GRANT CONNECT ON DATABASE aisdlc TO gateway;
 SQL
 echo "db-init: roles and databases are in place"

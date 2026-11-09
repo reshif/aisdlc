@@ -35,6 +35,7 @@
     "@aisdlc/db": "0.0.0",
     "@aisdlc/decisions": "0.0.0",
     "@aisdlc/identity": "0.0.0",
+    "@aisdlc/integrations": "0.0.0",
     "@aisdlc/kernel": "0.0.0",
     "@aisdlc/killswitch": "0.0.0",
     "@aisdlc/kms-local": "0.0.0",
@@ -53,6 +54,7 @@
   },
   "devDependencies": {
     "@aisdlc/codehost": "0.0.0",
+    "@aisdlc/gateway": "0.0.0",
     "@aisdlc/knowledge": "0.0.0"
   }
 }

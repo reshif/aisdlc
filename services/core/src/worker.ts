@@ -24,3 +24,8 @@ export {
   syncKillHolds,
   type KillswitchLink,
 } from './kill.js';
+export {
+  gatewayTriggersLoop,
+  observeGatewayTriggers,
+  type GatewayTriggersLoopOptions,
+} from './gateway-triggers.js';

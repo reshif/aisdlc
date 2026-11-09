@@ -1,4 +1,10 @@
 import {
+  acceptHealth,
+  effectiveRegistry,
+  healthTiles,
+  integrationEvents,
+} from './integration-api.js';
+import {
   CardDecideRequest,
   CardEvidenceRequest,
   CardPrepareRequest,
@@ -8,6 +14,7 @@ import {
   ControlKind,
   ControlScope,
   GatingProfile,
+  IntegrationKind,
   IsoDateTime,
   KillDelegation,
   OnboardRequest,
@@ -93,9 +100,12 @@ import {
  * by the PDP for the signed-in human, so no other caller has a reason to hold this scope), `work`
  * (requests and items, M9.1: the BFF for a signed-in human, or an API client; the PDP decides about the
  * human named in `on_behalf_of`), `ops` (controls, previews and banners, M9.6: the BFF for a signed-in
- * human; the PDP decides about the human, over the resource of the scope).
+ * human; the PDP decides about the human, over the resource of the scope), `integrations` (M10.4: a
+ * process that holds adapters reports its health per integration; the registry read is `registry`, the
+ * tiles and events are `portal`).
  */
-export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry' | 'portal' | 'work' | 'ops';
+export type CoreScope =
+  'read' | 'onboard' | 'settings' | 'registry' | 'portal' | 'work' | 'ops' | 'integrations';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -217,6 +227,66 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       reply,
       coreError(r.error.code === 'unknown_project' ? 'not_found' : 'unavailable', r.error.message),
     );
+  });
+
+  // ------------------------------------------------------------ integration registry (M10.4)
+
+  /** The effective registry (`?kind=code_host|model_provider`): what the codehost selects its adapter from. */
+  app.get('/v1/integrations', async (req, reply) => {
+    if (!allowed(req, 'registry')) {
+      return sendError(reply, 403, 'forbidden', 'scope registry is needed');
+    }
+    const raw = (req.query as { kind?: string }).kind;
+    const kind = IntegrationKind.safeParse(raw);
+    if (raw !== undefined && !kind.success) {
+      return fail(reply, coreError('invalid_input', 'kind is code_host, model_provider, ...'));
+    }
+    try {
+      return await effectiveRegistry(o.pool, kind.success ? kind.data : undefined);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the registry could not be read'));
+    }
+  });
+
+  /** A reporter's health per integration. The gateway writes its own straight to the table; the codehost reports here. */
+  app.post('/v1/integrations/health', async (req, reply) => {
+    if (!allowed(req, 'integrations')) {
+      return sendError(reply, 403, 'forbidden', 'scope integrations is needed');
+    }
+    if ((req.body as { reporter?: unknown } | null)?.reporter !== 'codehost') {
+      return fail(reply, coreError('invalid_input', 'only the codehost reports through core'));
+    }
+    try {
+      const r = await acceptHealth(o.pool, req.body, clock.now());
+      return 'error' in r ? fail(reply, coreError('invalid_input', r.error)) : r;
+    } catch {
+      return fail(reply, coreError('unavailable', 'the health report could not be stored'));
+    }
+  });
+
+  /** The tiles of the integrations panel: every integration, one shared health shape (a stale report reads `unknown`). */
+  app.get('/v1/integrations/health', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    try {
+      return await healthTiles(o.pool, clock.now());
+    } catch {
+      return fail(reply, coreError('unavailable', 'the health tiles could not be read'));
+    }
+  });
+
+  /** What published revisions did to each integration, each with the ledger entry that made it effective. */
+  app.get('/v1/integrations/events', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    try {
+      return await integrationEvents(
+        o.pool,
+        (req.query as { integration_id?: string }).integration_id,
+      );
+    } catch {
+      return fail(reply, coreError('unavailable', 'the integration events could not be read'));
+    }
   });
 
   app.get('/v1/registered-repos', async (req, reply) => {
