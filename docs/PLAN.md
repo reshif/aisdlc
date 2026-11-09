@@ -190,6 +190,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
+| M9.7 | Follow-ups from M9: a short kill-specific signing timeout (a hanging key service delays an unsigned kill by the 10 s client timeout today); BFF kill and control routes for the portal; L0/L7 eligibility per level is unspecified in the roadmap (§2.1), so R4 cannot fire and L0/L7 route to L8 until the user decides | Kill applies within 1 s with the KMS hanging |
 | M10.1 | `ModelProviderPort`; Anthropic and fake adapters in `services/gateway`, the only holder of vendor keys | Compose test: no other container can read the key file |
 | M10.2 | ModelProvider, ProviderModel, Route as config revisions; routes per environment and data class; D3 never routed; a D2-or-lower route is a gated change | D3 request refused |
 | M10.3 | Virtual keys per Unit, budget groups, hard stop, metered ModelCall events, redaction, per-Unit tool allow-list never widened by content, spend guard | Budget exhaustion stops a session and raises ET1 |

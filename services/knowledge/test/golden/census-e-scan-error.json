@@ -16,10 +16,10 @@
   "requested_level": "census",
   "pins": {
     "catalogue": {
-      "version": "1.0.0",
-      "hash": "b1f87eab750e56c08d903705040f1a0252cb8a94d143f9563a4fa99769a76da3"
+      "version": "1.3.0",
+      "hash": "601beaae85ea26e30b0f13349571b76d549871ea7020afbd2199fb313a86a123"
     },
-    "criteria_set": "CRITERIA_V2@1.0.0",
+    "criteria_set": "CRITERIA_V2@1.3.0",
     "detector_set_version": "detectors/1:76e87cfdb5f7",
     "rules_version": "secrets-rules/2:961394bbf87c",
     "assembly": "census-rules/1"
@@ -1716,5 +1716,5 @@
       "visibility_class": "private_only"
     }
   ],
-  "census_hash": "f34c3100cf182db117e74590929f465e193297d4c8da9c9326f2c8b4d28466bb"
+  "census_hash": "b1f31ffc91c6ae8d0a65d3f823a7652c20d628d69843fda7c8774450b6cd7ece"
 }

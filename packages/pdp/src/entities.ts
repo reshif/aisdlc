@@ -30,6 +30,7 @@ function resourceEntity(r: PdpResource): CedarEntity {
 export function resourceEntities(r: PdpResource): CedarEntity[] {
   const out: CedarEntity[] = [resourceEntity(r)];
   if (r.type === 'Fleet') return out;
+  if (r.type === 'Team') return [...out, resourceEntity(pdpResource.fleet())];
   const project = r.type === 'Project' ? r.id : (r.project as string);
   if (r.type === 'Gate' || r.type === 'Card') {
     if (r.item !== null) out.push(resourceEntity(pdpResource.item(project, r.item, r.lane)));

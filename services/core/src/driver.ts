@@ -112,6 +112,8 @@ export interface DriverDeps {
   readonly source: Pick<CodeHostPort, 'list_repos' | 'installation' | 'branch_head'>;
   readonly knowledge: KnowledgePort;
   readonly settings?: () => S0Settings;
+  /** MM-2 is on: the S0 timers (park, reminder, time box) are frozen, they fire nothing until it ends. */
+  readonly maintenance?: () => boolean;
 }
 
 export type DriveAction =
@@ -180,7 +182,8 @@ export async function driveS0(d: DriverDeps, s0Id: string): Promise<DriveOutcome
   const status = s0.record.status;
   if (status !== 'app' && status !== 'running' && status !== 'card') return out('none');
 
-  const timed = await timers(d, s0);
+  // MM-2: timers frozen. The record keeps its drafts and its card; the clock-driven rules wait.
+  const timed = d.maintenance?.() === true ? null : await timers(d, s0);
   if (timed !== null) return out(timed);
 
   if (status === 'card') return out('none');

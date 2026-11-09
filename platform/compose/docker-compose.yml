@@ -9,7 +9,7 @@
 #
 # Ports: every service has its own (postgres 5432, kms-local 8300, notary 8310, witness 8320,
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
-# fake GitHub 8353 api / 8354 git). Only the bff and dev-oidc are published, on 127.0.0.1.
+# killswitch 8400, fake GitHub 8353 api / 8354 git). Only the bff and dev-oidc are published, on 127.0.0.1.
 
 x-factory:
   &factory # The one image, built by `migrate` below; every service picks its bundle with `command`.
@@ -47,6 +47,9 @@ networks:
     internal: true
   data-witness:
     internal: true
+  # The kill switch's own database network (AR9): nothing but the kill switch and Postgres is on it.
+  data-killswitch:
+    internal: true
   # kms-local reached by its callers. Three networks so that the Notary and the Witness, the two
   # independent signers (AR9, C33), have no route to each other or to the other callers through it.
   kms-notary:
@@ -55,11 +58,22 @@ networks:
     internal: true
   kms-clients:
     internal: true
+  # The kill switch's own signer link: it has its own key (`dev:killswitch`) and no other caller of
+  # kms-local can see it from here.
+  kms-killswitch:
+    internal: true
   # The Notary's API: its callers (core, core-worker, identity, seed). Knowledge, codehost, the bff
   # and the dev IdP are not on it. The Witness's API: its caller (core-worker, for the checkpointer).
   notary-api:
     internal: true
   witness-api:
+    internal: true
+  # The kill switch's API (AR9): its readers and pushers (core-worker) and the operator path. Core, the
+  # Notary, the codehost, the bff and every other service are not on it, and the kill switch is on no
+  # network of theirs: it has no route to core's write or command APIs, or to anything else. The one
+  # core-side member is core-worker, whose HTTP surface is /healthz, /metrics and /admission (nothing
+  # writes); the kill switch has no client that calls it.
+  killswitch-api:
     internal: true
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
   # network with a route out), so it has no route to GitHub and gets repo content only as bundles
@@ -77,14 +91,19 @@ secrets:
   pg-pass-aisdlc: { file: ./secrets/pg-pass-aisdlc }
   pg-pass-notary: { file: ./secrets/pg-pass-notary }
   pg-pass-witness: { file: ./secrets/pg-pass-witness }
+  pg-pass-killswitch: { file: ./secrets/pg-pass-killswitch }
   db-url-aisdlc: { file: ./secrets/db-url-aisdlc }
   db-url-notary: { file: ./secrets/db-url-notary }
   db-url-witness: { file: ./secrets/db-url-witness }
+  db-url-killswitch: { file: ./secrets/db-url-killswitch }
   bff-oidc-client-secret: { file: ./secrets/bff-oidc-client-secret }
   github-app.pem: { file: ./secrets/github-app.pem }
   github-app.pub.pem: { file: ./secrets/github-app.pub.pem }
   tok-notary-kms: { file: ./secrets/tok-notary-kms }
   tok-witness-kms: { file: ./secrets/tok-witness-kms }
+  tok-killswitch-kms: { file: ./secrets/tok-killswitch-kms }
+  tok-core-worker-killswitch: { file: ./secrets/tok-core-worker-killswitch }
+  tok-operator-killswitch: { file: ./secrets/tok-operator-killswitch }
   tok-knowledge-kms: { file: ./secrets/tok-knowledge-kms }
   tok-bff-kms: { file: ./secrets/tok-bff-kms }
   tok-bff-core: { file: ./secrets/tok-bff-core }
@@ -128,11 +147,11 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
-    networks: [data-record, data-notary, data-witness]
+    networks: [data-record, data-notary, data-witness, data-killswitch]
     mem_limit: 512m
     shm_size: 64m
 
-  # The init step: roles and databases (record, notary, witness), idempotent.
+  # The init step: roles and databases (record, notary, witness, killswitch), idempotent.
   db-init:
     image: postgres:16.4@sha256:e62fbf9d3e2b49816a32c400ed2dba83e3b361e6833e624024309c35d334b412
     user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
@@ -146,14 +165,14 @@ services:
       PGHOST: postgres
     volumes:
       - ./db-init.sh:/db-init.sh:ro
-    secrets: [pg-superuser, pg-pass-aisdlc, pg-pass-notary, pg-pass-witness]
+    secrets: [pg-superuser, pg-pass-aisdlc, pg-pass-notary, pg-pass-witness, pg-pass-killswitch]
     depends_on:
       postgres: { condition: service_healthy }
-    networks: [data-record, data-notary, data-witness]
+    networks: [data-record, data-notary, data-witness, data-killswitch]
     mem_limit: 64m
 
-  # `aisdlc-migrate` first: every schema in dependency order, the Notary's and the Witness's
-  # databases too (--notary --witness). This service also builds the image (see Dockerfile).
+  # `aisdlc-migrate` first: every schema in dependency order, the Notary's, the Witness's and the kill
+  # switch's databases too (--notary --witness --killswitch). This service also builds the image (see Dockerfile).
   migrate:
     <<: *factory
     build:
@@ -162,20 +181,28 @@ services:
       # Unset: the Dockerfile's pinned images. Set RUNTIME_IMAGE to a base that already has git.
       args: [RUNTIME_IMAGE]
     restart: 'no'
-    command: ['node', '/app/packages/migrate/dist/aisdlc-migrate.js', '--notary', '--witness']
+    command:
+      [
+        'node',
+        '/app/packages/migrate/dist/aisdlc-migrate.js',
+        '--notary',
+        '--witness',
+        '--killswitch',
+      ]
     environment:
       AISDLC_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       AISDLC_NOTARY_DATABASE_URL: file:/run/secrets/db-url-notary
       AISDLC_WITNESS_DATABASE_URL: file:/run/secrets/db-url-witness
-    secrets: [db-url-aisdlc, db-url-notary, db-url-witness]
+      AISDLC_KILLSWITCH_DATABASE_URL: file:/run/secrets/db-url-killswitch
+    secrets: [db-url-aisdlc, db-url-notary, db-url-witness, db-url-killswitch]
     depends_on:
       db-init: { condition: service_completed_successfully }
-    networks: [data-record, data-notary, data-witness]
+    networks: [data-record, data-notary, data-witness, data-killswitch]
     mem_limit: 192m
 
   # ---------------------------------------------------------------------------- trust plane
 
-  # Boundary: key custody. The only holder of the Notary, Witness, step-up and fingerprint keys;
+  # Boundary: key custody. The only holder of the Notary, Witness, kill switch, step-up and fingerprint keys;
   # signs digests and MACs by key id and never hands a key out. dev: keys, so it refuses to start
   # unless FACTORY_ENV=local (cloud: AWS KMS, Notary and Witness in separate accounts).
   kms-local:
@@ -192,6 +219,7 @@ services:
         "witness":{"token_ref":"file:/run/secrets/tok-witness-kms"},
         "knowledge":{"token_ref":"file:/run/secrets/tok-knowledge-kms"},
         "bff":{"token_ref":"file:/run/secrets/tok-bff-kms"},
+        "killswitch":{"token_ref":"file:/run/secrets/tok-killswitch-kms"},
         "core":{"token_ref":"file:/run/secrets/tok-core-kms","keys":[]},
         "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-kms","keys":[]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-kms","keys":[]}}
@@ -203,6 +231,7 @@ services:
         tok-witness-kms,
         tok-knowledge-kms,
         tok-bff-kms,
+        tok-killswitch-kms,
         tok-core-kms,
         tok-core-worker-kms,
         tok-identity-kms,
@@ -215,7 +244,7 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [kms-notary, kms-witness, kms-clients]
+    networks: [kms-notary, kms-witness, kms-killswitch, kms-clients]
     mem_limit: 128m
 
   # Boundary: ledger signer (C08n "the only signer", AR1). Its own database and role.
@@ -271,6 +300,39 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
     networks: [kms-witness, witness-api, data-witness]
+    mem_limit: 128m
+
+  # Boundary: AR9 independence. The kill switch has its own database and role, its own key
+  # (`dev:killswitch`, which no other caller of kms-local may use) and its own network. It depends on
+  # nothing of core's or Temporal's and has no route to core's write or command APIs: it is on no
+  # network of core's and holds no token of core's. Core-worker READS it (admission, the journal) and
+  # PUSHES to it (who holds what); the operator token is for a person's kill when core is down.
+  # Factory admins (the only people who may kill the fleet) are its own configuration.
+  killswitch:
+    <<: *factory
+    command: ['node', '--enable-source-maps', '/app/services/killswitch/dist/main.js']
+    environment:
+      KILLSWITCH_DATABASE_URL: file:/run/secrets/db-url-killswitch
+      KILLSWITCH_CALLERS: >-
+        {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-killswitch","scopes":["read","sync"]},
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-killswitch","scopes":["act","read"]}}
+      KILLSWITCH_FACTORY_ADMINS: '["alice","bob"]'
+      KMS_URL: http://kms-local:8300
+      KMS_TOKEN_REF: file:/run/secrets/tok-killswitch-kms
+      KILLSWITCH_HOST: 0.0.0.0
+      KILLSWITCH_PORT: '8400'
+    secrets:
+      [db-url-killswitch, tok-core-worker-killswitch, tok-operator-killswitch, tok-killswitch-kms]
+    healthcheck:
+      test: ['CMD', 'node', '/app/healthcheck.mjs', '8400']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      kms-local: { condition: service_healthy }
+    networks: [kms-killswitch, killswitch-api, data-killswitch]
     mem_limit: 128m
 
   # ------------------------------------------------------------------- identity and the seed
@@ -363,7 +425,7 @@ services:
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard"]},
-        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal"]}}
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work"]}}
       CORE_NOTARY_URL: http://notary:8310
       CORE_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-notary
       KMS_URL: http://kms-local:8300
@@ -420,6 +482,12 @@ services:
       CORE_WORKER_WITNESS_URL: http://witness:8320
       CORE_WORKER_WITNESS_TOKEN_REF: file:/run/secrets/tok-core-worker-witness
       CORE_WORKER_CHECKPOINT_INTERVAL_MS: ${CHECKPOINT_INTERVAL_MS:-300000}
+      # M9.6: the kill switch (AR9): admission reads it, the holders of every project are pushed to it,
+      # its journal is recorded (and ledgered through the Notary). smoke.sh shortens the observer.
+      CORE_WORKER_KILLSWITCH_URL: http://killswitch:8400
+      CORE_WORKER_KILLSWITCH_TOKEN_REF: file:/run/secrets/tok-core-worker-killswitch
+      CORE_WORKER_KILL_OBSERVER_INTERVAL_MS: ${KILL_OBSERVER_INTERVAL_MS:-5000}
+      CORE_WORKER_KILL_HOLDERS_INTERVAL_MS: ${KILL_HOLDERS_INTERVAL_MS:-10000}
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-core-worker-kms
       CORE_WORKER_HOST: 0.0.0.0
@@ -432,6 +500,7 @@ services:
         tok-core-worker-identity,
         tok-core-worker-notary,
         tok-core-worker-witness,
+        tok-core-worker-killswitch,
         tok-core-worker-kms,
       ]
     healthcheck:
@@ -447,7 +516,8 @@ services:
       knowledge: { condition: service_healthy }
       identity: { condition: service_healthy }
       witness: { condition: service_healthy }
-    networks: [app, data-record, kms-clients, notary-api, witness-api]
+      killswitch: { condition: service_healthy }
+    networks: [app, data-record, kms-clients, notary-api, witness-api, killswitch-api]
     mem_limit: 256m
 
   # ------------------------------------------------------------------ code and repo content
@@ -558,7 +628,7 @@ services:
       BFF_OIDC_CLIENT_SECRET_REF: file:/run/secrets/bff-oidc-client-secret
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-bff-kms
-      # The portal's API calls: core with the bff's own token (scopes read, onboard, portal), and the
+      # The portal's API calls: core with the bff's own token (scopes read, onboard, portal, work), and the
       # web bundle the image carries, served same-origin with a strict CSP.
       BFF_CORE_URL: http://core:8380
       BFF_CORE_TOKEN_REF: file:/run/secrets/tok-bff-core

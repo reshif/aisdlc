@@ -4,8 +4,17 @@ permit (principal in Role::"factory.admin", action == Action::"access.explain", 
 @id("role/factory.admin/audit.read")
 permit (principal in Role::"factory.admin", action == Action::"audit.read", resource);
 
+@id("role/factory.admin/banner.publish")
+permit (principal in Role::"factory.admin", action == Action::"banner.publish", resource);
+
 @id("role/factory.admin/config.propose")
 permit (principal in Role::"factory.admin", action == Action::"config.propose", resource);
+
+@id("role/factory.admin/control.apply")
+permit (principal in Role::"factory.admin", action == Action::"control.apply", resource);
+
+@id("role/factory.admin/control.lift")
+permit (principal in Role::"factory.admin", action == Action::"control.lift", resource);
 
 @id("role/factory.admin/floor.read")
 permit (principal in Role::"factory.admin", action == Action::"floor.read", resource);
@@ -49,17 +58,41 @@ permit (principal in Role::"factory.auditor", action == Action::"item.view_floor
 @id("role/factory.auditor/project.view")
 permit (principal in Role::"factory.auditor", action == Action::"project.view", resource);
 
+@id("role/factory.onboarder/floor.read")
+permit (principal in Role::"factory.onboarder", action == Action::"floor.read", resource);
+
+@id("role/factory.onboarder/gate.view")
+permit (principal in Role::"factory.onboarder", action == Action::"gate.view", resource);
+
+@id("role/factory.onboarder/item.view_floor")
+permit (principal in Role::"factory.onboarder", action == Action::"item.view_floor", resource);
+
+@id("role/factory.onboarder/project.onboard")
+permit (principal in Role::"factory.onboarder", action == Action::"project.onboard", resource);
+
+@id("role/factory.onboarder/project.view")
+permit (principal in Role::"factory.onboarder", action == Action::"project.view", resource);
+
 @id("role/project.admin/access.explain")
 permit (principal in Role::"project.admin", action == Action::"access.explain", resource);
 
 @id("role/project.admin/audit.read")
 permit (principal in Role::"project.admin", action == Action::"audit.read", resource);
 
+@id("role/project.admin/banner.publish")
+permit (principal in Role::"project.admin", action == Action::"banner.publish", resource);
+
 @id("role/project.admin/card.decide")
 permit (principal in Role::"project.admin", action == Action::"card.decide", resource);
 
 @id("role/project.admin/config.propose")
 permit (principal in Role::"project.admin", action == Action::"config.propose", resource);
+
+@id("role/project.admin/control.apply")
+permit (principal in Role::"project.admin", action == Action::"control.apply", resource);
+
+@id("role/project.admin/control.lift")
+permit (principal in Role::"project.admin", action == Action::"control.lift", resource);
 
 @id("role/project.admin/floor.read")
 permit (principal in Role::"project.admin", action == Action::"floor.read", resource);
@@ -85,6 +118,9 @@ permit (principal in Role::"project.admin", action == Action::"project.settings.
 
 @id("role/project.admin/project.view")
 permit (principal in Role::"project.admin", action == Action::"project.view", resource);
+
+@id("role/project.admin/work.request")
+permit (principal in Role::"project.admin", action == Action::"work.request", resource);
 
 @id("role/project.code_owner/card.decide")
 permit (principal in Role::"project.code_owner", action == Action::"card.decide", resource);
@@ -236,6 +272,9 @@ permit (principal in Role::"project.requester", action == Action::"item.view_flo
 
 @id("role/project.requester/project.view")
 permit (principal in Role::"project.requester", action == Action::"project.view", resource);
+
+@id("role/project.requester/work.request")
+permit (principal in Role::"project.requester", action == Action::"work.request", resource);
 
 @id("role/project.security_approver/card.decide")
 permit (principal in Role::"project.security_approver", action == Action::"card.decide", resource);

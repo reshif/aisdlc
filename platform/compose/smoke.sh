@@ -17,7 +17,12 @@
 #      co-sign it (CHECKPOINT_INTERVAL_MS is 15 s here, 5 min by default); verify-ledger.sh then
 #      runs the bundled `verify-ledger` against the record database with the two public keys from
 #      kms-local, and it must pass
-#   8. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
+#   8. the kill switch (M9.6, AR9): a project is killed at the kill switch (its own service, database and
+#      key; the operator token, the way a person reaches it when core is down), core-worker's admission
+#      probe answers `killed` for that project and `admitted` for another, core-worker records the kill
+#      switch's journal as `kill.observed` facts and `kill.event` ledger entries (through the Notary),
+#      the release (two factory admins) lifts it, and verify-ledger still passes
+#   9. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
 #
 # SMOKE_SKIP_BUILD=1   use the image aisdlc/factory:local as it is (a network that blocks apt or
 #                      the npm registry: build it yourself, see README.md)
@@ -28,6 +33,9 @@ cd "$(dirname "$0")"
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-smoke}"
 # The checkpointer runs every 5 minutes by default; a smoke test cannot wait that long.
 export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
+# core-worker records the kill switch's journal every few seconds; a smoke test cannot wait for the default.
+export KILL_OBSERVER_INTERVAL_MS="${KILL_OBSERVER_INTERVAL_MS:-3000}"
+export KILL_HOLDERS_INTERVAL_MS="${KILL_HOLDERS_INTERVAL_MS:-5000}"
 dc() { docker compose --profile fake-github "$@"; }
 T0=$SECONDS
 step() { printf '\n== [%3ss] %s\n' $((SECONDS - T0)) "$*"; }
@@ -79,7 +87,7 @@ while IFS='|' read -r svc state health code; do
 done < <(dc ps -a --format '{{.Service}}|{{.State}}|{{.Health}}|{{.ExitCode}}' | sort)
 [ "$bad" = 0 ] || fail "a service is not healthy"
 services=$(dc ps -a --format '{{.Service}}' | wc -l)
-[ "$services" -ge 15 ] || fail "expected the whole stack, found $services services"
+[ "$services" -ge 16 ] || fail "expected the whole stack, found $services services"
 
 step "the boundaries hold"
 # `5432/tcp -> :0` is postgres' EXPOSE, not a published port; a published one reads `-> 127.0.0.1:8340`.
@@ -112,6 +120,21 @@ refused notary http://witness:8320/healthz       # the two signers cannot see ea
 refused witness http://notary:8310/healthz
 refused bff http://notary:8310/healthz
 refused dev-oidc http://kms-local:8300/healthz
+# AR9: the kill switch is on its own network. It has no route to core (the API with write and command
+# routes) or to anything else but its signer and its database, and core, the Notary and the codehost have
+# none to it. The one core-side process on its network is core-worker, which it must share a network
+# with (it reads and pushes); core-worker's HTTP surface is /healthz, /metrics and /admission, nothing
+# writes, and the kill switch has no client that calls it.
+refused killswitch http://core:8380/healthz      # no route to core's write or command APIs
+refused killswitch http://notary:8310/healthz
+refused core http://killswitch:8400/healthz      # core is not on the kill switch's network
+refused notary http://killswitch:8400/healthz
+refused codehost http://killswitch:8400/healthz
+refused bff http://killswitch:8400/healthz
+if dc exec -T killswitch sh -c 'test -e /run/secrets/db-url-aisdlc || test -e /run/secrets/tok-core-notary || ls /run/secrets | grep -q "^tok-.*-core$"' 2>/dev/null; then
+  fail "the kill switch holds a secret of core's"
+fi
+echo "  the kill switch mounts only its own database URL and tokens (no core, no record database)"
 
 step "onboard the fixture repo through core: 0.1 runs codehost -> knowledge -> census"
 # alice is a factory admin (the seed); core takes the operator token (scope onboard) on her behalf.
@@ -177,6 +200,54 @@ printf '%s\n' "$gitl" | sort | uniq -c | sed 's/^/    /'
 printf '%s\n' "$gitl" | grep -q 'receive-pack' && fail "something tried to push"
 printf '%s\n' "$gitl" | grep -q 'authorized=false' && fail "git was asked without a credential"
 echo "  => git was only fetched from (upload-pack), every request with the installation token"
+
+step "the kill switch: kill a project, admission refused, observed and ledgered, release, admitted"
+# The operator token reaches the kill switch directly (the path a person has when core is down); alice
+# and bob are the factory admins it is configured with. core-worker's admission probe asks the kill switch
+# the way the work driver does before it dispatches a stage command.
+ksnode() { dc exec -T -e TOKEN="$(cat secrets/tok-operator-killswitch)" killswitch node -e "$1"; }
+cwnode() { dc exec -T core-worker node -e "$1"; }
+admission() { # project -> prints "<http status> <json>"
+  cwnode "fetch('http://127.0.0.1:8360/admission?project_id=$1&lane=L3').then(async r=>console.log(r.status, await r.text()))"
+}
+a0=$(admission testbed); echo "  before the kill: testbed $a0"
+case "$a0" in 200*) ;; *) fail "admission was not given before any kill: $a0" ;; esac
+kid=$(ksnode '
+const h = { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" };
+const r = await fetch("http://127.0.0.1:8400/v1/kills", { method: "POST", headers: h,
+  body: JSON.stringify({ on_behalf_of: "alice", scope: { kind: "project", ref: "testbed" }, reason: "smoke test" }) });
+const k = await r.json();
+if (r.status !== 201) { console.error(JSON.stringify(k)); process.exit(1); }
+console.log(k.kill_id);
+') || fail "the kill was refused"
+echo "  killed project testbed at the kill switch: $kid"
+a1=$(admission testbed); echo "  after the kill:  testbed $a1"
+case "$a1" in 423*killed*) ;; *) fail "admission was not refused for the killed project: $a1" ;; esac
+a2=$(admission other-project); echo "  another project: $a2"
+case "$a2" in 200*) ;; *) fail "a project with no kill was refused: $a2" ;; esac
+# a person who holds nothing cannot release it; two factory admins can
+ksnode '
+const h = { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" };
+const rel = async (who) => { const r = await fetch("http://127.0.0.1:8400/v1/kills/'"$kid"'/release", { method: "POST", headers: h, body: JSON.stringify({ on_behalf_of: who }) }); return [r.status, await r.json()]; };
+const [s0] = await rel("mallory");
+if (s0 !== 403) { console.error("a stranger released it", s0); process.exit(1); }
+let [, k] = await rel("alice");
+if (k.state === "release_pending") [, k] = await rel("bob");
+console.log(k.state, k.release_approvals.join("+"));
+if (k.state !== "released") process.exit(1);
+' || fail "the release did not work"
+a3=$(admission testbed); echo "  after the release: testbed $a3"
+case "$a3" in 200*) ;; *) fail "admission was not given after the release: $a3" ;; esac
+# core-worker pulled the kill switch's journal: facts in the record and entries in the ledger (Notary)
+for i in $(seq 1 30); do
+  obs=$(PGPW="$(cat secrets/pg-superuser)"; dc exec -T -e PGPASSWORD="$PGPW" postgres psql -U postgres -d aisdlc -At -c "SELECT count(*) FROM record.record_event WHERE type = 'kill.observed'")
+  led=$(PGPW="$(cat secrets/pg-superuser)"; dc exec -T -e PGPASSWORD="$PGPW" postgres psql -U postgres -d aisdlc -At -c "SELECT count(*) FROM ledger.ledger_entry WHERE entry_type = 'kill.event'")
+  [ "$obs" -ge 3 ] && [ "$led" -ge 3 ] && break
+  sleep 2
+done
+echo "  kill.observed facts: $obs, kill.event ledger entries: $led (requested, approvals, released)"
+[ "$obs" -ge 3 ] && [ "$led" -ge 3 ] || fail "core-worker did not record the kill switch journal"
+dc logs --no-log-prefix --no-color core-worker 2>&1 | grep -qi 'kill_observer.*fail' && fail "the kill observer failed"
 
 step "a checkpoint co-signed by the Witness, and verify-ledger passes"
 ./verify-ledger.sh --wait 150 || fail "the ledger did not verify"

@@ -10,15 +10,17 @@ import {
   type ScopeMigrations,
 } from './plan.js';
 
-export const USAGE = `usage: aisdlc-migrate [--notary] [--witness] [--list]
+export const USAGE = `usage: aisdlc-migrate [--notary] [--witness] [--killswitch] [--list]
 
 Applies, in dependency order, every schema of the factory to its database, and does nothing to a
 database that is already up to date:
   record, ledger, decisions, config, identity, directory, bff   -> AISDLC_DATABASE_URL
   notary   (with --notary)                                      -> AISDLC_NOTARY_DATABASE_URL
   witness  (with --witness)                                     -> AISDLC_WITNESS_DATABASE_URL
+  killswitch (with --killswitch)                                -> AISDLC_KILLSWITCH_DATABASE_URL
 Each URL is a secret reference (env:NAME or file:PATH) or a postgres:// URL without a password.
-The notary and witness databases are the key holders' own; their services also migrate them at start.
+The notary, witness and killswitch databases are the key holders' own; their services also migrate
+them at start.
 --list prints the plan (scopes, files, checksums) and needs no database.
 Exit: 0 done, 78 bad configuration, 1 a migration failed.
 `;
@@ -32,6 +34,7 @@ const DB_ENV: Record<DatabaseName, string> = {
   record: 'AISDLC_DATABASE_URL',
   notary: 'AISDLC_NOTARY_DATABASE_URL',
   witness: 'AISDLC_WITNESS_DATABASE_URL',
+  killswitch: 'AISDLC_KILLSWITCH_DATABASE_URL',
 };
 
 const checksum = (sql: string): string =>
@@ -48,7 +51,7 @@ export async function runMigrateCli(
   sets?: MigrationSets,
 ): Promise<number> {
   const flags = new Set(argv);
-  const known = new Set(['--notary', '--witness', '--list', '--help', '-h']);
+  const known = new Set(['--notary', '--witness', '--killswitch', '--list', '--help', '-h']);
   const unknown = argv.filter((a) => !known.has(a));
   if (unknown.length > 0 || flags.has('--help') || flags.has('-h')) {
     (unknown.length > 0 ? io.error : io.log)(
@@ -62,11 +65,12 @@ export async function runMigrateCli(
     'record',
     ...(flags.has('--notary') ? (['notary'] as const) : []),
     ...(flags.has('--witness') ? (['witness'] as const) : []),
+    ...(flags.has('--killswitch') ? (['killswitch'] as const) : []),
   ];
 
   if (flags.has('--list')) {
     io.log(`aisdlc-migrate: plan (SQL ${source})`);
-    for (const db of ['record', 'notary', 'witness'] as const) {
+    for (const db of ['record', 'notary', 'witness', 'killswitch'] as const) {
       for (const s of all[db]) {
         io.log(`${db}/${s.scope}: ${s.files.map((f) => `${f.name}@${checksum(f.sql)}`).join(' ')}`);
       }

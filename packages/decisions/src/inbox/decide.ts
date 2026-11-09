@@ -30,6 +30,7 @@ import {
   newEntryId,
   writeDecision,
   enterLedger,
+  inMaintenance,
   type DecisionDeps,
   type Written,
 } from '../internal.js';
@@ -356,6 +357,9 @@ export async function decideCard(
   deps: DecisionDeps,
   input: DecideCardInput,
 ): Promise<Result<Written<CardDecisionResult>, DecisionError>> {
+  if (await inMaintenance(deps)) {
+    return err(decisionError('maintenance', 'maintenance mode MM-2: decisions are disabled'));
+  }
   // ---- Input shape, before any database work.
   const payload = input.payload === undefined ? null : parsePayload(input.payload);
   if (payload && !payload.ok) return payload;

@@ -4,11 +4,15 @@ import {
   WorkAdmittedPayload,
   WorkFanOutPayload,
   WorkHeldPayload,
+  WorkItemCreatedPayload,
   WorkRequestedPayload,
   WorkRoutedL8Payload,
   repoKeyOf,
+  itemStream,
   workStream,
   type EntryChannel,
+  type SpawnOrigin,
+  type TaintedText,
   type Lane,
   type LaneEligibility,
   type PrincipalId,
@@ -16,11 +20,15 @@ import {
   type ProjectReadinessRecord,
   type RecordEvent,
 } from '@aisdlc/contracts';
+import { dedupeScan } from '@aisdlc/work';
 import { deterministicId, err, newId, ok, type Result } from '@aisdlc/kernel';
 import { EVENT_COLUMNS, toRecordEvent, type EventRow } from '@aisdlc/record';
+import { injectionReportOf } from '@aisdlc/work';
 import { coreError, type CoreError } from './errors.js';
+import { createItemIn, itemIdOfRequest, openItemsOfRepo } from './work-items.js';
 import type { PrrVersion } from './fold.js';
 import { clockOf, inCoreTx, lockKeys, type CoreDeps, type Journal } from './journal.js';
+import { applyGuard, projectGuard } from './breaker.js';
 import { routeLane } from './lane-eligibility.js';
 import { governingPrr } from './fold.js';
 import { repoIdentity } from './prr-store.js';
@@ -36,15 +44,20 @@ export type WorkState = 'requested' | 'held' | 'admitted' | 'routed_l8' | 'relea
 export interface WorkRequestState {
   readonly request: WorkRequestedPayload;
   readonly state: WorkState;
+  /** The item made from the request (M9.1), once there is one. */
+  readonly item_id: string | null;
   readonly head_seq: number;
 }
 
 export function foldWork(events: readonly RecordEvent[]): WorkRequestState | null {
   let request: WorkRequestedPayload | null = null;
   let state: WorkState = 'requested';
+  let item_id: string | null = null;
   let head = 0;
   for (const e of events) {
     head = e.stream_seq;
+    if (e.type === WORK_EVENT.item_created)
+      item_id = WorkItemCreatedPayload.parse(e.payload).item_id;
     if (e.type === WORK_EVENT.requested) {
       request = WorkRequestedPayload.parse(e.payload);
       state = 'requested';
@@ -54,7 +67,7 @@ export function foldWork(events: readonly RecordEvent[]): WorkRequestState | nul
     else if (e.type === WORK_EVENT.released) state = 'released';
     else if (e.type === WORK_EVENT.l8_offered) state = 'l8_offered';
   }
-  return request ? { request, state, head_seq: head } : null;
+  return request ? { request, state, item_id, head_seq: head } : null;
 }
 
 export async function readWork(
@@ -77,6 +90,14 @@ export interface WorkRequestInput {
   readonly channel?: EntryChannel;
   /** A retry key: the same key is the same request. */
   readonly request_id?: string;
+  /**
+   * M9.1: the request's text after step 1.1 (normalised, taint-marked). With it, and `create_item`,
+   * the request becomes a work item in the same transaction when its lane is admitted or routed to L8.
+   */
+  readonly request_text?: TaintedText | null;
+  readonly create_item?: boolean;
+  /** M9.1: where a NEW linked item came from (a SpawnLink edge). */
+  readonly origin?: SpawnOrigin | null;
 }
 
 export interface WorkRequestResult {
@@ -85,6 +106,10 @@ export interface WorkRequestResult {
   readonly verdict: LaneEligibility;
   /** True when `request_id` had been seen: nothing was written. */
   readonly duplicate: boolean;
+  /** The item made from the request, when `create_item` was asked and the request was not held (N8). */
+  readonly item_id?: string | null;
+  /** 1.2: open items of the repo with the same text. Linked, never merged. */
+  readonly dedupe_links?: readonly string[];
 }
 
 /**
@@ -113,13 +138,37 @@ export async function requestWork(
     }
     const prr = id ? governingPrr(await j.prr(id.project_id, id.repo_id)) : null;
     const repoRef = id?.repo_ref ?? input.repo;
-    const verdict = routeLane(repoRef, input.lane, prr, clockOf(deps).now());
+    const verdict = applyGuard(
+      routeLane(repoRef, input.lane, prr, clockOf(deps).now()),
+      id
+        ? await projectGuard(tx, {
+            project_id: id.project_id,
+            lane: input.lane,
+            now: clockOf(deps).now(),
+            origin: input.origin ?? null,
+          })
+        : null,
+    );
     const seen = foldWork(await j.events(workStream(requestId)));
     if (seen) {
       if (seen.request.lane !== input.lane || repoKeyOf(seen.request.repo) !== key) {
         return err(coreError('conflict', 'request_id was used for a different request'));
       }
-      return ok({ request_id: requestId, state: seen.state, verdict, duplicate: true });
+      if (
+        input.request_text &&
+        seen.request.request_text &&
+        seen.request.request_text.provenance.normalised_sha256 !==
+          input.request_text.provenance.normalised_sha256
+      ) {
+        return err(coreError('conflict', 'request_id was used for a different request text'));
+      }
+      return ok({
+        request_id: requestId,
+        state: seen.state,
+        verdict,
+        duplicate: true,
+        item_id: seen.item_id,
+      });
     }
     const stream = workStream(requestId);
     const actor = input.requester;
@@ -134,6 +183,7 @@ export async function requestWork(
         channel: input.channel ?? 'N1',
         requester: input.requester,
         catalogue_ref: currentCatalogueRef(),
+        ...(input.request_text ? { request_text: input.request_text } : {}),
       }),
       actor,
     );
@@ -183,8 +233,89 @@ export async function requestWork(
       if (!a.ok) return a;
       state = 'admitted';
     }
-    return ok({ request_id: requestId, state, verdict, duplicate: false });
+    let item_id: string | null = null;
+    let dedupe_links: readonly string[] = [];
+    if (input.create_item === true && verdict.route !== 'n8_hold' && id) {
+      const made = await makeItemForRequest(j, tx, deps, {
+        request: WorkRequestedPayload.parse(w.value.payload),
+        prr: governingPrr(await j.prr(id.project_id, id.repo_id)),
+        lane: input.lane,
+        verdict,
+        text: input.request_text ?? null,
+        origin: input.origin ?? null,
+        actor,
+      });
+      if (!made.ok) return made;
+      item_id = made.value.item_id;
+      dedupe_links = made.value.dedupe_links;
+    }
+    return ok({ request_id: requestId, state, verdict, duplicate: false, item_id, dedupe_links });
   });
+}
+
+// ---------------------------------------------------------------- the item of a request (M9.1)
+
+/**
+ * Makes the work item of an admitted (or L8-routed) request: S1 1.1 (the text, already normalised and
+ * marked) and 1.2 (de-dupe and conflict scan, from the repo's open items) are recorded on the item as
+ * its `intake`; the item pins the catalogue and the PRR's gating profile now. The request gets a
+ * marker, so the item is made once. Holds the repo and request locks (the caller's).
+ */
+export async function makeItemForRequest(
+  j: Journal,
+  tx: Parameters<typeof lockKeys>[0],
+  deps: Pick<CoreDeps, 'clock'>,
+  o: {
+    request: WorkRequestedPayload;
+    prr: PrrVersion | null;
+    lane: Lane;
+    verdict: LaneEligibility;
+    text: TaintedText | null;
+    origin?: SpawnOrigin | null;
+    actor: string;
+  },
+): Promise<Result<{ item_id: string; dedupe_links: string[] }, CoreError>> {
+  if (!o.prr)
+    return err(
+      coreError('conflict', 'a request without a Project Readiness Record has no item (N8)'),
+    );
+  const itemId = itemIdOfRequest(o.request.request_id);
+  const text_sha256 = o.text?.provenance.normalised_sha256 ?? null;
+  // A repeat of this call (the item exists) must not scan again against itself.
+  const exists = (await j.events(itemStream(itemId))).length > 0;
+  const found = exists
+    ? { dedupe_links: [], conflict_candidates: [] }
+    : dedupeScan(
+        { repo: o.request.repo, text_sha256, lane: o.verdict.route === 'l8' ? 'L8' : o.lane },
+        await openItemsOfRepo(j, o.request.repo),
+      );
+  const made = await createItemIn(j, tx, deps, {
+    item_id: itemId,
+    request: o.request,
+    prr: o.prr,
+    proposed_lane: o.verdict.route === 'l8' ? 'L8' : o.lane,
+    intake: {
+      text_sha256,
+      injection: o.text ? injectionReportOf(o.text) : null,
+      dedupe_links: found.dedupe_links,
+      conflict_candidates: found.conflict_candidates,
+      route: o.verdict.route === 'l8' ? 'l8' : 'normal',
+      eligibility_reason: o.verdict.reason,
+    },
+    origin: o.origin ?? null,
+    actor: o.actor,
+  });
+  if (!made.ok) return made;
+  if (made.value.created) {
+    const m = await j.emit(
+      workStream(o.request.request_id),
+      WORK_EVENT.item_created,
+      WorkItemCreatedPayload.parse({ request_id: o.request.request_id, item_id: itemId }),
+      o.actor,
+    );
+    if (!m.ok) return m;
+  }
+  return ok({ item_id: itemId, dedupe_links: found.dedupe_links });
 }
 
 // ---------------------------------------------------------------- the M4 fan-out

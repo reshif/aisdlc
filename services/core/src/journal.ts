@@ -12,7 +12,15 @@ import {
   type PendingConfirm,
 } from '@aisdlc/ledger';
 import { err, ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
-import { EVENT_COLUMNS, appendEvents, toRecordEvent, type EventRow, type Tx } from '@aisdlc/record';
+import {
+  EVENT_COLUMNS,
+  appendEvents,
+  toRecordEvent,
+  type EventRow,
+  type NewEvent,
+  type OutboxMessage,
+  type Tx,
+} from '@aisdlc/record';
 import type pg from 'pg';
 import { coreError, type CoreError } from './errors.js';
 import { foldPrr, foldProject, foldRepo, foldS0 } from './fold.js';
@@ -26,7 +34,15 @@ export interface CoreDeps {
   readonly pool: pg.Pool;
   readonly clock?: Clock;
   readonly ledger?: LedgerClientDeps;
+  /** MM-2 is on (`maintenanceFrom`): the human decisions of the work lifecycle are refused. */
+  readonly maintenance?: () => boolean;
 }
+
+/** The refusal of a decision while maintenance mode MM-2 is on, or `null`. Drafts and answers are not decisions. */
+export const maintenanceRefusal = (d: Pick<CoreDeps, 'maintenance'>): CoreError | null =>
+  d.maintenance?.() === true
+    ? coreError('refused', 'maintenance mode MM-2: decisions are disabled')
+    : null;
 
 export const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
 
@@ -89,6 +105,33 @@ export class Journal {
     events.push(written);
     this.appended += 1;
     return ok(written);
+  }
+
+  /**
+   * Appends several events to one stream in one batch, with outbox rows written in the same
+   * transaction (the commands the events cause: inbox first, PLAN principle 3). The caller holds
+   * the aggregate's key. Events already stored under their idempotency keys are returned and
+   * nothing is written (`duplicate`).
+   */
+  async emitAll(
+    stream: string,
+    drafts: readonly NewEvent[],
+    o: {
+      outbox?: readonly OutboxMessage[] | ((events: RecordEvent[]) => readonly OutboxMessage[]);
+    } = {},
+  ): Promise<Result<{ events: RecordEvent[]; duplicate: boolean }, CoreError>> {
+    const events = await this.events(stream);
+    const head = events.at(-1)?.stream_seq ?? 0;
+    const r = await appendEvents(this.tx, stream, head, drafts, {
+      clock: this.clock,
+      ...(o.outbox ? { outbox: o.outbox } : {}),
+    });
+    if (!r.ok) return err(coreError('conflict', JSON.stringify(r.error)));
+    if (!r.value.duplicate) {
+      events.push(...r.value.events);
+      this.appended += r.value.events.length;
+    }
+    return ok(r.value);
   }
 
   async project(id: string) {

@@ -14,6 +14,7 @@ import {
   EMPTY_ROLE_MAP,
   GatingProfile,
   KillDelegation,
+  MAINTENANCE_FLAG_KEY,
   PROJECT_CONFIG_KEYS,
   ProjectSettings,
   ProjectSettingsDoc,
@@ -105,8 +106,31 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
       key: S0_CONFIG_KEYS.calendar,
       schema: S0Calendar,
       default: S0_DEFAULT_CALENDAR,
-      description: 'the business-day calendar of the S0 timers',
+      description:
+        'the business-day calendar of the S0 timers and of the work lifecycle (PARK, item age)',
+    })
+    .opsFlag({
+      key: MAINTENANCE_FLAG_KEY,
+      default: false,
+      description:
+        'maintenance mode MM-2 (FL): timers frozen, decisions disabled, drafts kept. An ops flag: factory layer only',
     });
+}
+
+/**
+ * MM-2 from the config reader: on when the flag is true, and also when it holds anything but a boolean
+ * (a published value that no longer fits its schema is read as "on": unknown means unmet, so decisions
+ * stay disabled and timers frozen until someone fixes the flag; a flag the registry does not know is off). One flag, read by every timer and
+ * every decide path: the decision kernel (`DecisionDeps.maintenance`), the S0 driver, the work driver.
+ */
+export function maintenanceFrom(reader: ConfigReader): () => boolean {
+  return () => {
+    const c = reader.current();
+    // A published value that no longer fits its schema fell back to the default (off): read it as on.
+    if (c.rejected.includes(MAINTENANCE_FLAG_KEY)) return true;
+    const v = c.get(MAINTENANCE_FLAG_KEY);
+    return v === undefined ? false : v !== false;
+  };
 }
 
 const lineageOf = (project: string) =>

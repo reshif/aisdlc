@@ -7,3 +7,4 @@ export * from './autonomy.js';
 export * from './criteria.js';
 export * from './catalogue.js';
 export * from './pin.js';
+export * from './history.js';

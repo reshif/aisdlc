@@ -2,8 +2,13 @@ import {
   CardDecideRequest,
   CardEvidenceRequest,
   CardPrepareRequest,
+  BannerSeverity,
+  BannerTarget,
   CardRecheckRequest,
+  ControlKind,
+  ControlScope,
   GatingProfile,
+  IsoDateTime,
   KillDelegation,
   OnboardRequest,
   PrincipalId,
@@ -12,11 +17,13 @@ import {
   RevisionEvidenceRequest,
   RevisionPrepareRequest,
   RoleMap,
+  SubmitRequestBody,
   RepoFullName,
   TwoPerson,
   Lane,
   Level,
   pdpResource,
+  projectOfScope,
   type ActionId,
   type PdpResource,
 } from '@aisdlc/contracts';
@@ -28,6 +35,16 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
 import { CORE_STATUS, coreError, type CoreError } from './errors.js';
+import { listBreakers, requestBreakerReset } from './breaker.js';
+import {
+  activeBanners,
+  activeControls,
+  applyControl,
+  liftControl,
+  listControls,
+  previewControl,
+  publishBanner,
+} from './controls.js';
 import { laneEligibility } from './lane-eligibility.js';
 import {
   getProject,
@@ -39,6 +56,9 @@ import {
   registeredRepos,
 } from './queries.js';
 import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.js';
+import { itemView } from './work-view.js';
+import { submitRequest } from './requests.js';
+import { readItem } from './work-items.js';
 import { loadProjectSettings, proposeProjectSettings } from './settings.js';
 import { readS0 } from './journal.js';
 import {
@@ -70,9 +90,12 @@ import {
  * about that human), `settings` (propose a settings revision, the BFF likewise), `registry` (the
  * codehost's allow-list reads the repos that have an S0 record), `portal` (the BFF's fleet-wide
  * listings for the portal: every project, a project with all of its records; the BFF filters them
- * by the PDP for the signed-in human, so no other caller has a reason to hold this scope).
+ * by the PDP for the signed-in human, so no other caller has a reason to hold this scope), `work`
+ * (requests and items, M9.1: the BFF for a signed-in human, or an API client; the PDP decides about the
+ * human named in `on_behalf_of`), `ops` (controls, previews and banners, M9.6: the BFF for a signed-in
+ * human; the PDP decides about the human, over the resource of the scope).
  */
-export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry' | 'portal';
+export type CoreScope = 'read' | 'onboard' | 'settings' | 'registry' | 'portal' | 'work' | 'ops';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -248,15 +271,246 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return sendError(reply, 403, 'forbidden', 'scope onboard is needed');
     const b = parse(OnboardRequest, req.body);
     if (!b.ok) return fail(reply, b.error);
-    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', pdpResource.fleet()))) return;
+    // A request that names a team is asked about that team, so a team-scoped onboarder reaches it.
+    const target = b.value.team_id ? pdpResource.team(b.value.team_id) : pdpResource.fleet();
+    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', target))) return;
     const r = await requestOnboarding(deps, b.value);
     if (!r.ok) return fail(reply, r.error);
     return reply.code(r.value.duplicate ? 200 : 201).send(r.value);
   });
 
+  // ------------------------------------------------------------ requests and items (PLAN M9.1)
+
+  app.post('/v1/requests', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(SubmitRequestBody, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    if (
+      !(await guard(
+        reply,
+        b.value.on_behalf_of,
+        'work.request',
+        pdpResource.project(b.value.project_id),
+      ))
+    ) {
+      return;
+    }
+    const r = await submitRequest(deps, {
+      project_id: b.value.project_id,
+      repo: b.value.repo,
+      lane: b.value.lane,
+      requester: b.value.on_behalf_of,
+      channel: b.value.channel,
+      text: b.value.text,
+      ...(b.value.request_id ? { request_id: b.value.request_id } : {}),
+    });
+    if (!r.ok) return fail(reply, r.error);
+    return reply.code(r.value.duplicate ? 200 : 201).send(r.value);
+  });
+
+  // ------------------------------------------------------------ the R3 circuit breaker (PLAN M9.5)
+
+  /** The breakers of a project (every lane that ever counted), tripped or not. */
+  app.get('/v1/projects/:id/breakers', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const id = projectIdOf(req);
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    const who = PrincipalId.safeParse((req.query as Record<string, string>)['on_behalf_of']);
+    if (!who.success) return fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+    if (!(await guard(reply, who.data, 'project.view', pdpResource.project(id)))) return;
+    return { breakers: (await listBreakers(o.pool)).filter((b) => b.project_id === id) };
+  });
+
+  /** Asks for a reset: an M5 gate in the project admin's inbox. Proposing is `config.propose`. */
+  app.post('/v1/projects/:id/breakers/:lane/reset', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const id = projectIdOf(req);
+    const lane = Lane.safeParse(params(req)['lane']);
+    if (!id || !lane.success) return fail(reply, coreError('invalid_input', 'bad project or lane'));
+    const b = parse(z.strictObject({ on_behalf_of: PrincipalId }), req.body);
+    if (!b.ok) return fail(reply, b.error);
+    if (!(await guard(reply, b.value.on_behalf_of, 'config.propose', pdpResource.project(id))))
+      return;
+    const decisions = o.config ?? o.cards?.config;
+    if (!decisions)
+      return sendError(reply, 503, 'unavailable', 'the decision kernel is not configured');
+    const r = await requestBreakerReset(
+      { ...deps, decisions },
+      { project_id: id, lane: lane.data, requested_by: b.value.on_behalf_of },
+    );
+    return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
+
+  // ------------------------------------------------------------ controls, previews and banners (PLAN M9.6)
+
+  const OpsWho = { on_behalf_of: PrincipalId };
+  /** The PDP resource a control or banner of `scope` is authorised against: the fleet only for a factory admin. */
+  const resourceOfScope = (scope: ControlScope) => {
+    if (scope.kind === 'fleet') return pdpResource.fleet();
+    if (scope.kind === 'project') return pdpResource.project(scope.ref);
+    if (scope.kind === 'lane') {
+      const [p, l] = scope.ref.split('/');
+      return pdpResource.lane(p as string, l as string);
+    }
+    return null;
+  };
+
+  app.post('/v1/controls/preview', async (req, reply) => {
+    if (!allowed(req, 'ops')) return sendError(reply, 403, 'forbidden', 'scope ops is needed');
+    const b = parse(
+      z.strictObject({ ...OpsWho, kind: ControlKind, scope: ControlScope }),
+      req.body,
+    );
+    if (!b.ok) return fail(reply, b.error);
+    const res = resourceOfScope(b.value.scope);
+    if (!res)
+      return fail(reply, coreError('invalid_input', 'no control is enforced on that scope'));
+    if (!(await guard(reply, b.value.on_behalf_of, 'control.apply', res))) return;
+    const r = await previewControl(deps, {
+      kind: b.value.kind,
+      scope: b.value.scope,
+      actor: b.value.on_behalf_of,
+    });
+    return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
+
+  app.post('/v1/controls', async (req, reply) => {
+    if (!allowed(req, 'ops')) return sendError(reply, 403, 'forbidden', 'scope ops is needed');
+    const b = parse(
+      z.strictObject({
+        ...OpsWho,
+        preview_id: z.uuid(),
+        nonce: z.string().min(16),
+        kind: ControlKind,
+        scope: ControlScope,
+        params: z.record(z.string(), z.unknown()).optional(),
+        expires_at: IsoDateTime.nullable().optional(),
+      }),
+      req.body,
+    );
+    if (!b.ok) return fail(reply, b.error);
+    const res = resourceOfScope(b.value.scope);
+    if (!res)
+      return fail(reply, coreError('invalid_input', 'no control is enforced on that scope'));
+    if (!(await guard(reply, b.value.on_behalf_of, 'control.apply', res))) return;
+    const r = await applyControl(deps, {
+      preview_id: b.value.preview_id,
+      nonce: b.value.nonce,
+      kind: b.value.kind,
+      scope: b.value.scope,
+      actor: b.value.on_behalf_of,
+      ...(b.value.params ? { params: b.value.params } : {}),
+      ...(b.value.expires_at !== undefined ? { expires_at: b.value.expires_at } : {}),
+    });
+    return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
+
+  app.post('/v1/controls/:id/lift', async (req, reply) => {
+    if (!allowed(req, 'ops')) return sendError(reply, 403, 'forbidden', 'scope ops is needed');
+    const id = params(req)['id'] as string;
+    const b = parse(z.strictObject({ ...OpsWho, reason: z.string().min(1).max(500) }), req.body);
+    if (!b.ok || !z.uuid().safeParse(id).success) {
+      return fail(reply, b.ok ? coreError('invalid_input', 'bad id') : b.error);
+    }
+    const cur = (await listControls(o.pool, clock.now())).find((c) => c.control_id === id);
+    if (!cur) return fail(reply, coreError('not_found', 'no such control'));
+    const res = resourceOfScope(cur.scope);
+    if (!res)
+      return fail(reply, coreError('invalid_input', 'no control is enforced on that scope'));
+    if (!(await guard(reply, b.value.on_behalf_of, 'control.lift', res))) return;
+    const r = await liftControl(deps, {
+      control_id: id,
+      actor: b.value.on_behalf_of,
+      reason: b.value.reason,
+    });
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  app.get('/v1/projects/:id/controls', async (req, reply) => {
+    if (!allowed(req, 'ops')) return sendError(reply, 403, 'forbidden', 'scope ops is needed');
+    const id = projectIdOf(req);
+    const who = PrincipalId.safeParse((req.query as Record<string, string>)['on_behalf_of']);
+    if (!id || !who.success)
+      return fail(reply, coreError('invalid_input', 'project and on_behalf_of are needed'));
+    if (!(await guard(reply, who.data, 'project.view', pdpResource.project(id)))) return;
+    const now = clock.now();
+    return {
+      controls: (await activeControls(o.pool, now)).filter(
+        (c) => c.scope.kind === 'fleet' || projectOfScope(c.scope) === id,
+      ),
+      banners: (await activeBanners(o.pool, now)).filter(
+        (b) => b.scope.kind === 'fleet' || projectOfScope(b.scope) === id,
+      ),
+    };
+  });
+
+  app.post('/v1/banners', async (req, reply) => {
+    if (!allowed(req, 'ops')) return sendError(reply, 403, 'forbidden', 'scope ops is needed');
+    const b = parse(
+      z.strictObject({
+        ...OpsWho,
+        scope: ControlScope,
+        severity: BannerSeverity,
+        target: BannerTarget.optional(),
+        text: z.string().min(1).max(500),
+        expires_at: IsoDateTime,
+      }),
+      req.body,
+    );
+    if (!b.ok) return fail(reply, b.error);
+    if (b.value.scope.kind !== 'fleet' && b.value.scope.kind !== 'project') {
+      return fail(reply, coreError('invalid_input', 'a banner is for the fleet or a project'));
+    }
+    const res = resourceOfScope(b.value.scope);
+    if (!res || !(await guard(reply, b.value.on_behalf_of, 'banner.publish', res))) return;
+    const r = await publishBanner(deps, {
+      actor: b.value.on_behalf_of,
+      scope: b.value.scope,
+      severity: b.value.severity,
+      ...(b.value.target ? { target: b.value.target } : {}),
+      text: b.value.text,
+      expires_at: b.value.expires_at,
+    });
+    return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
+
+  app.get('/v1/items/:id', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const id = params(req)['id'] as string;
+    if (!z.uuid().safeParse(id).success) return fail(reply, coreError('invalid_input', 'bad id'));
+    const who = PrincipalId.safeParse((req.query as Record<string, string>)['on_behalf_of']);
+    if (!who.success) return fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+    let item;
+    try {
+      item = await readItem(o.pool, id);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the item could not be read'));
+    }
+    if (!item) return fail(reply, coreError('not_found', 'no such item'));
+    const s = item.state;
+    if (
+      !(await guard(
+        reply,
+        who.data,
+        'item.view_floor',
+        pdpResource.item(s.project_id, s.item_id, s.lane ?? s.proposed_lane),
+      ))
+    ) {
+      return;
+    }
+    return itemView(s);
+  });
+
   // ------------------------------------------------------------ the owner's moves on a record
 
   const Move = z.strictObject({ on_behalf_of: PrincipalId, reason: Reason });
+
+  /** The resource an onboarding move on S0 record `id` is asked about: its project's team, else the fleet. */
+  async function moveTarget(id: string): Promise<PdpResource> {
+    const rec = await readS0(o.pool, id);
+    const team = rec ? (await getProject(o.pool, rec.record.project_id))?.team_id : null;
+    return team ? pdpResource.team(team) : pdpResource.fleet();
+  }
 
   async function move(
     req: FastifyRequest,
@@ -273,7 +527,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!z.uuid().safeParse(id).success) return fail(reply, coreError('invalid_input', 'bad id'));
     const b = parse(Move, req.body);
     if (!b.ok) return fail(reply, b.error);
-    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', pdpResource.fleet()))) return;
+    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', await moveTarget(id))))
+      return;
     const r = await run(id, b.value.on_behalf_of, b.value.reason);
     if (!r.ok) return fail(reply, r.error);
     return (
@@ -299,7 +554,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!z.uuid().safeParse(id).success) return fail(reply, coreError('invalid_input', 'bad id'));
     const b = parse(z.strictObject({ level: Level, on_behalf_of: PrincipalId }), req.body);
     if (!b.ok) return fail(reply, b.error);
-    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', pdpResource.fleet()))) return;
+    if (!(await guard(reply, b.value.on_behalf_of, 'project.onboard', await moveTarget(id))))
+      return;
     const r = await setSignableLevel(deps, id, b.value.level, {
       actor: b.value.on_behalf_of,
       reason: 'human',

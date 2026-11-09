@@ -26,6 +26,11 @@ import { defineMachine, type TransitionTable } from './machine.js';
  *  - Held is reachable from every non-terminal phase but Draft, and resumes to any of them.
  *  - Blocked, ReleaseHeld and SpikeReport (`WaitState`) are not WorkItem phases: DM draws them as
  *    named waits on a stage, not as phases.
+ *  - `S8b -> S9` (G5 off) and `S9 -> Done` (G6 off, and L7's spike report) are added by M9.2: a gate that
+ *    is off is absent, never auto-approved, so the phase after it follows directly.
+ *  - M9.4 adds `-> Handoff` from every active phase that has none: the flow's E4 is reached directly
+ *    from B2 (S2), B23 (S3), B24/B25 (S4) and by B28, the rework budget, from wherever the item is
+ *    (FL FIX 14 "straight to E4"). D1-D3 stay the S6, S7 and G4 edges.
  *  - Superseded and Deferred are terminals with no incoming edge: DM §6.1 says they are "not drawn".
  *    No edge is invented; a later append-only change adds them when the catalogue defines the cause.
  */
@@ -81,16 +86,26 @@ export const WORK_ITEM_TRANSITIONS: TransitionTable<WorkItemPhase> = {
   Draft: ['S1', 'Withdrawn'],
   Clarifying: ['S1', 'Parked', 'Held'],
   // S1 -> S2/S3/Scheduling are the lane entries; Held is any hold.
-  S1: ['S2', 'S3', 'Scheduling', 'Declined', 'Clarifying', 'Quarantined', 'Held', 'Parked'],
+  S1: [
+    'S2',
+    'S3',
+    'Scheduling',
+    'Declined',
+    'Clarifying',
+    'Quarantined',
+    'Held',
+    'Parked',
+    'Handoff',
+  ],
   // S2 -> S1: B2 (2.1 -> 1.5) and R2 downshift (re-run G0). S2 -> S3: B20 amend.
-  S2: ['S1', 'S3', 'Scheduling', 'Held'],
+  S2: ['S1', 'S3', 'Scheduling', 'Held', 'Handoff'],
   // S3 -> S4/S5: lane shortcuts. B20 amend is S3 -> S3 (no change).
-  S3: ['S4', 'S5', 'Held'],
+  S3: ['S4', 'S5', 'Held', 'Handoff'],
   // S4 -> S3: B4 (4.6 -> 3.2), B20. S4 -> S1: R2 downshift from 4.6. S4 -> S2: R1 insert.
-  S4: ['S5', 'S3', 'S1', 'Held'],
+  S4: ['S5', 'S3', 'S1', 'Held', 'Handoff'],
   // S5 -> S3/S4: B5 re-plan, B20. No S5 -> S2: the flow draws R1 only from 6.5, 7.3 and X2.
-  S5: ['Scheduling', 'S3', 'S4', 'Held'],
-  Scheduling: ['S6', 'Held', 'S3'],
+  S5: ['Scheduling', 'S3', 'S4', 'Held', 'Handoff'],
+  Scheduling: ['S6', 'Held', 'S3', 'Handoff'],
   // S6 -> S5: B8, B11 style re-plan. S6 -> S2/S3/S4: R1 upshift inserts the first missing stage.
   // S6 -> Quarantined: ET10. S6 -> Handoff: D1. S6 -> S3: B20.
   S6: ['S7', 'Handoff', 'S9', 'Held', 'Quarantined', 'S5', 'S4', 'S3', 'S2'],
@@ -100,11 +115,13 @@ export const WORK_ITEM_TRANSITIONS: TransitionTable<WorkItemPhase> = {
   // G4 -> S6: B13. G4 -> Handoff: D3 (ET7). G4 -> S3: B20.
   G4: ['S8a', 'S6', 'Handoff', 'S3', 'Held'],
   // S8a -> S7: B15a clean rebase. S8a -> S6: B15b conflict.
-  S8a: ['S8b', 'S6', 'S7', 'Held'],
-  S8b: ['G5', 'Held'],
-  G5: ['S9', 'S8b', 'Held'],
-  S9: ['G6', 'Held'],
-  G6: ['Done', 'Held'],
+  S8a: ['S8b', 'S6', 'S7', 'Held', 'Handoff'],
+  // S8b -> S9 and S9 -> Done are the gate-off edges (M9.2): G5 and G6 are per-project (OB §1C), and a
+  // gate that is off is ABSENT, so release goes on to close-out and close-out ends the item.
+  S8b: ['G5', 'S9', 'Held', 'Handoff'],
+  G5: ['S9', 'S8b', 'Held', 'Handoff'],
+  S9: ['G6', 'Done', 'Held', 'Handoff'],
+  G6: ['Done', 'Held', 'Handoff'],
   Held: [...HOLDABLE, 'Abandoned'],
   // Handoff -> S6: E4 resume / hand back (D4); -> S5 re-plan; -> S3 re-spec; Held.
   // HandedOverClosed is the DM edge for a takeover that closes the item.

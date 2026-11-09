@@ -1,23 +1,28 @@
 import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
 import {
   DbRegisteredRepos,
+  DbWorkInFlight,
   HttpKnowledge,
   HttpRoleMapReconciler,
   RefusingStepUp,
   cardDepsFrom,
   cardsLoop,
   identityEligibility,
+  killHoldersLoop,
+  killObserverLoop,
   registerCoreConfig,
   roleMapSyncLoop,
   s0DriverLoop,
+  maintenanceFrom,
   s0SettingsFrom,
+  workDriverLoop,
+  workSettingsFrom,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
 import {
   LoopSupervisor,
-  FakeWorkInFlight,
   defaultBranchHeadLoop,
   effectiveRulesLoop,
   installationLoop,
@@ -25,9 +30,16 @@ import {
   type WorkInFlightPort,
 } from '@aisdlc/loops';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
+import { HttpKillState, KillswitchClient } from '@aisdlc/killswitch/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import { HttpWitness } from '@aisdlc/witness/client';
-import { FileRegisteredRepos } from '@aisdlc/ports';
+import {
+  FakeCapacity,
+  FakeStagePorts,
+  FileRegisteredRepos,
+  type CapacityPort,
+  type StagePorts,
+} from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreWorkerApp } from './app.js';
 import { HttpCodeHostReads } from './codehost-client.js';
@@ -45,13 +57,23 @@ import { coreWorkerConfigFromEnv } from './config.js';
  * too: its decision kernel is the Notary, the identity read model (plain eligibility, bootstrap
  * decider on) and the codehost's reads; it never takes a decision itself (its step-up refuses).
  *
- * Until the work engine exists (M9) there is no source of "work in flight": the fake says none, so
- * effective rules are polled nightly. That is the slower, never the faster, rate, so the real port
- * must be wired in before agent work can start (M9.1 owns that).
+ * M9.2: "work in flight" is the work engine's: a repo with an item in S6 or S7 holding an agent
+ * lease or session (`DbWorkInFlight`, over the `work_item` read model), so effective rules are
+ * polled hourly while agent work runs. An unreadable read model polls at the faster rate. The
+ * `work_driver` loop (PLAN M9.2) executes the commands the lifecycle interpreter issues, through the
+ * outbox, behind the stage ports. Until the real ports exist (M11-M14) the only implementation is the
+ * deterministic fake, which does no work: so the loop runs only when asked for with
+ * `CORE_WORKER_STAGE_PORTS=fake`, and needs the Notary (it opens gates through the decision kernel).
  */
 export async function bootCoreWorker(
   env: Env,
-  deps: { workInFlight?: WorkInFlightPort; log?: (line: string) => void } = {},
+  deps: {
+    workInFlight?: WorkInFlightPort;
+    stagePorts?: StagePorts;
+    /** Who says how many HELD items may go on (M9.3). Until M13.1 the fake grants nothing. */
+    capacity?: CapacityPort;
+    log?: (line: string) => void;
+  } = {},
 ): Promise<RunningService> {
   const cfg = coreWorkerConfigFromEnv(env);
   const listenOpts = listenConfig(env, 'CORE_WORKER', 8360);
@@ -88,6 +110,20 @@ export async function bootCoreWorker(
       }
     }
     const supervisor = new LoopSupervisor({ log });
+    // One config reader for the process: MM-2 (the maintenance flag) and the business calendar are read
+    // from it by the work driver, the S0 driver and the decision kernel's probe.
+    const registry = registerCoreConfig(new ConfigRegistry());
+    const ensureReader = async (): Promise<ConfigReader> => {
+      if (!reader) {
+        reader = await ConfigReader.create({
+          pool,
+          registry,
+          onError: (e) => log(`config reader: ${e instanceof Error ? e.message : String(e)}`),
+        });
+        await reader.start();
+      }
+      return reader;
+    };
     const source = new HttpCodeHostReads({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken });
     const poll = {
       pool,
@@ -101,7 +137,7 @@ export async function bootCoreWorker(
       .add(installationLoop(poll, { intervalMs: cfg.installationIntervalMs, startDelayMs: 1_000 }))
       .add(
         effectiveRulesLoop(
-          { ...poll, workInFlight: deps.workInFlight ?? new FakeWorkInFlight() },
+          { ...poll, workInFlight: deps.workInFlight ?? new DbWorkInFlight(pool) },
           {
             inFlightIntervalMs: cfg.rulesInFlightIntervalMs,
             idleIntervalMs: cfg.rulesIdleIntervalMs,
@@ -142,14 +178,72 @@ export async function bootCoreWorker(
           }),
         );
     }
+    // AR9: the kill switch is its own service. This process reads it (admission), pushes the holders of
+    // every project to it, and records its journal; nothing of it runs inside core.
+    const killClient = cfg.killswitch
+      ? new KillswitchClient({ baseUrl: cfg.killswitch.url, token: cfg.killswitch.token })
+      : null;
+    const killState = cfg.killswitch
+      ? new HttpKillState({ baseUrl: cfg.killswitch.url, token: cfg.killswitch.token })
+      : undefined;
+    if (killClient) {
+      supervisor.add(
+        killHoldersLoop(
+          { pool, eligibility: identityEligibility(readPool, registry), link: killClient },
+          { intervalMs: cfg.killHoldersIntervalMs, startDelayMs: 1_500 },
+        ),
+      );
+      if (ledger) {
+        // The kill switch's public key, pinned from key custody: a journal is checked against it, never
+        // against a key the kill switch hands out itself.
+        const ksKey = await httpKeyCustodyFromEnv(env).publicKey('dev:killswitch');
+        if (!ksKey.ok) throw new Error(`kill switch public key: ${ksKey.error.message}`);
+        supervisor.add(
+          killObserverLoop(
+            { pool, ledger, link: killClient, key: ksKey.value },
+            { intervalMs: cfg.killObserverIntervalMs, startDelayMs: 3_500 },
+          ),
+        );
+      }
+    }
+    if (cfg.stagePorts !== 'none') {
+      if (!ledger)
+        throw new Error(
+          'CORE_WORKER_STAGE_PORTS needs the Notary (gates are opened through the decision kernel)',
+        );
+      const rd = await ensureReader();
+      supervisor.add(
+        workDriverLoop(
+          {
+            pool,
+            ports: deps.stagePorts ?? new FakeStagePorts(),
+            capacity: deps.capacity ?? new FakeCapacity(),
+            ...(killState ? { kill: killState } : {}),
+            settings: workSettingsFrom(rd),
+            decisions: {
+              pool,
+              ledger,
+              eligibility: identityEligibility(readPool, registry),
+              stepUp: new RefusingStepUp(),
+              maintenance: maintenanceFrom(rd),
+            },
+          },
+          {
+            intervalMs: cfg.workDriverIntervalMs,
+            startDelayMs: 2_500,
+            onPass: (r) => {
+              if (r.items_created + r.gates_recorded + r.dispatched + r.failed + r.dead > 0) {
+                log(
+                  `work_driver: items ${r.items_created}, gates ${r.gates_recorded}, commands ${r.dispatched} ok / ${r.failed} retry / ${r.dead} dead`,
+                );
+              }
+            },
+          },
+        ),
+      );
+    }
     if (cfg.knowledge || cfg.identity) {
-      const registry = registerCoreConfig(new ConfigRegistry());
-      reader = await ConfigReader.create({
-        pool,
-        registry,
-        onError: (e) => log(`config reader: ${e instanceof Error ? e.message : String(e)}`),
-      });
-      await reader.start();
+      const rd = await ensureReader();
       if (cfg.knowledge) {
         supervisor.add(
           s0DriverLoop(
@@ -160,7 +254,8 @@ export async function bootCoreWorker(
                 baseUrl: cfg.knowledge.url,
                 token: cfg.knowledge.token,
               }),
-              settings: s0SettingsFrom(reader),
+              settings: s0SettingsFrom(rd),
+              maintenance: maintenanceFrom(rd),
             },
             {
               intervalMs: cfg.s0DriverIntervalMs,
@@ -190,7 +285,8 @@ export async function bootCoreWorker(
                 token: cfg.knowledge.token,
               }),
               source,
-              settings: s0SettingsFrom(reader),
+              settings: s0SettingsFrom(rd),
+              maintenance: maintenanceFrom(rd),
             }),
             {
               intervalMs: cfg.cardsIntervalMs,
@@ -218,7 +314,7 @@ export async function bootCoreWorker(
         );
       }
     }
-    const app = createCoreWorkerApp(supervisor);
+    const app = createCoreWorkerApp(supervisor, killState ? { kill: killState } : {});
     const url = await listen(app, listenOpts);
     supervisor.start();
     return {

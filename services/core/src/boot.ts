@@ -16,7 +16,7 @@ import { HttpKnowledge } from './clients.js';
 import { coreConfigFromEnv } from './config.js';
 import { s0SettingsFrom } from './driver.js';
 import { migrateCore } from './migrations.js';
-import { DbProjectSettings, registerCoreConfig } from './settings.js';
+import { DbProjectSettings, maintenanceFrom, registerCoreConfig } from './settings.js';
 
 /**
  * Starts core from the environment (see `coreConfigFromEnv`). All configuration is read before the
@@ -98,6 +98,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
             ),
             stepUp,
             registry,
+            maintenance: maintenanceFrom(reader),
           }
         : undefined;
     const cards =
@@ -118,6 +119,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
               token: cfg.cards.codehost.token,
             }),
             settings: s0SettingsFrom(reader),
+            maintenance: maintenanceFrom(reader),
           })
         : undefined;
     const app = createCoreApp({

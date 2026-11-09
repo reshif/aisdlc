@@ -15,7 +15,16 @@ import { RoleSlot } from './projects.js';
 // ---------------------------------------------------------------- Resources
 
 /** The Cedar entity types a request's resource can have; `Fleet` is the whole factory. */
-export const PdpResourceType = z.enum(['Fleet', 'Project', 'Lane', 'Repo', 'Item', 'Gate', 'Card']);
+export const PdpResourceType = z.enum([
+  'Fleet',
+  'Team',
+  'Project',
+  'Lane',
+  'Repo',
+  'Item',
+  'Gate',
+  'Card',
+]);
 export type PdpResourceType = z.infer<typeof PdpResourceType>;
 export const PdpResourceTypeValues: readonly PdpResourceType[] = PdpResourceType.options;
 
@@ -36,7 +45,7 @@ export const PdpResource = z
   .superRefine((r, ctx) => {
     const bad = (path: string, message: string) =>
       ctx.addIssue({ code: 'custom', path: [path], message });
-    if (r.type === 'Fleet' || r.type === 'Project') {
+    if (r.type === 'Fleet' || r.type === 'Team' || r.type === 'Project') {
       if (r.type === 'Fleet' && r.id !== FLEET_REF) bad('id', `the fleet's id is ${FLEET_REF}`);
       if (r.project !== null) bad('project', `${r.type} has no parent project`);
     } else if (r.project === null) bad('project', `${r.type} needs its project`);
@@ -54,6 +63,8 @@ const res = (
 /** Constructors, so a caller never spells the shape out. */
 export const pdpResource = {
   fleet: (): PdpResource => res('Fleet', FLEET_REF),
+  /** A team, as the place an onboarding request lands (the project does not exist yet, M9.0). */
+  team: (team: string): PdpResource => res('Team', team),
   project: (project: string): PdpResource => res('Project', project),
   lane: (project: string, lane: string): PdpResource =>
     res('Lane', `${project}/${lane}`, { project, lane }),
@@ -89,6 +100,7 @@ const laneScope = (project: string, lane: string): Scope => ({
 export function resourceScopes(r: PdpResource): Scope[] {
   const fleet: Scope = { kind: 'fleet', ref: FLEET_REF };
   if (r.type === 'Fleet') return [fleet];
+  if (r.type === 'Team') return [{ kind: 'team', ref: r.id }, fleet];
   const project = r.type === 'Project' ? r.id : (r.project as string);
   const out: Scope[] = [];
   if (r.type === 'Repo') out.push({ kind: 'repo', ref: r.id });
@@ -104,7 +116,7 @@ export function resourceScopes(r: PdpResource): Scope[] {
 /** `Type::"id"` pairs of a resource's parents in the Cedar hierarchy (Fleet <- Project <- ...). */
 export function resourceParents(r: PdpResource): Array<{ type: PdpResourceType; id: string }> {
   if (r.type === 'Fleet') return [];
-  if (r.type === 'Project') return [{ type: 'Fleet', id: FLEET_REF }];
+  if (r.type === 'Project' || r.type === 'Team') return [{ type: 'Fleet', id: FLEET_REF }];
   const project = r.project as string;
   const lane = r.lane === null ? null : `${project}/${r.lane}`;
   const item = r.item === null ? null : `${project}/${r.item}`;
@@ -153,6 +165,8 @@ export const ActionDef = z.strictObject({
 export type ActionDef = z.infer<typeof ActionDef>;
 
 const ADMINS = ['factory.admin'] as const;
+/** Who may start an onboarding: every administrative holder plus the grantable onboarder (M9.0). */
+const ONBOARDERS = ['factory.admin', 'factory.onboarder'] as const;
 
 /**
  * The action catalogue (DM `PolicyAction`). Names taken from the specs: `project.onboard` (OB §6.1),
@@ -166,8 +180,17 @@ export const ACTION_CATALOGUE = {
     action_id: 'project.onboard',
     description: 'Request that a repository is onboarded as a project (S0, DEC-2)',
     class: 'write',
-    resource_types: ['Fleet'],
-    grants: [{ kind: 'roles', roles: [...ADMINS] }],
+    // A `Team` resource when the request names a team, so a team-scoped onboarder reaches it.
+    resource_types: ['Fleet', 'Team'],
+    grants: [{ kind: 'roles', roles: [...ONBOARDERS] }],
+    log_allow: true,
+  },
+  'work.request': {
+    action_id: 'work.request',
+    description: 'Ask for work on a project: a request on an entry channel (S1, M9.1)',
+    class: 'write',
+    resource_types: ['Project'],
+    grants: [{ kind: 'slots', slots: ['requesters', 'admin'] }],
     log_allow: true,
   },
   'project.view': {
@@ -271,6 +294,41 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'view_level', min: 'V3' }],
     log_allow: false,
   },
+  // M9.6: the control plane. A fleet control reaches only the roles that hold the action at the fleet
+  // scope (factory.admin), a project or lane control the project admin.
+  'control.apply': {
+    action_id: 'control.apply',
+    description: 'Preview and apply a control (hold, clamp, halt, maintenance) on a scope',
+    class: 'config',
+    resource_types: ['Fleet', 'Project', 'Lane'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'control.lift': {
+    action_id: 'control.lift',
+    description: 'Lift a control',
+    class: 'config',
+    resource_types: ['Fleet', 'Project', 'Lane'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'banner.publish': {
+    action_id: 'banner.publish',
+    description: 'Publish or withdraw a banner for a scope',
+    class: 'config',
+    resource_types: ['Fleet', 'Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
   'access.explain': {
     action_id: 'access.explain',
     description: 'Ask who can decide what on a project (effective access)',
@@ -293,7 +351,7 @@ export const LOGGED_ALLOW_ACTIONS: readonly ActionId[] = ACTION_IDS.filter(
 );
 
 /** Bump with any change to the actions, their grants, the entity model or the cross-cutting rules. */
-export const PDP_POLICY_VERSION = '1.0.0';
+export const PDP_POLICY_VERSION = '1.2.0';
 
 const VIEW_RANK: Readonly<Record<ViewLevel, number>> = { V1: 1, V2: 2, V3: 3 };
 

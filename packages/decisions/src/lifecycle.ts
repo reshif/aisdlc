@@ -19,6 +19,7 @@ import {
   decisionDraft,
   enterLedger,
   inDecisionTx,
+  inMaintenance,
   lockKey,
   newEntryId,
   writeDecision,
@@ -306,6 +307,8 @@ export async function sweepExpired(
   opts: { limit?: number } = {},
 ): Promise<Result<SweepReport, DecisionError>> {
   const clock = clockOf(deps);
+  // MM-2: timers are frozen. A gate that was pending stays pending; it expires after the maintenance.
+  if (await inMaintenance(deps)) return ok({ expired: [], skipped: [], failed: [] });
   const caught = await runProjection(deps.pool, gateInstanceProjection);
   if (!caught.ok) return err(decisionError('database', JSON.stringify(caught.error)));
   const due = await deps.pool.query<{ gate_instance_id: string }>(

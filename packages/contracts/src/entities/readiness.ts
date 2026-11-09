@@ -224,6 +224,7 @@ export const PrrGatingProfile = GatingProfile.extend({
   /** `null` is unknown, which the floor treats as "deploys". OB §2.4 does not carry this field. */
   project_deploys: z.boolean().nullable(),
 });
+export type PrrGatingProfile = z.infer<typeof PrrGatingProfile>;
 
 export const PrrRoleMap = z.strictObject({
   slots: RoleMap,

@@ -1,7 +1,7 @@
 export interface CallOptions {
   baseUrl: string;
   token: string;
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'PUT';
   path: string;
   body?: unknown;
   fetchImpl?: typeof fetch;

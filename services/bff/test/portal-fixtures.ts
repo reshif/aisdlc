@@ -20,6 +20,33 @@ import { HttpCoreClient } from '../src/core-client.js';
 // test can assert what core would have seen (the service token, no browser cookie, the principal).
 
 export const CORE_TOKEN = 'bff-at-core-'.padEnd(32, 'x');
+export const ITEM_ID = '33333333-4444-4555-8666-777777777777';
+
+export function itemViewFixture() {
+  return {
+    item_id: ITEM_ID,
+    project_id: 'acme',
+    repo: 'acme/web',
+    request_id: ITEM_ID,
+    phase: 'S1',
+    lane: null,
+    proposed_lane: 'L3',
+    terminal: null,
+    waiting: null,
+    holds: [],
+    questions: [],
+    gates: [],
+    outstanding: 1,
+    catalogue_ref: { version: '1.0.0', hash: 'a'.repeat(64) },
+    terminal_cause: null,
+    rework_total: 0,
+    handoff: null,
+    assumptions: [],
+    injection_suspected: false,
+    dedupe_links: [],
+  };
+}
+
 export const S0_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe54';
 export const CARD_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe99';
 export const GATE_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77';
@@ -261,6 +288,12 @@ export async function startFakeCore(): Promise<FakeCore> {
       }
       if (method === 'POST' && path === '/v1/onboard') {
         return reply(201, { s0_id: S0_ID, duplicate: false });
+      }
+      if (method === 'POST' && path === '/v1/requests') {
+        return reply(201, { request_id: ITEM_ID, item_id: ITEM_ID, duplicate: false });
+      }
+      if (method === 'GET' && path.startsWith(`/v1/items/${ITEM_ID}?on_behalf_of=`)) {
+        return reply(200, itemViewFixture());
       }
       if (method === 'GET' && path === `/v1/s0/${S0_ID}`) return reply(200, s0Overview(p));
       if (method === 'GET' && path === `/v1/s0/${S0_ID}/cards`) {

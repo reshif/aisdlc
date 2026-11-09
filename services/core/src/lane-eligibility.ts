@@ -1,4 +1,9 @@
-import { isLaneEligible, laneEligibility as tableOf } from '@aisdlc/catalogue';
+import {
+  ELIGIBILITY,
+  isLaneEligible,
+  laneEligibility as tableOf,
+  type EligibilityCatalogue,
+} from '@aisdlc/catalogue';
 import {
   type EligibilityReason,
   type Lane,
@@ -35,16 +40,16 @@ const SUMMARY = (v: PrrVersion, status: ReadinessStatus): NonNullable<LaneEligib
 });
 
 /** Why an active record does not open `lane`. */
-function whyClosed(v: PrrVersion, lane: Lane): EligibilityReason {
+function whyClosed(v: PrrVersion, lane: Lane, table: EligibilityCatalogue): EligibilityReason {
   const level = v.prr.level.signed;
-  const row = tableOf(level, lane);
+  const row = tableOf(level, lane, table);
   if (row === 'unspecified') return 'lane_unspecified';
   if (row === 'not_eligible') return 'level_too_low';
   const tier = v.prr.tier.value;
-  if (!isLaneEligible(level, lane, { tier, stagingSeparationAttested: true })) {
+  if (!isLaneEligible(level, lane, { tier, stagingSeparationAttested: true }, table)) {
     return 'tier_requires_full';
   }
-  if (!isLaneEligible('census', lane, { tier, stagingSeparationAttested: true })) {
+  if (!isLaneEligible('census', lane, { tier, stagingSeparationAttested: true }, table)) {
     // The table and the tier allow it, so what closes it is a red posture (Census lanes only)...
     if (v.prr.autonomy.posture_cap === 'A0') return 'posture_red';
   }
@@ -52,12 +57,16 @@ function whyClosed(v: PrrVersion, lane: Lane): EligibilityReason {
   return 'staging_separation_not_attested';
 }
 
-/** The verdict for one governing version (or none) and a lane. Pure. */
+/**
+ * The verdict for one governing version (or none) and a lane. Pure. `table` is the eligibility table
+ * of the catalogue the caller is bound to: an item's is its pinned one, a new request's the current.
+ */
 export function routeLane(
   repo: string,
   lane: Lane,
   governing: PrrVersion | null,
   now: Date,
+  table: EligibilityCatalogue = ELIGIBILITY,
 ): LaneEligibility {
   if (!governing) {
     return {
@@ -82,7 +91,7 @@ export function routeLane(
   if (governing.prr.autonomy.lanes_eligible.includes(lane)) {
     return { ...base, eligible: true, route: 'normal', reason: 'eligible' };
   }
-  return { ...base, eligible: false, route: 'l8', reason: whyClosed(governing, lane) };
+  return { ...base, eligible: false, route: 'l8', reason: whyClosed(governing, lane, table) };
 }
 
 /** `eligibility(repo, lane)` from the repo's PRR stream. */
@@ -91,7 +100,8 @@ export async function laneEligibility(
   repo: string,
   lane: Lane,
   clock: Clock = systemClock,
+  table: EligibilityCatalogue = ELIGIBILITY,
 ): Promise<LaneEligibility> {
   const g = await readGoverning(db, repo);
-  return routeLane(g?.repo_ref ?? repo, lane, g?.governing ?? null, clock.now());
+  return routeLane(g?.repo_ref ?? repo, lane, g?.governing ?? null, clock.now(), table);
 }

@@ -11,6 +11,7 @@ import { FakePdpEntities } from '@aisdlc/ports';
 import { Pdp, StaticBundleSource, buildBundle, MemoryDecisionLog } from '../src/index.js';
 
 export const FLEET: Scope = { kind: 'fleet', ref: '*' };
+export const team = (t: string): Scope => ({ kind: 'team', ref: t });
 export const proj = (p: string): Scope => ({ kind: 'project', ref: p });
 export const lane = (p: string, l: string): Scope => ({ kind: 'lane', ref: `${p}/${l}` });
 
@@ -38,6 +39,8 @@ export function rig(o: { sampleRate?: number } = {}): Rig {
 export const RESOURCES: ReadonlyArray<{ name: string; res: PdpResource; project: string | null }> =
   [
     { name: 'fleet', res: pdpResource.fleet(), project: null },
+    { name: 'team t1', res: pdpResource.team('t1'), project: null },
+    { name: 'team t2', res: pdpResource.team('t2'), project: null },
     { name: 'project p1', res: pdpResource.project('p1'), project: 'p1' },
     { name: 'project p2', res: pdpResource.project('p2'), project: 'p2' },
     { name: 'lane p1/L3', res: pdpResource.lane('p1', 'L3'), project: 'p1' },

@@ -240,7 +240,17 @@ export const RELANE_DESCRIPTIONS: Readonly<Record<RelaneId, string>> = {
   R4: 'Hotfix done',
 };
 
-export const HoldReason = z.enum(['H1', 'H2', 'H3', 'WIP', 'N8', 'kill', 'maintenance', 'quota']);
+export const HoldReason = z.enum([
+  'H1',
+  'H2',
+  'H3',
+  'WIP',
+  'N8',
+  'kill',
+  'maintenance',
+  'quota',
+  'control',
+]);
 export type HoldReason = z.infer<typeof HoldReason>;
 export const HoldReasonValues: readonly HoldReason[] = HoldReason.options;
 
@@ -258,6 +268,7 @@ export const HOLD_DESCRIPTIONS: Readonly<Record<HoldReason, string | null>> = {
   kill: 'kill switch',
   maintenance: 'maintenance MM-2: timers frozen, decisions disabled, drafts kept',
   quota: 'quota',
+  control: 'operator hold control (M9.6)',
 };
 
 /**

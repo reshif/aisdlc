@@ -7,10 +7,12 @@ import {
   OnboardingCardSummary,
   ProjectId,
   ProjectPrrView,
+  ItemView,
   ProjectSummary,
   RevisionDecideRequest,
   RevisionEvidenceRequest,
   S0Overview,
+  SubmitRequestBody,
   S0Revision,
   SettingsRevisionView,
   pdpResource,
@@ -40,6 +42,8 @@ import type { CoreClient } from './core-client.js';
 //   GET  /api/projects                    the projects the principal may view
 //   GET  /api/projects/:id                one project, its repos and S0 records       (project.view)
 //   POST /api/onboard                     request an onboarding                       (project.onboard)
+//   POST /api/requests                    ask for work: portal Ask, channel N1       (work.request)
+//   GET  /api/items/:id                   a work item: position, waits, questions    (item.view_floor, core asks)
 //   GET  /api/s0/:id                      the S0 record with its steps                (project.view)
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
@@ -68,6 +72,8 @@ const uuid = z.uuid();
 
 /** What the browser may send to start an onboarding: `on_behalf_of` is the session's, not a field. */
 export const PortalOnboardBody = OnboardRequest.omit({ on_behalf_of: true });
+/** Portal Ask: the channel is the portal's (N1) and `on_behalf_of` the session's, neither is a field. */
+export const PortalAskBody = SubmitRequestBody.omit({ on_behalf_of: true, channel: true });
 export const PortalEvidenceBody = CardEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalDecideBody = CardDecideRequest.omit({ on_behalf_of: true });
 export const PortalRevisionEvidenceBody = RevisionEvidenceRequest.omit({ on_behalf_of: true });
@@ -181,13 +187,61 @@ export function registerPortalRoutes(d: PortalDeps): void {
     const who = d.principalOf(req);
     const body = PortalOnboardBody.safeParse(req.body ?? {});
     if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
-    if (!(await allowed(who, 'project.onboard', pdpResource.fleet()))) {
+    const target = body.data.team_id ? pdpResource.team(body.data.team_id) : pdpResource.fleet();
+    if (!(await allowed(who, 'project.onboard', target))) {
       return deny(reply, 'project.onboard');
     }
     const r = await c.call('POST', '/v1/onboard', { ...body.data, on_behalf_of: who });
     const got = upstream(reply, r);
     if (!got) return;
     return reply.code(r.reached && r.status === 201 ? 201 : 200).send(got.value);
+  });
+
+  // ------------------------------------------------------------ requests and items (M9.1)
+
+  app.post('/api/requests', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const who = d.principalOf(req);
+    const body = PortalAskBody.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    if (!(await allowed(who, 'work.request', pdpResource.project(body.data.project_id)))) {
+      return deny(reply, 'work.request');
+    }
+    const r = await c.call('POST', '/v1/requests', {
+      ...body.data,
+      channel: 'N1',
+      on_behalf_of: who,
+    });
+    const got = upstream(reply, r);
+    if (!got) return;
+    return reply.code(r.reached && r.status === 201 ? 201 : 200).send(got.value);
+  });
+
+  app.get('/api/items/:id', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const id = idParam(req, reply);
+    if (!id) return;
+    const got = upstream(
+      reply,
+      await c.call('GET', `/v1/items/${id}?on_behalf_of=${encodeURIComponent(d.principalOf(req))}`),
+      (v) => ItemView.parse(v),
+    );
+    if (!got) return;
+    // Core asked the PDP for this principal already; the bff asks too, on the item's own project.
+    const v = got.value;
+    const lane = v.lane ?? v.proposed_lane;
+    if (
+      !(await allowed(
+        d.principalOf(req),
+        'item.view_floor',
+        pdpResource.item(v.project_id, v.item_id, lane),
+      ))
+    ) {
+      return deny(reply, 'item.view_floor');
+    }
+    return v;
   });
 
   // ------------------------------------------------------------ S0 records and their cards

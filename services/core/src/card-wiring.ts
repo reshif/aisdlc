@@ -32,6 +32,8 @@ export interface CardWiring {
   readonly knowledge: KnowledgePort;
   readonly source: CardDeps['source'];
   readonly settings?: () => S0Settings;
+  /** MM-2 (`maintenanceFrom`): decisions are refused and the timers frozen while it is on. */
+  readonly maintenance?: () => boolean;
 }
 
 export function cardDepsFrom(w: CardWiring): CardDeps {
@@ -41,6 +43,7 @@ export function cardDepsFrom(w: CardWiring): CardDeps {
     eligibility: w.eligibility,
     stepUp: w.stepUp,
     registry: w.registry,
+    ...(w.maintenance ? { maintenance: w.maintenance } : {}),
   };
   return {
     pool: w.pool,
