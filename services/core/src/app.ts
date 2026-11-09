@@ -6,6 +6,9 @@ import {
 } from './integration-api.js';
 import {
   CardDecideRequest,
+  GateCardDecideRequest,
+  GateCardEvidenceRequest,
+  GateCardPrepareRequest,
   CardEvidenceRequest,
   CardPrepareRequest,
   BannerSeverity,
@@ -43,6 +46,14 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
 import { gateArtefactsView } from './planning/gate-view.js';
+import {
+  decideGateCard,
+  gateCardView,
+  itemCardHead,
+  prepareGateCard,
+  recordGateCardEvidence,
+} from './gate-cards.js';
+import type { DecisionDeps } from '@aisdlc/decisions';
 import { CORE_STATUS, coreError, type CoreError } from './errors.js';
 import { listBreakers, requestBreakerReset } from './breaker.js';
 import {
@@ -911,6 +922,97 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return fail(reply, coreError('unavailable', 'the card could not be read'));
     }
   });
+
+  // ------------------------------------------------------------ deciding a work-item gate card (Gap B)
+
+  const kernelOr = (reply: FastifyReply): DecisionDeps | null => {
+    const k = o.config ?? o.cards?.decisions;
+    if (k) return k;
+    fail(reply, coreError('unavailable', 'no decision kernel is configured'));
+    return null;
+  };
+
+  /** What a work-item card is as something to decide: its gates, who may, what a decision may be. */
+  app.get('/v1/cards/:cardId/gate', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const k = kernelOr(reply);
+    const id = uuidParam(req, reply, 'cardId');
+    if (!k || !id) return;
+    try {
+      const r = await gateCardView(k, id);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the card could not be read'));
+    }
+  });
+
+  /**
+   * The PDP decides about the human FIRST: `card.decide` on the card and `gate.decide` on every gate it
+   * carries (all must say yes); then the decision kernel checks the slot, two-person, own-request and step-up
+   * rules and writes the ledger entries. Nothing here has a default decision.
+   */
+  async function gateCardAction<S extends z.ZodType<{ on_behalf_of: string }>>(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    schema: S,
+    run: (k: DecisionDeps, id: string, body: z.infer<S>) => Promise<Result<unknown, CoreError>>,
+  ) {
+    if (!allowed(req, 'onboard'))
+      return sendError(reply, 403, 'forbidden', 'scope onboard is needed');
+    const k = kernelOr(reply);
+    const id = uuidParam(req, reply, 'cardId');
+    if (!k || !id) return;
+    const b = parse(schema, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const head = await itemCardHead(o.pool, id);
+    if (!head) return fail(reply, coreError('not_found', 'no such work item card'));
+    if (
+      !(await guard(
+        reply,
+        b.value.on_behalf_of,
+        'card.decide',
+        pdpResource.card(head.project_id, id),
+      ))
+    ) {
+      return;
+    }
+    for (const g of head.gates) {
+      if (
+        !(await guard(
+          reply,
+          b.value.on_behalf_of,
+          'gate.decide',
+          pdpResource.gate(head.project_id, g.gate_instance_id, g.gate),
+        ))
+      ) {
+        return;
+      }
+    }
+    const r = await run(k, id, b.value);
+    return r.ok ? r.value : fail(reply, r.error);
+  }
+
+  app.post('/v1/cards/:cardId/gate/prepare', (req, reply) =>
+    gateCardAction(req, reply, GateCardPrepareRequest, (k, id, b) =>
+      prepareGateCard(k, { card_id: id, principal: b.on_behalf_of }),
+    ),
+  );
+  app.post('/v1/cards/:cardId/gate/evidence', (req, reply) =>
+    gateCardAction(req, reply, GateCardEvidenceRequest, (k, id, b) =>
+      recordGateCardEvidence(k, { card_id: id, views: b.views }),
+    ),
+  );
+  app.post('/v1/cards/:cardId/gate/decide', (req, reply) =>
+    gateCardAction(req, reply, GateCardDecideRequest, (k, id, b) =>
+      decideGateCard(k, {
+        card_id: id,
+        principal: b.on_behalf_of,
+        decision: b.decision,
+        votes: b.votes,
+        ...(b.reason === undefined ? {} : { reason: b.reason }),
+      }),
+    ),
+  );
 
   /** The PDP decides about the human (`card.decide`), then the decision kernel does the rest. */
   async function cardAction<S extends z.ZodType<{ on_behalf_of: string }>>(

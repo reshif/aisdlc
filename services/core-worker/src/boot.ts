@@ -14,6 +14,7 @@ import {
   gatewayTriggersLoop,
   killObserverLoop,
   registerCoreConfig,
+  constitutionFrom,
   roleMapSyncLoop,
   s0DriverLoop,
   maintenanceFrom,
@@ -232,6 +233,7 @@ export async function bootCoreWorker(
               gatewayUrl: cfg.gateway.url,
               keys: vault,
               knowledge: cfg.knowledge,
+              constitution: constitutionFrom(rd),
             })
           : baseStagePorts;
       supervisor.add(

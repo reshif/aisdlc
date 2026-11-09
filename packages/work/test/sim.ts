@@ -196,6 +196,7 @@ export class Sim {
           output_hash: out.output_hash,
           ...(out.lease_epoch ? { lease_epoch: out.lease_epoch } : {}),
           ...(out.assumptions ? { assumptions: out.assumptions } : {}),
+          ...(out.base_sha ? { base_sha: out.base_sha } : {}),
         });
         return;
       case 'held':
@@ -260,6 +261,7 @@ export class Sim {
           step: c.step,
           gate: out.gate,
           reason_code: out.reason_code,
+          ...(out.output_hash ? { output_hash: out.output_hash } : {}),
         });
         return;
       case 'failed':

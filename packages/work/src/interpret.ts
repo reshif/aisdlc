@@ -147,13 +147,18 @@ function gateFacts(
   // M12: what the gate decides, by hash. The latest output of each step the gate binds (G1f: what S2
   // produced; G2: the spec, the oracle specs and the review beside them) is in the card and in the
   // subject hash, so a changed artefact is a different subject and an old approval cannot cover it.
-  const artefacts = gates.flatMap((g) =>
-    (GATE_ARTEFACT_STEPS[g] ?? []).flatMap((step) => {
-      const sha256 = s.outputs[step];
-      const type = STEP_ARTEFACT[step];
-      return sha256 === undefined || type === undefined ? [] : [{ step, type, sha256 }];
-    }),
+  const steps = [...new Set(gates.flatMap((g) => GATE_ARTEFACT_STEPS[g] ?? []))].sort(
+    (a, b) => Number(a.split('.')[0]) - Number(b.split('.')[0]) || a.localeCompare(b),
   );
+  const artefacts = steps.flatMap((step) => {
+    const sha256 = s.outputs[step];
+    const type = STEP_ARTEFACT[step];
+    return sha256 === undefined || type === undefined ? [] : [{ step, type, sha256 }];
+  });
+  // S5 (M12.4): G3 is SHA-bound. The commit the plan was made against is in the card and in the subject hash,
+  // so a plan made on another base is another subject.
+  const base_sha =
+    gates.some((g) => g === 'G3' || g === 'G3s') && s.plan_base_sha ? s.plan_base_sha : null;
   const facts: Record<string, unknown> = {
     item_id: s.item_id,
     station: stationKey,
@@ -170,9 +175,10 @@ function gateFacts(
     conflict_candidates: s.intake.conflict_candidates,
     ...(s.review_mode !== null ? { review_mode: s.review_mode } : {}),
     ...(artefacts.length > 0 ? { artefacts } : {}),
+    ...(base_sha !== null ? { base_sha } : {}),
     ...extra,
   };
-  return { facts, lane_profile_sha256, artefacts };
+  return { facts, lane_profile_sha256, artefacts, base_sha };
 }
 
 function openGates(
@@ -188,7 +194,7 @@ function openGates(
   },
 ): void {
   const attempt = bump(s, `open:${o.stationKey}`);
-  const { facts, lane_profile_sha256, artefacts } = gateFacts(
+  const { facts, lane_profile_sha256, artefacts, base_sha } = gateFacts(
     s,
     cat,
     o.gates,
@@ -205,6 +211,7 @@ function openGates(
     // A conditional gate binds what was approved before it, so a resume cannot reuse an old approval.
     approved: o.step === null ? [] : (s.approved[o.step] ?? []),
     ...(artefacts.length > 0 ? { artefacts } : {}),
+    ...(base_sha !== null ? { base_sha } : {}),
     ...(o.extra ? { extra: o.extra } : {}),
   });
   issue(
@@ -1184,6 +1191,7 @@ export function interpret(
       extensions: 0,
       human_plan: false,
       outputs: {},
+      plan_base_sha: null,
       assumptions: [],
       terminal: null,
       terminal_cause: null,
@@ -1256,6 +1264,7 @@ export function interpret(
       }
       s.waiting = null;
       s.outputs[p.step] = p.output_hash;
+      if (p.base_sha !== undefined && p.step.startsWith('5.')) s.plan_base_sha = p.base_sha;
       if (p.step === '1.3' && p.lane !== undefined && s.lane === null) s.proposed_lane = p.lane;
       if (p.step === '6.0' && p.lease_epoch !== undefined) {
         s.lease = { epoch: p.lease_epoch };
@@ -1314,6 +1323,8 @@ export function interpret(
         ignore(s, `stage_gate_needed:${p.step}:stale`);
         break;
       }
+      // what the gate decides (E2 at 4.5: the constitution report) is bound into it by hash
+      if (p.output_hash !== undefined) s.outputs[p.step] = p.output_hash;
       // E1 is R2's: it opens only through a relane request, which carries the lane it would go to.
       if (p.gate === 'E1' || !CONDITIONAL_GATES[p.gate].steps.includes(p.step)) {
         s.waiting = {
@@ -1506,8 +1517,15 @@ export function interpret(
         break;
       }
       if (s.waiting.what === 'plan') {
-        // B5: a human wrote the plan; G3 approves it (the rejections have been spent).
+        // B5: a human wrote the plan; G3 approves it (the rejections have been spent). What they wrote is
+        // bound by hash: its artefacts become the outputs of the S5 steps G3 decides.
         s.waiting = null;
+        if (event.type === ITEM_EVENT.human_work_done) {
+          for (const [step, sha] of Object.entries(event.payload.outputs ?? {})) {
+            if (step.startsWith('5.') && sha !== undefined) s.outputs[step] = sha;
+          }
+          if (event.payload.base_sha !== undefined) s.plan_base_sha = event.payload.base_sha;
+        }
         if (!jumpTo(s, catalogue, out, { gate: 'G3' }, 'human_plan')) stuck(s, 'human_plan:no_G3');
         else advance(s, catalogue, out);
         break;

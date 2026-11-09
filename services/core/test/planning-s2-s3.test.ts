@@ -132,16 +132,24 @@ describe('L4: S2 -> S3 -> G2 -> S4 entry, artefacts stored and hash-bound', () =
     const types = all.map((a) => a.type).sort();
     expect(types).toEqual(
       [
+        // S1 (real agents: 1.3 classifies, 1.5 writes the intent block), S2, S3 ...
+        'classification',
+        'intent_block',
         'affected_requirements',
         'context_brief',
         'decision_brief',
         'impact',
-        'intent_block',
         'oracle_specs',
         'reverse_engineering',
         'spec_delta',
         'spec_review',
         'validation_report',
+        // ... and S4 had begun by the time the driver stopped
+        'adr',
+        'contracts',
+        'data_migration',
+        'nfr_threat_ops',
+        'constitution_report',
       ].sort(),
     );
     const ev = await stored(rig.itemId);
@@ -168,7 +176,23 @@ describe('L4: S2 -> S3 -> G2 -> S4 entry, artefacts stored and hash-bound', () =
     const p = await proposals(rig.itemId);
     const accepted = p.filter((x) => x.body.status === 'accepted');
     expect(accepted.map((x) => x.body.step).sort()).toEqual(
-      ['2.1', '2.1b', '2.2', '2.3', '3.1', '3.2', '3.4', '3.5'].sort(),
+      [
+        '1.3',
+        '1.5',
+        '2.1',
+        '2.1b',
+        '2.2',
+        '2.3',
+        '3.1',
+        '3.2',
+        '3.4',
+        '3.5',
+        '4.1',
+        '4.2',
+        '4.3',
+        '4.4',
+        '4.5',
+      ].sort(),
     );
     const runs = await listAgentRuns(s.record.pool, rig.itemId);
     for (const pr_ of accepted) {

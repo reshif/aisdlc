@@ -68,7 +68,15 @@ describe('L6: 2.4 initiative and G1f, final intent acceptance', () => {
     });
     expect(held?.state.gates.some((g) => g.gate === 'G1f' && g.status === 'pending')).toBe(true);
     // nothing of S3 ran before the person accepted the intent
-    expect(provider.seen.map((c) => c.step)).toEqual(['2.1', '2.1b', '2.2', '2.3', '2.4']);
+    expect(provider.seen.map((c) => c.step)).toEqual([
+      '1.3',
+      '1.5',
+      '2.1',
+      '2.1b',
+      '2.2',
+      '2.3',
+      '2.4',
+    ]);
     expect(await versions(rig, 'initiative')).toEqual([1]);
 
     const [g1f] = await gateOpens(rig.itemId, 'G1f');

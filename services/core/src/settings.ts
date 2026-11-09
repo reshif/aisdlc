@@ -9,6 +9,9 @@ import {
 } from '@aisdlc/config';
 import {
   CONFIG_EVENT,
+  CONSTITUTION_CONFIG_KEY,
+  Constitution,
+  DEFAULT_CONSTITUTION,
   DEFAULT_GATING_PROFILE,
   DEFAULT_TWO_PERSON,
   EMPTY_ROLE_MAP,
@@ -109,6 +112,13 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
       description:
         'the business-day calendar of the S0 timers and of the work lifecycle (PARK, item age)',
     })
+    .setting({
+      key: CONSTITUTION_CONFIG_KEY,
+      schema: Constitution,
+      default: DEFAULT_CONSTITUTION,
+      description:
+        'the factory constitution 4.5 checks a design against: deterministic rules (egress, migrations). Factory layer only, M1-gated',
+    })
     .opsFlag({
       key: MAINTENANCE_FLAG_KEY,
       default: false,
@@ -130,6 +140,22 @@ export function maintenanceFrom(reader: ConfigReader): () => boolean {
     if (c.rejected.includes(MAINTENANCE_FLAG_KEY)) return true;
     const v = c.get(MAINTENANCE_FLAG_KEY);
     return v === undefined ? false : v !== false;
+  };
+}
+
+/**
+ * The factory constitution from the config reader (M12.3). A published value that no longer fits its schema
+ * reads as `null`: the design check then fails (unknown means unmet), it is never replaced by a default that
+ * would pass.
+ */
+export function constitutionFrom(reader: ConfigReader): () => Constitution | null {
+  return () => {
+    const c = reader.current();
+    if (c.rejected.includes(CONSTITUTION_CONFIG_KEY)) return null;
+    const v = c.get(CONSTITUTION_CONFIG_KEY);
+    if (v === undefined) return DEFAULT_CONSTITUTION;
+    const parsed = Constitution.safeParse(v);
+    return parsed.success ? parsed.data : null;
   };
 }
 

@@ -101,9 +101,19 @@ export class FakeProvider implements ModelProviderPort {
   private readonly script: ScriptStep[];
   private n = 0;
 
-  constructor(opts: { script?: ScriptStep[]; tools_capable?: boolean } = {}) {
+  private readonly respond: ((req: ModelCompleteRequest) => ScriptedReply | undefined) | undefined;
+
+  constructor(
+    opts: {
+      script?: ScriptStep[];
+      tools_capable?: boolean;
+      /** Answers a call when it returns a reply (before the script is consulted); `undefined`: the script or the default. */
+      respond?: (req: ModelCompleteRequest) => ScriptedReply | undefined;
+    } = {},
+  ) {
     this.script = [...(opts.script ?? [])];
     this.tools_capable = opts.tools_capable ?? true;
+    this.respond = opts.respond;
   }
 
   /** Queues more replies. */
@@ -115,8 +125,9 @@ export class FakeProvider implements ModelProviderPort {
   private reply(req: ModelCompleteRequest): Result<ModelCompleteResponse, ModelProviderError> {
     this.calls.push(req);
     this.n += 1;
-    const step = this.script.shift();
-    const r: ScriptedReply = typeof step === 'function' ? step(req) : (step ?? {});
+    const answered = this.respond?.(req);
+    const step = answered === undefined ? this.script.shift() : undefined;
+    const r: ScriptedReply = answered ?? (typeof step === 'function' ? step(req) : (step ?? {}));
     if (r.error) return err(r.error);
     const content: ModelCompleteResponse['content'] = [];
     const text = r.text ?? (r.tool_uses ? '' : `fake reply ${this.n}`);

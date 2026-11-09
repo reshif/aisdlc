@@ -51,11 +51,12 @@ describe('planted-instruction fields', () => {
     }
   });
 
-  it('the proposal a classifier makes is `candidate`, not a lane field', () => {
+  it('a classifier says what the work is (work_type, size, risk), never which lane: the factory derives it', () => {
     const names = propertyNames(
       AGENT_DEFINITIONS.find((d) => d.agent_id === 'A1')?.contract.output_schema,
     );
-    expect(names.has('candidate')).toBe(true);
+    for (const f of ['work_type', 'size', 'risk']) expect(names.has(f), f).toBe(true);
+    expect(names.has('candidate')).toBe(false);
     expect(names.has('lane')).toBe(false);
   });
 

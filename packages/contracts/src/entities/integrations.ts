@@ -160,7 +160,11 @@ export const ADAPTER_CONFIG = {
     /** Newer OpenAI models want `max_completion_tokens`; most compatible vendors take `max_tokens` (default). */
     max_tokens_param: z.enum(['max_tokens', 'max_completion_tokens']).optional(),
   }),
-  fake: z.strictObject({ tools_capable: z.boolean().optional() }),
+  fake: z.strictObject({
+    tools_capable: z.boolean().optional(),
+    /** `planning`: answers the planning steps with canned valid outputs (a local stack only). */
+    fixtures: z.literal('planning').optional(),
+  }),
 } as const satisfies Record<IntegrationAdapter, z.ZodType>;
 
 /** DM `ModelProvider` facts, for an integration of kind `model_provider`. */

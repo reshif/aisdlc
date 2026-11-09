@@ -156,14 +156,22 @@ refused bff http://killswitch:8400/healthz
 # M10.1: the gateway holds a vendor key and has egress: it has no route to the trust plane or to core, and
 # nothing but it is on its egress network. (Its one link into the trust plane is the kill switch's READ
 # API, which it must ask before every call.)
+# (core-worker is on gateway-api since M12, the work driver being the gateway's caller, so the gateway can read
+# its three read-only routes, healthz, metrics and admission; a network is symmetric and core-worker has no
+# route that writes. It is not in this list for that reason.)
 for t in http://kms-local:8300/healthz http://notary:8310/healthz http://witness:8320/healthz \
-         http://identity:8330/healthz http://core:8380/healthz http://core-worker:8360/healthz \
+         http://identity:8330/healthz http://core:8380/healthz \
          http://codehost:8350/healthz http://knowledge:8370/healthz http://bff:8340/healthz; do
   refused gateway "$t"
 done
-for from in core core-worker identity knowledge codehost bff notary witness kms-local; do
-  refused "$from" http://gateway:8410/healthz     # nobody calls the gateway yet but a sandbox (M13) or core (M11), on gateway-api
+for from in core identity knowledge codehost bff notary witness kms-local; do
+  refused "$from" http://gateway:8410/healthz     # nobody calls the gateway but the work driver's process (M11, M12) and later a sandbox (M13), on gateway-api
 done
+# M12: core-worker runs the work driver, which mints each agent run's key and calls /v1/messages under it
+dc exec -T core-worker node -e "fetch('http://gateway:8410/healthz',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || fail "core-worker cannot reach the gateway it mints agent keys at"
+echo "  core-worker (the work driver) is the one service on gateway-api"
+gw_api=$(docker network inspect "${COMPOSE_PROJECT_NAME}_gateway-api" --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}-//; s/-1$//" | grep -v '^$' | sort | tr '\n' ' ')
+[ "$gw_api" = "core-worker gateway " ] || fail "unexpected services on the gateway's API network: $gw_api"
 dc exec -T gateway node -e "fetch('http://killswitch:8400/healthz',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || fail "the gateway cannot reach the kill switch it must ask"
 echo "  gateway can reach the kill switch (its read link), nothing else of the stack"
 gw_nets=$(docker inspect "$(dc ps -q gateway)" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}_//" | grep -v '^$' | sort | tr '\n' ' ')

@@ -35,9 +35,21 @@ export async function pinnedOf(c: KeyCustodyPort): Promise<PinnedKey> {
   };
 }
 
-const classification = (candidate: string, rationale = 'a small change in one module') => ({
+// A1's classification says what the work is (M12: the factory derives the lane); the cases keep their old
+// labels (`L3`...) and the helper maps each to one `work_type`, so the graders compare something real.
+const WORK_TYPE: Record<string, string> = {
+  L1: 'hotfix',
+  L2: 'remediation',
+  L3: 'change',
+  L4: 'initiative',
+  L5: 'remediation',
+  L6: 'spike',
+};
+const classification = (label: string, rationale = 'a small change in one module') => ({
   kind: 'classification',
-  candidate,
+  work_type: WORK_TYPE[label] ?? 'change',
+  size: 'small',
+  risk: 'standard',
   confidence: 0.8,
   rationale,
 });
@@ -51,11 +63,15 @@ interface Spec {
 /** Five cases of agent A1, one per grader type, one security-tagged. */
 export const SPECS: Spec[] = [
   { id: 't-exact', candidate: 'L3', grader: { type: 'exact', value: classification('L3') } },
-  { id: 't-subset', candidate: 'L1', grader: { type: 'json_subset', value: { candidate: 'L1' } } },
+  {
+    id: 't-subset',
+    candidate: 'L1',
+    grader: { type: 'json_subset', value: { work_type: 'hotfix' } },
+  },
   {
     id: 't-regex',
     candidate: 'L4',
-    grader: { type: 'regex', pattern: '^L[0-9]$', path: 'candidate' },
+    grader: { type: 'regex', pattern: '^[a-z]+$', path: 'work_type' },
   },
   {
     id: 't-schema',
@@ -64,15 +80,15 @@ export const SPECS: Spec[] = [
       type: 'schema',
       schema: {
         type: 'object',
-        required: ['kind', 'candidate'],
-        properties: { candidate: { enum: ['L3', 'L4'] } },
+        required: ['kind', 'work_type'],
+        properties: { work_type: { enum: ['change', 'initiative'] } },
       },
     },
   },
   {
     id: 't-security',
     candidate: 'L5',
-    grader: { type: 'json_subset', value: { candidate: 'L5' } },
+    grader: { type: 'json_subset', value: { work_type: 'remediation' } },
     security: true,
   },
 ];
@@ -127,7 +143,11 @@ export async function buildStore(
     const r = addCase(
       path,
       draftOf(
-        { id: 'h-1', candidate: 'L2', grader: { type: 'json_subset', value: { candidate: 'L2' } } },
+        {
+          id: 'h-1',
+          candidate: 'L2',
+          grader: { type: 'json_subset', value: { work_type: 'remediation' } },
+        },
         { kind: 'holdout', input: { id: 'h-1', request: 'the held-out request' } },
       ),
     );

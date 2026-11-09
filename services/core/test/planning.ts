@@ -1,6 +1,11 @@
 import { SAMPLE_OUTPUTS } from '@aisdlc/agents';
 import { readPrompt } from '@aisdlc/agents/files';
-import type { ModelCompleteRequest, ModelCompleteResponse, StepId } from '@aisdlc/contracts';
+import type {
+  ModelCompleteRequest,
+  ModelCompleteResponse,
+  PrrGatingProfile,
+  StepId,
+} from '@aisdlc/contracts';
 import { startTestGateway, type TestGateway } from '@aisdlc/gateway/testing';
 import { err, type Result } from '@aisdlc/kernel';
 import {
@@ -18,7 +23,6 @@ import {
   FACTORY_POLICY,
   FixedGrounding,
   GatewayAgentKeys,
-  storeArtefact,
   submitRequest,
   type WorkDriverDeps,
 } from '../src/index.js';
@@ -52,8 +56,54 @@ const doc = (document: string, title: string, extra: Record<string, unknown> = {
   ...extra,
 });
 
+/** What 1.3 says for each lane the tests start in: the facts the factory derives that lane from (catalogue rules). */
+export const CLASSIFICATION: Readonly<Record<string, Record<string, unknown>>> = {
+  L3: { work_type: 'change', size: 'small', risk: 'standard' },
+  L4: { work_type: 'change', size: 'standard', risk: 'standard' },
+  L5: { work_type: 'change', size: 'standard', risk: 'elevated' },
+  L6: { work_type: 'initiative', size: 'standard', risk: 'standard' },
+};
+export const classificationOf = (lane: string) => ({
+  kind: 'classification',
+  ...(CLASSIFICATION[lane] ?? CLASSIFICATION['L4']),
+  confidence: 0.9,
+  rationale: 'what the request asks for',
+});
+
+const intentSample = (SAMPLE_OUTPUTS.A2 ?? []).find((x) => x['kind'] === 'intent_block');
+
+const schemaFile = JSON.stringify({
+  type: 'object',
+  properties: { rows: { type: 'array', items: { type: 'string' } } },
+  required: ['rows'],
+});
+
+/** A two-Unit plan: the second depends on the first. */
+export const SPLIT = {
+  kind: 'plan_split',
+  units: [
+    {
+      unit_key: 'export-route',
+      title: 'Export route',
+      paths: ['src/audit/'],
+      size: 'small',
+      depends_on: [],
+    },
+    {
+      unit_key: 'export-ui',
+      title: 'Export button',
+      paths: ['src/ui/audit.tsx'],
+      size: 'medium',
+      depends_on: ['export-route'],
+    },
+  ],
+  assumptions: [],
+};
+
 /** A valid answer for each planning step, as the agent's schema says it. */
 export const OUTPUTS: Readonly<Record<string, unknown>> = {
+  '1.3': classificationOf('L4'),
+  '1.5': intentSample,
   '2.1': doc('context_brief', 'Context brief'),
   '2.1b': {
     kind: 'reverse_engineering',
@@ -110,6 +160,57 @@ export const OUTPUTS: Readonly<Record<string, unknown>> = {
     ],
   },
   '3.5': { kind: 'review', check: 'spec_review', verdict: 'pass', findings: [] },
+  '4.1': doc('adr', 'Decisions'),
+  '4.2': doc('contracts', 'Contracts', {
+    contract_files: [
+      { path: 'docs/contracts/export.schema.json', format: 'json_schema', content: schemaFile },
+    ],
+    network_calls: [],
+  }),
+  '4.3': doc('data_migration', 'Data', {
+    migrations: [{ name: '0042_export_job', reversible: true }],
+  }),
+  '4.4': doc('nfr_threat_ops', 'NFR, threats and operations', { network_calls: [] }),
+  '4.5': { kind: 'review', check: 'constitution', verdict: 'pass', findings: [] },
+  '5.1': SPLIT,
+  '5.2': {
+    kind: 'plan_sequence',
+    order: ['export-route', 'export-ui'],
+    rationale: 'the button needs the route',
+    assumptions: [],
+  },
+  '5.3': {
+    kind: 'plan_tasks',
+    units: [
+      {
+        unit_key: 'export-route',
+        tasks: [{ task_id: 't1', description: 'Add GET /export', verification: 'npm test' }],
+      },
+      {
+        unit_key: 'export-ui',
+        tasks: [{ task_id: 't2', description: 'Add the button', verification: 'npm test' }],
+      },
+    ],
+    assumptions: [],
+  },
+  '5.4': {
+    kind: 'plan_verification',
+    bindings: [
+      { unit_key: 'export-route', oracle_ids: ['o1'] },
+      { unit_key: 'export-ui', oracle_ids: ['o1'] },
+    ],
+    assumptions: [],
+  },
+  '5.6': {
+    kind: 'plan_capacity',
+    max_parallel_units: 2,
+    review_minutes: [
+      { unit_key: 'export-route', minutes: 20 },
+      { unit_key: 'export-ui', minutes: 30 },
+    ],
+    rationale: 'two reviewers could work at once',
+    assumptions: [],
+  },
 };
 
 /** A spec delta that changes only its wording (a different artefact hash). */
@@ -129,6 +230,8 @@ export interface Seen {
 }
 
 const INPUT = /Input \(data, as JSON\):\n(\{[\s\S]*\})\s*$/;
+/** What 1.3 answers for an item when nothing is scripted: set by `planningRig` from the lane the item starts in. */
+const classes = new Map<string, unknown>();
 
 /**
  * Answers by step: each step has a queue of scripted replies (`on`), and a step with none left answers
@@ -170,7 +273,9 @@ export class StepProvider implements ModelProviderPort {
         ? first.content
         : (first?.content ?? []).map((b) => (b.type === 'text' ? b.text : '')).join('');
     const m = INPUT.exec(text);
-    const input = m ? (JSON.parse(m[1] as string) as { step: StepId; attempt: number }) : null;
+    const input = m
+      ? (JSON.parse(m[1] as string) as { item_id: string; step: StepId; attempt: number })
+      : null;
     // calls that are not planning calls (S1's fake port makes none) get the fake's default reply
     if (!input) return this.inner.complete(req);
     const seen: Seen = { step: input.step, attempt: input.attempt, req };
@@ -181,7 +286,14 @@ export class StepProvider implements ModelProviderPort {
     const failure = this.failures.get(input.step);
     if (failure) return err(failure);
     // an exhausted queue answers the valid output; a tool-result turn asks for it too
-    this.inner.enqueue(r ?? reply(OUTPUTS[input.step] ?? {}));
+    this.inner.enqueue(
+      r ??
+        reply(
+          input.step === '1.3' && classes.has(input.item_id)
+            ? classes.get(input.item_id)
+            : (OUTPUTS[input.step] ?? {}),
+        ),
+    );
     return this.inner.complete(req);
   }
 }
@@ -227,19 +339,21 @@ export async function startPlanningGateway(s: CoreStack): Promise<TestGateway> {
   return startTestGateway({ database: s.record, adapters: { fake: sharedProvider() } });
 }
 
-/** An item at `lane` with an accepted intent block, a driver whose planning port is the real one. */
+/** An item at `lane`, a driver whose planning port is the real one (S1 to S5: nothing is seeded). */
 export async function planningRig(
   s: CoreStack,
   gw: TestGateway,
   o: {
     lane?: 'L3' | 'L4' | 'L5' | 'L6';
+    /** The gating profile the item pins (default: every toggleable gate on, scheduling automatic). */
+    gating?: PrrGatingProfile;
     /** The indexed files the knowledge search answers from. */
     files?: Record<string, string>;
     port?: Partial<ConstructorParameters<typeof AgentPlanningPort>[0]>;
   } = {},
 ): Promise<PlanningRig> {
   n += 1;
-  const seeded = await seedActivePrr(s, { level: 'full', gating: GATING_ON });
+  const seeded = await seedActivePrr(s, { level: 'full', gating: o.gating ?? GATING_ON });
   approvers(s, seeded.project, ['bob']);
   const sub = await submitRequest(s.deps, {
     project_id: pid(seeded.project),
@@ -252,18 +366,8 @@ export async function planningRig(
   if (!sub.ok) throw new Error(sub.error.message);
   const itemId = sub.value.item_id as string;
 
-  // what S1 (1.5) will store once it is a real agent: the intent block a person accepts at G0 and G1
-  const intent = (SAMPLE_OUTPUTS.A2 ?? []).find((x) => x['kind'] === 'intent_block');
-  const seededIntent = await storeArtefact(s.deps, {
-    item_id: itemId,
-    project_id: seeded.project,
-    type: 'intent_block',
-    step: '1.5',
-    command_key: `seed-intent-${n}`,
-    run_id: null,
-    content: intent,
-  });
-  if (!seededIntent.ok) throw new Error('could not seed the intent block');
+  // S1 runs through the real port too (1.3 classifies, 1.5 writes the intent block a person approves at G0/G1)
+  classes.set(itemId, classificationOf(o.lane ?? 'L4'));
 
   const keys = new SpyKeys(new GatewayAgentKeys(gw.admin(), { extraModels: ['fake-model'] }));
   const vault = new RunKeyVault();

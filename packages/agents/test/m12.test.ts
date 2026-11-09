@@ -47,10 +47,12 @@ describe("the two signals the planner may raise (and the lane stays the factory'
     expect(validateOutput('A3', { ...A3_DOC, ambiguity: [''] }).ok).toBe(false);
   });
 
-  it('A2 and A3 are contract 1.1.0 (their schemas and inputs changed); the others are untouched', () => {
+  it('A1, A2, A3 and A5 changed their schemas or inputs (M12); the others are untouched', () => {
+    expect(agentDefinition('A1').contract.contract_version).toBe('1.1.0');
     expect(agentDefinition('A2').contract.contract_version).toBe('1.1.0');
-    expect(agentDefinition('A3').contract.contract_version).toBe('1.1.0');
-    for (const id of ['A1', 'A5', 'A6', 'A9', 'A11', 'A12', 'coder'] as const) {
+    expect(agentDefinition('A3').contract.contract_version).toBe('1.2.0');
+    expect(agentDefinition('A5').contract.contract_version).toBe('1.1.0');
+    for (const id of ['A6', 'A9', 'A11', 'A12', 'coder'] as const) {
       expect(agentDefinition(id).contract.contract_version, id).toBe('1.0.0');
     }
   });

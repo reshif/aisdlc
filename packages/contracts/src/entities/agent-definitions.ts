@@ -71,6 +71,18 @@ export const ArtefactType = z.enum([
   'affected_requirements',
   'validation_report',
   'spec_review',
+  // M12.3 (S4) and M12.4 (S5), and S1's two agent steps: what they store (`STEP_ARTEFACT`)
+  'classification',
+  'adr',
+  'contracts',
+  'data_migration',
+  'nfr_threat_ops',
+  'constitution_report',
+  'unit_split',
+  'unit_sequence',
+  'verification_binding',
+  'budget_envelope',
+  'capacity_input',
 ]);
 export type ArtefactType = z.infer<typeof ArtefactType>;
 export const ArtefactTypeValues: readonly ArtefactType[] = ArtefactType.options;

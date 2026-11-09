@@ -45,7 +45,7 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
   if (q.isPending) return <Loading what="the card" />;
   // not an onboarding card: a work-item gate card (G1f, G2) shows the artefacts it decides
   if (q.isError && q.error instanceof ApiError && q.error.status === 404) {
-    return <GateArtefacts id={id} />;
+    return <GateArtefacts id={id} csrf={csrf} />;
   }
   if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
   const card = q.data;

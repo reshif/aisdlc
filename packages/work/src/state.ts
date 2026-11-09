@@ -184,6 +184,8 @@ export interface ItemState {
   human_plan: boolean;
   /** The last output hash of each step (the Handoff Pack's contents). */
   outputs: Record<string, string>;
+  /** The merged commit the plan (S5) was made against; G3 binds it. `null` until S5 says (or absent in old state). */
+  plan_base_sha?: string | null;
   assumptions: Assumption[];
   terminal: TerminalState | null;
   terminal_cause: string | null;

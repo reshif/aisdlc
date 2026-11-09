@@ -8,31 +8,50 @@ import {
   type ArtefactPiece,
   type OutputFieldError,
 } from '@aisdlc/agents';
-import { catalogueFor } from '@aisdlc/catalogue';
+import { catalogueFor, type CatalogueData } from '@aisdlc/catalogue';
 import {
   AGENT_EVENT,
   AgentRunFailedPayload,
   ProposalRecordedPayload,
   agentStream,
+  DEFAULT_CONSTITUTION,
+  GateArtefactRef,
   type AgentBinding,
   type AgentRunFailureCode,
   type ArtefactType,
+  type Constitution,
   type ProposalReason,
   type StageOutcome,
   type StageRequest,
 } from '@aisdlc/contracts';
-import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
+import { err, hashCanonical, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import {
   StagePortError,
   type KnowledgeSearchPort,
   type PlanningPort,
   type RunKeyLender,
 } from '@aisdlc/ports';
+import { readOpened } from '@aisdlc/decisions';
 import { limitValue, type ItemState } from '@aisdlc/work';
+import type pg from 'pg';
+import { z } from 'zod';
 import { inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
 import { readItem } from '../work-items.js';
 import { readWork } from '../work.js';
-import { shallowerLane } from './lanes.js';
+import { checkContractFiles, designFactsOf, evaluateConstitution } from './design.js';
+import { laneForClassification, shallowerLane, type WorkClassification } from './lanes.js';
+import {
+  boundCapacity,
+  budgetEnvelope,
+  plannedUnits,
+  splitUnits,
+  validateCapacity,
+  validateSequence,
+  validateTasks,
+  validateUnitSplit,
+  validateVerification,
+} from './plan.js';
+import { planUnits } from './units.js';
 import { type GroundingPort } from './grounding.js';
 import { callMessages, type ContentBlock, type ModelCallOptions } from './model-call.js';
 import {
@@ -90,15 +109,22 @@ export interface AgentPlanningDeps extends CoreDeps {
   readonly grounding: GroundingPort;
   /** The `KnowledgeSearch` tool's backend; absent: the tool is not offered. */
   readonly search?: KnowledgeSearchPort;
-  /** Every step this port does not own (S1, S4, S5). */
+  /** Every step this port does not own (1.2, 1.4, 1.6, the human steps and S6 on). */
   readonly fallback: PlanningPort;
   /** The locked prompt text of `name@version`. */
   readonly prompt: (ref: string) => string;
+  /**
+   * The factory constitution 4.5 checks a design against (config `factory.constitution`, M1-gated). Absent: the
+   * built-in default. Returns `null` when the published value cannot be read: that is a violation (unknown
+   * means unmet), never a pass.
+   */
+  readonly constitution?: () => Constitution | null;
   readonly maxOutputTokens?: number;
   /** Tool-use round trips inside one answer (default 6; the last call is made without tools). */
   readonly maxToolRounds?: number;
 }
 
+type Ctx = Parameters<typeof outcomeFor>[3];
 type Refusal = { readonly reasons: ProposalReason[]; readonly code: AgentRunFailureCode };
 const sanePath = (p: string): string => (/^[A-Za-z0-9_.[\]$]{1,120}$/.test(p) ? p : '?');
 const reasonsOf = (errors: readonly OutputFieldError[]): ProposalReason[] =>
@@ -118,6 +144,35 @@ function parseJson(text: string): unknown {
     }
   }
   return undefined;
+}
+
+/**
+ * The intent block a person accepted, for context level 2: the newest one, and only when an approved G0 or G1
+ * of the item bound THAT block by hash. An intent block written after the approval (a B2 redraft) is not
+ * accepted until a person approves it: it is the agent's own words until then.
+ */
+export async function acceptedIntentOf(
+  pool: pg.Pool,
+  itemId: string,
+  s: Pick<ItemState, 'gates'>,
+): Promise<{ text: string; gate_ref: string } | null> {
+  const a = await latestArtefact(pool, itemId, 'intent_block');
+  if (!a) return null;
+  const approved = s.gates.filter(
+    (g) =>
+      (g.gate === 'G0' || g.gate === 'G1') && g.status === 'decided' && g.outcome === 'approve',
+  );
+  for (const g of [...approved].reverse()) {
+    const o = await readOpened(pool, g.gate_instance_id);
+    const facts = z
+      .looseObject({ artefacts: z.array(GateArtefactRef).optional() })
+      .safeParse(o?.payload.facts);
+    const bound = facts.success ? (facts.data.artefacts ?? []) : [];
+    if (bound.some((r) => r.type === 'intent_block' && r.sha256 === a.row.sha256)) {
+      return { text: JSON.stringify(a.content), gate_ref: `gate:${g.gate_instance_id}` };
+    }
+  }
+  return null;
 }
 
 export class AgentPlanningPort implements PlanningPort {
@@ -149,7 +204,16 @@ export class AgentPlanningPort implements PlanningPort {
     if (!cat.ok) return portError('the item is pinned to a catalogue this build does not have');
 
     const shallower = shallowerLane(cat.value, s.profile, s.tier, req.lane);
-    const ctx = { lane: req.lane, shallower } as const;
+    // 1.3: the lane is the FACTORY's, derived from what the classifier said by the catalogue's rules. A re-lane
+    // R2 that a person approved at E1 stands: the item comes back to 1.3 with the lane they chose.
+    const chooseLane = (c: Record<string, unknown>) => {
+      if (s.relanes.at(-1)?.edge === 'R2') return s.proposed_lane;
+      return (
+        laneForClassification(cat.value, s.profile, s.tier, c as unknown as WorkClassification) ??
+        req.lane
+      );
+    };
+    const ctx = { lane: req.lane, shallower, chooseLane } as const;
 
     // a redelivery: the command already stored its artefact, so it answers from it and does nothing else
     const prior = await artefactOfCommand(d.pool, req.item_id, req.command_key, spec.artefact);
@@ -157,6 +221,7 @@ export class AgentPlanningPort implements PlanningPort {
       return ok(outcomeFor(step, prior.content as Record<string, unknown>, prior.row.sha256, ctx));
     }
     if (step === '3.3') return this.validate(req, s, ctx);
+    if (step === '5.5') return this.envelope(req, s, cat.value, ctx);
     return this.agentStep(req, step, s, limitValue(cat.value, 'B3', 'auto_rounds') ?? 3, ctx);
   }
 
@@ -165,7 +230,7 @@ export class AgentPlanningPort implements PlanningPort {
   private async validate(
     req: StageRequest,
     s: ItemState,
-    ctx: { lane: StageRequest['lane']; shallower: StageRequest['lane'] | null },
+    ctx: Ctx,
   ): Promise<Result<StageOutcome, StagePortError>> {
     const delta = await latestArtefact(this.d.pool, req.item_id, 'spec_delta');
     if (!delta) return ok({ outcome: 'failed', code: 'missing_input' });
@@ -206,7 +271,7 @@ export class AgentPlanningPort implements PlanningPort {
     step: PlanningStep,
     s: ItemState,
     autoRounds: number,
-    ctx: { lane: StageRequest['lane']; shallower: StageRequest['lane'] | null },
+    ctx: Ctx,
   ): Promise<Result<StageOutcome, StagePortError>> {
     const d = this.d;
     const spec = STEP_SPECS[step];
@@ -243,6 +308,15 @@ export class AgentPlanningPort implements PlanningPort {
         refs.push({ type: 'request', ref: `request:${s.request_id}`, sha256: sha });
       }
     }
+    // 1.5: what the requester answered to earlier rounds of questions (their words, so DATA: B1 allows two rounds)
+    if (step === '1.5') {
+      for (const q of s.questions.filter((x) => x.state === 'answered' && x.answer !== null)) {
+        const text = `Question (round ${q.round}): ${q.text}\nAnswer: ${q.answer?.text ?? ''}`;
+        const sha = sha256Hex(text);
+        pieces.push({ type: 'request', sha256: sha, text });
+        refs.push({ type: 'request', ref: `question:${q.question_id}`, sha256: sha });
+      }
+    }
     const loaded = new Map<ArtefactType, LoadedArtefact>();
     for (const t of spec.inputs) {
       const a = await latestArtefact(d.pool, req.item_id, t);
@@ -254,6 +328,12 @@ export class AgentPlanningPort implements PlanningPort {
       const a = loaded.get(t);
       if (a && step === '3.2' && (!draft || a.row.seq < draft.row.seq)) loaded.delete(t);
     }
+    // 4.1: a constitution report counts only when it judged the design the agent is about to replace
+    // (a redesign after B25 or B24); the first design, and a report of an older one, see none
+    const design = await latestArtefact(d.pool, req.item_id, 'adr');
+    const report = loaded.get('constitution_report');
+    if (report && (!design || report.row.seq < design.row.seq))
+      loaded.delete('constitution_report');
     for (const [t, a] of loaded) {
       pieces.push({ type: t, sha256: a.row.sha256, text: a.markdown });
       refs.push({ type: t, ref: `artefact:${t}:v${a.row.version}`, sha256: a.row.sha256 });
@@ -268,7 +348,7 @@ export class AgentPlanningPort implements PlanningPort {
       purpose: 'item',
       merged_sha: grounding.merged_sha,
       policy: [...grounding.policy, { text: spec.task }],
-      intent: await this.acceptedIntent(req.item_id, s),
+      intent: await acceptedIntentOf(d.pool, req.item_id, s),
       ...(grounding.claims ? { claims: grounding.claims } : {}),
       ...(grounding.pack_docs ? { pack_docs: grounding.pack_docs } : {}),
       ...(grounding.repo_text ? { repo_text: grounding.repo_text } : {}),
@@ -333,6 +413,20 @@ export class AgentPlanningPort implements PlanningPort {
         });
       const verdict = await this.judge(step, def.agent_id, text, grounding.merged_sha, req);
       if (verdict.valid) {
+        const out = verdict.output as Record<string, unknown>;
+        // 1.5: the agent asks the requester instead of writing the intent. Nothing is stored (the questions are
+        // entities of the item, B1 counts the rounds and parks the third); the proposal is recorded as accepted.
+        if (step === '1.5' && out['kind'] === 'questions') {
+          await recordProposal(d, proposalOf('accepted', []));
+          return ok({
+            outcome: 'questions',
+            questions: out['questions'] as Array<{
+              text: string;
+              material: 'blocking' | 'non_blocking';
+            }>,
+          });
+        }
+        const content = await this.compose(step, out, req, loaded, grounding.merged_sha);
         const stored = await storeArtefact(d, {
           item_id: req.item_id,
           project_id: s.project_id,
@@ -340,14 +434,10 @@ export class AgentPlanningPort implements PlanningPort {
           step,
           command_key: req.command_key,
           run_id: binding.run_id,
-          content: verdict.output,
+          content,
           proposal: proposalOf('accepted', []),
         });
-        if (stored.ok) {
-          return ok(
-            outcomeFor(step, verdict.output as Record<string, unknown>, stored.value.sha256, ctx),
-          );
-        }
+        if (stored.ok) return ok(outcomeFor(step, content, stored.value.sha256, ctx));
         if (!ArtefactRefused.is(stored.error)) return portError('the artefact could not be stored');
         feedback = { reasons: [{ path: '$', code: 'secret_in_output' }], code: 'secret_in_output' };
       } else {
@@ -362,24 +452,6 @@ export class AgentPlanningPort implements PlanningPort {
 
   private giveUp(): StageOutcome {
     return { outcome: 'trigger', trigger: 'ET8', reason_code: 'output_invalid' };
-  }
-
-  /** The intent block a person accepted: only with an approved G0, G1 or G1f on the item (context level 2). */
-  private async acceptedIntent(
-    itemId: string,
-    s: ItemState,
-  ): Promise<{ text: string; gate_ref: string } | null> {
-    const approved = s.gates.filter(
-      (g) =>
-        (g.gate === 'G1f' || g.gate === 'G1' || g.gate === 'G0') &&
-        g.status === 'decided' &&
-        g.outcome === 'approve',
-    );
-    const gate = approved.at(-1);
-    if (!gate) return null;
-    const a = await latestArtefact(this.d.pool, itemId, 'intent_block');
-    if (!a) return null;
-    return { text: JSON.stringify(a.content), gate_ref: `gate:${gate.gate_instance_id}` };
   }
 
   // ------------------------------------------------------------ the model call and its tool loop
@@ -527,7 +599,151 @@ export class AgentPlanningPort implements PlanningPort {
           f.map((x) => ({ path: x.path, code: x.code, message: '' })),
         );
     }
+    const checked = await this.checkStep(step, out, req);
+    if (checked.length > 0) {
+      return refuse(
+        'output_invalid',
+        checked.map((x) => ({ path: x.path, code: x.code, message: '' })),
+      );
+    }
     return { valid: true, output: out };
+  }
+
+  /** The deterministic checks of the S4 and S5 steps over an answer that already passed its schema. */
+  private async checkStep(
+    step: PlanningStep,
+    out: Record<string, unknown>,
+    req: StageRequest,
+  ): Promise<ReadonlyArray<{ path: string; code: string }>> {
+    const pool = this.d.pool;
+    const latest = async (t: ArtefactType) => (await latestArtefact(pool, req.item_id, t))?.content;
+    switch (step) {
+      case '4.2':
+        // 4.2 (D+A): the agent proposes contract files, a deterministic checker parses them
+        return checkContractFiles(out['contract_files'] as never);
+      case '5.1':
+        return validateUnitSplit(out);
+      case '5.2':
+        return validateSequence(out, await latest('unit_split'));
+      case '5.3':
+        return validateTasks(out, await latest('unit_split'));
+      case '5.4':
+        return validateVerification(out, await latest('unit_split'), await latest('oracle_specs'));
+      case '5.6':
+        return validateCapacity(out, await latest('unit_split'));
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * What is stored for an accepted answer. Most steps store the answer as it is. 4.5 stores the constitution
+   * REPORT: the factory's own rules run over the design, beside A5's review. The S5 steps store the answer
+   * stamped with the commit the plan is made against (5.1: the merged head now; later steps: the one 5.1
+   * stamped), so the plan's hashes bind it; 5.6 stores the capacity the factory will use of what was asked.
+   */
+  private async compose(
+    step: PlanningStep,
+    out: Record<string, unknown>,
+    req: StageRequest,
+    loaded: ReadonlyMap<ArtefactType, LoadedArtefact>,
+    merged: string,
+  ): Promise<Record<string, unknown>> {
+    if (step === '4.5') {
+      const c = this.d.constitution ? this.d.constitution() : DEFAULT_CONSTITUTION;
+      const facts = designFactsOf({
+        contracts: loaded.get('contracts')?.content,
+        data_migration: loaded.get('data_migration')?.content,
+        nfr_threat_ops: loaded.get('nfr_threat_ops')?.content,
+      });
+      const deterministic =
+        c === null
+          ? [
+              {
+                rule_id: 'CONSTITUTION',
+                severity: 'high',
+                location: { path: 'constitution' },
+                message:
+                  'the factory constitution could not be read: nothing is approved on a guess',
+              },
+            ]
+          : evaluateConstitution(c, facts);
+      const findings = Array.isArray(out['findings']) ? out['findings'] : [];
+      return {
+        kind: 'constitution_report',
+        constitution_version: c?.version ?? null,
+        constitution_sha256: c === null ? null : hashCanonical(c),
+        deterministic,
+        review: { verdict: out['verdict'], findings },
+        verdict: deterministic.length > 0 || out['verdict'] === 'findings' ? 'violation' : 'pass',
+      };
+    }
+    if (step.startsWith('5.')) {
+      const split =
+        step === '5.1' ? null : await latestArtefact(this.d.pool, req.item_id, 'unit_split');
+      const stamp = (split?.content as { base_sha?: unknown } | undefined)?.base_sha;
+      const base_sha = typeof stamp === 'string' ? stamp : merged;
+      if (step === '5.6') return { ...boundCapacity(out, split?.content), base_sha };
+      return { ...out, base_sha };
+    }
+    return out;
+  }
+
+  /**
+   * 5.5, deterministic (D): the budget envelope from the catalogue's lane profile default and the sizes of the
+   * Units, and the plan's Units entering the `unit` read model (state Planned, DAG order). Nothing here reads a
+   * model: the same plan gives the same envelope.
+   */
+  private async envelope(
+    req: StageRequest,
+    s: ItemState,
+    cat: CatalogueData,
+    ctx: Ctx,
+  ): Promise<Result<StageOutcome, StagePortError>> {
+    const d = this.d;
+    const [split, seq, tasks, ver] = await Promise.all(
+      (['unit_split', 'unit_sequence', 'plan', 'verification_binding'] as const).map((t) =>
+        latestArtefact(d.pool, req.item_id, t),
+      ),
+    );
+    if (!split || !seq || !tasks || !ver) return ok({ outcome: 'failed', code: 'missing_input' });
+    const coder = primaryAgentFor('6.4')?.contract.budget;
+    if (!coder) return ok({ outcome: 'failed', code: 'no_budget_contract' });
+    const stamp = (split.content as { base_sha?: unknown }).base_sha;
+    if (typeof stamp !== 'string') return ok({ outcome: 'failed', code: 'plan_not_stamped' });
+    const units = splitUnits(split.content);
+    const { content, envelopes } = budgetEnvelope({
+      lane: req.lane,
+      lane_default_budget_cents: cat.lanes[req.lane].profile.default_envelope.budget_cents,
+      coder_budget: coder,
+      units: units.map((u) => ({ unit_key: u.unit_key, size: u.size })),
+      base_sha: stamp,
+    });
+    const planned = await planUnits(d, {
+      item_id: req.item_id,
+      project_id: s.project_id,
+      repo: req.repo,
+      plan_sha256: hashCanonical([
+        split.row.sha256,
+        seq.row.sha256,
+        tasks.row.sha256,
+        ver.row.sha256,
+      ]),
+      base_sha: stamp,
+      units: plannedUnits(split.content, envelopes),
+    });
+    if (!planned.ok) return portError('the Units could not be recorded');
+    const stored = await storeArtefact(d, {
+      item_id: req.item_id,
+      project_id: s.project_id,
+      type: 'budget_envelope',
+      step: '5.5',
+      command_key: req.command_key,
+      run_id: null,
+      content,
+    });
+    if (!stored.ok) return portError('the budget envelope could not be stored');
+    return ok(outcomeFor('5.5', content, stored.value.sha256, ctx));
   }
 
   private async recordRunFailure(

@@ -56,7 +56,7 @@ describe('run_suite', () => {
     });
     expect(run.prompt_sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(run.prompt_ref).toBe('a1_triage@1.0.0');
-    expect(run.contract_version).toBe('1.0.0');
+    expect(run.contract_version).toBe('1.1.0');
   });
 
   it('classifies each way a trial can fail, and counts infrastructure errors as failed AND errored', async () => {
@@ -65,12 +65,21 @@ describe('run_suite', () => {
       'not json at all',
       JSON.stringify({
         kind: 'classification',
-        candidate: 'L3',
+        work_type: 'change',
+        size: 'small',
+        risk: 'standard',
         lane: 'L0',
         confidence: 0.8,
         rationale: 'x',
       }),
-      JSON.stringify({ kind: 'classification', candidate: 'L9', confidence: 0.8, rationale: 'x' }),
+      JSON.stringify({
+        kind: 'classification',
+        work_type: 'teleport',
+        size: 'small',
+        risk: 'standard',
+        confidence: 0.8,
+        rationale: 'x',
+      }),
       { code: 'infra_error', message: 'down' },
       { code: 'refused', message: 'budget' },
     ];

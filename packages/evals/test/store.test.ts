@@ -129,7 +129,7 @@ describe('the signed manifest', () => {
     const ref = JSON.parse(hidden).hidden_ref.slice('sha256:'.length);
     const hp = join(s.path, 'hidden', `${ref}.json`);
     const h = readFileSync(hp, 'utf8');
-    writeFileSync(hp, h.replace('L3', 'L9'));
+    writeFileSync(hp, h.replace('change', 'teleport'));
     const b = await s.open();
     expect(!b.ok && b.error.code).toBe('tampered');
     writeFileSync(hp, h);

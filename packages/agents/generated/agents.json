@@ -12,7 +12,7 @@
         "1.4"
       ],
       "contract": {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "input_schema_id": "a1_input.v1",
         "input_schema": {
           "type": "object",
@@ -203,18 +203,28 @@
                   "type": "string",
                   "const": "classification"
                 },
-                "candidate": {
+                "work_type": {
                   "type": "string",
                   "enum": [
-                    "L0",
-                    "L1",
-                    "L2",
-                    "L3",
-                    "L4",
-                    "L5",
-                    "L6",
-                    "L7",
-                    "L8"
+                    "hotfix",
+                    "remediation",
+                    "change",
+                    "initiative",
+                    "spike"
+                  ]
+                },
+                "size": {
+                  "type": "string",
+                  "enum": [
+                    "small",
+                    "standard"
+                  ]
+                },
+                "risk": {
+                  "type": "string",
+                  "enum": [
+                    "standard",
+                    "elevated"
                   ]
                 },
                 "confidence": {
@@ -230,7 +240,9 @@
               },
               "required": [
                 "kind",
-                "candidate",
+                "work_type",
+                "size",
+                "risk",
                 "confidence",
                 "rationale"
               ],
@@ -705,7 +717,7 @@
         "9.4"
       ],
       "contract": {
-        "contract_version": "1.1.0",
+        "contract_version": "1.2.0",
         "input_schema_id": "a3_input.v1",
         "input_schema": {
           "type": "object",
@@ -796,10 +808,20 @@
                       "impact",
                       "initiative",
                       "decision_brief",
+                      "affected_requirements",
                       "spec_delta",
                       "oracle_specs",
                       "design",
+                      "adr",
+                      "contracts",
+                      "data_migration",
+                      "nfr_threat_ops",
+                      "constitution_report",
+                      "unit_split",
+                      "unit_sequence",
                       "plan",
+                      "verification_binding",
+                      "budget_envelope",
                       "repo_snapshot",
                       "config_history"
                     ]
@@ -945,6 +967,97 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500
+                  }
+                },
+                "contract_files": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "format": {
+                        "type": "string",
+                        "enum": [
+                          "json_schema",
+                          "openapi"
+                        ]
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "format",
+                      "content"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "migrations": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "reversible": {
+                        "type": "boolean"
+                      },
+                      "irreversible_flagged": {
+                        "type": "boolean"
+                      },
+                      "note": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "reversible"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "network_calls": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 253
+                      },
+                      "purpose": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "approval_ref": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "host",
+                      "purpose"
+                    ],
+                    "additionalProperties": false
                   }
                 }
               },
@@ -1098,16 +1211,7 @@
               "properties": {
                 "kind": {
                   "type": "string",
-                  "const": "plan"
-                },
-                "phase": {
-                  "type": "string",
-                  "enum": [
-                    "split",
-                    "sequence",
-                    "task_plan",
-                    "verification"
-                  ]
+                  "const": "plan_split"
                 },
                 "units": {
                   "minItems": 1,
@@ -1126,6 +1230,24 @@
                         "minLength": 1,
                         "maxLength": 200
                       },
+                      "paths": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 512
+                        }
+                      },
+                      "size": {
+                        "type": "string",
+                        "enum": [
+                          "small",
+                          "medium",
+                          "large"
+                        ]
+                      },
                       "depends_on": {
                         "maxItems": 20,
                         "type": "array",
@@ -1134,6 +1256,131 @@
                           "minLength": 1,
                           "maxLength": 64
                         }
+                      }
+                    },
+                    "required": [
+                      "unit_key",
+                      "title",
+                      "paths",
+                      "size",
+                      "depends_on"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "assumptions": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "intent",
+                          "plan",
+                          "spec",
+                          "design"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "kind",
+                "units",
+                "assumptions"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "plan_sequence"
+                },
+                "order": {
+                  "minItems": 1,
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "rationale": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "assumptions": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "intent",
+                          "plan",
+                          "spec",
+                          "design"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "kind",
+                "order",
+                "rationale",
+                "assumptions"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "plan_tasks"
+                },
+                "units": {
+                  "minItems": 1,
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "unit_key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
                       },
                       "tasks": {
                         "minItems": 1,
@@ -1169,8 +1416,6 @@
                     },
                     "required": [
                       "unit_key",
-                      "title",
-                      "depends_on",
                       "tasks"
                     ],
                     "additionalProperties": false
@@ -1207,8 +1452,159 @@
               },
               "required": [
                 "kind",
-                "phase",
                 "units",
+                "assumptions"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "plan_verification"
+                },
+                "bindings": {
+                  "minItems": 1,
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "unit_key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "oracle_ids": {
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      }
+                    },
+                    "required": [
+                      "unit_key",
+                      "oracle_ids"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "assumptions": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "intent",
+                          "plan",
+                          "spec",
+                          "design"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "kind",
+                "bindings",
+                "assumptions"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "plan_capacity"
+                },
+                "max_parallel_units": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 30
+                },
+                "review_minutes": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "unit_key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "minutes": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000
+                      }
+                    },
+                    "required": [
+                      "unit_key",
+                      "minutes"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "rationale": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "assumptions": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "intent",
+                          "plan",
+                          "spec",
+                          "design"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "kind",
+                "max_parallel_units",
+                "review_minutes",
+                "rationale",
                 "assumptions"
               ],
               "additionalProperties": false
@@ -1554,7 +1950,7 @@
         "7.5"
       ],
       "contract": {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "input_schema_id": "a5_input.v1",
         "input_schema": {
           "type": "object",
@@ -1641,6 +2037,10 @@
                       "spec_delta",
                       "oracle_specs",
                       "design",
+                      "adr",
+                      "contracts",
+                      "data_migration",
+                      "nfr_threat_ops",
                       "plan",
                       "diff",
                       "evidence_pack",

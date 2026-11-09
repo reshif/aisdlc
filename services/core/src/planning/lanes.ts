@@ -34,3 +34,57 @@ export function shallowerLane(
   }
   return null;
 }
+
+/** What 1.3's classifier said about the work (the facts of its output; it names no lane). */
+export interface WorkClassification {
+  readonly work_type: 'hotfix' | 'remediation' | 'change' | 'initiative' | 'spike';
+  readonly size: 'small' | 'standard';
+  readonly risk: 'standard' | 'elevated';
+}
+
+/** The catalogue lane label each labelled work type belongs to (`LANE_LABELS`: L0 hotfix ... L8 human-led). */
+const LABEL_OF: Readonly<Record<WorkClassification['work_type'], string | null>> = {
+  hotfix: 'hotfix',
+  remediation: 'remediation',
+  initiative: 'initiative',
+  spike: 'spike',
+  change: null,
+};
+
+/**
+ * The lane the FACTORY proposes for a classification (1.3; the classifier has no field that names a lane).
+ * Derived from the catalogue's own shape, nothing re-listed here:
+ *   - hotfix, remediation, initiative and spike go to the lane the catalogue labels so;
+ *   - an ordinary change goes to one of the lanes with no label that a request can enter (not a lane that
+ *     only a follow-up reaches: L1 is the hotfix's), ordered by how much planning they carry
+ *     (`planningDepth`): a small change of standard risk to the deepest of the shallow group, a change of
+ *     standard size to the first of the deep group, and elevated risk to the last of the deep group (a
+ *     small elevated change is a standard one). Human-led L8 is never chosen: eligibility routes there.
+ * `null` when the catalogue has no such lane (the caller keeps the lane the request came in with). G0 binds
+ * the lane, 1.4 checks the project may run it.
+ */
+export function laneForClassification(
+  cat: CatalogueData,
+  profile: PrrGatingProfile,
+  tier: Tier,
+  c: WorkClassification,
+): Lane | null {
+  const lanes = Object.values(cat.lanes);
+  const label = LABEL_OF[c.work_type];
+  if (label !== null) return lanes.find((l) => l.label === label)?.id ?? null;
+  const followUps = new Set(lanes.flatMap((l) => (l.follow_up ? [l.follow_up.lane] : [])));
+  const pool = lanes
+    .filter((l) => l.label === null && l.enter_at !== null && !followUps.has(l.id))
+    .map((l) => ({ id: l.id, depth: planningDepth(cat, profile, tier, l.id) }))
+    .sort((a, b) => a.depth - b.depth || a.id.localeCompare(b.id));
+  if (pool.length === 0) return null;
+  const depths = [...new Set(pool.map((p) => p.depth))];
+  const shallow = pool.filter((p) => p.depth === depths[0]);
+  const deep = pool.filter((p) => p.depth === depths[depths.length - 1]);
+  const pick = (g: typeof pool, at: 'first' | 'last') =>
+    (at === 'first' ? g[0] : g[g.length - 1])?.id ?? null;
+  if (depths.length === 1) return pick(pool, c.risk === 'elevated' ? 'last' : 'first');
+  if (c.size === 'small' && c.risk === 'standard') return pick(shallow, 'last');
+  if (c.risk === 'elevated' && c.size === 'standard') return pick(deep, 'last');
+  return pick(deep, 'first');
+}

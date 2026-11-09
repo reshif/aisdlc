@@ -126,6 +126,7 @@ secrets:
   tok-operator-killswitch: { file: ./secrets/tok-operator-killswitch }
   tok-gateway-killswitch: { file: ./secrets/tok-gateway-killswitch }
   tok-core-gateway: { file: ./secrets/tok-core-gateway }
+  tok-core-worker-gateway: { file: ./secrets/tok-core-worker-gateway }
   tok-operator-gateway: { file: ./secrets/tok-operator-gateway }
   tok-operator-codehost: { file: ./secrets/tok-operator-codehost }
   tok-knowledge-kms: { file: ./secrets/tok-knowledge-kms }
@@ -396,6 +397,7 @@ services:
       GATEWAY_ENVIRONMENT: local
       GATEWAY_CALLERS: >-
         {"core":{"token_ref":"file:/run/secrets/tok-core-gateway","scopes":["admin","read"]},
+        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-gateway","scopes":["admin","read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-gateway","scopes":["admin","read"]}}
       # What this deployment lets a registry row do. The providers themselves (adapter, base URL, key
       # reference, models) are rows of the integration registry, published through an M1 gate; a row naming
@@ -412,6 +414,7 @@ services:
         db-url-gateway,
         anthropic-api-key,
         tok-core-gateway,
+        tok-core-worker-gateway,
         tok-operator-gateway,
         tok-gateway-killswitch,
       ]
@@ -587,6 +590,14 @@ services:
       CORE_WORKER_KILLSWITCH_TOKEN_REF: file:/run/secrets/tok-core-worker-killswitch
       CORE_WORKER_KILL_OBSERVER_INTERVAL_MS: ${KILL_OBSERVER_INTERVAL_MS:-5000}
       CORE_WORKER_KILL_HOLDERS_INTERVAL_MS: ${KILL_HOLDERS_INTERVAL_MS:-10000}
+      # M12: the work driver with the real planning port (S1 to S5) and the model gateway, whose local fake
+      # provider answers the planning steps with canned outputs (`fixtures: planning`). Off (`none`) unless the
+      # run asks: e2e.sh sets `agents`; `fake` is the deterministic stage ports. The knowledge token above
+      # carries the `search` scope (the KnowledgeSearch tool).
+      CORE_WORKER_STAGE_PORTS: ${CORE_WORKER_STAGE_PORTS:-none}
+      CORE_WORKER_GATEWAY_URL: http://gateway:8410
+      CORE_WORKER_GATEWAY_TOKEN_REF: file:/run/secrets/tok-core-worker-gateway
+      CORE_WORKER_AGENT_EXTRA_MODELS: fake-model
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-core-worker-kms
       CORE_WORKER_HOST: 0.0.0.0
@@ -600,6 +611,7 @@ services:
         tok-core-worker-notary,
         tok-core-worker-witness,
         tok-core-worker-killswitch,
+        tok-core-worker-gateway,
         tok-core-worker-kms,
       ]
     healthcheck:
@@ -616,7 +628,8 @@ services:
       identity: { condition: service_healthy }
       witness: { condition: service_healthy }
       killswitch: { condition: service_healthy }
-    networks: [app, data-record, kms-clients, notary-api, witness-api, killswitch-api]
+      gateway: { condition: service_healthy }
+    networks: [app, data-record, kms-clients, notary-api, witness-api, killswitch-api, gateway-api]
     mem_limit: 256m
 
   # ------------------------------------------------------------------ code and repo content
@@ -681,7 +694,7 @@ services:
       KNOWLEDGE_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       KNOWLEDGE_CALLERS: >-
         {"core":{"token_ref":"file:/run/secrets/tok-core-knowledge","scopes":["census","security"]},
-        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-knowledge","scopes":["census","security"]}}
+        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-knowledge","scopes":["census","security","search"]}}
       KNOWLEDGE_CODEHOST_URL: http://codehost:8350
       KNOWLEDGE_CODEHOST_TOKEN_REF: file:/run/secrets/tok-knowledge-codehost
       KNOWLEDGE_IDENTITY_URL: http://identity:8330

@@ -2,7 +2,6 @@ import {
   AssumptionKind,
   GitSha,
   HandoffChoice,
-  Lane,
   QuestionDraft,
   WorkItemId,
 } from '@aisdlc/contracts';
@@ -14,7 +13,7 @@ import { z } from 'zod';
 // sets a lane, a gate, tools, egress or a budget. That is the planted-instruction defence (FL FIX 15,
 // PLAN M11.4): text in a request, a repo file or a dependency can try to make an agent "set lane L0" or
 // "allow tool Bash"; the schema has nowhere to put it, so the output is refused. The lane a classifier
-// PROPOSES is `candidate` (G0 binds the lane, 1.4 checks it); a blocked coder says WHY it is blocked
+// SETS nothing: a classifier says what the work is (`work_type`, `size`, `risk`) and the factory derives the lane from the catalogue (G0 binds it, 1.4 checks it); a blocked coder says WHY it is blocked
 // (`blocker.reason`), the factory decides what that raises. `test/schemas.test.ts` enumerates every
 // property name of every schema and fails on any of those words.
 
@@ -40,6 +39,15 @@ const Assumptions = z.array(AgentAssumption).max(30);
 
 // ---------------------------------------------------------------- A1 triage (1.2, 1.3, 1.4)
 
+/** What kind of work a request is, as far as lane choice goes (the catalogue's labelled lanes, and ordinary change). */
+export const ClassifiedWorkType = z.enum([
+  'hotfix',
+  'remediation',
+  'change',
+  'initiative',
+  'spike',
+]);
+
 export const TriageOutput = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('duplicate_scan'),
@@ -56,8 +64,12 @@ export const TriageOutput = z.discriminatedUnion('kind', [
   }),
   z.strictObject({
     kind: z.literal('classification'),
-    /** The lane the classifier PROPOSES. G0 binds it; 1.4 checks eligibility. Not a decision. */
-    candidate: Lane,
+    // 1.3 says WHAT the work is; the factory derives the lane from these facts by the catalogue's rules
+    // (`laneForClassification` in core): the classifier has no field that names a lane. G0 binds the
+    // lane the factory proposed; 1.4 checks eligibility.
+    work_type: ClassifiedWorkType,
+    size: z.enum(['small', 'standard']),
+    risk: z.enum(['standard', 'elevated']),
     confidence: z.number().min(0).max(1),
     rationale: Text(1000),
   }),
@@ -133,6 +145,49 @@ export const PlannerOutput = z.discriminatedUnion('kind', [
      * absent or empty: the intent is clear. The agent says WHAT is unclear; the factory decides what follows.
      */
     ambiguity: Items(500, 10).optional(),
+    /**
+     * 4.2 (contracts): the contract files the design proposes. A deterministic checker parses each one
+     * (JSON Schema or OpenAPI, as JSON) before the artefact is stored; one that does not parse is refused.
+     */
+    contract_files: z
+      .array(
+        z.strictObject({
+          path: Text(512),
+          format: z.enum(['json_schema', 'openapi']),
+          content: Text(100_000),
+        }),
+      )
+      .max(20)
+      .optional(),
+    /**
+     * 4.3 (data and migration): each migration and whether it can be undone. The constitution check (4.5)
+     * reads these: a migration that is not reversible must say so (`irreversible_flagged`).
+     */
+    migrations: z
+      .array(
+        z.strictObject({
+          name: Text(200),
+          reversible: z.boolean(),
+          irreversible_flagged: z.boolean().optional(),
+          note: Text(1000).optional(),
+        }),
+      )
+      .max(50)
+      .optional(),
+    /**
+     * 4.2 and 4.4: the network calls the design adds (a host and why). The constitution check reads these: one
+     * the constitution does not allow needs an `approval_ref` (who approved it, as the project names it).
+     */
+    network_calls: z
+      .array(
+        z.strictObject({
+          host: Text(253),
+          purpose: Text(500),
+          approval_ref: Text(200).optional(),
+        }),
+      )
+      .max(50)
+      .optional(),
   }),
   z
     .strictObject({
@@ -164,15 +219,39 @@ export const PlannerOutput = z.discriminatedUnion('kind', [
       message: 'recommended is not one of the options',
       path: ['recommended'],
     }),
+  // ---- S5 (M12.4): one kind per step of the plan, so each answer is checked for what that step is
+  // 5.1: the DAG. `unit_key`s are the ids, `depends_on` the edges; the factory refuses a cycle, a dangling
+  // edge, a duplicate id and a Unit with no scope.
   z.strictObject({
-    kind: z.literal('plan'),
-    phase: z.enum(['split', 'sequence', 'task_plan', 'verification']),
+    kind: z.literal('plan_split'),
     units: z
       .array(
         z.strictObject({
           unit_key: Text(64),
           title: Text(200),
+          paths: z.array(Text(512)).min(1).max(50),
+          size: z.enum(['small', 'medium', 'large']),
           depends_on: Items(64, 20),
+        }),
+      )
+      .min(1)
+      .max(30),
+    assumptions: Assumptions,
+  }),
+  // 5.2: the order Units are built in: every Unit once, a Unit after everything it depends on
+  z.strictObject({
+    kind: z.literal('plan_sequence'),
+    order: z.array(Text(64)).min(1).max(30),
+    rationale: Text(2000),
+    assumptions: Assumptions,
+  }),
+  // 5.3: the task plan of each Unit (the artefact is rendered as `plan.md`)
+  z.strictObject({
+    kind: z.literal('plan_tasks'),
+    units: z
+      .array(
+        z.strictObject({
+          unit_key: Text(64),
           tasks: z
             .array(
               z.strictObject({
@@ -187,6 +266,30 @@ export const PlannerOutput = z.discriminatedUnion('kind', [
       )
       .min(1)
       .max(30),
+    assumptions: Assumptions,
+  }),
+  // 5.4: which oracle specs of G2 each Unit is verified by
+  z.strictObject({
+    kind: z.literal('plan_verification'),
+    bindings: z
+      .array(
+        z.strictObject({
+          unit_key: Text(64),
+          oracle_ids: z.array(Text(64)).min(1).max(100),
+        }),
+      )
+      .min(1)
+      .max(30),
+    assumptions: Assumptions,
+  }),
+  // 5.6: what the plan asks of people and capacity; the factory bounds it before it is used
+  z.strictObject({
+    kind: z.literal('plan_capacity'),
+    max_parallel_units: z.number().int().min(1).max(30),
+    review_minutes: z
+      .array(z.strictObject({ unit_key: Text(64), minutes: z.number().int().min(1).max(10_000) }))
+      .max(30),
+    rationale: Text(2000),
     assumptions: Assumptions,
   }),
   z.strictObject({

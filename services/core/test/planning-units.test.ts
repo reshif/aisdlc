@@ -217,8 +217,14 @@ describe('what a step answers', () => {
   });
 
   it("every planning step has a spec whose artefact is the contracts' one, and the expected-kind check says what is wrong", () => {
-    expect(PLANNING_STEPS).toHaveLength(10);
-    expect(Object.values(STEP_SPECS).filter((x) => !x.agent)).toHaveLength(1);
+    // S1 (1.3, 1.5), S2 (5), S3 (5), S4 (4.1 to 4.5), S5 (5.1 to 5.6)
+    expect(PLANNING_STEPS).toHaveLength(23);
+    // the two deterministic steps: 3.3 the validator and 5.5 the budget envelope
+    expect(
+      Object.entries(STEP_SPECS)
+        .filter(([, x]) => !x.agent)
+        .map(([k]) => k),
+    ).toEqual(['3.3', '5.5']);
     const sampleA3 = (SAMPLE_OUTPUTS.A3 ?? [])[0] as Record<string, unknown>;
     expect(STEP_SPECS['2.1'].expects(sampleA3)).toBe(true);
     expect(STEP_SPECS['2.2'].expects(sampleA3)).toBe(false);

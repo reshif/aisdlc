@@ -81,11 +81,15 @@ describe('the vendor key in the compose stack', () => {
       .filter(([, svc]) => names(svc).includes('data-gateway'))
       .map(([n]) => n);
     expect(onData.sort()).toEqual(['gateway', 'postgres']);
-    // nobody else is on its egress or its API network
+    // nobody else is on its egress; on its API network only the work driver's process (core-worker mints each
+    // agent run's key and the planning port calls /v1/messages with it, M11 and M12), nobody else
     for (const [name, svc] of others) {
       expect(names(svc), `${name} is on the gateway's egress`).not.toContain('gateway-egress');
-      expect(names(svc), `${name} is on the gateway's API network`).not.toContain('gateway-api');
+      if (name !== 'core-worker') {
+        expect(names(svc), `${name} is on the gateway's API network`).not.toContain('gateway-api');
+      }
     }
+    expect(names(compose.services['core-worker']!)).toContain('gateway-api');
     // the only service sharing its kill switch link is the kill switch
     const onLink = others
       .filter(([, svc]) => names(svc).includes('killswitch-gateway'))
