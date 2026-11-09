@@ -273,6 +273,3084 @@
         "WIP"
       ]
     },
+    "AgentBinding": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "contract_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+        },
+        "prompt_ref": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "vkey_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Read",
+              "Grep",
+              "Glob",
+              "Edit",
+              "Write",
+              "Bash",
+              "KnowledgeSearch"
+            ]
+          }
+        },
+        "data_class_max": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2",
+            "D3"
+          ]
+        }
+      },
+      "required": [
+        "run_id",
+        "agent_id",
+        "contract_version",
+        "prompt_ref",
+        "prompt_sha256",
+        "vkey_id",
+        "tools",
+        "data_class_max"
+      ],
+      "additionalProperties": false
+    },
+    "AgentBudgetDefaults": {
+      "type": "object",
+      "properties": {
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000
+        },
+        "max_cost_micro_usd": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000000
+        },
+        "ttl_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        }
+      },
+      "required": [
+        "max_tokens",
+        "max_cost_micro_usd",
+        "ttl_seconds"
+      ],
+      "additionalProperties": false
+    },
+    "AgentContract": {
+      "type": "object",
+      "properties": {
+        "contract_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+        },
+        "input_schema_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*\\.v[0-9]+$"
+        },
+        "input_schema": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "output_schema_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*\\.v[0-9]+$"
+        },
+        "output_schema": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "tools": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Read",
+              "Grep",
+              "Glob",
+              "Edit",
+              "Write",
+              "Bash",
+              "KnowledgeSearch"
+            ]
+          }
+        },
+        "data_class_max": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2"
+          ]
+        },
+        "models": {
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000
+            },
+            "max_cost_micro_usd": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000000
+            },
+            "ttl_seconds": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 86400
+            }
+          },
+          "required": [
+            "max_tokens",
+            "max_cost_micro_usd",
+            "ttl_seconds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "contract_version",
+        "input_schema_id",
+        "input_schema",
+        "output_schema_id",
+        "output_schema",
+        "tools",
+        "data_class_max",
+        "models",
+        "budget"
+      ],
+      "additionalProperties": false
+    },
+    "AgentDefinition": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "steps": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "0.1",
+              "0.2",
+              "0.3",
+              "0.4",
+              "0.5",
+              "1.1",
+              "1.2",
+              "1.3",
+              "1.4",
+              "1.5",
+              "1.6",
+              "2.1",
+              "2.1b",
+              "2.2",
+              "2.3",
+              "2.4",
+              "2.5",
+              "3.1",
+              "3.2",
+              "3.3",
+              "3.4",
+              "3.5",
+              "4.1",
+              "4.2",
+              "4.3",
+              "4.4",
+              "4.5",
+              "4.6",
+              "5.1",
+              "5.2",
+              "5.3",
+              "5.4",
+              "5.5",
+              "5.6",
+              "5.7",
+              "5.8",
+              "6.0",
+              "6.1",
+              "6.2",
+              "6.3",
+              "6.4",
+              "6.5",
+              "6.6",
+              "7.1",
+              "7.2",
+              "7.3",
+              "7.4",
+              "7.5",
+              "7.6",
+              "8.1",
+              "8.2",
+              "S8b",
+              "9.2",
+              "9.3",
+              "9.4",
+              "9.5"
+            ]
+          }
+        },
+        "contract": {
+          "type": "object",
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "input_schema_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*\\.v[0-9]+$"
+            },
+            "input_schema": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "output_schema_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*\\.v[0-9]+$"
+            },
+            "output_schema": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "tools": {
+              "maxItems": 16,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Read",
+                  "Grep",
+                  "Glob",
+                  "Edit",
+                  "Write",
+                  "Bash",
+                  "KnowledgeSearch"
+                ]
+              }
+            },
+            "data_class_max": {
+              "type": "string",
+              "enum": [
+                "D0",
+                "D1",
+                "D2"
+              ]
+            },
+            "models": {
+              "minItems": 1,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "budget": {
+              "type": "object",
+              "properties": {
+                "max_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000000000
+                },
+                "max_cost_micro_usd": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000000000000
+                },
+                "ttl_seconds": {
+                  "type": "integer",
+                  "minimum": 60,
+                  "maximum": 86400
+                }
+              },
+              "required": [
+                "max_tokens",
+                "max_cost_micro_usd",
+                "ttl_seconds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "contract_version",
+            "input_schema_id",
+            "input_schema",
+            "output_schema_id",
+            "output_schema",
+            "tools",
+            "data_class_max",
+            "models",
+            "budget"
+          ],
+          "additionalProperties": false
+        },
+        "prompt": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "ref",
+            "sha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "agent_id",
+        "name",
+        "role",
+        "note",
+        "steps",
+        "contract",
+        "prompt"
+      ],
+      "additionalProperties": false
+    },
+    "AgentId": {
+      "type": "string",
+      "enum": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "A9",
+        "A10",
+        "A11",
+        "A12",
+        "coder"
+      ]
+    },
+    "AgentInputArtefact": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "request",
+            "intent_block",
+            "context_brief",
+            "decision_brief",
+            "spec_delta",
+            "oracle_specs",
+            "design",
+            "plan",
+            "diff",
+            "evidence_pack",
+            "session_log",
+            "repo_snapshot",
+            "config_history"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "type",
+        "ref",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInputBase": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "artefacts": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "request",
+                  "intent_block",
+                  "context_brief",
+                  "decision_brief",
+                  "spec_delta",
+                  "oracle_specs",
+                  "design",
+                  "plan",
+                  "diff",
+                  "evidence_pack",
+                  "session_log",
+                  "repo_snapshot",
+                  "config_history"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "type",
+              "ref",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "item_id",
+        "step",
+        "attempt",
+        "artefacts"
+      ],
+      "additionalProperties": false
+    },
+    "AgentJudgement": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "gate"
+            },
+            "gate": {
+              "type": "string",
+              "enum": [
+                "G0",
+                "G1",
+                "G1f",
+                "G2",
+                "G3",
+                "G3d",
+                "G3s",
+                "G3o",
+                "G4",
+                "G5",
+                "G6",
+                "X1",
+                "X2",
+                "X3",
+                "X4",
+                "E1",
+                "E2",
+                "E3",
+                "E4",
+                "E5",
+                "E6",
+                "M1",
+                "M2",
+                "M3",
+                "M4",
+                "M5",
+                "M6",
+                "Q1",
+                "SECT"
+              ]
+            },
+            "gate_instance_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "request_changes",
+                "expired",
+                "closed",
+                "superseded"
+              ]
+            },
+            "ledger_entry_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "edge": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "B1",
+                    "B2",
+                    "B3",
+                    "B4",
+                    "B5",
+                    "B6",
+                    "B7",
+                    "B8",
+                    "B9",
+                    "B10",
+                    "B11",
+                    "B12",
+                    "B13",
+                    "B14",
+                    "B15",
+                    "B16",
+                    "B17",
+                    "B18",
+                    "B19",
+                    "B20",
+                    "B21",
+                    "B22",
+                    "B23",
+                    "B24",
+                    "B25",
+                    "B26",
+                    "B27",
+                    "B28"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "kind",
+            "gate",
+            "gate_instance_id",
+            "outcome",
+            "ledger_entry_id",
+            "edge",
+            "seq"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "back_edge"
+            },
+            "edge": {
+              "type": "string",
+              "enum": [
+                "B1",
+                "B2",
+                "B3",
+                "B4",
+                "B5",
+                "B6",
+                "B7",
+                "B8",
+                "B9",
+                "B10",
+                "B11",
+                "B12",
+                "B13",
+                "B14",
+                "B15",
+                "B16",
+                "B17",
+                "B18",
+                "B19",
+                "B20",
+                "B21",
+                "B22",
+                "B23",
+                "B24",
+                "B25",
+                "B26",
+                "B27",
+                "B28"
+              ]
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "kind",
+            "edge",
+            "seq"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "trigger"
+            },
+            "trigger": {
+              "type": "string",
+              "enum": [
+                "ET1",
+                "ET2",
+                "ET3",
+                "ET4",
+                "ET5",
+                "ET6",
+                "ET7",
+                "ET8",
+                "ET9",
+                "ET10",
+                "ET11",
+                "ET12",
+                "ET13",
+                "ET14"
+              ]
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "kind",
+            "trigger",
+            "seq"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "AgentRun": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "unit_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vkey_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "calls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "dispatched",
+            "finished",
+            "failed"
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "completed",
+                "classified",
+                "questions",
+                "gate_needed",
+                "held",
+                "rework",
+                "relane",
+                "trigger",
+                "failed"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failure_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "run_id",
+        "item_id",
+        "project_id",
+        "unit_id",
+        "step",
+        "attempt",
+        "lane",
+        "agent_id",
+        "contract_version",
+        "prompt_ref",
+        "prompt_sha256",
+        "provider",
+        "model",
+        "vkey_id",
+        "calls",
+        "tokens_in",
+        "tokens_out",
+        "cost_micro_usd",
+        "state",
+        "result",
+        "failure_code",
+        "started_at",
+        "ended_at"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunDispatchedPayload": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "command_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "binding": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "agent_id": {
+              "type": "string",
+              "enum": [
+                "A1",
+                "A2",
+                "A3",
+                "A4",
+                "A5",
+                "A6",
+                "A7",
+                "A8",
+                "A9",
+                "A10",
+                "A11",
+                "A12",
+                "coder"
+              ]
+            },
+            "contract_version": {
+              "type": "string",
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "prompt_ref": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "prompt_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "vkey_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Read",
+                  "Grep",
+                  "Glob",
+                  "Edit",
+                  "Write",
+                  "Bash",
+                  "KnowledgeSearch"
+                ]
+              }
+            },
+            "data_class_max": {
+              "type": "string",
+              "enum": [
+                "D0",
+                "D1",
+                "D2",
+                "D3"
+              ]
+            }
+          },
+          "required": [
+            "run_id",
+            "agent_id",
+            "contract_version",
+            "prompt_ref",
+            "prompt_sha256",
+            "vkey_id",
+            "tools",
+            "data_class_max"
+          ],
+          "additionalProperties": false
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000
+            },
+            "max_cost_micro_usd": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000000
+            },
+            "ttl_seconds": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 86400
+            }
+          },
+          "required": [
+            "max_tokens",
+            "max_cost_micro_usd",
+            "ttl_seconds"
+          ],
+          "additionalProperties": false
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "unit",
+                    "job",
+                    "session"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "run_id",
+        "item_id",
+        "project_id",
+        "command_key",
+        "step",
+        "attempt",
+        "lane",
+        "binding",
+        "budget",
+        "scope",
+        "unit_id"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunFailedPayload": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "command_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "binding": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "agent_id": {
+              "type": "string",
+              "enum": [
+                "A1",
+                "A2",
+                "A3",
+                "A4",
+                "A5",
+                "A6",
+                "A7",
+                "A8",
+                "A9",
+                "A10",
+                "A11",
+                "A12",
+                "coder"
+              ]
+            },
+            "contract_version": {
+              "type": "string",
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "prompt_ref": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "prompt_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "vkey_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Read",
+                  "Grep",
+                  "Glob",
+                  "Edit",
+                  "Write",
+                  "Bash",
+                  "KnowledgeSearch"
+                ]
+              }
+            },
+            "data_class_max": {
+              "type": "string",
+              "enum": [
+                "D0",
+                "D1",
+                "D2",
+                "D3"
+              ]
+            }
+          },
+          "required": [
+            "run_id",
+            "agent_id",
+            "contract_version",
+            "prompt_ref",
+            "prompt_sha256",
+            "vkey_id",
+            "tools",
+            "data_class_max"
+          ],
+          "additionalProperties": false
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "key_mint_refused",
+            "port_error",
+            "output_invalid"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "run_id",
+        "item_id",
+        "project_id",
+        "command_key",
+        "step",
+        "attempt",
+        "lane",
+        "binding",
+        "code",
+        "detail"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunFailureCode": {
+      "type": "string",
+      "enum": [
+        "key_mint_refused",
+        "port_error",
+        "output_invalid"
+      ]
+    },
+    "AgentRunId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "AgentRunOutcome": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "accepted",
+            "rejected",
+            "sent_back",
+            "reworked",
+            "handed_off"
+          ]
+        },
+        "judgements": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "gate"
+                  },
+                  "gate": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  },
+                  "gate_instance_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject",
+                      "request_changes",
+                      "expired",
+                      "closed",
+                      "superseded"
+                    ]
+                  },
+                  "ledger_entry_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "edge": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "B1",
+                          "B2",
+                          "B3",
+                          "B4",
+                          "B5",
+                          "B6",
+                          "B7",
+                          "B8",
+                          "B9",
+                          "B10",
+                          "B11",
+                          "B12",
+                          "B13",
+                          "B14",
+                          "B15",
+                          "B16",
+                          "B17",
+                          "B18",
+                          "B19",
+                          "B20",
+                          "B21",
+                          "B22",
+                          "B23",
+                          "B24",
+                          "B25",
+                          "B26",
+                          "B27",
+                          "B28"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "gate",
+                  "gate_instance_id",
+                  "outcome",
+                  "ledger_entry_id",
+                  "edge",
+                  "seq"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "back_edge"
+                  },
+                  "edge": {
+                    "type": "string",
+                    "enum": [
+                      "B1",
+                      "B2",
+                      "B3",
+                      "B4",
+                      "B5",
+                      "B6",
+                      "B7",
+                      "B8",
+                      "B9",
+                      "B10",
+                      "B11",
+                      "B12",
+                      "B13",
+                      "B14",
+                      "B15",
+                      "B16",
+                      "B17",
+                      "B18",
+                      "B19",
+                      "B20",
+                      "B21",
+                      "B22",
+                      "B23",
+                      "B24",
+                      "B25",
+                      "B26",
+                      "B27",
+                      "B28"
+                    ]
+                  },
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "edge",
+                  "seq"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "trigger"
+                  },
+                  "trigger": {
+                    "type": "string",
+                    "enum": [
+                      "ET1",
+                      "ET2",
+                      "ET3",
+                      "ET4",
+                      "ET5",
+                      "ET6",
+                      "ET7",
+                      "ET8",
+                      "ET9",
+                      "ET10",
+                      "ET11",
+                      "ET12",
+                      "ET13",
+                      "ET14"
+                    ]
+                  },
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "trigger",
+                  "seq"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "back_edges": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "B1",
+              "B2",
+              "B3",
+              "B4",
+              "B5",
+              "B6",
+              "B7",
+              "B8",
+              "B9",
+              "B10",
+              "B11",
+              "B12",
+              "B13",
+              "B14",
+              "B15",
+              "B16",
+              "B17",
+              "B18",
+              "B19",
+              "B20",
+              "B21",
+              "B22",
+              "B23",
+              "B24",
+              "B25",
+              "B26",
+              "B27",
+              "B28"
+            ]
+          }
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ET1",
+              "ET2",
+              "ET3",
+              "ET4",
+              "ET5",
+              "ET6",
+              "ET7",
+              "ET8",
+              "ET9",
+              "ET10",
+              "ET11",
+              "ET12",
+              "ET13",
+              "ET14"
+            ]
+          }
+        }
+      },
+      "required": [
+        "run_id",
+        "verdict",
+        "judgements",
+        "back_edges",
+        "triggers"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunResult": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "classified",
+        "questions",
+        "gate_needed",
+        "held",
+        "rework",
+        "relane",
+        "trigger",
+        "failed"
+      ]
+    },
+    "AgentRunState": {
+      "type": "string",
+      "enum": [
+        "dispatched",
+        "finished",
+        "failed"
+      ]
+    },
+    "AgentRunVerdict": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "rejected",
+        "sent_back",
+        "reworked",
+        "handed_off"
+      ]
+    },
+    "AgentRunView": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "unit_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vkey_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "calls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "dispatched",
+            "finished",
+            "failed"
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "completed",
+                "classified",
+                "questions",
+                "gate_needed",
+                "held",
+                "rework",
+                "relane",
+                "trigger",
+                "failed"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failure_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "accepted",
+                "rejected",
+                "sent_back",
+                "reworked",
+                "handed_off"
+              ]
+            },
+            "judgements": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "gate"
+                      },
+                      "gate": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      },
+                      "gate_instance_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "outcome": {
+                        "type": "string",
+                        "enum": [
+                          "approve",
+                          "reject",
+                          "request_changes",
+                          "expired",
+                          "closed",
+                          "superseded"
+                        ]
+                      },
+                      "ledger_entry_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "edge": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "B1",
+                              "B2",
+                              "B3",
+                              "B4",
+                              "B5",
+                              "B6",
+                              "B7",
+                              "B8",
+                              "B9",
+                              "B10",
+                              "B11",
+                              "B12",
+                              "B13",
+                              "B14",
+                              "B15",
+                              "B16",
+                              "B17",
+                              "B18",
+                              "B19",
+                              "B20",
+                              "B21",
+                              "B22",
+                              "B23",
+                              "B24",
+                              "B25",
+                              "B26",
+                              "B27",
+                              "B28"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "seq": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "gate",
+                      "gate_instance_id",
+                      "outcome",
+                      "ledger_entry_id",
+                      "edge",
+                      "seq"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "back_edge"
+                      },
+                      "edge": {
+                        "type": "string",
+                        "enum": [
+                          "B1",
+                          "B2",
+                          "B3",
+                          "B4",
+                          "B5",
+                          "B6",
+                          "B7",
+                          "B8",
+                          "B9",
+                          "B10",
+                          "B11",
+                          "B12",
+                          "B13",
+                          "B14",
+                          "B15",
+                          "B16",
+                          "B17",
+                          "B18",
+                          "B19",
+                          "B20",
+                          "B21",
+                          "B22",
+                          "B23",
+                          "B24",
+                          "B25",
+                          "B26",
+                          "B27",
+                          "B28"
+                        ]
+                      },
+                      "seq": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "edge",
+                      "seq"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "trigger"
+                      },
+                      "trigger": {
+                        "type": "string",
+                        "enum": [
+                          "ET1",
+                          "ET2",
+                          "ET3",
+                          "ET4",
+                          "ET5",
+                          "ET6",
+                          "ET7",
+                          "ET8",
+                          "ET9",
+                          "ET10",
+                          "ET11",
+                          "ET12",
+                          "ET13",
+                          "ET14"
+                        ]
+                      },
+                      "seq": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "trigger",
+                      "seq"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "back_edges": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "B1",
+                  "B2",
+                  "B3",
+                  "B4",
+                  "B5",
+                  "B6",
+                  "B7",
+                  "B8",
+                  "B9",
+                  "B10",
+                  "B11",
+                  "B12",
+                  "B13",
+                  "B14",
+                  "B15",
+                  "B16",
+                  "B17",
+                  "B18",
+                  "B19",
+                  "B20",
+                  "B21",
+                  "B22",
+                  "B23",
+                  "B24",
+                  "B25",
+                  "B26",
+                  "B27",
+                  "B28"
+                ]
+              }
+            },
+            "triggers": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ET1",
+                  "ET2",
+                  "ET3",
+                  "ET4",
+                  "ET5",
+                  "ET6",
+                  "ET7",
+                  "ET8",
+                  "ET9",
+                  "ET10",
+                  "ET11",
+                  "ET12",
+                  "ET13",
+                  "ET14"
+                ]
+              }
+            }
+          },
+          "required": [
+            "run_id",
+            "verdict",
+            "judgements",
+            "back_edges",
+            "triggers"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "run_id",
+        "item_id",
+        "project_id",
+        "unit_id",
+        "step",
+        "attempt",
+        "lane",
+        "agent_id",
+        "contract_version",
+        "prompt_ref",
+        "prompt_sha256",
+        "provider",
+        "model",
+        "vkey_id",
+        "calls",
+        "tokens_in",
+        "tokens_out",
+        "cost_micro_usd",
+        "state",
+        "result",
+        "failure_code",
+        "started_at",
+        "ended_at",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunsView": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "run_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "item_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "project_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "unit_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "enum": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5",
+                  "1.1",
+                  "1.2",
+                  "1.3",
+                  "1.4",
+                  "1.5",
+                  "1.6",
+                  "2.1",
+                  "2.1b",
+                  "2.2",
+                  "2.3",
+                  "2.4",
+                  "2.5",
+                  "3.1",
+                  "3.2",
+                  "3.3",
+                  "3.4",
+                  "3.5",
+                  "4.1",
+                  "4.2",
+                  "4.3",
+                  "4.4",
+                  "4.5",
+                  "4.6",
+                  "5.1",
+                  "5.2",
+                  "5.3",
+                  "5.4",
+                  "5.5",
+                  "5.6",
+                  "5.7",
+                  "5.8",
+                  "6.0",
+                  "6.1",
+                  "6.2",
+                  "6.3",
+                  "6.4",
+                  "6.5",
+                  "6.6",
+                  "7.1",
+                  "7.2",
+                  "7.3",
+                  "7.4",
+                  "7.5",
+                  "7.6",
+                  "8.1",
+                  "8.2",
+                  "S8b",
+                  "9.2",
+                  "9.3",
+                  "9.4",
+                  "9.5"
+                ]
+              },
+              "attempt": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "L0",
+                  "L1",
+                  "L2",
+                  "L3",
+                  "L4",
+                  "L5",
+                  "L6",
+                  "L7",
+                  "L8"
+                ]
+              },
+              "agent_id": {
+                "type": "string",
+                "enum": [
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4",
+                  "A5",
+                  "A6",
+                  "A7",
+                  "A8",
+                  "A9",
+                  "A10",
+                  "A11",
+                  "A12",
+                  "coder"
+                ]
+              },
+              "contract_version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "prompt_ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "prompt_sha256": {
+                "type": "string",
+                "minLength": 64,
+                "maxLength": 64
+              },
+              "provider": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "vkey_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "calls": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tokens_in": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tokens_out": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cost_micro_usd": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "dispatched",
+                  "finished",
+                  "failed"
+                ]
+              },
+              "result": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "completed",
+                      "classified",
+                      "questions",
+                      "gate_needed",
+                      "held",
+                      "rework",
+                      "relane",
+                      "trigger",
+                      "failed"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "failure_code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "started_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "ended_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "outcome": {
+                "type": "object",
+                "properties": {
+                  "run_id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "accepted",
+                      "rejected",
+                      "sent_back",
+                      "reworked",
+                      "handed_off"
+                    ]
+                  },
+                  "judgements": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "gate"
+                            },
+                            "gate": {
+                              "type": "string",
+                              "enum": [
+                                "G0",
+                                "G1",
+                                "G1f",
+                                "G2",
+                                "G3",
+                                "G3d",
+                                "G3s",
+                                "G3o",
+                                "G4",
+                                "G5",
+                                "G6",
+                                "X1",
+                                "X2",
+                                "X3",
+                                "X4",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5",
+                                "E6",
+                                "M1",
+                                "M2",
+                                "M3",
+                                "M4",
+                                "M5",
+                                "M6",
+                                "Q1",
+                                "SECT"
+                              ]
+                            },
+                            "gate_instance_id": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "outcome": {
+                              "type": "string",
+                              "enum": [
+                                "approve",
+                                "reject",
+                                "request_changes",
+                                "expired",
+                                "closed",
+                                "superseded"
+                              ]
+                            },
+                            "ledger_entry_id": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "edge": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "B1",
+                                    "B2",
+                                    "B3",
+                                    "B4",
+                                    "B5",
+                                    "B6",
+                                    "B7",
+                                    "B8",
+                                    "B9",
+                                    "B10",
+                                    "B11",
+                                    "B12",
+                                    "B13",
+                                    "B14",
+                                    "B15",
+                                    "B16",
+                                    "B17",
+                                    "B18",
+                                    "B19",
+                                    "B20",
+                                    "B21",
+                                    "B22",
+                                    "B23",
+                                    "B24",
+                                    "B25",
+                                    "B26",
+                                    "B27",
+                                    "B28"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "seq": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "gate",
+                            "gate_instance_id",
+                            "outcome",
+                            "ledger_entry_id",
+                            "edge",
+                            "seq"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "back_edge"
+                            },
+                            "edge": {
+                              "type": "string",
+                              "enum": [
+                                "B1",
+                                "B2",
+                                "B3",
+                                "B4",
+                                "B5",
+                                "B6",
+                                "B7",
+                                "B8",
+                                "B9",
+                                "B10",
+                                "B11",
+                                "B12",
+                                "B13",
+                                "B14",
+                                "B15",
+                                "B16",
+                                "B17",
+                                "B18",
+                                "B19",
+                                "B20",
+                                "B21",
+                                "B22",
+                                "B23",
+                                "B24",
+                                "B25",
+                                "B26",
+                                "B27",
+                                "B28"
+                              ]
+                            },
+                            "seq": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "edge",
+                            "seq"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "trigger"
+                            },
+                            "trigger": {
+                              "type": "string",
+                              "enum": [
+                                "ET1",
+                                "ET2",
+                                "ET3",
+                                "ET4",
+                                "ET5",
+                                "ET6",
+                                "ET7",
+                                "ET8",
+                                "ET9",
+                                "ET10",
+                                "ET11",
+                                "ET12",
+                                "ET13",
+                                "ET14"
+                              ]
+                            },
+                            "seq": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "trigger",
+                            "seq"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "back_edges": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "B1",
+                        "B2",
+                        "B3",
+                        "B4",
+                        "B5",
+                        "B6",
+                        "B7",
+                        "B8",
+                        "B9",
+                        "B10",
+                        "B11",
+                        "B12",
+                        "B13",
+                        "B14",
+                        "B15",
+                        "B16",
+                        "B17",
+                        "B18",
+                        "B19",
+                        "B20",
+                        "B21",
+                        "B22",
+                        "B23",
+                        "B24",
+                        "B25",
+                        "B26",
+                        "B27",
+                        "B28"
+                      ]
+                    }
+                  },
+                  "triggers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "ET1",
+                        "ET2",
+                        "ET3",
+                        "ET4",
+                        "ET5",
+                        "ET6",
+                        "ET7",
+                        "ET8",
+                        "ET9",
+                        "ET10",
+                        "ET11",
+                        "ET12",
+                        "ET13",
+                        "ET14"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "run_id",
+                  "verdict",
+                  "judgements",
+                  "back_edges",
+                  "triggers"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "run_id",
+              "item_id",
+              "project_id",
+              "unit_id",
+              "step",
+              "attempt",
+              "lane",
+              "agent_id",
+              "contract_version",
+              "prompt_ref",
+              "prompt_sha256",
+              "provider",
+              "model",
+              "vkey_id",
+              "calls",
+              "tokens_in",
+              "tokens_out",
+              "cost_micro_usd",
+              "state",
+              "result",
+              "failure_code",
+              "started_at",
+              "ended_at",
+              "outcome"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "item_id",
+        "project_id",
+        "runs"
+      ],
+      "additionalProperties": false
+    },
     "AgentSessionState": {
       "type": "string",
       "enum": [
@@ -284,6 +3362,180 @@
         "ended",
         "stopped",
         "tainted"
+      ]
+    },
+    "AgentStats": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "finished": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "judged": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "accepted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sent_back": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "reworked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "handed_off": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "with_back_edge": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "acceptance_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "back_edge_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cost_per_run_micro_usd": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "agent_id",
+        "project_id",
+        "runs",
+        "finished",
+        "failed",
+        "judged",
+        "accepted",
+        "rejected",
+        "sent_back",
+        "reworked",
+        "handed_off",
+        "with_back_edge",
+        "acceptance_rate",
+        "back_edge_rate",
+        "calls",
+        "tokens_in",
+        "tokens_out",
+        "cost_micro_usd",
+        "cost_per_run_micro_usd"
+      ],
+      "additionalProperties": false
+    },
+    "AgentTool": {
+      "type": "string",
+      "enum": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write",
+        "Bash",
+        "KnowledgeSearch"
       ]
     },
     "AmberCode": {
@@ -430,6 +3682,24 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "ArtefactType": {
+      "type": "string",
+      "enum": [
+        "request",
+        "intent_block",
+        "context_brief",
+        "decision_brief",
+        "spec_delta",
+        "oracle_specs",
+        "design",
+        "plan",
+        "diff",
+        "evidence_pack",
+        "session_log",
+        "repo_snapshot",
+        "config_history"
+      ]
     },
     "Assumption": {
       "type": "object",
@@ -43163,6 +46433,24 @@
         "g6"
       ]
     },
+    "PromptRef": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "ref",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
     "PrrActivatedPayload": {
       "type": "object",
       "properties": {
@@ -53800,6 +57088,91 @@
           "required": [
             "version",
             "hash"
+          ],
+          "additionalProperties": false
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "agent_id": {
+              "type": "string",
+              "enum": [
+                "A1",
+                "A2",
+                "A3",
+                "A4",
+                "A5",
+                "A6",
+                "A7",
+                "A8",
+                "A9",
+                "A10",
+                "A11",
+                "A12",
+                "coder"
+              ]
+            },
+            "contract_version": {
+              "type": "string",
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "prompt_ref": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "prompt_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "vkey_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Read",
+                  "Grep",
+                  "Glob",
+                  "Edit",
+                  "Write",
+                  "Bash",
+                  "KnowledgeSearch"
+                ]
+              }
+            },
+            "data_class_max": {
+              "type": "string",
+              "enum": [
+                "D0",
+                "D1",
+                "D2",
+                "D3"
+              ]
+            }
+          },
+          "required": [
+            "run_id",
+            "agent_id",
+            "contract_version",
+            "prompt_ref",
+            "prompt_sha256",
+            "vkey_id",
+            "tools",
+            "data_class_max"
           ],
           "additionalProperties": false
         }

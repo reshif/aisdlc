@@ -47,6 +47,71 @@ export function itemViewFixture() {
   };
 }
 
+export function agentRunsFixture() {
+  return {
+    item_id: ITEM_ID,
+    project_id: 'acme',
+    runs: [
+      {
+        run_id: '44444444-5555-4666-8777-888888888888',
+        item_id: ITEM_ID,
+        project_id: 'acme',
+        unit_id: null,
+        step: '1.3',
+        attempt: 1,
+        lane: 'L3',
+        agent_id: 'A1',
+        contract_version: '1.0.0',
+        prompt_ref: 'a1_triage@1.0.0',
+        prompt_sha256: 'a'.repeat(64),
+        provider: null,
+        model: null,
+        vkey_id: 'vk-1',
+        calls: 0,
+        tokens_in: 0,
+        tokens_out: 0,
+        cost_micro_usd: 0,
+        state: 'finished',
+        result: 'classified',
+        failure_code: null,
+        started_at: '2026-11-09T10:00:00.000Z',
+        ended_at: '2026-11-09T10:00:01.000Z',
+        outcome: {
+          run_id: '44444444-5555-4666-8777-888888888888',
+          verdict: 'accepted',
+          judgements: [],
+          back_edges: [],
+          triggers: [],
+        },
+      },
+    ],
+  };
+}
+
+export function agentStatsFixture(agent: string, project: string | null) {
+  return {
+    agent_id: agent,
+    project_id: project,
+    runs: 2,
+    finished: 2,
+    failed: 0,
+    judged: 2,
+    accepted: 1,
+    rejected: 0,
+    sent_back: 1,
+    reworked: 0,
+    handed_off: 0,
+    with_back_edge: 1,
+    acceptance_rate: 0.5,
+    back_edge_rate: 0.5,
+    calls: 4,
+    tokens_in: 400,
+    tokens_out: 200,
+    cost_micro_usd: 1000,
+    cost_per_run_micro_usd: 500,
+  };
+}
+
 export const S0_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe54';
 export const CARD_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe99';
 export const GATE_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77';
@@ -294,6 +359,14 @@ export async function startFakeCore(): Promise<FakeCore> {
       }
       if (method === 'GET' && path.startsWith(`/v1/items/${ITEM_ID}?on_behalf_of=`)) {
         return reply(200, itemViewFixture());
+      }
+      if (method === 'GET' && path.startsWith(`/v1/agent-runs?item=${ITEM_ID}&on_behalf_of=`)) {
+        return reply(200, agentRunsFixture());
+      }
+      const st = /^\/v1\/agents\/([A-Za-z0-9]+)\/stats\?(.*)$/.exec(path);
+      if (method === 'GET' && st) {
+        const project = new URLSearchParams(st[2]).get('project');
+        return reply(200, agentStatsFixture(st[1] as string, project));
       }
       if (method === 'GET' && path === `/v1/s0/${S0_ID}`) return reply(200, s0Overview(p));
       if (method === 'GET' && path === `/v1/s0/${S0_ID}/cards`) {

@@ -7,3 +7,5 @@ docs
 packages/contracts/generated
 .vitest/
 services/knowledge/test/golden
+packages/agents/generated
+packages/agents/src/prompts

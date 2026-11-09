@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BackEdgeId, GateId, HoldReason, AbandonCause, RelaneId, TriggerId } from '../flow.js';
 import { EntryChannel, Lane, StageId, StepId, Tier } from '../values.js';
+import { AgentBinding } from './agent-definitions.js';
 import { CatalogueRef } from './config.js';
 import { LintRuleId } from './detectors.js';
 import { PrrGatingProfile } from './readiness.js';
@@ -495,6 +496,11 @@ export const StageRequest = z.strictObject({
   /** Gates denied at this step: the stage must find another way (X3 "find an alternative", G3o). */
   denied_gates: z.array(GateId).default([]),
   catalogue_ref: CatalogueRef,
+  /**
+   * M11.2: set when the step is agent-acted: which agent, contract and prompt run it and the id of the
+   * per-Unit virtual key minted for it (the secret is never here). Absent for a step no agent acts at.
+   */
+  agent: AgentBinding.optional(),
 });
 export type StageRequest = z.infer<typeof StageRequest>;
 

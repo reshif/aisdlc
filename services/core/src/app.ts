@@ -13,6 +13,7 @@ import {
   CardRecheckRequest,
   ControlKind,
   ControlScope,
+  AgentId,
   GatingProfile,
   IntegrationKind,
   IsoDateTime,
@@ -63,6 +64,7 @@ import {
   registeredRepos,
 } from './queries.js';
 import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.js';
+import { agentStatsOf, listAgentRuns } from './agent-runs.js';
 import { itemView } from './work-view.js';
 import { submitRequest } from './requests.js';
 import { readItem } from './work-items.js';
@@ -569,6 +571,71 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return;
     }
     return itemView(s);
+  });
+
+  /**
+   * The agent runs of one item, each with what came of it (M11.2). Decided on the item's project
+   * (`project.view`), like the item itself.
+   */
+  app.get('/v1/agent-runs', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const q = req.query as Record<string, string>;
+    if (!z.uuid().safeParse(q['item']).success) {
+      return fail(reply, coreError('invalid_input', 'item (a uuid) is needed'));
+    }
+    const who = PrincipalId.safeParse(q['on_behalf_of']);
+    if (!who.success) return fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+    let item;
+    try {
+      item = await readItem(o.pool, q['item'] as string);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the item could not be read'));
+    }
+    if (!item) return fail(reply, coreError('not_found', 'no such item'));
+    const project = item.state.project_id as ProjectId;
+    if (!(await guard(reply, who.data, 'project.view', pdpResource.project(project)))) return;
+    try {
+      return {
+        item_id: item.state.item_id,
+        project_id: project,
+        runs: await listAgentRuns(o.pool, item.state.item_id),
+      };
+    } catch {
+      return fail(reply, coreError('unavailable', 'the agent runs could not be read'));
+    }
+  });
+
+  /**
+   * Acceptance rate, back-edge rate and cost per run of an agent (M11.2), over the fleet (`audit.read`
+   * on the fleet) or one project (`?project=`, `audit.read` on it).
+   */
+  app.get('/v1/agents/:id/stats', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const agent = AgentId.safeParse(params(req)['id']);
+    if (!agent.success) return fail(reply, coreError('invalid_input', 'unknown agent'));
+    const q = req.query as Record<string, string>;
+    const who = PrincipalId.safeParse(q['on_behalf_of']);
+    if (!who.success) return fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+    const project = q['project'] === undefined ? null : ProjectId.safeParse(q['project']);
+    if (project !== null && !project.success) {
+      return fail(reply, coreError('invalid_input', 'bad project id'));
+    }
+    const scope = project === null ? null : project.data;
+    if (
+      !(await guard(
+        reply,
+        who.data,
+        'audit.read',
+        scope === null ? pdpResource.fleet() : pdpResource.project(scope),
+      ))
+    ) {
+      return;
+    }
+    try {
+      return await agentStatsOf(o.pool, agent.data, scope);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the agent stats could not be read'));
+    }
   });
 
   // ------------------------------------------------------------ the owner's moves on a record

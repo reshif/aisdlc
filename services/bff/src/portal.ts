@@ -1,4 +1,7 @@
 import {
+  AgentId,
+  AgentRunsView,
+  AgentStats,
   CardDecideRequest,
   CardEvidenceRequest,
   CoreInboxItem,
@@ -44,6 +47,8 @@ import type { CoreClient } from './core-client.js';
 //   POST /api/onboard                     request an onboarding                       (project.onboard)
 //   POST /api/requests                    ask for work: portal Ask, channel N1       (work.request)
 //   GET  /api/items/:id                   a work item: position, waits, questions    (item.view_floor, core asks)
+//   GET  /api/agent-runs?item=            the agent runs of an item and their outcomes (project.view)
+//   GET  /api/agents/:id/stats            acceptance, back-edge rate, cost per run     (audit.read)
 //   GET  /api/s0/:id                      the S0 record with its steps                (project.view)
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
@@ -242,6 +247,54 @@ export function registerPortalRoutes(d: PortalDeps): void {
       return deny(reply, 'item.view_floor');
     }
     return v;
+  });
+
+  // ------------------------------------------------------------ agent runs (M11.2)
+
+  app.get('/api/agent-runs', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const q = z.strictObject({ item: z.uuid() }).safeParse(req.query ?? {});
+    if (!q.success) return sendError(reply, 400, 'invalid_input', 'item (a uuid) is needed');
+    // Core asks the PDP for this principal already; the bff asks too, on the item's own project.
+    const got = upstream(
+      reply,
+      await c.call(
+        'GET',
+        `/v1/agent-runs?item=${q.data.item}&on_behalf_of=${encodeURIComponent(d.principalOf(req))}`,
+      ),
+      (v) => AgentRunsView.parse(v),
+    );
+    if (!got) return;
+    if (
+      !(await allowed(
+        d.principalOf(req),
+        'project.view',
+        pdpResource.project(got.value.project_id),
+      ))
+    ) {
+      return deny(reply, 'project.view');
+    }
+    return got.value;
+  });
+
+  app.get('/api/agents/:id/stats', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const agent = AgentId.safeParse((req.params as { id: string }).id);
+    if (!agent.success) return sendError(reply, 400, 'invalid_input', 'unknown agent');
+    const q = z.strictObject({ project: ProjectId.optional() }).safeParse(req.query ?? {});
+    if (!q.success) return sendError(reply, 400, 'invalid_input', 'bad query');
+    const resource =
+      q.data.project === undefined ? pdpResource.fleet() : pdpResource.project(q.data.project);
+    if (!(await allowed(d.principalOf(req), 'audit.read', resource))) {
+      return deny(reply, 'audit.read');
+    }
+    const qs = new URLSearchParams({ on_behalf_of: d.principalOf(req) });
+    if (q.data.project !== undefined) qs.set('project', q.data.project);
+    return upstream(reply, await c.call('GET', `/v1/agents/${agent.data}/stats?${qs}`), (v) =>
+      AgentStats.parse(v),
+    )?.value;
   });
 
   // ------------------------------------------------------------ S0 records and their cards

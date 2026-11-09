@@ -6,6 +6,7 @@ import {
   CORE_TOKEN,
   GATE_ID,
   ITEM_ID,
+  agentRunsFixture,
   S0_ID,
   startFakeCore,
   type FakeCore,
@@ -122,6 +123,30 @@ const CASES: RouteCase[] = [
     allowed: 'alice',
     denied: 'dora',
     forwards: `GET /v1/items/${ITEM_ID}?on_behalf_of=alice`,
+  },
+  {
+    name: 'the agent runs of an item',
+    method: 'GET',
+    path: `/api/agent-runs?item=${ITEM_ID}`,
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `GET /v1/agent-runs?item=${ITEM_ID}&on_behalf_of=alice`,
+  },
+  {
+    name: 'stats of an agent over one project',
+    method: 'GET',
+    path: '/api/agents/coder/stats?project=acme',
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: 'GET /v1/agents/coder/stats?on_behalf_of=alice&project=acme',
+  },
+  {
+    name: 'stats of an agent over the fleet',
+    method: 'GET',
+    path: '/api/agents/A2/stats',
+    allowed: 'root',
+    denied: 'alice',
+    forwards: 'GET /v1/agents/A2/stats?on_behalf_of=root',
   },
   {
     name: 'S0 overview',
@@ -312,6 +337,27 @@ describe.each(CASES)('$name ($method $path)', (c) => {
       expect(core.seen.filter((x) => x.method === 'POST')).toHaveLength(0);
     });
   }
+});
+
+describe('agent runs (M11.2)', () => {
+  it('refuse a bad item, a bad agent and extra query parameters before core is asked', async () => {
+    expect((await api('alice', 'GET', '/api/agent-runs?item=nope')).status).toBe(400);
+    expect((await api('alice', 'GET', '/api/agent-runs')).status).toBe(400);
+    expect((await api('alice', 'GET', `/api/agent-runs?item=${ITEM_ID}&x=1`)).status).toBe(400);
+    expect((await api('root', 'GET', '/api/agents/A99/stats')).status).toBe(400);
+    expect((await api('root', 'GET', '/api/agents/coder/stats?project=Bad Id')).status).toBe(400);
+    expect(core.seen).toHaveLength(0);
+  });
+
+  it('the project of a run list is decided on the project core says the item is in', async () => {
+    core.override.set(`GET /v1/agent-runs?item=${ITEM_ID}&on_behalf_of=alice`, {
+      status: 200,
+      json: { ...agentRunsFixture(), project_id: 'secret' },
+    });
+    const r = await api('alice', 'GET', `/api/agent-runs?item=${ITEM_ID}`);
+    expect(r.status).toBe(403);
+    expect(r.json.error.code).toBe('forbidden');
+  });
 });
 
 describe('project list', () => {
