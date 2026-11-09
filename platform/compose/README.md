@@ -236,8 +236,9 @@ SMOKE_SKIP_BUILD=1 npm run smoke:compose      # or: docker compose up -d --wait 
 knowledge with the `search` scope its token carries (the `KnowledgeSearch` tool). The seed registers the local
 fake provider with `fixtures: planning`: it answers each planning step with one canned valid output (no model, no
 key), so a local stack can run a request through the real port, the gateway and the gates. A Census project
-cannot run L4 (OB §2.1 routes it to L8) and the portal has no Ready decision yet, so `e2e.sh` stops a request
-at 1.6 with S1's artefacts stored; the L4 path to the plan approval is covered by `services/core` tests over the
+cannot run L4 (OB §2.1 routes it to L8), so `e2e.sh` asks for L4, has the browser answer a clarification question
+if the scripted fake asks one (it does not today) and decide Ready (1.6) on `/items/:id` (M12.5), and checks the
+item stays on L8 and goes on to its gates; the L4 path to the plan approval is covered by `services/core` tests over the
 same fixtures.
 
 ## The ledger loops (M8.0b)

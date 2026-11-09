@@ -74,6 +74,11 @@ arts=$(sql "SELECT string_agg(type, ',' ORDER BY type) FROM core.artefact" | tr 
 echo "  artefacts: $arts"
 case ",$arts," in *,classification,*) ;; *) fail "no classification artefact: S1 did not run through the planning port";; esac
 case ",$arts," in *,intent_block,*) ;; *) fail "no intent block artefact";; esac
+echo "== M12.5: the Ready decision made in the browser is one event in the item's stream, allowed by the PDP"
+ready=$(sql "SELECT count(*) FROM record.record_event WHERE type = 'item.ready_decided'" | tr -d '[:space:]')
+[ "$ready" = "1" ] || fail "expected one item.ready_decided event, found $ready"
+pdp=$(sql "SELECT count(*) FROM record.record_event WHERE type = 'pdp.decision' AND body ->> 'action' = 'item.ready' AND body ->> 'decision' = 'allow'" | tr -d '[:space:]')
+[ "$pdp" -ge 1 ] || fail "the PDP's allow of item.ready was not logged"
 echo "== the fake GitHub's request log after the whole onboarding"
 log=$(dc logs --no-log-prefix --no-color fake-github 2>&1 | grep -E '^fake-github (api|git) ' || true)
 api=$(printf '%s\n' "$log" | grep '^fake-github api ' | sed -E 's/^fake-github api \{"method":"([A-Z]+)","path":"([^"]*)".*"status":([0-9]+)\}$/\1 \2 \3/')

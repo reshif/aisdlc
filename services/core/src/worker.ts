@@ -31,3 +31,4 @@ export {
 } from './gateway-triggers.js';
 export { GatewayAgentKeys, type GatewayKeyClient } from './agent-keys.js';
 export * from './planning/index.js';
+export * from './admission/index.js';

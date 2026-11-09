@@ -191,8 +191,8 @@ export const UnitsPlannedPayload = z.strictObject({
   repo: z.string().min(1),
   /** Hash of the plan artefacts the Units came from (5.1 to 5.4): a re-plan is a different hash. */
   plan_sha256: Sha256Hex,
-  /** The merged commit the plan was made against (G3 binds it). */
-  base_sha: GitSha,
+  /** The merged commit the plan was made against (G3 binds it); `null` for a Unit no plan made (M13.1: L0's implicit one). */
+  base_sha: GitSha.nullable(),
   units: z.array(PlannedUnit).min(1).max(30),
 });
 export type UnitsPlannedPayload = z.infer<typeof UnitsPlannedPayload>;
@@ -212,7 +212,7 @@ export const Unit = z.strictObject({
   envelope: UnitEnvelope,
   state: UnitState,
   plan_sha256: Sha256Hex,
-  base_sha: GitSha,
+  base_sha: GitSha.nullable(),
   branch: z.string().nullable(),
   lease_epoch: z.number().int().nullable(),
   head_sha: z.string().nullable(),

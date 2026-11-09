@@ -1,6 +1,10 @@
 import { ConfigReader, ConfigRegistry, registerGatewayConfig } from '@aisdlc/config';
 import {
+  AdmissionCapacity,
+  DbProjectSettings,
   DbRegisteredRepos,
+  GatewayEnvelope,
+  ReferenceSnapshots,
   DbWorkInFlight,
   GatewayAgentKeys,
   HttpKnowledge,
@@ -236,13 +240,28 @@ export async function bootCoreWorker(
               constitution: constitutionFrom(rd),
             })
           : baseStagePorts;
+      // M13.1: 6.0 admission (a lease epoch, an approver slot, capacity, the envelope reserved in the gateway)
+      // and the capacity port behind it, which frees the held items only when their next admission can succeed
+      const admissionBase = cfg.gateway
+        ? {
+            settings: new DbProjectSettings({ pool, registry }),
+            envelope: new GatewayEnvelope(
+              new GatewayAdminClient({ baseUrl: cfg.gateway.url, token: cfg.gateway.token }),
+            ),
+            snapshots: new ReferenceSnapshots(),
+          }
+        : null;
+      const realCapacity = admissionBase ? new AdmissionCapacity({ pool, ...admissionBase }) : null;
       supervisor.add(
         workDriverLoop(
           {
             pool,
             ports: stagePorts,
+            ...(admissionBase && realCapacity && !deps.capacity
+              ? { admission: { ...admissionBase, attempted: realCapacity.attempted } }
+              : {}),
             ...(cfg.stagePorts === 'agents' ? { vault } : {}),
-            capacity: deps.capacity ?? new FakeCapacity(),
+            capacity: deps.capacity ?? realCapacity ?? new FakeCapacity(),
             ...(killState ? { kill: killState } : {}),
             // M11.2: every agent-acted stage command gets a per-Unit key minted from the agent's contract
             ...(cfg.gateway

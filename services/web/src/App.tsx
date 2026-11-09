@@ -10,6 +10,7 @@ import { ApiError, api, type Me } from './api';
 import { ErrorNote, Loading } from './components/Notice';
 import { CardPage } from './pages/CardPage';
 import { InboxPage } from './pages/InboxPage';
+import { ItemPage } from './pages/ItemPage';
 import { LedgerPage } from './pages/LedgerPage';
 import { PrrPage } from './pages/PrrPage';
 import { RevisionPage } from './pages/RevisionPage';
@@ -164,6 +165,8 @@ function Page({ route, me }: { route: Route; me: Me }) {
       return <S0Page id={route.id} />;
     case 'card':
       return <CardPage id={route.id} csrf={me.csrf_token} me={me.principal.principal_id} />;
+    case 'item':
+      return <ItemPage id={route.id} csrf={me.csrf_token} />;
     case 'inbox':
       return <InboxPage />;
     case 'revision':

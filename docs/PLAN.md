@@ -219,7 +219,7 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 
 ### M12.5 — Portal actions for the planning stages (follow-up from M12)
 
-Ready (1.6) decision endpoint and portal action; observed-signal actions for B4 (design reveals a spec gap) and R2 (smaller than lane) during G3d; the human-writes-plan form for B5; answers to S1 clarification questions in the portal. A browser e2e that drives an L4 request to G3 needs a Full-level PRR (M17); until then the L1–L3 path is driven once Light exists (M16), and the L4 path is covered by core tests against the real gateway and planning port.
+Ready (1.6) decision endpoint and portal action; observed-signal actions for B4 (design reveals a spec gap) and R2 (smaller than lane) during G3d; the human-writes-plan form for B5; answers to S1 clarification questions in the portal. Built (core `POST /v1/items/:id/ready|answers|observe|plan`, bff `/api/items/:id/*`, web `/items/:id`; PDP actions `item.ready`, `item.observe`, `item.plan`; the compose e2e answers a clarification if the scripted fake asks one and decides Ready on the Census L4 to L8 item). A browser e2e that drives an L4 request to G3 needs a Full-level PRR (M17); until then the L1–L3 path is driven once Light exists (M16), and the L4 path is covered by core tests against the real gateway and planning port.
 
 ### M13 — Sandbox, admission and S6 Build
 
@@ -258,6 +258,8 @@ Starts with the R2a decisions (§7). Tasks: card 2 (claims ≤50 with evidence, 
 ### M17 — Full onboarding (OB R6) and per-area levels
 
 0.3 full baseline, card 3, system map, CodeGraph, spec seeds, exam measured (not a gate), golden-task candidates, oracle lock through X2, FF1 and FF2 (L5 staging separation with ServiceEnv), per-area levels (DEC-25).
+
+Follow-up from M13.1: a portal "Ask for work" form (requests come in through the API until then) belongs with the Conversation milestone below.
 
 ### M18 — Conversation and notifications
 

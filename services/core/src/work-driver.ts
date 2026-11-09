@@ -9,6 +9,7 @@ import {
   type PrincipalId,
   type ProjectId,
   type StageOutcome,
+  STEPS,
 } from '@aisdlc/contracts';
 import {
   openCards,
@@ -74,6 +75,7 @@ import {
 import { syncKillHolds } from './kill.js';
 import { catchUpWork } from './work-projection.js';
 import { dispatchAgent, recordFailure, releaseRun } from './agent-dispatch.js';
+import { admitUnit, ensureAdmitted, syncUnits, type AdmissionPorts } from './admission/index.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
 
 // The work driver (PLAN M9.2; ADR-0001 "Departure from the runtime review"): what replaces Temporal.
@@ -107,6 +109,13 @@ export interface WorkDriverDeps {
   readonly settings?: () => WorkSettings;
   /** Who says how many HELD items may go on (M9.3). Absent, no held item is ever released by the driver. */
   readonly capacity?: CapacityPort;
+  /**
+   * 6.0 admission (M13.1): a lease with a fresh epoch, an approver slot, capacity and the envelope reserved, as
+   * one grant on a Unit; HELD with the reason when any is missing. With it, the driver admits at 6.0 itself
+   * (the coding port is not asked), guards every later S6 command with a grant, and keeps the leases and
+   * grants true to the item (`syncUnits`). Absent, the coding port answers 6.0 as before (tests of other things).
+   */
+  readonly admission?: AdmissionPorts;
   /**
    * The kill switch (M9.6, AR9). With it, no stage command is dispatched for a killed scope, and an
    * unreachable kill switch is a kill (fail closed): `admitAgentWork`. Gate decisions never ask it.
@@ -414,6 +423,39 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
           // no room: the admission says HELD (WIP), as the port itself would; the release loop frees it
           must(
             await ingestItem(cd, item_id, resultDraft(s, c, { outcome: 'held', reason: 'WIP' })),
+          );
+          return;
+        }
+      }
+      if (d.admission && STEPS[c.step].stage === 'S6') {
+        const ad = { ...cd, ...d.admission };
+        if (c.step === '6.0') {
+          const a = must(await admitUnit(ad, s, c.key));
+          must(
+            await ingestItem(
+              cd,
+              item_id,
+              resultDraft(
+                s,
+                c,
+                a.admitted
+                  ? {
+                      outcome: 'completed',
+                      output_hash: a.output_hash as never,
+                      lease_epoch: a.lease_epoch,
+                    }
+                  : { outcome: 'held', reason: a.reason },
+              ),
+            ),
+          );
+          return;
+        }
+        // every other S6 step runs inside a grant: after HUMAN-WAIT, a handoff or a back-edge the Unit is
+        // admitted again first (an error is a refusal: the command is delivered again, never run unguarded)
+        const g = must(await ensureAdmitted(ad, s, c.key));
+        if (!g.admitted) {
+          must(
+            await ingestItem(cd, item_id, resultDraft(s, c, { outcome: 'held', reason: g.reason })),
           );
           return;
         }
@@ -786,6 +828,22 @@ export async function driveWork(
       enqueued += must(r).enqueued;
     } catch (e) {
       if (o.onItemError) o.onItemError(id, e);
+      else throw e;
+    }
+  }
+  if (d.admission) {
+    try {
+      // the grants and leases follow the items: handoff, end, G4 decided; takeover; HUMAN-WAIT (M13.1)
+      // (an item that ended still has its grant to release, so the items with a live grant are included)
+      const live = await d.pool.query<{ item_id: string }>(
+        `SELECT DISTINCT item_id FROM core.admission_grant WHERE status IN ('active', 'waiting')
+         UNION SELECT DISTINCT item_id FROM core.lease WHERE status = 'held'`,
+      );
+      await syncUnits({ ...coreDeps(d), ...d.admission }, [
+        ...new Set([...active.map((r) => r.item_id), ...live.rows.map((r) => r.item_id)]),
+      ]);
+    } catch (e) {
+      if (o.onItemError) o.onItemError('units', e);
       else throw e;
     }
   }

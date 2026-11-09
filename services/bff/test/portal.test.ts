@@ -7,6 +7,7 @@ import {
   GATE_ID,
   ITEM_ID,
   agentRunsFixture,
+  itemViewFixture,
   S0_ID,
   startFakeCore,
   type FakeCore,
@@ -58,7 +59,12 @@ async function api(
 beforeAll(async () => {
   core = await startFakeCore();
   s = await startBffStack({ override: { core: core.client } });
-  await bindProject(s.identity, 'acme', { admin: ['alice'], intent: ['bob'], kill: ['carol'] });
+  await bindProject(s.identity, 'acme', {
+    admin: ['alice'],
+    intent: ['bob'],
+    kill: ['carol'],
+    design: ['bob'],
+  });
   await grantFleetRole(s.identity.deps, 'root', 'factory.admin');
 });
 afterAll(async () => {
@@ -79,8 +85,8 @@ interface RouteCase {
   readonly path: string;
   readonly body?: unknown;
   /** Someone the PDP allows, and someone it denies. */
-  readonly allowed: 'alice' | 'root';
-  readonly denied: 'dora' | 'carol' | 'alice';
+  readonly allowed: 'alice' | 'root' | 'bob';
+  readonly denied: 'dora' | 'carol' | 'alice' | 'bob';
   readonly forwards: string;
 }
 
@@ -123,6 +129,51 @@ const CASES: RouteCase[] = [
     allowed: 'alice',
     denied: 'dora',
     forwards: `GET /v1/items/${ITEM_ID}?on_behalf_of=alice`,
+  },
+  {
+    name: 'Ready decision on an item (1.6)',
+    method: 'POST',
+    path: `/api/items/${ITEM_ID}/ready`,
+    body: {},
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/items/${ITEM_ID}/ready`,
+  },
+  {
+    name: 'answer to a clarification question',
+    method: 'POST',
+    path: `/api/items/${ITEM_ID}/answers`,
+    body: { question_id: 'q1', text: 'the orders table' },
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/items/${ITEM_ID}/answers`,
+  },
+  {
+    name: 'observed B4 during G3d',
+    method: 'POST',
+    path: `/api/items/${ITEM_ID}/observe`,
+    body: { edge: 'B4', reason_code: 'spec_gap', key: 'k1' },
+    allowed: 'bob',
+    denied: 'alice',
+    forwards: `POST /v1/items/${ITEM_ID}/observe`,
+  },
+  {
+    name: 'observed R2 during G3d',
+    method: 'POST',
+    path: `/api/items/${ITEM_ID}/observe`,
+    body: { edge: 'R2', to_lane: 'L3', reason_code: 'smaller_than_lane', key: 'k2' },
+    allowed: 'bob',
+    denied: 'carol',
+    forwards: `POST /v1/items/${ITEM_ID}/observe`,
+  },
+  {
+    name: 'the plan a person writes (B5)',
+    method: 'POST',
+    path: `/api/items/${ITEM_ID}/plan`,
+    body: { key: 'p1', split: { units: [] }, sequence: {}, tasks: {}, verification: {} },
+    allowed: 'bob',
+    denied: 'alice',
+    forwards: `POST /v1/items/${ITEM_ID}/plan`,
   },
   {
     name: 'the agent runs of an item',
@@ -683,5 +734,62 @@ describe('the ledger view', () => {
     expect(core.seen.map((x) => x.path)).toContain(`/v1/projects/acme/ledger?s0=${S0_ID}&limit=50`);
     expect((await api('alice', 'GET', '/api/projects/acme/ledger?s0=nope')).status).toBe(400);
     expect((await api('alice', 'GET', '/api/projects/acme/ledger?x=1')).status).toBe(400);
+  });
+});
+
+describe('what the person may do with an item (M12.5): the PDP and where the item waits', () => {
+  const key = (who: string) => `GET /v1/items/${ITEM_ID}?on_behalf_of=${who}`;
+  const view = (over: Record<string, unknown>) => ({ ...itemViewFixture(), ...over });
+  const question = {
+    question_id: 'q1',
+    item_id: ITEM_ID,
+    stage: 'S1',
+    step: '1.5',
+    round: 1,
+    material: 'blocking',
+    text: 'Which table?',
+    state: 'open',
+    asked_at: '2026-11-09T10:00:00.000Z',
+    answered_at: null,
+    answered: false,
+    answer_flagged: false,
+  };
+  const gate = (g: string) => ({
+    gate: g,
+    gate_instance_id: 'gi-1',
+    status: 'pending',
+    outcome: null,
+  });
+  const may = async (who: 'alice' | 'bob', over: Record<string, unknown>) => {
+    core.override.set(key(who), { status: 200, json: view(over) });
+    const r = await api(who, 'GET', `/api/items/${ITEM_ID}`);
+    expect(r.status).toBe(200);
+    return r.json.may as Record<string, boolean>;
+  };
+
+  it('shows each button only where the item is where the action applies AND the PDP says yes', async () => {
+    expect(await may('alice', {})).toEqual({
+      ready: false,
+      answer: false,
+      observe: false,
+      plan: false,
+    });
+    expect(await may('alice', { waiting: 'human:ready' })).toMatchObject({ ready: true });
+    expect(await may('alice', { questions: [question] })).toMatchObject({ answer: true });
+    expect(await may('alice', { questions: [{ ...question, answered: true }] })).toMatchObject({
+      answer: false,
+    });
+    // the design slot observes at G3d and writes the plan; the admin does neither
+    expect(await may('bob', { waiting: 'gates:G3d', gates: [gate('G3d')] })).toMatchObject({
+      observe: true,
+    });
+    expect(await may('alice', { waiting: 'gates:G3d', gates: [gate('G3d')] })).toMatchObject({
+      observe: false,
+    });
+    expect(await may('bob', { waiting: 'gates:G3', gates: [gate('G3')] })).toMatchObject({
+      observe: false,
+    });
+    expect(await may('bob', { waiting: 'human:plan' })).toMatchObject({ plan: true });
+    expect(await may('alice', { waiting: 'human:plan' })).toMatchObject({ plan: false });
   });
 });

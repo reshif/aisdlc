@@ -5,6 +5,10 @@ import {
   integrationEvents,
 } from './integration-api.js';
 import {
+  ItemAnswerRequest,
+  ItemObserveRequest,
+  ItemPlanRequest,
+  ItemReadyRequest,
   CardDecideRequest,
   GateCardDecideRequest,
   GateCardEvidenceRequest,
@@ -79,8 +83,11 @@ import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.
 import { agentStatsOf, listAgentRuns } from './agent-runs.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
-import { submitRequest } from './requests.js';
-import { readItem } from './work-items.js';
+import { answerQuestion, decideReady, submitRequest } from './requests.js';
+import { observeRelane, requestRework } from './work-signals.js';
+import { submitHumanPlan } from './planning/human-plan.js';
+import type { GroundingPort } from './planning/grounding.js';
+import { readItem, readItemEvents } from './work-items.js';
 import { loadProjectSettings, proposeProjectSettings } from './settings.js';
 import { readS0 } from './journal.js';
 import {
@@ -144,6 +151,8 @@ export interface CoreAppOptions {
   readonly clock?: Clock;
   /** The onboarding cards (M7.3); without them the card routes answer `unavailable`. */
   readonly cards?: CardDeps;
+  /** The merged head a hand-written plan is made against (B5, M12.5); without it that route answers `unavailable`. */
+  readonly grounding?: GroundingPort;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -593,6 +602,151 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return;
     }
     return itemView(s);
+  });
+
+  // ------------------------------------------------------------ the portal's actions on an item (PLAN M12.5)
+  //
+  // Each is the PDP's yes for the person on the item (core asks; the bff asked first), then one signal in the
+  // item's stream with an idempotency key, which the interpreter decides on. Ready, answers, B4/R2 and the
+  // human-written plan are steps of the lifecycle; the gates they lead to (G0, E1, G3) are decided and
+  // ledgered through the kernel by their own slots.
+
+  /** The item an action is about, and the PDP's answer for the person; or the refusal already sent. */
+  async function itemFor(req: FastifyRequest, reply: FastifyReply, who: string, action: ActionId) {
+    const id = params(req)['id'] as string;
+    if (!z.uuid().safeParse(id).success) {
+      fail(reply, coreError('invalid_input', 'bad id'));
+      return null;
+    }
+    let item;
+    try {
+      item = await readItem(o.pool, id);
+    } catch {
+      fail(reply, coreError('unavailable', 'the item could not be read'));
+      return null;
+    }
+    if (!item) {
+      fail(reply, coreError('not_found', 'no such item'));
+      return null;
+    }
+    const st = item.state;
+    if (
+      !(await guard(
+        reply,
+        who,
+        action,
+        pdpResource.item(st.project_id, st.item_id, st.lane ?? st.proposed_lane),
+      ))
+    ) {
+      return null;
+    }
+    return { id, state: st };
+  }
+  const itemDeps = deps;
+  /** MM-2 is on: the decisions of the lifecycle are refused (drafts and answers are not decisions). */
+  const maintenanceOn = async (): Promise<boolean> => (await o.config?.maintenance?.()) === true;
+  const view = async (id: string) => {
+    const again = await readItem(o.pool, id);
+    return again ? itemView(again.state) : null;
+  };
+
+  /** 1.6: the Ready decision. */
+  app.post('/v1/items/:id/ready', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemReadyRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.ready');
+    if (!it) return;
+    if (it.state.waiting?.kind !== 'human' || it.state.waiting.what !== 'ready') {
+      return fail(reply, coreError('conflict', 'the item is not waiting for the Ready decision'));
+    }
+    if (await maintenanceOn()) {
+      return fail(reply, coreError('refused', 'maintenance mode MM-2: decisions are disabled'));
+    }
+    const r = await decideReady(itemDeps, it.id, b.value.on_behalf_of);
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), duplicate: r.value.duplicate };
+  });
+
+  /** S1 1.5: the requester's answer to one clarification question. */
+  app.post('/v1/items/:id/answers', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemAnswerRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.ready');
+    if (!it) return;
+    const r = await answerQuestion(itemDeps, it.id, {
+      question_id: b.value.question_id,
+      text: b.value.text,
+      by: b.value.on_behalf_of,
+      channel: 'N1',
+    });
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), duplicate: r.value.duplicate };
+  });
+
+  /** While G3d is open: B4 (the design reveals a gap in the spec) or R2 (the work is smaller than its lane). */
+  app.post('/v1/items/:id/observe', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemObserveRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.observe');
+    if (!it) return;
+    const w = it.state.waiting;
+    const o2 = b.value;
+    // a retry of a signal that was taken (the item has moved on since) is the same signal, not a conflict
+    const signalKey = o2.edge === 'B4' ? `rework:B4:${o2.key}` : `relane:R2:${o2.key}`;
+    const taken = (await readItemEvents(o.pool, it.id)).some(
+      (e) => e.idempotency_key === signalKey,
+    );
+    if (!taken && (w?.kind !== 'gates' || w.conditional !== null || !w.gates.includes('G3d'))) {
+      return fail(reply, coreError('conflict', 'the design review (G3d) is not open'));
+    }
+    const r =
+      o2.edge === 'B4'
+        ? await requestRework(itemDeps, it.id, {
+            edge: 'B4',
+            step: null,
+            reason_code: o2.reason_code,
+            by: o2.on_behalf_of,
+            key: o2.key,
+          })
+        : await observeRelane(itemDeps, it.id, {
+            to_lane: o2.to_lane,
+            reason_code: o2.reason_code,
+            by: o2.on_behalf_of,
+            key: o2.key,
+          });
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), duplicate: r.value.duplicate };
+  });
+
+  /** B5: a person writes the plan (the four parts, the same checks as the agent's); G3 decides it. */
+  app.post('/v1/items/:id/plan', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemPlanRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.plan');
+    if (!it) return;
+    if (!o.grounding) return sendError(reply, 503, 'unavailable', 'no grounding is configured');
+    if (await maintenanceOn()) {
+      return fail(reply, coreError('refused', 'maintenance mode MM-2: decisions are disabled'));
+    }
+    const r = await submitHumanPlan(
+      { ...itemDeps, grounding: o.grounding },
+      it.id,
+      b.value.on_behalf_of,
+      {
+        split: b.value.split,
+        sequence: b.value.sequence,
+        tasks: b.value.tasks,
+        verification: b.value.verification,
+        ...(b.value.capacity ? { capacity: b.value.capacity } : {}),
+      },
+      b.value.key,
+    );
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), ...r.value };
   });
 
   /**

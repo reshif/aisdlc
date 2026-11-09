@@ -16,6 +16,7 @@ export type Route =
   | { name: 'project'; id: string }
   | { name: 's0'; id: string }
   | { name: 'card'; id: string }
+  | { name: 'item'; id: string }
   | { name: 'inbox' }
   | { name: 'revision'; id: string }
   | { name: 'readiness'; id: string }
@@ -34,7 +35,7 @@ export function parseRoute(path: string): Route {
       id: decodeURIComponent(sub[1] as string),
     };
   }
-  const m = /^\/(projects|s0|cards|revisions)\/([^/]+)$/.exec(p);
+  const m = /^\/(projects|s0|cards|revisions|items)\/([^/]+)$/.exec(p);
   if (m) {
     const id = decodeURIComponent(m[2] as string);
     return m[1] === 'projects'
@@ -43,7 +44,9 @@ export function parseRoute(path: string): Route {
         ? { name: 's0', id }
         : m[1] === 'revisions'
           ? { name: 'revision', id }
-          : { name: 'card', id };
+          : m[1] === 'items'
+            ? { name: 'item', id }
+            : { name: 'card', id };
   }
   return { name: 'notfound' };
 }

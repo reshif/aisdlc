@@ -17,7 +17,14 @@ import {
   OnboardingCardSummary,
   ProjectId,
   ProjectPrrView,
+  ItemActionResult,
+  ItemAnswerRequest,
+  ItemObserveRequest,
+  ItemPlanRequest,
+  ItemPlanResult,
+  ItemReadyRequest,
   ItemView,
+  PortalItemView,
   ProjectSummary,
   RevisionDecideRequest,
   RevisionEvidenceRequest,
@@ -53,7 +60,11 @@ import type { CoreClient } from './core-client.js';
 //   GET  /api/projects/:id                one project, its repos and S0 records       (project.view)
 //   POST /api/onboard                     request an onboarding                       (project.onboard)
 //   POST /api/requests                    ask for work: portal Ask, channel N1       (work.request)
-//   GET  /api/items/:id                   a work item: position, waits, questions    (item.view_floor, core asks)
+//   GET  /api/items/:id                   a work item: position, waits, questions, and what the person may do (item.view_floor)
+//   POST /api/items/:id/ready             1.6 the Ready decision                       (item.ready)
+//   POST /api/items/:id/answers           the answer to one S1 clarification question  (item.ready)
+//   POST /api/items/:id/observe           B4 or R2 while G3d is open                   (item.observe)
+//   POST /api/items/:id/plan              B5: the plan a person writes                 (item.plan)
 //   GET  /api/agent-runs?item=            the agent runs of an item and their outcomes (project.view)
 //   GET  /api/agents/:id/stats            acceptance, back-edge rate, cost per run     (audit.read)
 //   GET  /api/agents/:id/scores           AgentScore per prompt, provider and model    (audit.read)
@@ -99,6 +110,13 @@ export const PortalGateEvidenceBody = GateCardEvidenceRequest.omit({ on_behalf_o
 export const PortalGateDecideBody = GateCardDecideRequest.omit({ on_behalf_of: true });
 export const PortalRevisionEvidenceBody = RevisionEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalRevisionDecideBody = RevisionDecideRequest.omit({ on_behalf_of: true });
+export const PortalReadyBody = ItemReadyRequest.omit({ on_behalf_of: true });
+export const PortalAnswerBody = ItemAnswerRequest.omit({ on_behalf_of: true });
+export const PortalObserveBody = z.discriminatedUnion('edge', [
+  ItemObserveRequest.options[0].omit({ on_behalf_of: true }),
+  ItemObserveRequest.options[1].omit({ on_behalf_of: true }),
+]);
+export const PortalPlanBody = ItemPlanRequest.omit({ on_behalf_of: true });
 const EmptyBody = z.strictObject({});
 
 export function registerPortalRoutes(d: PortalDeps): void {
@@ -239,31 +257,80 @@ export function registerPortalRoutes(d: PortalDeps): void {
     return reply.code(r.reached && r.status === 201 ? 201 : 200).send(got.value);
   });
 
-  app.get('/api/items/:id', async (req, reply) => {
-    const c = core(reply);
-    if (!c) return;
-    const id = idParam(req, reply);
-    if (!id) return;
+  /** The item, read through core as the person (core asks the PDP too), and the bff's own yes on its project. */
+  async function itemOf(req: FastifyRequest, reply: FastifyReply, c: CoreClient, id: string) {
     const got = upstream(
       reply,
       await c.call('GET', `/v1/items/${id}?on_behalf_of=${encodeURIComponent(d.principalOf(req))}`),
       (v) => ItemView.parse(v),
     );
-    if (!got) return;
-    // Core asked the PDP for this principal already; the bff asks too, on the item's own project.
+    if (!got) return null;
     const v = got.value;
-    const lane = v.lane ?? v.proposed_lane;
-    if (
-      !(await allowed(
-        d.principalOf(req),
-        'item.view_floor',
-        pdpResource.item(v.project_id, v.item_id, lane),
-      ))
-    ) {
-      return deny(reply, 'item.view_floor');
+    const resource = pdpResource.item(v.project_id, v.item_id, v.lane ?? v.proposed_lane);
+    if (!(await allowed(d.principalOf(req), 'item.view_floor', resource))) {
+      deny(reply, 'item.view_floor');
+      return null;
     }
-    return v;
+    return { view: v, resource };
+  }
+
+  app.get('/api/items/:id', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const id = idParam(req, reply);
+    if (!id) return;
+    const it = await itemOf(req, reply, c, id);
+    if (!it) return;
+    const { view: v, resource } = it;
+    const who = d.principalOf(req);
+    const atG3d = v.gates.some((g) => g.gate === 'G3d' && g.status === 'pending');
+    // a button is shown only when the PDP says yes AND the item is where the action applies
+    const may = {
+      ready: v.waiting === 'human:ready' && (await allowed(who, 'item.ready', resource)),
+      answer: v.questions.some((q) => !q.answered) && (await allowed(who, 'item.ready', resource)),
+      observe: atG3d && (await allowed(who, 'item.observe', resource)),
+      plan: v.waiting === 'human:plan' && (await allowed(who, 'item.plan', resource)),
+    };
+    return PortalItemView.parse({ ...v, may });
   });
+
+  /** The PDP's yes for the action on the item's project and the item, then core with the principal from the session. */
+  async function itemMove<S extends z.ZodType<object>>(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    schema: S,
+    verb: 'ready' | 'answers' | 'observe' | 'plan',
+    action: ActionId,
+  ) {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const body = schema.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    const who = d.principalOf(req);
+    const it = await itemOf(req, reply, c, id);
+    if (!it) return;
+    if (!(await allowed(who, action, it.resource))) return deny(reply, action);
+    const got = upstream(
+      reply,
+      await c.call('POST', `/v1/items/${id}/${verb}`, { ...body.data, on_behalf_of: who }),
+      (v) => (verb === 'plan' ? ItemPlanResult.parse(v) : ItemActionResult.parse(v)),
+    );
+    return got?.value;
+  }
+
+  app.post('/api/items/:id/ready', (req, reply) =>
+    itemMove(req, reply, PortalReadyBody, 'ready', 'item.ready'),
+  );
+  app.post('/api/items/:id/answers', (req, reply) =>
+    itemMove(req, reply, PortalAnswerBody, 'answers', 'item.ready'),
+  );
+  app.post('/api/items/:id/observe', (req, reply) =>
+    itemMove(req, reply, PortalObserveBody, 'observe', 'item.observe'),
+  );
+  app.post('/api/items/:id/plan', (req, reply) =>
+    itemMove(req, reply, PortalPlanBody, 'plan', 'item.plan'),
+  );
 
   // ------------------------------------------------------------ agent runs (M11.2)
 
