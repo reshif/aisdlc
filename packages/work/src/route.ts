@@ -79,7 +79,9 @@ export type ConditionalApprove =
   /** The next conditional gate of the same step opens (E6 -> G3o, FL: `E6 -.-> G3o`). */
   | { readonly chain: GateId }
   /** The item goes back to a step (G3o after E6 -> 6.4). */
-  | { readonly jump: StepId };
+  | { readonly jump: StepId }
+  /** E1 approved: the downshift (R2) goes to 1.3 and G0 runs again (`relane`). */
+  | { readonly relane: 'down' };
 
 /**
  * What a stage can raise mid-step, and what an approval does: `resume` runs the step again with the
@@ -102,6 +104,8 @@ export const CONDITIONAL_GATES: Readonly<
   X1: { steps: ['6.4'], on_approve: 'resume' },
   X3: { steps: ['6.4'], on_approve: 'resume' },
   X2: { steps: ['7.4'], on_approve: 'continue' },
+  // R2: the work is smaller than the lane (2.3, 4.6). Approved: back to 1.3 and G0 again; denied: stay.
+  E1: { steps: ['2.3', '4.6'], on_approve: { relane: 'down' } },
   E2: { steps: ['4.5', '7.5'], on_approve: 'continue' },
   E6: { steps: ['7.2'], on_approve: { chain: 'G3o' } },
 };

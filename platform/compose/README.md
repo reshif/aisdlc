@@ -36,7 +36,7 @@ with all capabilities dropped, `no-new-privileges`, an init process, a memory li
 policy and a `/healthz` health check (the dev IdP's is its discovery document). No container
 mounts the Docker socket; the smoke test checks it.
 
-`migrate` builds the image and runs `aisdlc-migrate --notary --witness` first, after `db-init` has
+`migrate` builds the image and runs `aisdlc-migrate --notary --witness --killswitch` first, after `db-init` has
 created the roles and databases; every other service waits for it (`service_completed_successfully`).
 `seed` runs next (see below), then the services in dependency order.
 
@@ -46,21 +46,22 @@ RV §2: a boundary is real when it separates **K**ey custody, a **D**ocker or so
 **E**gress, an **I**ndependence requirement (AR9 and its kin), or an untrusted **O**rigin. No
 container here needs a Docker right (sandboxes arrive with M13).
 
-| Container                    | Port               | Published          | Networks                                               | Boundary      | Why                                                                                                                                                            |
-| ---------------------------- | ------------------ | ------------------ | ------------------------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `postgres`                   | 5432               | no                 | data-\*                                                | I             | record vs key-holder databases: one server here, three databases and three roles (`aisdlc`, `notary`, `witness`); a role cannot connect to another's database  |
-| `kms-local`                  | 8300               | no                 | kms-\*                                                 | K             | the only holder of the Notary, Witness, step-up and fingerprint keys; signs by key id, never hands one out                                                     |
-| `notary`                     | 8310               | no                 | kms-notary, notary-api, data-notary                    | K, I          | the only ledger signer (C08n); own database and role                                                                                                           |
-| `witness`                    | 8320               | no                 | kms-witness, witness-api, data-witness                 | K, I          | the second signer (C33); own key, database and role, no route to the Notary                                                                                    |
-| `identity`                   | 8330               | no                 | app, data-record, kms-clients, notary-api              | I             | policy source and its journal are not shared with the systems it polices (AR2); PDP evaluation is embedded in core and the bff                                 |
-| `bff`                        | 8340               | **yes**, 127.0.0.1 | edge, data-record, kms-clients                         | O, K          | the browser edge: tokens never reach the browser, session store and the IdP client secret stay out of core; signs step-up proofs through kms-local             |
-| `dev-oidc`                   | 8390               | **yes**, 127.0.0.1 | edge                                                   | O             | the stand-in identity provider, a different party the browser is redirected to; `FACTORY_ENV=local` only                                                       |
-| `codehost`                   | 8350               | no                 | app, egress                                            | K, E          | the only holder of the GitHub App key (mounted nowhere else) and the only container with a route out; reads only                                               |
-| `knowledge`                  | 8370               | no                 | app, data-record, kms-clients                          | O, E          | analyses untrusted repo content; holds no code-host credential, no HMAC key, and **has no route to GitHub**: it gets credential-free bundles from the codehost |
-| `core`                       | 8380               | no                 | app, data-record, kms-clients, notary-api              | none          | see below                                                                                                                                                      |
-| `core-worker`                | 8360               | no                 | app, data-record, kms-clients, notary-api, witness-api | none          | see below                                                                                                                                                      |
-| `fake-github`                | 8353 api, 8354 git | no                 | (codehost's own)                                       | stand-in      | not part of the factory: the far end of the codehost's egress; profile `fake-github`                                                                           |
-| `db-init`, `migrate`, `seed` | none               | no                 | data-\* (and app, kms, notary for `seed`)              | one-shot jobs | roles and databases; schemas; first-run bootstrap                                                                                                              |
+| Container                    | Port               | Published          | Networks                                                               | Boundary      | Why                                                                                                                                                                       |
+| ---------------------------- | ------------------ | ------------------ | ---------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `postgres`                   | 5432               | no                 | data-\*                                                                | I             | record vs key-holder databases: one server here, four databases and four roles (`aisdlc`, `notary`, `witness`, `killswitch`); a role cannot connect to another's database |
+| `kms-local`                  | 8300               | no                 | kms-\*                                                                 | K             | the only holder of the Notary, Witness, step-up and fingerprint keys; signs by key id, never hands one out                                                                |
+| `notary`                     | 8310               | no                 | kms-notary, notary-api, data-notary                                    | K, I          | the only ledger signer (C08n); own database and role                                                                                                                      |
+| `witness`                    | 8320               | no                 | kms-witness, witness-api, data-witness                                 | K, I          | the second signer (C33); own key, database and role, no route to the Notary                                                                                               |
+| `killswitch`                 | 8400               | no                 | kms-killswitch, killswitch-api, data-killswitch                        | K, I          | the kill switch (AR9): own database, role and key (`dev:killswitch`), no dependency on core, no route to core's write or command APIs; core-worker reads and pushes to it |
+| `identity`                   | 8330               | no                 | app, data-record, kms-clients, notary-api                              | I             | policy source and its journal are not shared with the systems it polices (AR2); PDP evaluation is embedded in core and the bff                                            |
+| `bff`                        | 8340               | **yes**, 127.0.0.1 | edge, data-record, kms-clients                                         | O, K          | the browser edge: tokens never reach the browser, session store and the IdP client secret stay out of core; signs step-up proofs through kms-local                        |
+| `dev-oidc`                   | 8390               | **yes**, 127.0.0.1 | edge                                                                   | O             | the stand-in identity provider, a different party the browser is redirected to; `FACTORY_ENV=local` only                                                                  |
+| `codehost`                   | 8350               | no                 | app, egress                                                            | K, E          | the only holder of the GitHub App key (mounted nowhere else) and the only container with a route out; reads only                                                          |
+| `knowledge`                  | 8370               | no                 | app, data-record, kms-clients                                          | O, E          | analyses untrusted repo content; holds no code-host credential, no HMAC key, and **has no route to GitHub**: it gets credential-free bundles from the codehost            |
+| `core`                       | 8380               | no                 | app, data-record, kms-clients, notary-api                              | none          | see below                                                                                                                                                                 |
+| `core-worker`                | 8360               | no                 | app, data-record, kms-clients, notary-api, witness-api, killswitch-api | none          | see below                                                                                                                                                                 |
+| `fake-github`                | 8353 api, 8354 git | no                 | (codehost's own)                                                       | stand-in      | not part of the factory: the far end of the codehost's egress; profile `fake-github`                                                                                      |
+| `db-init`, `migrate`, `seed` | none               | no                 | data-\* (and app, kms, notary for `seed`)                              | one-shot jobs | roles and databases; schemas; first-run bootstrap                                                                                                                         |
 
 `core` and `core-worker` do **not** separate a key, an egress, an independence requirement or an
 origin. They are two containers because PLAN §5 keeps the API and the one process that hosts every
@@ -74,23 +75,50 @@ Docker has no packet filter inside a network, so a network is the unit of "can r
 make the forbidden paths not exist; between services that legitimately share a network only a token
 and its scopes stand in the way.
 
-| Network                                  | Members                                                                       | Purpose                                                                                                                       |
-| ---------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `edge`                                   | bff, dev-oidc                                                                 | the only network with published ports; not internal because a published port needs a route in                                 |
-| `app` (internal)                         | core, core-worker, identity, knowledge, codehost, seed                        | the service-to-service calls                                                                                                  |
-| `data-record` (internal)                 | postgres, db-init, migrate, bff, core, core-worker, identity, knowledge, seed | the record database. The record services share it, so they can reach each other's ports; each API still demands its own token |
-| `data-notary`, `data-witness` (internal) | postgres and the Notary / the Witness                                         | the key holders' databases, on networks no record service joins                                                               |
-| `kms-notary`, `kms-witness` (internal)   | kms-local and the Notary / the Witness                                        | the signers' route to their key: **the Notary and the Witness have no route to each other** (AR9, C33)                        |
-| `kms-clients` (internal)                 | kms-local, bff, core, core-worker, identity, knowledge, seed                  | public-key lookups, step-up signing (bff) and the fingerprint MAC (knowledge)                                                 |
-| `notary-api` (internal)                  | notary, core, core-worker, identity, seed                                     | the ledger's writers. Knowledge, codehost, bff and the dev IdP are not on it                                                  |
-| `witness-api` (internal)                 | witness, core-worker                                                          | the checkpointer's route (core-worker's `checkpointer` loop is the Witness's one caller)                                      |
-| `egress`                                 | codehost                                                                      | the only way out. **Knowledge is on no network with a route out**, so it cannot reach GitHub                                  |
+| Network                                                          | Members                                                                       | Purpose                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `edge`                                                           | bff, dev-oidc                                                                 | the only network with published ports; not internal because a published port needs a route in                                                                                                                                                           |
+| `app` (internal)                                                 | core, core-worker, identity, knowledge, codehost, seed                        | the service-to-service calls                                                                                                                                                                                                                            |
+| `data-record` (internal)                                         | postgres, db-init, migrate, bff, core, core-worker, identity, knowledge, seed | the record database. The record services share it, so they can reach each other's ports; each API still demands its own token                                                                                                                           |
+| `data-notary`, `data-witness` (internal)                         | postgres and the Notary / the Witness                                         | the key holders' databases, on networks no record service joins                                                                                                                                                                                         |
+| `kms-notary`, `kms-witness` (internal)                           | kms-local and the Notary / the Witness                                        | the signers' route to their key: **the Notary and the Witness have no route to each other** (AR9, C33)                                                                                                                                                  |
+| `kms-clients` (internal)                                         | kms-local, bff, core, core-worker, identity, knowledge, seed                  | public-key lookups, step-up signing (bff) and the fingerprint MAC (knowledge)                                                                                                                                                                           |
+| `notary-api` (internal)                                          | notary, core, core-worker, identity, seed                                     | the ledger's writers. Knowledge, codehost, bff and the dev IdP are not on it                                                                                                                                                                            |
+| `witness-api` (internal)                                         | witness, core-worker                                                          | the checkpointer's route (core-worker's `checkpointer` loop is the Witness's one caller)                                                                                                                                                                |
+| `data-killswitch`, `kms-killswitch`, `killswitch-api` (internal) | postgres / kms-local / core-worker and the kill switch                        | the kill switch's own database, signer link and API. **Core, the Notary, the codehost and the bff are not on `killswitch-api`** (core-worker is, because it reads and pushes; it has no write or command API), and the kill switch is on none of theirs |
+| `egress`                                                         | codehost                                                                      | the only way out. **Knowledge is on no network with a route out**, so it cannot reach GitHub                                                                                                                                                            |
 
 The `fake-github` container joins the codehost's network namespace (`network_mode: service:codehost`)
 because the codehost accepts a plain-http GitHub only on loopback (it carries credentials), so the
 fake listens on the codehost's `127.0.0.1:8353` (REST) and `:8354` (git) and is reachable from nowhere
 else. The smoke test asserts the paths above that must not exist (knowledge to GitHub and the Notary,
 the codehost to the trust plane and postgres, the Notary and the Witness to each other, ...).
+
+## The kill switch (M9.6)
+
+`killswitch` is a service of its own because AR9 asks that a kill needs nothing of core's. It has its
+own database (`killswitch`, role `killswitch`), its own key (`dev:killswitch`, which kms-local lets no
+other caller use), its own network, and **no token and no URL of core's**: it has no route to core's
+write or command APIs, and it does not call anything but its signer. Who may kill is decided by the same
+Cedar policies as everywhere (`kill.request`, `kill.release`, the fleet rule), over the kill switch's own
+copy of who holds what: the factory admins are its configuration (`KILLSWITCH_FACTORY_ADMINS`), the
+project admins and kill holders are PUSHED to it by core-worker's `kill_holders` loop, and delegations
+are granted in it by the project admin. Every kill, release approval, release, delegation and holder
+sync is an entry of its own signed, hash-chained journal.
+
+How a kill reaches core's record without the kill switch calling core: core-worker's `kill_observer`
+loop PULLS the journal, verifies the chain and every signature against the kill switch's public key
+(looked up in kms-local, never taken from the kill switch's own answer), and records each entry as a
+`kill.observed` fact and a `kill.event` ledger entry through the Notary. The work driver reads
+`/v1/status` before it dispatches a stage command: a killed scope, or a kill switch that cannot be
+reached, defers the command (it waits untouched, nothing is retried to death) and puts a `kill` hold
+on the items. Humans can still decide gates. `GET /admission` on core-worker (internal network) shows
+the verdict it would give a scope; `smoke.sh` uses it.
+
+Stopping never waits for the KMS: a kill (any scope) takes effect at once even if kms-local is unreachable. It is journaled as an unsigned `pending_signature` entry (still hash-chained), and a backfill loop appends a signed `kill.signature_attested` entry that names it when the KMS is back; core-worker records the pending kill as `kill.observed` immediately and ledgers it when the attestation is observed. A release, a delegation and a holder sync widen rights, so they still need the signature (and a release the two-person rule) and are refused while the KMS is down.
+
+The operator token (`tok-operator-killswitch`, scopes `act`, `read`) is how a person reaches the kill
+switch when core is down; the BFF does not carry kill routes yet.
 
 ## Secrets are files
 
@@ -200,7 +228,7 @@ running it is `docs/runbooks/m8.5-live-census.md`.
 | Network separation            | Docker networks (reach, not packet filtering)                                                                                       | accounts, VPCs, security groups                                |
 | Secrets                       | files in `secrets/`, bind-mounted                                                                                                   | Secrets Manager                                                |
 | Core and core-worker          | two containers                                                                                                                      | ECS services, same images                                      |
-| Not here yet                  | killswitch, gate-check, gate-relay, sandbox pieces, audit services, gateway                                                         | later milestones                                               |
+| Not here yet                  | gate-check, gate-relay, sandbox pieces, audit services, gateway                                                                     | later milestones                                               |
 
 ## The portal (M8.1 to M8.4)
 

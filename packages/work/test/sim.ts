@@ -3,6 +3,7 @@ import {
   DEFAULT_GATING_PROFILE,
   ITEM_EVENT,
   LaneValues,
+  type CatalogueRef,
   type GateId,
   type ItemCommand,
   type ItemCreatedPayload,
@@ -41,6 +42,8 @@ export function createdPayload(
     profile?: PrrGatingProfile;
     tier?: Tier;
     injection?: boolean;
+    /** The pin the item starts with (default: the current catalogue). */
+    catalogue_ref?: CatalogueRef;
   } = {},
 ): ItemCreatedPayload {
   return {
@@ -50,7 +53,7 @@ export function createdPayload(
     repo: 'acme/app' as never,
     requester: 'alice' as never,
     channel: 'N1',
-    catalogue_ref: currentCatalogueRef(),
+    catalogue_ref: o.catalogue_ref ?? currentCatalogueRef(),
     gating_profile: o.profile ?? PROFILE_ALL_ON,
     tier: o.tier ?? 'T1',
     prr: { version: 1, record_hash: sha256Hex('prr') as never },
@@ -136,8 +139,8 @@ export class Sim {
         this.apply(ITEM_EVENT.eligibility_checked, {
           command_key: c.key,
           lane: c.lane,
-          route: o.eligibility ?? 'normal',
-          eligible: (o.eligibility ?? 'normal') === 'normal',
+          route: routeFor(o, c.lane),
+          eligible: routeFor(o, c.lane) === 'normal',
           reason: 'eligible',
           prr_version: 1,
         });
@@ -164,6 +167,7 @@ export class Sim {
         return;
       }
       case 'withdraw_gates':
+      case 'breaker_signal':
         this.apply(ITEM_EVENT.command_done, { command_key: c.key });
         return;
       case 'spawn_item':
@@ -209,6 +213,16 @@ export class Sim {
           ...(out.variant ? { variant: out.variant } : {}),
           ...(out.loop ? { loop: out.loop } : {}),
           ...(out.observed !== undefined ? { observed: out.observed } : {}),
+          reason_code: out.reason_code,
+        });
+        return;
+      case 'relane':
+        this.apply(ITEM_EVENT.relane_requested, {
+          command_key: c.key,
+          step: c.step,
+          edge: out.edge,
+          trigger: out.trigger,
+          to_lane: out.to_lane,
           reason_code: out.reason_code,
         });
         return;
@@ -306,7 +320,8 @@ export class Sim {
   /** Decides a gate instance that was left pending, if the options now allow it. */
   decidePending(o: RunOptions): boolean {
     for (const g of this.state.gates) {
-      if (g.status !== 'pending') continue;
+      // a consumed instance belongs to a station the item left: it is withdrawn, nobody decides it
+      if (g.status !== 'pending' || g.consumed === true) continue;
       const outcome = o.decide?.(g.gate, undefined as never) ?? 'approve';
       if (outcome === 'pending') continue;
       this.apply(ITEM_EVENT.gate_decided, {
@@ -379,9 +394,13 @@ export interface RunOptions {
     gate: GateId,
     c: ItemCommand,
   ) => 'approve' | 'reject' | 'request_changes' | 'expired' | 'pending';
-  eligibility?: 'normal' | 'n8_hold' | 'l8';
+  /** The 1.4 answer; a function says it per lane asked about. */
+  eligibility?: 'normal' | 'n8_hold' | 'l8' | ((lane: Lane) => 'normal' | 'n8_hold' | 'l8');
   stopAtHuman?: Array<'ready' | 'schedule' | 'merge' | 'human_led' | 'plan'>;
 }
+
+const routeFor = (o: RunOptions, lane: Lane): 'normal' | 'n8_hold' | 'l8' =>
+  typeof o.eligibility === 'function' ? o.eligibility(lane) : (o.eligibility ?? 'normal');
 
 export const hash = (s: string): string => sha256Hex(s);
 

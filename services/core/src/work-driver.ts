@@ -20,10 +20,24 @@ import {
 import { err, ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
 import type { LoopSpec, WorkInFlightPort } from '@aisdlc/loops';
 import { WorkInFlightError } from '@aisdlc/loops';
-import type { CapacityPort, StagePorts } from '@aisdlc/ports';
-import { PermanentDeliveryError, dispatchOutbox, type OutboxRow } from '@aisdlc/record';
-import { itemAgeLimitBd, type ItemState } from '@aisdlc/work';
-import { CATALOGUE } from '@aisdlc/catalogue';
+import {
+  admitAgentWork,
+  type CapacityPort,
+  type KillStatePort,
+  type StagePorts,
+} from '@aisdlc/ports';
+import {
+  DeferDelivery,
+  PermanentDeliveryError,
+  dispatchOutbox,
+  type OutboxRow,
+} from '@aisdlc/record';
+import {
+  catalogueOfItem,
+  itemAgeLimitBd,
+  pinnedCatalogueResolver,
+  type ItemState,
+} from '@aisdlc/work';
 import type pg from 'pg';
 import type { CoreError } from './errors.js';
 import { governingPrr } from './fold.js';
@@ -45,7 +59,17 @@ import {
   releaseN8Holds,
   syncMaintenance,
   type WorkSettings,
+  workSettings,
 } from './work-control.js';
+import { applyGuard, projectGuard, recordBreakerSignal, settleBreakerResets } from './breaker.js';
+import {
+  activeControls,
+  clampRoom,
+  clampedCapacity,
+  controlRefusal,
+  syncControlHolds,
+} from './controls.js';
+import { syncKillHolds } from './kill.js';
 import { catchUpWork } from './work-projection.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
 
@@ -80,6 +104,15 @@ export interface WorkDriverDeps {
   readonly settings?: () => WorkSettings;
   /** Who says how many HELD items may go on (M9.3). Absent, no held item is ever released by the driver. */
   readonly capacity?: CapacityPort;
+  /**
+   * The kill switch (M9.6, AR9). With it, no stage command is dispatched for a killed scope, and an
+   * unreachable kill switch is a kill (fail closed): `admitAgentWork`. Gate decisions never ask it.
+   * core-worker requires it whenever the driver runs; a driver built without one (tests of other
+   * things) enforces no kill.
+   */
+  readonly kill?: KillStatePort;
+  /** How long a stage command refused by the kill switch or a control waits before it is offered again (ms). */
+  readonly refusedRetryMs?: number;
 }
 
 const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
@@ -121,7 +154,16 @@ export async function ensureItems(d: WorkDriverDeps): Promise<{ created: string[
       const id = await repoIdentity(tx, request.repo);
       if (!id) return ok(null);
       const prr = governingPrr(await j.prr(id.project_id, id.repo_id));
-      const verdict = routeLane(request.repo, request.lane, prr, clockOf(d).now());
+      const verdict = applyGuard(
+        routeLane(request.repo, request.lane, prr, clockOf(d).now()),
+        await projectGuard(tx, {
+          project_id: id.project_id,
+          lane: request.lane,
+          now: clockOf(d).now(),
+          calendar: workSettings(d).calendar,
+          origin: null,
+        }),
+      );
       if (verdict.route === 'n8_hold') return ok(null);
       const made = await makeItemForRequest(j, tx, coreDeps(d), {
         request: WorkRequestedPayload.parse(request),
@@ -238,6 +280,20 @@ function resultDraft(
           reason_code: out.reason_code,
         },
       };
+    case 'relane':
+      return {
+        type: ITEM_EVENT.relane_requested,
+        actor: WORK_ACTOR,
+        idempotency_key: key,
+        payload: {
+          command_key: c.key,
+          step: c.step,
+          edge: out.edge,
+          trigger: out.trigger,
+          to_lane: out.to_lane,
+          reason_code: out.reason_code,
+        },
+      };
     case 'trigger':
       return {
         type: ITEM_EVENT.trigger_fired,
@@ -315,6 +371,35 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
 
   switch (c.type) {
     case 'run_stage': {
+      // AR9: agent work is admitted only while the kill switch answers and says no kill covers it. The
+      // command is DEFERRED, not failed: it waits untouched (no attempt counted, never dead-lettered)
+      // and goes out when the kill is released, in the same order.
+      if (d.kill) {
+        const a = await admitAgentWork(d.kill, { project_id: s.project_id, lane: c.lane });
+        if (!a.admitted)
+          throw new DeferDelivery(`agent work refused: ${a.message}`, d.refusedRetryMs ?? 15_000);
+      }
+      // Controls (M9.6): a hold or maintenance control stops every stage command in its scope, a halt
+      // the release steps; a clamp limits how many sessions 6.0 admits. Deferred like a kill.
+      const controls = await activeControls(d.pool, clockOf(d).now());
+      const scope = { project_id: s.project_id, lane: c.lane };
+      const stop = controlRefusal(controls, scope, c.port);
+      if (stop) {
+        throw new DeferDelivery(
+          `held by control ${stop.kind} ${stop.control_id}`,
+          d.refusedRetryMs ?? 15_000,
+        );
+      }
+      if (c.step === '6.0') {
+        const clamp = await clampRoom(d.pool, controls, scope);
+        if (clamp !== null && clamp.room <= 0) {
+          // no room: the admission says HELD (WIP), as the port itself would; the release loop frees it
+          must(
+            await ingestItem(cd, item_id, resultDraft(s, c, { outcome: 'held', reason: 'WIP' })),
+          );
+          return;
+        }
+      }
       const port = d.ports[c.port];
       const r = await port.run({
         command_key: c.key,
@@ -334,7 +419,27 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
     }
 
     case 'check_eligibility': {
-      const v = await laneEligibility(d.pool, s.repo, c.lane, clockOf(d));
+      const base = await laneEligibility(
+        d.pool,
+        s.repo,
+        c.lane,
+        clockOf(d),
+        catalogueOfItem(s).eligibility,
+      );
+      // R3 and R4: a tripped breaker or an overdue hotfix follow-up sends a NEW item to L8. The same
+      // check also answers R1 ("may this project run the lane the work needs"), which is no new item.
+      const v = c.key.includes('/relane/')
+        ? base
+        : applyGuard(
+            base,
+            await projectGuard(d.pool, {
+              project_id: s.project_id,
+              lane: c.lane,
+              now: clockOf(d).now(),
+              calendar: workSettings(d).calendar,
+              origin: s.origin,
+            }),
+          );
       must(
         await ingestItem(cd, item_id, {
           type: ITEM_EVENT.eligibility_checked,
@@ -416,6 +521,29 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
       return;
     }
 
+    case 'breaker_signal': {
+      // One count toward the ET14 breaker of this item's project and lane (R3). Appended under the
+      // command's key, so a redelivery counts once; then the item is told it was carried out.
+      must(
+        await recordBreakerSignal(cd, {
+          project_id: s.project_id,
+          lane: c.lane,
+          source: c.source,
+          item_id: s.item_id,
+          signal_key: c.key,
+        }),
+      );
+      must(
+        await ingestItem(cd, item_id, {
+          type: ITEM_EVENT.command_done,
+          actor: WORK_ACTOR,
+          idempotency_key: `done:${c.key}`,
+          payload: { command_key: c.key },
+        }),
+      );
+      return;
+    }
+
     case 'spawn_item': {
       // A NEW linked item (B16-B19, RELHOLD, R4): its own request on the factory-raised channel N6,
       // its own item, pinned to the PRR and profile as they are now; the origin keeps the SpawnLink.
@@ -474,6 +602,10 @@ export interface WorkPassReport {
   readonly maintenance_holds: number;
   readonly timers_fired: number;
   readonly holds_released: number;
+  /** M9.6: items put under, or released from, a `kill` hold. */
+  readonly kill_holds: number;
+  /** Commands the kill switch (or a control) made wait this pass. */
+  readonly deferred: number;
   /** The maintenance flag was on during the pass. */
   readonly maintenance: boolean;
   readonly dispatched: number;
@@ -488,13 +620,16 @@ export interface DriverRow {
   readonly holds: number;
   readonly underlying: string;
   readonly created_at: Date;
+  readonly catalogue_version: string;
+  readonly catalogue_hash: string;
 }
 
 /** The items the driver looks at: active ones, and finished ones that still have a command out. */
 export async function driverItemRows(pool: pg.Pool): Promise<DriverRow[]> {
   await catchUpWork(pool);
   const q = await pool.query<DriverRow>(
-    `SELECT item_id, terminal, holds, underlying, created_at FROM core.work_item
+    `SELECT item_id, terminal, holds, underlying, created_at, catalogue_version, catalogue_hash
+       FROM core.work_item
       WHERE terminal IS NULL OR outstanding > 0 ORDER BY created_at, item_id`,
   );
   return q.rows;
@@ -525,6 +660,31 @@ export async function driveWork(
   let maintenance_holds = 0;
   let timers_fired = 0;
   let holds_released = 0;
+  let kill_holds = 0;
+  if (d.kill) {
+    try {
+      // A kill is a hold on the items it covers (and its release lifts it), whether or not MM-2 is on.
+      const k = await syncKillHolds(
+        { ...coreDeps(d), kill: d.kill },
+        active.map((r) => r.item_id),
+      );
+      kill_holds = k.placed + k.released;
+    } catch (e) {
+      if (o.onItemError) o.onItemError('kill', e);
+      else throw e;
+    }
+  }
+  try {
+    // Operator controls (hold, maintenance) are holds on the items their scope covers.
+    const c = await syncControlHolds(
+      coreDeps(d),
+      active.map((r) => r.item_id),
+    );
+    kill_holds += c.placed + c.released;
+  } catch (e) {
+    if (o.onItemError) o.onItemError('controls', e);
+    else throw e;
+  }
   try {
     // Only items that can change need a closer look: with MM-2 off, the ones that carry a hold.
     const m = await syncMaintenance(
@@ -541,15 +701,24 @@ export async function driveWork(
     try {
       // A timer is due for an item that is parked or clarifying, or that is old enough that its age
       // limit may have passed (the limit's business days are at least as many calendar days).
-      const ageDays = itemAgeLimitBd(CATALOGUE);
-      const oldBefore = ageDays === null ? 0 : clockOf(d).nowMs() - ageDays * 86_400_000;
-      const timed = active.filter(
-        (r) =>
+      // The limit is the one of the catalogue the item pinned, not the current one.
+      const nowMs = clockOf(d).nowMs();
+      const ageOf = (r: DriverRow): number | null => {
+        const cat = pinnedCatalogueResolver({
+          version: r.catalogue_version,
+          hash: r.catalogue_hash,
+        });
+        return cat === null ? null : itemAgeLimitBd(cat);
+      };
+      const timed = active.filter((r) => {
+        const ageDays = ageOf(r);
+        return (
           r.underlying === 'Parked' ||
           r.underlying === 'Clarifying' ||
           ageDays === null ||
-          r.created_at.getTime() <= oldBefore,
-      );
+          r.created_at.getTime() <= nowMs - ageDays * 86_400_000
+        );
+      });
       timers_fired = (
         await fireTimers(
           d,
@@ -559,7 +728,19 @@ export async function driveWork(
       const held = active.filter((r) => r.holds > 0).map((r) => r.item_id);
       holds_released =
         (await releaseN8Holds(d, held)).released.length +
-        (await releaseAdmissionHolds(d, held)).released.length;
+        (
+          await releaseAdmissionHolds(
+            {
+              ...d,
+              ...(d.capacity
+                ? { capacity: clampedCapacity(d.pool, d.capacity, clockOf(d)) as CapacityPort }
+                : {}),
+            },
+            held,
+          )
+        ).released.length;
+      // R3: a reset gate (M5) that was decided in the ledger clears its breaker.
+      if (d.decisions) await settleBreakerResets({ ...coreDeps(d), decisions: d.decisions });
     } catch (e) {
       if (o.onItemError) o.onItemError('control', e);
       else throw e;
@@ -578,6 +759,7 @@ export async function driveWork(
   let dispatched = 0;
   let failed = 0;
   let dead = 0;
+  let deferred = 0;
   for (let round = 0; round < (o.rounds ?? 20); round++) {
     const out = await dispatchOutbox(
       d.pool,
@@ -589,6 +771,7 @@ export async function driveWork(
     dispatched += out.dispatched;
     failed += out.failed;
     dead += out.dead;
+    deferred += out.deferred ?? 0;
     if (out.dispatched === 0) break;
   }
   return {
@@ -598,6 +781,8 @@ export async function driveWork(
     maintenance_holds,
     timers_fired,
     holds_released,
+    kill_holds,
+    deferred,
     maintenance: mm,
     dispatched,
     failed,

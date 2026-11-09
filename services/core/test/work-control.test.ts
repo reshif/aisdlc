@@ -293,6 +293,8 @@ describe('HELD at admission: FIFO by priority, released only by capacity', () =>
     const c = await newItem({ lane: 'L3' });
     for (const x of [a, b, c]) {
       await runItem(s, d, x.itemId, { stop: (st) => st.phase === 'Held' });
+      // the manual clock stands still: without this two holds share an instant and only an id (random) orders them
+      s.clock.advance(1_000);
     }
     for (const x of [a, b, c]) {
       expect(await state(x.itemId)).toMatchObject({ phase: 'Held', underlying: 'Scheduling' });

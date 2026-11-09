@@ -8,9 +8,11 @@ import {
   CAUSE_E4_HANDED_OVER,
   CAUSE_PARK_TIMEOUT,
   ITEM_EVENT,
+  RELANE_SOURCES,
   SPAWN_RULES,
   canTransitionWorkItem,
   type BackEdgeId,
+  type BreakerSource,
   type GateId,
   type Handoff,
   type HandoffCode,
@@ -263,11 +265,12 @@ function consumeStation(s: ItemState, station: string): void {
 
 /**
  * Leaves what the item was doing: commands that wait for an answer are dropped (their results will be
- * stale), and gates that are pending are withdrawn. A spawn and an unfinished withdrawal stay.
+ * stale), and gates that are pending are withdrawn. A spawn, a breaker signal and an unfinished
+ * withdrawal stay.
  */
 function dropInFlight(s: ItemState, out: ItemCommand[], tag: string): void {
   s.outstanding = s.outstanding.filter(
-    (c) => c.type === 'withdraw_gates' || c.type === 'spawn_item',
+    (c) => c.type === 'withdraw_gates' || c.type === 'spawn_item' || c.type === 'breaker_signal',
   );
   const pending = s.gates.filter((g) => g.status === 'pending' && g.consumed !== true);
   s.gates = s.gates.map((g) => (g.consumed === true ? g : { ...g, consumed: true }));
@@ -306,9 +309,34 @@ function jumpTo(
   if (i < 0) return false;
   dropInFlight(s, out, tag);
   s.waiting = null;
+  s.skip = [];
+  s.relane_pending = null;
   s.cursor = i;
   setUnderlying(s, (routeOf(s, cat)[i] as Station).phase);
   return true;
+}
+
+// ---------------------------------------------------------------- The circuit breaker's inputs (R3)
+
+/**
+ * One count toward the ET14 breaker of this item's project and lane (the catalogue's `counts_from`:
+ * Q1, E4 abandon, E4 takeover, the rework budget). The item keeps its own tally and issues a
+ * `breaker_signal`, whose key is deterministic, so core appends it to the breaker's stream once however
+ * often the item is replayed. The breaker itself, and what it does, is core's projection (M9.5).
+ */
+function countEt14(s: ItemState, out: ItemCommand[], source: BreakerSource, lane?: Lane): void {
+  const n = (s.et14[source] ?? 0) + 1;
+  s.et14[source] = n;
+  issue(
+    s,
+    {
+      type: 'breaker_signal',
+      key: cmdKey(s, 'breaker', source, n),
+      source,
+      lane: lane ?? s.lane ?? s.proposed_lane,
+    },
+    out,
+  );
 }
 
 // ---------------------------------------------------------------- The rework budget and back-edges
@@ -358,9 +386,9 @@ function countEdge(s: ItemState, cat: CatalogueData, out: ItemCommand[], r: Edge
     return 'moved';
   }
   if (budgetExhausted(s, cat)) {
-    // B28: straight to E4, counted toward ET14 (the breaker itself is M9.5).
+    // B28: straight to E4, counted toward ET14 (R3).
     s.rework.by_edge['B28'] = (s.rework.by_edge['B28'] ?? 0) + 1;
-    s.et14['rework_budget'] = (s.et14['rework_budget'] ?? 0) + 1;
+    countEt14(s, out, 'rework_budget');
     openHandoff(s, cat, out, { code: 'E4', trigger: 'B28', step: null });
     return 'moved';
   }
@@ -521,7 +549,7 @@ function ageHandoff(s: ItemState, cat: CatalogueData, out: ItemCommand[]): boole
   if (!phaseReachable(s, 'Handoff')) return false;
   s.clock.age_pending = false;
   s.rework.by_edge['B28'] = (s.rework.by_edge['B28'] ?? 0) + 1;
-  s.et14['rework_budget'] = (s.et14['rework_budget'] ?? 0) + 1;
+  countEt14(s, out, 'rework_budget');
   return openHandoff(s, cat, out, { code: 'E4', trigger: 'B28', step: null });
 }
 
@@ -608,18 +636,18 @@ function chooseHandoff(
       setUnderlying(s, 'S6');
       newLease(s);
       s.waiting = { kind: 'human', what: 'human_led' };
-      s.et14['E4_takeover'] = (s.et14['E4_takeover'] ?? 0) + 1;
+      countEt14(s, out, 'E4_takeover', lane_before);
       return null;
     }
     case 'hand_over_close':
       close();
-      s.et14['E4_takeover'] = (s.et14['E4_takeover'] ?? 0) + 1;
       terminate(s, 'HandedOverClosed', CAUSE_E4_HANDED_OVER, s.seq, out);
+      countEt14(s, out, 'E4_takeover');
       return null;
     case 'abandon':
       close();
-      s.et14['E4_abandon'] = (s.et14['E4_abandon'] ?? 0) + 1;
       terminate(s, 'Abandoned', p.cause ?? CAUSE_E4_ABANDON, s.seq, out);
+      countEt14(s, out, 'E4_abandon');
       return null;
   }
 }
@@ -712,6 +740,20 @@ function onDenied(
         return;
       }
       return handoff('D1');
+    }
+    case 'E1@2.3':
+    case 'E1@4.6': {
+      // R2 refused: the work stays in its lane, and the step the downshift interrupted goes on.
+      const rp = s.relane_pending;
+      s.relane_pending = null;
+      if (rp?.resume != null) {
+        s.waiting = rp.resume;
+        evaluateGates(s, cat, s.seq, out);
+        return;
+      }
+      afterStepDone(s, cat);
+      advance(s, cat, out);
+      return;
     }
     case 'E2@4.5': {
       // B25: redesign 1x, else E4.
@@ -824,6 +866,15 @@ function advance(s: ItemState, cat: CatalogueData, out: ItemCommand[]): void {
     // the lane, so the lane is bound as soon as the item leaves S1.
     if (s.lane === null && st.phase !== 'S1') bindLane(s, 'ready_decision');
     setUnderlying(s, st.phase);
+    // "Done stays done": a re-lane passes the stations of S2-S5 it found already done, and forgets them
+    // once the item is past the planning stages.
+    if (s.skip.length > 0) {
+      if (st.phase !== 'S1' && !SKIPPABLE_PHASES.includes(st.phase)) s.skip = [];
+      else if (s.skip.includes(st.key)) {
+        s.cursor += 1;
+        continue;
+      }
+    }
     switch (st.kind) {
       case 'marker':
         s.cursor += 1;
@@ -853,6 +904,8 @@ function advance(s: ItemState, cat: CatalogueData, out: ItemCommand[]): void {
         return;
       }
       case 'human':
+        // `attempts[key]` counts the visits: a re-lane or a back-edge brings the item here again
+        bump(s, st.key);
         s.waiting = { kind: 'human', what: st.what };
         return;
       case 'human_led':
@@ -873,10 +926,29 @@ function bindLane(s: ItemState, by: string): void {
   s.lane_bound_by = by;
 }
 
+/**
+ * R4: a hotfix whose release is done (it leaves S8b) auto-creates its follow-up item, the lane the
+ * catalogue names for it (L1). The overdue clock and what it blocks are core's, from the SpawnLink.
+ */
+function hotfixFollowUp(s: ItemState, cat: CatalogueData, out: ItemCommand[], left: Station): void {
+  const lane = s.lane ?? s.proposed_lane;
+  const f = cat.lanes[lane].follow_up;
+  if (f === null || left.phase !== 'S8b') return;
+  if (
+    s.spawns.some((x) => x.edge === 'R4') ||
+    s.outstanding.some((c) => c.type === 'spawn_item' && c.edge === 'R4')
+  )
+    return;
+  requestSpawn(s, out, 'R4', SPAWN_RULES.R4.kind, f.lane, 0, s.seq);
+}
+
 /** After a step completes: the agent lease ends when the item leaves S6. */
-function afterStepDone(s: ItemState, cat: CatalogueData): void {
+function afterStepDone(s: ItemState, cat: CatalogueData, out?: ItemCommand[]): void {
+  const left = routeOf(s, cat)[s.cursor];
   s.cursor += 1;
   const next = routeOf(s, cat)[s.cursor];
+  if (out !== undefined && left !== undefined && next?.phase !== 'S8b')
+    hotfixFollowUp(s, cat, out, left);
   if (
     s.lease !== null &&
     next !== undefined &&
@@ -994,6 +1066,9 @@ function evaluateGates(s: ItemState, cat: CatalogueData, seq: number, out: ItemC
     if (act === 'continue') afterStepDone(s, cat);
     else if (act === 'resume') {
       // the cursor stays, and `advance` runs the step again with the gate approved
+    } else if ('relane' in act) {
+      commitR2(s, cat, out);
+      return;
     } else if ('chain' in act) {
       const next = `${step}!${act.chain}`;
       s.waiting = {
@@ -1074,6 +1149,9 @@ export function interpret(
       spawns: [],
       rework: { total: 0, by_edge: {}, by_loop: {} },
       et14: {},
+      relanes: [],
+      relane_pending: null,
+      skip: [],
       clock: { frozen_ms: 0, frozen_since: null, age_exceeded: false, age_pending: false },
       park: null,
       clarify: null,
@@ -1171,7 +1249,7 @@ export function interpret(
           text_hash: a.text_hash,
         });
       }
-      afterStepDone(s, catalogue);
+      afterStepDone(s, catalogue, out);
       advance(s, catalogue, out);
       break;
     }
@@ -1216,7 +1294,8 @@ export function interpret(
         ignore(s, `stage_gate_needed:${p.step}:stale`);
         break;
       }
-      if (!CONDITIONAL_GATES[p.gate].steps.includes(p.step)) {
+      // E1 is R2's: it opens only through a relane request, which carries the lane it would go to.
+      if (p.gate === 'E1' || !CONDITIONAL_GATES[p.gate].steps.includes(p.step)) {
         s.waiting = {
           kind: 'stuck',
           reason: `gate_not_raisable:${p.gate}@${p.step}`,
@@ -1240,6 +1319,12 @@ export function interpret(
     case ITEM_EVENT.rework_requested: {
       const why = applyRework(s, catalogue, out, event.payload, event.seq);
       if (why !== null) ignore(s, `rework_requested:${event.payload.edge}:${why}`);
+      break;
+    }
+
+    case ITEM_EVENT.relane_requested: {
+      const why = applyRelane(s, catalogue, out, event.payload, event.seq);
+      if (why !== null) ignore(s, `relane_requested:${event.payload.edge}:${why}`);
       break;
     }
 
@@ -1272,6 +1357,14 @@ export function interpret(
         break;
       }
       s.waiting = null;
+      const rp = s.relane_pending;
+      if (rp !== null && rp.check_key === p.command_key) {
+        // R1's target lane was asked about: a lane this project may run is taken, any other is not.
+        s.relane_pending = null;
+        if (p.route === 'normal' && p.eligible) commitR1(s, catalogue, out, rp);
+        else openHandoff(s, catalogue, out, { code: 'E4', trigger: 'R1', step: rp.step });
+        break;
+      }
       if (p.route === 'n8_hold') {
         // N8: no active PRR. The item waits where it is; the M4 that activates one releases the hold.
         placeHold(s, { hold_id: `n8:${p.command_key}`, reason: 'N8', origin: null }, event.at);
@@ -1698,6 +1791,196 @@ const AMEND_PHASES: readonly WorkItemPhase[] = [
   'S7',
   'G4',
 ];
+
+/** Phases whose stations a re-lane may find already done. */
+const SKIPPABLE_PHASES: readonly WorkItemPhase[] = ['S2', 'S3', 'S4', 'S5'];
+const PLANNING_STAGES: readonly string[] = ['S2', 'S3', 'S4'];
+
+/**
+ * How much planning a lane carries: its stations in S2-S5 under the item's profile. R1 only goes to a
+ * lane with more, R2 only to a lane with less; nothing here names a lane (L7 and L8 are not part of
+ * the ladder: a spike and a human-led item are neither up nor down from the others).
+ */
+function planningDepth(s: ItemState, cat: CatalogueData, lane: Lane): number {
+  const route = buildRoute(cat.lanes[lane], effectiveProfile(s.profile, s.tier));
+  return route.filter((st) => st.kind !== 'marker' && SKIPPABLE_PHASES.includes(st.phase)).length;
+}
+
+const LADDER_EXCLUDED: readonly Lane[] = ['L7', 'L8'];
+
+/** Stations of `route` (S2-S5) already done: a step with an output, a station whose gates were approved. */
+function doneStations(s: ItemState, route: readonly Station[]): Set<string> {
+  const done = new Set<string>();
+  for (const st of route) {
+    if (!SKIPPABLE_PHASES.includes(st.phase)) continue;
+    if (st.kind === 'step' && s.outputs[st.step] !== undefined) done.add(st.key);
+    if (st.kind === 'gates') {
+      const latest = new Map<GateId, string | null>();
+      for (const g of s.gates) if (g.station === st.key) latest.set(g.gate, g.outcome);
+      if (st.gates.every((g) => latest.get(g) === 'approve')) done.add(st.key);
+    }
+  }
+  return done;
+}
+
+/**
+ * R1 and R2 asked for. Returns why it was not taken (nothing changed), or `null`. R1 comes from a stage
+ * (6.5, 7.3, 7.4 for X2) against its own command; R2 from a stage at 2.3 or observed at 4.6 while the
+ * design review is open. `RELANE_SOURCES` says which steps may say which trigger.
+ */
+function applyRelane(
+  s: ItemState,
+  cat: CatalogueData,
+  out: ItemCommand[],
+  p: ItemEventPayload<'item.relane_requested'>,
+  seq: number,
+): string | null {
+  const sources = RELANE_SOURCES[p.edge] as Readonly<Record<string, readonly string[]>>;
+  if (!(sources[p.step] ?? []).includes(p.trigger)) return `not_raisable_at_${p.step}`;
+  if (s.relane_pending !== null) return 'relane_pending';
+  const from = s.lane ?? s.proposed_lane;
+  if (LADDER_EXCLUDED.includes(from) || LADDER_EXCLUDED.includes(p.to_lane))
+    return 'not_on_the_ladder';
+  if (p.to_lane === from) return 'same_lane';
+  const up = planningDepth(s, cat, p.to_lane) > planningDepth(s, cat, from);
+  const down = planningDepth(s, cat, p.to_lane) < planningDepth(s, cat, from);
+  if (p.edge === 'R1' && !up) return 'not_an_upshift';
+  if (p.edge === 'R2' && !down) return 'not_a_downshift';
+
+  const pending = {
+    edge: p.edge,
+    trigger: p.trigger,
+    from_lane: from,
+    to_lane: p.to_lane,
+    step: p.step,
+    asked_seq: seq,
+  } as const;
+
+  if (p.edge === 'R1') {
+    const c =
+      p.command_key === undefined ? undefined : s.outstanding.find((x) => x.key === p.command_key);
+    if (c === undefined || c.type !== 'run_stage') return 'stale';
+    if (c.step !== p.step) return `wrong_step:${c.step}`;
+    takeOutstanding(s, c.key);
+    s.waiting = null;
+    // The target lane must be one the project may run (1.4 again): R1 is free, not a way round it.
+    const key = cmdKey(s, 'relane', seq, 'eligibility');
+    s.relane_pending = { ...pending, check_key: key, resume: null };
+    issue(s, { type: 'check_eligibility', key, lane: p.to_lane }, out);
+    s.waiting = { kind: 'command', key };
+    return null;
+  }
+
+  // R2: needs E1. At 2.3 the stage raised it; at 4.6 it is observed while G3d is open.
+  if (p.step === '2.3') {
+    const c =
+      p.command_key === undefined ? undefined : s.outstanding.find((x) => x.key === p.command_key);
+    if (c === undefined || c.type !== 'run_stage') return 'stale';
+    if (c.step !== p.step) return `wrong_step:${c.step}`;
+    takeOutstanding(s, c.key);
+    s.waiting = null;
+    s.relane_pending = { ...pending, check_key: null, resume: null };
+    openConditional(s, cat, out, '2.3', 'E1');
+    return null;
+  }
+  const w = s.waiting;
+  if (w?.kind !== 'gates' || w.conditional !== null || !w.gates.includes('G3d'))
+    return 'not_at_4.6';
+  s.relane_pending = { ...pending, check_key: null, resume: w };
+  openConditional(s, cat, out, '4.6', 'E1');
+  return null;
+}
+
+/**
+ * R1 takes effect: the lane changes (free, logged), and the item goes to the FIRST stage of S2, S3 or
+ * S4 that the new lane has and the item has not done. What it did stays done: the stations after the
+ * inserted one that are done are passed. With nothing missing the item goes on where it was.
+ */
+function commitR1(
+  s: ItemState,
+  cat: CatalogueData,
+  out: ItemCommand[],
+  rp: NonNullable<ItemState['relane_pending']>,
+): void {
+  const origin = s.underlying;
+  s.lane = rp.to_lane;
+  s.proposed_lane = rp.to_lane;
+  s.lane_bound_by = `R1:${s.seq}`;
+  const route = routeOf(s, cat);
+  const done = doneStations(s, route);
+  const first = route.findIndex(
+    (st) =>
+      st.kind !== 'marker' &&
+      PLANNING_STAGES.includes(st.phase) &&
+      st.phase !== 'S5' &&
+      !done.has(st.key),
+  );
+  const target = first < 0 ? undefined : route[first];
+  const step: StepId =
+    target === undefined
+      ? rp.step
+      : target.kind === 'step' || target.kind === 'human'
+        ? target.step
+        : target.kind === 'gates'
+          ? target.after
+          : rp.step;
+  s.relanes.push({
+    edge: 'R1',
+    trigger: rp.trigger,
+    from_lane: rp.from_lane,
+    to_lane: rp.to_lane,
+    step: rp.step,
+    target: step,
+    asked_seq: rp.asked_seq,
+    applied_seq: s.seq,
+  });
+  if (target === undefined) {
+    // nothing to insert: the item goes on in the new lane from where it was
+    const here = stationOfStep(route, rp.step);
+    if (here < 0) return stuck(s, `R1:no_station_for_${rp.step}`);
+    s.cursor = here;
+    advance(s, cat, out);
+    return;
+  }
+  dropInFlight(s, out, 'R1');
+  s.waiting = null;
+  s.lease = null;
+  s.cursor = first;
+  if (!phaseReachable(s, target.phase)) return stuck(s, `R1:${origin}_to_${target.phase}`);
+  setUnderlying(s, target.phase);
+  s.skip = [...done].filter((k) => route.findIndex((x) => x.key === k) > first);
+  advance(s, cat, out);
+}
+
+/** R2 takes effect (E1 approved): back to 1.3 in the new lane, G0 again; what is done stays done. */
+function commitR2(s: ItemState, cat: CatalogueData, out: ItemCommand[]): void {
+  const rp = s.relane_pending;
+  if (rp === null) return stuck(s, 'R2:not_pending');
+  s.relane_pending = null;
+  const before = { lane: s.lane, proposed: s.proposed_lane, by: s.lane_bound_by };
+  s.proposed_lane = rp.to_lane;
+  s.lane = null;
+  s.lane_bound_by = null;
+  if (!jumpTo(s, cat, out, { step: '1.3' }, 'R2')) {
+    s.proposed_lane = before.proposed;
+    s.lane = before.lane;
+    s.lane_bound_by = before.by;
+    return stuck(s, 'R2:no_1.3');
+  }
+  s.lease = null;
+  s.relanes.push({
+    edge: 'R2',
+    trigger: rp.trigger,
+    from_lane: rp.from_lane,
+    to_lane: rp.to_lane,
+    step: rp.step,
+    target: '1.3',
+    asked_seq: rp.asked_seq,
+    applied_seq: s.seq,
+  });
+  s.skip = [...doneStations(s, routeOf(s, cat))];
+  advance(s, cat, out);
+}
 
 function openConditional(
   s: ItemState,

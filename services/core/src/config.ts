@@ -16,7 +16,9 @@ const Callers = z.record(
   z.string().min(1),
   z.strictObject({
     token_ref: z.string().min(1),
-    scopes: z.array(z.enum(['read', 'onboard', 'settings', 'registry', 'portal', 'work'])).min(1),
+    scopes: z
+      .array(z.enum(['read', 'onboard', 'settings', 'registry', 'portal', 'work', 'ops']))
+      .min(1),
   }),
 );
 

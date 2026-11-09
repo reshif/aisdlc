@@ -36,6 +36,7 @@
     "@aisdlc/decisions": "0.0.0",
     "@aisdlc/identity": "0.0.0",
     "@aisdlc/kernel": "0.0.0",
+    "@aisdlc/killswitch": "0.0.0",
     "@aisdlc/kms-local": "0.0.0",
     "@aisdlc/ledger": "0.0.0",
     "@aisdlc/loops": "0.0.0",

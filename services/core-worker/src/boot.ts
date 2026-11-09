@@ -8,6 +8,8 @@ import {
   cardDepsFrom,
   cardsLoop,
   identityEligibility,
+  killHoldersLoop,
+  killObserverLoop,
   registerCoreConfig,
   roleMapSyncLoop,
   s0DriverLoop,
@@ -28,6 +30,7 @@ import {
   type WorkInFlightPort,
 } from '@aisdlc/loops';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
+import { HttpKillState, KillswitchClient } from '@aisdlc/killswitch/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import { HttpWitness } from '@aisdlc/witness/client';
 import {
@@ -175,6 +178,34 @@ export async function bootCoreWorker(
           }),
         );
     }
+    // AR9: the kill switch is its own service. This process reads it (admission), pushes the holders of
+    // every project to it, and records its journal; nothing of it runs inside core.
+    const killClient = cfg.killswitch
+      ? new KillswitchClient({ baseUrl: cfg.killswitch.url, token: cfg.killswitch.token })
+      : null;
+    const killState = cfg.killswitch
+      ? new HttpKillState({ baseUrl: cfg.killswitch.url, token: cfg.killswitch.token })
+      : undefined;
+    if (killClient) {
+      supervisor.add(
+        killHoldersLoop(
+          { pool, eligibility: identityEligibility(readPool, registry), link: killClient },
+          { intervalMs: cfg.killHoldersIntervalMs, startDelayMs: 1_500 },
+        ),
+      );
+      if (ledger) {
+        // The kill switch's public key, pinned from key custody: a journal is checked against it, never
+        // against a key the kill switch hands out itself.
+        const ksKey = await httpKeyCustodyFromEnv(env).publicKey('dev:killswitch');
+        if (!ksKey.ok) throw new Error(`kill switch public key: ${ksKey.error.message}`);
+        supervisor.add(
+          killObserverLoop(
+            { pool, ledger, link: killClient, key: ksKey.value },
+            { intervalMs: cfg.killObserverIntervalMs, startDelayMs: 3_500 },
+          ),
+        );
+      }
+    }
     if (cfg.stagePorts !== 'none') {
       if (!ledger)
         throw new Error(
@@ -187,6 +218,7 @@ export async function bootCoreWorker(
             pool,
             ports: deps.stagePorts ?? new FakeStagePorts(),
             capacity: deps.capacity ?? new FakeCapacity(),
+            ...(killState ? { kill: killState } : {}),
             settings: workSettingsFrom(rd),
             decisions: {
               pool,
@@ -282,7 +314,7 @@ export async function bootCoreWorker(
         );
       }
     }
-    const app = createCoreWorkerApp(supervisor);
+    const app = createCoreWorkerApp(supervisor, killState ? { kill: killState } : {});
     const url = await listen(app, listenOpts);
     supervisor.start();
     return {

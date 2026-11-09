@@ -28,8 +28,10 @@ import { CatalogueData } from './schema.js';
  * (G5, G6) leaves behind: off means absent, so the phase after it follows directly.
  * 1.2.0 (M9.4): the phase table gains `-> Handoff` from every active phase (E4 is reached directly from
  * B2, B23-B25 and B28), and `flow_limits` holds D4 "hand back once" and X3 "find alternative, 1x".
+ * 1.3.0 (M9.5): ET14's `trip` threshold is 3 (the flow gives R3 no number), and the phase table is
+ * unchanged. Released versions are immutable snapshots (`history.ts`); never edit one.
  */
-export const CATALOGUE_VERSION = '1.2.0';
+export const CATALOGUE_VERSION = '1.3.0';
 
 /** The catalogue, validated by `CatalogueData` when this module loads. An invalid catalogue throws. */
 export const CATALOGUE: CatalogueData = CatalogueData.parse({

@@ -15,3 +15,4 @@ export * from './core-clients.js';
 export * from './http-codehost.js';
 export * from './stage-ports.js';
 export * from './capacity.js';
+export * from './kill-state.js';

@@ -1,0 +1,3947 @@
+{
+  "version": "1.3.0",
+  "hash": "601beaae85ea26e30b0f13349571b76d549871ea7020afbd2199fb313a86a123",
+  "catalogue": {
+    "version": "1.3.0",
+    "lanes": {
+      "L0": {
+        "id": "L0",
+        "label": "hotfix",
+        "enter_at": "SCHED",
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S3",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S4",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S5",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S6",
+            "mode": "full",
+            "steps": ["6.0", "6.1", "6.2", "6.3", "6.4", "6.5", "6.6"]
+          },
+          {
+            "stage": "S7",
+            "mode": "full",
+            "steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"]
+          },
+          {
+            "stage": "S8",
+            "mode": "full",
+            "steps": ["8.1", "8.2"]
+          },
+          {
+            "stage": "S8b",
+            "mode": "full",
+            "steps": ["S8b"]
+          },
+          {
+            "stage": "S9",
+            "mode": "full",
+            "steps": ["9.2", "9.3", "9.4", "9.5"]
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3o",
+            "step": "6.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "oracle code deviates from the G2-approved specs"
+          },
+          {
+            "gate": "X1",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "irreversible operation"
+          },
+          {
+            "gate": "X3",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "new package"
+          },
+          {
+            "gate": "E6",
+            "step": "7.2",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "locked test must change (B12)"
+          },
+          {
+            "gate": "X2",
+            "step": "7.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "protected path touched"
+          },
+          {
+            "gate": "E2",
+            "step": "7.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "constitution violation found in S7"
+          },
+          {
+            "gate": "G4",
+            "step": "7.6",
+            "rel": "after",
+            "presence": "required",
+            "condition": null
+          },
+          {
+            "gate": "G5",
+            "step": "8.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G6",
+            "step": "9.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "X4",
+            "step": "9.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "break-glass was used"
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "repro_test",
+          "mandatory_steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+          "mandatory_gates": ["G4"],
+          "mandatory_exemption": null
+        },
+        "exit": "standard",
+        "follow_up": {
+          "lane": "L1",
+          "overdue": {
+            "key": "overdue",
+            "value": 5,
+            "unit": "business_days",
+            "tune": false
+          },
+          "effect": "block_new_agent_items"
+        },
+        "reentry": null,
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none",
+          "whether L0 is allowed at any onboarding level (OB §2.1 is silent)"
+        ]
+      },
+      "L1": {
+        "id": "L1",
+        "label": null,
+        "enter_at": "3.1",
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S3",
+            "mode": "partial",
+            "steps": null
+          },
+          {
+            "stage": "S4",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S5",
+            "mode": "partial",
+            "steps": null
+          },
+          {
+            "stage": "S6",
+            "mode": "full",
+            "steps": ["6.0", "6.1", "6.2", "6.3", "6.4", "6.5", "6.6"]
+          },
+          {
+            "stage": "S7",
+            "mode": "full",
+            "steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"]
+          },
+          {
+            "stage": "S8",
+            "mode": "full",
+            "steps": ["8.1", "8.2"]
+          },
+          {
+            "stage": "S8b",
+            "mode": "full",
+            "steps": ["S8b"]
+          },
+          {
+            "stage": "S9",
+            "mode": "full",
+            "steps": ["9.2", "9.3", "9.4", "9.5"]
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G2",
+            "step": "3.5",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3s",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3o",
+            "step": "6.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "oracle code deviates from the G2-approved specs"
+          },
+          {
+            "gate": "X1",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "irreversible operation"
+          },
+          {
+            "gate": "X3",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "new package"
+          },
+          {
+            "gate": "E6",
+            "step": "7.2",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "locked test must change (B12)"
+          },
+          {
+            "gate": "X2",
+            "step": "7.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "protected path touched"
+          },
+          {
+            "gate": "E2",
+            "step": "7.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "constitution violation found in S7"
+          },
+          {
+            "gate": "G4",
+            "step": "7.6",
+            "rel": "after",
+            "presence": "required",
+            "condition": null
+          },
+          {
+            "gate": "G5",
+            "step": "8.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G6",
+            "step": "9.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "X4",
+            "step": "9.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "break-glass was used"
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "unspecified",
+          "mandatory_steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+          "mandatory_gates": ["G4"],
+          "mandatory_exemption": null
+        },
+        "exit": "standard",
+        "follow_up": null,
+        "reentry": null,
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none",
+          "oracle source: the flow names it only for L0 and the full path",
+          "which steps of the partial S3 and S5 run: the flow says \"partial\" and no more",
+          "default gating for G3 and G3s on L1-L3: OB §1C gives defaults for L4-L6 only",
+          "how L1, L2 and L3 differ: the flow groups them as one"
+        ]
+      },
+      "L2": {
+        "id": "L2",
+        "label": "remediation",
+        "enter_at": "3.1",
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S3",
+            "mode": "partial",
+            "steps": null
+          },
+          {
+            "stage": "S4",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S5",
+            "mode": "partial",
+            "steps": null
+          },
+          {
+            "stage": "S6",
+            "mode": "full",
+            "steps": ["6.0", "6.1", "6.2", "6.3", "6.4", "6.5", "6.6"]
+          },
+          {
+            "stage": "S7",
+            "mode": "full",
+            "steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"]
+          },
+          {
+            "stage": "S8",
+            "mode": "full",
+            "steps": ["8.1", "8.2"]
+          },
+          {
+            "stage": "S8b",
+            "mode": "full",
+            "steps": ["S8b"]
+          },
+          {
+            "stage": "S9",
+            "mode": "full",
+            "steps": ["9.2", "9.3", "9.4", "9.5"]
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G2",
+            "step": "3.5",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3s",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3o",
+            "step": "6.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "oracle code deviates from the G2-approved specs"
+          },
+          {
+            "gate": "X1",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "irreversible operation"
+          },
+          {
+            "gate": "X3",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "new package"
+          },
+          {
+            "gate": "E6",
+            "step": "7.2",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "locked test must change (B12)"
+          },
+          {
+            "gate": "X2",
+            "step": "7.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "protected path touched"
+          },
+          {
+            "gate": "E2",
+            "step": "7.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "constitution violation found in S7"
+          },
+          {
+            "gate": "G4",
+            "step": "7.6",
+            "rel": "after",
+            "presence": "required",
+            "condition": null
+          },
+          {
+            "gate": "G5",
+            "step": "8.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G6",
+            "step": "9.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "X4",
+            "step": "9.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "break-glass was used"
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "unspecified",
+          "mandatory_steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+          "mandatory_gates": ["G4"],
+          "mandatory_exemption": null
+        },
+        "exit": "standard",
+        "follow_up": null,
+        "reentry": null,
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none",
+          "oracle source: the flow names it only for L0 and the full path",
+          "which steps of the partial S3 and S5 run: the flow says \"partial\" and no more",
+          "default gating for G3 and G3s on L1-L3: OB §1C gives defaults for L4-L6 only",
+          "how L1, L2 and L3 differ: the flow groups them as one"
+        ]
+      },
+      "L3": {
+        "id": "L3",
+        "label": null,
+        "enter_at": "3.1",
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S3",
+            "mode": "partial",
+            "steps": null
+          },
+          {
+            "stage": "S4",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S5",
+            "mode": "partial",
+            "steps": null
+          },
+          {
+            "stage": "S6",
+            "mode": "full",
+            "steps": ["6.0", "6.1", "6.2", "6.3", "6.4", "6.5", "6.6"]
+          },
+          {
+            "stage": "S7",
+            "mode": "full",
+            "steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"]
+          },
+          {
+            "stage": "S8",
+            "mode": "full",
+            "steps": ["8.1", "8.2"]
+          },
+          {
+            "stage": "S8b",
+            "mode": "full",
+            "steps": ["S8b"]
+          },
+          {
+            "stage": "S9",
+            "mode": "full",
+            "steps": ["9.2", "9.3", "9.4", "9.5"]
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G2",
+            "step": "3.5",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3s",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3o",
+            "step": "6.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "oracle code deviates from the G2-approved specs"
+          },
+          {
+            "gate": "X1",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "irreversible operation"
+          },
+          {
+            "gate": "X3",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "new package"
+          },
+          {
+            "gate": "E6",
+            "step": "7.2",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "locked test must change (B12)"
+          },
+          {
+            "gate": "X2",
+            "step": "7.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "protected path touched"
+          },
+          {
+            "gate": "E2",
+            "step": "7.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "constitution violation found in S7"
+          },
+          {
+            "gate": "G4",
+            "step": "7.6",
+            "rel": "after",
+            "presence": "required",
+            "condition": null
+          },
+          {
+            "gate": "G5",
+            "step": "8.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G6",
+            "step": "9.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "X4",
+            "step": "9.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "break-glass was used"
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "unspecified",
+          "mandatory_steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+          "mandatory_gates": ["G4"],
+          "mandatory_exemption": null
+        },
+        "exit": "standard",
+        "follow_up": null,
+        "reentry": null,
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none",
+          "oracle source: the flow names it only for L0 and the full path",
+          "which steps of the partial S3 and S5 run: the flow says \"partial\" and no more",
+          "default gating for G3 and G3s on L1-L3: OB §1C gives defaults for L4-L6 only",
+          "how L1, L2 and L3 differ: the flow groups them as one"
+        ]
+      },
+      "L4": {
+        "id": "L4",
+        "label": null,
+        "enter_at": "2.1",
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "partial",
+            "steps": ["2.1", "2.1b", "2.2", "2.3"]
+          },
+          {
+            "stage": "S3",
+            "mode": "full",
+            "steps": ["3.1", "3.2", "3.3", "3.4", "3.5"]
+          },
+          {
+            "stage": "S4",
+            "mode": "full",
+            "steps": ["4.1", "4.2", "4.3", "4.4", "4.5", "4.6"]
+          },
+          {
+            "stage": "S5",
+            "mode": "full",
+            "steps": ["5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7", "5.8"]
+          },
+          {
+            "stage": "S6",
+            "mode": "full",
+            "steps": ["6.0", "6.1", "6.2", "6.3", "6.4", "6.5", "6.6"]
+          },
+          {
+            "stage": "S7",
+            "mode": "full",
+            "steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"]
+          },
+          {
+            "stage": "S8",
+            "mode": "full",
+            "steps": ["8.1", "8.2"]
+          },
+          {
+            "stage": "S8b",
+            "mode": "full",
+            "steps": ["S8b"]
+          },
+          {
+            "stage": "S9",
+            "mode": "full",
+            "steps": ["9.2", "9.3", "9.4", "9.5"]
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G2",
+            "step": "3.5",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3d",
+            "step": "4.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3s",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3o",
+            "step": "6.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "oracle code deviates from the G2-approved specs"
+          },
+          {
+            "gate": "X1",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "irreversible operation"
+          },
+          {
+            "gate": "X3",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "new package"
+          },
+          {
+            "gate": "E2",
+            "step": "4.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "design violates the constitution"
+          },
+          {
+            "gate": "E6",
+            "step": "7.2",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "locked test must change (B12)"
+          },
+          {
+            "gate": "X2",
+            "step": "7.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "protected path touched"
+          },
+          {
+            "gate": "E2",
+            "step": "7.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "constitution violation found in S7"
+          },
+          {
+            "gate": "G4",
+            "step": "7.6",
+            "rel": "after",
+            "presence": "required",
+            "condition": null
+          },
+          {
+            "gate": "G5",
+            "step": "8.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G6",
+            "step": "9.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "X4",
+            "step": "9.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "break-glass was used"
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "g2_oracle_specs",
+          "mandatory_steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+          "mandatory_gates": ["G4"],
+          "mandatory_exemption": null
+        },
+        "exit": "standard",
+        "follow_up": null,
+        "reentry": null,
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none",
+          "how L4 and L5 differ in the flow: not drawn (L5 needs staging separation, OB §2.1)"
+        ]
+      },
+      "L5": {
+        "id": "L5",
+        "label": null,
+        "enter_at": "2.1",
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "partial",
+            "steps": ["2.1", "2.1b", "2.2", "2.3"]
+          },
+          {
+            "stage": "S3",
+            "mode": "full",
+            "steps": ["3.1", "3.2", "3.3", "3.4", "3.5"]
+          },
+          {
+            "stage": "S4",
+            "mode": "full",
+            "steps": ["4.1", "4.2", "4.3", "4.4", "4.5", "4.6"]
+          },
+          {
+            "stage": "S5",
+            "mode": "full",
+            "steps": ["5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7", "5.8"]
+          },
+          {
+            "stage": "S6",
+            "mode": "full",
+            "steps": ["6.0", "6.1", "6.2", "6.3", "6.4", "6.5", "6.6"]
+          },
+          {
+            "stage": "S7",
+            "mode": "full",
+            "steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"]
+          },
+          {
+            "stage": "S8",
+            "mode": "full",
+            "steps": ["8.1", "8.2"]
+          },
+          {
+            "stage": "S8b",
+            "mode": "full",
+            "steps": ["S8b"]
+          },
+          {
+            "stage": "S9",
+            "mode": "full",
+            "steps": ["9.2", "9.3", "9.4", "9.5"]
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G2",
+            "step": "3.5",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3d",
+            "step": "4.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3s",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3o",
+            "step": "6.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "oracle code deviates from the G2-approved specs"
+          },
+          {
+            "gate": "X1",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "irreversible operation"
+          },
+          {
+            "gate": "X3",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "new package"
+          },
+          {
+            "gate": "E2",
+            "step": "4.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "design violates the constitution"
+          },
+          {
+            "gate": "E6",
+            "step": "7.2",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "locked test must change (B12)"
+          },
+          {
+            "gate": "X2",
+            "step": "7.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "protected path touched"
+          },
+          {
+            "gate": "E2",
+            "step": "7.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "constitution violation found in S7"
+          },
+          {
+            "gate": "G4",
+            "step": "7.6",
+            "rel": "after",
+            "presence": "required",
+            "condition": null
+          },
+          {
+            "gate": "G5",
+            "step": "8.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G6",
+            "step": "9.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "X4",
+            "step": "9.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "break-glass was used"
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "g2_oracle_specs",
+          "mandatory_steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+          "mandatory_gates": ["G4"],
+          "mandatory_exemption": null
+        },
+        "exit": "standard",
+        "follow_up": null,
+        "reentry": null,
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none",
+          "how L4 and L5 differ in the flow: not drawn (L5 needs staging separation, OB §2.1)"
+        ]
+      },
+      "L6": {
+        "id": "L6",
+        "label": "initiative",
+        "enter_at": "2.1",
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "full",
+            "steps": ["2.1", "2.1b", "2.2", "2.3", "2.4", "2.5"]
+          },
+          {
+            "stage": "S3",
+            "mode": "full",
+            "steps": ["3.1", "3.2", "3.3", "3.4", "3.5"]
+          },
+          {
+            "stage": "S4",
+            "mode": "full",
+            "steps": ["4.1", "4.2", "4.3", "4.4", "4.5", "4.6"]
+          },
+          {
+            "stage": "S5",
+            "mode": "full",
+            "steps": ["5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7", "5.8"]
+          },
+          {
+            "stage": "S6",
+            "mode": "full",
+            "steps": ["6.0", "6.1", "6.2", "6.3", "6.4", "6.5", "6.6"]
+          },
+          {
+            "stage": "S7",
+            "mode": "full",
+            "steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"]
+          },
+          {
+            "stage": "S8",
+            "mode": "full",
+            "steps": ["8.1", "8.2"]
+          },
+          {
+            "stage": "S8b",
+            "mode": "full",
+            "steps": ["S8b"]
+          },
+          {
+            "stage": "S9",
+            "mode": "full",
+            "steps": ["9.2", "9.3", "9.4", "9.5"]
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1f",
+            "step": "2.5",
+            "rel": "at",
+            "presence": "required",
+            "condition": null
+          },
+          {
+            "gate": "G2",
+            "step": "3.5",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3d",
+            "step": "4.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3s",
+            "step": "5.8",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G3o",
+            "step": "6.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "oracle code deviates from the G2-approved specs"
+          },
+          {
+            "gate": "X1",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "irreversible operation"
+          },
+          {
+            "gate": "X3",
+            "step": "6.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "new package"
+          },
+          {
+            "gate": "E2",
+            "step": "4.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "design violates the constitution"
+          },
+          {
+            "gate": "E6",
+            "step": "7.2",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "locked test must change (B12)"
+          },
+          {
+            "gate": "X2",
+            "step": "7.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "protected path touched"
+          },
+          {
+            "gate": "E2",
+            "step": "7.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "constitution violation found in S7"
+          },
+          {
+            "gate": "G4",
+            "step": "7.6",
+            "rel": "after",
+            "presence": "required",
+            "condition": null
+          },
+          {
+            "gate": "G5",
+            "step": "8.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G6",
+            "step": "9.2",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "X4",
+            "step": "9.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "break-glass was used"
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "g2_oracle_specs",
+          "mandatory_steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+          "mandatory_gates": ["G4"],
+          "mandatory_exemption": null
+        },
+        "exit": "standard",
+        "follow_up": null,
+        "reentry": null,
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none"
+        ]
+      },
+      "L7": {
+        "id": "L7",
+        "label": "spike",
+        "enter_at": "2.1",
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "partial",
+            "steps": ["2.1", "2.1b", "2.2", "2.3"]
+          },
+          {
+            "stage": "S3",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S4",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S5",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S6",
+            "mode": "partial",
+            "steps": ["6.0", "6.1", "6.2", "6.3", "6.4", "6.5"]
+          },
+          {
+            "stage": "S7",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S8",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S8b",
+            "mode": "skipped",
+            "steps": []
+          },
+          {
+            "stage": "S9",
+            "mode": "partial",
+            "steps": ["9.3"]
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "X4",
+            "step": "9.3",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "break-glass was used"
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "unspecified",
+          "mandatory_steps": [],
+          "mandatory_gates": [],
+          "mandatory_exemption": "L7 never reaches the Push Broker or G4 (FIX 6): the throwaway S6 ends in the spike report, which goes straight to 9.3"
+        },
+        "exit": "spike_report",
+        "follow_up": null,
+        "reentry": null,
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none",
+          "whether L7 is allowed at any onboarding level (OB §2.1 is silent)",
+          "oracle source of a throwaway build",
+          "whether 9.4 Learn runs after the spike report (the flow draws SPIKE -> 9.3 only)",
+          "whether the X-gates of 6.4 apply in the throwaway S6"
+        ]
+      },
+      "L8": {
+        "id": "L8",
+        "label": "human-led",
+        "enter_at": null,
+        "stages": [
+          {
+            "stage": "S1",
+            "mode": "full",
+            "steps": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]
+          },
+          {
+            "stage": "S2",
+            "mode": "unspecified",
+            "steps": null
+          },
+          {
+            "stage": "S3",
+            "mode": "unspecified",
+            "steps": null
+          },
+          {
+            "stage": "S4",
+            "mode": "unspecified",
+            "steps": null
+          },
+          {
+            "stage": "S5",
+            "mode": "unspecified",
+            "steps": null
+          },
+          {
+            "stage": "S6",
+            "mode": "unspecified",
+            "steps": null
+          },
+          {
+            "stage": "S7",
+            "mode": "full",
+            "steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"]
+          },
+          {
+            "stage": "S8",
+            "mode": "full",
+            "steps": ["8.1", "8.2"]
+          },
+          {
+            "stage": "S8b",
+            "mode": "unspecified",
+            "steps": null
+          },
+          {
+            "stage": "S9",
+            "mode": "unspecified",
+            "steps": null
+          }
+        ],
+        "gates": [
+          {
+            "gate": "G0",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "G1",
+            "step": "1.6",
+            "rel": "after",
+            "presence": "by_profile",
+            "condition": null
+          },
+          {
+            "gate": "E6",
+            "step": "7.2",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "locked test must change (B12)"
+          },
+          {
+            "gate": "X2",
+            "step": "7.4",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "protected path touched"
+          },
+          {
+            "gate": "E2",
+            "step": "7.5",
+            "rel": "after",
+            "presence": "conditional",
+            "condition": "constitution violation found in S7"
+          },
+          {
+            "gate": "G4",
+            "step": "7.6",
+            "rel": "after",
+            "presence": "required",
+            "condition": null
+          }
+        ],
+        "profile": {
+          "default_envelope": {
+            "budget_cents": null
+          },
+          "oracle_source": "unspecified",
+          "mandatory_steps": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6"],
+          "mandatory_gates": ["G4"],
+          "mandatory_exemption": null
+        },
+        "exit": "standard",
+        "follow_up": null,
+        "reentry": {
+          "D4": "6.4",
+          "D5": "7.1"
+        },
+        "unspecified": [
+          "default envelope value: the flow names \"profile envelope\" and gives none",
+          "oracle source of human-led work",
+          "which of S2-S5 the lane carries before the human takes over",
+          "whether S8b, S9 and the G5/G6 gates follow after G4"
+        ]
+      }
+    },
+    "back_edge_limits": {
+      "B1": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "rounds",
+            "value": 2,
+            "unit": "rounds",
+            "tune": false
+          },
+          {
+            "key": "park",
+            "value": 5,
+            "unit": "business_days",
+            "tune": false
+          }
+        ],
+        "then": "Abandoned",
+        "note": "\"missing info: ≤2 rounds, park 5 bd\"; the PARKED 5 bd timeout goes to ABANDONED"
+      },
+      "B2": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "times",
+            "value": 2,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": "E4",
+        "note": "\"intent ambiguous: G1 again, 2×, then E4\""
+      },
+      "B3": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "auto_rounds",
+            "value": 3,
+            "unit": "rounds",
+            "tune": false
+          }
+        ],
+        "then": "ET8",
+        "note": "\"validator/critic fail: 3 auto, then ET8\""
+      },
+      "B4": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "times",
+            "value": 1,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": null,
+        "note": "\"design reveals spec gap: 1×\"; the flow names no exit"
+      },
+      "B5": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "rejections",
+            "value": 2,
+            "unit": "count",
+            "tune": false
+          }
+        ],
+        "then": "human_writes_plan",
+        "note": "\"plan changes requested: 2 rejections, then human writes plan\""
+      },
+      "B6": {
+        "kind": "unlimited",
+        "reason": "the flow draws no count; the wait ends when the env is fixed (BLOCKED -> 6.1). the flow draws no limit of its own; the edge still counts toward the item rework budget (B28)"
+      },
+      "B7": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "et3_rounds",
+            "value": 3,
+            "unit": "rounds",
+            "tune": false
+          },
+          {
+            "key": "et2_ci_rounds",
+            "value": 5,
+            "unit": "rounds",
+            "tune": false
+          },
+          {
+            "key": "et2_time_multiple",
+            "value": 2,
+            "unit": "multiple",
+            "tune": false
+          }
+        ],
+        "then": "D1",
+        "note": "\"ET3 3 rounds · ET2 5 CI rounds or 2× time\"; \"limits hit\" goes to D1"
+      },
+      "B8": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "times",
+            "value": 1,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": "D1",
+        "note": "\"scope tripwire, 1st: split Unit, G3 again\"; the 2nd time goes to D1"
+      },
+      "B9": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "et3_rounds",
+            "value": null,
+            "unit": "rounds",
+            "tune": false
+          },
+          {
+            "key": "et4_limit",
+            "value": null,
+            "unit": "count",
+            "tune": false
+          },
+          {
+            "key": "et5_limit",
+            "value": null,
+            "unit": "count",
+            "tune": false
+          },
+          {
+            "key": "et6_limit",
+            "value": null,
+            "unit": "count",
+            "tune": false
+          }
+        ],
+        "then": "D2",
+        "note": "\"ET3/ET4/ET5/ET6 limits\": the flow names the limits and gives no S7 numbers; \"B9-B12 limits hit\" goes to D2"
+      },
+      "B10": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "times",
+            "value": 1,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": "D2",
+        "note": "\"spec ambiguous: G2 portion again, 1×\"; \"B9-B12 limits hit\" goes to D2"
+      },
+      "B11": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "times",
+            "value": 1,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": "D2",
+        "note": "\"approach wrong: G3 again, 1×\"; \"B9-B12 limits hit\" goes to D2"
+      },
+      "B12": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "times",
+            "value": 1,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": "D2",
+        "note": "\"locked test must change, 1×\"; \"B9-B12 limits hit\" goes to D2"
+      },
+      "B13": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "et7_rounds",
+            "value": 2,
+            "unit": "rounds",
+            "tune": false
+          }
+        ],
+        "then": "D3",
+        "note": "\"G4 changes requested: ET7 2 rounds\"; ET7 goes to D3"
+      },
+      "B14": {
+        "kind": "unlimited",
+        "reason": "\"mode-E approver unsure → mode C\" is a switch of review mode, not a counted loop. the flow draws no limit of its own; the edge still counts toward the item rework budget (B28)"
+      },
+      "B15": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "b15a_times",
+            "value": 2,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": null,
+        "note": "\"B15a base moved, clean rebase: S7 re-run, 2×\"; B15b (merge conflict, resolve in S6) has no count"
+      },
+      "B16": {
+        "kind": "not_applicable",
+        "reason": "creates a NEW linked item; there is no loop on this item to limit (rollback and a new L0/L1 item)"
+      },
+      "B17": {
+        "kind": "not_applicable",
+        "reason": "creates a NEW linked item; there is no loop on this item to limit (new L0/L1 item, ET13)"
+      },
+      "B18": {
+        "kind": "not_applicable",
+        "reason": "creates a NEW linked item; there is no loop on this item to limit"
+      },
+      "B19": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "miss_rate",
+            "value": 10,
+            "unit": "percent",
+            "tune": false
+          },
+          {
+            "key": "min_sample",
+            "value": 20,
+            "unit": "sample_size",
+            "tune": false
+          }
+        ],
+        "then": "suspend_mode_e",
+        "note": "\">10% over ≥20 sampled suspends mode E\"; also creates a NEW item"
+      },
+      "B20": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "times",
+            "value": 1,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": null,
+        "note": "\"requester amends scope, any active stage, 1×\"; the flow names no exit"
+      },
+      "B21": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "gate_sla",
+            "value": 1,
+            "unit": "business_days",
+            "tune": false
+          }
+        ],
+        "then": "backup_approver",
+        "note": "\"any gate > 1 bd SLA → backup approver / manager\"; NEVER auto-approve"
+      },
+      "B22": {
+        "kind": "not_applicable",
+        "reason": "ends the item as DECLINED at G0; no loop"
+      },
+      "B23": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "rounds",
+            "value": 2,
+            "unit": "rounds",
+            "tune": false
+          }
+        ],
+        "then": "E4",
+        "note": "\"spec rejected: 2 rounds, then E4\""
+      },
+      "B24": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "rounds",
+            "value": 2,
+            "unit": "rounds",
+            "tune": false
+          }
+        ],
+        "then": "E4",
+        "note": "\"design rejected: 2 rounds, then E4\""
+      },
+      "B25": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "times",
+            "value": 1,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "then": "E4",
+        "note": "\"exception denied: redesign 1×, else E4\""
+      },
+      "B26": {
+        "kind": "unlimited",
+        "reason": "the flow draws no count; RELEASE HELD waits for a re-request after the fix window or a NEW linked item. the flow draws no limit of its own; the edge still counts toward the item rework budget (B28)"
+      },
+      "B27": {
+        "kind": "not_applicable",
+        "reason": "a flag on the G0 card (content fenced as data), not a loop"
+      },
+      "B28": {
+        "kind": "limited",
+        "limits": [
+          {
+            "key": "total",
+            "value": 5,
+            "unit": "count",
+            "tune": true
+          },
+          {
+            "key": "item_age",
+            "value": 10,
+            "unit": "business_days",
+            "tune": true
+          }
+        ],
+        "then": "E4",
+        "note": "the rework budget; see `rework_budget`"
+      }
+    },
+    "rework_budget": {
+      "counted_edges": [
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7",
+        "B8",
+        "B9",
+        "B10",
+        "B11",
+        "B12",
+        "B13",
+        "B14",
+        "B15",
+        "B16",
+        "B17",
+        "B18",
+        "B19",
+        "B20",
+        "B21",
+        "B22",
+        "B23",
+        "B24",
+        "B25",
+        "B26"
+      ],
+      "total": {
+        "key": "total",
+        "value": 5,
+        "unit": "count",
+        "tune": true
+      },
+      "item_age": {
+        "key": "item_age",
+        "value": 10,
+        "unit": "business_days",
+        "tune": true
+      },
+      "then": "E4",
+      "counts_toward": "ET14",
+      "survives": ["relane", "handoff"]
+    },
+    "envelope_extension": {
+      "max_extensions": {
+        "key": "max_extensions",
+        "value": 1,
+        "unit": "times",
+        "tune": false
+      },
+      "max_percent": {
+        "key": "max_percent",
+        "value": 50,
+        "unit": "percent",
+        "tune": false
+      },
+      "via": "E3"
+    },
+    "flow_limits": {
+      "d4_hand_back": {
+        "key": "times",
+        "value": 1,
+        "unit": "times",
+        "tune": false
+      },
+      "x3_alternative": {
+        "key": "times",
+        "value": 1,
+        "unit": "times",
+        "tune": false
+      }
+    },
+    "triggers": {
+      "ET1": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D1"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "budget",
+            "value": 100,
+            "unit": "percent",
+            "tune": false
+          }
+        ],
+        "counts_from": []
+      },
+      "ET2": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D1"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "ci_rounds",
+            "value": 5,
+            "unit": "rounds",
+            "tune": false
+          },
+          {
+            "key": "time_multiple",
+            "value": 2,
+            "unit": "multiple",
+            "tune": false
+          }
+        ],
+        "counts_from": []
+      },
+      "ET3": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D1"
+          },
+          {
+            "kind": "handoff",
+            "handoff": "D2"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "rounds",
+            "value": 3,
+            "unit": "rounds",
+            "tune": false
+          }
+        ],
+        "counts_from": []
+      },
+      "ET4": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D2"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "limit",
+            "value": null,
+            "unit": "count",
+            "tune": false
+          }
+        ],
+        "counts_from": []
+      },
+      "ET5": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D2"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "limit",
+            "value": null,
+            "unit": "count",
+            "tune": false
+          }
+        ],
+        "counts_from": []
+      },
+      "ET6": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D2"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "limit",
+            "value": null,
+            "unit": "count",
+            "tune": false
+          }
+        ],
+        "counts_from": []
+      },
+      "ET7": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D3"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "rejection_rounds",
+            "value": 2,
+            "unit": "rounds",
+            "tune": false
+          }
+        ],
+        "counts_from": []
+      },
+      "ET8": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D1"
+          }
+        ],
+        "thresholds": [],
+        "counts_from": []
+      },
+      "ET9": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D1"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "scope_drift",
+            "value": 2,
+            "unit": "times",
+            "tune": false
+          }
+        ],
+        "counts_from": []
+      },
+      "ET10": {
+        "effects": [
+          {
+            "kind": "quarantine",
+            "gate": "Q1"
+          }
+        ],
+        "thresholds": [],
+        "counts_from": []
+      },
+      "ET11": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D1"
+          }
+        ],
+        "thresholds": [],
+        "counts_from": []
+      },
+      "ET12": {
+        "effects": [
+          {
+            "kind": "handoff",
+            "handoff": "D1"
+          }
+        ],
+        "thresholds": [],
+        "counts_from": []
+      },
+      "ET13": {
+        "effects": [
+          {
+            "kind": "new_item",
+            "lanes": ["L0", "L1"]
+          }
+        ],
+        "thresholds": [],
+        "counts_from": []
+      },
+      "ET14": {
+        "effects": [
+          {
+            "kind": "circuit_breaker",
+            "relane": "R3"
+          }
+        ],
+        "thresholds": [
+          {
+            "key": "trip",
+            "value": 3,
+            "unit": "count",
+            "tune": true
+          }
+        ],
+        "counts_from": ["Q1", "E4_abandon", "E4_takeover", "rework_budget"]
+      }
+    },
+    "gating": {
+      "always_required": [
+        "G4",
+        "X1",
+        "X2",
+        "X3",
+        "X4",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "M4",
+        "Q1",
+        "SECT"
+      ],
+      "defaults": {
+        "g0g1": {
+          "kind": "fixed",
+          "value": "on",
+          "exceptions": []
+        },
+        "g2": {
+          "kind": "by_lane",
+          "lanes": {
+            "L1": "off",
+            "L2": "off",
+            "L3": "off",
+            "L4": "on",
+            "L5": "on",
+            "L6": "on"
+          }
+        },
+        "g3d": {
+          "kind": "by_lane",
+          "lanes": {
+            "L4": "on",
+            "L5": "on",
+            "L6": "on"
+          }
+        },
+        "g3_g3s": {
+          "kind": "by_lane",
+          "lanes": {
+            "L4": "on",
+            "L5": "on",
+            "L6": "on"
+          }
+        },
+        "g5": {
+          "kind": "by_deploys",
+          "deploys": "on",
+          "otherwise": "off"
+        },
+        "g6": {
+          "kind": "fixed",
+          "value": "on",
+          "exceptions": [
+            {
+              "when": "requester is the operator",
+              "value": "off"
+            }
+          ]
+        }
+      },
+      "schedule_default": "auto",
+      "human_schedule": "opt_in",
+      "t2_floor": {
+        "lanes": ["L4", "L5", "L6"],
+        "groups": ["g2", "g3d", "g3_g3s"],
+        "deploy_group": "g5"
+      }
+    },
+    "eligibility": {
+      "by_level": {
+        "census": {
+          "L0": "unspecified",
+          "L1": "not_eligible",
+          "L2": "unspecified",
+          "L3": "not_eligible",
+          "L4": "not_eligible",
+          "L5": "not_eligible",
+          "L6": "not_eligible",
+          "L7": "unspecified",
+          "L8": "eligible"
+        },
+        "light": {
+          "L0": "unspecified",
+          "L1": "eligible",
+          "L2": "eligible",
+          "L3": "eligible",
+          "L4": "not_eligible",
+          "L5": "not_eligible",
+          "L6": "not_eligible",
+          "L7": "unspecified",
+          "L8": "eligible"
+        },
+        "full": {
+          "L0": "unspecified",
+          "L1": "eligible",
+          "L2": "eligible",
+          "L3": "eligible",
+          "L4": "eligible",
+          "L5": "eligible",
+          "L6": "eligible",
+          "L7": "unspecified",
+          "L8": "eligible"
+        }
+      },
+      "lane_requires_floor": {
+        "L5": "FF2"
+      },
+      "tier_min_level": {
+        "T2": {
+          "level": "full",
+          "lanes": ["L1", "L2", "L3", "L4", "L5", "L6"]
+        }
+      }
+    },
+    "autonomy": {
+      "tier": {
+        "T0": "A3",
+        "T1": "A3",
+        "T2": "A2"
+      },
+      "level": {
+        "census": "A0",
+        "light": null,
+        "full": null
+      },
+      "readiness": {
+        "RL0": null,
+        "RL1": "A0",
+        "RL2": "A1",
+        "RL3": "A2",
+        "RL4": "A3"
+      },
+      "posture": {
+        "red": {
+          "cap": "A0",
+          "census_lanes_only": true,
+          "g4_mode_c": false
+        },
+        "amber": {
+          "cap": "A1",
+          "census_lanes_only": false,
+          "g4_mode_c": true
+        },
+        "green": {
+          "cap": null,
+          "census_lanes_only": false,
+          "g4_mode_c": false
+        }
+      },
+      "probation": {
+        "cap": "A1",
+        "min_weeks": {
+          "key": "min_weeks",
+          "value": 4,
+          "unit": "weeks",
+          "tune": false
+        },
+        "ends_by": "governance_earn_rule"
+      },
+      "automatic_changes": "tighten_only",
+      "loosening": "human_only"
+    },
+    "criteria": {
+      "set": "CRITERIA_V2",
+      "criteria": [
+        {
+          "id": "RS-ID-1",
+          "pillar": "ID",
+          "title": "App installation scoped to the repo; repo reachable; default branch known",
+          "class_by_level": {
+            "census": "FLOOR",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["CF1"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ID-2",
+          "pillar": "ID",
+          "title": "Owner confirmed",
+          "class_by_level": {
+            "census": "FLOOR",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["CF2"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ID-3",
+          "pillar": "ID",
+          "title": "Tier signed, raise-only",
+          "class_by_level": {
+            "census": "FLOOR",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["CF3"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ID-4",
+          "pillar": "ID",
+          "title": "Visibility, owner type and plan recorded",
+          "class_by_level": {
+            "census": "FLOOR",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["CF4"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-AI-1",
+          "pillar": "AI",
+          "title": "Root AGENTS.md ≤150 lines; the whole chain ≤32 KiB (Codex cut-off)",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-AI-2",
+          "pillar": "AI",
+          "title": "Template sections present",
+          "class_by_level": {
+            "census": null,
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-AI-3",
+          "pillar": "AI",
+          "title": "Content lint clean (L-rules)",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF5"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-AI-4",
+          "pillar": "AI",
+          "title": "Text affirmed by a human",
+          "class_by_level": {
+            "census": null,
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF5"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-AI-5",
+          "pillar": "AI",
+          "title": "One source: CLAUDE.md = @AGENTS.md stub, other harness files absent or stubs",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-AI-6",
+          "pillar": "AI",
+          "title": "Nested AGENTS.md only at subproject roots, ≤60 lines",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": "if present; an unaffirmed nested file stays data"
+        },
+        {
+          "id": "RS-AI-7",
+          "pillar": "AI",
+          "title": "Harness and auto-run config inventoried, protected, never loaded; isolation test",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF4"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-BT-1",
+          "pillar": "BT",
+          "title": "Task-contract targets discoverable; test and check exist",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF3"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-BT-2",
+          "pillar": "BT",
+          "title": "setup and test pass headless in K-exec from clean",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF3"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-BT-3",
+          "pillar": "BT",
+          "title": "Lockfile per manifest; frozen install",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-BT-4",
+          "pillar": "BT",
+          "title": "Toolchain pinned",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-BT-5",
+          "pillar": "BT",
+          "title": "Environment builds within the ≤10 min rehydration budget",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-BT-6",
+          "pillar": "BT",
+          "title": "Test wall time recorded; if test > 15 min, a test-fast ≤5 min exists",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-BT-7",
+          "pillar": "BT",
+          "title": "Default test is hermetic; external-service tests marked and excluded",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF3"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-BT-8",
+          "pillar": "BT",
+          "title": "CI runs check; required check = what the sandbox ran",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ST-1",
+          "pillar": "ST",
+          "title": "Formatter",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ST-2",
+          "pillar": "ST",
+          "title": "Linter (diff-scoped against a baseline)",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ST-3",
+          "pillar": "ST",
+          "title": "Type checker",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ST-4",
+          "pillar": "ST",
+          "title": "AGENTS.md conventions = non-standard practices only, tagged (enforced:) or (advisory)",
+          "class_by_level": {
+            "census": null,
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ST-5",
+          "pillar": "ST",
+          "title": "Generated and vendored paths declared",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-ST-6",
+          "pillar": "ST",
+          "title": "pre-commit hooks",
+          "class_by_level": {
+            "census": "ADVISORY",
+            "light": "ADVISORY",
+            "full": "ADVISORY"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-TH-1",
+          "pillar": "TH",
+          "title": "Tests exist and the gating set passes",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF3"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-TH-2",
+          "pillar": "TH",
+          "title": "Flake baseline (CI history or later item runs)",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "RECORDED",
+            "full": "RECORDED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-TH-3",
+          "pillar": "TH",
+          "title": "Quarantine manifest with issue, owner and expiry; tests never deleted",
+          "class_by_level": {
+            "census": null,
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-TH-4",
+          "pillar": "TH",
+          "title": "Skip/xfail inventory",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "RECORDED",
+            "full": "RECORDED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-TH-5",
+          "pillar": "TH",
+          "title": "Coverage report producible",
+          "class_by_level": {
+            "census": null,
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-TH-6",
+          "pillar": "TH",
+          "title": "Mutation testing",
+          "class_by_level": {
+            "census": null,
+            "light": null,
+            "full": "ADVISORY"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-CC-1",
+          "pillar": "CC",
+          "title": "CODEOWNERS parses with zero errors; owners resolve",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [
+            {
+              "when": "team",
+              "class": "FLOOR"
+            }
+          ],
+          "note": "RECORDED until SP-FID-2 proves the API is readable"
+        },
+        {
+          "id": "RS-CC-2",
+          "pillar": "CC",
+          "title": "CODEOWNERS covers the protected set",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [
+            {
+              "when": "team",
+              "class": "FLOOR"
+            }
+          ],
+          "note": null
+        },
+        {
+          "id": "RS-CC-3",
+          "pillar": "CC",
+          "title": "Default-branch rules (as LF2); the bypass clause is H-attested",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF2"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-CC-4",
+          "pillar": "CC",
+          "title": "App may only create or update agent/**",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF2"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-CC-5",
+          "pillar": "CC",
+          "title": "Push ruleset on protected paths",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": "N/A on public or user-owned repos"
+        },
+        {
+          "id": "RS-CC-6",
+          "pillar": "CC",
+          "title": "Merge method recorded",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "RECORDED",
+            "full": "RECORDED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-CC-7",
+          "pillar": "CC",
+          "title": "Signed commits",
+          "class_by_level": {
+            "census": "ADVISORY",
+            "light": "ADVISORY",
+            "full": "ADVISORY"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-KN-1",
+          "pillar": "KN",
+          "title": "README purpose and how to run",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-KN-2",
+          "pillar": "KN",
+          "title": ".factory/knowledge/ pack in git, front-matter valid, kn-check clean",
+          "class_by_level": {
+            "census": null,
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": "git copy; see DEC-12"
+        },
+        {
+          "id": "RS-KN-3",
+          "pillar": "KN",
+          "title": "build-and-run.md generated from the probe",
+          "class_by_level": {
+            "census": null,
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-KN-4",
+          "pillar": "KN",
+          "title": "≥90% of ≤50 claims affirmed or unknown; unknowns register",
+          "class_by_level": {
+            "census": null,
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF6"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-KN-5",
+          "pillar": "KN",
+          "title": "Business intent (card answers) and sensitive-path list",
+          "class_by_level": {
+            "census": null,
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF6"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-KN-6",
+          "pillar": "KN",
+          "title": "Decision records seeded",
+          "class_by_level": {
+            "census": null,
+            "light": "ADVISORY",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-KN-7",
+          "pillar": "KN",
+          "title": "Full codekb, system map, seeds",
+          "class_by_level": {
+            "census": null,
+            "light": null,
+            "full": "FLOOR"
+          },
+          "floors": ["FF1"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-OP-1",
+          "pillar": "OP",
+          "title": "Apply-on-merge known",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF7"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-OP-2",
+          "pillar": "OP",
+          "title": "operations.md attested (L5 also: staging separation)",
+          "class_by_level": {
+            "census": null,
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF7", "FF2"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-OP-3",
+          "pillar": "OP",
+          "title": "Runbook pointers",
+          "class_by_level": {
+            "census": null,
+            "light": "ADVISORY",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-EN-1",
+          "pillar": "EN",
+          "title": "Egress needs declared",
+          "class_by_level": {
+            "census": null,
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF8"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-EN-2",
+          "pillar": "EN",
+          "title": ".env.example placeholders only; test needs no real secret",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF3"],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-EN-3",
+          "pillar": "EN",
+          "title": "Repo size, LFS, binaries",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "RECORDED",
+            "full": "RECORDED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-PUB-1",
+          "pillar": "PUB",
+          "title": "LICENSE",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [
+            {
+              "when": "team_and_public",
+              "class": "FLOOR"
+            }
+          ],
+          "note": null
+        },
+        {
+          "id": "RS-PUB-2",
+          "pillar": "PUB",
+          "title": "SECURITY.md with private reporting (human-authored)",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [
+            {
+              "when": "team_and_public",
+              "class": "FLOOR"
+            }
+          ],
+          "note": null
+        },
+        {
+          "id": "RS-PUB-4",
+          "pillar": "PUB",
+          "title": "CONTRIBUTING, PR template",
+          "class_by_level": {
+            "census": "ADVISORY",
+            "light": "ADVISORY",
+            "full": "ADVISORY"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-PUB-5",
+          "pillar": "PUB",
+          "title": "Dependabot or Renovate config",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "SCORED",
+            "full": "SCORED"
+          },
+          "floors": [],
+          "escalations": [],
+          "note": null
+        },
+        {
+          "id": "RS-SEC",
+          "pillar": "SEC",
+          "title": "Security assessment exists; no open BLOCKING finding",
+          "class_by_level": {
+            "census": "RECORDED",
+            "light": "FLOOR",
+            "full": "FLOOR"
+          },
+          "floors": ["LF1"],
+          "escalations": [],
+          "note": "written RS-SEC-* in the §3.3 table and RS-SEC in LF1; one criterion"
+        }
+      ],
+      "floors": [
+        {
+          "id": "CF1",
+          "level": "census",
+          "title": "App installation scoped to the repo; repo reachable; default branch known",
+          "criteria": ["RS-ID-1"],
+          "method": "D",
+          "why": null
+        },
+        {
+          "id": "CF2",
+          "level": "census",
+          "title": "Owner confirmed (SOLO: the user)",
+          "criteria": ["RS-ID-2"],
+          "method": "H",
+          "why": null
+        },
+        {
+          "id": "CF3",
+          "level": "census",
+          "title": "Tier signed, raise-only (positive attestation for T0, if DEC-4)",
+          "criteria": ["RS-ID-3"],
+          "method": "D→A→H",
+          "why": null
+        },
+        {
+          "id": "CF4",
+          "level": "census",
+          "title": "Visibility, owner type and plan recorded",
+          "criteria": ["RS-ID-4"],
+          "method": "D",
+          "why": null
+        },
+        {
+          "id": "LF1",
+          "level": "light",
+          "title": "No open BLOCKING security finding (B1, B2, B5). The scan is complete, or its gap is accepted",
+          "criteria": ["RS-SEC"],
+          "method": "D+H",
+          "why": "Agent code must not run where secrets or dangerous workflows are open"
+        },
+        {
+          "id": "LF2",
+          "level": "light",
+          "title": "protect-main effective on the default branch: PR required, ≥1 approval, last-push approval, required gate-check pinned to the App, no force push or deletion; the App can push only to agent/** and holds no forbidden permission; the bypass list is attested",
+          "criteria": ["RS-CC-3", "RS-CC-4"],
+          "method": "D (rules read) + H",
+          "why": "Makes D11 (the factory never merges) structural"
+        },
+        {
+          "id": "LF3",
+          "level": "light",
+          "title": "Probe: setup and test from a clean checkout, hermetic (mirror-only egress, no secrets, no prod endpoints), one run. Test count > 0 and the gating set passes",
+          "criteria": ["RS-BT-1", "RS-BT-2", "RS-BT-7", "RS-TH-1", "RS-EN-2"],
+          "method": "D",
+          "why": "Without it the agent can't check its work, and every change looks broken"
+        },
+        {
+          "id": "LF4",
+          "level": "light",
+          "title": "Repo harness and auto-run config inventoried, and the live planted-instruction isolation test passed for the worker image in use",
+          "criteria": ["RS-AI-7"],
+          "method": "D",
+          "why": "FIX 15: these files execute code or grant tools"
+        },
+        {
+          "id": "LF5",
+          "level": "light",
+          "title": "Instruction text affirmed (card and D37 step-up, lint-clean, record artefact)",
+          "criteria": ["RS-AI-3", "RS-AI-4"],
+          "method": "D+H",
+          "why": "The only repo text that can reach agents as guidance"
+        },
+        {
+          "id": "LF6",
+          "level": "light",
+          "title": "Shallow codekb produced; ≥90% of ≤50 high-impact claims affirmed or unknown; intent attestation (card answers); practices interview attested",
+          "criteria": ["RS-KN-4", "RS-KN-5"],
+          "method": "A+H",
+          "why": "Guards against a confident-but-wrong baseline (R-OPK-4)"
+        },
+        {
+          "id": "LF7",
+          "level": "light",
+          "title": "operations.md attested and apply-on-merge known (\"never deploys\" is fine)",
+          "criteria": ["RS-OP-1", "RS-OP-2"],
+          "method": "A+H",
+          "why": "Decides whether a merge is a deploy"
+        },
+        {
+          "id": "LF8",
+          "level": "light",
+          "title": "Egress needs declared (a mirror allow-list request)",
+          "criteria": ["RS-EN-1"],
+          "method": "A+D",
+          "why": "Undeclared needs turn every probe red"
+        },
+        {
+          "id": "FF1",
+          "level": "full",
+          "title": "DED Full exit: full codekb, system-map edges, specs/ seeds (observed until affirmed intended)",
+          "criteria": ["RS-KN-7"],
+          "method": null,
+          "why": null
+        },
+        {
+          "id": "FF2",
+          "level": "full",
+          "title": "For L5 only: staging_separation: yes attested",
+          "criteria": ["RS-OP-2"],
+          "method": null,
+          "why": null
+        }
+      ]
+    }
+  },
+  "flow": {
+    "gates": {
+      "G0": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": "g0g1",
+        "title": "Triage"
+      },
+      "G1": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": "g0g1",
+        "title": "Intent, provisional"
+      },
+      "G1f": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": null,
+        "title": "Intent acceptance, final (L6 only, step 2.5)"
+      },
+      "G2": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": "g2",
+        "title": "Spec + oracle-spec approval"
+      },
+      "G3": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": "g3_g3s",
+        "title": "Plan approval, SHA-bound"
+      },
+      "G3d": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": "g3d",
+        "title": "Design / threat sign-off"
+      },
+      "G3s": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": "g3_g3s",
+        "title": "Skeleton"
+      },
+      "G3o": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": null,
+        "title": "Oracle deviation approval"
+      },
+      "G4": {
+        "family": "stage",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Merge approval, never skipped"
+      },
+      "G5": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": "g5",
+        "title": "Production release"
+      },
+      "G6": {
+        "family": "stage",
+        "alwaysRequired": false,
+        "projectToggle": "g6",
+        "title": "Requester acceptance"
+      },
+      "X1": {
+        "family": "action",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Destructive / irreversible"
+      },
+      "X2": {
+        "family": "action",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Protected-path change"
+      },
+      "X3": {
+        "family": "action",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "New dependency"
+      },
+      "X4": {
+        "family": "action",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Break-glass post-hoc review"
+      },
+      "E1": {
+        "family": "exception",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Downshift approval (R2)"
+      },
+      "E2": {
+        "family": "exception",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Constitution exception"
+      },
+      "E3": {
+        "family": "exception",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Envelope extension"
+      },
+      "E4": {
+        "family": "exception",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Owner-of-record chooses"
+      },
+      "E5": {
+        "family": "exception",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Escalation override"
+      },
+      "E6": {
+        "family": "exception",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Test Change Request on locked tests"
+      },
+      "M1": {
+        "family": "meta",
+        "alwaysRequired": false,
+        "projectToggle": null,
+        "title": "Config"
+      },
+      "M2": {
+        "family": "meta",
+        "alwaysRequired": false,
+        "projectToggle": null,
+        "title": "Variance"
+      },
+      "M3": {
+        "family": "meta",
+        "alwaysRequired": false,
+        "projectToggle": null,
+        "title": "Catalogue / permission"
+      },
+      "M4": {
+        "family": "onboarding",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Onboarding sign-off"
+      },
+      "M5": {
+        "family": "meta",
+        "alwaysRequired": false,
+        "projectToggle": null,
+        "title": "Autonomy promotion"
+      },
+      "M6": {
+        "family": "meta",
+        "alwaysRequired": false,
+        "projectToggle": null,
+        "title": "Approver grant"
+      },
+      "Q1": {
+        "family": "quarantine",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Quarantine"
+      },
+      "SECT": {
+        "family": "quarantine",
+        "alwaysRequired": true,
+        "projectToggle": null,
+        "title": "Security triage before any handoff"
+      }
+    },
+    "steps": {
+      "0.1": {
+        "stage": "S0",
+        "actor": "D+A",
+        "title": "Census"
+      },
+      "0.2": {
+        "stage": "S0",
+        "actor": "A+H",
+        "title": "Light baseline"
+      },
+      "0.3": {
+        "stage": "S0",
+        "actor": "A+H",
+        "title": "Full baseline"
+      },
+      "0.4": {
+        "stage": "S0",
+        "actor": "D+H",
+        "title": "Controls and environment"
+      },
+      "0.5": {
+        "stage": "S0",
+        "actor": "H",
+        "title": "Sign-off"
+      },
+      "1.1": {
+        "stage": "S1",
+        "actor": "D",
+        "title": "Normalise + taint-mark input"
+      },
+      "1.2": {
+        "stage": "S1",
+        "actor": "D+A",
+        "title": "De-dupe and conflict scan"
+      },
+      "1.3": {
+        "stage": "S1",
+        "actor": "D+A",
+        "title": "Classify, propose lane"
+      },
+      "1.4": {
+        "stage": "S1",
+        "actor": "D+A",
+        "title": "Eligibility and suitability"
+      },
+      "1.5": {
+        "stage": "S1",
+        "actor": "A+H",
+        "title": "Clarify questions + intent block"
+      },
+      "1.6": {
+        "stage": "S1",
+        "actor": "H",
+        "title": "Ready decision"
+      },
+      "2.1": {
+        "stage": "S2",
+        "actor": "A",
+        "title": "Ground in code/docs"
+      },
+      "2.1b": {
+        "stage": "S2",
+        "actor": "A",
+        "title": "Focused reverse-engineering"
+      },
+      "2.2": {
+        "stage": "S2",
+        "actor": "A",
+        "title": "Impact and stakeholders"
+      },
+      "2.3": {
+        "stage": "S2",
+        "actor": "A",
+        "title": "Options and decision brief"
+      },
+      "2.4": {
+        "stage": "S2",
+        "actor": "A",
+        "title": "Initiative elaboration (L6 only)"
+      },
+      "2.5": {
+        "stage": "S2",
+        "actor": "H",
+        "title": "G1 intent acceptance, final (L6 only)"
+      },
+      "3.1": {
+        "stage": "S3",
+        "actor": "A",
+        "title": "Locate affected requirements"
+      },
+      "3.2": {
+        "stage": "S3",
+        "actor": "A",
+        "title": "Draft delta spec"
+      },
+      "3.3": {
+        "stage": "S3",
+        "actor": "D",
+        "title": "Validate"
+      },
+      "3.4": {
+        "stage": "S3",
+        "actor": "A",
+        "title": "Oracle specs"
+      },
+      "3.5": {
+        "stage": "S3",
+        "actor": "A",
+        "title": "Clean-context review"
+      },
+      "4.1": {
+        "stage": "S4",
+        "actor": "A",
+        "title": "Decisions / ADRs"
+      },
+      "4.2": {
+        "stage": "S4",
+        "actor": "D+A",
+        "title": "Contracts"
+      },
+      "4.3": {
+        "stage": "S4",
+        "actor": "A",
+        "title": "Data and migration"
+      },
+      "4.4": {
+        "stage": "S4",
+        "actor": "A",
+        "title": "NFR, threat, ops"
+      },
+      "4.5": {
+        "stage": "S4",
+        "actor": "D+A",
+        "title": "Constitution check, design-time"
+      },
+      "4.6": {
+        "stage": "S4",
+        "actor": "H",
+        "title": "Design and threat review"
+      },
+      "5.1": {
+        "stage": "S5",
+        "actor": "A",
+        "title": "Split into Units"
+      },
+      "5.2": {
+        "stage": "S5",
+        "actor": "A",
+        "title": "Sequence"
+      },
+      "5.3": {
+        "stage": "S5",
+        "actor": "A",
+        "title": "Task plan per Unit"
+      },
+      "5.4": {
+        "stage": "S5",
+        "actor": "A",
+        "title": "Bind verification"
+      },
+      "5.5": {
+        "stage": "S5",
+        "actor": "D",
+        "title": "Budget envelope"
+      },
+      "5.6": {
+        "stage": "S5",
+        "actor": "D+A",
+        "title": "Capacity input"
+      },
+      "5.7": {
+        "stage": "S5",
+        "actor": "H",
+        "title": "Schedule"
+      },
+      "5.8": {
+        "stage": "S5",
+        "actor": "H",
+        "title": "Plan approval"
+      },
+      "6.0": {
+        "stage": "S6",
+        "actor": "D",
+        "title": "Admission"
+      },
+      "6.1": {
+        "stage": "S6",
+        "actor": "D",
+        "title": "Provision / rehydrate"
+      },
+      "6.2": {
+        "stage": "S6",
+        "actor": "D",
+        "title": "Baseline"
+      },
+      "6.3": {
+        "stage": "S6",
+        "actor": "D",
+        "title": "Oracles red"
+      },
+      "6.4": {
+        "stage": "S6",
+        "actor": "A",
+        "title": "Implement task loop"
+      },
+      "6.5": {
+        "stage": "S6",
+        "actor": "D",
+        "title": "Self-check and tripwires"
+      },
+      "6.6": {
+        "stage": "S6",
+        "actor": "A",
+        "title": "Draft PR via Push Broker"
+      },
+      "7.1": {
+        "stage": "S7",
+        "actor": "D",
+        "title": "Deterministic checks"
+      },
+      "7.2": {
+        "stage": "S7",
+        "actor": "D",
+        "title": "Test integrity + oracle quality"
+      },
+      "7.3": {
+        "stage": "S7",
+        "actor": "D+A",
+        "title": "Spec conformance"
+      },
+      "7.4": {
+        "stage": "S7",
+        "actor": "D",
+        "title": "Secrets and dependencies"
+      },
+      "7.5": {
+        "stage": "S7",
+        "actor": "D+A",
+        "title": "Constitution check, all lanes"
+      },
+      "7.6": {
+        "stage": "S7",
+        "actor": "D",
+        "title": "Pack assembly + sign"
+      },
+      "8.1": {
+        "stage": "S8",
+        "actor": "H",
+        "title": "G4 review"
+      },
+      "8.2": {
+        "stage": "S8",
+        "actor": "H",
+        "title": "Human merges on GitHub"
+      },
+      "S8b": {
+        "stage": "S8b",
+        "actor": "H",
+        "title": "Release"
+      },
+      "9.2": {
+        "stage": "S9",
+        "actor": "H",
+        "title": "Requester acceptance"
+      },
+      "9.3": {
+        "stage": "S9",
+        "actor": "D",
+        "title": "Close-out record"
+      },
+      "9.4": {
+        "stage": "S9",
+        "actor": "A",
+        "title": "Learn"
+      },
+      "9.5": {
+        "stage": "S9",
+        "actor": "H",
+        "title": "Mode-E audit sample, async"
+      }
+    },
+    "back_edges": {
+      "B1": {
+        "description": "missing info: ≤2 rounds, park 5 bd",
+        "from": "1.5",
+        "to": ["Parked"]
+      },
+      "B2": {
+        "description": "intent ambiguous: G1 again, 2×, then E4",
+        "from": "2.1",
+        "to": ["1.5"]
+      },
+      "B3": {
+        "description": "validator/critic fail: 3 auto, then ET8",
+        "from": "3.3",
+        "to": ["3.2"]
+      },
+      "B4": {
+        "description": "design reveals spec gap: 1×",
+        "from": "4.6",
+        "to": ["3.2"]
+      },
+      "B5": {
+        "description": "plan changes requested: 2 rejections, then human writes plan",
+        "from": "G3",
+        "to": ["5.1"]
+      },
+      "B6": {
+        "description": "red baseline / env broken",
+        "from": "6.2",
+        "to": ["Blocked"]
+      },
+      "B7": {
+        "description": "task check fails: ET3 3 rounds · ET2 5 CI rounds or 2× time",
+        "from": "6.5",
+        "to": ["6.4"]
+      },
+      "B8": {
+        "description": "scope tripwire, 1st: split Unit, G3 again",
+        "from": "6.5",
+        "to": ["5.1", "D1"]
+      },
+      "B9": {
+        "description": "repairable finding: ET3/ET4/ET5/ET6 limits",
+        "from": "7.6",
+        "to": ["6.4"]
+      },
+      "B10": {
+        "description": "spec ambiguous: G2 portion again, 1×",
+        "from": "7.3",
+        "to": ["3.2"]
+      },
+      "B11": {
+        "description": "approach wrong: G3 again, 1×",
+        "from": "7.6",
+        "to": ["5.1"]
+      },
+      "B12": {
+        "description": "locked test must change, 1×",
+        "from": "7.2",
+        "to": ["E6"]
+      },
+      "B13": {
+        "description": "G4 changes requested: ET7 2 rounds",
+        "from": "8.1",
+        "to": ["6.4"]
+      },
+      "B14": {
+        "description": "mode-E approver unsure → mode C",
+        "from": "8.1",
+        "to": ["8.1"]
+      },
+      "B15": {
+        "description": "B15a base moved, clean rebase: S7 re-run, 2× | B15b merge conflict: resolve in S6, then S7",
+        "from": "8.2",
+        "to": ["7.1", "6.4"]
+      },
+      "B16": {
+        "description": "deploy unhealthy: rollback, NEW L0/L1 item",
+        "from": "S8b",
+        "to": ["REQ"]
+      },
+      "B17": {
+        "description": "escape found post-merge: NEW L0/L1, ET13",
+        "from": "9.3",
+        "to": ["REQ"]
+      },
+      "B18": {
+        "description": "requester rejects: NEW linked item",
+        "from": "9.2",
+        "to": ["REQ"]
+      },
+      "B19": {
+        "description": "gate-miss on mode-E merge: NEW item >10% over ≥20 sampled suspends mode E",
+        "from": "9.5",
+        "to": ["REQ"]
+      },
+      "B20": {
+        "description": "requester amends scope, any active stage, 1×",
+        "from": null,
+        "to": ["3.2"]
+      },
+      "B21": {
+        "description": "any gate > 1 bd SLA → backup approver / manager NEVER auto-approve",
+        "from": null,
+        "to": []
+      },
+      "B22": {
+        "description": "ineligible / unsuitable",
+        "from": "G0",
+        "to": ["Declined"]
+      },
+      "B23": {
+        "description": "spec rejected: 2 rounds, then E4",
+        "from": "G2",
+        "to": ["3.2"]
+      },
+      "B24": {
+        "description": "design rejected: 2 rounds, then E4",
+        "from": "G3d",
+        "to": ["4.1"]
+      },
+      "B25": {
+        "description": "exception denied: redesign 1×, else E4",
+        "from": "E2",
+        "to": ["4.1"]
+      },
+      "B26": {
+        "description": "release denied",
+        "from": "G5",
+        "to": ["ReleaseHeld"]
+      },
+      "B27": {
+        "description": "suspected injection in request: content fenced as data, flagged on G0 card",
+        "from": "1.1",
+        "to": ["G0"]
+      },
+      "B28": {
+        "description": "rework budget exhausted",
+        "from": null,
+        "to": ["E4"]
+      }
+    },
+    "handoff_edges": [
+      {
+        "id": "D1",
+        "from": "6.4",
+        "to": ["D1"]
+      },
+      {
+        "id": "D1",
+        "from": "6.5",
+        "to": ["D1"]
+      },
+      {
+        "id": "D1",
+        "from": "X1",
+        "to": ["D1"]
+      },
+      {
+        "id": "D2",
+        "from": "7.6",
+        "to": ["D2"]
+      },
+      {
+        "id": "D2",
+        "from": "X2",
+        "to": ["D2"]
+      },
+      {
+        "id": "D3",
+        "from": "8.1",
+        "to": ["D3"]
+      },
+      {
+        "id": "E4",
+        "from": "E4",
+        "to": ["6.4", "5.1", "3.2", "Abandoned"]
+      }
+    ],
+    "relane_edges": [
+      {
+        "id": "R1",
+        "from": "6.5",
+        "to": ["2.1", "3.1"]
+      },
+      {
+        "id": "R1",
+        "from": "7.3",
+        "to": ["2.1", "3.1"]
+      },
+      {
+        "id": "R1",
+        "from": "X2",
+        "to": ["2.1", "3.1"]
+      },
+      {
+        "id": "R2",
+        "from": "2.3",
+        "to": ["1.3"]
+      },
+      {
+        "id": "R2",
+        "from": "4.6",
+        "to": ["1.3"]
+      },
+      {
+        "id": "R4",
+        "from": "S8b",
+        "to": ["REQ"]
+      }
+    ],
+    "quarantine_edges": [
+      {
+        "id": "Q1",
+        "from": "6.4",
+        "to": ["Q1"]
+      },
+      {
+        "id": "Q1",
+        "from": "7.2",
+        "to": ["Q1"]
+      },
+      {
+        "id": "SECT",
+        "from": "SECT",
+        "to": ["6.1"]
+      }
+    ],
+    "work_item_transitions": {
+      "Draft": ["S1", "Withdrawn"],
+      "Clarifying": ["S1", "Parked", "Held"],
+      "S1": [
+        "S2",
+        "S3",
+        "Scheduling",
+        "Declined",
+        "Clarifying",
+        "Quarantined",
+        "Held",
+        "Parked",
+        "Handoff"
+      ],
+      "S2": ["S1", "S3", "Scheduling", "Held", "Handoff"],
+      "S3": ["S4", "S5", "Held", "Handoff"],
+      "S4": ["S5", "S3", "S1", "Held", "Handoff"],
+      "S5": ["Scheduling", "S3", "S4", "Held", "Handoff"],
+      "Scheduling": ["S6", "Held", "S3", "Handoff"],
+      "S6": ["S7", "Handoff", "S9", "Held", "Quarantined", "S5", "S4", "S3", "S2"],
+      "S7": ["S6", "S8a", "G4", "Handoff", "Quarantined", "S5", "S4", "S3", "S2", "Held"],
+      "G4": ["S8a", "S6", "Handoff", "S3", "Held"],
+      "S8a": ["S8b", "S6", "S7", "Held", "Handoff"],
+      "S8b": ["G5", "S9", "Held", "Handoff"],
+      "G5": ["S9", "S8b", "Held", "Handoff"],
+      "S9": ["G6", "Done", "Held", "Handoff"],
+      "G6": ["Done", "Held", "Handoff"],
+      "Held": [
+        "Clarifying",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "Scheduling",
+        "S6",
+        "S7",
+        "G4",
+        "S8a",
+        "S8b",
+        "G5",
+        "S9",
+        "G6",
+        "Handoff",
+        "Quarantined",
+        "Parked",
+        "Abandoned"
+      ],
+      "Handoff": ["S6", "S5", "S3", "HandedOverClosed", "Abandoned", "Held"],
+      "Quarantined": ["S1", "S6", "Abandoned", "Held"],
+      "Parked": ["S1", "Abandoned", "Held"],
+      "Done": [],
+      "Declined": [],
+      "Abandoned": [],
+      "Withdrawn": [],
+      "HandedOverClosed": [],
+      "Superseded": [],
+      "Deferred": []
+    }
+  }
+}

@@ -13,6 +13,9 @@ export const rework = (
 ): StageOutcome =>
   ({ outcome: 'rework', edge, reason_code: 'test', ...o }) as unknown as StageOutcome;
 
+export const relane = (edge: 'R1' | 'R2', trigger: string, to_lane: string): StageOutcome =>
+  ({ outcome: 'relane', edge, trigger, to_lane, reason_code: 'test' }) as unknown as StageOutcome;
+
 export const trigger = (t: string): StageOutcome =>
   ({ outcome: 'trigger', trigger: t, reason_code: 'test' }) as unknown as StageOutcome;
 

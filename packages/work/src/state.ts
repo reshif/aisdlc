@@ -2,6 +2,9 @@ import {
   type Assumption,
   type GateId,
   type Handoff,
+  type ItemRelane,
+  type R1Trigger,
+  type RelaneTrigger,
   type ItemCommand,
   type ItemCreatedPayload,
   type ItemHold,
@@ -123,8 +126,34 @@ export interface ItemState {
    * re-lane and handoff: nothing resets them.
    */
   rework: { total: number; by_edge: Record<string, number>; by_loop: Record<string, number> };
-  /** What counts toward the ET14 circuit breaker (the breaker itself is M9.5): the recorded counts. */
+  /**
+   * What this item contributed to the ET14 circuit breaker (R3): E4 abandon and takeover, the
+   * rework budget. Each count is also a `breaker_signal` command; the breaker itself is core's
+   * projection over them.
+   */
   et14: Record<string, number>;
+  /** R1 and R2 the item went through, oldest first: free, but logged. */
+  relanes: ItemRelane[];
+  /**
+   * A re-lane that waits for something: R1 for the eligibility of its target lane (`check_key`), R2 for
+   * its E1 decision. `resume` is what the item was waiting for when R2 was observed at 4.6 (G3d), which
+   * an E1 denial returns it to.
+   */
+  relane_pending: {
+    readonly edge: 'R1' | 'R2';
+    readonly trigger: RelaneTrigger | R1Trigger;
+    readonly from_lane: Lane;
+    readonly to_lane: Lane;
+    readonly step: StepId;
+    readonly asked_seq: number;
+    readonly check_key: string | null;
+    readonly resume: Waiting | null;
+  } | null;
+  /**
+   * "Done stays done": stations (of S2-S5) a re-lane found already done, which the item passes without
+   * running them again. Cleared when the item reaches S6 or any back-edge sends it somewhere.
+   */
+  skip: string[];
   /** Timers: business-day timers run on `since`, and time frozen by MM-2 does not count. */
   clock: {
     /** Total ms the item spent under a maintenance hold. */

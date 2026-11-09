@@ -294,6 +294,41 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'view_level', min: 'V3' }],
     log_allow: false,
   },
+  // M9.6: the control plane. A fleet control reaches only the roles that hold the action at the fleet
+  // scope (factory.admin), a project or lane control the project admin.
+  'control.apply': {
+    action_id: 'control.apply',
+    description: 'Preview and apply a control (hold, clamp, halt, maintenance) on a scope',
+    class: 'config',
+    resource_types: ['Fleet', 'Project', 'Lane'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'control.lift': {
+    action_id: 'control.lift',
+    description: 'Lift a control',
+    class: 'config',
+    resource_types: ['Fleet', 'Project', 'Lane'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'banner.publish': {
+    action_id: 'banner.publish',
+    description: 'Publish or withdraw a banner for a scope',
+    class: 'config',
+    resource_types: ['Fleet', 'Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
   'access.explain': {
     action_id: 'access.explain',
     description: 'Ask who can decide what on a project (effective access)',
@@ -316,7 +351,7 @@ export const LOGGED_ALLOW_ACTIONS: readonly ActionId[] = ACTION_IDS.filter(
 );
 
 /** Bump with any change to the actions, their grants, the entity model or the cross-cutting rules. */
-export const PDP_POLICY_VERSION = '1.1.0';
+export const PDP_POLICY_VERSION = '1.2.0';
 
 const VIEW_RANK: Readonly<Record<ViewLevel, number>> = { V1: 1, V2: 2, V3: 3 };
 

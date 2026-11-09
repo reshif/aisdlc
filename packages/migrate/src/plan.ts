@@ -10,8 +10,11 @@ import { z } from 'zod';
 // directory and bff, which read the others). A new schema is a new entry here, and a test fails
 // until it is there.
 
-/** The databases the factory has: core's (record, read models, config) and two that hold keys' witnesses. */
-export const DATABASES = ['record', 'notary', 'witness'] as const;
+/**
+ * The databases the factory has: core's (record, read models, config) and three that are their
+ * services' own: the Notary's, the Witness's and the kill switch's (AR9: its state is not core's).
+ */
+export const DATABASES = ['record', 'notary', 'witness', 'killswitch'] as const;
 export type DatabaseName = (typeof DATABASES)[number];
 
 export interface ScopeMigrations {
@@ -25,6 +28,7 @@ const PlanFile = z.strictObject({
     record: z.array(z.strictObject({ scope: z.string().min(1), dir: z.string().min(1) })),
     notary: z.array(z.strictObject({ scope: z.string().min(1), dir: z.string().min(1) })),
     witness: z.array(z.strictObject({ scope: z.string().min(1), dir: z.string().min(1) })),
+    killswitch: z.array(z.strictObject({ scope: z.string().min(1), dir: z.string().min(1) })),
   }),
 });
 export type PlanFile = z.infer<typeof PlanFile>;
@@ -50,6 +54,7 @@ export async function loadSetsFromDisk(path = PLAN_PATH): Promise<MigrationSets>
     record: await read(plan.databases.record),
     notary: await read(plan.databases.notary),
     witness: await read(plan.databases.witness),
+    killswitch: await read(plan.databases.killswitch),
   };
 }
 

@@ -1,5 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "noEmit": true, "rootDir": ".", "declaration": false, "sourceMap": false },
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "declaration": false,
+    "sourceMap": false,
+    "resolveJsonModule": true
+  },
   "include": ["src", "test"]
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { withTransaction } from '@aisdlc/db';
 import { manualClock } from '@aisdlc/kernel';
 import {
+  DeferDelivery,
   PermanentDeliveryError,
   appendEvents,
   claimOutbox,
@@ -292,6 +293,38 @@ describe('outbox delivery limits: backoff and dead letters (PLAN M5.4)', () => {
       expect(dead.map((r) => [r.idempotency_key, r.last_error])).toEqual([
         ['dest-1', 'rejected by the destination'],
       ]);
+    });
+  });
+
+  it('a deferred message waits untouched: no attempt counts, and waiting never dead-letters it', async () => {
+    await withRecordDb(async (t) => {
+      await withTransaction(t.pool, (tx) => enqueueOutbox(tx, [msg(1)]));
+      const clock = manualClock('2026-11-08T10:00:00.000Z');
+      let calls = 0;
+      const later = async () => {
+        calls += 1;
+        throw new DeferDelivery('killed', 5_000);
+      };
+      for (let i = 0; i < 6; i++) {
+        const out = await dispatchOutbox(t.pool, 'dest', 5, later, { clock, policy });
+        expect(out).toEqual({ dispatched: 0, failed: 0, dead: 0, deferred: 1 });
+        // not due again before the delay
+        expect(await dispatchOutbox(t.pool, 'dest', 5, later, { clock, policy })).toEqual({
+          dispatched: 0,
+          failed: 0,
+          dead: 0,
+        });
+        clock.advance(5_000);
+      }
+      expect(calls).toBe(6);
+      const row = (await t.pool.query('SELECT attempts, dead_at, last_error FROM record.outbox'))
+        .rows[0];
+      expect(row.attempts).toBe(0);
+      expect(row.dead_at).toBeNull();
+      expect(row.last_error).toBe('deferred: killed');
+      // when the handler can go on, the very same row is delivered
+      const ok = await dispatchOutbox(t.pool, 'dest', 5, async () => undefined, { clock, policy });
+      expect(ok.dispatched).toBe(1);
     });
   });
 

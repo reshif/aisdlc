@@ -28,11 +28,20 @@ export interface CoreWorkerConfig {
    */
   readonly witness: { readonly url: string; readonly token: string } | null;
   /**
+   * The kill switch (PLAN M9.6, AR9): its API (scopes `read` and `sync`). With it, the work driver asks it
+   * before it admits agent work, core's holders are pushed to it, and its journal is recorded as facts
+   * and (with the Notary) ledger entries. REQUIRED when the work driver runs: agent work without a kill
+   * switch to ask is not admitted (fail closed).
+   */
+  readonly killswitch: { readonly url: string; readonly token: string } | null;
+  /**
    * The stage ports behind the work driver (PLAN M9.2). `none`: the `work_driver` loop does not run.
    * `fake`: the deterministic fakes (no real stage work exists before M11-M14). Needs the Notary.
    */
   readonly stagePorts: 'none' | 'fake';
   readonly workDriverIntervalMs: number;
+  readonly killHoldersIntervalMs: number;
+  readonly killObserverIntervalMs: number;
   readonly reconcileIntervalMs: number;
   readonly checkpointIntervalMs: number;
   readonly cardsIntervalMs: number;
@@ -77,6 +86,11 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   CORE_WORKER_WITNESS_URL, CORE_WORKER_WITNESS_TOKEN_REF   the Witness's API: with it AND the Notary the
  *                                   `ledger_reconciler` and `checkpointer` loops run (the checkpoint is
  *                                   co-signed by the Witness). The Witness without the Notary is an error
+ *   CORE_WORKER_KILLSWITCH_URL, CORE_WORKER_KILLSWITCH_TOKEN_REF   the kill switch (scopes `read`, `sync`): the
+ *                                   work driver asks it before admitting agent work (an unreachable one
+ *                                   means no new agent work), the holders of every project are pushed to
+ *                                   it, and its journal is recorded (with the Notary, also in the ledger).
+ *                                   Required with CORE_WORKER_STAGE_PORTS
  *   CORE_WORKER_STAGE_PORTS (none | fake; default none): `fake` runs the `work_driver` loop over the
  *                                   deterministic stage-port fakes (needs the Notary); CORE_WORKER_WORK_DRIVER_INTERVAL_MS (5000)
  *   CORE_WORKER_CHECKPOINT_INTERVAL_MS (300000, 5 min), CORE_WORKER_RECONCILE_INTERVAL_MS (60000)
@@ -122,6 +136,12 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     throw new ServiceConfigError('CORE_WORKER_STAGE_PORTS must be `none` or `fake`');
   }
   const stagePorts: 'none' | 'fake' = sp;
+  const killswitch = remote('KILLSWITCH');
+  if (stagePorts !== 'none' && killswitch === null) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_STAGE_PORTS needs the kill switch (CORE_WORKER_KILLSWITCH_URL): agent work is not admitted without one to ask',
+    );
+  }
   if (stagePorts !== 'none' && ledger === null) {
     throw new ServiceConfigError(
       'CORE_WORKER_STAGE_PORTS needs the Notary (CORE_WORKER_NOTARY_URL): gates open through the decision kernel',
@@ -135,8 +155,11 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     knowledge,
     ledger,
     witness,
+    killswitch,
     stagePorts,
     workDriverIntervalMs: intEnv(env, 'CORE_WORKER_WORK_DRIVER_INTERVAL_MS', 5_000, 100),
+    killHoldersIntervalMs: intEnv(env, 'CORE_WORKER_KILL_HOLDERS_INTERVAL_MS', 10_000, 100),
+    killObserverIntervalMs: intEnv(env, 'CORE_WORKER_KILL_OBSERVER_INTERVAL_MS', 5_000, 100),
     reconcileIntervalMs: intEnv(env, 'CORE_WORKER_RECONCILE_INTERVAL_MS', 60_000, 100),
     checkpointIntervalMs: intEnv(env, 'CORE_WORKER_CHECKPOINT_INTERVAL_MS', 300_000, 100),
     cardsIntervalMs: intEnv(env, 'CORE_WORKER_CARDS_INTERVAL_MS', 10_000, 100),

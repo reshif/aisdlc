@@ -5,12 +5,15 @@ import {
   type StageOutcome,
   type StageRequest,
 } from '@aisdlc/contracts';
-import { FakeCapacity, FakeStagePorts } from '@aisdlc/ports';
+import { FakeCapacity, FakeKillState, FakeStagePorts } from '@aisdlc/ports';
 import { expectRebuildEqualsLive } from '@aisdlc/record/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   DbWorkInFlight,
   answerQuestion,
+  listBreakers,
+  readBreaker,
+  recordBreakerSignal,
   chooseHandoff,
   envFixed,
   ingestItem,
@@ -70,6 +73,10 @@ interface Scenario {
   readonly twinStops?: boolean;
   /** The owner has already made the choice when the driver is killed. */
   readonly chooseBeforeKill?: boolean;
+  /** M9.6: the project is KILLED (at the kill switch, which has its own state) when the driver is killed. */
+  readonly killed?: boolean;
+  /** M9.5: the breaker of the project and lane is TRIPPED (R3) before the request is made, so it goes to L8. */
+  readonly tripped?: boolean;
 }
 
 const asks: StageOutcome = {
@@ -192,6 +199,24 @@ const SCENARIOS: Scenario[] = [
     },
     twinStops: true,
   },
+  // M9.6: a project killed at the kill switch (its own service and state: the wipe does not touch it)
+  {
+    name: 'in a killed project (kill hold, nothing dispatched)',
+    lane: 'L4',
+    level: 'full',
+    gating: GATING_ON,
+    stop: { decide: () => 'hold', stop: (st) => st.gates.some((g) => g.status === 'pending') },
+    killed: true,
+  },
+  // M9.5: the R3 breaker of this project and lane is tripped, so a new item for it goes to L8
+  {
+    name: 'in a lane whose circuit breaker (R3) is tripped, routed to L8',
+    lane: 'L3',
+    level: 'light',
+    gating: GATING_ON,
+    stop: { stop: (st) => st.waiting?.kind === 'human' && st.waiting.what === 'ready' },
+    tripped: true,
+  },
   {
     name: 'under an MM-2 maintenance hold (timers frozen, drafts kept)',
     lane: 'L4',
@@ -212,6 +237,9 @@ const SCENARIOS: Scenario[] = [
 ];
 
 let k = 0;
+/** The kill switch is another service with its own state: the drill's wipe does not reach it. */
+let KILL: FakeKillState;
+const killIds = new Map<string, string>();
 type Started = { sc: Scenario; id: string; project: string; repo: string };
 async function start(ports: FakeStagePorts) {
   const items: Started[] = [];
@@ -220,6 +248,19 @@ async function start(ports: FakeStagePorts) {
     k += 1;
     const seeded = await seedActivePrr(s, { level: sc.level, gating: sc.gating });
     approvers(s, seeded.project);
+    if (sc.tripped) {
+      // three counts toward ET14 (the catalogue's threshold) for this project and lane
+      for (let n = 0; n < 3; n++) {
+        const t = await recordBreakerSignal(s.deps, {
+          project_id: seeded.project,
+          lane: sc.lane,
+          source: 'E4_abandon',
+          item_id: null,
+          signal_key: `drill-trip:${seeded.project}:${n}`,
+        });
+        if (!t.ok) throw new Error(t.error.message);
+      }
+    }
     const r = await submitRequest(s.deps, {
       project_id: pid(seeded.project),
       repo: seeded.repo,
@@ -274,6 +315,13 @@ async function finish(
   capacity: FakeCapacity,
 ) {
   for (let i = 0; i < 24; i++) {
+    // a killed project's item waits for the release: do not spin the driver over it
+    const held = (await readItem(s.record.pool, id))?.state;
+    if (held?.holds.some((h) => h.reason === 'kill')) {
+      const kid = killIds.get(id);
+      if (kid) KILL.release(kid);
+      s.clock.advance(60_000);
+    }
     const item = await runItem(s, d, id);
     if (item?.state.terminal !== null) return item;
     const st = item?.state;
@@ -286,6 +334,11 @@ async function finish(
         by: pr('alice'),
       });
       if (!a.ok) throw new Error(a.error.message);
+    } else if (st?.holds.some((h) => h.reason === 'kill')) {
+      // the kill is released at the kill switch (two people there); the deferred commands go after their delay
+      const kid = killIds.get(id);
+      if (kid) KILL.release(kid);
+      s.clock.advance(60_000);
     } else if (st?.holds.some((h) => h.hold_id === 'mm2')) {
       const r = await ingestItem(s.deps, id, {
         type: ITEM_EVENT.hold_released,
@@ -347,7 +400,8 @@ describe('the rebuild drill', () => {
     const started = await start(ports);
     const items = started.items;
     const capacity = new FakeCapacity();
-    const before = driverOver(s, { ports, capacity });
+    KILL = new FakeKillState(() => s.clock.now());
+    const before = { ...driverOver(s, { ports, capacity }), kill: KILL };
     for (const i of [...items]) {
       const stopSpec = i.sc.stop;
       if (stopSpec === null) continue;
@@ -374,6 +428,10 @@ describe('the rebuild drill', () => {
           by: pr('alice'),
         });
         if (!a.ok) throw new Error(a.error.message);
+      }
+      if (i.sc.killed) {
+        killIds.set(i.id, KILL.kill({ kind: 'project', ref: i.project }));
+        await (await import('../src/index.js')).driveWork(before);
       }
       if (i.sc.maintenance) {
         const r = await ingestItem(s.deps, i.id, {
@@ -435,6 +493,18 @@ describe('the rebuild drill', () => {
       waiting: { kind: 'release_held' },
     });
     expect(await at(named('MM-2'))).toMatchObject({ phase: 'Held', underlying: 'S1' });
+    // M9.6: the killed project's item is HELD by the kill, with its id as origin, and none of its work was dispatched
+    const killedId = named('killed project');
+    expect(await at(killedId)).toMatchObject({
+      phase: 'Held',
+      holds: [{ hold_id: 'kill', reason: 'kill', origin: killIds.get(killedId) }],
+    });
+    // M9.5: the tripped lane's new item went to L8 and the breaker says why
+    const trippedItem = items.find((i) => i.sc.tripped);
+    expect(await at(named('tripped'))).toMatchObject({ proposed_lane: 'L8' });
+    const tripState = await readBreaker(s.record.pool, trippedItem?.project as string, 'L3');
+    expect(tripState).toMatchObject({ tripped: true, total: 3 });
+    const breakersBefore = JSON.stringify(await listBreakers(s.record.pool));
     // the crash: the port did the work for 6.1, the stream never heard, so the command is still out
     const crashItem = items[5]?.id as string;
     const lost = ports.coding.calls.find((c) => c.item_id === crashItem && c.step === '6.1');
@@ -489,7 +559,10 @@ describe('the rebuild drill', () => {
     }
 
     // ---- RESTART: a new driver (no memory), the same ports (they are other systems)
-    const after = driverOver(s, { ports, capacity });
+    // the breaker is a fold of the record, so nothing of it was wiped
+    expect(JSON.stringify(await listBreakers(s.record.pool))).toBe(breakersBefore);
+    const after = { ...driverOver(s, { ports, capacity }), kill: KILL };
+    const killedCallsBefore = ports.calls().filter((c) => c.item_id === killedId).length;
     const pass = await (await import('../src/index.js')).driveWork(after);
     // the outstanding commands came back out of the record, with their keys
     expect(pass.enqueued).toBeGreaterThan(0);
@@ -497,6 +570,11 @@ describe('the rebuild drill', () => {
       ok: true,
       value: true,
     });
+    // the kill switch kept its state: after the restart the killed project is still killed, nothing runs
+    await (await import('../src/index.js')).driveWork(after);
+    expect(ports.calls().filter((c) => c.item_id === killedId).length).toBe(killedCallsBefore);
+    expect(await at(killedId)).toMatchObject({ phase: 'Held', holds: [{ reason: 'kill' }] });
+    expect(ports.coding.calls.every((c) => c.item_id !== killedId)).toBe(true);
     for (const i of items) await finish(after, i.id, i.sc, capacity);
 
     // ---- everything finished, the way the undisturbed twins did

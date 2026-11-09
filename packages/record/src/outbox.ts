@@ -56,6 +56,22 @@ export class PermanentDeliveryError extends Error {
   override readonly name = 'PermanentDeliveryError';
 }
 
+/**
+ * Thrown by a handler that must not carry the message out NOW and has done nothing (a kill switch
+ * says no, a control holds the scope): the row is claimed again after `delayMs` and neither counts an
+ * attempt nor can it be dead-lettered by waiting. A failure is not the same thing: it counts, and ends
+ * in the dead letter queue.
+ */
+export class DeferDelivery extends Error {
+  override readonly name = 'DeferDelivery';
+  constructor(
+    message: string,
+    readonly delayMs: number = 30_000,
+  ) {
+    super(message);
+  }
+}
+
 export const OutboxKeyMismatch = taggedError('OutboxKeyMismatch');
 export type OutboxKeyMismatch = TaggedError<'OutboxKeyMismatch', { idempotency_key: string }>;
 
@@ -208,6 +224,8 @@ export interface DispatchOutcome {
   failed: number;
   /** Messages dead-lettered by this call. */
   dead: number;
+  /** Messages the handler deferred (`DeferDelivery`): untouched, claimed again later. */
+  deferred?: number;
 }
 
 export interface DispatchOptions {
@@ -235,11 +253,28 @@ export async function dispatchOutbox(
     const done: number[] = [];
     let failed = 0;
     let dead = 0;
+    let deferred = 0;
     for (const row of rows) {
       try {
         await handler(row);
         done.push(row.id);
       } catch (e) {
+        if (e instanceof DeferDelivery) {
+          await tx.query(
+            `UPDATE record.outbox
+                SET next_attempt_at = $2::timestamptz + $3::double precision * interval '1 millisecond',
+                    last_error = $4
+              WHERE id = $1 AND dispatched_at IS NULL AND dead_at IS NULL`,
+            [
+              String(row.id),
+              clock.now().toISOString(),
+              e.delayMs,
+              `deferred: ${e.message}`.slice(0, 2000),
+            ],
+          );
+          deferred += 1;
+          continue;
+        }
         const out = await markFailed(tx, row.id, e instanceof Error ? e.message : String(e), {
           ...(opts.policy ? { policy: opts.policy } : {}),
           now: clock.now(),
@@ -250,7 +285,7 @@ export async function dispatchOutbox(
       }
     }
     await markDispatched(tx, done);
-    return { dispatched: done.length, failed, dead };
+    return { dispatched: done.length, failed, dead, ...(deferred > 0 ? { deferred } : {}) };
   });
 }
 

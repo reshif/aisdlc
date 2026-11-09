@@ -184,8 +184,8 @@ const unknownLimit = (key: string): Limit => lim(key, null, 'count');
 /**
  * The ET table. Effects come from where the flow draws each trigger: D1 lists ET1, ET2, ET3, ET8,
  * ET9, ET11, ET12; D2 is "loop limits ET3-ET6 hit"; D3 is ET7; Q1 is ET10; R3 is ET14; B17 names
- * ET13 with "NEW L0/L1". ET3 appears at both D1 and D2. ET4-ET6, ET8, ET10-ET12 and ET14 have no
- * number in the flow.
+ * ET13 with "NEW L0/L1". ET3 appears at both D1 and D2. ET4-ET6, ET8 and ET10-ET12 have no
+ * number in the flow; ET14's `trip` is set by catalogue 1.3.0 (see `catalogue.ts`).
  */
 export const TRIGGERS: Readonly<Record<TriggerId, TriggerDef>> = {
   ET1: {
@@ -238,7 +238,9 @@ export const TRIGGERS: Readonly<Record<TriggerId, TriggerDef>> = {
   ET13: { effects: [{ kind: 'new_item', lanes: ['L0', 'L1'] }], thresholds: [], counts_from: [] },
   ET14: {
     effects: [{ kind: 'circuit_breaker', relane: 'R3' }],
-    thresholds: [unknownLimit('trip')],
+    // The flow draws R3 with no number. 1.3.0 gives it one, to be tuned: three counts since the last
+    // human reset trip the breaker for a project and lane (the reset, an M5 decision, is the window).
+    thresholds: [lim('trip', 3, 'count', true)],
     counts_from: ['Q1', 'E4_abandon', 'E4_takeover', 'rework_budget'],
   },
 };

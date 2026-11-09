@@ -10,7 +10,7 @@ import {
 } from '@aisdlc/record';
 import {
   CataloguePinUnavailable,
-  currentCatalogueResolver,
+  pinnedCatalogueResolver,
   foldItem,
   sessionOpen,
   workInFlight,
@@ -48,7 +48,7 @@ export const workItemProjection: Projection<WorkItemSnapshot> = {
     const created = ItemCreatedPayload.parse(first.payload);
     let row: Record<string, unknown>;
     try {
-      const f = foldItem(events, currentCatalogueResolver);
+      const f = foldItem(events, pinnedCatalogueResolver);
       if (!f) return;
       const s = f.state;
       row = {

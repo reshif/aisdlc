@@ -26,4 +26,7 @@ action "kill.request" appliesTo { principal: [Principal], resource: [Fleet, Proj
 action "kill.release" appliesTo { principal: [Principal], resource: [Fleet, Project, Lane] };
 action "config.propose" appliesTo { principal: [Principal], resource: [Fleet, Project] };
 action "audit.read" appliesTo { principal: [Principal], resource: [Fleet, Project] };
+action "control.apply" appliesTo { principal: [Principal], resource: [Fleet, Project, Lane] };
+action "control.lift" appliesTo { principal: [Principal], resource: [Fleet, Project, Lane] };
+action "banner.publish" appliesTo { principal: [Principal], resource: [Fleet, Project] };
 action "access.explain" appliesTo { principal: [Principal], resource: [Fleet, Project] };

@@ -28,6 +28,7 @@ import { coreError, type CoreError } from './errors.js';
 import { createItemIn, itemIdOfRequest, openItemsOfRepo } from './work-items.js';
 import type { PrrVersion } from './fold.js';
 import { clockOf, inCoreTx, lockKeys, type CoreDeps, type Journal } from './journal.js';
+import { applyGuard, projectGuard } from './breaker.js';
 import { routeLane } from './lane-eligibility.js';
 import { governingPrr } from './fold.js';
 import { repoIdentity } from './prr-store.js';
@@ -137,7 +138,17 @@ export async function requestWork(
     }
     const prr = id ? governingPrr(await j.prr(id.project_id, id.repo_id)) : null;
     const repoRef = id?.repo_ref ?? input.repo;
-    const verdict = routeLane(repoRef, input.lane, prr, clockOf(deps).now());
+    const verdict = applyGuard(
+      routeLane(repoRef, input.lane, prr, clockOf(deps).now()),
+      id
+        ? await projectGuard(tx, {
+            project_id: id.project_id,
+            lane: input.lane,
+            now: clockOf(deps).now(),
+            origin: input.origin ?? null,
+          })
+        : null,
+    );
     const seen = foldWork(await j.events(workStream(requestId)));
     if (seen) {
       if (seen.request.lane !== input.lane || repoKeyOf(seen.request.repo) !== key) {

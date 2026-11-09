@@ -12,6 +12,7 @@
       { "scope": "core", "dir": "../../services/core/migrations" }
     ],
     "notary": [{ "scope": "notary", "dir": "../../services/notary/migrations" }],
-    "witness": [{ "scope": "witness", "dir": "../../services/witness/migrations" }]
+    "witness": [{ "scope": "witness", "dir": "../../services/witness/migrations" }],
+    "killswitch": [{ "scope": "killswitch", "dir": "../../services/killswitch/migrations" }]
   }
 }

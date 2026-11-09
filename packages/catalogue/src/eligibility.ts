@@ -50,24 +50,36 @@ export type EligibilityContext = {
 };
 
 /** The table row, with no context applied. */
-export function laneEligibility(level: Level, lane: Lane): Eligibility {
-  return ELIGIBILITY.by_level[level][lane];
+export function laneEligibility(
+  level: Level,
+  lane: Lane,
+  table: EligibilityCatalogue = ELIGIBILITY,
+): Eligibility {
+  return table.by_level[level][lane];
 }
 
 /**
  * True only for an `eligible` row whose conditions hold. `unspecified` is not eligible. A T2 repo
  * needs Full for any agent-led lane; L5 also needs staging separation attested.
  */
-export function isLaneEligible(level: Level, lane: Lane, ctx: EligibilityContext): boolean {
-  if (laneEligibility(level, lane) !== 'eligible') return false;
-  const min = ELIGIBILITY.tier_min_level[ctx.tier];
+export function isLaneEligible(
+  level: Level,
+  lane: Lane,
+  ctx: EligibilityContext,
+  table: EligibilityCatalogue = ELIGIBILITY,
+): boolean {
+  if (laneEligibility(level, lane, table) !== 'eligible') return false;
+  const min = table.tier_min_level[ctx.tier];
   if (min !== undefined && min.lanes.includes(lane) && level !== min.level) return false;
-  if (ELIGIBILITY.lane_requires_floor[lane] === 'FF2' && !ctx.stagingSeparationAttested)
-    return false;
+  if (table.lane_requires_floor[lane] === 'FF2' && !ctx.stagingSeparationAttested) return false;
   return true;
 }
 
 /** Lanes a project may run at a level and tier. */
-export function eligibleLanes(level: Level, ctx: EligibilityContext): Lane[] {
-  return LaneValues.filter((l) => isLaneEligible(level, l, ctx));
+export function eligibleLanes(
+  level: Level,
+  ctx: EligibilityContext,
+  table: EligibilityCatalogue = ELIGIBILITY,
+): Lane[] {
+  return LaneValues.filter((l) => isLaneEligible(level, l, ctx, table));
 }

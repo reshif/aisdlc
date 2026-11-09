@@ -247,6 +247,9 @@
         "kill.release",
         "config.propose",
         "audit.read",
+        "control.apply",
+        "control.lift",
+        "banner.publish",
         "access.explain"
       ]
     },
@@ -806,6 +809,147 @@
         "B28"
       ]
     },
+    "Banner": {
+      "type": "object",
+      "properties": {
+        "banner_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "target": {
+          "type": "string",
+          "enum": [
+            "banner",
+            "channel",
+            "statuspage"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "critical"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "published_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "withdrawn_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "banner_id",
+        "target",
+        "severity",
+        "source",
+        "scope",
+        "text",
+        "expires_at",
+        "published_at",
+        "withdrawn_at"
+      ],
+      "additionalProperties": false
+    },
+    "BannerSeverity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ]
+    },
+    "BannerTarget": {
+      "type": "string",
+      "enum": [
+        "banner",
+        "channel",
+        "statuspage"
+      ]
+    },
     "Binding": {
       "type": "object",
       "properties": {
@@ -1103,6 +1247,102 @@
       ],
       "additionalProperties": false
     },
+    "BlastRadius": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lanes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "items": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "items_in_flight": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "overlapping_controls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "scope",
+        "projects",
+        "lanes",
+        "items",
+        "items_in_flight",
+        "overlapping_controls"
+      ],
+      "additionalProperties": false
+    },
     "BlockerId": {
       "type": "string",
       "enum": [
@@ -1237,6 +1477,116 @@
         "requires_linear_history",
         "requires_signatures",
         "other_rule_types"
+      ],
+      "additionalProperties": false
+    },
+    "BreakerSource": {
+      "type": "string",
+      "enum": [
+        "Q1",
+        "E4_abandon",
+        "E4_takeover",
+        "rework_budget"
+      ]
+    },
+    "BreakerState": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "counts": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "Q1",
+              "E4_abandon",
+              "E4_takeover",
+              "rework_budget"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tripped": {
+          "type": "boolean"
+        },
+        "tripped_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pending_reset": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resets": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "project_id",
+        "lane",
+        "counts",
+        "total",
+        "threshold",
+        "tripped",
+        "tripped_at",
+        "pending_reset",
+        "resets"
       ],
       "additionalProperties": false
     },
@@ -3217,7 +3567,8 @@
           "enum": [
             "item",
             "s0_record",
-            "config"
+            "config",
+            "breaker"
           ]
         },
         "subject_id": {
@@ -12745,12 +13096,93 @@
         "instructions"
       ]
     },
+    "ControlKind": {
+      "type": "string",
+      "enum": [
+        "hold",
+        "clamp",
+        "halt",
+        "maintenance"
+      ]
+    },
+    "ControlOrigin": {
+      "type": "string",
+      "enum": [
+        "operator",
+        "security",
+        "kill",
+        "automation"
+      ]
+    },
     "ControlRead": {
       "type": "string",
       "enum": [
         "ok",
         "unknown",
         "unreadable"
+      ]
+    },
+    "ControlScope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "fleet"
+            },
+            "ref": {
+              "type": "string",
+              "const": "*"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "enterprise",
+                "org",
+                "team",
+                "project",
+                "repo",
+                "service_env",
+                "environment",
+                "lane",
+                "session",
+                "item",
+                "role",
+                "model",
+                "release",
+                "budget"
+              ]
+            },
+            "ref": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ControlState": {
+      "type": "string",
+      "enum": [
+        "active",
+        "lifted",
+        "expired"
       ]
     },
     "ControlStatus": {
@@ -15538,7 +15970,9 @@
         "lane_unspecified",
         "tier_requires_full",
         "posture_red",
-        "staging_separation_not_attested"
+        "staging_separation_not_attested",
+        "circuit_breaker",
+        "followup_overdue"
       ]
     },
     "EligibilityRoute": {
@@ -17447,7 +17881,8 @@
           "enum": [
             "item",
             "s0_record",
-            "config"
+            "config",
+            "breaker"
           ]
         },
         "subject_id": {
@@ -17573,7 +18008,8 @@
           "enum": [
             "item",
             "s0_record",
-            "config"
+            "config",
+            "breaker"
           ]
         },
         "subject_id": {
@@ -18505,7 +18941,8 @@
         "N8",
         "kill",
         "maintenance",
-        "quota"
+        "quota",
+        "control"
       ]
     },
     "IdentityEventType": {
@@ -18666,7 +19103,8 @@
           "enum": [
             "item",
             "s0_record",
-            "config"
+            "config",
+            "breaker"
           ]
         },
         "subject_id": {
@@ -21710,6 +22148,49 @@
           "properties": {
             "type": {
               "type": "string",
+              "const": "breaker_signal"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "Q1",
+                "E4_abandon",
+                "E4_takeover",
+                "rework_budget"
+              ]
+            },
+            "lane": {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "key",
+            "source",
+            "lane"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "spawn_item"
             },
             "key": {
@@ -22188,7 +22669,8 @@
             "N8",
             "kill",
             "maintenance",
-            "quota"
+            "quota",
+            "control"
           ]
         },
         "origin": {
@@ -22322,6 +22804,209 @@
       ],
       "additionalProperties": false
     },
+    "ItemRelane": {
+      "type": "object",
+      "properties": {
+        "edge": {
+          "type": "string",
+          "enum": [
+            "R1",
+            "R2"
+          ]
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "diff_over_lane_budget",
+                "sensitive_path",
+                "contract_change",
+                "new_dependency",
+                "cross_repo",
+                "irreversible_migration",
+                "x2_sensitive_path"
+              ]
+            },
+            {
+              "type": "string",
+              "const": "smaller_than_lane"
+            }
+          ]
+        },
+        "from_lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "to_lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "asked_seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "applied_seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "edge",
+        "trigger",
+        "from_lane",
+        "to_lane",
+        "step",
+        "target",
+        "asked_seq",
+        "applied_seq"
+      ],
+      "additionalProperties": false
+    },
     "ItemView": {
       "type": "object",
       "properties": {
@@ -22413,7 +23098,8 @@
                   "N8",
                   "kill",
                   "maintenance",
-                  "quota"
+                  "quota",
+                  "control"
                 ]
               },
               "origin": {
@@ -23172,6 +23858,120 @@
       ],
       "additionalProperties": false
     },
+    "KillDelegationGrant": {
+      "type": "object",
+      "properties": {
+        "delegation_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "delegate": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "granted_by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "granted_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "revoked_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revoked_by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "delegation_id",
+        "delegate",
+        "scope",
+        "granted_by",
+        "granted_at",
+        "revoked_at",
+        "revoked_by"
+      ],
+      "additionalProperties": false
+    },
     "KillDelegationInput": {
       "type": "object",
       "properties": {
@@ -23239,6 +24039,544 @@
       "required": [
         "delegate",
         "scope"
+      ],
+      "additionalProperties": false
+    },
+    "KillEvent": {
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "kill.requested",
+            "kill.release_approved",
+            "kill.released",
+            "kill.delegation_granted",
+            "kill.delegation_revoked",
+            "kill.holders_synced",
+            "kill.signature_attested"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "body": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "prev_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entry_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "seq",
+        "kind",
+        "subject",
+        "actor",
+        "body",
+        "at",
+        "prev_hash",
+        "entry_hash",
+        "signature",
+        "key_id"
+      ],
+      "additionalProperties": false
+    },
+    "KillEventKind": {
+      "type": "string",
+      "enum": [
+        "kill.requested",
+        "kill.release_approved",
+        "kill.released",
+        "kill.delegation_granted",
+        "kill.delegation_revoked",
+        "kill.holders_synced",
+        "kill.signature_attested"
+      ]
+    },
+    "KillObservedPayload": {
+      "type": "object",
+      "properties": {
+        "ks_seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "kill.requested",
+            "kill.release_approved",
+            "kill.released",
+            "kill.delegation_granted",
+            "kill.delegation_revoked",
+            "kill.holders_synced",
+            "kill.signature_attested"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entry_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "body": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "ks_seq",
+        "kind",
+        "subject",
+        "actor",
+        "entry_hash",
+        "signature",
+        "key_id",
+        "at",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "KillQuery": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "project_id"
+      ],
+      "additionalProperties": false
+    },
+    "KillRecord": {
+      "type": "object",
+      "properties": {
+        "kill_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "active",
+            "release_pending",
+            "released"
+          ]
+        },
+        "requested_by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "requested_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "release_required": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "release_approvals": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        },
+        "released_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kill_id",
+        "scope",
+        "state",
+        "requested_by",
+        "reason",
+        "requested_at",
+        "release_required",
+        "release_approvals",
+        "released_at"
+      ],
+      "additionalProperties": false
+    },
+    "KillScope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "fleet"
+            },
+            "ref": {
+              "type": "string",
+              "const": "*"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "enterprise",
+                "org",
+                "team",
+                "project",
+                "repo",
+                "service_env",
+                "environment",
+                "lane",
+                "session",
+                "item",
+                "role",
+                "model",
+                "release",
+                "budget"
+              ]
+            },
+            "ref": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "KillState": {
+      "type": "string",
+      "enum": [
+        "active",
+        "release_pending",
+        "released"
+      ]
+    },
+    "KillStatus": {
+      "type": "object",
+      "properties": {
+        "killed": {
+          "type": "boolean"
+        },
+        "kills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kill_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "fleet"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "const": "*"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "enterprise",
+                          "org",
+                          "team",
+                          "project",
+                          "repo",
+                          "service_env",
+                          "environment",
+                          "lane",
+                          "session",
+                          "item",
+                          "role",
+                          "model",
+                          "release",
+                          "budget"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "release_pending",
+                  "released"
+                ]
+              },
+              "requested_by": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "release_required": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2
+              },
+              "release_approvals": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "released_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kill_id",
+              "scope",
+              "state",
+              "requested_by",
+              "reason",
+              "requested_at",
+              "release_required",
+              "release_approvals",
+              "released_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "killed",
+        "kills",
+        "as_of"
       ],
       "additionalProperties": false
     },
@@ -27194,7 +28532,9 @@
             "lane_unspecified",
             "tier_requires_full",
             "posture_red",
-            "staging_separation_not_attested"
+            "staging_separation_not_attested",
+            "circuit_breaker",
+            "followup_overdue"
           ]
         },
         "prr": {
@@ -27613,7 +28953,8 @@
               "enum": [
                 "item",
                 "s0_record",
-                "config"
+                "config",
+                "breaker"
               ]
             },
             {
@@ -27827,7 +29168,8 @@
               "enum": [
                 "item",
                 "s0_record",
-                "config"
+                "config",
+                "breaker"
               ]
             },
             {
@@ -28742,6 +30084,480 @@
         "blocked",
         "done",
         "skip"
+      ]
+    },
+    "OpsAction": {
+      "type": "object",
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "verb": {
+          "type": "string",
+          "enum": [
+            "control.hold",
+            "control.clamp",
+            "control.halt",
+            "control.maintenance",
+            "control.lift",
+            "banner.publish"
+          ]
+        },
+        "action_class": {
+          "type": "string",
+          "enum": [
+            "O-T",
+            "O-N",
+            "O-L"
+          ]
+        },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "L",
+            "R"
+          ]
+        },
+        "actor": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "ledger_state": {
+          "type": "string",
+          "enum": [
+            "none",
+            "pending",
+            "ledgered"
+          ]
+        },
+        "ledger_entry_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "backfilled": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "action_id",
+        "verb",
+        "action_class",
+        "tier",
+        "actor",
+        "scope",
+        "ledger_state",
+        "ledger_entry_id",
+        "backfilled",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "OpsActionClass": {
+      "type": "string",
+      "enum": [
+        "O-T",
+        "O-N",
+        "O-L"
+      ]
+    },
+    "OpsControl": {
+      "type": "object",
+      "properties": {
+        "control_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "hold",
+            "clamp",
+            "halt",
+            "maintenance"
+          ]
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "origin_kind": {
+          "type": "string",
+          "enum": [
+            "operator",
+            "security",
+            "kill",
+            "automation"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "active",
+            "lifted",
+            "expired"
+          ]
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "params": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "created_by_action": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "lifted_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "control_id",
+        "kind",
+        "scope",
+        "origin_kind",
+        "state",
+        "expires_at",
+        "params",
+        "created_by_action",
+        "created_at",
+        "lifted_at"
+      ],
+      "additionalProperties": false
+    },
+    "OpsLedgerState": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pending",
+        "ledgered"
+      ]
+    },
+    "OpsPreview": {
+      "type": "object",
+      "properties": {
+        "preview_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "verb": {
+          "type": "string",
+          "enum": [
+            "control.hold",
+            "control.clamp",
+            "control.halt",
+            "control.maintenance",
+            "control.lift",
+            "banner.publish"
+          ]
+        },
+        "actor": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "blast_radius": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "fleet"
+                    },
+                    "ref": {
+                      "type": "string",
+                      "const": "*"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "enterprise",
+                        "org",
+                        "team",
+                        "project",
+                        "repo",
+                        "service_env",
+                        "environment",
+                        "lane",
+                        "session",
+                        "item",
+                        "role",
+                        "model",
+                        "release",
+                        "budget"
+                      ]
+                    },
+                    "ref": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "projects": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "lanes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "items_in_flight": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "overlapping_controls": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "scope",
+            "projects",
+            "lanes",
+            "items",
+            "items_in_flight",
+            "overlapping_controls"
+          ],
+          "additionalProperties": false
+        },
+        "blast_radius_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "nonce": {
+          "type": "string",
+          "minLength": 16
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "consumed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "preview_id",
+        "verb",
+        "actor",
+        "blast_radius",
+        "blast_radius_hash",
+        "nonce",
+        "expires_at",
+        "consumed_at"
+      ],
+      "additionalProperties": false
+    },
+    "OpsTier": {
+      "type": "string",
+      "enum": [
+        "L",
+        "R"
+      ]
+    },
+    "OpsVerb": {
+      "type": "string",
+      "enum": [
+        "control.hold",
+        "control.clamp",
+        "control.halt",
+        "control.maintenance",
+        "control.lift",
+        "banner.publish"
       ]
     },
     "PdpDecision": {
@@ -43625,6 +45441,18 @@
         "own_item"
       ]
     },
+    "R1Trigger": {
+      "type": "string",
+      "enum": [
+        "diff_over_lane_budget",
+        "sensitive_path",
+        "contract_change",
+        "new_dependency",
+        "cross_repo",
+        "irreversible_migration",
+        "x2_sensitive_path"
+      ]
+    },
     "RaisableGate": {
       "type": "string",
       "enum": [
@@ -43632,6 +45460,7 @@
         "X1",
         "X2",
         "X3",
+        "E1",
         "E2",
         "E6"
       ]
@@ -43788,6 +45617,26 @@
         "R2",
         "R3",
         "R4"
+      ]
+    },
+    "RelaneTrigger": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "diff_over_lane_budget",
+            "sensitive_path",
+            "contract_change",
+            "new_dependency",
+            "cross_repo",
+            "irreversible_migration",
+            "x2_sensitive_path"
+          ]
+        },
+        {
+          "type": "string",
+          "const": "smaller_than_lane"
+        }
       ]
     },
     "Repo": {
@@ -48494,6 +50343,69 @@
           "properties": {
             "outcome": {
               "type": "string",
+              "const": "relane"
+            },
+            "edge": {
+              "type": "string",
+              "enum": [
+                "R1",
+                "R2"
+              ]
+            },
+            "trigger": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "diff_over_lane_budget",
+                    "sensitive_path",
+                    "contract_change",
+                    "new_dependency",
+                    "cross_repo",
+                    "irreversible_migration",
+                    "x2_sensitive_path"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "const": "smaller_than_lane"
+                }
+              ]
+            },
+            "to_lane": {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            "reason_code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "outcome",
+            "edge",
+            "trigger",
+            "to_lane",
+            "reason_code"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
               "const": "trigger"
             },
             "trigger": {
@@ -48615,6 +50527,7 @@
                 "X1",
                 "X2",
                 "X3",
+                "E1",
                 "E2",
                 "E6"
               ]
@@ -49024,7 +50937,8 @@
       "enum": [
         "item",
         "s0_record",
-        "config"
+        "config",
+        "breaker"
       ]
     },
     "SubmitRequestBody": {
@@ -49866,7 +51780,9 @@
             "lane_unspecified",
             "tier_requires_full",
             "posture_red",
-            "staging_separation_not_attested"
+            "staging_separation_not_attested",
+            "circuit_breaker",
+            "followup_overdue"
           ]
         }
       },
@@ -50437,7 +52353,9 @@
             "lane_unspecified",
             "tier_requires_full",
             "posture_red",
-            "staging_separation_not_attested"
+            "staging_separation_not_attested",
+            "circuit_breaker",
+            "followup_overdue"
           ]
         },
         "prr_version": {

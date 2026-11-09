@@ -14,7 +14,8 @@ import { addBusinessDays, businessCalendar, type BusinessCalendar } from '@aisdl
 import { systemClock, type Clock } from '@aisdlc/kernel';
 import type { CapacityPort } from '@aisdlc/ports';
 import {
-  currentCatalogueResolver,
+  catalogueOfItem,
+  pinnedCatalogueResolver,
   itemAgeLimitBd,
   parkBusinessDays,
   type ItemState,
@@ -156,7 +157,7 @@ export async function fireTimers(
     if (!item) continue;
     const s = item.state;
     if (s.terminal !== null || s.clock.frozen_since !== null) continue;
-    const cat = currentCatalogueResolver(s.catalogue_ref);
+    const cat = pinnedCatalogueResolver(s.catalogue_ref);
     if (cat === null) continue;
     const due = (since: string, bd: number | null, frozen: number): Date | null =>
       bd === null
@@ -292,6 +293,7 @@ export async function releaseN8Holds(
         item.state.repo,
         item.state.proposed_lane,
         clockOf(d),
+        catalogueOfItem(item.state).eligibility,
       );
       if (v.route === 'n8_hold') continue;
       const w = await ingestItem(coreDeps(d), id, {

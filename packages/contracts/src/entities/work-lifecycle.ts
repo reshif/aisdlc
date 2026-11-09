@@ -332,14 +332,96 @@ export const CAUSE_E4_ABANDON = 'e4.abandon';
 export const CAUSE_E4_HANDED_OVER = 'e4.handed_over';
 export const CAUSE_B18_REJECTED = 'b18.requester_rejected';
 
+// ---------------------------------------------------------------- Re-laning (R1-R4)
+
+/**
+ * What makes an item need more than its lane gives (R1, "free and logged"): the diff is over the
+ * lane's budget, a sensitive path, a contract change found at 7.3, a new dependency, a second
+ * repository, an irreversible migration, and the sensitive path X2 reports at 7.4.
+ */
+export const R1Trigger = z.enum([
+  'diff_over_lane_budget',
+  'sensitive_path',
+  'contract_change',
+  'new_dependency',
+  'cross_repo',
+  'irreversible_migration',
+  'x2_sensitive_path',
+]);
+export type R1Trigger = z.infer<typeof R1Trigger>;
+export const R1TriggerValues: readonly R1Trigger[] = R1Trigger.options;
+
+/** R2's one trigger: the work is smaller than the lane ("smaller than lane", 2.3 and 4.6). */
+export const R2_TRIGGER = 'smaller_than_lane';
+export const RelaneTrigger = z.union([R1Trigger, z.literal(R2_TRIGGER)]);
+export type RelaneTrigger = z.infer<typeof RelaneTrigger>;
+
+/**
+ * Where each re-lane edge may be raised, and for R1 what may be said there. R1 is drawn from 6.5, from
+ * 7.3 (a contract change is found there) and from X2 (a sensitive path, at 7.4 where X2 is raised);
+ * R2 from 2.3 and 4.6. One table, so the interpreter, the ports and the tests cannot drift.
+ */
+export const RELANE_SOURCES = {
+  R1: {
+    '6.5': [
+      'diff_over_lane_budget',
+      'sensitive_path',
+      'new_dependency',
+      'cross_repo',
+      'irreversible_migration',
+    ],
+    '7.3': [
+      'contract_change',
+      'diff_over_lane_budget',
+      'sensitive_path',
+      'new_dependency',
+      'cross_repo',
+      'irreversible_migration',
+    ],
+    '7.4': ['x2_sensitive_path'],
+  },
+  R2: {
+    '2.3': [R2_TRIGGER],
+    '4.6': [R2_TRIGGER],
+  },
+} as const satisfies Record<string, Partial<Record<StepId, readonly RelaneTrigger[]>>>;
+
+/** The flow endpoint an R1 raised at `step` is drawn from (`7.4` is where X2 is raised). */
+export const R1_ENDPOINT: Readonly<Record<'6.5' | '7.3' | '7.4', '6.5' | '7.3' | 'X2'>> = {
+  '6.5': '6.5',
+  '7.3': '7.3',
+  '7.4': 'X2',
+};
+
+/** One re-lane the item went through (the log R1 promises: free, but never silent). */
+export const ItemRelane = z.strictObject({
+  edge: z.enum(['R1', 'R2']),
+  trigger: RelaneTrigger,
+  from_lane: Lane,
+  to_lane: Lane,
+  /** The step it was raised at. */
+  step: StepId,
+  /** R1: the first missing stage's first step the item was sent to; R2: `1.3`. */
+  target: StepId,
+  /** The item stream's seq of the event that asked, and of the one that took effect. */
+  asked_seq: z.number().int().min(1),
+  applied_seq: z.number().int().min(1),
+});
+export type ItemRelane = z.infer<typeof ItemRelane>;
+
+/** What counts toward the R3 circuit breaker ET14 (the catalogue's `counts_from`). */
+export const BreakerSource = z.enum(['Q1', 'E4_abandon', 'E4_takeover', 'rework_budget']);
+export type BreakerSource = z.infer<typeof BreakerSource>;
+export const BreakerSourceValues: readonly BreakerSource[] = BreakerSource.options;
+
 // ---------------------------------------------------------------- Stage ports
 
 /** The four stage ports (PLAN M9.2). The step decides which one runs it (`portOfStep` in `@aisdlc/work`). */
 export const StagePortName = z.enum(['planning', 'coding', 'verify', 'release']);
 export type StagePortName = z.infer<typeof StagePortName>;
 
-/** The conditional gates a stage can raise mid-step (FL: G3o, X1, X2, X3, E2, E6). */
-export const RaisableGate = GateId.extract(['G3o', 'X1', 'X2', 'X3', 'E2', 'E6']);
+/** The conditional gates a stage can raise mid-step (FL: G3o, X1, X2, X3, E1 for R2, E2, E6). */
+export const RaisableGate = GateId.extract(['G3o', 'X1', 'X2', 'X3', 'E1', 'E2', 'E6']);
 export type RaisableGate = z.infer<typeof RaisableGate>;
 
 /** What a stage port answers. The fakes are deterministic; a real one is an agent or a service. */
@@ -365,6 +447,17 @@ export const StageOutcome = z.discriminatedUnion('outcome', [
     variant: z.enum(['a', 'b']).optional(),
     loop: z.string().min(1).optional(),
     observed: z.number().optional(),
+    reason_code: z.string().min(1).max(64),
+  }),
+  /**
+   * A re-lane the step found necessary: R1 up (free and logged, from 6.5, 7.3 or 7.4/X2) or R2 down
+   * (needs E1, from 2.3). `to_lane` is the lane it says the work belongs to.
+   */
+  z.strictObject({
+    outcome: z.literal('relane'),
+    edge: z.enum(['R1', 'R2']),
+    trigger: RelaneTrigger,
+    to_lane: Lane,
     reason_code: z.string().min(1).max(64),
   }),
   /** An ET trigger the step hit (ET1 budget, ET2 time, ET3 repeat fail, ET8 gave up...): a handoff. */
@@ -441,6 +534,16 @@ export const ItemCommand = z.discriminatedUnion('type', [
     gate_instance_ids: z.array(z.string().min(1)).min(1),
     reason: z.string().min(1),
   }),
+  /**
+   * One count toward the ET14 circuit breaker of this item's project and lane (Q1, E4 abandon or
+   * takeover, rework budget). Core appends it to the breaker's stream under this key, once.
+   */
+  z.strictObject({
+    type: z.literal('breaker_signal'),
+    key: z.string().min(1),
+    source: BreakerSource,
+    lane: Lane,
+  }),
   /** A NEW linked item (B16-B19, RELHOLD, R4). */
   z.strictObject({
     type: z.literal('spawn_item'),
@@ -487,6 +590,7 @@ export const ITEM_EVENT = {
   command_done: 'item.command_done',
   stage_held: 'item.stage_held',
   rework_requested: 'item.rework_requested',
+  relane_requested: 'item.relane_requested',
   trigger_fired: 'item.trigger_fired',
   timer_fired: 'item.timer_fired',
   handoff_chosen: 'item.handoff_chosen',
@@ -662,6 +766,19 @@ export const ItemEventPayloads = {
     variant: z.enum(['a', 'b']).optional(),
     loop: z.string().min(1).optional(),
     observed: z.number().optional(),
+    reason_code: z.string().min(1).max(64),
+    by: PrincipalId.optional(),
+  }),
+  /**
+   * R1 or R2 asked for: by a stage (with its `command_key`), or observed at the design review (4.6,
+   * while G3d is open). R1 is free and logged, R2 needs an E1 decision (FL FIX 3).
+   */
+  [ITEM_EVENT.relane_requested]: z.strictObject({
+    edge: z.enum(['R1', 'R2']),
+    trigger: RelaneTrigger,
+    to_lane: Lane,
+    step: StepId,
+    command_key: z.string().min(1).optional(),
     reason_code: z.string().min(1).max(64),
     by: PrincipalId.optional(),
   }),

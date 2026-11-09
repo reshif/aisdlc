@@ -1,4 +1,4 @@
-import { CATALOGUE, isCurrentCatalogue, type CatalogueData } from '@aisdlc/catalogue';
+import { catalogueFor, type CatalogueData } from '@aisdlc/catalogue';
 import {
   ITEM_EVENT,
   ItemEventPayloads,
@@ -17,12 +17,29 @@ import type { ItemState } from './state.js';
 /** The catalogue an item is pinned to, or `null` when this build does not carry it (fail closed). */
 export type CatalogueResolver = (ref: CatalogueRef) => CatalogueData | null;
 
-/** This build carries one catalogue: an item pinned to another revision cannot be interpreted here. */
-export const currentCatalogueResolver: CatalogueResolver = (ref) =>
-  isCurrentCatalogue(ref) ? CATALOGUE : null;
+/**
+ * The catalogue an item pinned: any released version this build carries (`catalogueFor`, hash
+ * checked). A version this build does not carry, or one whose hash differs, is `null` and the item
+ * cannot be interpreted (fail closed), never read through another catalogue.
+ */
+export const pinnedCatalogueResolver: CatalogueResolver = (ref) => {
+  const r = catalogueFor(ref);
+  return r.ok ? r.value : null;
+};
 
 export class CataloguePinUnavailable extends Error {
   override readonly name = 'CataloguePinUnavailable';
+}
+
+/** The catalogue a folded item is pinned to. Throws `CataloguePinUnavailable` (never another catalogue). */
+export function catalogueOfItem(s: { readonly catalogue_ref: CatalogueRef }): CatalogueData {
+  const cat = pinnedCatalogueResolver(s.catalogue_ref);
+  if (cat === null) {
+    throw new CataloguePinUnavailable(
+      `catalogue pin unavailable: ${s.catalogue_ref.version}/${s.catalogue_ref.hash}`,
+    );
+  }
+  return cat;
 }
 
 /** A record event of an item stream, validated. Throws on a type or payload this vocabulary does not know. */
@@ -47,7 +64,7 @@ export interface FoldedItem {
 /** The state of an item and the commands its events caused, from its whole stream. `null` for an empty stream. */
 export function foldItem(
   events: readonly RecordEvent[],
-  resolve: CatalogueResolver = currentCatalogueResolver,
+  resolve: CatalogueResolver = pinnedCatalogueResolver,
 ): FoldedItem | null {
   let state: ItemState | null = null;
   let cat: CatalogueData | null = null;

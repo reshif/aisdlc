@@ -14,6 +14,7 @@ import * as directory from '@aisdlc/directory';
 import * as identity from '@aisdlc/identity/migrations';
 // Not the package root either: the migrations entry only.
 import * as knowledge from '@aisdlc/knowledge/migrations';
+import * as killswitch from '@aisdlc/killswitch';
 import * as ledger from '@aisdlc/ledger';
 import * as notary from '@aisdlc/notary';
 import * as record from '@aisdlc/record';
@@ -38,6 +39,7 @@ const OWNERS = [
   ['core', core],
   ['notary', notary],
   ['witness', witness],
+  ['killswitch', killswitch],
 ] as const;
 
 const capture = () => {
@@ -146,6 +148,7 @@ describe('aisdlc-migrate from source', () => {
       // The notary and witness are separate databases: not in this one.
       expect(t['notary']).toBeUndefined();
       expect(t['witness']).toBeUndefined();
+      expect(t['killswitch']).toBeUndefined();
       const sets = await loadSetsFromDisk();
       const total = sets.record.reduce((n, s) => n + s.files.length, 0);
       const before = await ledgerOfMigrations(db);
@@ -162,28 +165,33 @@ describe('aisdlc-migrate from source', () => {
     }
   });
 
-  it('migrates the notary and witness databases only when asked, each in its own database', async () => {
+  it('migrates the notary, witness and killswitch databases only when asked, each in its own database', async () => {
     const rec = await createTestDatabase();
     const not = await createTestDatabase();
     const wit = await createTestDatabase();
+    const kil = await createTestDatabase();
     try {
       const env = {
         ...dbUrlRef('AISDLC_DATABASE_URL', rec.url),
         ...dbUrlRef('AISDLC_NOTARY_DATABASE_URL', not.url),
         ...dbUrlRef('AISDLC_WITNESS_DATABASE_URL', wit.url),
+        ...dbUrlRef('AISDLC_KILLSWITCH_DATABASE_URL', kil.url),
       };
       const run = capture();
-      expect(await runMigrateCli(['--notary', '--witness'], env, run.io)).toBe(0);
+      expect(await runMigrateCli(['--notary', '--witness', '--killswitch'], env, run.io)).toBe(0);
       expect((await tables(not))['notary']).toBeGreaterThan(0);
       expect((await tables(wit))['witness']).toBeGreaterThan(0);
+      expect((await tables(kil))['killswitch']).toBeGreaterThan(0);
+      expect((await tables(kil))['record']).toBeUndefined();
+      expect((await tables(rec))['killswitch']).toBeUndefined();
       expect((await tables(not))['record']).toBeUndefined();
       expect((await tables(rec))['notary']).toBeUndefined();
       expect(run.out.some((l) => l.startsWith('notary/notary: applied'))).toBe(true);
       const again = capture();
-      expect(await runMigrateCli(['--notary', '--witness'], env, again.io)).toBe(0);
+      expect(await runMigrateCli(['--notary', '--witness', '--killswitch'], env, again.io)).toBe(0);
       expect(again.out.every((l) => l.includes('up to date'))).toBe(true);
     } finally {
-      await Promise.all([rec.drop(), not.drop(), wit.drop()]);
+      await Promise.all([rec.drop(), not.drop(), wit.drop(), kil.drop()]);
     }
   });
 

@@ -92,11 +92,15 @@ export async function submitRequest(
 export async function decideReady(deps: CoreDeps, itemId: string, by: PrincipalId) {
   const mm = maintenanceRefusal(deps);
   if (mm) return err(mm);
+  // One decision per visit of 1.6: a re-lane (R2) brings the item back to Ready, and that is a new
+  // question for a person, not a repeat of the first answer.
+  const st = (await readItem(deps.pool, itemId))?.state;
+  const visit = st?.waiting?.kind === 'human' ? (st.attempts['h:1.6'] ?? 1) : 1;
   return ingestItem(deps, itemId, {
     type: ITEM_EVENT.ready_decided,
     payload: { by },
     actor: by,
-    idempotency_key: `ready:${itemId}`,
+    idempotency_key: visit === 1 ? `ready:${itemId}` : `ready:${itemId}:${visit}`,
   });
 }
 

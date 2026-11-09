@@ -17,6 +17,7 @@ import { CONDITIONAL_GATES, buildRoute, effectiveProfile } from '../src/index.js
 import { PROFILE_ALL_OFF, PROFILE_ALL_ON, Sim } from './sim.js';
 import {
   choose,
+  relane,
   decideUntil,
   forStep,
   gateNeeded,
@@ -321,6 +322,8 @@ for (const lane of LaneValues) {
 
 // -- conditional gates: an approval takes the item on
 for (const [gate, c] of Object.entries(CONDITIONAL_GATES)) {
+  // E1 is R2's gate: it opens only through a relane request (scenarios below)
+  if (gate === 'E1') continue;
   for (const step of c.steps) {
     const act = c.approve_at?.[step] ?? c.on_approve;
     cover(`gate:${gate}@${step}:approved`, async () => {
@@ -340,6 +343,8 @@ for (const [gate, c] of Object.entries(CONDITIONAL_GATES)) {
       if (typeof act === 'string') {
         expect(calls.length).toBe(act === 'resume' ? 2 : 1);
         if (act === 'resume') expect(calls[1]?.approved_gates).toEqual([gate]);
+      } else if ('relane' in act) {
+        throw new Error('E1 has its own scenarios');
       } else if ('chain' in act) {
         // E6 -> G3o -> back to 6.4 (B12): the next gate of the same step opens, and S6 runs again
         expect(s.gateLog.some((g) => g.gates.includes(act.chain))).toBe(true);
@@ -817,6 +822,104 @@ for (const p of [
   });
 }
 
+// ---------------------------------------------------------------- M9.5: re-laning (R1-R4)
+
+const rec = (s: Sim, edge: 'R1' | 'R2') => s.state.relanes.find((r) => r.edge === edge);
+const r1At = (name: string, from: Lane, to: Lane, step: '6.5' | '7.3' | '7.4', trig: string) => {
+  const s = sim(name, { lane: from });
+  s.run({ script: forStep(step, [relane('R1', trig, to), undefined]) });
+  expect(s.state.terminal).toBe('Done');
+  return s;
+};
+// R1 from 6.5, 7.3 and X2 (raised at 7.4) to the first missing stage: S2 (2.1) or S3 only (3.1)
+for (const [edge, step, trig] of [
+  ['6.5', '6.5', 'diff_over_lane_budget'],
+  ['7.3', '7.3', 'contract_change'],
+  ['X2', '7.4', 'x2_sensitive_path'],
+] as const) {
+  cover(`R1:${edge}>2.1`, async () => {
+    const s = r1At(`e-r1-${edge}-21`, 'L3', 'L4', step, trig);
+    expect(rec(s, 'R1')).toMatchObject({ step, target: '2.1', to_lane: 'L4' });
+    expect(tookPhase(s, step === '6.5' ? 'S6' : 'S7', 'S2')).toBe(true);
+  });
+  cover(`R1:${edge}>3.1`, async () => {
+    const s = r1At(`e-r1-${edge}-31`, 'L0', 'L1', step, trig);
+    expect(rec(s, 'R1')).toMatchObject({ step, target: '3.1', to_lane: 'L1' });
+    expect(tookPhase(s, step === '6.5' ? 'S6' : 'S7', 'S3')).toBe(true);
+  });
+}
+// R2 from 2.3 (stage) and 4.6 (observed at the design review): E1, then 1.3 and G0 again
+cover('R2:2.3>1.3', async () => {
+  const s = sim('e-r2-23', { lane: 'L4' });
+  s.run({ script: forStep('2.3', [relane('R2', 'smaller_than_lane', 'L3'), undefined]) });
+  expect(s.state.terminal).toBe('Done');
+  expect(rec(s, 'R2')).toMatchObject({ step: '2.3', target: '1.3', to_lane: 'L3' });
+  expect(tookPhase(s, 'S2', 'S1')).toBe(true);
+});
+const atDesignReview = (name: string) => {
+  const s = sim(name, { lane: 'L4' });
+  s.run({ decide: (g) => (g === 'G3d' ? 'pending' : 'approve') });
+  s.apply(ITEM_EVENT.relane_requested, {
+    edge: 'R2',
+    trigger: 'smaller_than_lane',
+    to_lane: 'L3',
+    step: '4.6',
+    reason_code: 'test',
+  });
+  return s;
+};
+cover('R2:4.6>1.3', async () => {
+  const s = atDesignReview('e-r2-46');
+  s.run();
+  expect(s.state.terminal).toBe('Done');
+  expect(rec(s, 'R2')).toMatchObject({ step: '4.6', target: '1.3', to_lane: 'L3' });
+  expect(tookPhase(s, 'S4', 'S1')).toBe(true);
+});
+cover('phase:S2>S1', COVERED['R2:2.3>1.3'] as Scenario);
+cover('phase:S4>S1', COVERED['R2:4.6>1.3'] as Scenario);
+// R1 sends S6 and S7 back to S2 (S2 is the first missing stage) ...
+cover('phase:S6>S2', COVERED['R1:6.5>2.1'] as Scenario);
+cover('phase:S7>S2', COVERED['R1:7.3>2.1'] as Scenario);
+// ... and to S4 when S2 and S3 are done and S4 is the first missing one (after a downshift from 4.6)
+for (const [from, step] of [
+  ['S6', '6.5'],
+  ['S7', '7.3'],
+] as const) {
+  cover(`phase:${from}>S4`, async () => {
+    const s = atDesignReview(`e-r1-s4-${step}`);
+    s.run({ script: forStep(step, [relane('R1', 'diff_over_lane_budget', 'L4'), undefined]) });
+    expect(s.state.terminal).toBe('Done');
+    expect(tookPhase(s, from, 'S4')).toBe(true);
+    expect(s.state.relanes.map((r) => r.edge)).toEqual(['R2', 'R1']);
+  });
+}
+// E1: approved goes to 1.3 (above); denied leaves the item where it was
+cover('gate:E1@2.3:approved', COVERED['R2:2.3>1.3'] as Scenario);
+cover('gate:E1@4.6:approved', COVERED['R2:4.6>1.3'] as Scenario);
+cover('gate:E1@2.3:denied', async () => {
+  const s = sim('e-r2-23-den', { lane: 'L4' });
+  s.run({
+    script: forStep('2.3', [relane('R2', 'smaller_than_lane', 'L3'), undefined]),
+    decide: (g) => (g === 'E1' ? 'reject' : 'approve'),
+  });
+  expect(s.state.terminal).toBe('Done');
+  expect(s.state.relanes).toEqual([]);
+  expect(s.state.lane).toBe('L4');
+});
+cover('gate:E1@4.6:denied', async () => {
+  const s = atDesignReview('e-r2-46-den');
+  s.run({ decide: (g) => (g === 'E1' ? 'reject' : g === 'G3d' ? 'pending' : 'approve') });
+  expect(s.state.relanes).toEqual([]);
+  expect(s.state.waiting).toMatchObject({ kind: 'gates', conditional: null });
+});
+// R4: an L0 that completes S8b makes its L1 follow-up
+cover('R4:S8b>REQ', async () => {
+  const s = sim('e-r4', { lane: 'L0' });
+  s.run();
+  expect(s.state.terminal).toBe('Done');
+  expect(s.state.spawns).toMatchObject([{ edge: 'R4', kind: 'hotfix_follow_up', lane: 'L1' }]);
+});
+
 // ---------------------------------------------------------------- Pending, with the reason
 
 interface Rule {
@@ -827,22 +930,6 @@ interface Rule {
 const hasPhase = (key: string, ...ps: string[]) =>
   ps.some((p) => key.startsWith(`phase:${p}>`) || key.endsWith(`>${p}`));
 const PENDING_RULES: Rule[] = [
-  {
-    milestone: 'M9.5',
-    reason:
-      're-laning: R1 upshift (insert the first missing stage), R2 downshift with E1 re-running G0, R3 circuit breaker ET14, R4 hotfix follow-up',
-    match: (k) =>
-      /^R[1-4]:/.test(k) ||
-      // R1 inserts the first missing stage of S2/S3/S4: S4 is reached from S6 and S7 only that way
-      [
-        'phase:S2>S1',
-        'phase:S4>S1',
-        'phase:S6>S2',
-        'phase:S7>S2',
-        'phase:S6>S4',
-        'phase:S7>S4',
-      ].includes(k),
-  },
   {
     milestone: 'M13.5',
     reason:
@@ -919,12 +1006,11 @@ describe('every FL edge is covered or pending with a reason, exactly', () => {
   });
 });
 
-// The exact numbers of the milestone. M9.3 and M9.4 are done: what is left is re-laning (M9.5), the
-// quarantine (M13.5), and three phase-table edges no flow edge draws.
-const COVERED_COUNT = 479;
-const PENDING_COUNT = 29;
+// The exact numbers of the milestone. M9.3, M9.4 and M9.5 are done: what is left is the quarantine
+// (M13.5) and three phase-table edges no flow edge draws.
+const COVERED_COUNT = 498;
+const PENDING_COUNT = 14;
 const PENDING_BY: Record<string, number> = {
-  'M9.5': 15,
   'M13.5': 11,
   'n/a': 3,
 };

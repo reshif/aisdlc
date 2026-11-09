@@ -2,6 +2,7 @@ import { currentCatalogueRef, type CatalogueData } from '@aisdlc/catalogue';
 import {
   ITEM_EVENT,
   ItemCreatedPayload,
+  type CatalogueRef,
   ItemEventPayloads,
   WORK_COMMAND_DESTINATION,
   itemStream,
@@ -27,7 +28,7 @@ import {
 } from '@aisdlc/record';
 import {
   CataloguePinUnavailable,
-  currentCatalogueResolver,
+  pinnedCatalogueResolver,
   foldItem,
   interpret,
   type FoldedItem,
@@ -62,7 +63,7 @@ export async function readItemEvents(db: Executor, itemId: string): Promise<Reco
 
 /** The item from its stream: the authority. `null` for an item that does not exist. */
 export async function readItem(db: Executor, itemId: string): Promise<FoldedItem | null> {
-  return foldItem(await readItemEvents(db, itemId), currentCatalogueResolver);
+  return foldItem(await readItemEvents(db, itemId), pinnedCatalogueResolver);
 }
 
 /** The commands the outbox must hold for an item: its outstanding ones. */
@@ -130,7 +131,7 @@ export async function appendItemIn(
   const stream = itemStream(itemId);
   const events = await j.events(stream);
   if (drafts.length > 0 && drafts.every((d) => seenKey(events, d.idempotency_key))) {
-    const cur = foldItem(events, currentCatalogueResolver);
+    const cur = foldItem(events, pinnedCatalogueResolver);
     if (!cur) return err(coreError('not_found', `no item ${itemId}`));
     return ok({ state: cur.state, commands: [], duplicate: true });
   }
@@ -139,7 +140,7 @@ export async function appendItemIn(
     ? ItemCreatedPayload.parse(created.payload).catalogue_ref
     : (events[0]?.payload as { catalogue_ref?: ItemCreatedPayload['catalogue_ref'] } | undefined)
         ?.catalogue_ref;
-  const cat = pin ? currentCatalogueResolver(pin) : null;
+  const cat = pin ? pinnedCatalogueResolver(pin) : null;
   if (cat === null) {
     return err(
       coreError('unavailable', 'the catalogue this item is pinned to is not carried by this build'),
@@ -196,7 +197,7 @@ export async function reconcileItemOutbox(
     const events = await j.events(itemStream(itemId));
     let folded: FoldedItem | null;
     try {
-      folded = foldItem(events, currentCatalogueResolver);
+      folded = foldItem(events, pinnedCatalogueResolver);
     } catch (e) {
       if (e instanceof CataloguePinUnavailable) return ok({ enqueued: 0 });
       throw e;
@@ -225,6 +226,8 @@ export interface CreateItemInput {
   readonly intake: ItemIntake;
   readonly origin: SpawnOrigin | null;
   readonly actor: string;
+  /** The catalogue the item pins. Default: the current one (a released older one is for a migration or a test). */
+  readonly catalogue_ref?: CatalogueRef;
 }
 
 /**
@@ -250,7 +253,7 @@ export async function createItemIn(
     repo: i.request.repo,
     requester: i.request.requester,
     channel: i.request.channel,
-    catalogue_ref: currentCatalogueRef(),
+    catalogue_ref: i.catalogue_ref ?? currentCatalogueRef(),
     gating_profile: prr.gating_profile,
     tier: prr.tier.value,
     prr: { version: i.prr.version, record_hash: prr.record_hash },
@@ -293,7 +296,7 @@ export async function openItemsOfRepo(j: Journal, repo: string): Promise<OpenIte
   );
   const out: OpenItemSummary[] = [];
   for (const { stream } of q.rows) {
-    const folded = foldItem(await j.events(stream), currentCatalogueResolver);
+    const folded = foldItem(await j.events(stream), pinnedCatalogueResolver);
     if (!folded || folded.state.terminal !== null) continue;
     const s = folded.state;
     out.push({

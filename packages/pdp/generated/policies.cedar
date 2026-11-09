@@ -4,8 +4,17 @@ permit (principal in Role::"factory.admin", action == Action::"access.explain", 
 @id("role/factory.admin/audit.read")
 permit (principal in Role::"factory.admin", action == Action::"audit.read", resource);
 
+@id("role/factory.admin/banner.publish")
+permit (principal in Role::"factory.admin", action == Action::"banner.publish", resource);
+
 @id("role/factory.admin/config.propose")
 permit (principal in Role::"factory.admin", action == Action::"config.propose", resource);
+
+@id("role/factory.admin/control.apply")
+permit (principal in Role::"factory.admin", action == Action::"control.apply", resource);
+
+@id("role/factory.admin/control.lift")
+permit (principal in Role::"factory.admin", action == Action::"control.lift", resource);
 
 @id("role/factory.admin/floor.read")
 permit (principal in Role::"factory.admin", action == Action::"floor.read", resource);
@@ -70,11 +79,20 @@ permit (principal in Role::"project.admin", action == Action::"access.explain", 
 @id("role/project.admin/audit.read")
 permit (principal in Role::"project.admin", action == Action::"audit.read", resource);
 
+@id("role/project.admin/banner.publish")
+permit (principal in Role::"project.admin", action == Action::"banner.publish", resource);
+
 @id("role/project.admin/card.decide")
 permit (principal in Role::"project.admin", action == Action::"card.decide", resource);
 
 @id("role/project.admin/config.propose")
 permit (principal in Role::"project.admin", action == Action::"config.propose", resource);
+
+@id("role/project.admin/control.apply")
+permit (principal in Role::"project.admin", action == Action::"control.apply", resource);
+
+@id("role/project.admin/control.lift")
+permit (principal in Role::"project.admin", action == Action::"control.lift", resource);
 
 @id("role/project.admin/floor.read")
 permit (principal in Role::"project.admin", action == Action::"floor.read", resource);

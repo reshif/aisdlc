@@ -501,6 +501,10 @@ export const EligibilityReason = z.enum([
   'tier_requires_full',
   'posture_red',
   'staging_separation_not_attested',
+  /** R3: the circuit breaker (ET14) of the project and lane is tripped: new items go to L8. */
+  'circuit_breaker',
+  /** R4: a hotfix's L1 follow-up is overdue: no new agent items for the project. */
+  'followup_overdue',
 ]);
 export type EligibilityReason = z.infer<typeof EligibilityReason>;
 
