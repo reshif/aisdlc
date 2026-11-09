@@ -1,0 +1,13 @@
+{
+  "format": "aisdlc-eval-store-pub/v1",
+  "key_id": "dev:eval-store",
+  "jwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "BwIJdjZZ-dDVvt7LgOol0NmOavltFEwcL3BH-gI02nQ",
+    "y": "Ckn1dnB-z3vn9-lbih0MRJP8K3IWfFqlKOksuNLbu-c",
+    "kid": "dev:eval-store",
+    "alg": "ES256",
+    "use": "sig"
+  }
+}

@@ -4,3 +4,6 @@ export * from './registry.js';
 export * from './samples.js';
 export * from './runs.js';
 export * from './stats.js';
+export * from './scores.js';
+export * from './keys.js';
+export * from './context.js';

@@ -12,6 +12,8 @@ export * from './work.js';
 export * from './agent-definitions.js';
 export * from './work-lifecycle.js';
 export * from './agent-runs.js';
+export * from './context.js';
+export * from './evals.js';
 export * from './breaker.js';
 export * from './controls.js';
 export * from './gate-lifecycle.js';

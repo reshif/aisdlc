@@ -38,5 +38,6 @@ export * from './config.js';
 export * from './boot.js';
 export * from './gateway-triggers.js';
 export * from './agent-runs.js';
+export * from './evals.js';
 export * from './agent-dispatch.js';
 export * from './agent-keys.js';

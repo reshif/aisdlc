@@ -1,10 +1,13 @@
 import {
   AgentId,
   AgentRunsView,
+  AgentScoresView,
   AgentStats,
   CardDecideRequest,
   CardEvidenceRequest,
   CoreInboxItem,
+  EvalRunsView,
+  EvalSummaryView,
   LedgerAuditView,
   OnboardRequest,
   OnboardingCardSummary,
@@ -49,6 +52,9 @@ import type { CoreClient } from './core-client.js';
 //   GET  /api/items/:id                   a work item: position, waits, questions    (item.view_floor, core asks)
 //   GET  /api/agent-runs?item=            the agent runs of an item and their outcomes (project.view)
 //   GET  /api/agents/:id/stats            acceptance, back-edge rate, cost per run     (audit.read)
+//   GET  /api/agents/:id/scores           AgentScore per prompt, provider and model    (audit.read)
+//   GET  /api/evals/summary               the quality board's rows (allow-listed)      (audit.read)
+//   GET  /api/evals/runs                  the eval run history                         (audit.read)
 //   GET  /api/s0/:id                      the S0 record with its steps                (project.view)
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
@@ -294,6 +300,61 @@ export function registerPortalRoutes(d: PortalDeps): void {
     if (q.data.project !== undefined) qs.set('project', q.data.project);
     return upstream(reply, await c.call('GET', `/v1/agents/${agent.data}/stats?${qs}`), (v) =>
       AgentStats.parse(v),
+    )?.value;
+  });
+
+  // ------------------------------------------------------------ evals (M11.3)
+
+  /** Evals are factory-wide: `audit.read` on the fleet, or on the project tag asked for. */
+  async function evalRead(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    keys: readonly string[],
+  ): Promise<{ qs: URLSearchParams; c: CoreClient } | null> {
+    const c = core(reply);
+    if (!c) return null;
+    const shape = Object.fromEntries(keys.map((k) => [k, z.string().min(1).max(64).optional()]));
+    const q = z
+      .strictObject({ ...shape, project: ProjectId.optional() })
+      .safeParse(req.query ?? {});
+    if (!q.success) {
+      sendError(reply, 400, 'invalid_input', 'bad query');
+      return null;
+    }
+    const resource =
+      q.data.project === undefined ? pdpResource.fleet() : pdpResource.project(q.data.project);
+    if (!(await allowed(d.principalOf(req), 'audit.read', resource))) {
+      deny(reply, 'audit.read');
+      return null;
+    }
+    const qs = new URLSearchParams({ on_behalf_of: d.principalOf(req) });
+    for (const [k, v] of Object.entries(q.data)) if (typeof v === 'string') qs.set(k, v);
+    return { qs, c };
+  }
+
+  app.get('/api/evals/summary', async (req, reply) => {
+    const r = await evalRead(req, reply, []);
+    if (!r) return;
+    return upstream(reply, await r.c.call('GET', `/v1/evals/summary?${r.qs}`), (v) =>
+      EvalSummaryView.parse(v),
+    )?.value;
+  });
+
+  app.get('/api/evals/runs', async (req, reply) => {
+    const r = await evalRead(req, reply, ['suite', 'agent', 'limit']);
+    if (!r) return;
+    return upstream(reply, await r.c.call('GET', `/v1/evals/runs?${r.qs}`), (v) =>
+      EvalRunsView.parse(v),
+    )?.value;
+  });
+
+  app.get('/api/agents/:id/scores', async (req, reply) => {
+    const agent = AgentId.safeParse((req.params as { id: string }).id);
+    if (!agent.success) return sendError(reply, 400, 'invalid_input', 'unknown agent');
+    const r = await evalRead(req, reply, []);
+    if (!r) return;
+    return upstream(reply, await r.c.call('GET', `/v1/agents/${agent.data}/scores?${r.qs}`), (v) =>
+      AgentScoresView.parse(v),
     )?.value;
   });
 

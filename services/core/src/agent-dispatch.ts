@@ -1,4 +1,4 @@
-import { primaryAgentFor } from '@aisdlc/agents';
+import { agentKeyRequest, primaryAgentFor } from '@aisdlc/agents';
 import {
   AGENT_EVENT,
   AgentRunDispatchedPayload,
@@ -95,28 +95,19 @@ export async function dispatchAgent(
 
   let vkey_id: string | null = null;
   if (d.keys) {
-    const mint: VKeyMint = {
-      scope,
-      project_id: s.project_id as VKeyMint['project_id'],
-      lane: c.lane,
-      data_class_max: contract.data_class_max,
-      models: [...contract.models],
-      // exactly the contract's allow-list: no argument of this function can add to it
-      tools: [...contract.tools],
-      budget_group: group,
-      expires_at: new Date(now.getTime() + contract.budget.ttl_seconds * 1000).toISOString(),
-      item_id: s.item_id,
-      step: c.step,
-      ...(isUnit ? { unit_id: s.item_id } : {}),
-    };
-    const k = await d.keys.mint({
-      budget: {
-        group_id: group,
-        max_tokens: contract.budget.max_tokens,
-        max_cost_micro_usd: contract.budget.max_cost_micro_usd,
-      },
-      mint,
-    });
+    // exactly the contract's allow-list: `agentKeyRequest` has no argument that can add to it
+    const k = await d.keys.mint(
+      agentKeyRequest(def, {
+        scope,
+        group,
+        project_id: s.project_id as VKeyMint['project_id'],
+        lane: c.lane,
+        item_id: s.item_id,
+        step: c.step,
+        now,
+        ...(isUnit ? { unit_id: s.item_id } : {}),
+      }),
+    );
     if (!k.ok) {
       await recordFailure(d, s, c, { ...base, vkey_id: null }, 'key_mint_refused', k.error.message);
       return err(coreError('unavailable', `no key for ${def.agent_id}: ${k.error.message}`));

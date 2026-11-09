@@ -87,6 +87,18 @@ describe('kms-local (local mode)', () => {
     expect(!u.ok && u.error.kind).toBe('forbidden');
   });
 
+  it('lets only the eval tooling use dev:eval-store (PLAN M11.3)', async () => {
+    const digest = hex(sha256Hex('manifest'));
+    const evals = await kms.custodyFor('evals').sign('dev:eval-store', digest);
+    expect(evals.ok).toBe(true);
+    for (const caller of ['notary', 'witness', 'knowledge', 'bff', 'killswitch']) {
+      const r = await kms.custodyFor(caller).sign('dev:eval-store', digest);
+      expect(!r.ok && r.error.kind, caller).toBe('forbidden');
+    }
+    const other = await kms.custodyFor('evals').sign('dev:notary', digest);
+    expect(!other.ok && other.error.kind).toBe('forbidden');
+  });
+
   it('refuses a missing or wrong service token', async () => {
     const bad = new HttpKeyCustody({ baseUrl: kms.url, token: 'x'.repeat(40) });
     const r = await bad.sign('dev:notary', new Uint8Array(32));
@@ -151,7 +163,7 @@ describe('key files', () => {
       const first = loadOrCreateKeys(dir);
       expect(statSync(dir).mode & 0o777).toBe(0o700);
       const files = readdirSync(dir);
-      expect(files).toHaveLength(5);
+      expect(files).toHaveLength(6);
       for (const f of files) expect(statSync(join(dir, f)).mode & 0o777).toBe(0o600);
 
       const second = loadOrCreateKeys(dir);

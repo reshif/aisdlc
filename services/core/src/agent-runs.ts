@@ -232,6 +232,16 @@ export async function listAgentRuns(pool: pg.Pool, itemId: string): Promise<Agen
   return q.rows.map(toView);
 }
 
+/** Every run of one agent with its outcome, oldest first (what AgentScore's production half folds). */
+export async function listAgentRunsOf(pool: pg.Pool, agent: AgentId): Promise<RunWithOutcome[]> {
+  await catchUpAgentRuns(pool);
+  const q = await pool.query(
+    'SELECT * FROM core.agent_run WHERE agent_id = $1 ORDER BY started_at, run_id',
+    [agent],
+  );
+  return q.rows.map(toView) as RunWithOutcome[];
+}
+
 /** Acceptance rate, back-edge rate and cost per run of one agent, over the fleet or one project. */
 export async function agentStatsOf(
   pool: pg.Pool,

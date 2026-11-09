@@ -3351,6 +3351,379 @@
       ],
       "additionalProperties": false
     },
+    "AgentScore": {
+      "type": "object",
+      "properties": {
+        "score_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "eval_runs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "eval_trials": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "pass_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pass_k": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost_per_pass_micro_usd": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "flaky",
+            "fail",
+            "unknown"
+          ]
+        },
+        "last_eval_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "production_runs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "production_judged": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "accept_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sent_back_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rework_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "score_id",
+        "agent_id",
+        "prompt_sha256",
+        "provider",
+        "model",
+        "eval_runs",
+        "eval_trials",
+        "pass_rate",
+        "pass_k",
+        "cost_per_pass_micro_usd",
+        "status",
+        "last_eval_at",
+        "production_runs",
+        "production_judged",
+        "accept_rate",
+        "sent_back_rate",
+        "rework_rate"
+      ],
+      "additionalProperties": false
+    },
+    "AgentScoresView": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "scores": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "score_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "agent_id": {
+                "type": "string",
+                "enum": [
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4",
+                  "A5",
+                  "A6",
+                  "A7",
+                  "A8",
+                  "A9",
+                  "A10",
+                  "A11",
+                  "A12",
+                  "coder"
+                ]
+              },
+              "prompt_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "provider": {
+                "type": "string",
+                "minLength": 1
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1
+              },
+              "eval_runs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "eval_trials": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pass_rate": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pass_k": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cost_per_pass_micro_usd": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "flaky",
+                  "fail",
+                  "unknown"
+                ]
+              },
+              "last_eval_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "production_runs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "production_judged": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "accept_rate": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sent_back_rate": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "rework_rate": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "score_id",
+              "agent_id",
+              "prompt_sha256",
+              "provider",
+              "model",
+              "eval_runs",
+              "eval_trials",
+              "pass_rate",
+              "pass_k",
+              "cost_per_pass_micro_usd",
+              "status",
+              "last_eval_at",
+              "production_runs",
+              "production_judged",
+              "accept_rate",
+              "sent_back_rate",
+              "rework_rate"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "agent_id",
+        "scores"
+      ],
+      "additionalProperties": false
+    },
     "AgentSessionState": {
       "type": "string",
       "enum": [
@@ -16556,6 +16929,94 @@
         "rejected"
       ]
     },
+    "ContextLevel": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 7
+    },
+    "ContextPieceKind": {
+      "type": "string",
+      "enum": [
+        "control",
+        "guidance",
+        "data"
+      ]
+    },
+    "ContextProvenance": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "factory",
+            "record",
+            "repo"
+          ]
+        },
+        "repo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "area": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "commit_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "affirmation_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "repo",
+        "area",
+        "path",
+        "commit_sha",
+        "text_sha256",
+        "affirmation_ref"
+      ],
+      "additionalProperties": false
+    },
+    "ContextTag": {
+      "type": "string",
+      "enum": [
+        "affirmed",
+        "fresh",
+        "inferred",
+        "stale",
+        "unmerged_draft",
+        "overridden",
+        "truncated",
+        "lint_flagged"
+      ]
+    },
     "Control": {
       "type": "object",
       "properties": {
@@ -19521,6 +19982,1933 @@
         "N6",
         "N7",
         "N8"
+      ]
+    },
+    "EvalBaseline": {
+      "type": "object",
+      "properties": {
+        "baseline_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "suite_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "cases": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "case_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "passes": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "required": [
+              "case_id",
+              "passes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "source_run_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approved_by_entry": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "baseline_id",
+        "provider",
+        "suite_id",
+        "agent_id",
+        "profile",
+        "model",
+        "prompt_sha256",
+        "manifest_digest",
+        "k",
+        "cases",
+        "source_run_id",
+        "approved_by_entry",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "EvalBaselineFile": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "asf-eval-baselines/v1"
+        },
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "baselines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "baseline_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "provider": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "suite_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "agent_id": {
+                "type": "string",
+                "enum": [
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4",
+                  "A5",
+                  "A6",
+                  "A7",
+                  "A8",
+                  "A9",
+                  "A10",
+                  "A11",
+                  "A12",
+                  "coder"
+                ]
+              },
+              "profile": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "prompt_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "manifest_digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "k": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50
+              },
+              "cases": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "case_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+                    },
+                    "passes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "required": [
+                    "case_id",
+                    "passes"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "source_run_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "approved_by_entry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "baseline_id",
+              "provider",
+              "suite_id",
+              "agent_id",
+              "profile",
+              "model",
+              "prompt_sha256",
+              "manifest_digest",
+              "k",
+              "cases",
+              "source_run_id",
+              "approved_by_entry",
+              "created_at"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "format",
+        "provider",
+        "baselines"
+      ],
+      "additionalProperties": false
+    },
+    "EvalCase": {
+      "type": "object",
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "suite_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "regression",
+            "holdout",
+            "pooled",
+            "canary",
+            "seeded_defect"
+          ]
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "project_tag": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "security_tagged": {
+          "type": "boolean"
+        },
+        "input": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "hidden_ref": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "case_id",
+        "suite_id",
+        "kind",
+        "agent_id",
+        "profile",
+        "project_tag",
+        "security_tagged",
+        "input",
+        "hidden_ref"
+      ],
+      "additionalProperties": false
+    },
+    "EvalCaseKind": {
+      "type": "string",
+      "enum": [
+        "regression",
+        "holdout",
+        "pooled",
+        "canary",
+        "seeded_defect"
+      ]
+    },
+    "EvalCaseResult": {
+      "type": "object",
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "regression",
+            "holdout",
+            "pooled",
+            "canary",
+            "seeded_defect"
+          ]
+        },
+        "security_tagged": {
+          "type": "boolean"
+        },
+        "trials": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "trial": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "failure_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "output_not_json",
+                      "output_invalid",
+                      "grader_failed",
+                      "refused",
+                      "infra_error"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "infra_error": {
+                "type": "boolean"
+              },
+              "tokens_in": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tokens_out": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cost_micro_usd": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "trial",
+              "passed",
+              "failure_code",
+              "infra_error",
+              "tokens_in",
+              "tokens_out",
+              "cost_micro_usd"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "case_id",
+        "kind",
+        "security_tagged",
+        "trials"
+      ],
+      "additionalProperties": false
+    },
+    "EvalCompareResult": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "baseline_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cases": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "candidate_pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "baseline_pass_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "delta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ci_low": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ci_high": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "regression",
+            "improvement",
+            "no_change",
+            "no_baseline"
+          ]
+        }
+      },
+      "required": [
+        "level",
+        "baseline_id",
+        "cases",
+        "candidate_pass_rate",
+        "baseline_pass_rate",
+        "delta",
+        "ci_low",
+        "ci_high",
+        "verdict"
+      ],
+      "additionalProperties": false
+    },
+    "EvalFailureCode": {
+      "type": "string",
+      "enum": [
+        "output_not_json",
+        "output_invalid",
+        "grader_failed",
+        "refused",
+        "infra_error"
+      ]
+    },
+    "EvalGateReason": {
+      "type": "string",
+      "enum": [
+        "significant_regression",
+        "below_floor",
+        "security_case_failed",
+        "no_baseline",
+        "errored_trials"
+      ]
+    },
+    "EvalGateResult": {
+      "type": "object",
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "significant_regression",
+              "below_floor",
+              "security_case_failed",
+              "no_baseline",
+              "errored_trials"
+            ]
+          }
+        },
+        "floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "compare": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 1
+            },
+            "baseline_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cases": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "candidate_pass_rate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "baseline_pass_rate": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "delta": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "ci_low": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "ci_high": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "regression",
+                "improvement",
+                "no_change",
+                "no_baseline"
+              ]
+            }
+          },
+          "required": [
+            "level",
+            "baseline_id",
+            "cases",
+            "candidate_pass_rate",
+            "baseline_pass_rate",
+            "delta",
+            "ci_low",
+            "ci_high",
+            "verdict"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "passed",
+        "reasons",
+        "floor",
+        "pass_rate",
+        "compare"
+      ],
+      "additionalProperties": false
+    },
+    "EvalGrader": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "exact"
+            },
+            "value": {}
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "regex"
+            },
+            "pattern": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "flags": {
+              "type": "string",
+              "pattern": "^[ims]{0,3}$"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "type",
+            "pattern"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "json_subset"
+            },
+            "value": {}
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "schema"
+            },
+            "schema": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "type",
+            "schema"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "EvalHidden": {
+      "type": "object",
+      "properties": {
+        "grader": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "exact"
+                },
+                "value": {}
+              },
+              "required": [
+                "type",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "regex"
+                },
+                "pattern": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "flags": {
+                  "type": "string",
+                  "pattern": "^[ims]{0,3}$"
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "type",
+                "pattern"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "json_subset"
+                },
+                "value": {}
+              },
+              "required": [
+                "type",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "schema"
+                },
+                "schema": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "type",
+                "schema"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "grader"
+      ],
+      "additionalProperties": false
+    },
+    "EvalHiddenRef": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "EvalManifest": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "asf-eval-store/v1"
+        },
+        "store_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "files": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "store_id",
+        "created_at",
+        "key_id",
+        "files"
+      ],
+      "additionalProperties": false
+    },
+    "EvalRunHeader": {
+      "type": "object",
+      "properties": {
+        "eval_run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "suite_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "project_tag": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "prompt_ref": {
+          "type": "string"
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contract_version": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "model": {
+          "type": "string"
+        },
+        "harness_version": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "ci",
+            "prompt_change",
+            "model_change",
+            "schedule",
+            "regression",
+            "manual"
+          ]
+        },
+        "git_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "cases": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "trials": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "passes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "errored": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "eval_run_id",
+        "suite_id",
+        "project_tag",
+        "agent_id",
+        "profile",
+        "prompt_ref",
+        "prompt_sha256",
+        "contract_version",
+        "provider",
+        "model",
+        "harness_version",
+        "trigger",
+        "git_sha",
+        "manifest_digest",
+        "k",
+        "cases",
+        "trials",
+        "passes",
+        "pass_rate",
+        "cost_micro_usd",
+        "errored",
+        "started_at",
+        "ended_at"
+      ],
+      "additionalProperties": false
+    },
+    "EvalRunId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "EvalRunRecord": {
+      "type": "object",
+      "properties": {
+        "eval_run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "suite_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "project_tag": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "prompt_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "harness_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "ci",
+            "prompt_change",
+            "model_change",
+            "schedule",
+            "regression",
+            "manual"
+          ]
+        },
+        "git_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "cases": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "case_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "regression",
+                  "holdout",
+                  "pooled",
+                  "canary",
+                  "seeded_defect"
+                ]
+              },
+              "security_tagged": {
+                "type": "boolean"
+              },
+              "trials": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "trial": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "passed": {
+                      "type": "boolean"
+                    },
+                    "failure_code": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "output_not_json",
+                            "output_invalid",
+                            "grader_failed",
+                            "refused",
+                            "infra_error"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "infra_error": {
+                      "type": "boolean"
+                    },
+                    "tokens_in": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "tokens_out": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "cost_micro_usd": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "trial",
+                    "passed",
+                    "failure_code",
+                    "infra_error",
+                    "tokens_in",
+                    "tokens_out",
+                    "cost_micro_usd"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "case_id",
+              "kind",
+              "security_tagged",
+              "trials"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "errored": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "eval_run_id",
+        "suite_id",
+        "project_tag",
+        "agent_id",
+        "profile",
+        "prompt_ref",
+        "prompt_sha256",
+        "contract_version",
+        "provider",
+        "model",
+        "harness_version",
+        "trigger",
+        "git_sha",
+        "store_id",
+        "manifest_digest",
+        "k",
+        "cases",
+        "cost_micro_usd",
+        "errored",
+        "started_at",
+        "ended_at"
+      ],
+      "additionalProperties": false
+    },
+    "EvalRunsView": {
+      "type": "object",
+      "properties": {
+        "runs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "eval_run_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "suite_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "project_tag": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "agent_id": {
+                "type": "string",
+                "enum": [
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4",
+                  "A5",
+                  "A6",
+                  "A7",
+                  "A8",
+                  "A9",
+                  "A10",
+                  "A11",
+                  "A12",
+                  "coder"
+                ]
+              },
+              "profile": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "prompt_ref": {
+                "type": "string"
+              },
+              "prompt_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "contract_version": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "model": {
+                "type": "string"
+              },
+              "harness_version": {
+                "type": "string"
+              },
+              "trigger": {
+                "type": "string",
+                "enum": [
+                  "ci",
+                  "prompt_change",
+                  "model_change",
+                  "schedule",
+                  "regression",
+                  "manual"
+                ]
+              },
+              "git_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "manifest_digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "k": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "cases": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "trials": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "passes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pass_rate": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "cost_micro_usd": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "errored": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "started_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "ended_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "eval_run_id",
+              "suite_id",
+              "project_tag",
+              "agent_id",
+              "profile",
+              "prompt_ref",
+              "prompt_sha256",
+              "contract_version",
+              "provider",
+              "model",
+              "harness_version",
+              "trigger",
+              "git_sha",
+              "manifest_digest",
+              "k",
+              "cases",
+              "trials",
+              "passes",
+              "pass_rate",
+              "cost_micro_usd",
+              "errored",
+              "started_at",
+              "ended_at"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "runs"
+      ],
+      "additionalProperties": false
+    },
+    "EvalSignedManifest": {
+      "type": "object",
+      "properties": {
+        "manifest": {
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string",
+              "const": "asf-eval-store/v1"
+            },
+            "store_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "key_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "files": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "required": [
+            "format",
+            "store_id",
+            "created_at",
+            "key_id",
+            "files"
+          ],
+          "additionalProperties": false
+        },
+        "signature": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "ES256"
+            },
+            "kid": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "manifest",
+        "signature"
+      ],
+      "additionalProperties": false
+    },
+    "EvalSuite": {
+      "type": "object",
+      "properties": {
+        "suite_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "project_tag": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "case_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+          }
+        },
+        "holdout_case_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+          }
+        },
+        "store_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "local_prod_loadable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "suite_id",
+        "agent_id",
+        "profile",
+        "project_tag",
+        "case_ids",
+        "holdout_case_ids",
+        "store_id",
+        "manifest_digest",
+        "local_prod_loadable"
+      ],
+      "additionalProperties": false
+    },
+    "EvalSummaryRow": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "suite": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "trials": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "passes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "pass_k": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "flaky",
+            "fail"
+          ]
+        }
+      },
+      "required": [
+        "task_id",
+        "profile",
+        "suite",
+        "provider",
+        "trials",
+        "passes",
+        "pass_rate",
+        "pass_k",
+        "k",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "EvalSummaryView": {
+      "type": "object",
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "profile": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "suite": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "provider": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              },
+              "trials": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "passes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pass_rate": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "pass_k": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "k": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "flaky",
+                  "fail"
+                ]
+              }
+            },
+            "required": [
+              "task_id",
+              "profile",
+              "suite",
+              "provider",
+              "trials",
+              "passes",
+              "pass_rate",
+              "pass_k",
+              "k",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "additionalProperties": false
+    },
+    "EvalTaskStatus": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "flaky",
+        "fail"
+      ]
+    },
+    "EvalTrial": {
+      "type": "object",
+      "properties": {
+        "trial": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "failure_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "output_not_json",
+                "output_invalid",
+                "grader_failed",
+                "refused",
+                "infra_error"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "infra_error": {
+          "type": "boolean"
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "eval_run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "case_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        }
+      },
+      "required": [
+        "trial",
+        "passed",
+        "failure_code",
+        "infra_error",
+        "tokens_in",
+        "tokens_out",
+        "cost_micro_usd",
+        "eval_run_id",
+        "case_id"
+      ],
+      "additionalProperties": false
+    },
+    "EvalTrialResult": {
+      "type": "object",
+      "properties": {
+        "trial": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "failure_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "output_not_json",
+                "output_invalid",
+                "grader_failed",
+                "refused",
+                "infra_error"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "infra_error": {
+          "type": "boolean"
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "trial",
+        "passed",
+        "failure_code",
+        "infra_error",
+        "tokens_in",
+        "tokens_out",
+        "cost_micro_usd"
+      ],
+      "additionalProperties": false
+    },
+    "EvalTrigger": {
+      "type": "string",
+      "enum": [
+        "ci",
+        "prompt_change",
+        "model_change",
+        "schedule",
+        "regression",
+        "manual"
       ]
     },
     "Fact": {
@@ -31679,6 +34067,76 @@
         "job_id"
       ],
       "additionalProperties": false
+    },
+    "KnowledgeDefect": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "level_conflict",
+            "directive_in_repo_text",
+            "provenance_mismatch",
+            "unmerged_excluded",
+            "required_over_budget"
+          ]
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "L-TIER",
+              "L-AUTONOMY",
+              "L-LANE",
+              "L-GATE",
+              "L-BUDGET",
+              "L-GRANT",
+              "L-ADDRESS",
+              "L-DIRECTIVE",
+              "L-SECRET",
+              "L-URL",
+              "L-PIPE-SH",
+              "L-PROSE",
+              "L-FMT-LINES",
+              "L-FMT-FRONTMATTER"
+            ]
+          }
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "kind",
+        "level",
+        "path",
+        "rules",
+        "detail"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeDefectKind": {
+      "type": "string",
+      "enum": [
+        "level_conflict",
+        "directive_in_repo_text",
+        "provenance_mismatch",
+        "unmerged_excluded",
+        "required_over_budget"
+      ]
     },
     "KnowledgeJob": {
       "type": "object",
@@ -55428,6 +57886,44 @@
         "release",
         "budget",
         "fleet"
+      ]
+    },
+    "ScoreSignal": {
+      "type": "object",
+      "properties": {
+        "score_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "eval",
+            "production"
+          ]
+        },
+        "run_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verdict": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "score_id",
+        "source",
+        "run_ref",
+        "verdict"
+      ],
+      "additionalProperties": false
+    },
+    "ScoreSource": {
+      "type": "string",
+      "enum": [
+        "eval",
+        "production"
       ]
     },
     "SecrDecisionContent": {

@@ -13,6 +13,8 @@ export const KEY_REGISTRY: Readonly<Record<string, KeyKind>> = {
   'dev:bff-stepup': 'es256',
   // The kill switch signs its own journal (PLAN M9.6, AR9): a key core and the Notary cannot use.
   'dev:killswitch': 'es256',
+  // The eval store's manifest signer (PLAN M11.3): used only by the eval tooling, never by a service an agent can reach.
+  'dev:eval-store': 'es256',
   'dev:fingerprint-hmac': 'hmac',
 };
 
@@ -24,6 +26,8 @@ export const DEFAULT_KEY_ALLOW_LIST: Readonly<Record<string, readonly string[]>>
   // The bff signs step-up proofs (PLAN M4.5); verifiers need only the public key, which is open.
   bff: ['dev:bff-stepup'],
   killswitch: ['dev:killswitch'],
+  // The eval tooling signs the eval store's manifest (PLAN M11.3); no other caller may use the key.
+  evals: ['dev:eval-store'],
 };
 
 export class KeyStoreError extends Error {

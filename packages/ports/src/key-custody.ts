@@ -38,7 +38,7 @@ export interface KeyCustodyPort {
 export interface FakeKeyCustodyOptions {
   /** Makes every key derive from this seed. Default `"fake"`. */
   seed?: string;
-  /** ES256 key ids. Default `dev:notary`, `dev:witness`, `dev:bff-stepup`, `dev:killswitch`. */
+  /** ES256 key ids. Default `dev:notary`, `dev:witness`, `dev:bff-stepup`, `dev:killswitch`, `dev:eval-store`. */
   es256?: readonly string[];
   /** HMAC key ids. Default `dev:fingerprint-hmac`. */
   hmac?: readonly string[];
@@ -51,10 +51,15 @@ export interface FakeKeyCustodyOptions {
 export function fakeKeyCustody(opts: FakeKeyCustodyOptions = {}): KeyCustodyPort {
   const seed = opts.seed ?? 'fake';
   const es = new Map(
-    (opts.es256 ?? ['dev:notary', 'dev:witness', 'dev:bff-stepup', 'dev:killswitch']).map((id) => [
-      id,
-      deriveEs256SecretKey(`${seed}:${id}`),
-    ]),
+    (
+      opts.es256 ?? [
+        'dev:notary',
+        'dev:witness',
+        'dev:bff-stepup',
+        'dev:killswitch',
+        'dev:eval-store',
+      ]
+    ).map((id) => [id, deriveEs256SecretKey(`${seed}:${id}`)]),
   );
   const mac = new Map(
     (opts.hmac ?? ['dev:fingerprint-hmac']).map((id) => [

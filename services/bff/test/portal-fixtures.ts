@@ -112,6 +112,25 @@ export function agentStatsFixture(agent: string, project: string | null) {
   };
 }
 
+export function evalSummaryFixture() {
+  return {
+    rows: [
+      {
+        task_id: 't-1',
+        profile: 'A1.classify',
+        suite: 'triage',
+        provider: 'fake',
+        trials: 3,
+        passes: 3,
+        pass_rate: 1,
+        pass_k: 1,
+        k: 3,
+        status: 'pass',
+      },
+    ],
+  };
+}
+
 export const S0_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe54';
 export const CARD_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe99';
 export const GATE_ID = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77';
@@ -367,6 +386,13 @@ export async function startFakeCore(): Promise<FakeCore> {
       if (method === 'GET' && st) {
         const project = new URLSearchParams(st[2]).get('project');
         return reply(200, agentStatsFixture(st[1] as string, project));
+      }
+      if (method === 'GET' && path.startsWith('/v1/evals/summary?')) {
+        return reply(200, evalSummaryFixture());
+      }
+      if (method === 'GET' && path.startsWith('/v1/evals/runs?')) return reply(200, { runs: [] });
+      if (method === 'GET' && /^\/v1\/agents\/[A-Za-z0-9]+\/scores\?/.test(path)) {
+        return reply(200, { agent_id: 'A1', scores: [] });
       }
       if (method === 'GET' && path === `/v1/s0/${S0_ID}`) return reply(200, s0Overview(p));
       if (method === 'GET' && path === `/v1/s0/${S0_ID}/cards`) {

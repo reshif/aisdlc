@@ -65,6 +65,7 @@ import {
 } from './queries.js';
 import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.js';
 import { agentStatsOf, listAgentRuns } from './agent-runs.js';
+import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
 import { submitRequest } from './requests.js';
 import { readItem } from './work-items.js';
@@ -104,10 +105,19 @@ import {
  * human named in `on_behalf_of`), `ops` (controls, previews and banners, M9.6: the BFF for a signed-in
  * human; the PDP decides about the human, over the resource of the scope), `integrations` (M10.4: a
  * process that holds adapters reports its health per integration; the registry read is `registry`, the
- * tiles and events are `portal`).
+ * tiles and events are `portal`), `evals` (M11.3: the eval tooling posts each finished run; reads of the
+ * history are `work`, decided by the PDP for the human like the agent stats).
  */
 export type CoreScope =
-  'read' | 'onboard' | 'settings' | 'registry' | 'portal' | 'work' | 'ops' | 'integrations';
+  | 'read'
+  | 'onboard'
+  | 'settings'
+  | 'registry'
+  | 'portal'
+  | 'work'
+  | 'ops'
+  | 'integrations'
+  | 'evals';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -635,6 +645,102 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return await agentStatsOf(o.pool, agent.data, scope);
     } catch {
       return fail(reply, coreError('unavailable', 'the agent stats could not be read'));
+    }
+  });
+
+  /**
+   * The eval tooling posts a finished run (M11.3). Recorded once per run id; the body is ids, hashes,
+   * pass vectors and counts (the contract has no field for a prompt, an input or an output).
+   */
+  app.post('/v1/evals/runs', async (req, reply) => {
+    if (!allowed(req, 'evals')) return sendError(reply, 403, 'forbidden', 'scope evals is needed');
+    const r = await recordEvalRun(deps, req.body);
+    if (!r.ok) return fail(reply, r.error);
+    reply.code(r.value.duplicate ? 200 : 201);
+    return { recorded: !r.value.duplicate };
+  });
+
+  /** Who may read the eval history and scores: `audit.read` on the fleet, or on the project tag asked for. */
+  async function evalReadGuard(req: FastifyRequest, reply: FastifyReply) {
+    if (!allowed(req, 'work')) {
+      sendError(reply, 403, 'forbidden', 'scope work is needed');
+      return null;
+    }
+    const q = req.query as Record<string, string>;
+    const who = PrincipalId.safeParse(q['on_behalf_of']);
+    if (!who.success) {
+      fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+      return null;
+    }
+    const project = q['project'] === undefined ? null : ProjectId.safeParse(q['project']);
+    if (project !== null && !project.success) {
+      fail(reply, coreError('invalid_input', 'bad project id'));
+      return null;
+    }
+    const tag = project === null ? null : (project as { data: ProjectId }).data;
+    if (
+      !(await guard(
+        reply,
+        who.data,
+        'audit.read',
+        tag === null ? pdpResource.fleet() : pdpResource.project(tag),
+      ))
+    ) {
+      return null;
+    }
+    return { q, project: tag };
+  }
+
+  /**
+   * The quality board's rows (M11.3; DM §5.1): one per task of the newest run of each suite and
+   * provider, allow-listed fields only (never a prompt, an output or a per-task cost). Evals are
+   * factory-wide; `?project=` shows the suites tagged with a project.
+   */
+  app.get('/v1/evals/summary', async (req, reply) => {
+    const g = await evalReadGuard(req, reply);
+    if (!g) return;
+    try {
+      return { rows: await evalSummary(o.pool, g.project) };
+    } catch {
+      return fail(reply, coreError('unavailable', 'the eval summary could not be read'));
+    }
+  });
+
+  /** The history of eval runs, newest first: what a trend is drawn from. `?suite=`, `?agent=`, `?limit=`. */
+  app.get('/v1/evals/runs', async (req, reply) => {
+    const g = await evalReadGuard(req, reply);
+    if (!g) return;
+    const agent = g.q['agent'] === undefined ? null : AgentId.safeParse(g.q['agent']);
+    if (agent !== null && !agent.success)
+      return fail(reply, coreError('invalid_input', 'unknown agent'));
+    const limit = g.q['limit'] === undefined ? 100 : Number(g.q['limit']);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+      return fail(reply, coreError('invalid_input', 'limit is 1 to 500'));
+    }
+    try {
+      return {
+        runs: await evalHistory(o.pool, {
+          project: g.project,
+          limit,
+          ...(g.q['suite'] === undefined ? {} : { suite: g.q['suite'] }),
+          ...(agent === null ? {} : { agent: agent.data }),
+        }),
+      };
+    } catch {
+      return fail(reply, coreError('unavailable', 'the eval history could not be read'));
+    }
+  });
+
+  /** AgentScore per (prompt sha, provider, model): eval results and production outcomes of one agent. */
+  app.get('/v1/agents/:id/scores', async (req, reply) => {
+    const agent = AgentId.safeParse(params(req)['id']);
+    if (!agent.success) return fail(reply, coreError('invalid_input', 'unknown agent'));
+    const g = await evalReadGuard(req, reply);
+    if (!g) return;
+    try {
+      return { agent_id: agent.data, scores: await agentScoresOf(o.pool, agent.data) };
+    } catch {
+      return fail(reply, coreError('unavailable', 'the agent scores could not be read'));
     }
   });
 
