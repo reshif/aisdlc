@@ -66,6 +66,8 @@ export const AgentRunFailureCode = z.enum([
   'port_error',
   /** The agent's output did not validate against its OutputSchema (`validateOutput`). */
   'output_invalid',
+  /** The output held a secret (the shared ruleset hit): refused before it was stored (M12). */
+  'secret_in_output',
 ]);
 export type AgentRunFailureCode = z.infer<typeof AgentRunFailureCode>;
 

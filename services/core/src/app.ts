@@ -42,6 +42,7 @@ import { newApp, sendError, type ServiceAuth } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
+import { gateArtefactsView } from './planning/gate-view.js';
 import { CORE_STATUS, coreError, type CoreError } from './errors.js';
 import { listBreakers, requestBreakerReset } from './breaker.js';
 import {
@@ -892,6 +893,23 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!cards || !id) return;
     const r = await cardDetail(cards, id);
     return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  /**
+   * What a work-item gate card (G1f, G2) decides: the artefacts its subject hash binds, rendered as
+   * markdown, each with its hash and whether its stored bytes still hash to it (M12). The bff decides
+   * whether the person may see the project.
+   */
+  app.get('/v1/cards/:cardId/artefacts', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const id = uuidParam(req, reply, 'cardId');
+    if (!id) return;
+    try {
+      const r = await gateArtefactsView(o.pool, id);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the card could not be read'));
+    }
   });
 
   /** The PDP decides about the human (`card.decide`), then the decision kernel does the rest. */

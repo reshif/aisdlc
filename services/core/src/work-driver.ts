@@ -25,6 +25,7 @@ import {
   type AgentKeyPort,
   type CapacityPort,
   type KillStatePort,
+  type RunKeyVault,
   type StagePorts,
 } from '@aisdlc/ports';
 import {
@@ -72,7 +73,7 @@ import {
 } from './controls.js';
 import { syncKillHolds } from './kill.js';
 import { catchUpWork } from './work-projection.js';
-import { dispatchAgent, recordFailure } from './agent-dispatch.js';
+import { dispatchAgent, recordFailure, releaseRun } from './agent-dispatch.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
 
 // The work driver (PLAN M9.2; ADR-0001 "Departure from the runtime review"): what replaces Temporal.
@@ -122,6 +123,12 @@ export interface WorkDriverDeps {
    * driver runs; a driver built without one (tests of other things) mints nothing and records `vkey_id: null`.
    */
   readonly keys?: AgentKeyPort;
+  /**
+   * M12: where a minted key's secret is kept for the stage port that calls the gateway with it (the
+   * `AgentPlanningPort`'s `RunKeyLender`). The secret goes nowhere else: not into the record, the outbox
+   * or an error. Absent, the secret is dropped (the ports of M9 to M11 need none).
+   */
+  readonly vault?: RunKeyVault;
 }
 
 const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
@@ -410,7 +417,12 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
         }
       }
       // M11.2: the agent that acts at this step, its key minted from its contract, recorded before the call
-      const bound = await dispatchAgent({ ...cd, ...(d.keys ? { keys: d.keys } : {}) }, s, c);
+      const dispatchDeps = {
+        ...cd,
+        ...(d.keys ? { keys: d.keys } : {}),
+        ...(d.vault ? { vault: d.vault } : {}),
+      };
+      const bound = await dispatchAgent(dispatchDeps, s, c);
       if (!bound.ok) throw new Error(bound.error.message);
       const agent = bound.value;
       const port = d.ports[c.port];
@@ -432,6 +444,8 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
         throw new Error(`${c.port} port: ${r.error.message}`);
       }
       must(await ingestItem(cd, item_id, resultDraft(s, c, r.value)));
+      // answered: the run's secret is forgotten and its per-job key ended
+      if (agent) await releaseRun(dispatchDeps, c, agent);
       return;
     }
 

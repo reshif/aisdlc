@@ -12,7 +12,7 @@ import {
   type VKeyMint,
 } from '@aisdlc/contracts';
 import { deterministicId, err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
-import type { AgentKeyPort } from '@aisdlc/ports';
+import type { AgentKeyPort, RunKeyVault } from '@aisdlc/ports';
 import type { ItemState } from '@aisdlc/work';
 import { coreError, type CoreError } from './errors.js';
 import { clockOf, inCoreTx, lockKeys, type CoreDeps } from './journal.js';
@@ -42,9 +42,16 @@ const hashOf = (s: string): string => sha256Hex(s).slice(0, 32);
 export interface AgentDispatchDeps extends CoreDeps {
   /** Where keys come from. Absent: no key is minted and the run records `vkey_id: null` (a test of something else). */
   readonly keys?: AgentKeyPort;
+  /**
+   * Where the key's secret goes (M12): the in-process seam between this dispatch and the stage port that
+   * calls the gateway (`RunKeyLender`). The secret is put here the moment the gateway mints it and is
+   * never recorded: the dispatch event has the key's ID only. Absent: the secret is dropped as before
+   * (a port that needs it, the sandbox of M13, gets it by its own channel).
+   */
+  readonly vault?: RunKeyVault;
 }
 
-/** The dispatch already recorded for a command, if any. */
+/** The latest dispatch recorded for a command, if any (a lost secret is re-minted: a later dispatch). */
 async function recorded(
   d: CoreDeps,
   itemId: string,
@@ -52,8 +59,9 @@ async function recorded(
 ): Promise<AgentRunDispatchedPayload | null> {
   const q = await d.pool.query<{ body: unknown }>(
     `SELECT body FROM record.record_event
-      WHERE stream = $1 AND type = $2 AND idempotency_key = $3`,
-    [agentStream(itemId), AGENT_EVENT.run_dispatched, `agent.dispatched:${commandKey}`],
+      WHERE stream = $1 AND type = $2 AND body ->> 'command_key' = $3
+      ORDER BY seq DESC LIMIT 1`,
+    [agentStream(itemId), AGENT_EVENT.run_dispatched, commandKey],
   );
   const row = q.rows[0];
   return row ? AgentRunDispatchedPayload.parse(row.body) : null;
@@ -72,7 +80,13 @@ export async function dispatchAgent(
   if (def === null) return ok(null);
 
   const prior = await recorded(d, s.item_id, c.key);
-  if (prior) return ok(prior.binding);
+  const lost =
+    prior !== null &&
+    d.vault !== undefined &&
+    d.keys !== undefined &&
+    prior.binding.vkey_id !== null &&
+    d.vault.keyOf(prior.run_id) !== prior.binding.vkey_id;
+  if (prior && !lost) return ok(prior.binding);
 
   const run_id = agentRunIdOf(c.key);
   const contract = def.contract;
@@ -113,6 +127,10 @@ export async function dispatchAgent(
       return err(coreError('unavailable', `no key for ${def.agent_id}: ${k.error.message}`));
     }
     vkey_id = k.value.vkey.vkey_id;
+    // the secret stays in this process, for the port that runs the command; it is in no event
+    d.vault?.put(run_id, vkey_id, k.value.secret);
+    // the key whose secret this process lost (a restart after the first dispatch) is of no use to anyone
+    if (prior?.binding.vkey_id) await d.keys.revoke?.(prior.binding.vkey_id);
   }
 
   const binding: AgentBinding = { ...base, vkey_id };
@@ -136,7 +154,11 @@ export async function dispatchAgent(
         type: AGENT_EVENT.run_dispatched,
         body: payload as unknown as Record<string, unknown>,
         actor: AGENT_ACTOR,
-        idempotency_key: `agent.dispatched:${c.key}`,
+        // a re-mint (the secret was lost with a restart) is a later dispatch of the same command
+        idempotency_key:
+          prior?.binding.vkey_id && vkey_id !== null
+            ? `agent.dispatched:${c.key}:after:${prior.binding.vkey_id}`
+            : `agent.dispatched:${c.key}`,
       },
     ]);
     return r.ok ? ok(r.value.events) : r;
@@ -145,6 +167,21 @@ export async function dispatchAgent(
   // a concurrent worker may have recorded first: its key is the run's key
   const stored = (w.value as RecordEvent[])[0];
   return ok(stored ? AgentRunDispatchedPayload.parse(stored.payload).binding : binding);
+}
+
+/**
+ * The command is answered: the run's secret is forgotten and its per-job key ended (a Unit's key outlives
+ * its command and is the sandbox's). A failure to revoke is not the command's: the key expires on its own.
+ */
+export async function releaseRun(
+  d: AgentDispatchDeps,
+  c: RunStage,
+  binding: AgentBinding,
+): Promise<void> {
+  d.vault?.drop(binding.run_id);
+  if (binding.vkey_id !== null && STEPS[c.step].stage !== 'S6') {
+    await d.keys?.revoke?.(binding.vkey_id).catch(() => undefined);
+  }
 }
 
 /** Records that core could not carry a run (once per command and code; a retry is not a second failure). */

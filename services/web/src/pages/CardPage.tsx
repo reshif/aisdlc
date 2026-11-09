@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CardKind } from '@aisdlc/contracts';
-import { api } from '../api';
+import { ApiError, api } from '../api';
 import { Badge } from '../components/Badge';
 import { ErrorNote, Loading } from '../components/Notice';
 import { C1Form } from '../cards/C1Form';
 import { C4Form } from '../cards/C4Form';
 import { C5Panel } from '../cards/C5Panel';
+import { GateArtefacts } from '../cards/GateArtefacts';
 import { SecrForm } from '../cards/SecrForm';
 import { shortTime } from '../format';
 import { Link } from '../router';
@@ -42,6 +43,10 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
     staleTime: 0,
   });
   if (q.isPending) return <Loading what="the card" />;
+  // not an onboarding card: a work-item gate card (G1f, G2) shows the artefacts it decides
+  if (q.isError && q.error instanceof ApiError && q.error.status === 404) {
+    return <GateArtefacts id={id} />;
+  }
   if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
   const card = q.data;
   const { summary } = card;

@@ -17,7 +17,7 @@ const Callers = z.record(
   z.string().min(1),
   z.strictObject({
     token_ref: z.string().min(1),
-    scopes: z.array(z.enum(['census', 'security'])).min(1),
+    scopes: z.array(z.enum(['census', 'security', 'search'])).min(1),
   }),
 );
 
@@ -87,7 +87,7 @@ export function assertNoForbiddenEnv(env: Env): void {
 
 /**
  * Reads the environment (all of it before anything starts):
- *   KNOWLEDGE_DATABASE_URL, KNOWLEDGE_CALLERS ({caller: {token_ref, scopes: [census|security]}})
+ *   KNOWLEDGE_DATABASE_URL, KNOWLEDGE_CALLERS ({caller: {token_ref, scopes: [census|security|search]}})
  *   KNOWLEDGE_CODEHOST_URL, KNOWLEDGE_CODEHOST_TOKEN_REF   the codehost and our token there (census)
  *   KMS_URL, KMS_TOKEN_REF                                  kms-local, caller `knowledge`
  *   KNOWLEDGE_IDENTITY_URL, KNOWLEDGE_IDENTITY_TOKEN_REF   identity (scope read), for the human check

@@ -128,6 +128,11 @@ export const PlannerOutput = z.discriminatedUnion('kind', [
       .max(40),
     citations: z.array(Evidence).max(100),
     assumptions: Assumptions,
+    /**
+     * 2.1: the points where the intent is ambiguous. Any makes the step raise B2 (back to 1.5, G1 again);
+     * absent or empty: the intent is clear. The agent says WHAT is unclear; the factory decides what follows.
+     */
+    ambiguity: Items(500, 10).optional(),
   }),
   z
     .strictObject({
@@ -148,6 +153,12 @@ export const PlannerOutput = z.discriminatedUnion('kind', [
       rationale: Text(2000),
       citations: z.array(Evidence).max(100),
       assumptions: Assumptions,
+      /**
+       * 2.3: whether the work is as large as its lane is made for (`matches`, the default) or smaller
+       * (`smaller`: R2, which a person decides at E1). The agent never names a lane: which one is the
+       * factory's (the next rung down the ladder).
+       */
+      sizing: z.enum(['matches', 'smaller']).optional(),
     })
     .refine((o) => o.recommended < o.options.length, {
       message: 'recommended is not one of the options',

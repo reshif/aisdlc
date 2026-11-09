@@ -292,7 +292,7 @@
         "3.2"
       ],
       "contract": {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "input_schema_id": "a2_input.v1",
         "input_schema": {
           "type": "object",
@@ -379,7 +379,12 @@
                       "request",
                       "intent_block",
                       "context_brief",
+                      "decision_brief",
+                      "impact",
+                      "affected_requirements",
                       "spec_delta",
+                      "validation_report",
+                      "spec_review",
                       "repo_snapshot"
                     ]
                   },
@@ -700,7 +705,7 @@
         "9.4"
       ],
       "contract": {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "input_schema_id": "a3_input.v1",
         "input_schema": {
           "type": "object",
@@ -787,6 +792,9 @@
                       "request",
                       "intent_block",
                       "context_brief",
+                      "reverse_engineering",
+                      "impact",
+                      "initiative",
                       "decision_brief",
                       "spec_delta",
                       "oracle_specs",
@@ -929,6 +937,15 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "ambiguity": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
                 }
               },
               "required": [
@@ -1057,6 +1074,13 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "sizing": {
+                  "type": "string",
+                  "enum": [
+                    "matches",
+                    "smaller"
+                  ]
                 }
               },
               "required": [

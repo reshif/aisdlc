@@ -778,7 +778,13 @@
             "evidence_pack",
             "session_log",
             "repo_snapshot",
-            "config_history"
+            "config_history",
+            "reverse_engineering",
+            "impact",
+            "initiative",
+            "affected_requirements",
+            "validation_report",
+            "spec_review"
           ]
         },
         "ref": {
@@ -892,7 +898,13 @@
                   "evidence_pack",
                   "session_log",
                   "repo_snapshot",
-                  "config_history"
+                  "config_history",
+                  "reverse_engineering",
+                  "impact",
+                  "initiative",
+                  "affected_requirements",
+                  "validation_report",
+                  "spec_review"
                 ]
               },
               "ref": {
@@ -1845,7 +1857,8 @@
           "enum": [
             "key_mint_refused",
             "port_error",
-            "output_invalid"
+            "output_invalid",
+            "secret_in_output"
           ]
         },
         "detail": {
@@ -1872,7 +1885,8 @@
       "enum": [
         "key_mint_refused",
         "port_error",
-        "output_invalid"
+        "output_invalid",
+        "secret_in_output"
       ]
     },
     "AgentRunId": {
@@ -4056,6 +4070,151 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "ArtefactStoredPayload": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "artefact/1"
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "request",
+            "intent_block",
+            "context_brief",
+            "decision_brief",
+            "spec_delta",
+            "oracle_specs",
+            "design",
+            "plan",
+            "diff",
+            "evidence_pack",
+            "session_log",
+            "repo_snapshot",
+            "config_history",
+            "reverse_engineering",
+            "impact",
+            "initiative",
+            "affected_requirements",
+            "validation_report",
+            "spec_review"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "command_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "item_id",
+        "project_id",
+        "type",
+        "version",
+        "sha256",
+        "bytes",
+        "step",
+        "command_key",
+        "run_id"
+      ],
+      "additionalProperties": false
+    },
     "ArtefactType": {
       "type": "string",
       "enum": [
@@ -4071,8 +4230,135 @@
         "evidence_pack",
         "session_log",
         "repo_snapshot",
-        "config_history"
+        "config_history",
+        "reverse_engineering",
+        "impact",
+        "initiative",
+        "affected_requirements",
+        "validation_report",
+        "spec_review"
       ]
+    },
+    "ArtefactView": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "request",
+            "intent_block",
+            "context_brief",
+            "decision_brief",
+            "spec_delta",
+            "oracle_specs",
+            "design",
+            "plan",
+            "diff",
+            "evidence_pack",
+            "session_log",
+            "repo_snapshot",
+            "config_history",
+            "reverse_engineering",
+            "impact",
+            "initiative",
+            "affected_requirements",
+            "validation_report",
+            "spec_review"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "stored_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "markdown": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "step",
+        "type",
+        "version",
+        "sha256",
+        "stored_at",
+        "markdown"
+      ],
+      "additionalProperties": false
     },
     "Assumption": {
       "type": "object",
@@ -23630,6 +23916,274 @@
       "required": [
         "reason",
         "expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "GateArtefactRef": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "request",
+            "intent_block",
+            "context_brief",
+            "decision_brief",
+            "spec_delta",
+            "oracle_specs",
+            "design",
+            "plan",
+            "diff",
+            "evidence_pack",
+            "session_log",
+            "repo_snapshot",
+            "config_history",
+            "reverse_engineering",
+            "impact",
+            "initiative",
+            "affected_requirements",
+            "validation_report",
+            "spec_review"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "step",
+        "type",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "GateArtefactsView": {
+      "type": "object",
+      "properties": {
+        "card_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subject_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "intact": {
+          "type": "boolean"
+        },
+        "artefacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "type": "string",
+                "enum": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5",
+                  "1.1",
+                  "1.2",
+                  "1.3",
+                  "1.4",
+                  "1.5",
+                  "1.6",
+                  "2.1",
+                  "2.1b",
+                  "2.2",
+                  "2.3",
+                  "2.4",
+                  "2.5",
+                  "3.1",
+                  "3.2",
+                  "3.3",
+                  "3.4",
+                  "3.5",
+                  "4.1",
+                  "4.2",
+                  "4.3",
+                  "4.4",
+                  "4.5",
+                  "4.6",
+                  "5.1",
+                  "5.2",
+                  "5.3",
+                  "5.4",
+                  "5.5",
+                  "5.6",
+                  "5.7",
+                  "5.8",
+                  "6.0",
+                  "6.1",
+                  "6.2",
+                  "6.3",
+                  "6.4",
+                  "6.5",
+                  "6.6",
+                  "7.1",
+                  "7.2",
+                  "7.3",
+                  "7.4",
+                  "7.5",
+                  "7.6",
+                  "8.1",
+                  "8.2",
+                  "S8b",
+                  "9.2",
+                  "9.3",
+                  "9.4",
+                  "9.5"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "request",
+                  "intent_block",
+                  "context_brief",
+                  "decision_brief",
+                  "spec_delta",
+                  "oracle_specs",
+                  "design",
+                  "plan",
+                  "diff",
+                  "evidence_pack",
+                  "session_log",
+                  "repo_snapshot",
+                  "config_history",
+                  "reverse_engineering",
+                  "impact",
+                  "initiative",
+                  "affected_requirements",
+                  "validation_report",
+                  "spec_review"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "markdown": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "intact": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "step",
+              "type",
+              "sha256",
+              "version",
+              "markdown",
+              "intact"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "card_id",
+        "project_id",
+        "item_id",
+        "gates",
+        "subject_hash",
+        "intact",
+        "artefacts"
       ],
       "additionalProperties": false
     },
@@ -48906,6 +49460,226 @@
       "required": [
         "ref",
         "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "ProposalKind": {
+      "type": "string",
+      "enum": [
+        "triage",
+        "intent",
+        "shape",
+        "reverse_engineering",
+        "spec",
+        "oracle",
+        "review",
+        "design",
+        "plan",
+        "learn"
+      ]
+    },
+    "ProposalReason": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "path",
+        "code"
+      ],
+      "additionalProperties": false
+    },
+    "ProposalRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "command_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "triage",
+            "intent",
+            "shape",
+            "reverse_engineering",
+            "spec",
+            "oracle",
+            "review",
+            "design",
+            "plan",
+            "learn"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "rejected"
+          ]
+        },
+        "artefact_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reasons": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "path",
+              "code"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "proposal_id",
+        "item_id",
+        "project_id",
+        "step",
+        "run_id",
+        "command_key",
+        "agent_id",
+        "attempt",
+        "kind",
+        "status",
+        "artefact_sha256",
+        "output_sha256",
+        "reasons"
       ],
       "additionalProperties": false
     },

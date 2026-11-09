@@ -204,6 +204,28 @@ export function s0Overview(
   };
 }
 
+/** What a work-item gate card (G2) decides: the artefacts its subject hash binds (M12). */
+export function gateArtefactsFixture(projectId: string) {
+  return {
+    card_id: CARD_ID,
+    project_id: projectId,
+    item_id: ITEM_ID,
+    gates: ['G2'],
+    subject_hash: 'c'.repeat(64),
+    intact: true,
+    artefacts: [
+      {
+        step: '3.2',
+        type: 'spec_delta',
+        sha256: 'd'.repeat(64),
+        version: 1,
+        markdown: '# Spec delta\n',
+        intact: true,
+      },
+    ],
+  };
+}
+
 export function cardSummary(projectId: string) {
   return {
     card_id: CARD_ID,
@@ -400,6 +422,9 @@ export async function startFakeCore(): Promise<FakeCore> {
       }
       if (method === 'GET' && path === `/v1/cards/${CARD_ID}/summary`) {
         return reply(200, cardSummary(p));
+      }
+      if (method === 'GET' && path === `/v1/cards/${CARD_ID}/artefacts`) {
+        return reply(200, gateArtefactsFixture(p));
       }
       if (method === 'GET' && path === `/v1/cards/${CARD_ID}`) {
         return reply(200, {

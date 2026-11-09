@@ -7,9 +7,11 @@ import {
   CAUSE_E4_ABANDON,
   CAUSE_E4_HANDED_OVER,
   CAUSE_PARK_TIMEOUT,
+  GATE_ARTEFACT_STEPS,
   ITEM_EVENT,
   RELANE_SOURCES,
   SPAWN_RULES,
+  STEP_ARTEFACT,
   canTransitionWorkItem,
   type BackEdgeId,
   type BreakerSource,
@@ -142,6 +144,16 @@ function gateFacts(
     default_envelope: def.profile.default_envelope,
   };
   const lane_profile_sha256 = hashCanonical(lane_profile);
+  // M12: what the gate decides, by hash. The latest output of each step the gate binds (G1f: what S2
+  // produced; G2: the spec, the oracle specs and the review beside them) is in the card and in the
+  // subject hash, so a changed artefact is a different subject and an old approval cannot cover it.
+  const artefacts = gates.flatMap((g) =>
+    (GATE_ARTEFACT_STEPS[g] ?? []).flatMap((step) => {
+      const sha256 = s.outputs[step];
+      const type = STEP_ARTEFACT[step];
+      return sha256 === undefined || type === undefined ? [] : [{ step, type, sha256 }];
+    }),
+  );
   const facts: Record<string, unknown> = {
     item_id: s.item_id,
     station: stationKey,
@@ -157,9 +169,10 @@ function gateFacts(
     dedupe_links: s.intake.dedupe_links,
     conflict_candidates: s.intake.conflict_candidates,
     ...(s.review_mode !== null ? { review_mode: s.review_mode } : {}),
+    ...(artefacts.length > 0 ? { artefacts } : {}),
     ...extra,
   };
-  return { facts, lane_profile_sha256 };
+  return { facts, lane_profile_sha256, artefacts };
 }
 
 function openGates(
@@ -175,7 +188,13 @@ function openGates(
   },
 ): void {
   const attempt = bump(s, `open:${o.stationKey}`);
-  const { facts, lane_profile_sha256 } = gateFacts(s, cat, o.gates, o.stationKey, o.extra);
+  const { facts, lane_profile_sha256, artefacts } = gateFacts(
+    s,
+    cat,
+    o.gates,
+    o.stationKey,
+    o.extra,
+  );
   const subject_hash = hashCanonical({
     item_id: s.item_id,
     station: o.stationKey,
@@ -185,6 +204,7 @@ function openGates(
     text_sha256: s.intake.text_sha256,
     // A conditional gate binds what was approved before it, so a resume cannot reuse an old approval.
     approved: o.step === null ? [] : (s.approved[o.step] ?? []),
+    ...(artefacts.length > 0 ? { artefacts } : {}),
     ...(o.extra ? { extra: o.extra } : {}),
   });
   issue(
@@ -1331,7 +1351,16 @@ export function interpret(
     case ITEM_EVENT.trigger_fired: {
       const p = event.payload;
       // D1 from S6, D2 from S7, D3 from G4: the trigger's effects (the ET table) must name the handoff.
-      const code = ({ S6: 'D1', S7: 'D2', G4: 'D3' } as Record<string, HandoffCode>)[s.underlying];
+      let code = ({ S6: 'D1', S7: 'D2', G4: 'D3' } as Record<string, HandoffCode>)[s.underlying];
+      // ET8 "agent gave up" (M12: a planning step whose output stayed invalid through its automatic
+      // attempts, B3) is the same D1 from any planning stage, as B3's own exit to ET8 is.
+      if (
+        code === undefined &&
+        p.trigger === 'ET8' &&
+        AGENT_PLANNING_PHASES.includes(s.underlying)
+      ) {
+        code = 'D1';
+      }
       const effect = catalogue.triggers[p.trigger as TriggerId].effects.some(
         (e) => e.kind === 'handoff' && e.handoff === code,
       );
@@ -1795,6 +1824,8 @@ const AMEND_PHASES: readonly WorkItemPhase[] = [
 /** Phases whose stations a re-lane may find already done. */
 const SKIPPABLE_PHASES: readonly WorkItemPhase[] = ['S2', 'S3', 'S4', 'S5'];
 const PLANNING_STAGES: readonly string[] = ['S2', 'S3', 'S4'];
+/** The stages whose steps a planning agent runs (S1 to S5): where ET8 "agent gave up" is a D1. */
+const AGENT_PLANNING_PHASES: readonly string[] = ['S1', 'S2', 'S3', 'S4', 'S5'];
 
 /**
  * How much planning a lane carries: its stations in S2-S5 under the item's profile. R1 only goes to a
@@ -2018,7 +2049,8 @@ function applyRework(
     if (!STAGE_EDGES.includes(edge)) return 'not_raised_by_a_stage';
     const c = s.outstanding.find((x) => x.key === p.command_key);
     if (c === undefined || c.type !== 'run_stage') return 'stale';
-    if (c.step !== from) return `wrong_step:${c.step}`;
+    // B3 "validator/critic fail": the validator is 3.3; the critic (the clean-context review) is 3.5
+    if (c.step !== from && !(edge === 'B3' && c.step === '3.5')) return `wrong_step:${c.step}`;
     if (edge === 'B6') {
       takeOutstanding(s, c.key);
       s.waiting = null;

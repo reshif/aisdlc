@@ -10,6 +10,7 @@ import {
   EvalSummaryView,
   LedgerAuditView,
   OnboardRequest,
+  GateArtefactsView,
   OnboardingCardSummary,
   ProjectId,
   ProjectPrrView,
@@ -58,6 +59,7 @@ import type { CoreClient } from './core-client.js';
 //   GET  /api/s0/:id                      the S0 record with its steps                (project.view)
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
+//   GET  /api/cards/:id/artefacts         a work-item gate card's artefacts, rendered (project.view)
 //   POST /api/cards/:id/prepare|evidence|decide|recheck                               (card.decide)
 //   GET  /api/inbox                       what waits for the person, and what they only see
 //   GET  /api/s0/:id/revision             the settings revision card 4 proposed       (project.view)
@@ -415,6 +417,25 @@ export function registerPortalRoutes(d: PortalDeps): void {
       OnboardingCardSummary.parse(v),
     );
   }
+
+  /**
+   * The artefacts a work-item gate card (G1f, G2) decides, rendered, each with its hash (M12). Core reads
+   * them back through its store, which checks every hash; the person needs `project.view` on the project.
+   */
+  app.get('/api/cards/:id/artefacts', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const got = upstream(reply, await c.call('GET', `/v1/cards/${id}/artefacts`), (v) =>
+      GateArtefactsView.parse(v),
+    );
+    if (!got) return;
+    const who = d.principalOf(req);
+    if (!(await allowed(who, 'project.view', pdpResource.project(got.value.project_id)))) {
+      return deny(reply, 'project.view');
+    }
+    return got.value;
+  });
 
   app.get('/api/cards/:id', async (req, reply) => {
     const c = core(reply);

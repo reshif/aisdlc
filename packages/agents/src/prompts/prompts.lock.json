@@ -19,12 +19,12 @@
     "a2_intent@1.0.0": {
       "file": "a2_intent@1.0.0.md",
       "sha256": "442d35c8056e3baa094c2a1cf25bee76af22dfe7fbd423a93052dbf994497e62",
-      "contract_version": "1.0.0"
+      "contract_version": "1.1.0"
     },
     "a3_planner@1.0.0": {
       "file": "a3_planner@1.0.0.md",
       "sha256": "6f9d6cb584a42d7ae89a79a7bab300cc83d62552449f6b3e87d85b21b7e68a37",
-      "contract_version": "1.0.0"
+      "contract_version": "1.1.0"
     },
     "a4_coding@1.0.0": {
       "file": "a4_coding@1.0.0.md",

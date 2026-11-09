@@ -64,6 +64,26 @@ export interface CardDetailWire {
   readonly principal_names: Readonly<Record<string, string>>;
 }
 
+/** `GET /api/cards/:id/artefacts`: what a work-item gate card (G1f, G2) decides, each artefact with its hash. */
+export interface GateArtefactsWire {
+  readonly card_id: string;
+  readonly project_id: string;
+  readonly item_id: string;
+  readonly gates: readonly string[];
+  readonly subject_hash: string;
+  /** False when an artefact is missing or its stored bytes do not hash to the bound hash. */
+  readonly intact: boolean;
+  readonly artefacts: ReadonlyArray<{
+    readonly step: string;
+    readonly type: string;
+    readonly sha256: string;
+    readonly version: number | null;
+    /** Rendered for people; shown as text, never as HTML. */
+    readonly markdown: string | null;
+    readonly intact: boolean;
+  }>;
+}
+
 export interface PreparedCard {
   readonly nonce: string;
   readonly expires_at: string;
@@ -166,6 +186,8 @@ export const api = {
   cards: (s0Id: string) =>
     request<PortalCardSummary[]>('GET', `/api/s0/${encodeURIComponent(s0Id)}/cards`),
   card: (id: string) => request<CardDetailWire>('GET', `/api/cards/${encodeURIComponent(id)}`),
+  cardArtefacts: (id: string) =>
+    request<GateArtefactsWire>('GET', `/api/cards/${encodeURIComponent(id)}/artefacts`),
   prepareCard: (id: string, csrf: string) =>
     request<PreparedCard>('POST', `/api/cards/${encodeURIComponent(id)}/prepare`, {}, csrf),
   cardEvidence: (id: string, b: { nonce: string; evidence_hash: string }, csrf: string) =>

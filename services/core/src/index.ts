@@ -40,4 +40,5 @@ export * from './gateway-triggers.js';
 export * from './agent-runs.js';
 export * from './evals.js';
 export * from './agent-dispatch.js';
+export * from './planning/index.js';
 export * from './agent-keys.js';

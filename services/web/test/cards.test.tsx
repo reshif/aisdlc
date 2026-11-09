@@ -798,3 +798,82 @@ describe('the security card', () => {
 
 void gap;
 void S0_ID;
+
+describe('a work-item gate card (G2): the artefacts it decides', () => {
+  const view = (over: Record<string, unknown> = {}) => ({
+    card_id: CARD_ID,
+    project_id: 'testbed',
+    item_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77',
+    gates: ['G2'],
+    subject_hash: 'c'.repeat(64),
+    intact: true,
+    artefacts: [
+      {
+        step: '3.2',
+        type: 'spec_delta',
+        sha256: 'd'.repeat(64),
+        version: 2,
+        markdown:
+          '# Spec delta\n\n## REQ-12 (modified)\n\n<img src=x onerror=alert(1)> exports CSV\n',
+        intact: true,
+      },
+      {
+        step: '3.4',
+        type: 'oracle_specs',
+        sha256: 'e'.repeat(64),
+        version: 1,
+        markdown: '# Oracle specs\n\n## o1 for REQ-12\n',
+        intact: true,
+      },
+    ],
+    ...over,
+  });
+  const notOnboarding = {
+    status: 404,
+    json: { error: { code: 'not_found', message: 'not an onboarding card' } },
+  };
+
+  it('renders both artefacts with their hashes, as text (nothing in them becomes markup)', async () => {
+    mockApi({
+      'GET /api/me': { json: me() },
+      [`GET /api/cards/${CARD_ID}`]: notOnboarding,
+      [`GET /api/cards/${CARD_ID}/artefacts`]: { json: view() },
+    });
+    const { container } = renderAt(`/cards/${CARD_ID}`);
+    expect(
+      await screen.findByRole('heading', { name: /Spec and oracle-spec approval/ }),
+    ).toBeTruthy();
+    expect(screen.getByText('d'.repeat(64))).toBeTruthy();
+    expect(screen.getByText('e'.repeat(64))).toBeTruthy();
+    expect(screen.getByLabelText('spec_delta').textContent).toContain(
+      '<img src=x onerror=alert(1)> exports CSV',
+    );
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.queryByText(/not intact/i)).toBeNull();
+  });
+
+  it('says so, loudly, when an artefact is not intact, and shows no text for it', async () => {
+    mockApi({
+      'GET /api/me': { json: me() },
+      [`GET /api/cards/${CARD_ID}`]: notOnboarding,
+      [`GET /api/cards/${CARD_ID}/artefacts`]: {
+        json: view({
+          intact: false,
+          artefacts: [
+            {
+              step: '3.2',
+              type: 'spec_delta',
+              sha256: 'd'.repeat(64),
+              version: null,
+              markdown: null,
+              intact: false,
+            },
+          ],
+        }),
+      },
+    });
+    renderAt(`/cards/${CARD_ID}`);
+    expect(await screen.findByText(/An artefact is not intact/)).toBeTruthy();
+    expect(screen.getByLabelText('spec_delta').querySelector('pre')).toBeNull();
+  });
+});

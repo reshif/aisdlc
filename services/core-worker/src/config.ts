@@ -38,7 +38,7 @@ export interface CoreWorkerConfig {
    * The stage ports behind the work driver (PLAN M9.2). `none`: the `work_driver` loop does not run.
    * `fake`: the deterministic fakes (no real stage work exists before M11-M14). Needs the Notary.
    */
-  readonly stagePorts: 'none' | 'fake';
+  readonly stagePorts: 'none' | 'fake' | 'agents';
   /**
    * The model gateway's admin API (scope `admin`, PLAN M11.2): the work driver mints each agent-acted
    * stage command's per-Unit virtual key through it. Required with the stage ports: no key, no agent run.
@@ -105,8 +105,11 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   command from the agent's contract. Required with CORE_WORKER_STAGE_PORTS
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
  *                                   deployment routes everything to `fake-model`); default none
- *   CORE_WORKER_STAGE_PORTS (none | fake; default none): `fake` runs the `work_driver` loop over the
- *                                   deterministic stage-port fakes (needs the Notary); CORE_WORKER_WORK_DRIVER_INTERVAL_MS (5000)
+ *   CORE_WORKER_STAGE_PORTS (none | fake | agents; default none): `fake` runs the `work_driver` loop over the
+ *                                   deterministic stage-port fakes (needs the Notary); `agents` (M12) runs S2 and S3 with real agents
+ *                                   (the planning port calls the gateway's `/v1/messages` under each run's own key; it also needs
+ *                                   CORE_WORKER_KNOWLEDGE_URL, whose token should carry scope `search`, and the prompts beside the
+ *                                   bundle) and every other step over the fakes; CORE_WORKER_WORK_DRIVER_INTERVAL_MS (5000)
  *   CORE_WORKER_CHECKPOINT_INTERVAL_MS (300000, 5 min), CORE_WORKER_RECONCILE_INTERVAL_MS (60000)
  *   CORE_WORKER_CARDS_INTERVAL_MS (10000)
  *   CORE_WORKER_S0_DRIVER_INTERVAL_MS (15000), CORE_WORKER_ROLE_MAP_SYNC_INTERVAL_MS (10000)
@@ -146,10 +149,10 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     );
   }
   const sp = env['CORE_WORKER_STAGE_PORTS'] ?? 'none';
-  if (sp !== 'none' && sp !== 'fake') {
-    throw new ServiceConfigError('CORE_WORKER_STAGE_PORTS must be `none` or `fake`');
+  if (sp !== 'none' && sp !== 'fake' && sp !== 'agents') {
+    throw new ServiceConfigError('CORE_WORKER_STAGE_PORTS must be `none`, `fake` or `agents`');
   }
-  const stagePorts: 'none' | 'fake' = sp;
+  const stagePorts: 'none' | 'fake' | 'agents' = sp;
   const killswitch = remote('KILLSWITCH');
   if (stagePorts !== 'none' && killswitch === null) {
     throw new ServiceConfigError(
@@ -165,6 +168,11 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
   if (stagePorts !== 'none' && ledger === null) {
     throw new ServiceConfigError(
       'CORE_WORKER_STAGE_PORTS needs the Notary (CORE_WORKER_NOTARY_URL): gates open through the decision kernel',
+    );
+  }
+  if (stagePorts === 'agents' && knowledge === null) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_STAGE_PORTS=agents needs knowledge (CORE_WORKER_KNOWLEDGE_URL): S2 is grounded on its census',
     );
   }
   return {

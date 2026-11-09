@@ -64,6 +64,13 @@ export const ArtefactType = z.enum([
   'session_log',
   'repo_snapshot',
   'config_history',
+  // M12 (S2, S3): what the planning steps store (`@aisdlc/contracts` `STEP_ARTEFACT`)
+  'reverse_engineering',
+  'impact',
+  'initiative',
+  'affected_requirements',
+  'validation_report',
+  'spec_review',
 ]);
 export type ArtefactType = z.infer<typeof ArtefactType>;
 export const ArtefactTypeValues: readonly ArtefactType[] = ArtefactType.options;
