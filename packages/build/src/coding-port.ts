@@ -7,7 +7,10 @@ import {
   CODING_TASK_FILE,
   CodingSessionResult,
   EXEC_NOT_ALLOWED,
+  patchHashOf,
+  patchSetOf,
   type CodingTask,
+  type PatchFile,
   type StageOutcome,
   type StageRequest,
 } from '@aisdlc/contracts';
@@ -36,11 +39,12 @@ import {
 import { testOneArgv } from './contract.js';
 import { bindOracles, checkOracleBinding, type OracleDeviation } from './oracles.js';
 import { buildHandoffPack } from './pack.js';
-import type { BuildSourcePort, BuildTask, UnitPlan } from './source.js';
+import type { PushPort } from './push.js';
+import type { BuildSourcePort, BuildTask, OracleFile, UnitPlan } from './source.js';
 import { sha256, type SessionState, type SessionStore } from './store.js';
 
-// AgentCodingPort (PLAN M13.3, M13.4): the real `CodingPort` for S6 6.1 to 6.5. 6.0 (admission) is the work
-// driver's and 6.6 (the draft PR through the Push Broker) is M13.6's: both go to `fallback`.
+// AgentCodingPort (PLAN M13.3, M13.4, M13.6): the real `CodingPort` for S6 6.1 to 6.6. 6.0 (admission) is the work
+// driver's and goes to `fallback`, as does 6.6 where no Push Broker is configured (`push`).
 //
 //   6.1 provision/rehydrate   the session's WORKSPACE: the repo at the Unit's base commit (from the source), or the
 //                             tree a snapshot kept (HUMAN-WAIT), or a cold rebuild after a quarantine's false
@@ -58,6 +62,12 @@ import { sha256, type SessionState, type SessionStore } from './store.js';
 //                             again over the whole diff against the base: B7 (the failing round, with the loop it
 //                             counts against), B8 (scope), R1 (budget, sensitive path, new dependency), ET11, ET12.
 //
+//   6.6 push                  (M13.6) the Unit's patch against its base commit goes to the Push Broker, the only writer to
+//                             GitHub: a commit on agent/<item>/<unit> and a Draft PR. A protected path is an X2 raised
+//                             with the patch's hash; the broker refuses a stale lease, a secret, a moved branch.
+//   L7 (spike)                6.5 ends in the SPIKE report (findings, recommendation, the work archived as a snapshot):
+//                             there is no 6.6 for L7, and a 6.6 asked for one is refused here and again by the broker.
+//
 // Every outcome that stops the session builds the Handoff Pack (A11) first. The port is idempotent per command key.
 
 export interface CodingPortDeps {
@@ -66,8 +76,10 @@ export interface CodingPortDeps {
   readonly source: BuildSourcePort;
   readonly guard: SessionGuardDeps;
   readonly keys: RunKeyLender;
-  /** 6.0 and 6.6. */
+  /** 6.0, and 6.6 where `push` is absent. */
   readonly fallback: CodingPort;
+  /** The Push Broker (M13.6). Absent: 6.6 is answered by `fallback`. */
+  readonly push?: PushPort;
   /** The locked prompt text of a prompt ref (`@aisdlc/agents/files` `readPrompt`: the files beside the bundle). */
   readonly prompt: (ref: string) => string;
   /** The gateway's model id for the coder (its route). */
@@ -82,6 +94,18 @@ export interface CodingPortDeps {
 }
 
 const STEPS_OURS = ['6.1', '6.2', '6.3', '6.4', '6.5'];
+
+const OWN_TRIGGER_REFUSALS: readonly string[] = [
+  'stale_epoch',
+  'no_lease',
+  'non_fast_forward',
+  'branch_not_allowed',
+  'bad_patch',
+  'bad_path',
+  'workflow_path',
+  'base_unknown',
+  'repo_not_allowed',
+];
 
 const hex = (s: string, n: number): string => sha256(s).slice(0, n);
 const done = (...parts: unknown[]): StageOutcome => ({
@@ -126,7 +150,8 @@ export class AgentCodingPort implements CodingPort {
   }
 
   async run(req: StageRequest): Promise<Result<StageOutcome, StagePortError>> {
-    if (!STEPS_OURS.includes(req.step)) return this.d.fallback.run(req);
+    const ours = STEPS_OURS.includes(req.step) || (req.step === '6.6' && this.d.push !== undefined);
+    if (!ours) return this.d.fallback.run(req);
     const prior = this.d.store.outcomeOf(req.command_key);
     if (prior !== null) return ok(prior);
     try {
@@ -151,6 +176,8 @@ export class AgentCodingPort implements CodingPort {
         return this.oracles(req);
       case '6.4':
         return this.build(req);
+      case '6.6':
+        return this.pushStep(req);
       default:
         return this.selfCheck(req);
     }
@@ -361,7 +388,14 @@ export class AgentCodingPort implements CodingPort {
     });
     if (!of.ok) throw new Error(`the oracle files: ${of.error.message}`);
     const repro = req.lane === 'L0';
-    const bound = bindOracles(of.value);
+    // M13.6: nothing bound to the Unit yet, and G2 approved oracle specs: A6 writes the test files from them
+    let oracleFiles: OracleFile[] = of.value;
+    if (oracleFiles.length === 0 && !repro && plan.oracles.length > 0) {
+      const a = await this.authorOracles(req, s, plan);
+      if (a !== null && 'outcome' in a) return a;
+      if (a !== null) oracleFiles = a.files;
+    }
+    const bound = bindOracles(oracleFiles);
     const deviations: OracleDeviation[] = checkOracleBinding(plan.oracles, bound, repro);
 
     // the oracle files join the workspace (a file already there is replaced: the bound oracle is the source of truth)
@@ -369,7 +403,7 @@ export class AgentCodingPort implements CodingPort {
       string,
       { sha256: string; size: number; exec: boolean }
     >;
-    for (const f of of.value) {
+    for (const f of oracleFiles) {
       const buf = Buffer.from(f.content);
       m[f.path] = { sha256: store.putBlob(buf), size: buf.length, exec: false };
     }
@@ -377,7 +411,7 @@ export class AgentCodingPort implements CodingPort {
     const test = this.d.source.contract(req.repo, s.base_sha, store.filesOf(withOracles))['test'];
     if (!test) return rework('B6', 'no_test_command');
     // each oracle must FAIL first: an assertion failure is exit 1; anything else that is not green is a broken environment
-    for (const f of of.value) {
+    for (const f of oracleFiles) {
       const r = await this.runOnce(
         req,
         `63-${hex(f.path, 4)}`,
@@ -391,7 +425,7 @@ export class AgentCodingPort implements CodingPort {
       }
     }
     s.tree_sha256 = withOracles;
-    s.locks = Object.fromEntries(of.value.map((f) => [f.path, sha256(f.content)]));
+    s.locks = Object.fromEntries(oracleFiles.map((f) => [f.path, sha256(f.content)]));
     s.oracle_ids = repro ? ['repro'] : plan.oracles.map((o) => o.oracle_id);
     s.stage = 'oracles_red';
     store.save(s);
@@ -424,6 +458,393 @@ export class AgentCodingPort implements CodingPort {
     return done('oracles_red', s.item_id, s.locks);
   }
 
+  // ------------------------------------------------------------------------------------------ 6.3: A6 writes the oracles
+
+  /**
+   * A6, the test agent, writes ONE test file per approved oracle spec in a W session (the coder's session class and
+   * harness: the same runner, with `settingSources: []`, the PreToolUse tripwire hook and the key lent for the length of
+   * the run; the contract's tools are Read, Grep, Glob, Edit and Write, never Bash). Why W and not a class of its own: a
+   * session that only writes files into a copy and ships them back through `/out` is exactly what W is (read-write repo
+   * copy, the gateway only, no package mirror need); a new class would repeat the profile and the proxy's allow-list for
+   * nothing. It may only ADD files: a change or a deletion of anything in the repo is misbehaviour (ET8), the oracles
+   * never run here (6.3 runs them, red, in O sessions), and what it wrote is checked against the approved specs by hash
+   * (`checkOracleBinding`: every approved id has a file with the matching spec hash, no unapproved oracle file).
+   * Returns the files, `null` (no test agent is bound: the check will find every approved oracle missing and raise G3o), or
+   * a trigger outcome.
+   */
+  private async authorOracles(
+    req: StageRequest,
+    s: SessionState,
+    plan: UnitPlan,
+  ): Promise<{ files: OracleFile[] } | StageOutcome | null> {
+    const agent = req.agent;
+    if (!agent || agent.agent_id !== 'A6') return null;
+    const store = this.d.store;
+    const ctxInputs = await this.d.source.context({
+      item_id: req.item_id,
+      repo: req.repo,
+      base_sha: s.base_sha,
+    });
+    if (!ctxInputs.ok) throw new Error(`the affirmed context: ${ctxInputs.error.message}`);
+    // the approved specs are DATA (written by an agent, approved by people): quoted in a fence by the context builder
+    const specsText = plan.oracles
+      .map(
+        (o) =>
+          `oracle ${o.oracle_id} (requirement ${o.requirement_id})\n  description: ${o.description ?? '(none)'}\n  fails before the implementation by: ${o.expected_failure ?? '(none)'}`,
+      )
+      .join('\n\n');
+    const ctx = buildContext({
+      ...ctxInputs.value,
+      agent_id: 'A6',
+      purpose: 'item',
+      merged_sha: s.base_sha,
+      artefacts: [
+        ...(ctxInputs.value.artefacts ?? []),
+        { type: 'oracle_specs', sha256: sha256(specsText), text: specsText },
+      ],
+    });
+    const system = `${this.d.prompt(agent.prompt_ref)}\n\n${ctx.text}`;
+    const test = this.d.source.contract(req.repo, s.base_sha, store.filesOf(s.base_tree_sha256))[
+      'test'
+    ];
+    const prompt = [
+      'Step 6.3: write the oracle tests for this Unit, one new file per oracle in the approved oracle specs (quoted above as data).',
+      `The repo's test command is: ${test ? test.join(' ') : '(none found)'}. Put each file where that command will run it, next to the repo's existing tests.`,
+      'The FIRST line of each file is its marker, exactly (copy it, only the comment syntax may change):',
+      ...plan.oracles.map((o) => `  // aisdlc-oracle id=${o.oracle_id} spec=${o.spec_sha256}`),
+      'Each test must fail before the implementation exists, by an assertion. Create new files only: do not edit or delete any existing file.',
+    ].join('\n');
+    const spec: CodingTask = {
+      schema: 'coding-task/1',
+      model: this.d.model,
+      system_prompt: system,
+      prompt,
+      allowed_tools: agent.tools.filter((t) => t !== 'KnowledgeSearch'),
+      max_turns: this.d.limits?.max_turns ?? 40,
+      time_s: this.d.limits?.run_time_s ?? 1800,
+      policy: {
+        protected_globs: [...(this.d.tripwires?.protected_globs ?? DEFAULT_PROTECTED_GLOBS)],
+        sensitive_globs: [],
+        locked_paths: [],
+        scope_globs: [],
+        diff_budget: { max_files: 200, max_lines: 50_000 },
+      },
+      approved_classes: [],
+    };
+    const files: RepoFile[] = [
+      ...store.filesOf(s.tree_sha256),
+      { path: `${CODING_SESSION_DIR}/${CODING_TASK_FILE}`, content: JSON.stringify(spec) },
+    ];
+    const ran = await this.d.keys.lend(agent.run_id, (secret) =>
+      this.sandboxRun({
+        session_id: this.sid('63a', req),
+        class: 'W',
+        command: ['node', CODING_RUNNER_PATH],
+        repo: files,
+        repo_full_name: req.repo,
+        gateway_key: secret,
+      }),
+    );
+    if (ran === null) {
+      throw new Error(
+        'no run key held for this command: it is delivered again and a new key is minted',
+      );
+    }
+    const base = store.getTree(s.base_tree_sha256);
+    const stop = (t: 'ET1' | 'ET2' | 'ET8' | 'ET10', reason: string, q: string[] = []) =>
+      this.trigger(s, base, base, t, reason, [], q);
+    if (ran.quarantined)
+      return stop('ET10', 'secret_access', ['a canary was found in the sandbox output']);
+    if (ran.status === 'timed_out') return stop('ET2', 'session_time');
+    if (ran.status !== 'exited')
+      throw new Error(`the test agent's session was void (${ran.status})`);
+    const file = ran.out.find((f) => f.path === CODING_RESULT_FILE);
+    const parsed = file
+      ? CodingSessionResult.safeParse(safeJson(Buffer.from(file.content).toString('utf8')))
+      : null;
+    if (!parsed || !parsed.success) throw new Error('the test agent returned no valid result');
+    const res = parsed.data;
+    if (res.tripwire?.class === 'quarantine' || res.key_on_disk) {
+      return stop('ET10', res.tripwire?.kind ?? 'secret_access', [
+        res.tripwire?.detail ?? 'the session key was found on disk',
+      ]);
+    }
+    if (res.status === 'budget') return stop('ET1', 'budget_exhausted');
+    if (res.status === 'timeout') return stop('ET2', 'session_time');
+    if (res.status === 'error')
+      throw new Error(`the test agent's session failed: ${res.error ?? 'unknown'}`);
+    // A6 may only ADD files
+    if (res.deleted.length > 0 || res.changed.some((c) => base[c.path] !== undefined)) {
+      return stop('ET8', 'oracle_author_touched_existing', [
+        'the test agent changed or deleted a file that was already in the repo',
+      ]);
+    }
+    const blobs = new Map(
+      ran.out
+        .filter((f) => f.path.startsWith(`${CODING_BLOB_DIR}/`))
+        .map((f) => [f.path.slice(CODING_BLOB_DIR.length + 1), f]),
+    );
+    const written: OracleFile[] = [];
+    for (const c of res.changed) {
+      const b = blobs.get(c.sha256);
+      if (!b || b.sha256 !== c.sha256)
+        throw new Error(`the runner reported ${c.path} without its blob`);
+      written.push({ path: c.path, content: Buffer.from(b.content).toString('utf8') });
+    }
+    written.sort((a, b) => (a.path < b.path ? -1 : 1));
+    // what was written is kept by the source, so every later look at the Unit's oracles sees these bytes
+    if (this.d.source.saveOracleFiles) {
+      const saved = await this.d.source.saveOracleFiles({
+        item_id: req.item_id,
+        repo: req.repo,
+        unit_key: s.unit_key,
+        command_key: req.command_key,
+        files: written,
+      });
+      if (!saved.ok) {
+        // a secret in what the test agent wrote is refused by the store: a quarantine, not a retry
+        if (saved.error.code === 'invalid')
+          return stop('ET10', 'secret_access', [saved.error.message]);
+        throw new Error(`the oracle files could not be kept: ${saved.error.message}`);
+      }
+    }
+    return { files: written };
+  }
+
+  // ------------------------------------------------------------------------------------------ 6.6
+
+  /** The Unit's change against its base commit, as a patch: every file that differs, the session's own directory never. */
+  private patchOf(s: SessionState): PatchFile[] {
+    const store = this.d.store;
+    const base = store.getTree(s.base_tree_sha256);
+    const now = store.getTree(s.tree_sha256);
+    const out: PatchFile[] = [];
+    for (const [path, e] of Object.entries(now)) {
+      if (path === CODING_SESSION_DIR || path.startsWith(`${CODING_SESSION_DIR}/`)) continue;
+      const b = base[path];
+      if (b && b.sha256 === e.sha256 && b.exec === e.exec) continue;
+      out.push({
+        op: 'put',
+        path,
+        mode: e.exec ? '100755' : '100644',
+        content_b64: store.getBlob(e.sha256).toString('base64'),
+      });
+    }
+    for (const path of Object.keys(base)) {
+      if (!(path in now)) out.push({ op: 'delete', path });
+    }
+    return out;
+  }
+
+  private async pushStep(req: StageRequest): Promise<StageOutcome> {
+    const push = this.d.push as PushPort;
+    // the spike never reaches the Push Broker: not from the route (it has no 6.6), and not from here either
+    if (req.lane === 'L7') return { outcome: 'failed', code: 'spike_never_pushes' };
+    const store = this.d.store;
+    const s = this.session(req);
+    const plan = await this.plan(req);
+    if (s.tainted) throw new Error('the session is tainted: nothing of it is pushed');
+    if (s.stage !== 'checked' && s.stage !== 'pushed')
+      return { outcome: 'failed', code: 'not_self_checked' };
+    const files = this.patchOf(s);
+    if (files.length === 0) return { outcome: 'failed', code: 'empty_patch' };
+    const patch = patchSetOf(files);
+    const patch_hash = patchHashOf(patch);
+    const { base, now, v } = this.verdict(s, plan, req.lane);
+    const epoch = s.lease_epoch ?? plan.lease_epoch ?? 1;
+    const r = await push.push({
+      item_id: req.item_id,
+      repo: req.repo,
+      lane: req.lane,
+      unit_key: s.unit_key,
+      lease_epoch: epoch,
+      base_sha: s.base_sha,
+      patch,
+      message: plan.title,
+      command_key: req.command_key,
+      evidence: {
+        title: plan.title,
+        lane: req.lane,
+        base_sha: s.base_sha as never,
+        oracles: plan.oracles.map((o) => ({ oracle_id: o.oracle_id, spec_sha256: o.spec_sha256 })),
+        files_changed: files.length,
+        lines_changed: v.lines_changed,
+        // 6.5 passed: the contract's tests and check and every oracle, on exactly this tree
+        checks: [
+          { name: 'tests', result: 'passed' },
+          { name: 'check', result: 'passed' },
+          ...(plan.oracles.length > 0 ? [{ name: 'oracles', result: 'passed' as const }] : []),
+        ],
+        refs: { session: String(s.generation), tree: s.tree_sha256.slice(0, 32) },
+      },
+    });
+    if (!r.ok) throw new Error(r.error.message);
+    const out = r.value;
+    if (out.kind === 'pushed') {
+      s.stage = 'pushed';
+      s.pushed = { head_sha: out.head_sha, pr_number: out.pr_number, patch_hash: out.patch_hash };
+      store.save(s);
+      return done('pushed', s.item_id, out.head_sha, out.patch_hash, out.pr_number);
+    }
+    // a refusal is a verdict, and none of them is turned into an approval
+    if (out.code === 'protected_path') {
+      // X2, bound to THIS patch: the patch is recorded (its hash is the artefact's) and the gate decides exactly it
+      if (req.approved_gates.includes('X2')) {
+        return this.trigger(
+          s,
+          base,
+          now,
+          'ET8',
+          'x2_not_bound',
+          [],
+          ['X2 was approved, but the Push Broker found no decision bound to this exact patch'],
+        );
+      }
+      if (this.d.source.recordArtefact) {
+        const rec = await this.d.source.recordArtefact({
+          item_id: req.item_id,
+          step: '6.6',
+          type: 'patch',
+          command_key: req.command_key,
+          content: patch,
+        });
+        if (!rec.ok) {
+          if (rec.error.code === 'invalid') {
+            return this.trigger(s, base, now, 'ET10', 'secret_access', [], [rec.error.message]);
+          }
+          throw new Error(`the patch could not be recorded: ${rec.error.message}`);
+        }
+        if (rec.value.sha256 !== patch_hash)
+          throw new Error('the recorded patch does not hash to the patch hash');
+      }
+      return {
+        outcome: 'gate_needed',
+        gate: 'X2',
+        reason_code: 'protected_path',
+        output_hash: patch_hash,
+      };
+    }
+    if (out.code === 'secret_in_patch') {
+      return this.trigger(
+        s,
+        base,
+        now,
+        'ET10',
+        'secret_access',
+        [],
+        ['the shared secret ruleset hit the patch the Push Broker was asked to write'],
+      );
+    }
+    if (out.code === 'spike_lane') return { outcome: 'failed', code: 'spike_never_pushes' };
+    if (out.code === 'guards_unavailable')
+      throw new Error('the Push Broker could not check the lease: try again');
+    if (OWN_TRIGGER_REFUSALS.includes(out.code)) {
+      return this.trigger(
+        s,
+        base,
+        now,
+        'ET8',
+        `push_${out.code}`,
+        [],
+        [`the Push Broker refused the push: ${out.code}`],
+      );
+    }
+    return this.trigger(
+      s,
+      base,
+      now,
+      'ET8',
+      'push_refused',
+      [],
+      [`the Push Broker refused the push: ${out.code}`],
+    );
+  }
+
+  // ------------------------------------------------------------------------------------------ L7: the spike report
+
+  /**
+   * L7's throwaway S6 ends HERE, not in a Draft PR (FL FIX 6: "L7 SPIKE REPORT, findings + recommendation, branch archived,
+   * no Push Broker PR, never reaches G4"). The findings are facts the factory holds (what the agent said it did, how the
+   * tests answered, what changed); the recommendation is derived from them; the work, if there is any, is archived as a
+   * content-addressed snapshot of the session. Nothing is written to a code host.
+   */
+  private async spike(
+    req: StageRequest,
+    s: SessionState,
+    contract: ReturnType<BuildSourcePort['contract']>,
+    changed: { files: number; lines: number },
+  ): Promise<StageOutcome> {
+    const store = this.d.store;
+    const findings: string[] = [...(s.notes ?? []).map((n) => `The agent reported: ${n}`)];
+    const test = contract['test'];
+    let verdict: 'passed' | 'failed' | 'unknown' = 'unknown';
+    if (test) {
+      const t = await this.runOnce(req, '65s', s.tree_sha256, test);
+      if (t.canary) {
+        return this.trigger(
+          s,
+          store.getTree(s.base_tree_sha256),
+          store.getTree(s.tree_sha256),
+          'ET10',
+          'secret_access',
+          [],
+          ['a canary was found in a test run'],
+        );
+      }
+      verdict = t.void_ ? 'unknown' : t.green ? 'passed' : 'failed';
+      findings.push(
+        verdict === 'passed'
+          ? 'The repo test command passes on the spike build.'
+          : verdict === 'failed'
+            ? `The repo test command fails on the spike build: ${t.failing.slice(0, 5).join('; ')}`
+            : 'The test command could not be run to a verdict in the sandbox.',
+      );
+    }
+    findings.push(
+      `The spike changed ${changed.files} files and ${changed.lines} lines against the base commit.`,
+    );
+    const archive =
+      changed.files > 0 ? store.snapshot(s, { why: 'spike_archive', lane: 'L7' }) : null;
+    const recommendation =
+      changed.files === 0
+        ? 'Nothing was built: the question stays open. Decide whether to ask it again with a narrower scope.'
+        : verdict === 'passed'
+          ? 'The throwaway build works as far as the repo tests can say. If the direction is wanted, raise a normal work item (L4 or lower) from these findings: the spike branch is archived, never merged.'
+          : 'The throwaway build is not viable as it stands. Treat the findings as input to a design, not as code to reuse.';
+    const report = {
+      schema: 'spike-report/1',
+      item_id: s.item_id,
+      unit_key: s.unit_key,
+      base_sha: s.base_sha,
+      lane: 'L7',
+      findings,
+      recommendation,
+      test_verdict: verdict,
+      files_changed: changed.files,
+      lines_changed: changed.lines,
+      /** The work, content-addressed (null: there was no local work). Never pushed, never a PR. */
+      archive_ref: archive,
+      archive_tree_sha256: archive ? s.tree_sha256 : null,
+    };
+    const local = store.putRecord('spike-report', report);
+    let output = local;
+    if (this.d.source.recordArtefact) {
+      const rec = await this.d.source.recordArtefact({
+        item_id: req.item_id,
+        step: '6.5',
+        type: 'spike_report',
+        command_key: req.command_key,
+        content: report,
+      });
+      if (!rec.ok) throw new Error(`the spike report could not be recorded: ${rec.error.message}`);
+      output = rec.value.sha256;
+    }
+    s.stage = 'spiked';
+    if (archive) s.snapshot_ref = archive;
+    store.save(s);
+    return { outcome: 'completed', output_hash: output };
+  }
+
   // ------------------------------------------------------------------------------------------ 6.4
 
   private taskPrompt(s: SessionState, plan: UnitPlan, task: BuildTask | null): string {
@@ -450,6 +871,8 @@ export class AgentCodingPort implements CodingPort {
     const s = this.session(req);
     if (s.tainted) throw new Error('the session is tainted: only a cold rebuild (6.1) may go on');
     const plan = await this.plan(req);
+    // the epoch this session ran under: the Push Broker refuses a writer whose lease moved since (a takeover bumps it)
+    if (plan.lease_epoch !== undefined) s.lease_epoch = plan.lease_epoch;
     const stop = await this.blocked(req, 'W');
     if (stop) return stop;
     const agent = req.agent;
@@ -671,6 +1094,8 @@ export class AgentCodingPort implements CodingPort {
         );
       }
       s.feedback = s.feedback.filter((f) => !f.startsWith('Your last answer'));
+      if (out !== null)
+        s.notes = [...(s.notes ?? []), out.summary.replace(/\s+/g, ' ').slice(0, 400)].slice(-20);
       if (fixMode) break;
       s.task_idx += 1;
       store.save(s);
@@ -695,6 +1120,14 @@ export class AgentCodingPort implements CodingPort {
     // 1. misbehaviour the tree shows (the runner may have been tampered with: the factory looks again)
     const q = v.tripwires.find((t) => t.class === 'quarantine');
     if (q) return this.trigger(s, base, now, 'ET10', q.kind, [], [q.detail]);
+
+    if (plan.lease_epoch !== undefined) s.lease_epoch = plan.lease_epoch;
+
+    // L7: a throwaway build ends in the SPIKE report. The tripwires above still stand (a spike is not a licence to hunt
+    // for credentials); scope, budget and a red self-check are not rework for a throwaway (there is no review to pass).
+    if (req.lane === 'L7') {
+      return this.spike(req, s, contract, { files: v.files_changed, lines: v.lines_changed });
+    }
 
     // 2. the diff left the Unit's scope: B8 (split the Unit, G3 again); the second time the engine goes to D1 (ET9)
     const drift = v.tripwires.find((t) => t.class === 'scope');

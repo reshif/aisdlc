@@ -64,6 +64,11 @@ export interface CoreWorkerConfig {
     /** The gateway's model id for the coder. */
     readonly model: string;
   } | null;
+  /**
+   * 6.6 through the Push Broker (PLAN M13.6): with `CORE_WORKER_PUSH_BROKER=1` (and a sandbox) the codehost's `push` route is
+   * asked for the Unit's patch (this worker's codehost token needs the scope `push`). Off: 6.6 stays over the stage-port fake.
+   */
+  readonly pushBroker: boolean;
   readonly workDriverIntervalMs: number;
   readonly killHoldersIntervalMs: number;
   readonly killObserverIntervalMs: number;
@@ -128,6 +133,8 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   CORE_WORKER_SANDBOX_GATEWAY (the peers' container names), CORE_WORKER_SESSION_STORE (the workspace
  *                                   store), CORE_WORKER_CODER_MODEL (claude-sonnet-5-5). The owner allow-list is config
  *                                   `sandbox.exec_allowed_repos` (M1-gated): a repo not on it is BLOCKED, never run (DEC-18)
+ *   CORE_WORKER_PUSH_BROKER         `1`: 6.6 asks the codehost's Push Broker (route `push`, scope `push`) to write the Unit's patch
+ *                                   as a commit on agent/<item>/<unit> and a Draft PR; needs the sandbox. Default off
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
  *                                   deployment routes everything to `fake-model`); default none
  *   CORE_WORKER_STAGE_PORTS (none | fake | agents; default none): `fake` runs the `work_driver` loop over the
@@ -228,6 +235,12 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_SANDBOX_PROXY_URL runs real coding sessions, which need CORE_WORKER_STAGE_PORTS=agents',
     );
   }
+  const pushBroker = env['CORE_WORKER_PUSH_BROKER'] === '1';
+  if (pushBroker && sandbox === null) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_PUSH_BROKER=1 needs the sandbox (6.6 pushes what 6.1 to 6.5 built)',
+    );
+  }
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
@@ -240,6 +253,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     stagePorts,
     gateway,
     sandbox,
+    pushBroker,
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
       .split(',')
       .map((m) => m.trim())

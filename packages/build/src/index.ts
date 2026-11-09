@@ -4,6 +4,7 @@ export * from './contract.js';
 export * from './oracles.js';
 export * from './pack.js';
 export * from './wait-snapshots.js';
+export * from './push.js';
 export * from './coding-port.js';
 export * from './fake-source.js';
 export * from './testing.js';

@@ -30,6 +30,9 @@ export interface ApprovedOracle {
   readonly oracle_id: string;
   readonly requirement_id: string;
   readonly spec_sha256: string;
+  /** The approved spec's own words (M13.6: what A6 writes the test from). Data: quoted, never instructions. */
+  readonly description?: string;
+  readonly expected_failure?: string;
 }
 
 export interface UnitPlan {
@@ -43,6 +46,8 @@ export interface UnitPlan {
   readonly oracles: readonly ApprovedOracle[];
   /** What a Unit of this size is estimated to take (ET2's "2x time"). */
   readonly estimate_ms: number;
+  /** The Unit's lease epoch as the live grant holds it (M13.6: the writer's epoch the Push Broker checks). */
+  readonly lease_epoch?: number;
 }
 
 /** A test file bound to the Unit as an oracle (written from the approved spec). It declares which spec it implements, by marker. */
@@ -68,6 +73,29 @@ export interface BuildSourcePort {
     repo: string;
     unit_key: string;
   }): Promise<Result<OracleFile[], BuildSourceError>>;
+  /**
+   * M13.6: keeps the oracle test files A6 wrote at 6.3, so that `oracleFiles` returns THESE on every later call (the
+   * spec check and the lock then always see the same bytes; a redo of 6.3 does not author them again). Absent: the
+   * authored files live in the session only.
+   */
+  saveOracleFiles?(req: {
+    item_id: string;
+    repo: string;
+    unit_key: string;
+    command_key: string;
+    files: readonly OracleFile[];
+  }): Promise<Result<void, BuildSourceError>>;
+  /**
+   * M13.6: stores a content-addressed artefact of S6 in the record (the patch an X2 decides at 6.6, the L7 spike report)
+   * and answers its sha256. Absent: the artefact is kept in the session store only.
+   */
+  recordArtefact?(req: {
+    item_id: string;
+    step: '6.5' | '6.6';
+    type: 'patch' | 'spike_report';
+    command_key: string;
+    content: unknown;
+  }): Promise<Result<{ sha256: string }, BuildSourceError>>;
   contract(repo: string, sha: string, files: readonly RepoFile[]): TaskContract;
   context(req: {
     item_id: string;

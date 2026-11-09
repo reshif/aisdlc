@@ -868,6 +868,7 @@ function onDenied(
   };
   switch (key) {
     case 'X1@6.4':
+    case 'X2@6.6':
     case 'E6@6.3':
     case 'E6@6.4':
     case 'G3o@6.4':

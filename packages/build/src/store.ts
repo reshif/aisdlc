@@ -67,7 +67,21 @@ export interface SessionState {
   /** Prompt-side notes for the next agent run (a denied gate, the failing tests). */
   feedback: string[];
   fix_round: number;
-  stage: 'provisioned' | 'baselined' | 'oracles_red' | 'building' | 'built' | 'checked';
+  stage:
+    | 'provisioned'
+    | 'baselined'
+    | 'oracles_red'
+    | 'building'
+    | 'built'
+    | 'checked'
+    | 'pushed'
+    | 'spiked';
+  /** M13.6: the lease epoch the session ran under (the writer's epoch the Push Broker checks). */
+  lease_epoch?: number;
+  /** M13.6: what the agent said it did, per task (untrusted text, short): the spike report's findings. */
+  notes?: string[];
+  /** M13.6: the head the last push left on the Unit's branch (the next push must fast-forward from it), and its PR. */
+  pushed?: { head_sha: string; pr_number: number; patch_hash: string } | null;
 }
 
 export class SessionStore {

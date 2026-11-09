@@ -861,6 +861,72 @@
             ]
           }
         },
+        "specialist_steps": {
+          "default": [],
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "0.1",
+              "0.2",
+              "0.3",
+              "0.4",
+              "0.5",
+              "1.1",
+              "1.2",
+              "1.3",
+              "1.4",
+              "1.5",
+              "1.6",
+              "2.1",
+              "2.1b",
+              "2.2",
+              "2.3",
+              "2.4",
+              "2.5",
+              "3.1",
+              "3.2",
+              "3.3",
+              "3.4",
+              "3.5",
+              "4.1",
+              "4.2",
+              "4.3",
+              "4.4",
+              "4.5",
+              "4.6",
+              "5.1",
+              "5.2",
+              "5.3",
+              "5.4",
+              "5.5",
+              "5.6",
+              "5.7",
+              "5.8",
+              "6.0",
+              "6.1",
+              "6.2",
+              "6.3",
+              "6.4",
+              "6.5",
+              "6.6",
+              "7.1",
+              "7.2",
+              "7.3",
+              "7.4",
+              "7.5",
+              "7.6",
+              "8.1",
+              "8.2",
+              "S8b",
+              "9.2",
+              "9.3",
+              "9.4",
+              "9.5"
+            ]
+          }
+        },
         "contract": {
           "type": "object",
           "properties": {
@@ -989,6 +1055,7 @@
         "role",
         "note",
         "steps",
+        "specialist_steps",
         "contract",
         "prompt"
       ],
@@ -1047,7 +1114,10 @@
             "unit_sequence",
             "verification_binding",
             "budget_envelope",
-            "capacity_input"
+            "capacity_input",
+            "oracle_code",
+            "patch",
+            "spike_report"
           ]
         },
         "ref": {
@@ -1178,7 +1248,10 @@
                   "unit_sequence",
                   "verification_binding",
                   "budget_envelope",
-                  "capacity_input"
+                  "capacity_input",
+                  "oracle_code",
+                  "patch",
+                  "spike_report"
                 ]
               },
               "ref": {
@@ -4248,6 +4321,99 @@
         "platform_config"
       ]
     },
+    "AppliedPatch": {
+      "type": "object",
+      "properties": {
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commit_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "parent_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "created": {
+          "type": "boolean"
+        },
+        "patch_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "pr": {
+          "type": "object",
+          "properties": {
+            "number": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "draft": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            },
+            "head_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "head_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "base_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "html_url": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "number",
+            "draft",
+            "state",
+            "head_sha",
+            "head_ref",
+            "base_ref",
+            "html_url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "branch",
+        "commit_sha",
+        "parent_sha",
+        "tree_sha",
+        "created",
+        "patch_hash",
+        "pr"
+      ],
+      "additionalProperties": false
+    },
     "ApplyOnMergeFact": {
       "type": "object",
       "properties": {
@@ -4339,6 +4505,250 @@
       ],
       "additionalProperties": false
     },
+    "ApplyPatchRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "lane": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "expected_head": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "type": "string",
+              "const": "patch/1"
+            },
+            "files": {
+              "minItems": 1,
+              "maxItems": 2000,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "const": "put"
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "100644",
+                          "100755"
+                        ]
+                      },
+                      "content_b64": {
+                        "type": "string",
+                        "maxLength": 40000000
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "path",
+                      "mode",
+                      "content_b64"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "const": "delete"
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "schema",
+            "files"
+          ],
+          "additionalProperties": false
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "evidence": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "lane": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8
+            },
+            "base_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "oracles": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "oracle_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "spec_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "oracle_id",
+                  "spec_sha256"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "files_changed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "lines_changed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "checks": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "result": {
+                    "type": "string",
+                    "enum": [
+                      "passed",
+                      "failed"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "result"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "refs": {
+              "default": {},
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            }
+          },
+          "required": [
+            "title",
+            "lane",
+            "base_sha",
+            "oracles",
+            "files_changed",
+            "lines_changed",
+            "checks",
+            "refs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "repo",
+        "item_id",
+        "unit_key",
+        "lane",
+        "lease_epoch",
+        "branch",
+        "base_sha",
+        "expected_head",
+        "patch",
+        "message",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
     "AreaId": {
       "type": "string",
       "minLength": 1,
@@ -4392,7 +4802,10 @@
             "unit_sequence",
             "verification_binding",
             "budget_envelope",
-            "capacity_input"
+            "capacity_input",
+            "oracle_code",
+            "patch",
+            "spike_report"
           ]
         },
         "version": {
@@ -4532,7 +4945,10 @@
         "unit_sequence",
         "verification_binding",
         "budget_envelope",
-        "capacity_input"
+        "capacity_input",
+        "oracle_code",
+        "patch",
+        "spike_report"
       ]
     },
     "ArtefactView": {
@@ -4635,7 +5051,10 @@
             "unit_sequence",
             "verification_binding",
             "budget_envelope",
-            "capacity_input"
+            "capacity_input",
+            "oracle_code",
+            "patch",
+            "spike_report"
           ]
         },
         "version": {
@@ -16565,6 +16984,11 @@
         },
         "message": {
           "type": "string"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
         }
       },
       "required": [
@@ -24879,7 +25303,10 @@
             "unit_sequence",
             "verification_binding",
             "budget_envelope",
-            "capacity_input"
+            "capacity_input",
+            "oracle_code",
+            "patch",
+            "spike_report"
           ]
         },
         "sha256": {
@@ -25021,7 +25448,10 @@
                   "unit_sequence",
                   "verification_binding",
                   "budget_envelope",
-                  "capacity_input"
+                  "capacity_input",
+                  "oracle_code",
+                  "patch",
+                  "spike_report"
                 ]
               },
               "sha256": {
@@ -43183,6 +43613,135 @@
         "banner.publish"
       ]
     },
+    "PatchFile": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "put"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "100644",
+                "100755"
+              ]
+            },
+            "content_b64": {
+              "type": "string",
+              "maxLength": 40000000
+            }
+          },
+          "required": [
+            "op",
+            "path",
+            "mode",
+            "content_b64"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "delete"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "required": [
+            "op",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PatchSet": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "patch/1"
+        },
+        "files": {
+          "minItems": 1,
+          "maxItems": 2000,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "put"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "100644",
+                      "100755"
+                    ]
+                  },
+                  "content_b64": {
+                    "type": "string",
+                    "maxLength": 40000000
+                  }
+                },
+                "required": [
+                  "op",
+                  "path",
+                  "mode",
+                  "content_b64"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "delete"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  }
+                },
+                "required": [
+                  "op",
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "files"
+      ],
+      "additionalProperties": false
+    },
     "PdpDecision": {
       "type": "object",
       "properties": {
@@ -58663,6 +59222,119 @@
         "agent"
       ]
     },
+    "PullRequest": {
+      "type": "object",
+      "properties": {
+        "pr_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "head_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "closed"
+          ]
+        },
+        "draft": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pr_ref",
+        "repo",
+        "number",
+        "item_id",
+        "unit_key",
+        "head_ref",
+        "head_sha",
+        "state",
+        "draft"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestRef": {
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "draft": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "closed"
+          ]
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "head_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "base_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "html_url": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "number",
+        "draft",
+        "state",
+        "head_sha",
+        "head_ref",
+        "base_ref",
+        "html_url"
+      ],
+      "additionalProperties": false
+    },
     "PullRequestRule": {
       "type": "object",
       "properties": {
@@ -58692,6 +59364,467 @@
         "required_review_thread_resolution"
       ],
       "additionalProperties": false
+    },
+    "PushEvidence": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "lane": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "oracles": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "oracle_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "spec_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "oracle_id",
+              "spec_sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "files_changed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "lines_changed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "checks": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "result"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "refs": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "required": [
+        "title",
+        "lane",
+        "base_sha",
+        "oracles",
+        "files_changed",
+        "lines_changed",
+        "checks",
+        "refs"
+      ],
+      "additionalProperties": false
+    },
+    "PushIntendedPayload": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "patch_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "command_key": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "item_id",
+        "unit_key",
+        "repo",
+        "branch",
+        "lease_epoch",
+        "base_sha",
+        "patch_hash",
+        "files",
+        "command_key"
+      ],
+      "additionalProperties": false
+    },
+    "PushLeaseFacts": {
+      "type": "object",
+      "properties": {
+        "held": {
+          "type": "boolean"
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "lane": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8
+        }
+      },
+      "required": [
+        "held",
+        "epoch",
+        "lane"
+      ],
+      "additionalProperties": false
+    },
+    "PushReceipt": {
+      "type": "object",
+      "properties": {
+        "receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "patch_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "applied",
+            "refused_stale_epoch",
+            "no_lease",
+            "refused"
+          ]
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "branch_not_allowed",
+                "bad_patch",
+                "bad_path",
+                "secret_in_patch",
+                "protected_path",
+                "workflow_path",
+                "stale_epoch",
+                "no_lease",
+                "spike_lane",
+                "non_fast_forward",
+                "base_unknown",
+                "guards_unavailable",
+                "repo_not_allowed",
+                "refused"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "head_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pr_number": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "receipt_id",
+        "item_id",
+        "unit_key",
+        "repo",
+        "branch",
+        "lease_epoch",
+        "patch_hash",
+        "status",
+        "code",
+        "base_sha",
+        "head_sha",
+        "pr_number",
+        "files",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "PushReceiptRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "patch_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "applied",
+            "refused_stale_epoch",
+            "no_lease",
+            "refused"
+          ]
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "branch_not_allowed",
+                "bad_patch",
+                "bad_path",
+                "secret_in_patch",
+                "protected_path",
+                "workflow_path",
+                "stale_epoch",
+                "no_lease",
+                "spike_lane",
+                "non_fast_forward",
+                "base_unknown",
+                "guards_unavailable",
+                "repo_not_allowed",
+                "refused"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "head_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pr_number": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "receipt_id",
+        "item_id",
+        "unit_key",
+        "repo",
+        "branch",
+        "lease_epoch",
+        "patch_hash",
+        "status",
+        "code",
+        "base_sha",
+        "head_sha",
+        "pr_number",
+        "files",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "PushReceiptStatus": {
+      "type": "string",
+      "enum": [
+        "applied",
+        "refused_stale_epoch",
+        "no_lease",
+        "refused"
+      ]
+    },
+    "PushRefusalCode": {
+      "type": "string",
+      "enum": [
+        "branch_not_allowed",
+        "bad_patch",
+        "bad_path",
+        "secret_in_patch",
+        "protected_path",
+        "workflow_path",
+        "stale_epoch",
+        "no_lease",
+        "spike_lane",
+        "non_fast_forward",
+        "base_unknown",
+        "guards_unavailable",
+        "repo_not_allowed",
+        "refused"
+      ]
     },
     "Qualification": {
       "type": "object",

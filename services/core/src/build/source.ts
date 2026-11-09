@@ -14,7 +14,8 @@ import { err, ok, type Result } from '@aisdlc/kernel';
 import type { RepoFile } from '@aisdlc/ports';
 import type pg from 'pg';
 import { listGrants } from '../admission/read.js';
-import { latestArtefact } from '../planning/store.js';
+import { clockOf, type CoreDeps } from '../journal.js';
+import { artefactByHash, latestArtefact, storeArtefact } from '../planning/store.js';
 import { listUnits } from '../planning/units.js';
 import { readItem } from '../work-items.js';
 
@@ -41,8 +42,10 @@ export class CoreBuildSource implements BuildSourcePort {
     private readonly d: {
       readonly pool: pg.Pool;
       readonly repo: RepoFilesPort;
-      /** Where oracle files come from, once something writes them (default: none). */
+      /** Where oracle files come from beyond what A6 wrote (default: none). */
       readonly oracles?: BuildSourcePort['oracleFiles'];
+      /** Needed to store artefacts (the oracle code A6 wrote, the patch an X2 decides, the spike report). */
+      readonly deps?: CoreDeps;
     },
   ) {}
 
@@ -97,6 +100,8 @@ export class CoreBuildSource implements BuildSourcePort {
           description: str(o['description']),
           expected_failure: str(o['expected_failure']),
         }),
+        description: str(o['description']),
+        expected_failure: str(o['expected_failure']),
       }));
     const scopes = unit.paths.flatMap((p) => [p, `${p.replace(/\/$/, '')}/**`]);
     void split;
@@ -109,15 +114,95 @@ export class CoreBuildSource implements BuildSourcePort {
         tasks.length > 0 ? tasks : [{ task_id: 'T1', title: unit.title, instructions: unit.title }],
       oracles,
       estimate_ms: ESTIMATE_MS[unit.size] ?? ESTIMATE_MS['M'] ?? 7_200_000,
+      // the epoch of the live grant: the writer's epoch the Push Broker checks against the Unit's lease
+      ...(live?.lease_epoch !== undefined ? { lease_epoch: live.lease_epoch } : {}),
     });
   }
 
+  /**
+   * The oracle test files of the Unit: those A6 wrote at 6.3 and `saveOracleFiles` kept (an artefact, `oracle_code`:
+   * content-addressed, secret-scanned before it is stored, hash-checked when read), else whatever `oracles` supplies.
+   */
   async oracleFiles(req: {
     item_id: string;
     repo: string;
     unit_key: string;
   }): Promise<Result<OracleFile[], BuildSourceError>> {
+    const rows = await this.d.pool.query<{ sha256: string }>(
+      "SELECT sha256 FROM core.artefact WHERE item_id = $1 AND type = 'oracle_code' ORDER BY version DESC",
+      [req.item_id],
+    );
+    for (const r of rows.rows) {
+      const a = await artefactByHash(this.d.pool, req.item_id, r.sha256);
+      const c = a?.content;
+      if (isObj(c) && c['unit_key'] === req.unit_key) {
+        return ok(
+          list(c['files']).map((f) => ({ path: str(f['path']), content: str(f['content']) })),
+        );
+      }
+    }
     return this.d.oracles ? this.d.oracles(req) : ok([]);
+  }
+
+  async saveOracleFiles(req: {
+    item_id: string;
+    unit_key: string;
+    command_key: string;
+    files: readonly OracleFile[];
+  }): Promise<Result<void, BuildSourceError>> {
+    const r = await this.store(req.item_id, '6.3', 'oracle_code', req.command_key, {
+      schema: 'oracle-code/1',
+      unit_key: req.unit_key,
+      files: req.files.map((f) => ({ path: f.path, content: f.content })),
+    });
+    return r.ok ? ok(undefined) : r;
+  }
+
+  async recordArtefact(req: {
+    item_id: string;
+    step: '6.5' | '6.6';
+    type: 'patch' | 'spike_report';
+    command_key: string;
+    content: unknown;
+  }): Promise<Result<{ sha256: string }, BuildSourceError>> {
+    return this.store(req.item_id, req.step, req.type, req.command_key, req.content);
+  }
+
+  private async store(
+    item_id: string,
+    step: '6.3' | '6.5' | '6.6',
+    type: 'oracle_code' | 'patch' | 'spike_report',
+    command_key: string,
+    content: unknown,
+  ): Promise<Result<{ sha256: string }, BuildSourceError>> {
+    const deps = this.d.deps;
+    if (!deps) return err(buildSourceError('unavailable', 'no store is configured for artefacts'));
+    const item = await readItem(this.d.pool, item_id);
+    if (!item) return err(buildSourceError('not_found', 'no such item'));
+    const stored = await storeArtefact(
+      { pool: this.d.pool, clock: clockOf(deps), ...(deps.ledger ? { ledger: deps.ledger } : {}) },
+      {
+        item_id,
+        project_id: item.state.project_id,
+        type,
+        step,
+        command_key,
+        run_id: null,
+        content,
+      },
+    );
+    // a secret in what an agent wrote is refused by the store (rule ids only): it is a refusal, not a retry
+    if (!stored.ok) {
+      return err(
+        buildSourceError(
+          'invalid',
+          stored.error._tag === 'ArtefactRefused'
+            ? `the artefact holds a secret (${stored.error.rules.join(', ')})`
+            : stored.error.message,
+        ),
+      );
+    }
+    return ok({ sha256: stored.value.sha256 });
   }
 
   contract(_repo: string, _sha: string, files: readonly RepoFile[]): TaskContract {

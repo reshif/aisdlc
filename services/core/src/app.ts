@@ -21,6 +21,9 @@ import {
   ControlKind,
   ControlScope,
   AgentId,
+  Sha256Hex,
+  UnitKey,
+  WorkItemId,
   GatingProfile,
   IntegrationKind,
   IsoDateTime,
@@ -81,6 +84,7 @@ import {
 } from './queries.js';
 import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.js';
 import { agentStatsOf, listAgentRuns } from './agent-runs.js';
+import { CorePushGuards } from './build/push.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
 import { answerQuestion, decideReady, submitRequest } from './requests.js';
@@ -125,7 +129,9 @@ import {
  * human; the PDP decides about the human, over the resource of the scope), `integrations` (M10.4: a
  * process that holds adapters reports its health per integration; the registry read is `registry`, the
  * tiles and events are `portal`), `evals` (M11.3: the eval tooling posts each finished run; reads of the
- * history are `work`, decided by the PDP for the human like the agent stats).
+ * history are `work`, decided by the PDP for the human like the agent stats), `push_guard` (M13.6: the codehost's Push
+ * Broker asks whether a Unit's lease is held at an epoch and whether an approved X2 is bound to a patch hash: core's own
+ * word, read from the lease and the ledger).
  */
 export type CoreScope =
   | 'read'
@@ -136,7 +142,8 @@ export type CoreScope =
   | 'work'
   | 'ops'
   | 'integrations'
-  | 'evals';
+  | 'evals'
+  | 'push_guard';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -320,6 +327,40 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     } catch {
       return fail(reply, coreError('unavailable', 'the integration events could not be read'));
     }
+  });
+
+  /**
+   * The Push Broker's questions (M13.6, scope `push_guard`): the Unit's lease (held, epoch) and the item's lane, and whether
+   * an APPROVED X2 decision is bound to this item and exactly this patch hash. From core's rows and the ledger, nothing from
+   * the caller. A question core cannot answer is a 503, which the broker reads as unknown (it refuses).
+   */
+  const guards = new CorePushGuards(o.pool);
+  app.get('/v1/push-guards/:item/units/:unit/lease', async (req, reply) => {
+    if (!allowed(req, 'push_guard')) {
+      return sendError(reply, 403, 'forbidden', 'scope push_guard is needed');
+    }
+    const item = WorkItemId.safeParse(params(req)['item']);
+    const unit = UnitKey.safeParse(params(req)['unit']);
+    if (!item.success || !unit.success)
+      return fail(reply, coreError('invalid_input', 'item and unit are required'));
+    const r = await guards.lease(item.data, unit.data);
+    return r.state === 'ok'
+      ? r.value
+      : fail(reply, coreError('unavailable', 'the lease could not be read'));
+  });
+
+  app.get('/v1/push-guards/:item/x2', async (req, reply) => {
+    if (!allowed(req, 'push_guard')) {
+      return sendError(reply, 403, 'forbidden', 'scope push_guard is needed');
+    }
+    const item = WorkItemId.safeParse(params(req)['item']);
+    const hash = Sha256Hex.safeParse((req.query as { patch_hash?: string }).patch_hash);
+    if (!item.success || !hash.success)
+      return fail(reply, coreError('invalid_input', 'item and patch_hash are required'));
+    const r = await guards.x2Bound(item.data, hash.data);
+    return r.state === 'ok'
+      ? { bound: r.value }
+      : fail(reply, coreError('unavailable', 'the decisions could not be read'));
   });
 
   app.get('/v1/registered-repos', async (req, reply) => {

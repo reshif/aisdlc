@@ -705,6 +705,7 @@ const denied = (gate: string, step: string, code: 'D1' | 'D2' | 'E4') => async (
 };
 cover('gate:X1@6.4:denied', denied('X1', '6.4', 'D1'));
 cover('gate:X3@6.4:denied', denied('X3', '6.4', 'D1'));
+cover('gate:X2@6.6:denied', denied('X2', '6.6', 'D1'));
 cover('gate:X2@7.4:denied', denied('X2', '7.4', 'D2'));
 cover('gate:G3o@6.3:denied', denied('G3o', '6.3', 'D1'));
 cover('gate:G3o@6.4:denied', denied('G3o', '6.4', 'D1'));
@@ -1210,7 +1211,7 @@ describe('every FL edge is covered or pending with a reason, exactly', () => {
 // The exact numbers of the milestone. M9.3, M9.4, M9.5 and M13.5 (the quarantine) are done: what is left is
 // three phase-table edges no flow edge draws. M13 added six conditional-gate edges (E6 at 6.3 and 6.4, G3o at 6.4,
 // each approved and denied) and covered the eleven quarantine edges.
-const COVERED_COUNT = 515;
+const COVERED_COUNT = 517;
 const PENDING_COUNT = 3;
 const PENDING_BY: Record<string, number> = {
   'n/a': 3,

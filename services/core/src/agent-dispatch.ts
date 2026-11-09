@@ -1,4 +1,4 @@
-import { agentKeyRequest, primaryAgentFor } from '@aisdlc/agents';
+import { agentKeyRequest, primaryAgentFor, specialistAgentFor } from '@aisdlc/agents';
 import {
   AGENT_EVENT,
   AgentRunDispatchedPayload,
@@ -76,7 +76,7 @@ export async function dispatchAgent(
   s: ItemState,
   c: RunStage,
 ): Promise<Result<AgentBinding | null, CoreError>> {
-  const def = primaryAgentFor(c.step);
+  const def = primaryAgentFor(c.step) ?? specialistAgentFor(c.step);
   if (def === null) return ok(null);
 
   const prior = await recorded(d, s.item_id, c.key);

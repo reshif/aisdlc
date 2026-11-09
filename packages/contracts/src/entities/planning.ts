@@ -59,6 +59,8 @@ export const STEP_ARTEFACT: Readonly<Partial<Record<StepIdT, ArtefactType>>> = {
   '5.4': 'verification_binding',
   '5.5': 'budget_envelope',
   '5.6': 'capacity_input',
+  // S6 (M13.6): 6.6's artefact is the patch an X2 decision is bound to (its sha256 IS the patch hash)
+  '6.6': 'patch',
 };
 
 /**
@@ -78,6 +80,8 @@ export const GATE_ARTEFACT_STEPS: Readonly<Partial<Record<string, readonly StepI
   // S4: the design review decides all five design artefacts; E2 decides the constitution report
   G3d: ['4.1', '4.2', '4.3', '4.4', '4.5'],
   E2: ['4.5'],
+  // M13.6: X2 at 6.6 decides exactly one patch: the artefact's hash is the patch hash the Push Broker checks
+  X2: ['6.6'],
   // S5: G3 decides the whole plan (and, in the subject hash, the base commit); G3s is the skeleton of it:
   // the Units, their paths and their order, without the task detail
   G3: ['5.1', '5.2', '5.3', '5.4', '5.5', '5.6'],

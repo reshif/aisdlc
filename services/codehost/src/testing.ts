@@ -3,8 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type CodeHostNotOk } from '@aisdlc/contracts';
 import { manualClock, type ManualClock } from '@aisdlc/kernel';
-import { FakeRegisteredRepos, emptySeed, type CodeHostSeed } from '@aisdlc/ports';
-import { type CodeHostHarness } from '@aisdlc/ports/testing';
+import {
+  FakePushGuards,
+  FakeRegisteredRepos,
+  emptySeed,
+  type CodeHostSeed,
+  type PushGuardsPort,
+} from '@aisdlc/ports';
+import { type CodeHostHarness, type CodeHostWriteHarness } from '@aisdlc/ports/testing';
 import { GitHubRestCodeHost } from './adapter.js';
 import type { GitBundleOptions } from './git-bundle.js';
 import { AppKey } from './app-key.js';
@@ -42,6 +48,8 @@ export async function startTestCodeHost(
     mode?: CodeHostMode;
     tokenTtlMs?: number;
     timeoutMs?: number;
+    /** The Push Broker (M13.6): the Unit's owner (lease, X2). Needs `mode: 'push'` for any write to leave the process. */
+    guards?: PushGuardsPort;
     /** Lets `bundle` run: where git clones from, and the limits. */
     git?: Omit<GitBundleOptions, 'token' | 'log'>;
   } = {},
@@ -81,6 +89,14 @@ export async function startTestCodeHost(
     transport,
     installationId: seed.installation.installation_id,
     clock,
+    ...(opts.guards
+      ? {
+          push: {
+            guards: opts.guards,
+            committer: { name: 'aisdlc[bot]', email: 'aisdlc@users.noreply.github.example' },
+          },
+        }
+      : {}),
     ...(opts.git ? { git: { ...opts.git, broker, log: (l: string) => bundleLogs.push(l) } } : {}),
   });
   const registered = new FakeRegisteredRepos();
@@ -112,6 +128,23 @@ export async function restHarness(seed: CodeHostSeed): Promise<CodeHostHarness> 
       if (as === null) t.server.answerNormally();
       else t.server.answerWith(as.state === 'unknown' ? 500 : 403);
     },
+    stop: () => t.stop(),
+  };
+}
+
+/** A `CodeHostWriteHarness` over the REST adapter in Push mode and the fake GitHub HTTP server: the Push Broker contract. */
+export async function restWriteHarness(seed: CodeHostSeed): Promise<CodeHostWriteHarness> {
+  const guards = new FakePushGuards();
+  const t = await startTestCodeHost({ seed, mode: 'push', guards });
+  return {
+    port: t.rest,
+    guards,
+    requests: () =>
+      t.server.apiRequests.map((r) => ({
+        method: r.method as 'GET' | 'POST' | 'PATCH',
+        path: r.path,
+      })),
+    moveBranch: (repo, branch, sha) => void t.server.moveBranch(repo, branch, sha),
     stop: () => t.stop(),
   };
 }

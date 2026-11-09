@@ -145,6 +145,8 @@ export const CodeHostNotOk = z.strictObject({
   reason: CodeHostReason,
   /** Never carries a credential, a token or key material. */
   message: z.string(),
+  /** A write that was refused says why in one token (`PushRefusalCode`); reads leave it out. */
+  code: z.string().min(1).max(40).optional(),
 });
 export type CodeHostNotOk = z.infer<typeof CodeHostNotOk>;
 

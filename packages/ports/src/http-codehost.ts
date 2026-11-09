@@ -1,4 +1,5 @@
 import {
+  AppliedPatch,
   BranchRules,
   CodeHostNotOk,
   Collaborator,
@@ -13,8 +14,11 @@ import {
 import {
   readOk,
   readUnknown,
+  type ApplyPatchRequest,
   type BranchRequest,
   type CodeHostPort,
+  type PrStatus,
+  type PrStatusRequest,
   type CodeownersErrorsRequest,
   type CodeownersRequest,
   type ReadAtShaRequest,
@@ -131,5 +135,79 @@ export class HttpCodeHostReads implements CodeHostReads {
   /** `posture` scope. */
   collaborators(req: RepoRequest) {
     return this.get(`/v1/repos/${req.repo}/collaborators`, z.array(Collaborator));
+  }
+}
+
+/**
+ * The Push Broker over the codehost's HTTP API (M13.6): `apply_patch` and `pr_status` with the caller's own service token
+ * (scope `push`). The checks are the code host's (lease, ruleset, paths, X2): a refusal comes back as the read that was
+ * not ok, with its `code`. Anything that is not an answer (network, garbled body) is `unknown`, which is never a success.
+ */
+export class HttpCodeHostPush implements Pick<CodeHostPort, 'apply_patch' | 'pr_status'> {
+  constructor(private readonly o: HttpCodeHostOptions) {}
+
+  private async call<S extends z.ZodType>(
+    method: 'GET' | 'POST',
+    path: string,
+    value: S,
+    body?: unknown,
+  ): Promise<CodeHostRead<z.infer<S>>> {
+    let res: Response;
+    try {
+      res = await (this.o.fetchImpl ?? fetch)(new URL(path, this.o.baseUrl), {
+        method,
+        headers: {
+          authorization: `Bearer ${this.o.token}`,
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(this.o.timeoutMs ?? 60_000),
+      });
+    } catch {
+      return readUnknown('network', `codehost did not answer ${path.split('?')[0]}`);
+    }
+    let json: unknown;
+    try {
+      json = await res.json();
+    } catch {
+      return readUnknown('malformed', `codehost answered ${res.status} without JSON`);
+    }
+    if (res.status >= 200 && res.status < 300) {
+      const ok = z.looseObject({ state: z.literal('ok'), value }).safeParse(json);
+      return ok.success
+        ? readOk(ok.data.value as z.infer<S>)
+        : readUnknown('malformed', 'codehost answered with an unexpected shape');
+    }
+    const notOk = CodeHostNotOk.safeParse(json);
+    if (notOk.success) return notOk.data;
+    return res.status === 401 || res.status === 403
+      ? { state: 'unreadable', reason: 'forbidden', message: `codehost refused with ${res.status}` }
+      : readUnknown('server_error', `codehost answered ${res.status}`);
+  }
+
+  apply_patch(req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>> {
+    return this.call('POST', `/v1/repos/${req.repo}/push`, AppliedPatch, req);
+  }
+
+  pr_status(req: PrStatusRequest): Promise<CodeHostRead<PrStatus>> {
+    return this.call(
+      'GET',
+      `/v1/repos/${req.repo}/pulls/${req.number}`,
+      z.looseObject({
+        number: z.number(),
+        state: z.enum(['open', 'closed']),
+        merged: z.boolean(),
+        head_sha: GitSha,
+        draft: z.boolean(),
+        checks_read: z.boolean(),
+        checks: z.array(
+          z.looseObject({
+            name: z.string(),
+            conclusion: z.string().nullable(),
+            integration_id: z.number().nullable(),
+          }),
+        ),
+      }) as never,
+    ) as never;
   }
 }

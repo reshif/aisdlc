@@ -52,7 +52,9 @@ describe("the two signals the planner may raise (and the lane stays the factory'
     expect(agentDefinition('A2').contract.contract_version).toBe('1.1.0');
     expect(agentDefinition('A3').contract.contract_version).toBe('1.2.0');
     expect(agentDefinition('A5').contract.contract_version).toBe('1.1.0');
-    for (const id of ['A6', 'A9', 'A11', 'A12', 'coder'] as const) {
+    // M13.6: A6 also writes the oracle test files at 6.3 (specialist step): the write tools and a bigger budget
+    expect(agentDefinition('A6').contract.contract_version).toBe('1.1.0');
+    for (const id of ['A9', 'A11', 'A12', 'coder'] as const) {
       expect(agentDefinition(id).contract.contract_version, id).toBe('1.0.0');
     }
   });

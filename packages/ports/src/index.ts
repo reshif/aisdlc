@@ -8,6 +8,7 @@ export * from './project-settings.js';
 export * from './pdp-entities.js';
 export * from './oidc.js';
 export * from './codehost.js';
+export * from './push.js';
 export * from './b4.js';
 export * from './fake-github.js';
 export * from './registered-repos.js';

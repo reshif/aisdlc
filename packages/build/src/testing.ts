@@ -1,4 +1,4 @@
-import { primaryAgentFor } from '@aisdlc/agents';
+import { primaryAgentFor, specialistAgentFor } from '@aisdlc/agents';
 import { currentCatalogueRef } from '@aisdlc/catalogue';
 import type { AgentBinding, StageRequest, StepId } from '@aisdlc/contracts';
 import { deterministicId } from '@aisdlc/kernel';
@@ -89,7 +89,13 @@ export function synthRepo(): { files: RepoFile[]; plan: UnitPlan; oracle: Oracle
       { task_id: 'T1', title: 'Fix add', instructions: 'src/calc.js add subtracts. Make it add.' },
     ],
     oracles: [
-      { oracle_id: 'O1', requirement_id: 'REQ-1', spec_sha256: specHashOf(synthOracleEntry) },
+      {
+        oracle_id: 'O1',
+        requirement_id: 'REQ-1',
+        spec_sha256: specHashOf(synthOracleEntry),
+        description: synthOracleEntry.description,
+        expected_failure: synthOracleEntry.expected_failure,
+      },
     ],
     estimate_ms: 3_600_000,
   };
@@ -99,7 +105,7 @@ export function synthRepo(): { files: RepoFile[]; plan: UnitPlan; oracle: Oracle
 export const ITEM = deterministicId<'WorkItem'>('build-test:item');
 const hexKey = (s: string): string => Buffer.from(s).toString('hex').padEnd(16, '0').slice(0, 24);
 
-/** A stage request for a step of S6, with the coder bound at 6.4. */
+/** A stage request for a step of S6, with the coder bound at 6.4 (and A6, the specialist, at 6.3). */
 export function stageRequest(
   step: StepId,
   o: {
@@ -112,7 +118,7 @@ export function stageRequest(
     run_id?: string;
   } = {},
 ): StageRequest {
-  const def = primaryAgentFor(step);
+  const def = primaryAgentFor(step) ?? specialistAgentFor(step);
   const agent: AgentBinding | undefined = def
     ? {
         run_id: o.run_id ?? `run-${hexKey(step + (o.key ?? ''))}`,

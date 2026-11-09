@@ -11,6 +11,7 @@ import {
   HttpRoleMapReconciler,
   RefusingStepUp,
   agentStagePorts,
+  CorePush,
   buildStagePorts,
   execAllowedReposFrom,
   cardDepsFrom,
@@ -29,7 +30,7 @@ import {
   workSettingsFrom,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
-import { HttpBundleSource } from '@aisdlc/ports';
+import { HttpBundleSource, HttpCodeHostPush } from '@aisdlc/ports';
 import { DockerSandboxDriver } from '@aisdlc/sandbox-driver';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
@@ -272,6 +273,23 @@ export async function bootCoreWorker(
               }),
               execAllowedRepos: execAllowedReposFrom(rd),
               model: cfg.sandbox.model,
+              // M13.6: the Push Broker's client, with the record first and the receipt in the record and the ledger
+              ...(cfg.pushBroker
+                ? {
+                    deps: { pool, ...(ledger ? { ledger } : {}) },
+                    ...(ledger
+                      ? {
+                          push: new CorePush(
+                            { pool, ledger },
+                            new HttpCodeHostPush({
+                              baseUrl: cfg.codehostUrl,
+                              token: cfg.codehostToken,
+                            }),
+                          ),
+                        }
+                      : {}),
+                  }
+                : {}),
             })
           : null;
       const stagePorts = built ? built.stagePorts : agentPorts;

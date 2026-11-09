@@ -1,4 +1,5 @@
-import { err, ok, type Result } from '@aisdlc/kernel';
+import { canonicalJson, err, ok, type Result } from '@aisdlc/kernel';
+import { createHash } from 'node:crypto';
 import type { RepoFile } from '@aisdlc/ports';
 import { taskContractOf } from './contract.js';
 import {
@@ -10,6 +11,8 @@ import {
   type TaskContract,
   type UnitPlan,
 } from './source.js';
+
+const sha256Of = (t: string): string => createHash('sha256').update(t).digest('hex');
 
 /** Level 1 of the context for the coder (the factory's own words); the planning port has its own for planning. */
 export const CODER_POLICY =
@@ -49,6 +52,29 @@ export class FakeBuildSource implements BuildSourcePort {
     this.asked.push(`plan:${req.item_id}`);
     if (this.down) return err(buildSourceError('unavailable', 'the source is down'));
     return ok(this.plan);
+  }
+
+  readonly saved_oracles: OracleFile[][] = [];
+  readonly artefacts: Array<{ type: string; step: string; content: unknown; sha256: string }> = [];
+
+  async saveOracleFiles(req: {
+    files: readonly OracleFile[];
+  }): Promise<Result<void, BuildSourceError>> {
+    if (this.down) return err(buildSourceError('unavailable', 'the source is down'));
+    this.saved_oracles.push([...req.files]);
+    this.oracle_files = [...req.files];
+    return ok(undefined);
+  }
+
+  async recordArtefact(req: {
+    type: string;
+    step: string;
+    content: unknown;
+  }): Promise<Result<{ sha256: string }, BuildSourceError>> {
+    if (this.down) return err(buildSourceError('unavailable', 'the source is down'));
+    const sha256 = sha256Of(canonicalJson(req.content as never));
+    this.artefacts.push({ type: req.type, step: req.step, content: req.content, sha256 });
+    return ok({ sha256 });
   }
 
   async oracleFiles(): Promise<Result<OracleFile[], BuildSourceError>> {

@@ -17,6 +17,8 @@ export interface AgentSpec {
   /** The step-by-step contract. Bump `contract_version` with any change of schema, tools or limits. */
   readonly contract_version: string;
   readonly output_schema_id: OutputSchemaId;
+  /** Deterministic steps the agent is called in at (`AgentDefinition.specialist_steps`). */
+  readonly specialist_steps?: readonly StepId[];
   readonly artefacts: readonly ArtefactType[];
   readonly tools: readonly AgentTool[];
   readonly data_class_max: Exclude<DataClass, 'D3'>;
@@ -190,16 +192,17 @@ export const AGENT_SPECS: readonly AgentSpec[] = [
     agent_id: 'A6',
     name: 'test',
     role: 'test',
-    note: 'DM §3.5 names A6 "test". Bound to 3.4 Oracle specs, the one agent step about tests (6.3 and 7.2 are deterministic).',
+    note: 'DM §3.5 names A6 "test". Primary at 3.4 Oracle specs, and since M13.6 the specialist the deterministic step 6.3 calls in to write the oracle TEST FILES from the G2-approved specs, in a W session: the contract\'s tools are the union (3.4 is one call and offers none of the write tools). The spec check, the red check and the lock stay the factory\'s. 7.2 stays deterministic.',
     steps: ['3.4'],
-    contract_version: '1.0.0',
+    specialist_steps: ['6.3'],
+    contract_version: '1.1.0',
     output_schema_id: 'oracle.v1',
-    artefacts: ['spec_delta', 'repo_snapshot'],
-    tools: READ,
+    artefacts: ['spec_delta', 'oracle_specs', 'repo_snapshot'],
+    tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'],
     data_class_max: 'D2',
     models: [SONNET],
-    budget: planning(80_000, 0.5, 3_600),
-    prompt: 'a6_test@1.0.0',
+    budget: planning(400_000, 3, 3_600),
+    prompt: 'a6_test@1.1.0',
   },
   {
     agent_id: 'A7',

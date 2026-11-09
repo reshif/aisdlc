@@ -85,11 +85,13 @@ describe('the agent registry (PLAN M11.1)', () => {
     }
   });
 
-  it('A1 has no tools or retrieval (DM §3.5); only the coders can write or run anything', () => {
+  it('A1 has no tools or retrieval (DM §3.5); only the coders (and A6, which writes the oracle test files at 6.3, in a sandbox) can write or run anything', () => {
     expect(agentDefinition('A1').contract.tools).toEqual([]);
     for (const d of AGENT_DEFINITIONS) {
       const writes = d.contract.tools.some((t) => ['Edit', 'Write', 'Bash'].includes(t));
-      expect(writes, d.agent_id).toBe(d.agent_id === 'coder' || d.agent_id === 'A4');
+      expect(writes, d.agent_id).toBe(['coder', 'A4', 'A6'].includes(d.agent_id));
+      // A6 writes only at 6.3 (its specialist step, a W session); nothing else it does offers a write tool
+      if (d.agent_id === 'A6') expect(d.contract.tools).not.toContain('Bash');
     }
   });
 

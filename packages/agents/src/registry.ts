@@ -62,6 +62,7 @@ function build(spec: AgentSpec): AgentDefinition {
     role: spec.role,
     note: spec.note,
     steps: [...spec.steps],
+    specialist_steps: [...(spec.specialist_steps ?? [])],
     contract: {
       contract_version: spec.contract_version,
       input_schema_id: `${spec.agent_id.toLowerCase()}_input.v1`,
@@ -103,6 +104,14 @@ for (const step of Object.keys(STEPS) as StepId[]) {
 
 export function agentDefinition(id: AgentId): AgentDefinition {
   return byId.get(id) as AgentDefinition;
+}
+
+/**
+ * The agent a DETERMINISTIC step calls in (M13.6: A6 at 6.3), or `null`. The work driver binds it and mints its key
+ * when `primaryAgentFor` has none; the step stays a D step.
+ */
+export function specialistAgentFor(step: StepId): AgentDefinition | null {
+  return AGENT_DEFINITIONS.find((d) => d.specialist_steps.includes(step)) ?? null;
 }
 
 /** Every agent that may act at `step`, in registry order. */

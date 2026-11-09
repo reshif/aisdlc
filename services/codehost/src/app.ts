@@ -23,7 +23,7 @@ import type { TokenBroker } from './token-broker.js';
  * collaborators, CODEOWNERS errors, the B4 verdict), `codeowners_sync` feeds CODEOWNERS owners into
  * the project's g4 group, `reload` re-reads the integration registry now (M10.4).
  */
-export type CodeHostScope = 'census' | 'posture' | 'codeowners_sync' | 'reload';
+export type CodeHostScope = 'census' | 'posture' | 'codeowners_sync' | 'reload' | 'push';
 
 export interface CodeHostAppOptions {
   /** The host to serve with. With `runtime` it is ignored: the runtime's current host is used per request. */
@@ -49,6 +49,9 @@ export interface CodeHostAppOptions {
 
 const statusOf = (r: CodeHostNotOk): number => {
   if (r.state === 'unknown') return 503;
+  // a stale writer or a branch that moved is a conflict, not a prohibition
+  if (r.code === 'stale_epoch' || r.code === 'no_lease' || r.code === 'non_fast_forward')
+    return 409;
   if (r.reason === 'repo_not_allowed' || r.reason === 'refused') return 403;
   if (r.reason === 'not_found') return 404;
   if (r.reason === 'head_moved') return 409;
@@ -161,6 +164,34 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
       .header('x-base-sha', manifest.head_sha)
       .header('x-bundle-manifest', JSON.stringify(manifest))
       .send(stream);
+  });
+
+  // ------------------------------------------------------------ the Push Broker (M13.6)
+
+  /**
+   * The one write the factory makes. The body is an `ApplyPatchRequest`; the checks (the `agent/**` ref, the lease epoch,
+   * the secret ruleset, the paths, X2 for a protected path, a fast-forward) are the host's and run before any request to
+   * GitHub. The answer is the read as for every route: `ok` with the applied patch, or the refusal with its `code`.
+   */
+  app.post('/v1/repos/:owner/:name/push', async (req, reply) => {
+    if (!allowed(req, 'push')) return forbid(reply, 'push');
+    const repo = repoOf(req);
+    const body = req.body as { repo?: unknown } | null;
+    if (!repo || typeof body !== 'object' || body === null || typeof body.repo !== 'string') {
+      return bad(reply, 'owner/name and a patch request are required');
+    }
+    if (repoKey(body.repo) !== repoKey(repo))
+      return bad(reply, 'the body names another repository');
+    return send(reply, await hostOf().apply_patch(body as never));
+  });
+
+  app.get('/v1/repos/:owner/:name/pulls/:number', async (req, reply) => {
+    if (!allowed(req, 'push')) return forbid(reply, 'push');
+    const repo = repoOf(req);
+    const number = Number((req.params as { number: string }).number);
+    if (!repo || !Number.isInteger(number) || number < 1)
+      return bad(reply, 'owner/name and a pull request number');
+    return send(reply, await hostOf().pr_status({ repo, number }));
   });
 
   // ------------------------------------------------------------ posture

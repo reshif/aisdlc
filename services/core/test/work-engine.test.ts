@@ -1,3 +1,4 @@
+import { specialistAgentFor } from '@aisdlc/agents';
 import {
   CARD_EVENT,
   GATE_EVENT,
@@ -295,7 +296,8 @@ describe('stage work goes through the stage ports', () => {
     expect(JSON.stringify(d.ports.calls())).not.toContain('engine test request');
     for (const c of d.ports.calls()) {
       // M11.2: an agent-acted step also carries which agent runs it (ids and hashes; no key without a gateway)
-      expect('agent' in c).toBe(isAgentStep(c.step));
+      // (M13.6: and the specialist the deterministic step 6.3 calls in, A6)
+      expect('agent' in c).toBe(isAgentStep(c.step) || specialistAgentFor(c.step) !== null);
       expect(
         Object.keys(c)
           .filter((k) => k !== 'agent')

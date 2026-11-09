@@ -38,6 +38,7 @@ packages/
   loops/    loop supervisor (per-loop backoff, aggregated health, loop-prefixed logs, metrics), the code-host poll loops, inbound facts, WorkInFlightPort and its fake
   migrate/  `aisdlc-migrate`: one command that applies every schema in dependency order (`plan.json`); the bundle embeds the SQL
   pdp/      Cedar policies generated from the role catalogue, bundles published through config, embedded fail-closed evaluator, decision log
+  push (M13.6): the Push Broker is `services/codehost` in `CODEHOST_MODE=push`; its checks are `preflightPush` in `packages/ports/src/push.ts` (one function for the fake and the adapter), its vocabulary is `packages/contracts/src/entities/push.ts`, its write rows are `PUSH_ALLOW_LIST`, and core records it (`services/core/src/build/push.ts`: intent first, receipt as record event + ledger entry, `core.push_receipt`, `core.pull_request`). 6.3's oracle code is A6's (specialist step, W session); L7 ends at 6.5 in a spike report and never pushes
   codeowners/ the ONE CODEOWNERS parser and matcher (GitHub syntax, pure string work), shared by the codehost and knowledge
   onboarding/ the S0/project/PRR folds (moved out of core), the bootstrap grant (`liveBootstrap`) and `BootstrapPdpEntities`, the PDP entity source that lets the live grantee decide cards 1, 4, 5 and the M1 gate of their own onboarding and nothing else; used by core and the bff
   text-lint/ the ONE content lint ruleset (the OB §3.4 "must not contain" rules, L-*): knowledge runs it over repo docs, the work engine over request text (injection flags, B27)

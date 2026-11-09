@@ -109,7 +109,9 @@ export const CONDITIONAL_GATES: Readonly<
   },
   X1: { steps: ['6.4'], on_approve: 'resume' },
   X3: { steps: ['6.4'], on_approve: 'resume' },
-  X2: { steps: ['7.4'], on_approve: 'continue' },
+  // M13.6: X2 is also raised at 6.6 by the Push Broker's refusal of a protected path (OB §6.6, SP-FID-3): approved, the
+  // push runs again with the gate approved and the broker checks the decision is bound to exactly that patch.
+  X2: { steps: ['6.6', '7.4'], on_approve: 'continue', approve_at: { '6.6': 'resume' } },
   // R2: the work is smaller than the lane (2.3, 4.6). Approved: back to 1.3 and G0 again; denied: stay.
   E1: { steps: ['2.3', '4.6'], on_approve: { relane: 'down' } },
   E2: { steps: ['4.5', '7.5'], on_approve: 'continue' },

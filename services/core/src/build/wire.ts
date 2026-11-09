@@ -5,6 +5,7 @@ import {
   SessionStore,
   StoreWaitSnapshots,
   type BundleReads,
+  type PushPort,
 } from '@aisdlc/build';
 import { err, ok } from '@aisdlc/kernel';
 import {
@@ -16,11 +17,12 @@ import {
 } from '@aisdlc/ports';
 import type pg from 'pg';
 import type { KnowledgePort } from '../clients.js';
+import type { CoreDeps } from '../journal.js';
 import { CoreBuildSource } from './source.js';
 
 /**
  * The stage ports of a deployment that builds with real sessions: `coding` is the `AgentCodingPort` (S6 6.1 to 6.5; 6.0
- * is the driver's admission and 6.6 is the Push Broker's, M13.6: both stay with `base.coding`), the rest are `base`.
+ * is the driver's admission and 6.6 is the Push Broker's, M13.6: `push`; without it 6.6 stays with `base.coding`), the rest are `base`.
  *
  *   sandbox   the `SandboxPort` in front of the coding proxy (the `DockerSandboxDriver`), wrapped here in the DEC-18 owner
  *             allow-list and B1 (`GuardedSandbox`): a caller that forgets a check is still stopped
@@ -41,6 +43,10 @@ export function buildStagePorts(o: {
   readonly execAllowedRepos: () => readonly string[] | null;
   readonly model: string;
   readonly now?: () => number;
+  /** M13.6: where artefacts of S6 are stored (A6's oracle code, the patch an X2 decides, the L7 spike report). */
+  readonly deps?: CoreDeps;
+  /** M13.6: the Push Broker's client (`CorePush`). Absent: 6.6 stays with `base.coding`. */
+  readonly push?: PushPort;
 }): { stagePorts: StagePorts; snapshots: WaitSnapshotPort; store: SessionStore } {
   const store = new SessionStore(o.storeDir);
   const guard: SessionGuardDeps = {
@@ -54,10 +60,15 @@ export function buildStagePorts(o: {
   const coding = new AgentCodingPort({
     sandbox: o.sandbox,
     store,
-    source: new CoreBuildSource({ pool: o.pool, repo: new GitBundleFiles(o.bundles) }),
+    source: new CoreBuildSource({
+      pool: o.pool,
+      repo: new GitBundleFiles(o.bundles),
+      ...(o.deps ? { deps: o.deps } : {}),
+    }),
     guard,
     keys: o.keys,
     fallback: o.base.coding,
+    ...(o.push ? { push: o.push } : {}),
     model: o.model,
     prompt: readPrompt,
     ...(o.now ? { now: o.now } : {}),

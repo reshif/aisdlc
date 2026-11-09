@@ -57,8 +57,12 @@ export class GitHubTransport {
    * One request. `method` is a string so that a refused verb can be tried (and shown refused); the
    * allow-list admits only the GET rows.
    */
-  async request(method: string, target: string): Promise<Result<GitHubResponse, CodeHostNotOk>> {
-    const verdict = checkRequest(this.o.mode, method, target);
+  async request(
+    method: string,
+    target: string,
+    body?: unknown,
+  ): Promise<Result<GitHubResponse, CodeHostNotOk>> {
+    const verdict = checkRequest(this.o.mode, method, target, body);
     if (!verdict.ok) {
       this.refused += 1;
       this.o.log?.(`${method} ${target.split('?')[0]} refused: ${verdict.code}`);
@@ -78,13 +82,16 @@ export class GitHubTransport {
     let res: Response;
     try {
       res = await this.f(new URL(verdict.url, this.o.baseUrl), {
-        method: 'GET',
+        // the allow-list admitted this method for this row: GET, or a Push Broker write
+        method: verdict.row.method,
         headers: {
           authorization,
           accept: 'application/vnd.github+json',
           'x-github-api-version': '2022-11-28',
           'user-agent': 'aisdlc-codehost',
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         redirect: 'manual',
         signal: AbortSignal.timeout(this.o.timeoutMs ?? 10_000),
       });
@@ -128,6 +135,15 @@ export class GitHubTransport {
 
   get(target: string): Promise<Result<GitHubResponse, CodeHostNotOk>> {
     return this.request('GET', target);
+  }
+
+  /** A write the allow-list has a row (and a body check) for: the Push Broker's only ones. */
+  post(target: string, body: unknown): Promise<Result<GitHubResponse, CodeHostNotOk>> {
+    return this.request('POST', target, body);
+  }
+
+  patch(target: string, body: unknown): Promise<Result<GitHubResponse, CodeHostNotOk>> {
+    return this.request('PATCH', target, body);
   }
 
   /**
