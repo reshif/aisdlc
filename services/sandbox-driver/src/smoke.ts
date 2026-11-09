@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
 import { SANDBOX_LABEL } from '@aisdlc/contracts';
 import { DockerSandboxDriver } from './driver.js';
 import { DockerApi } from './docker-api.js';
@@ -22,7 +24,16 @@ const need = (n: string): string => {
 const proxy = new URL(need('SANDBOX_PROXY'));
 const scratch = need('SANDBOX_SCRATCH');
 const image = need('SANDBOX_IMAGE');
-const endpoint = { host: proxy.hostname, port: Number(proxy.port || 80) };
+// the proxy's TCP listener needs this caller's bearer token (a file: reference, like every other service token)
+const tokenRef = env['SANDBOX_PROXY_TOKEN_REF'] ?? '';
+const token = tokenRef.startsWith('file:')
+  ? readFileSync(tokenRef.slice(5), 'utf8').trim()
+  : undefined;
+const endpoint = {
+  host: proxy.hostname,
+  port: Number(proxy.port || 80),
+  ...(token ? { token } : {}),
+};
 let failed = 0;
 const check = (ok: boolean, what: string): void => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`);
@@ -40,6 +51,28 @@ const driver = new DockerSandboxDriver({
   trustedCommands: ['node'],
 });
 check(await driver.ping(), 'the coding proxy answers (daemon reachable through it)');
+{
+  // the internal network is not an identity: a caller without its token (or with a wrong one) is refused
+  const status = (h: Record<string, string>): Promise<number> =>
+    new Promise((resolve) => {
+      const r = httpRequest(
+        { host: endpoint.host, port: endpoint.port, path: '/containers/json', headers: h },
+        (x) => {
+          x.resume();
+          resolve(x.statusCode ?? 0);
+        },
+      );
+      r.on('error', () => resolve(0));
+      r.end();
+    });
+  if (token) {
+    check((await status({})) === 401, 'the coding proxy refuses a TCP call with no token');
+    check(
+      (await status({ Authorization: 'Bearer ' + 'x'.repeat(40) })) === 401,
+      'the coding proxy refuses a TCP call with a wrong token',
+    );
+  }
+}
 
 // 1. one K session: no NIC, read-only repo, /out
 const k = await driver.run({
@@ -90,6 +123,41 @@ check(
   kx.ok && kx.value.cleanup_errors.length === 0,
   'the session network and container were removed',
 );
+
+// 2b. the W image (M13.4): the coding runner and the agent harness's binary are in it, run here as K-exec (no key, the
+// mirror only): the runner refuses to start without a key and says so in its result, and the binary answers --version
+const agentImage = env['SANDBOX_AGENT_IMAGE'];
+if (agentImage) {
+  const wDriver = new DockerSandboxDriver({
+    endpoint,
+    image: agentImage,
+    scratch: { local: scratch, host: scratch },
+    peers: {
+      mirror: need('SANDBOX_MIRROR'),
+      ...(env['SANDBOX_GATEWAY'] ? { gateway: env['SANDBOX_GATEWAY'] } : {}),
+    },
+    trustedCommands: ['node'],
+  });
+  const w = await wDriver.run({
+    session_id: 'smoke-w-0001',
+    class: 'K-exec',
+    command: [
+      'node',
+      '-e',
+      "const {spawnSync}=require('child_process');const v=spawnSync('/opt/agent/claude',['--version'],{encoding:'utf8'});console.log('AGENT '+v.status+' '+String(v.stdout).trim().slice(0,40));const r=spawnSync('node',['/opt/agent/runner.js'],{encoding:'utf8',cwd:'/work/repo'});console.log('RUNNER '+r.status);console.log('RESULT '+JSON.parse(require('fs').readFileSync('/out/session.json','utf8')).error)",
+    ],
+    repo: [{ path: 'package.json', content: '{}' }],
+  });
+  check(
+    w.ok && /AGENT 0 /.test(w.value.stdout) && /RUNNER 0/.test(w.value.stdout),
+    `the W image has the agent binary and the runner (${w.ok ? w.value.stdout.trim().replace(/\n/g, ' | ').slice(0, 160) : JSON.stringify(w.error)})`,
+  );
+  check(
+    w.ok && /no gateway key in the environment/.test(w.value.stdout),
+    'the runner starts nothing without the Unit key (fail closed)',
+  );
+  check(w.ok && w.value.cleanup_errors.length === 0, 'the W-image session left nothing behind');
+}
 
 // 3. what a compromised worker would ask the proxy for
 const api = new DockerApi(endpoint);

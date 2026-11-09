@@ -47,6 +47,8 @@ export interface FakeMessagesOptions {
   readonly echoKeyInErrors?: boolean;
   /** Streaming: pause this long between server-sent events (a test that aborts a stream needs time to do it). */
   readonly streamDelayMs?: number;
+  /** Where to listen (default 127.0.0.1). A test that needs a container to reach it binds 0.0.0.0. */
+  readonly host?: string;
 }
 
 const sse = (event: string, data: unknown): string =>
@@ -256,7 +258,7 @@ export async function startFakeMessagesServer(o: FakeMessagesOptions): Promise<F
     });
   });
 
-  const url = await listen(app);
+  const url = await listen(app, o.host ? { host: o.host } : {});
   return {
     url,
     reply: (...steps) => void script.push(...steps),

@@ -162,6 +162,9 @@ secrets:
   tok-knowledge-codehost: { file: ./secrets/tok-knowledge-codehost }
   tok-core-codehost: { file: ./secrets/tok-core-codehost }
   tok-core-worker-codehost: { file: ./secrets/tok-core-worker-codehost }
+  tok-core-worker-docker-coding: { file: ./secrets/tok-core-worker-docker-coding }
+  tok-smoke-docker-coding: { file: ./secrets/tok-smoke-docker-coding }
+  tok-cvw-docker-cvw: { file: ./secrets/tok-cvw-docker-cvw }
 
 services:
   # ------------------------------------------------------------------------------------ data
@@ -839,7 +842,9 @@ services:
     group_add: ['${DOCKER_GID:-0}']
     environment:
       DOCKER_PROXY_MODE: cvw
-      DOCKER_PROXY_IMAGES: ${SANDBOX_IMAGE:-aisdlc/sandbox:local}
+      # the internal network is not an identity: every TCP caller presents its own bearer token (file: references)
+      DOCKER_PROXY_CALLERS: cvw=file:/run/secrets/tok-cvw-docker-cvw
+      DOCKER_PROXY_IMAGES: ${SANDBOX_IMAGE:-aisdlc/sandbox:local},${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
       DOCKER_PROXY_SCRATCH_ROOT: ${SANDBOX_SCRATCH:-/var/lib/aisdlc/sandbox-scratch}
       DOCKER_PROXY_HOST: 0.0.0.0
       DOCKER_PROXY_PORT: '2375'
@@ -851,6 +856,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 3s
+    secrets: [tok-cvw-docker-cvw]
     networks: [docker-cvw]
     mem_limit: 64m
 
@@ -864,7 +870,8 @@ services:
     group_add: ['${DOCKER_GID:-0}']
     environment:
       DOCKER_PROXY_MODE: coding
-      DOCKER_PROXY_IMAGES: ${SANDBOX_IMAGE:-aisdlc/sandbox:local}
+      DOCKER_PROXY_CALLERS: core-worker=file:/run/secrets/tok-core-worker-docker-coding,smoke=file:/run/secrets/tok-smoke-docker-coding
+      DOCKER_PROXY_IMAGES: ${SANDBOX_IMAGE:-aisdlc/sandbox:local},${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
       DOCKER_PROXY_SCRATCH_ROOT: ${SANDBOX_SCRATCH:-/var/lib/aisdlc/sandbox-scratch}
       DOCKER_PROXY_MAX_SANDBOXES: '4'
       DOCKER_PROXY_CODING_CAP: '1'
@@ -878,6 +885,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 3s
+    secrets: [tok-core-worker-docker-coding, tok-smoke-docker-coding]
     networks: [docker-coding]
     mem_limit: 64m
 
@@ -916,12 +924,15 @@ services:
     command: ['node', '--enable-source-maps', '/app/services/sandbox-driver/dist/smoke.js']
     environment:
       SANDBOX_PROXY: http://docker-proxy-coding:2375
+      SANDBOX_PROXY_TOKEN_REF: file:/run/secrets/tok-smoke-docker-coding
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-aisdlc/sandbox:local}
+      SANDBOX_AGENT_IMAGE: ${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
       SANDBOX_SCRATCH: ${SANDBOX_SCRATCH:-/var/lib/aisdlc/sandbox-scratch}
       SANDBOX_MIRROR: ${COMPOSE_PROJECT_NAME:-aisdlc}-package-mirror
       SANDBOX_GATEWAY: ${COMPOSE_PROJECT_NAME:-aisdlc}-gateway
     volumes:
       - ${SANDBOX_SCRATCH:-/var/lib/aisdlc/sandbox-scratch}:${SANDBOX_SCRATCH:-/var/lib/aisdlc/sandbox-scratch}
+    secrets: [tok-smoke-docker-coding]
     networks: [docker-coding]
     mem_limit: 128m
 

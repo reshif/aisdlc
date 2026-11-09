@@ -8,6 +8,7 @@ import {
   RELANE_EDGES,
   WORK_ITEM_TRANSITIONS,
   type Lane,
+  type RaisableGate,
   type StageOutcome,
   type WorkItemPhase,
 } from '@aisdlc/contracts';
@@ -346,9 +347,16 @@ for (const [gate, c] of Object.entries(CONDITIONAL_GATES)) {
       } else if ('relane' in act) {
         throw new Error('E1 has its own scenarios');
       } else if ('chain' in act) {
-        // E6 -> G3o -> back to 6.4 (B12): the next gate of the same step opens, and S6 runs again
+        // the next gate of the same step opens: at 7.2 E6 -> G3o -> back to 6.4 (B12), and S6 runs again; at 6.3 the
+        // G3o approval takes the step as done, at 6.4 it resumes the coder with both gates approved (M13)
         expect(s.gateLog.some((g) => g.gates.includes(act.chain))).toBe(true);
-        expect(tookPhase(s, 'S7', 'S6')).toBe(true);
+        if (step.startsWith('7')) expect(tookPhase(s, 'S7', 'S6')).toBe(true);
+        else {
+          const next = CONDITIONAL_GATES[act.chain as RaisableGate];
+          const then = next.approve_at?.[step] ?? next.on_approve;
+          expect(calls.length).toBe(then === 'resume' ? 2 : 1);
+          if (then === 'resume') expect(calls[1]?.approved_gates).toEqual([gate, act.chain]);
+        }
       } else {
         expect(tookPhase(s, 'S7', 'S6')).toBe(true);
         expect(s.visited.filter((v) => v === `s:${act.jump}`).length).toBe(2);
@@ -699,7 +707,10 @@ cover('gate:X1@6.4:denied', denied('X1', '6.4', 'D1'));
 cover('gate:X3@6.4:denied', denied('X3', '6.4', 'D1'));
 cover('gate:X2@7.4:denied', denied('X2', '7.4', 'D2'));
 cover('gate:G3o@6.3:denied', denied('G3o', '6.3', 'D1'));
+cover('gate:G3o@6.4:denied', denied('G3o', '6.4', 'D1'));
 cover('gate:G3o@7.2:denied', denied('G3o', '7.2', 'D2'));
+cover('gate:E6@6.3:denied', denied('E6', '6.3', 'D1'));
+cover('gate:E6@6.4:denied', denied('E6', '6.4', 'D1'));
 cover('gate:E6@7.2:denied', denied('E6', '7.2', 'D2'));
 cover('gate:E2@4.5:denied', denied('E2', '4.5', 'E4'));
 cover('gate:E2@7.5:denied', async () => {
@@ -920,6 +931,204 @@ cover('R4:S8b>REQ', async () => {
   expect(s.state.spawns).toMatchObject([{ edge: 'R4', kind: 'hotfix_follow_up', lane: 'L1' }]);
 });
 
+// ---------------------------------------------------------------- M13.5: Q1, ET10, SECT
+
+const sectPending = {
+  decide: (g: string) => (g === 'SECT' ? ('pending' as const) : ('approve' as const)),
+};
+/** An item whose `step` raised ET10 (a stage tripwire for misbehaviour): quarantined, SECT open for the security slot. */
+const quarantined = (name: string, step: '1.3' | '6.4' | '7.2', lane: Lane = 'L4') => {
+  const s = sim(name, { lane });
+  s.run({ script: forStep(step, [trigger('ET10')]), ...sectPending });
+  return s;
+};
+const decideSect = (s: Sim, outcome: 'approve' | 'reject') => {
+  const g = s.state.gates.find(
+    (x) => x.gate === 'SECT' && x.status === 'pending' && x.consumed !== true,
+  );
+  if (!g) throw new Error('no pending SECT');
+  s.apply(ITEM_EVENT.gate_decided, {
+    gate_instance_id: g.gate_instance_id,
+    gate: 'SECT',
+    outcome,
+    ledger_entry_id: null,
+  });
+};
+const expectQuarantine = (s: Sim, from: WorkItemPhase, step: string) => {
+  expect(s.state.phase).toBe('Quarantined');
+  expect(s.state.waiting).toMatchObject({ kind: 'gates', gates: ['SECT'] });
+  expect(s.state.quarantines).toMatchObject([
+    { n: 1, trigger: 'ET10', origin_phase: from, origin_step: step, resolved: null },
+  ]);
+  // it counts toward ET14 (R3) and is no handoff: SECT comes BEFORE any handoff
+  expect(s.state.et14['Q1']).toBe(1);
+  expect(s.state.handoffs).toEqual([]);
+  expect(s.state.lease).toBeNull();
+};
+
+cover('Q1:6.4>Q1', async () => {
+  const s = quarantined('e-q1-64', '6.4');
+  expectQuarantine(s, 'S6', '6.4');
+  expect(tookPhase(s, 'S6', 'Quarantined')).toBe(true);
+  expect(s.state.outputs).not.toHaveProperty('6.4');
+});
+cover('phase:S6>Quarantined', async () => {
+  const s = quarantined('e-q1-s6', '6.4');
+  expect(tookPhase(s, 'S6', 'Quarantined')).toBe(true);
+});
+cover('Q1:7.2>Q1', async () => {
+  const s = quarantined('e-q1-72', '7.2');
+  expectQuarantine(s, 'S7', '7.2');
+  expect(tookPhase(s, 'S7', 'Quarantined')).toBe(true);
+});
+cover('phase:S7>Quarantined', async () => {
+  expect(tookPhase(quarantined('e-q1-s7', '7.2'), 'S7', 'Quarantined')).toBe(true);
+});
+cover('phase:S1>Quarantined', async () => {
+  const s = quarantined('e-q1-s1', '1.3');
+  expectQuarantine(s, 'S1', '1.3');
+  expect(tookPhase(s, 'S1', 'Quarantined')).toBe(true);
+});
+cover('SECT:SECT>6.1', async () => {
+  // false positive: a cold rebuild and a NEW session, at 6.1
+  const s = quarantined('e-sect-fp', '6.4');
+  decideSect(s, 'approve');
+  expect(s.state.quarantines?.[0]).toMatchObject({
+    resolved: 'false_positive',
+    branch_quarantined: false,
+  });
+  expect(s.state.phase).toBe('S6');
+  expect(s.state.lease).not.toBeNull();
+  expect(s.state.outstanding.find((c) => c.type === 'run_stage')).toMatchObject({ step: '6.1' });
+  expect(s.state.lane).toBe('L4');
+  s.run();
+  expect(s.state.terminal).toBe('Done');
+});
+cover('phase:Quarantined>S6', async () => {
+  const s = quarantined('e-sect-s6', '6.4');
+  decideSect(s, 'approve');
+  expect(tookPhase(s, 'Quarantined', 'S6')).toBe(true);
+});
+cover('phase:Quarantined>S1', async () => {
+  // still in S1: a false positive starts S1's agent steps again (1.3)
+  const s = quarantined('e-sect-s1', '1.3');
+  decideSect(s, 'approve');
+  expect(tookPhase(s, 'Quarantined', 'S1')).toBe(true);
+  expect(s.state.outstanding.find((c) => c.type === 'run_stage')).toMatchObject({ step: '1.3' });
+});
+cover('phase:Quarantined>Abandoned', async () => {
+  // confirmed before S6: there is no branch to take over; the item ends
+  const s = quarantined('e-sect-s1-confirmed', '1.3');
+  decideSect(s, 'reject');
+  expect(s.state).toMatchObject({ terminal: 'Abandoned', terminal_cause: 'sect.confirmed' });
+  expect(tookPhase(s, 'Quarantined', 'Abandoned')).toBe(true);
+});
+cover('phase:Held>Quarantined', async () => {
+  // a hold is on while the session's misbehaviour is reported: the quarantine takes effect under it
+  const s = sim('e-held-q', { lane: 'L4' });
+  const ports = fakes();
+  await s.runP(ports, sectPending, (st) =>
+    st.outstanding.some((c) => c.type === 'run_stage' && c.step === '6.4'),
+  );
+  const cmd = s.state.outstanding.find((c) => c.type === 'run_stage' && c.step === '6.4');
+  s.apply(ITEM_EVENT.hold_placed, { hold_id: 'h1', reason: 'maintenance', origin: null });
+  expect(s.state.phase).toBe('Held');
+  s.apply(ITEM_EVENT.trigger_fired, {
+    trigger: 'ET10',
+    step: '6.4',
+    command_key: cmd?.key,
+    reason_code: 'credential_hunting',
+  });
+  expect(s.state.underlying).toBe('Quarantined');
+  expect(tookPhase(s, 'Held', 'Quarantined')).toBe(true);
+  // the hold is still on: the quarantine does not lift it
+  expect(s.state.phase).toBe('Held');
+  expect(s.state.quarantines?.[0]).toMatchObject({
+    origin_phase: 'S6',
+    cause: 'credential_hunting',
+  });
+});
+cover('phase:Quarantined>Held', async () => {
+  // a hold placed while the item is quarantined, and released: SECT is still open and nothing resumes by itself
+  const s = quarantined('e-q-held', '6.4');
+  s.apply(ITEM_EVENT.hold_placed, { hold_id: 'h2', reason: 'maintenance', origin: null });
+  expect(s.state.phase).toBe('Held');
+  expect(tookPhase(s, 'Quarantined', 'Held')).toBe(true);
+  s.apply(ITEM_EVENT.hold_released, { hold_id: 'h2' });
+  expect(s.state.phase).toBe('Quarantined');
+  expect(s.state.waiting).toMatchObject({ kind: 'gates', gates: ['SECT'] });
+});
+
+describe('SECT and Q1 beyond the edges', () => {
+  it('confirmed: the branch is quarantined and the item goes to L8 human-led with no hand-back', () => {
+    const s = quarantined('e-sect-confirmed', '6.4');
+    decideSect(s, 'reject');
+    expect(s.state.quarantines?.[0]).toMatchObject({
+      resolved: 'confirmed',
+      branch_quarantined: true,
+    });
+    expect(s.state.lane).toBe('L8');
+    expect(s.state.phase).toBe('S6');
+    expect(s.state.waiting).toEqual({ kind: 'human', what: 'human_led' });
+    expect(s.state.takeover).toMatchObject({ lane_before: 'L4' });
+    // D4 is spent: the developer cannot hand it back
+    s.apply(ITEM_EVENT.hand_back, { by: 'bob' });
+    expect(s.state.waiting).toEqual({ kind: 'human', what: 'human_led' });
+    expect(s.state.lane).toBe('L8');
+  });
+  it('SECT is never approved by silence: an expired instance is opened again', () => {
+    const s = quarantined('e-sect-expired', '6.4');
+    const g = s.state.gates.find((x) => x.gate === 'SECT' && x.status === 'pending');
+    s.apply(ITEM_EVENT.gate_decided, {
+      gate_instance_id: g?.gate_instance_id,
+      gate: 'SECT',
+      outcome: 'expired',
+      ledger_entry_id: null,
+    });
+    expect(s.state.phase).toBe('Quarantined');
+    expect(s.state.outstanding.some((c) => c.type === 'open_gates')).toBe(true);
+  });
+  it('ET10 from a phase with no Quarantined edge is ignored; a second ET10 while quarantined too', () => {
+    const s = sim('e-q-ignored', { lane: 'L4' });
+    s.run({ script: forStep('2.1', [trigger('ET10')]) });
+    expect(s.state.ignored.some((x) => x.startsWith('trigger_fired:ET10:'))).toBe(true);
+    expect(s.state.phase).not.toBe('Quarantined');
+  });
+  it('an abandon while quarantined ends the item (Quarantined > Abandoned)', () => {
+    const s = quarantined('e-q-abandon', '6.4');
+    s.apply(ITEM_EVENT.abandoned, { cause: 'e4.abandon', by: 'alice' });
+    expect(s.state.terminal).toBe('Abandoned');
+  });
+  it('B6 with exec_not_allowed (DEC-18) blocks the item and spawns no remediation; any other cause does', () => {
+    const a = sim('e-b6-exec', { lane: 'L4' });
+    a.run({
+      script: forStep(
+        '6.1',
+        [rework('B6')].map((x) => ({ ...x, reason_code: 'exec_not_allowed' }) as never),
+      ),
+    });
+    expect(a.state.waiting).toMatchObject({ kind: 'blocked', cause: 'exec_not_allowed' });
+    expect(a.state.spawns).toEqual([]);
+    const b = sim('e-b6-env', { lane: 'L4' });
+    b.run({ script: forStep('6.1', [{ ...rework('B6'), reason_code: 'env_broken' } as never]) });
+    expect(b.state.waiting).toMatchObject({ kind: 'blocked', cause: 'env_broken' });
+    expect(b.state.spawns).toMatchObject([{ edge: 'B6', lane: 'L2' }]);
+  });
+  it('the Handoff Pack a trigger carries is bound into the pack reference', () => {
+    const a = sim('e-d1-pack-a', { lane: 'L4' });
+    a.run({
+      script: forStep('6.4', [{ ...trigger('ET8'), output_hash: 'a'.repeat(64) } as never]),
+    });
+    const b = sim('e-d1-pack-b', { lane: 'L4' });
+    b.run({
+      script: forStep('6.4', [{ ...trigger('ET8'), output_hash: 'b'.repeat(64) } as never]),
+    });
+    expect(openHandoff(a).code).toBe('D1');
+    expect(openHandoff(a).pack.content_sha256).not.toBe(openHandoff(b).pack.content_sha256);
+    expect(a.state.outputs['6.4']).toBe('a'.repeat(64));
+  });
+});
+
 // ---------------------------------------------------------------- Pending, with the reason
 
 interface Rule {
@@ -927,15 +1136,7 @@ interface Rule {
   readonly reason: string;
   readonly match: (key: string) => boolean;
 }
-const hasPhase = (key: string, ...ps: string[]) =>
-  ps.some((p) => key.startsWith(`phase:${p}>`) || key.endsWith(`>${p}`));
 const PENDING_RULES: Rule[] = [
-  {
-    milestone: 'M13.5',
-    reason:
-      'quarantine (Q1, ET10, SECT) is the sandbox milestone; the engine has no misbehaviour signal before it (FL B27 flags at G0, it does not quarantine)',
-    match: (k) => /^(Q1|SECT):/.test(k) || hasPhase(k, 'Quarantined'),
-  },
   {
     milestone: 'n/a',
     reason:
@@ -1006,11 +1207,11 @@ describe('every FL edge is covered or pending with a reason, exactly', () => {
   });
 });
 
-// The exact numbers of the milestone. M9.3, M9.4 and M9.5 are done: what is left is the quarantine
-// (M13.5) and three phase-table edges no flow edge draws.
-const COVERED_COUNT = 498;
-const PENDING_COUNT = 14;
+// The exact numbers of the milestone. M9.3, M9.4, M9.5 and M13.5 (the quarantine) are done: what is left is
+// three phase-table edges no flow edge draws. M13 added six conditional-gate edges (E6 at 6.3 and 6.4, G3o at 6.4,
+// each approved and denied) and covered the eleven quarantine edges.
+const COVERED_COUNT = 515;
+const PENDING_COUNT = 3;
 const PENDING_BY: Record<string, number> = {
-  'M13.5': 11,
   'n/a': 3,
 };

@@ -46,6 +46,24 @@ export interface CoreWorkerConfig {
   readonly gateway: { readonly url: string; readonly token: string } | null;
   /** Model ids added to every minted key's allow-list (`CORE_WORKER_AGENT_EXTRA_MODELS`). */
   readonly agentExtraModels: readonly string[];
+  /**
+   * S6 with real coding sessions (PLAN M13.3, M13.4): the allow-list Docker proxy of the coding worker and what a session
+   * needs on it. `null`: 6.1 to 6.5 stay over the stage-port fakes. Needs `stagePorts: 'agents'`.
+   */
+  readonly sandbox: {
+    readonly proxyUrl: string;
+    /** This worker's bearer token at the proxy (a `file:` reference like every other service token). */
+    readonly proxyToken: string;
+    readonly image: string;
+    /** The scratch directory for repo copies: the same path for this process and for the daemon. */
+    readonly scratch: string;
+    /** The container names of the two peers a session network attaches. */
+    readonly mirror: string;
+    readonly gateway: string;
+    readonly storeDir: string;
+    /** The gateway's model id for the coder. */
+    readonly model: string;
+  } | null;
   readonly workDriverIntervalMs: number;
   readonly killHoldersIntervalMs: number;
   readonly killObserverIntervalMs: number;
@@ -103,6 +121,13 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   CORE_WORKER_GATEWAY_URL, CORE_WORKER_GATEWAY_TOKEN_REF   the model gateway's admin API (scope `admin`): the
  *                                   work driver mints a per-Unit virtual key for every agent-acted stage
  *                                   command from the agent's contract. Required with CORE_WORKER_STAGE_PORTS
+ *   CORE_WORKER_SANDBOX_PROXY_URL, CORE_WORKER_SANDBOX_PROXY_TOKEN_REF   the coding worker's Docker socket proxy (PLAN M13.2) and this
+ *                                   worker's bearer token there; with them (and CORE_WORKER_STAGE_PORTS=agents) S6 6.1 to 6.5 run
+ *                                   real sessions: CORE_WORKER_SANDBOX_IMAGE (aisdlc/sandbox-agent:local), CORE_WORKER_SANDBOX_SCRATCH
+ *                                   (a plain absolute directory, the same path for the daemon), CORE_WORKER_SANDBOX_MIRROR and
+ *                                   CORE_WORKER_SANDBOX_GATEWAY (the peers' container names), CORE_WORKER_SESSION_STORE (the workspace
+ *                                   store), CORE_WORKER_CODER_MODEL (claude-sonnet-5-5). The owner allow-list is config
+ *                                   `sandbox.exec_allowed_repos` (M1-gated): a repo not on it is BLOCKED, never run (DEC-18)
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
  *                                   deployment routes everything to `fake-model`); default none
  *   CORE_WORKER_STAGE_PORTS (none | fake | agents; default none): `fake` runs the `work_driver` loop over the
@@ -175,6 +200,34 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_STAGE_PORTS=agents needs knowledge (CORE_WORKER_KNOWLEDGE_URL): S2 is grounded on its census',
     );
   }
+  const proxyUrl = env['CORE_WORKER_SANDBOX_PROXY_URL'];
+  const dir = (name: string, d?: string): string => {
+    const v = env[name] ?? d;
+    if (v === undefined || !/^\/[A-Za-z0-9_./-]+$/.test(v) || v.includes('..') || v === '/') {
+      throw new ServiceConfigError(`${name} must be a plain absolute directory`);
+    }
+    return v;
+  };
+  const sandbox =
+    proxyUrl === undefined || proxyUrl === ''
+      ? null
+      : {
+          proxyUrl: httpUrlEnv(env, 'CORE_WORKER_SANDBOX_PROXY_URL'),
+          proxyToken: resolveSecretRef(requiredEnv(env, 'CORE_WORKER_SANDBOX_PROXY_TOKEN_REF'), {
+            env,
+          }),
+          image: env['CORE_WORKER_SANDBOX_IMAGE'] || 'aisdlc/sandbox-agent:local',
+          scratch: dir('CORE_WORKER_SANDBOX_SCRATCH'),
+          mirror: requiredEnv(env, 'CORE_WORKER_SANDBOX_MIRROR'),
+          gateway: requiredEnv(env, 'CORE_WORKER_SANDBOX_GATEWAY'),
+          storeDir: dir('CORE_WORKER_SESSION_STORE', '/var/lib/aisdlc/sessions'),
+          model: env['CORE_WORKER_CODER_MODEL'] || 'claude-sonnet-5-5',
+        };
+  if (sandbox !== null && stagePorts !== 'agents') {
+    throw new ServiceConfigError(
+      'CORE_WORKER_SANDBOX_PROXY_URL runs real coding sessions, which need CORE_WORKER_STAGE_PORTS=agents',
+    );
+  }
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
@@ -186,6 +239,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     killswitch,
     stagePorts,
     gateway,
+    sandbox,
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
       .split(',')
       .map((m) => m.trim())

@@ -4,7 +4,9 @@ import http from 'node:http';
 // It never opens /var/run/docker.sock: there is no code path here that could.
 
 export type Endpoint =
-  { readonly socketPath: string } | { readonly host: string; readonly port: number };
+  | { readonly socketPath: string }
+  /** `token`: the caller's bearer token for a TCP proxy (read from a `file:` reference by the caller of the driver; never logged). */
+  | { readonly host: string; readonly port: number; readonly token?: string };
 
 export interface ApiResponse {
   readonly status: number;
@@ -27,6 +29,9 @@ export class DockerApi {
     return new Promise((resolve, reject) => {
       const payload = opts.body === undefined ? undefined : Buffer.from(JSON.stringify(opts.body));
       const headers: Record<string, string | number> = {};
+      if ('token' in this.endpoint && this.endpoint.token !== undefined) {
+        headers['Authorization'] = `Bearer ${this.endpoint.token}`;
+      }
       if (payload) {
         headers['Content-Type'] = 'application/json';
         headers['Content-Length'] = payload.length;

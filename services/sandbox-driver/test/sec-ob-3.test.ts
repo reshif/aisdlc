@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import http from 'node:http';
 import net from 'node:net';
 import { join, resolve } from 'node:path';
@@ -14,13 +15,19 @@ import { hostileRepo } from './hostile-repo.js';
 // out-of-tree writes is contained, and the canaries fire. This is the evidence for DEC-18(b) (whether the
 // container-class sandbox may run a repository's code). The repository is SYNTHETIC: built in this test, run in
 // a real container through the real driver and the real allow-list proxy against the local Docker daemon. No
-// real repository's code is ever run. Any escape is a test failure. The result is written to
-// docs/evidence/sec-ob-3.{json,md}.
+// real repository's code is ever run. Any escape is a test failure. The result is written to a scratch directory;
+// `npm run evidence:sec-ob-3` points it at docs/evidence/sec-ob-3.{json,md}.
 
 const docker = dockerAvailable();
 if (!docker.ok) console.warn(`SEC-OB-3 hostile probe SKIPPED: ${docker.why}`);
 
-const EVIDENCE = resolve(import.meta.dirname, '../../../docs/evidence');
+// Tests never rewrite the committed evidence: the report goes to a scratch directory unless
+// `SEC_OB_3_EVIDENCE_DIR` says otherwise. `npm run evidence:sec-ob-3` regenerates docs/evidence on demand.
+const EVIDENCE_IS_SCRATCH = !process.env['SEC_OB_3_EVIDENCE_DIR'];
+const EVIDENCE =
+  process.env['SEC_OB_3_EVIDENCE_DIR'] !== undefined && process.env['SEC_OB_3_EVIDENCE_DIR'] !== ''
+    ? resolve(process.env['SEC_OB_3_EVIDENCE_DIR'])
+    : mkdtempSync(join(tmpdir(), 'sec-ob-3-evidence-'));
 
 interface Row {
   id: string;
@@ -727,4 +734,5 @@ function writeEvidence(): void {
     '',
   ].join('\n');
   writeFileSync(join(dir, 'sec-ob-3.md'), md);
+  if (EVIDENCE_IS_SCRATCH) rmSync(dir, { recursive: true, force: true });
 }

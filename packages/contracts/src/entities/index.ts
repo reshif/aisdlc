@@ -33,3 +33,4 @@ export * from './portal.js';
 export * from './gateway.js';
 export * from './integrations.js';
 export * from './sandbox.js';
+export * from './build.js';

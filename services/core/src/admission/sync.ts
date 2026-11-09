@@ -52,6 +52,7 @@ export async function syncUnits(
       let cause: GrantReleaseCause | null = null;
       if (s.terminal !== null) cause = 'item_ended';
       else if (s.underlying === 'Handoff') cause = 'handoff';
+      else if (s.underlying === 'Quarantined') cause = 'quarantined';
       else if (live.status === 'active') {
         const ev = await readItemEvents(d.pool, id);
         const decided = ev.some(

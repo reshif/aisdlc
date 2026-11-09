@@ -57,7 +57,14 @@ export const GrantStatus = z.enum(['active', 'waiting', 'released']);
 export type GrantStatus = z.infer<typeof GrantStatus>;
 
 /** DM §6.4: `Admitted -> GrantReleased` on handoff, item end or G4 decided; `readmitted` closes a waiting grant. */
-export const GrantReleaseCause = z.enum(['handoff', 'item_ended', 'g4_decided', 'readmitted']);
+export const GrantReleaseCause = z.enum([
+  'handoff',
+  'item_ended',
+  'g4_decided',
+  'readmitted',
+  /** Q1: the session was stopped and tainted; the coding slot is freed while SECT waits for the security slot. */
+  'quarantined',
+]);
 export type GrantReleaseCause = z.infer<typeof GrantReleaseCause>;
 
 /** The gates whose pending decision, while the item is in S6, makes the session wait for a person. */

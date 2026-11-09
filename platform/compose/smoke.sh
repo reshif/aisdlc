@@ -104,6 +104,14 @@ else
   docker build -q -t "$SANDBOX_IMAGE" ../sandbox >/dev/null || fail "the sandbox image did not build"
 fi
 
+# the W (coding session) image: the sandbox image plus the coding runner and the agent harness binary (M13.4)
+export SANDBOX_AGENT_IMAGE="${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}"
+if [ "${SMOKE_SKIP_BUILD:-0}" = 1 ] && SANDBOX_IMAGE="$SANDBOX_IMAGE" SANDBOX_AGENT_IMAGE="$SANDBOX_AGENT_IMAGE" bash ../sandbox/build-agent.sh --check 2>/dev/null; then
+  echo "  W image $SANDBOX_AGENT_IMAGE as it is"
+else
+  SANDBOX_IMAGE="$SANDBOX_IMAGE" SANDBOX_AGENT_IMAGE="$SANDBOX_AGENT_IMAGE" bash ../sandbox/build-agent.sh >/dev/null || fail "the W (coding session) image did not build"
+fi
+
 step "up -d --wait (db-init, migrate, seed, then every service)"
 dc up -d --wait --wait-timeout 300
 

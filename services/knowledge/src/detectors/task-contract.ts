@@ -7,43 +7,10 @@ import { Collector, lineOfText, type Detector, type TreeFile, type TreeReader } 
 // NAMES only: package.json script names, Makefile and justfile target names, tox and nox session
 // names, pyproject task tables. It never reads a script body into a fact and never runs anything.
 
-/** Spellings of each name, normalised (lower case, `: _ .` become `-`). The exact name always wins. */
-const ALIASES: Record<TaskContractName, readonly string[]> = {
-  setup: ['setup', 'bootstrap', 'install-deps', 'deps', 'init'],
-  build: ['build', 'compile'],
-  test: ['test', 'tests', 'unit', 'test-unit', 'pytest'],
-  'test-fast': [
-    'test-fast',
-    'fast-test',
-    'test-quick',
-    'quick-test',
-    'tests-fast',
-    'test-unit-fast',
-  ],
-  lint: ['lint', 'linter', 'eslint', 'lint-check', 'ruff', 'flake8', 'pylint'],
-  'format-check': [
-    'format-check',
-    'check-format',
-    'fmt-check',
-    'check-fmt',
-    'format-verify',
-    'prettier-check',
-    'black-check',
-    'style-check',
-  ],
-  typecheck: ['typecheck', 'type-check', 'check-types', 'types', 'tsc', 'mypy', 'pyright'],
-  check: ['check', 'ci', 'verify', 'validate', 'all'],
-};
+import { normaliseTaskEntry, taskNameFor } from '@aisdlc/contracts';
 
-const norm = (s: string): string => s.toLowerCase().replace(/[:_.]/g, '-');
-
-/** The task-contract name a runner entry stands for, or null. Exact normalised name first, then aliases. */
-export function taskNameFor(entry: string): TaskContractName | null {
-  const n = norm(entry);
-  for (const t of TASK_CONTRACT_NAMES) if (n === t) return t;
-  for (const t of TASK_CONTRACT_NAMES) if (ALIASES[t].includes(n)) return t;
-  return null;
-}
+export { taskNameFor };
+const norm = normaliseTaskEntry;
 
 interface Found {
   readonly runner: string;

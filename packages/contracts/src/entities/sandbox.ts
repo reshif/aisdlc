@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RepoFullName } from './codehost.js';
 
 // Sandbox classes and their profiles (PLAN M13.2; onboarding-roadmap §5.6; RV §2, §3.4; DM `SandboxClass`).
 //
@@ -236,3 +237,19 @@ export function sandboxEnvViolations(
   }
   return out;
 }
+
+// ---- DEC-18: which repositories' code may run in a container-class sandbox
+
+/**
+ * The config key (factory layer only, M1-gated like every config change) of the owner allow-list. Container-class
+ * execution of repo code is allowed for repos the user owns (DEC-18, decided 2026-11-09 after the SEC-OB-3
+ * evidence); any other repo is refused, never skipped silently. The default is the empty list: nothing runs
+ * until an M1 decision names a repo. An unreadable published value reads as `null`: nothing runs either.
+ */
+export const SANDBOX_EXEC_ALLOWED_REPOS_KEY = 'sandbox.exec_allowed_repos';
+export const SandboxExecAllowedRepos = z.array(RepoFullName).max(200);
+export type SandboxExecAllowedRepos = z.infer<typeof SandboxExecAllowedRepos>;
+/** The cause code of a BLOCKED item whose repo is not on the allow-list. */
+export const EXEC_NOT_ALLOWED = 'exec_not_allowed';
+/** Classes that run repo code, or whose session carries a repo's text into a model (B1 blocks them while a secret finding is open; K is exempt, fix #5). */
+export const B1_BLOCKED_CLASSES: readonly SandboxClass[] = ['P', 'W', 'O', 'V', 'K-exec'];

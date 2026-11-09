@@ -462,3 +462,42 @@ export const DetectorsResult = z.strictObject({
   }),
 });
 export type DetectorsResult = z.infer<typeof DetectorsResult>;
+
+/** Spellings of each name, normalised (lower case, `: _ .` become `-`). The exact name always wins. */
+const TASK_NAME_ALIASES: Record<TaskContractName, readonly string[]> = {
+  setup: ['setup', 'bootstrap', 'install-deps', 'deps', 'init'],
+  build: ['build', 'compile'],
+  test: ['test', 'tests', 'unit', 'test-unit', 'pytest'],
+  'test-fast': [
+    'test-fast',
+    'fast-test',
+    'test-quick',
+    'quick-test',
+    'tests-fast',
+    'test-unit-fast',
+  ],
+  lint: ['lint', 'linter', 'eslint', 'lint-check', 'ruff', 'flake8', 'pylint'],
+  'format-check': [
+    'format-check',
+    'check-format',
+    'fmt-check',
+    'check-fmt',
+    'format-verify',
+    'prettier-check',
+    'black-check',
+    'style-check',
+  ],
+  typecheck: ['typecheck', 'type-check', 'check-types', 'types', 'tsc', 'mypy', 'pyright'],
+  check: ['check', 'ci', 'verify', 'validate', 'all'],
+};
+
+/** Normalised spelling of a runner entry (lower case; `: _ .` become `-`). */
+export const normaliseTaskEntry = (s: string): string => s.toLowerCase().replace(/[:_.]/g, '-');
+
+/** The task-contract name a runner entry stands for, or null. Exact normalised name first, then aliases. */
+export function taskNameFor(entry: string): TaskContractName | null {
+  const n = normaliseTaskEntry(entry);
+  for (const t of TASK_CONTRACT_NAMES) if (n === t) return t;
+  for (const t of TASK_CONTRACT_NAMES) if (TASK_NAME_ALIASES[t].includes(n)) return t;
+  return null;
+}

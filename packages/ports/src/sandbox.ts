@@ -30,7 +30,14 @@ export type SandboxError = TaggedError<
   'SandboxError',
   {
     code:
-      'invalid_spec' | 'exec_not_allowed' | 'busy' | 'unavailable' | 'refused' | 'driver_failure';
+      | 'invalid_spec'
+      | 'exec_not_allowed'
+      /** B1: an open secret finding for the repo blocks P, W, O, V and K-exec sessions (K is exempt). */
+      | 'b1_blocked'
+      | 'busy'
+      | 'unavailable'
+      | 'refused'
+      | 'driver_failure';
     message: string;
   }
 >;
@@ -46,6 +53,11 @@ export interface RepoFile {
 }
 
 export interface SandboxSpec {
+  /**
+   * The repository (`owner/name`) the copy is of. Optional for the port (the driver does not need it); a
+   * guarded sandbox (`GuardedSandbox`) refuses a session of a class the allow-list or B1 applies to without it.
+   */
+  readonly repo_full_name?: string;
   /** Names the container, the network and the scratch directory: `[a-z0-9-]`, 6 to 48 characters. */
   readonly session_id: string;
   readonly class: SandboxClass;

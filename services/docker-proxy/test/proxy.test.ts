@@ -4,6 +4,7 @@ import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SANDBOX_LABEL } from '@aisdlc/contracts';
+import { ServiceAuth } from '@aisdlc/service-kit';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DockerProxy } from '../src/index.js';
 import { cfg, validBody } from './helpers.js';
@@ -364,5 +365,65 @@ describe('health', () => {
     const before = proxy.stats.refused;
     await call('POST', '/build', '{}');
     expect(proxy.stats.refused).toBe(before + 1);
+  });
+});
+
+describe('the TCP listener needs a per-caller bearer token', () => {
+  const TOKEN = 'a'.repeat(40);
+  const OTHER = 'b'.repeat(40);
+  let tcp: DockerProxy;
+  let port = 0;
+  const get = (path: string, token?: string) =>
+    new Promise<number>((resolve, reject) => {
+      const req = http.request(
+        {
+          host: '127.0.0.1',
+          port,
+          method: 'GET',
+          path,
+          headers: token === undefined ? {} : { Authorization: `Bearer ${token}` },
+        },
+        (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode ?? 0));
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+  beforeAll(async () => {
+    tcp = new DockerProxy({
+      policy: cfg(),
+      upstream: { socketPath: join(dir, 'daemon.sock') },
+      auth: new ServiceAuth({ 'core-worker': TOKEN, smoke: OTHER }),
+    });
+    await tcp.listen({ host: '127.0.0.1', port: 0 });
+    port = (tcp.server.address() as { port: number }).port;
+  });
+  afterAll(async () => {
+    await tcp.close();
+  });
+
+  it('refuses a TCP listener built without callers', async () => {
+    const bare = new DockerProxy({
+      policy: cfg(),
+      upstream: { socketPath: join(dir, 'daemon.sock') },
+    });
+    await expect(bare.listen({ host: '127.0.0.1', port: 0 })).rejects.toThrow(/caller tokens/);
+    await bare.close();
+  });
+  it('refuses a request with no token, a wrong token and a malformed header; allows each known caller', async () => {
+    const path = '/containers/json?all=true';
+    expect(await get(path)).toBe(401);
+    expect(await get(path, 'c'.repeat(40))).toBe(401);
+    expect(await get(path, TOKEN)).not.toBe(401);
+    expect(await get(path, OTHER)).not.toBe(401);
+  });
+  it('keeps /healthz open (the container healthcheck has no token) and nothing else', async () => {
+    expect(await get('/healthz')).toBe(200);
+    expect(await get('/containers/sess-000001/json')).toBe(401);
+  });
+  it('the unix socket needs no token (a filesystem permission)', async () => {
+    expect((await call('GET', '/healthz')).status).toBe(200);
   });
 });

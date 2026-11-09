@@ -330,6 +330,7 @@ function resultDraft(
           step: c.step,
           trigger: out.trigger,
           reason_code: out.reason_code,
+          ...(out.output_hash ? { output_hash: out.output_hash } : {}),
         },
       };
     case 'classified':

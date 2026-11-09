@@ -2,6 +2,7 @@ import { CODING_SESSION_CAP } from '@aisdlc/contracts';
 import {
   ServiceConfigError,
   listenConfig,
+  loadServiceAuth,
   requiredEnv,
   type RunningService,
 } from '@aisdlc/service-kit';
@@ -69,13 +70,36 @@ export function policyFromEnv(env: Record<string, string | undefined>): {
   };
 }
 
+/**
+ * `DOCKER_PROXY_CALLERS` is `name=file:/run/secrets/tok-name,other=env:NAME`: one bearer token per calling service,
+ * resolved here from references (never a literal). Required for a TCP listener.
+ */
+export function callersFromEnv(env: Record<string, string | undefined>) {
+  const refs: Record<string, { token_ref: string }> = {};
+  for (const part of csv(env['DOCKER_PROXY_CALLERS'])) {
+    const i = part.indexOf('=');
+    const name = part.slice(0, i);
+    const ref = part.slice(i + 1);
+    if (i < 1 || !/^[a-z][a-z0-9-]{0,40}$/.test(name) || !/^(file|env):/.test(ref)) {
+      throw new ServiceConfigError(
+        'DOCKER_PROXY_CALLERS is name=file:PATH or name=env:NAME, comma separated',
+      );
+    }
+    refs[name] = { token_ref: ref };
+  }
+  if (Object.keys(refs).length === 0) return undefined;
+  return loadServiceAuth(refs, { env });
+}
+
 export async function bootDockerProxy(
   env: Record<string, string | undefined>,
   log: (l: string) => void = (l) => console.log(l),
 ): Promise<RunningService> {
   const { mode, policy } = policyFromEnv(env);
   const socketPath = env['DOCKER_PROXY_UPSTREAM'] || '/var/run/docker.sock';
+  const auth = callersFromEnv(env);
   const proxy = new DockerProxy({
+    ...(auth ? { auth } : {}),
     policy,
     upstream: { socketPath },
     log: (l) => log(`docker-proxy[${mode}] ${l}`),
@@ -84,6 +108,11 @@ export async function bootDockerProxy(
   if (sock) {
     await proxy.listen({ socketPath: sock });
     return { url: `unix:${sock} (${mode})`, close: () => proxy.close() };
+  }
+  if (auth === undefined) {
+    throw new ServiceConfigError(
+      'DOCKER_PROXY_CALLERS is required: a TCP listener needs per-caller bearer tokens',
+    );
   }
   const { host, port } = listenConfig(env, 'DOCKER_PROXY', 2375);
   await proxy.listen({ host, port });

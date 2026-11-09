@@ -100,14 +100,22 @@ export const CONDITIONAL_GATES: Readonly<
     }
   >
 > = {
-  G3o: { steps: ['6.3', '7.2'], on_approve: 'continue', approve_at: { '7.2': { jump: '6.4' } } },
+  // M13: G3o is raised at 6.3 (oracle code deviates: approved, the step is done) and, after an E6 at 6.4 (the coder
+  // needs a locked test changed), at 6.4 (approved: the coder resumes). At 7.2 it follows E6 and goes back to 6.4.
+  G3o: {
+    steps: ['6.3', '6.4', '7.2'],
+    on_approve: 'continue',
+    approve_at: { '6.4': 'resume', '7.2': { jump: '6.4' } },
+  },
   X1: { steps: ['6.4'], on_approve: 'resume' },
   X3: { steps: ['6.4'], on_approve: 'resume' },
   X2: { steps: ['7.4'], on_approve: 'continue' },
   // R2: the work is smaller than the lane (2.3, 4.6). Approved: back to 1.3 and G0 again; denied: stay.
   E1: { steps: ['2.3', '4.6'], on_approve: { relane: 'down' } },
   E2: { steps: ['4.5', '7.5'], on_approve: 'continue' },
-  E6: { steps: ['7.2'], on_approve: { chain: 'G3o' } },
+  // E6, the Test Change Request on locked tests: B12 at 7.2 (S7 found a locked test must change), and from S6 the
+  // coder's own request (6.4) or the oracle check's (6.3). Each chains to G3o: a changed test is an oracle deviation.
+  E6: { steps: ['6.3', '6.4', '7.2'], on_approve: { chain: 'G3o' } },
 };
 
 /** What approving `gate` raised at `step` does. */

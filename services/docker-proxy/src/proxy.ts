@@ -1,6 +1,7 @@
 import http from 'node:http';
 import type { Duplex } from 'node:stream';
 import { SANDBOX_LABEL } from '@aisdlc/contracts';
+import type { ServiceAuth } from '@aisdlc/service-kit';
 import {
   OCCUPIES_SLOT,
   isSandboxLabelled,
@@ -37,6 +38,13 @@ export interface UpstreamTarget {
 }
 
 export interface ProxyOptions {
+  /**
+   * Who may call over TCP (a per-caller bearer token, resolved from `file:` references by the boot code). The
+   * internal network is not an identity: a TCP listener without callers refuses to start, and a TCP request
+   * without a known token is refused before anything is routed. A unix-socket listener (the test rig, a
+   * sidecar) is a filesystem permission and needs none. `/healthz` stays open: it answers a daemon ping only.
+   */
+  readonly auth?: ServiceAuth;
   readonly policy: PolicyConfig;
   readonly upstream: UpstreamTarget;
   readonly log?: (line: string) => void;
@@ -280,6 +288,11 @@ export class DockerProxy {
     ) {
       return deny(403, 'HTTP upgrade is refused');
     }
+    const tcp = req.socket.remotePort !== undefined;
+    if (tcp && !(method === 'GET' && url === '/healthz')) {
+      const caller = this.opts.auth?.authenticate(req.headers.authorization) ?? null;
+      if (caller === null) return deny(401, 'a bearer token of a known caller is required');
+    }
     if (method === 'GET' && url === '/healthz') {
       const r = await this.up('GET', '/_ping', {}).catch(() => null);
       res.writeHead(r?.status === 200 ? 200 : 503, { 'Content-Type': 'text/plain' });
@@ -468,7 +481,13 @@ export class DockerProxy {
     return new Promise((resolve, reject) => {
       this.server.once('error', reject);
       if ('socketPath' in target) this.server.listen(target.socketPath, resolve);
-      else this.server.listen(target.port, target.host, resolve);
+      else {
+        if (this.opts.auth === undefined) {
+          reject(new Error('a TCP listener needs caller tokens: refusing to start without them'));
+          return;
+        }
+        this.server.listen(target.port, target.host, resolve);
+      }
     });
   }
 

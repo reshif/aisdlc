@@ -11,6 +11,8 @@ import {
   HttpRoleMapReconciler,
   RefusingStepUp,
   agentStagePorts,
+  buildStagePorts,
+  execAllowedReposFrom,
   cardDepsFrom,
   cardsLoop,
   identityEligibility,
@@ -27,6 +29,8 @@ import {
   workSettingsFrom,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
+import { HttpBundleSource } from '@aisdlc/ports';
+import { DockerSandboxDriver } from '@aisdlc/sandbox-driver';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
 import {
@@ -51,6 +55,11 @@ import {
   type StagePorts,
 } from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
+
+const proxyEndpoint = (url: string): { host: string; port: number } => {
+  const u = new URL(url);
+  return { host: u.hostname, port: Number(u.port || 80) };
+};
 import { createCoreWorkerApp } from './app.js';
 import { HttpCodeHostReads } from './codehost-client.js';
 import { coreWorkerConfigFromEnv } from './config.js';
@@ -229,7 +238,7 @@ export async function bootCoreWorker(
       if (cfg.stagePorts === 'agents' && (!cfg.gateway || !cfg.knowledge)) {
         throw new Error('CORE_WORKER_STAGE_PORTS=agents needs the gateway and knowledge');
       }
-      const stagePorts =
+      const agentPorts =
         cfg.stagePorts === 'agents' && cfg.gateway && cfg.knowledge
           ? agentStagePorts({
               pool,
@@ -240,6 +249,32 @@ export async function bootCoreWorker(
               constitution: constitutionFrom(rd),
             })
           : baseStagePorts;
+      // M13.3, M13.4: with a sandbox proxy, 6.1 to 6.5 run real coding sessions (the DEC-18 owner allow-list and B1 in
+      // front of every session), and HUMAN-WAIT's snapshots are of the session's real workspace
+      const built =
+        cfg.sandbox && cfg.knowledge
+          ? buildStagePorts({
+              pool,
+              base: agentPorts,
+              sandbox: new DockerSandboxDriver({
+                endpoint: { ...proxyEndpoint(cfg.sandbox.proxyUrl), token: cfg.sandbox.proxyToken },
+                image: cfg.sandbox.image,
+                scratch: { local: cfg.sandbox.scratch, host: cfg.sandbox.scratch },
+                peers: { mirror: cfg.sandbox.mirror, gateway: cfg.sandbox.gateway },
+                trustedCommands: [],
+              }),
+              storeDir: cfg.sandbox.storeDir,
+              keys: vault,
+              bundles: new HttpBundleSource({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken }),
+              knowledge: new HttpKnowledge({
+                baseUrl: cfg.knowledge.url,
+                token: cfg.knowledge.token,
+              }),
+              execAllowedRepos: execAllowedReposFrom(rd),
+              model: cfg.sandbox.model,
+            })
+          : null;
+      const stagePorts = built ? built.stagePorts : agentPorts;
       // M13.1: 6.0 admission (a lease epoch, an approver slot, capacity, the envelope reserved in the gateway)
       // and the capacity port behind it, which frees the held items only when their next admission can succeed
       const admissionBase = cfg.gateway
@@ -248,7 +283,7 @@ export async function bootCoreWorker(
             envelope: new GatewayEnvelope(
               new GatewayAdminClient({ baseUrl: cfg.gateway.url, token: cfg.gateway.token }),
             ),
-            snapshots: new ReferenceSnapshots(),
+            snapshots: built ? built.snapshots : new ReferenceSnapshots(),
           }
         : null;
       const realCapacity = admissionBase ? new AdmissionCapacity({ pool, ...admissionBase }) : null;

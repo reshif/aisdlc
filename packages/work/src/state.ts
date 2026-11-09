@@ -82,6 +82,25 @@ export type Waiting =
       readonly gate: GateId | null;
     };
 
+/**
+ * One quarantine (Q1, ET10) and what the security triage (SECT) decided. The session that misbehaved is tainted
+ * and its snapshot kept; SECT approved is a false positive (cold rebuild, a new session at 6.1, or 1.3 from S1),
+ * SECT refused is confirmed: the branch is quarantined and the item goes to L8 human-led, autonomy demoted.
+ */
+export interface QuarantineRecord {
+  readonly n: number;
+  readonly trigger: 'ET10';
+  /** The misbehaviour (a reason code of the stage: `locked_test_edit`, `credential_hunting`...). */
+  readonly cause: string;
+  readonly origin_phase: WorkItemPhase;
+  readonly origin_step: StepId;
+  /** The evidence the stage kept (by hash), or null. */
+  readonly pack_sha256: string | null;
+  resolved: 'false_positive' | 'confirmed' | null;
+  /** SECT confirmed: the agent branch is quarantined (the Push Broker, M13.6, refuses it). */
+  branch_quarantined: boolean;
+}
+
 export interface ItemState {
   readonly item_id: string;
   readonly project_id: string;
@@ -186,6 +205,8 @@ export interface ItemState {
   plan_author?: string | null;
   /** The last output hash of each step (the Handoff Pack's contents). */
   outputs: Record<string, string>;
+  /** Quarantines of the item, oldest first (Q1 then SECT). Absent in old state. */
+  quarantines?: QuarantineRecord[];
   /** The merged commit the plan (S5) was made against; G3 binds it. `null` until S5 says (or absent in old state). */
   plan_base_sha?: string | null;
   assumptions: Assumption[];
