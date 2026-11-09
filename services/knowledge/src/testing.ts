@@ -190,7 +190,7 @@ export interface KnowledgeStack {
   /** What the state API asks of the ledger: accepts every reference unless a test says otherwise. */
   readonly decisions: FakeDecisionVerifier;
   readonly workRoot: string;
-  readonly tokens: { census: string; security: string; both: string; none: string };
+  readonly tokens: { census: string; security: string; both: string; none: string; search: string };
   call(
     token: string | null,
     method: 'GET' | 'POST',
@@ -234,12 +234,14 @@ export async function startKnowledgeStack(opts: StackOptions): Promise<Knowledge
       security: 'security-token-'.padEnd(32, 'x'),
       both: 'both-token-'.padEnd(32, 'x'),
       none: 'none-token-'.padEnd(32, 'x'),
+      search: 'search-token-'.padEnd(32, 'x'),
     };
     const callers: Record<string, readonly KnowledgeScope[]> = {
       census: ['census'],
       security: ['security'],
       both: ['census', 'security'],
       none: [],
+      search: ['search'],
     };
     const app = createKnowledgeApp({
       pool: db.pool,

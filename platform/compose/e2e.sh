@@ -24,6 +24,9 @@ cd "$(dirname "$0")"
 repo_root="$(cd ../.. && pwd)"
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-e2e}"
+# M12: the work driver runs the real planning port (S1 to S5); the gateway's local fake provider answers with
+# canned outputs and the knowledge token carries the `search` scope (see docker-compose.yml, core-worker).
+export CORE_WORKER_STAGE_PORTS="${CORE_WORKER_STAGE_PORTS:-agents}"
 export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
 dc() { docker compose --profile fake-github "$@"; }
 fail() { echo "e2e: FAIL: $*" >&2; exit 1; }
@@ -65,6 +68,12 @@ echo "== the browser test"
 E2E_BASE_URL="${E2E_BASE_URL:-http://localhost:8340}" \
 E2E_SCREENSHOT_DIR="${E2E_SCREENSHOT_DIR:-$repo_root/docs/screenshots}" \
   node "$repo_root/platform/compose/e2e-portal.mjs"
+echo "== S1 ran through the real planning port: artefacts, agent runs, and no model call but the gateway's fake"
+sql() { dc exec -T -e PGPASSWORD="$(cat secrets/pg-superuser)" postgres psql -U postgres -d aisdlc -At -c "$1"; }
+arts=$(sql "SELECT string_agg(type, ',' ORDER BY type) FROM core.artefact" | tr -d '[:space:]')
+echo "  artefacts: $arts"
+case ",$arts," in *,classification,*) ;; *) fail "no classification artefact: S1 did not run through the planning port";; esac
+case ",$arts," in *,intent_block,*) ;; *) fail "no intent block artefact";; esac
 echo "== the fake GitHub's request log after the whole onboarding"
 log=$(dc logs --no-log-prefix --no-color fake-github 2>&1 | grep -E '^fake-github (api|git) ' || true)
 api=$(printf '%s\n' "$log" | grep '^fake-github api ' | sed -E 's/^fake-github api \{"method":"([A-Z]+)","path":"([^"]*)".*"status":([0-9]+)\}$/\1 \2 \3/')

@@ -106,8 +106,18 @@ export const completeHumanWork = (
   itemId: string,
   by: PrincipalId,
   key: string,
+  /** B5 (M12.4): the plan artefacts the human stored, by step, and the commit they planned against. */
+  plan?: { outputs: Record<string, string>; base_sha: string },
 ): Promise<Out> =>
-  signal(deps, itemId, ITEM_EVENT.human_work_done, { by }, by, `human_done:${key}`, true);
+  signal(
+    deps,
+    itemId,
+    ITEM_EVENT.human_work_done,
+    { by, ...(plan ? { outputs: plan.outputs, base_sha: plan.base_sha } : {}) },
+    by,
+    `human_done:${key}`,
+    true,
+  );
 
 /** BLOCKED's exit: the platform owner says the environment is fixed. */
 export const envFixed = (
@@ -184,4 +194,29 @@ export const decideAssumption = (
     { assumption_id, state, by },
     by,
     `assumption:${assumption_id}:${state}`,
+  );
+
+/**
+ * R2 observed at the design review (4.6, while G3d is open): the reviewer finds the work smaller than its lane.
+ * E1 decides it; the item goes back to 1.3 and G0 only if E1 is approved, and stays at G3d if it is denied.
+ */
+export const observeRelane = (
+  deps: CoreDeps,
+  itemId: string,
+  r: { to_lane: Lane; reason_code: string; by: PrincipalId; key: string },
+): Promise<Out> =>
+  signal(
+    deps,
+    itemId,
+    ITEM_EVENT.relane_requested,
+    {
+      edge: 'R2',
+      trigger: 'smaller_than_lane',
+      to_lane: r.to_lane,
+      step: '4.6',
+      reason_code: r.reason_code,
+      by: r.by,
+    },
+    r.by,
+    `relane:R2:${r.key}`,
   );

@@ -15,6 +15,7 @@ import type { DecisionVerifier } from './decision-ref.js';
 import type { PrincipalDirectory } from './principals.js';
 import { getLatestCensus } from './census/store.js';
 import type { JobRunner } from './runner.js';
+import { SearchQuery, searchRepo } from './search.js';
 import {
   countFindings,
   getFinding,
@@ -28,9 +29,10 @@ import {
  * What a caller may do. `census`: start a census-intake job, read a job and the COUNTS of a repo's
  * scan. `security`: read findings (fingerprints, locations) and set their state. The two are
  * separate scopes (OB §5.3 item 10: findings are for the Security role only), and a caller that
- * holds `census` can read no finding.
+ * holds `census` can read no finding. `search` (M12.1): the read-only repository search an agent's
+ * `KnowledgeSearch` tool runs; it reads indexed text (never a finding) and changes nothing.
  */
-export type KnowledgeScope = 'census' | 'security';
+export type KnowledgeScope = 'census' | 'security' | 'search';
 
 export interface KnowledgeAppOptions {
   readonly pool: pg.Pool;
@@ -135,6 +137,26 @@ export function createKnowledgeApp(o: KnowledgeAppOptions): FastifyInstance {
     if (!repo.success) return bad(reply, 'owner/name is not a repository');
     const latest = await getLatestCensus(o.pool, repo.data);
     return latest ?? fail(reply, knowledgeError('not_found', 'no census for this repository'));
+  });
+
+  /**
+   * Read-only search over the indexed head tree of a repo (PLAN M12.1 2.1b). The caller names the commit it
+   * needs (`sha`); an index built at another commit answers `409 stale_index`, none at all `404`.
+   */
+  app.get('/v1/repos/:owner/:name/search', async (req, reply) => {
+    if (!allowed(req, 'search')) return forbid(reply, 'search');
+    const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
+    if (!repo.success) return bad(reply, 'owner/name is not a repository');
+    const q = SearchQuery.safeParse(query(req));
+    if (!q.success) return bad(reply, q.error.message);
+    const r = await searchRepo(o.pool, repo.data, q.data);
+    if (r.state === 'not_indexed') {
+      return fail(reply, knowledgeError('not_found', 'this repository has no search index'));
+    }
+    if (r.state === 'stale_index') {
+      return sendError(reply, 409, 'stale_index', 'the index is not at the requested commit');
+    }
+    return { repo: repo.data, commit_sha: q.data.sha, hits: r.hits };
   });
 
   // ------------------------------------------------------------ Security only

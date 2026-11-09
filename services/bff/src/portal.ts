@@ -5,11 +5,15 @@ import {
   AgentStats,
   CardDecideRequest,
   CardEvidenceRequest,
+  GateCardDecideRequest,
+  GateCardEvidenceRequest,
+  GateCardView,
   CoreInboxItem,
   EvalRunsView,
   EvalSummaryView,
   LedgerAuditView,
   OnboardRequest,
+  GateArtefactsView,
   OnboardingCardSummary,
   ProjectId,
   ProjectPrrView,
@@ -58,7 +62,11 @@ import type { CoreClient } from './core-client.js';
 //   GET  /api/s0/:id                      the S0 record with its steps                (project.view)
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
+//   GET  /api/cards/:id/artefacts         a work-item gate card's artefacts, rendered (project.view)
 //   POST /api/cards/:id/prepare|evidence|decide|recheck                               (card.decide)
+//   GET  /api/cards/:id/gate              a work-item gate card as something to decide  (project.view)
+//   POST /api/cards/:id/gate/prepare|evidence|decide      deciding G0/G1, G1f, G2, G3d, G3 ...  (card.decide;
+//                                         core asks gate.decide for every gate of the card)
 //   GET  /api/inbox                       what waits for the person, and what they only see
 //   GET  /api/s0/:id/revision             the settings revision card 4 proposed       (project.view)
 //   GET  /api/revisions/:gate             the same, by its gate                       (project.view)
@@ -87,6 +95,8 @@ export const PortalOnboardBody = OnboardRequest.omit({ on_behalf_of: true });
 export const PortalAskBody = SubmitRequestBody.omit({ on_behalf_of: true, channel: true });
 export const PortalEvidenceBody = CardEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalDecideBody = CardDecideRequest.omit({ on_behalf_of: true });
+export const PortalGateEvidenceBody = GateCardEvidenceRequest.omit({ on_behalf_of: true });
+export const PortalGateDecideBody = GateCardDecideRequest.omit({ on_behalf_of: true });
 export const PortalRevisionEvidenceBody = RevisionEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalRevisionDecideBody = RevisionDecideRequest.omit({ on_behalf_of: true });
 const EmptyBody = z.strictObject({});
@@ -416,6 +426,25 @@ export function registerPortalRoutes(d: PortalDeps): void {
     );
   }
 
+  /**
+   * The artefacts a work-item gate card (G1f, G2) decides, rendered, each with its hash (M12). Core reads
+   * them back through its store, which checks every hash; the person needs `project.view` on the project.
+   */
+  app.get('/api/cards/:id/artefacts', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const got = upstream(reply, await c.call('GET', `/v1/cards/${id}/artefacts`), (v) =>
+      GateArtefactsView.parse(v),
+    );
+    if (!got) return;
+    const who = d.principalOf(req);
+    if (!(await allowed(who, 'project.view', pdpResource.project(got.value.project_id)))) {
+      return deny(reply, 'project.view');
+    }
+    return got.value;
+  });
+
   app.get('/api/cards/:id', async (req, reply) => {
     const c = core(reply);
     const id = idParam(req, reply);
@@ -450,6 +479,76 @@ export function registerPortalRoutes(d: PortalDeps): void {
       principal_names: await names(ids),
     };
   });
+
+  // ------------------------------------------------------------ a work-item gate card (Gap B)
+
+  /** A work-item card's view (its project first): `project.view`, then who may decide it. */
+  app.get('/api/cards/:id/gate', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const got = upstream(reply, await c.call('GET', `/v1/cards/${id}/gate`), (v) =>
+      GateCardView.parse(v),
+    );
+    if (!got) return;
+    const who = d.principalOf(req);
+    if (!(await allowed(who, 'project.view', pdpResource.project(got.value.project_id)))) {
+      return deny(reply, 'project.view');
+    }
+    const pdpYes = await allowed(
+      who,
+      'card.decide',
+      pdpResource.card(got.value.project_id, got.value.card_id),
+    );
+    const open = got.value.status === 'open' && got.value.gates.some((g) => g.status === 'pending');
+    return {
+      ...got.value,
+      // never for a gate that needs a step-up: the portal does not decide those here
+      may_decide:
+        pdpYes &&
+        open &&
+        (got.value.deciders.holders as readonly string[]).includes(who) &&
+        got.value.gates.every((g) => !g.step_up_required),
+      principal_names: await names([...new Set([...got.value.deciders.holders, who])]),
+    };
+  });
+
+  /** The PDP's `card.decide` on the card's project, then core (which asks `gate.decide` too). */
+  async function gateMove<S extends z.ZodType<object>>(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    schema: S,
+    verb: 'prepare' | 'evidence' | 'decide',
+  ) {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const body = schema.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    const who = d.principalOf(req);
+    const head = upstream(reply, await c.call('GET', `/v1/cards/${id}/gate`), (v) =>
+      GateCardView.parse(v),
+    );
+    if (!head) return;
+    if (!(await allowed(who, 'card.decide', pdpResource.card(head.value.project_id, id)))) {
+      return deny(reply, 'card.decide');
+    }
+    const got = upstream(
+      reply,
+      await c.call('POST', `/v1/cards/${id}/gate/${verb}`, { ...body.data, on_behalf_of: who }),
+    );
+    return got?.value;
+  }
+
+  app.post('/api/cards/:id/gate/prepare', (req, reply) =>
+    gateMove(req, reply, EmptyBody, 'prepare'),
+  );
+  app.post('/api/cards/:id/gate/evidence', (req, reply) =>
+    gateMove(req, reply, PortalGateEvidenceBody, 'evidence'),
+  );
+  app.post('/api/cards/:id/gate/decide', (req, reply) =>
+    gateMove(req, reply, PortalGateDecideBody, 'decide'),
+  );
 
   // ------------------------------------------------------------ the card moves
 

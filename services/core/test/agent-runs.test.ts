@@ -1,4 +1,4 @@
-import { agentStats, primaryAgentFor } from '@aisdlc/agents';
+import { agentDefinition, agentStats, primaryAgentFor } from '@aisdlc/agents';
 import {
   AGENT_EVENT,
   GATEWAY_EVENT,
@@ -129,7 +129,9 @@ describe('dispatch: the agent, its key and the record of both', () => {
       expect(k?.item_id).toBe(it_.itemId);
       expect(k?.step).toBe(c.step);
       expect(k?.lane).toBe('L4');
-      expect(k?.revoked_at).toBeNull();
+      // a command's own job key ends when the command is answered (M12); a Unit's key (S6) outlives it
+      if (c.step === '6.4' || c.step === '6.6') expect(k?.revoked_at).toBeNull();
+      else expect(k?.revoked_at).not.toBeNull();
     }
     // one key per command, however often a command was delivered
     expect(keys.all()).toHaveLength(bound.size);
@@ -303,7 +305,7 @@ describe('outcomes: what happened next to the item', () => {
     );
     // every run has a state, the contract version and prompt it ran with
     for (const r of runs) {
-      expect(r.contract_version).toBe('1.0.0');
+      expect(r.contract_version).toBe(agentDefinition(r.agent_id).contract.contract_version);
       expect(r.prompt_sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(r.state).toBe('finished');
     }

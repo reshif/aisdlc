@@ -414,6 +414,39 @@ try {
   await page.locator('[data-status="done"]').waitFor();
   await shot('m8-s0.png');
 
+  // 12b. (M12, Gap A) S1 with the REAL planning agents on this stack: core-worker runs the work driver with
+  // `CORE_WORKER_STAGE_PORTS=agents`, the gateway's local fake provider answers each planning step with a
+  // canned valid output (`fixtures: planning`), the port validates it and stores it as an artefact. A Census
+  // project cannot run L4 (OB 2.1: the lane is routed to L8), and there is no Ready decision in the portal
+  // yet, so the item rests at 1.6 with what S1 produced: the classification and the intent block.
+  {
+    const csrf = (await (await context.request.get(`${base}/api/me`)).json()).csrf_token;
+    const asked = await context.request.post(`${base}/api/requests`, {
+      headers: { 'x-csrf-token': csrf },
+      data: {
+        project_id: 'testbed',
+        repo: `${REPO.owner}/${REPO.name}`,
+        lane: 'L4',
+        text: 'Let admins export the audit log as CSV.',
+      },
+    });
+    must(asked.status() === 201, `Ask answered ${asked.status()}: ${await asked.text()}`);
+    const itemId = (await asked.json()).item_id;
+    const item = await until(async () => {
+      const r = await context.request.get(`${base}/api/items/${itemId}`);
+      const v = r.status() === 200 ? await r.json() : null;
+      return v && v.waiting === 'human:ready' ? v : null;
+    }, 'the item to reach the Ready decision (S1 run by the agents)');
+    must(
+      item.proposed_lane === 'L8',
+      `a census project routes L4 to L8, not ${item.proposed_lane}`,
+    );
+    log(
+      `S1 ran with the real planning port: item ${itemId} waits at 1.6 (proposed lane ${item.proposed_lane})`,
+    );
+    globalThis.__e2eItem = itemId;
+  }
+
   // 13. Sign out ends the session.
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByRole('link', { name: 'Sign in' }).first().waitFor();

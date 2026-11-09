@@ -10,6 +10,7 @@ import {
   PrincipalId,
   ProjectId,
   Sha256Hex,
+  GitSha,
   WorkItemId,
   WorkRequestId,
   uuidId,
@@ -434,6 +435,8 @@ export const StageOutcome = z.discriminatedUnion('outcome', [
     lease_epoch: z.number().int().min(1).optional(),
     /** The assumptions the planner reports in its output (spec, design, plan). */
     assumptions: z.array(AssumptionReport).optional(),
+    /** S5 (M12.4): the merged commit the plan was made against. G3's subject hash binds it. */
+    base_sha: GitSha.optional(),
   }),
   /** 6.0 admission refused: the item is HELD (H1 approver pool, H2 capacity, H3 env, WIP). */
   z.strictObject({ outcome: z.literal('held'), reason: AdmissionHold }),
@@ -476,6 +479,8 @@ export const StageOutcome = z.discriminatedUnion('outcome', [
     outcome: z.literal('gate_needed'),
     gate: RaisableGate,
     reason_code: z.string().min(1).max(64),
+    /** The artefact the gate decides (4.5's constitution report for E2): bound into the gate's subject hash. */
+    output_hash: Sha256Hex.optional(),
   }),
   z.strictObject({ outcome: z.literal('failed'), code: z.string().min(1).max(64) }),
 ]);
@@ -668,6 +673,7 @@ export const ItemStagePayloads = {
     lane: Lane.optional(),
     lease_epoch: z.number().int().min(1).optional(),
     assumptions: z.array(AssumptionReport).optional(),
+    base_sha: GitSha.optional(),
   }),
   [ITEM_EVENT.stage_failed]: z.strictObject({ ...Answers, step: StepId, code: z.string().min(1) }),
   [ITEM_EVENT.stage_gate_needed]: z.strictObject({
@@ -675,6 +681,7 @@ export const ItemStagePayloads = {
     step: StepId,
     gate: RaisableGate,
     reason_code: z.string().min(1),
+    output_hash: Sha256Hex.optional(),
   }),
   [ITEM_EVENT.questions_raised]: z.strictObject({
     ...Answers,
@@ -724,7 +731,16 @@ export const ItemEventPayloads = {
   /** 8.2: the human merged on GitHub and the factory observed it (the factory never merges). */
   [ITEM_EVENT.merge_observed]: z.strictObject({ merged_sha: z.string().min(7) }),
   /** L8: the developer finished (D5): the item goes on to 7.1. */
-  [ITEM_EVENT.human_work_done]: z.strictObject({ by: PrincipalId }),
+  [ITEM_EVENT.human_work_done]: z.strictObject({
+    by: PrincipalId,
+    /**
+     * B5 "a human writes the plan" (M12.4): the plan artefacts the human stored (their steps' hashes) and the
+     * merged commit they planned against. The engine takes them as the outputs of 5.1 to 5.6, so G3 binds
+     * exactly what the human wrote. Absent for L8's D5.
+     */
+    outputs: z.partialRecord(StepId, Sha256Hex).optional(),
+    base_sha: GitSha.optional(),
+  }),
   [ITEM_EVENT.gates_opened]: z.strictObject({
     ...Answers,
     gates: z.array(z.strictObject({ gate: GateId, gate_instance_id: z.string().min(1) })).min(1),

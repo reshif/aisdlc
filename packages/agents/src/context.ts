@@ -82,6 +82,19 @@ export interface RepoText extends ContextSource {
   readonly commit_sha: string;
 }
 
+/**
+ * An artefact an earlier step stored (a context brief, a spec delta, the request text), rendered as text.
+ * Agent output and request text are untrusted however they got here: an artefact is level 6 DATA, tagged
+ * `inferred`, fenced behind its provenance header like any repo text (M12).
+ */
+export interface ArtefactPiece {
+  /** `context_brief`, `spec_delta`, `request`... */
+  readonly type: string;
+  /** The artefact's content hash (what the gate binds); the header carries it in the path. */
+  readonly sha256: string;
+  readonly text: string;
+}
+
 export interface ContextRequest {
   readonly agent_id: AgentId;
   /** `onboarding`: the onboarding item's own jobs, which may see unmerged drafts (tagged). */
@@ -96,6 +109,8 @@ export interface ContextRequest {
   readonly claims?: readonly AffirmedClaim[];
   readonly pack_docs?: readonly PackDoc[];
   readonly repo_text?: readonly RepoText[];
+  /** Earlier steps' artefacts and the request text (level 6 data, tagged `inferred`). */
+  readonly artefacts?: readonly ArtefactPiece[];
   /** DEC-11(a) approved (default true). Declined: affirmed text is quoted as a pack doc, labelled data. */
   readonly affirmed_guidance?: boolean;
   /** Characters of context. Default: the contract's `max_tokens` (about a quarter of its token budget). */
@@ -201,6 +216,15 @@ function render(c: Candidate, body: string, extraTags: readonly ContextTag[]): s
   const label = c.kind === 'guidance' ? 'GUIDANCE' : 'DATA';
   const f = fenceFor(body, label);
   return `${f.open} ${header(tagged, c.lint)}>>>\n${body}\n${f.close}\n`;
+}
+
+/**
+ * A tool's result (or any text the factory fetched while an agent runs) as DATA: inside a fence its body
+ * cannot close, behind a provenance header. Used by the planning port for `KnowledgeSearch` results.
+ */
+export function quoteAsData(meta: Record<string, unknown>, body: string): string {
+  const f = fenceFor(body, 'DATA');
+  return `${f.open} ${JSON.stringify({ ...meta, tags: ['tool_result'] })}>>>\n${body}\n${f.close}\n`;
 }
 
 const SECTION = {
@@ -359,6 +383,16 @@ export function buildContext(req: ContextRequest): BuiltContext {
       add(7, 'data', { ...r, source: 'repo' }, [], 'unmerged_excluded');
       defect('unmerged_excluded', 7, r.path, [], 'not the merged default-branch head: not served');
     } else add(7, 'data', { ...r, source: 'repo' }, []);
+  }
+
+  // ---- earlier artefacts and the request text: derived or untrusted, so data, never control
+  for (const a of req.artefacts ?? []) {
+    add(
+      6,
+      'data',
+      { text: a.text, source: 'record', path: `artefact:${a.type}@${a.sha256.slice(0, 16)}` },
+      ['inferred'],
+    );
   }
 
   // ---- lint findings: attached to every piece; a directive is a defect; a secret is not served

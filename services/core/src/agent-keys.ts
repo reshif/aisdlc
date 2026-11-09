@@ -12,6 +12,9 @@ export interface GatewayKeyClient {
   createBudgetGroup(
     spec: BudgetGroupSpec,
   ): Promise<Result<unknown, { readonly code: string; readonly message: string }>>;
+  revokeVKey?(
+    id: string,
+  ): Promise<Result<unknown, { readonly code: string; readonly message: string }>>;
   mintVKey(
     mint: VKeyMint,
   ): Promise<
@@ -43,5 +46,11 @@ export class GatewayAgentKeys implements AgentKeyPort {
     const m = await this.client.mintVKey({ ...req.mint, models });
     if (!m.ok) return err(agentKeyError(m.error.code, m.error.message));
     return ok({ vkey: m.value.vkey, secret: m.value.key });
+  }
+
+  async revoke(vkey_id: string): Promise<Result<void, AgentKeyError>> {
+    if (!this.client.revokeVKey) return ok(undefined);
+    const r = await this.client.revokeVKey(vkey_id);
+    return r.ok ? ok(undefined) : err(agentKeyError(r.error.code, r.error.message));
   }
 }

@@ -177,6 +177,15 @@ export const CardPayloadItem = z.discriminatedUnion('kind', [
     claim_id: z.string().min(1),
     verdict: ClaimVerdict,
   }),
+  /**
+   * A work-item gate card (M12, Gap B): why the person rejected it or asked for changes (or said anything with
+   * an approval). The payload's hash is bound into every ledger entry of the card's decision, so the reason
+   * is part of what was decided, and it is the one place the reason is kept.
+   */
+  z.strictObject({
+    kind: z.literal('decision_reason'),
+    text: z.string().min(1).max(1000),
+  }),
   /** Card 1: the owner(s) of the project (OB §6.2 row 0.1). */
   z.strictObject({
     kind: z.literal('owner_confirmation'),

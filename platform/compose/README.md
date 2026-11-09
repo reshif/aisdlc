@@ -228,6 +228,18 @@ docker build --network=host --secret id=extra_ca,src=/path/ca.pem --build-arg HT
 SMOKE_SKIP_BUILD=1 npm run smoke:compose      # or: docker compose up -d --wait (it uses the image)
 ```
 
+## The planning agents (M12)
+
+`core-worker` can run the work driver with the real planning port (S1 to S5): `CORE_WORKER_STAGE_PORTS=agents`
+(default `none`; `e2e.sh` sets `agents`). It calls the model gateway with its own admin token
+(`tok-core-worker-gateway`, mounted only in `core-worker` and `gateway`) to mint each run's key, and reads
+knowledge with the `search` scope its token carries (the `KnowledgeSearch` tool). The seed registers the local
+fake provider with `fixtures: planning`: it answers each planning step with one canned valid output (no model, no
+key), so a local stack can run a request through the real port, the gateway and the gates. A Census project
+cannot run L4 (OB §2.1 routes it to L8) and the portal has no Ready decision yet, so `e2e.sh` stops a request
+at 1.6 with S1's artefacts stored; the L4 path to the plan approval is covered by `services/core` tests over the
+same fixtures.
+
 ## The ledger loops (M8.0b)
 
 core-worker runs two more loops when it has the Notary and the Witness (`CORE_WORKER_WITNESS_URL`,

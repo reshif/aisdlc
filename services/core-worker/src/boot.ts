@@ -6,6 +6,7 @@ import {
   HttpKnowledge,
   HttpRoleMapReconciler,
   RefusingStepUp,
+  agentStagePorts,
   cardDepsFrom,
   cardsLoop,
   identityEligibility,
@@ -13,6 +14,7 @@ import {
   gatewayTriggersLoop,
   killObserverLoop,
   registerCoreConfig,
+  constitutionFrom,
   roleMapSyncLoop,
   s0DriverLoop,
   maintenanceFrom,
@@ -40,6 +42,7 @@ import {
   FakeCapacity,
   FakeStagePorts,
   FileRegisteredRepos,
+  RunKeyVault,
   type CapacityPort,
   type StagePorts,
 } from '@aisdlc/ports';
@@ -215,11 +218,30 @@ export async function bootCoreWorker(
           'CORE_WORKER_STAGE_PORTS needs the Notary (gates are opened through the decision kernel)',
         );
       const rd = await ensureReader();
+      // M12: with `agents`, S2 and S3 run with real agents; the key secrets pass from the driver to the
+      // planning port through this one in-process vault and go nowhere else
+      const vault = new RunKeyVault();
+      const baseStagePorts = deps.stagePorts ?? new FakeStagePorts();
+      if (cfg.stagePorts === 'agents' && (!cfg.gateway || !cfg.knowledge)) {
+        throw new Error('CORE_WORKER_STAGE_PORTS=agents needs the gateway and knowledge');
+      }
+      const stagePorts =
+        cfg.stagePorts === 'agents' && cfg.gateway && cfg.knowledge
+          ? agentStagePorts({
+              pool,
+              base: baseStagePorts,
+              gatewayUrl: cfg.gateway.url,
+              keys: vault,
+              knowledge: cfg.knowledge,
+              constitution: constitutionFrom(rd),
+            })
+          : baseStagePorts;
       supervisor.add(
         workDriverLoop(
           {
             pool,
-            ports: deps.stagePorts ?? new FakeStagePorts(),
+            ports: stagePorts,
+            ...(cfg.stagePorts === 'agents' ? { vault } : {}),
             capacity: deps.capacity ?? new FakeCapacity(),
             ...(killState ? { kill: killState } : {}),
             // M11.2: every agent-acted stage command gets a per-Unit key minted from the agent's contract

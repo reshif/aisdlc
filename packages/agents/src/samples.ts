@@ -37,7 +37,9 @@ export const SAMPLE_OUTPUTS: Readonly<Record<AgentId, readonly Record<string, un
     },
     {
       kind: 'classification',
-      candidate: 'L3',
+      work_type: 'change',
+      size: 'small',
+      risk: 'standard',
       confidence: 0.8,
       rationale: 'a small change in one module',
     },
@@ -88,16 +90,39 @@ export const SAMPLE_OUTPUTS: Readonly<Record<AgentId, readonly Record<string, un
       assumptions: [],
     },
     {
-      kind: 'plan',
-      phase: 'task_plan',
+      kind: 'plan_split',
       units: [
         {
           unit_key: 'u1',
           title: 'Export route',
+          paths: ['src/audit/'],
+          size: 'small',
           depends_on: [],
+        },
+      ],
+      assumptions: [],
+    },
+    { kind: 'plan_sequence', order: ['u1'], rationale: 'One Unit.', assumptions: [] },
+    {
+      kind: 'plan_tasks',
+      units: [
+        {
+          unit_key: 'u1',
           tasks: [{ task_id: 't1', description: 'Add GET /export', verification: 'npm test' }],
         },
       ],
+      assumptions: [],
+    },
+    {
+      kind: 'plan_verification',
+      bindings: [{ unit_key: 'u1', oracle_ids: ['o1'] }],
+      assumptions: [],
+    },
+    {
+      kind: 'plan_capacity',
+      max_parallel_units: 1,
+      review_minutes: [{ unit_key: 'u1', minutes: 30 }],
+      rationale: 'One reviewer.',
       assumptions: [],
     },
     {

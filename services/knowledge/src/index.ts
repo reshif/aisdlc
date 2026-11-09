@@ -12,6 +12,7 @@ export * from './fingerprint.js';
 export * from './principals.js';
 export * from './decision-ref.js';
 export * from './store.js';
+export * from './search.js';
 export * from './http-bundle.js';
 export * from './runner.js';
 export * from './app.js';

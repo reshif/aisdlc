@@ -9,6 +9,13 @@ import {
   type SetFindingStateRequest,
 } from '@aisdlc/contracts';
 import { err, ok, taggedError, type Result, type TaggedError } from '@aisdlc/kernel';
+import {
+  knowledgeSearchError,
+  type KnowledgeHit,
+  type KnowledgeSearchError,
+  type KnowledgeSearchPort,
+  type KnowledgeSearchRequest,
+} from '@aisdlc/ports';
 import { callJson } from '@aisdlc/service-kit';
 import { z } from 'zod';
 
@@ -501,5 +508,44 @@ export class FakePrincipalLinks implements PrincipalLinksPort {
         logins.map((l) => [l.toLowerCase(), this.links.get(l.toLowerCase()) ?? null]),
       ),
     );
+  }
+}
+
+// ---------------------------------------------------------------- KnowledgeSearch (M12.1)
+
+const SearchShape = z.looseObject({
+  hits: z.array(
+    z.strictObject({
+      path: z.string().min(1),
+      blob_sha: z.string().regex(/^[0-9a-f]{40}$/),
+      commit_sha: z.string().regex(/^[0-9a-f]{40}$/),
+      line_from: z.number().int().min(1),
+      line_to: z.number().int().min(1),
+      excerpt: z.string(),
+    }),
+  ),
+});
+
+/**
+ * `KnowledgeSearchPort` over knowledge's read-only `GET /v1/repos/:owner/:name/search` (scope `search`).
+ * The commit is the caller's; an index at another commit is `stale_index` (409), none is `not_indexed`.
+ */
+export class HttpKnowledgeSearch implements KnowledgeSearchPort {
+  constructor(private readonly o: RemoteOptions) {}
+
+  async search(req: KnowledgeSearchRequest): Promise<Result<KnowledgeHit[], KnowledgeSearchError>> {
+    const q = new URLSearchParams({ q: req.query, sha: req.sha });
+    if (req.path_prefix !== undefined) q.set('path_prefix', req.path_prefix);
+    if (req.limit !== undefined) q.set('limit', String(req.limit));
+    const r = await call(this.o, 'GET', `/v1/repos/${req.repo}/search?${q.toString()}`);
+    if (!r.reached) return err(knowledgeSearchError('unavailable', 'knowledge did not answer'));
+    if (r.status === 404) return err(knowledgeSearchError('not_indexed', 'no search index'));
+    if (r.status === 409) return err(knowledgeSearchError('stale_index', 'the index is stale'));
+    if (r.status === 400) return err(knowledgeSearchError('invalid', 'the query was refused'));
+    if (r.status !== 200) return err(knowledgeSearchError('unavailable', `knowledge: ${r.status}`));
+    const p = SearchShape.safeParse(r.json);
+    return p.success
+      ? ok(p.data.hits)
+      : err(knowledgeSearchError('unavailable', 'knowledge answered with an unexpected shape'));
   }
 }

@@ -205,6 +205,49 @@ const CASES: RouteCase[] = [
     forwards: `GET /v1/cards/${CARD_ID}`,
   },
   {
+    name: 'artefacts of a work-item gate card',
+    method: 'GET',
+    path: `/api/cards/${CARD_ID}/artefacts`,
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `GET /v1/cards/${CARD_ID}/artefacts`,
+  },
+  {
+    name: 'gate card view (work item)',
+    method: 'GET',
+    path: `/api/cards/${CARD_ID}/gate`,
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `GET /v1/cards/${CARD_ID}/gate`,
+  },
+  {
+    name: 'gate card prepare',
+    method: 'POST',
+    path: `/api/cards/${CARD_ID}/gate/prepare`,
+    body: {},
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/cards/${CARD_ID}/gate/prepare`,
+  },
+  {
+    name: 'gate card evidence',
+    method: 'POST',
+    path: `/api/cards/${CARD_ID}/gate/evidence`,
+    body: { views: [{ nonce: 'n', evidence_hash: 'b'.repeat(64) }] },
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/cards/${CARD_ID}/gate/evidence`,
+  },
+  {
+    name: 'gate card decide',
+    method: 'POST',
+    path: `/api/cards/${CARD_ID}/gate/decide`,
+    body: { decision: 'reject', reason: 'why', votes: [{ nonce: 'n' }] },
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/cards/${CARD_ID}/gate/decide`,
+  },
+  {
     name: 'card prepare',
     method: 'POST',
     path: `/api/cards/${CARD_ID}/prepare`,
@@ -334,8 +377,14 @@ describe.each(CASES)('$name ($method $path)', (c) => {
     expect(r.json.error.code).toBe('forbidden');
     // Whatever was read to find the project, nothing that writes or shows the thing was called.
     expect(core.seen.filter((x) => x.method === 'POST')).toHaveLength(0);
-    // (The S0 overview is itself the read that finds the project; its body is not passed on.)
-    if (c.name !== 'S0 overview' && c.name !== 'settings revision by gate') {
+    // (The S0 overview and the artefacts of a work-item card are themselves the read that finds the
+    // project; their body is not passed on.)
+    if (
+      c.name !== 'S0 overview' &&
+      c.name !== 'settings revision by gate' &&
+      c.name !== 'artefacts of a work-item gate card' &&
+      !c.name.startsWith('gate card')
+    ) {
       expect(core.seen.map((x) => `${x.method} ${x.path}`)).not.toContain(c.forwards);
     }
   });

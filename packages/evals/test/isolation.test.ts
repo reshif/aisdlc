@@ -149,7 +149,9 @@ describe('behaviour', () => {
       return r.input['id'] === 'h-1'
         ? JSON.stringify({
             kind: 'classification',
-            candidate: 'L2',
+            work_type: 'remediation',
+            size: 'small',
+            risk: 'standard',
             confidence: 0.8,
             rationale: 'r',
           })

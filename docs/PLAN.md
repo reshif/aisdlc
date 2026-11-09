@@ -217,6 +217,10 @@ Pulled ahead of onboarding because M4 sign-off and every card need it.
 | M12.3 | S4 Design: 4.1 ADRs, 4.2 contracts, 4.3 data and migration, 4.4 NFR and threat, 4.5 constitution check, 4.6 review, G3d, E2; B4, B24, B25, R2 from 4.6 | E2 grant and denial paths |
 | M12.4 | S5 Plan: 5.1 Units, 5.2 sequence, 5.3 task plan, 5.4 verification binding, 5.5 budget envelope, 5.6 capacity input, 5.7 scheduling (automatic by default), 5.8 approval, G3 SHA-bound with G3s skeleton; B5 | Plan hash binds to G3 |
 
+### M12.5 — Portal actions for the planning stages (follow-up from M12)
+
+Ready (1.6) decision endpoint and portal action; observed-signal actions for B4 (design reveals a spec gap) and R2 (smaller than lane) during G3d; the human-writes-plan form for B5; answers to S1 clarification questions in the portal. A browser e2e that drives an L4 request to G3 needs a Full-level PRR (M17); until then the L1–L3 path is driven once Light exists (M16), and the L4 path is covered by core tests against the real gateway and planning port.
+
 ### M13 — Sandbox, admission and S6 Build
 
 | Task | Deliverable | Acceptance |

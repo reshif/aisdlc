@@ -96,7 +96,11 @@ export interface SeedGithub {
  */
 export function localIntegrationRegistry(github: SeedGithub | null) {
   return [
-    modelProviderRow('fake', 'fake', { display_name: 'Deterministic fake (local only)' }),
+    modelProviderRow('fake', 'fake', {
+      display_name: 'Deterministic fake (local only)',
+      // answers the planning steps with canned valid outputs, so a local stack can run S1 to S5 without a model
+      config: { fixtures: 'planning' },
+    }),
     modelProviderRow('anthropic', 'anthropic', {
       display_name: 'Anthropic',
       credentials: [

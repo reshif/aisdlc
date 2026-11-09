@@ -204,6 +204,55 @@ export function s0Overview(
   };
 }
 
+/** What a work-item gate card (G2) decides: the artefacts its subject hash binds (M12). */
+export function gateArtefactsFixture(projectId: string) {
+  return {
+    card_id: CARD_ID,
+    project_id: projectId,
+    item_id: ITEM_ID,
+    gates: ['G2'],
+    subject_hash: 'c'.repeat(64),
+    intact: true,
+    artefacts: [
+      {
+        step: '3.2',
+        type: 'spec_delta',
+        sha256: 'd'.repeat(64),
+        version: 1,
+        markdown: '# Spec delta\n',
+        intact: true,
+      },
+    ],
+  };
+}
+
+/** A work-item card as something to decide (Gap B): G2, pending, alice holds the slot. */
+export function gateCardFixture(projectId: string) {
+  return {
+    card_id: CARD_ID,
+    project_id: projectId,
+    item_id: ITEM_ID,
+    status: 'open',
+    gates: [
+      {
+        gate_instance_id: '0190a000-0000-7000-8000-0000000000f1',
+        gate: 'G2',
+        slot: 'intent',
+        status: 'pending',
+        outcome: null,
+        step_up_required: false,
+      },
+    ],
+    subject_hash: 'c'.repeat(64),
+    proposed_lane: null,
+    base_sha: null,
+    injection_suspected: false,
+    deciders: { slots: ['intent'], holders: ['alice'] },
+    decisions_allowed: ['approve', 'reject', 'request_changes'],
+    decision_reason: null,
+  };
+}
+
 export function cardSummary(projectId: string) {
   return {
     card_id: CARD_ID,
@@ -400,6 +449,12 @@ export async function startFakeCore(): Promise<FakeCore> {
       }
       if (method === 'GET' && path === `/v1/cards/${CARD_ID}/summary`) {
         return reply(200, cardSummary(p));
+      }
+      if (method === 'GET' && path === `/v1/cards/${CARD_ID}/gate`) {
+        return reply(200, gateCardFixture(p));
+      }
+      if (method === 'GET' && path === `/v1/cards/${CARD_ID}/artefacts`) {
+        return reply(200, gateArtefactsFixture(p));
       }
       if (method === 'GET' && path === `/v1/cards/${CARD_ID}`) {
         return reply(200, {

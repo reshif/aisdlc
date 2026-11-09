@@ -42,3 +42,27 @@ describe('core-worker config: the gateway', () => {
     expect(cfg.agentExtraModels).toEqual([]);
   });
 });
+
+describe('core-worker config: S2 and S3 with real agents (PLAN M12)', () => {
+  const WITH_GATEWAY = {
+    ...BASE,
+    CORE_WORKER_GATEWAY_URL: 'http://127.0.0.1:5',
+    CORE_WORKER_GATEWAY_TOKEN_REF: 'env:T',
+  };
+
+  it('`agents` is a stage-port mode; it needs knowledge, which grounds S2 on its census', () => {
+    expect(
+      coreWorkerConfigFromEnv({ ...WITH_GATEWAY, CORE_WORKER_STAGE_PORTS: 'agents' }).stagePorts,
+    ).toBe('agents');
+    const rest: Record<string, string> = { ...WITH_GATEWAY, CORE_WORKER_STAGE_PORTS: 'agents' };
+    delete rest['CORE_WORKER_KNOWLEDGE_URL'];
+    delete rest['CORE_WORKER_KNOWLEDGE_TOKEN_REF'];
+    expect(() => coreWorkerConfigFromEnv(rest)).toThrow(/CORE_WORKER_KNOWLEDGE_URL/);
+  });
+
+  it('anything else is refused', () => {
+    expect(() =>
+      coreWorkerConfigFromEnv({ ...WITH_GATEWAY, CORE_WORKER_STAGE_PORTS: 'real' }),
+    ).toThrow(/none`, `fake` or `agents/);
+  });
+});

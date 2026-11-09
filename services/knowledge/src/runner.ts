@@ -11,7 +11,7 @@ import {
 import { BUNDLE_DEFAULT_CAP_BYTES, type CensusAttestations, type Level } from '@aisdlc/contracts';
 import { CATALOGUE, type CatalogueData } from '@aisdlc/catalogue';
 import { assembleCensus } from './census/index.js';
-import type { Result } from '@aisdlc/kernel';
+import { systemClock, type Result } from '@aisdlc/kernel';
 import { rulesVersion, RULES, type SecretRule } from '@aisdlc/secrets-rules';
 import type { KnowledgeError } from './errors.js';
 import type { Fingerprinter } from './fingerprint.js';
@@ -32,6 +32,7 @@ import {
   runDetectors,
   type DetectorRun,
 } from './detectors/index.js';
+import { indexRepo } from './search.js';
 import { scanMirror } from './scan.js';
 import { enqueueJob, failJob, finishJob, markRunning, type StoreDeps } from './store.js';
 
@@ -235,6 +236,23 @@ export class JobRunner {
           }),
           ac.signal,
         );
+        // M12.1: the head tree's text, for the read-only `KnowledgeSearch`. A failure here never fails the job.
+        try {
+          const ix = await indexRepo(o.pool, {
+            repo: req.repo,
+            commit_sha: mirror.base_sha,
+            job_id: id,
+            reader,
+            now: (o.clock ?? systemClock).now(),
+            rules,
+            signal: ac.signal,
+          });
+          this.log(
+            `knowledge: job ${id}: indexed ${ix.files} files for search (${ix.skipped} skipped)`,
+          );
+        } catch (e) {
+          this.log(`knowledge: job ${id}: search index not built (${describeError(e)})`);
+        }
       } finally {
         await reader.close();
       }
