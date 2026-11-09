@@ -44,6 +44,8 @@ export interface OpenGateInput {
   readonly evidence_pack_hash?: string | null;
   /** Who asked for the work; they cannot decide it unless the single-holder waiver applies. */
   readonly requester?: PrincipalId | null;
+  /** Who wrote what this gate decides (B5 plan author): barred like the requester. */
+  readonly authors?: readonly PrincipalId[];
   /** Conflict facts and project policy. `expires_at` is added (`gateTtlMs` after now) if missing. */
   readonly facts?: JsonObject;
   /** Require a step-up even where the gate policy does not (never the other way round). */
@@ -120,7 +122,8 @@ export async function openGate(
       return err(decisionError('eligibility_unavailable', why));
     }
     const requester = input.requester ?? null;
-    const plan = planQuorum(input.gate_id, ctx.value, holders.value, requester);
+    const authors = [...new Set(input.authors ?? [])];
+    const plan = planQuorum(input.gate_id, ctx.value, holders.value, requester, authors);
     if (!plan.ok) return err(decisionError('quorum_infeasible', plan.error.message));
 
     const newIdStr = newId<'GateInstance'>(clock.nowMs());
@@ -137,6 +140,7 @@ export async function openGate(
       subject_hash: input.subject_hash,
       evidence_pack_hash: input.evidence_pack_hash ?? null,
       requester,
+      ...(authors.length > 0 ? { authors } : {}),
       facts: { ...input.facts, expires_at: expiresAt },
       quorum: { required: plan.value.required, slot: plan.value.slot, basis: plan.value.basis },
       step_up: {

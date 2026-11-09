@@ -31,7 +31,12 @@
 #      on UPDATE and DELETE of the record and on DDL; sees only its own events), the GitHub App and the model
 #      providers are rows of the integration registry, both the gateway and the codehost reload from it, and
 #      core serves the health tiles and the events
-#  11. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
+#  11. the sandbox plane (M13.2, profile `sandbox`): the two Docker socket proxies are the ONLY containers that mount
+#      the socket; one K session and one K-exec run through the coding proxy (K has no NIC, K-exec reaches the
+#      package mirror on its per-session internal network and nothing else); a create body with Privileged=true
+#      (and host network, host PID, an added capability, the socket as a bind, a root user, exec, build, pull) is
+#      refused by the proxy; no sandbox container, network or scratch directory is left behind
+#  12. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
 #
 # SMOKE_SKIP_BUILD=1   use the image aisdlc/factory:local as it is (a network that blocks apt or
 #                      the npm registry: build it yourself, see README.md)
@@ -45,7 +50,15 @@ export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
 # core-worker records the kill switch's journal every few seconds; a smoke test cannot wait for the default.
 export KILL_OBSERVER_INTERVAL_MS="${KILL_OBSERVER_INTERVAL_MS:-3000}"
 export KILL_HOLDERS_INTERVAL_MS="${KILL_HOLDERS_INTERVAL_MS:-5000}"
-dc() { docker compose --profile fake-github "$@"; }
+# The sandbox plane (profile `sandbox`): the daemon socket's group for the two proxies, and a scratch directory the
+# sandbox driver writes repo copies to (the same path in the client container and for the daemon).
+export DOCKER_GID="${DOCKER_GID:-$(stat -c %g /var/run/docker.sock 2>/dev/null || stat -f %g /var/run/docker.sock)}"
+export SANDBOX_IMAGE="${SANDBOX_IMAGE:-aisdlc/sandbox:local}"
+SANDBOX_SCRATCH="${SANDBOX_SCRATCH:-$(mktemp -d "${TMPDIR:-/tmp}/aisdlc-smoke-scratch.XXXXXX")}"
+chmod 1777 "$SANDBOX_SCRATCH"
+export SANDBOX_SCRATCH
+dc() { docker compose --profile fake-github --profile sandbox "$@"; }
+dcs() { docker compose --profile fake-github --profile sandbox --profile sandbox-smoke "$@"; }
 T0=$SECONDS
 step() { printf '\n== [%3ss] %s\n' $((SECONDS - T0)) "$*"; }
 fail() { echo "smoke: FAIL: $*" >&2; exit 1; }
@@ -61,7 +74,11 @@ cleanup() {
   if [ "${SMOKE_KEEP:-0}" = 1 ]; then
     echo "== SMOKE_KEEP=1: stack left running (project $COMPOSE_PROJECT_NAME); remove it with: docker compose --profile fake-github down -v"
   else
-    dc down -v --remove-orphans >/dev/null 2>&1 || true
+    dcs down -v --remove-orphans >/dev/null 2>&1 || true
+    # a failed run must not leave sandboxes behind either
+    docker ps -aq --filter "label=aisdlc.sandbox=1" | xargs -r docker rm -f >/dev/null 2>&1 || true
+    docker network ls -q --filter "label=aisdlc.sandbox=1" | xargs -r docker network rm >/dev/null 2>&1 || true
+    rm -rf "$SANDBOX_SCRATCH"
     echo "== stack removed (down -v): $(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) containers, $(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) volumes left"
   fi
   exit "$code"
@@ -79,6 +96,12 @@ if [ "${SMOKE_SKIP_BUILD:-0}" = 1 ]; then
   docker image inspect aisdlc/factory:local >/dev/null 2>&1 || fail "SMOKE_SKIP_BUILD=1 but the image aisdlc/factory:local does not exist"
 else
   dc build
+fi
+# the sandbox image: the pinned node base, a non-root user and the wrapper; nothing is fetched (the base is local)
+if [ "${SMOKE_SKIP_BUILD:-0}" = 1 ] && docker image inspect "$SANDBOX_IMAGE" >/dev/null 2>&1; then
+  echo "  sandbox image $SANDBOX_IMAGE as it is"
+else
+  docker build -q -t "$SANDBOX_IMAGE" ../sandbox >/dev/null || fail "the sandbox image did not build"
 fi
 
 step "up -d --wait (db-init, migrate, seed, then every service)"
@@ -103,9 +126,16 @@ step "the boundaries hold"
 published=$(dc ps --format '{{.Service}}={{.Publishers}}' | grep -E '=.*-> [0-9.]+:[1-9]' | cut -d= -f1 | sort | tr '\n' ' ')
 echo "  published ports: ${published:-none}"
 [ "$published" = "bff dev-oidc " ] || fail "only bff and dev-oidc may publish ports"
-sock=$(docker inspect $(dc ps -aq) --format '{{.Name}} {{range .Mounts}}{{.Source}} {{end}}' | grep -c 'docker.sock' || true)
-[ "$sock" = 0 ] || fail "a container mounts the Docker socket"
-echo "  no container mounts the Docker socket"
+# M13.2: the two sandbox proxies are the only containers that mount the Docker socket (an allow-list in front of it)
+sock=$(docker inspect $(dc ps -aq) --format '{{index .Config.Labels "com.docker.compose.service"}} {{range .Mounts}}{{.Source}} {{end}}' | grep 'docker.sock' | cut -d' ' -f1 | sort | tr '\n' ' ')
+echo "  containers mounting the Docker socket: ${sock:-none}"
+[ "$sock" = "docker-proxy-coding docker-proxy-cvw " ] || fail "only docker-proxy-cvw and docker-proxy-coding may mount the Docker socket (found: ${sock:-none})"
+echo "  only the two allow-list proxies mount the Docker socket"
+for p in docker-proxy-cvw docker-proxy-coding; do
+  id=$(dc ps -q "$p")
+  [ "$(docker inspect "$id" --format '{{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}} {{.Config.User}}')" = "true [ALL] $(sed -n 's/^AISDLC_UID=//p' .env):$(sed -n 's/^AISDLC_GID=//p' .env)" ] || fail "$p is not read-only, cap-dropped and non-root"
+done
+echo "  both proxies are read-only, drop all capabilities and run as the factory uid" 
 others=$(for s in $(dc ps --format '{{.Service}}'); do
   [ "$s" = codehost ] && continue
   dc exec -T "$s" test -e /run/secrets/github-app.pem 2>/dev/null && echo "$s"
@@ -426,6 +456,19 @@ let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
 events=$(coreget /v1/integrations/events)
 printf '%s' "$events" | grep -q '"github-app"' || fail "no IntegrationEvent for the GitHub App"
 echo "  integration events: $(printf '%s' "$events" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).length+" ledgered"))')"
+
+step "the sandbox plane: one K and one K-exec session through the coding proxy, a privileged create refused, nothing left behind (M13.2)"
+# the coding proxy and the mirror are healthy (up --wait did that); run the client on the coding proxy's network
+dcs run --rm --no-deps -T sandbox-smoke || fail "the sandbox smoke client failed"
+left=$(docker ps -aq --filter "label=aisdlc.sandbox=1" | wc -l)
+nets=$(docker network ls -q --filter "label=aisdlc.sandbox=1" | wc -l)
+dirs=$(find "$SANDBOX_SCRATCH" -mindepth 1 -maxdepth 1 | wc -l)
+echo "  left behind: $left sandbox containers, $nets session networks, $dirs scratch directories"
+[ "$left" = 0 ] && [ "$nets" = 0 ] && [ "$dirs" = 0 ] || fail "the sandbox plane left something behind"
+# the peers are back to their own network only (the session networks are gone)
+mirror_nets=$(docker inspect "$(dc ps -q package-mirror)" --format '{{len .NetworkSettings.Networks}}')
+[ "$mirror_nets" = 1 ] || fail "the package mirror is still attached to $mirror_nets networks"
+echo "  the package mirror is on its own network only again"
 
 step "memory at idle (docker stats, once)"
 docker stats --no-stream --format '  {{printf "%-34s" .Name}} {{.MemUsage}}' $(dc ps -q) | sort

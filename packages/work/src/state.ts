@@ -182,6 +182,8 @@ export interface ItemState {
   extensions: number;
   /** A human wrote the plan after B5's rejections. */
   human_plan: boolean;
+  /** B5: who wrote the plan by hand. They are barred from deciding G3 on it like the requester (SoD). Absent in old state. */
+  plan_author?: string | null;
   /** The last output hash of each step (the Handoff Pack's contents). */
   outputs: Record<string, string>;
   /** The merged commit the plan (S5) was made against; G3 binds it. `null` until S5 says (or absent in old state). */

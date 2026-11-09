@@ -25508,6 +25508,15 @@
             }
           ]
         },
+        "authors": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        },
         "facts": {
           "type": "object",
           "propertyNames": {
@@ -62337,6 +62346,172 @@
         "step",
         "waiting",
         "cause"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxClass": {
+      "type": "string",
+      "enum": [
+        "K",
+        "K-exec",
+        "P",
+        "W",
+        "O",
+        "V"
+      ]
+    },
+    "SandboxLimits": {
+      "type": "object",
+      "properties": {
+        "cpus": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 8
+        },
+        "memory_mb": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 8192
+        },
+        "pids": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 4096
+        },
+        "time_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 14400
+        },
+        "out_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 268435456
+        },
+        "work_bytes": {
+          "type": "integer",
+          "minimum": 1048576,
+          "maximum": 1073741824
+        }
+      },
+      "required": [
+        "cpus",
+        "memory_mb",
+        "pids",
+        "time_s",
+        "out_bytes",
+        "work_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxNetwork": {
+      "type": "string",
+      "enum": [
+        "none",
+        "mirror",
+        "gateway",
+        "gateway+mirror"
+      ]
+    },
+    "SandboxPeer": {
+      "type": "string",
+      "enum": [
+        "gateway",
+        "mirror"
+      ]
+    },
+    "SandboxProfile": {
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "enum": [
+            "K",
+            "K-exec",
+            "P",
+            "W",
+            "O",
+            "V"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "network": {
+          "type": "string",
+          "enum": [
+            "none",
+            "mirror",
+            "gateway",
+            "gateway+mirror"
+          ]
+        },
+        "repo": {
+          "type": "string",
+          "enum": [
+            "ro",
+            "copy"
+          ]
+        },
+        "exec": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "boolean"
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpus": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8
+            },
+            "memory_mb": {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 8192
+            },
+            "pids": {
+              "type": "integer",
+              "minimum": 16,
+              "maximum": 4096
+            },
+            "time_s": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 14400
+            },
+            "out_bytes": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 268435456
+            },
+            "work_bytes": {
+              "type": "integer",
+              "minimum": 1048576,
+              "maximum": 1073741824
+            }
+          },
+          "required": [
+            "cpus",
+            "memory_mb",
+            "pids",
+            "time_s",
+            "out_bytes",
+            "work_bytes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "class",
+        "description",
+        "network",
+        "repo",
+        "exec",
+        "key",
+        "limits"
       ],
       "additionalProperties": false
     },

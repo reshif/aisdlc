@@ -233,6 +233,8 @@ Ready (1.6) decision endpoint and portal action; observed-signal actions for B4 
 | M13.6 | 6.6 Push Broker: `agent/**` only, lease epoch match, shared secret ruleset, protected paths refused unless an X2 decision is bound to the patch hash (SP-FID-3); factory re-push after card edits (SK-1) | Planted-secret and planted-path patches refused |
 | M13.7 | L7 spike path: throwaway S6, SPIKE report, branch archived, never reaches the Push Broker or G4 | Test |
 
+**M13.2 built.** `SandboxPort` (`packages/ports/src/sandbox.ts`, classes and profile ceilings in `packages/contracts/src/entities/sandbox.ts`: K, K-exec, P, W, O, V; `FakeSandbox` runs the same preflight, cap, output scan and coding-session cap); `services/docker-proxy` (the allow-list proxy, two instances in compose: `docker-proxy-cvw` narrow, `docker-proxy-coding` adds the per-session internal networks and the attach of the gateway and mirror; the only containers that mount the socket); `services/sandbox-driver` (`DockerSandboxDriver`: speaks only to a proxy; read-only repo copy bind from a scratch root, `/out` as a size-capped tmpfs shipped through the log stream as one tar, strict tar reader, canary and secret scan of `/out` and logs, cleanup of container, network and scratch); `services/package-mirror` (read-only stub, empty fixture set; real wheels are DEC-17); `platform/sandbox` (the sandbox image). Fix #25 (K and K-exec have `/out`) is in. The SEC-OB-3 hostile probe runs in `services/sandbox-driver/test/sec-ob-3.test.ts` and writes `docs/evidence/sec-ob-3.{json,md}`; the AR10 allowed-difference entry is `docs/adr/0002-sandbox-container-class.md`. This is the evidence DEC-18(b) waits for: the decision itself stays a human one, and no real repository's code runs in a sandbox until it is taken.
+
 ### M14 — S7 Verify and the gate plane
 
 | Task | Deliverable | Acceptance |
@@ -306,7 +308,7 @@ That is 25 containers, against RV §8.2's 26: no temporal, postgres-temporal or 
 | Codex | A model route through the gateway (an OpenAI-compatible provider row), not a sandbox harness |
 | Registries | One Integration registry for code hosts and model providers, with a shared health shape |
 | Evals | Factory-wide, with an optional project tag |
-| DEC-18 | Decide container-class execution of repo code after the SEC-OB-3 hostile-probe evidence; the probe stays `pending` until then |
+| DEC-18 | Decided 2026-11-09 after the SEC-OB-3 evidence (`docs/evidence/sec-ob-3.md`: 74 attempts, 74 contained): container-class execution of repo code is allowed for repos the user owns (the testbed and the factory repo). Any repo the user did not write is re-decided before its code runs (with DEC-5's revisit); the factory must refuse execution for a repo not on the owner allow-list (config, M1-gated) |
 | DEC-10, 11, 12, 13, 16, 17, 20 | The roadmap's recommendations: 10(a) the human never pushes, the factory pushes under an L8 gate-check profile; 11(a) affirmed text is fenced guidance, never control, with (c-i) step-up falling back to (c-ii); 12(a) record-first; 13(a) S0 and L8 gate-check profiles, (i) wait for the X2 path; 16(b) agent chores on T0/T1 only, T2 needs Full; 17 mirror wheels first, each scanner approved one at a time; 20(a) record is truth, issue is a twin, timing (i) right after R1b, blocking public-safe gaps by default |
 | DEC-7 | Done by the user: `statuses:write` removed from the GitHub App |
 

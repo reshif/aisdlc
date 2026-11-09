@@ -1190,6 +1190,7 @@ export function interpret(
       denied: {},
       extensions: 0,
       human_plan: false,
+      plan_author: null,
       outputs: {},
       plan_base_sha: null,
       assumptions: [],
@@ -1525,6 +1526,8 @@ export function interpret(
             if (step.startsWith('5.') && sha !== undefined) s.outputs[step] = sha;
           }
           if (event.payload.base_sha !== undefined) s.plan_base_sha = event.payload.base_sha;
+          // The author of a hand-written plan: G3 treats them like the requester.
+          if (event.payload.outputs !== undefined) s.plan_author = event.payload.by;
         }
         if (!jumpTo(s, catalogue, out, { gate: 'G3' }, 'human_plan')) stuck(s, 'human_plan:no_G3');
         else advance(s, catalogue, out);

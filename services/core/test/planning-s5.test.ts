@@ -600,6 +600,8 @@ describe('B5: two rejections of the plan go back to 5.1; then a human writes the
     });
     const last = (await gateOpens(rig.itemId, 'G3')).at(-1);
     expect(last?.body.facts.base_sha).toBe(OTHER_SHA);
+    // SoD: the person who wrote the plan is on G3's open event as an author, so the kernel bars them like the requester
+    expect((last?.body as { authors?: string[] }).authors).toEqual([pr('bob')]);
     expect(
       (last?.body.facts.artefacts as Array<{ step: string; sha256: string }>).map((a) => [
         a.step,

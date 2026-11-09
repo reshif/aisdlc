@@ -122,7 +122,13 @@ async function escalateOne(
     const b = await deps.eligibility.holders(project, backupSlot);
     if (!b.ok) return err(decisionError('eligibility_unavailable', b.error.message));
     const backup = [...new Set(b.value)]
-      .filter((p) => !eligible.has(p) && p !== state.open.requester)
+      .filter(
+        (p) =>
+          !eligible.has(p) &&
+          p !== state.open.requester &&
+          // the author of what a waiting gate decides (B5 plan author) is no backup approver either
+          !waiting.some((g) => g.state.open.payload.authors?.includes(p as never)),
+      )
       .sort();
 
     const at = clock.now().toISOString();

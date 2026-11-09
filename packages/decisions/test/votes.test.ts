@@ -129,6 +129,56 @@ describe('single approval gate, real Notary (main path)', () => {
   });
 });
 
+describe('the author of a hand-written plan (B5) is barred from G3 like the requester', () => {
+  it('cannot decide G3 on their plan while another holder can; the open event carries the author', async () => {
+    setupProject(s, 'pa1', { tier: 'T0', slots: { design: ['ann', 'bob'] } });
+    const g = await open(s, 'pa1', 'G3', { requester: pr('carol'), authors: [pr('ann')] });
+    const own = await decideAs(s, g.gate_instance_id, 'ann', 'approve');
+    expect(!own.ok && own.error.code).toBe('own_request');
+    // a rejection by the author is a decision as well: refused too
+    const rej = await decideAs(s, g.gate_instance_id, 'ann', 'reject');
+    expect(!rej.ok && rej.error.code).toBe('own_request');
+    expect(await entriesOf(g.gate_instance_id)).toHaveLength(0);
+    const opened = await s.record.pool.query<{ body: { authors?: string[] } }>(
+      `SELECT body FROM record.record_event WHERE stream = $1 AND seq = 1`,
+      [`gate:${g.gate_instance_id}`],
+    );
+    expect(opened.rows[0]?.body.authors).toEqual(['ann']);
+    expect((await decideAs(s, g.gate_instance_id, 'bob', 'approve')).ok).toBe(true);
+    expect((await entriesOf(g.gate_instance_id))[0]).toMatchObject({
+      actor: 'bob',
+      sod_waiver: false,
+    });
+  });
+
+  it('the sole design holder who wrote the plan decides with a stamped sod_waiver, never at T2', async () => {
+    setupProject(s, 'pa2', { tier: 'T1', slots: { design: ['ann'] } });
+    const g = await open(s, 'pa2', 'G3', { requester: pr('carol'), authors: [pr('ann')] });
+    expect((await decideAs(s, g.gate_instance_id, 'ann', 'approve')).ok).toBe(true);
+    expect((await entriesOf(g.gate_instance_id))[0]).toMatchObject({
+      actor: 'ann',
+      sod_waiver: true,
+    });
+    setupProject(s, 'pa3', { tier: 'T2', slots: { design: ['ann'] } });
+    const refused = await openGate(s.deps, {
+      gate_id: 'G3',
+      project_id: 'pa3' as never,
+      subject_kind: 'item',
+      subject_id: uuid(),
+      subject_hash: hash('t2-plan'),
+      requester: pr('carol'),
+      authors: [pr('ann')],
+    });
+    expect(!refused.ok && refused.error.code).toBe('quorum_infeasible');
+  });
+
+  it('with no author recorded nothing changes (the requester rule as before)', async () => {
+    setupProject(s, 'pa4', { tier: 'T0', slots: { design: ['ann', 'bob'] } });
+    const g = await open(s, 'pa4', 'G3', { requester: pr('carol') });
+    expect((await decideAs(s, g.gate_instance_id, 'ann', 'approve')).ok).toBe(true);
+  });
+});
+
 describe('two-person gates', () => {
   it.each(['X1', 'X2', 'E2'] as const)(
     '%s with two-person on: two distinct approvers, a repeat counts once, no waiver',

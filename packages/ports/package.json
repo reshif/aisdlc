@@ -20,6 +20,7 @@
   "dependencies": {
     "@aisdlc/contracts": "0.0.0",
     "@aisdlc/kernel": "0.0.0",
+    "@aisdlc/secrets-rules": "0.0.0",
     "@aisdlc/service-kit": "0.0.0",
     "@noble/curves": "2.4.0",
     "zod": "4.6.7"

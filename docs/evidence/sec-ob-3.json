@@ -1,0 +1,793 @@
+{
+  "id": "SEC-OB-3",
+  "title": "Hostile-probe repository is contained by the container-class sandbox",
+  "decision_served": "DEC-18(b): whether repository code may run in the container-class sandbox",
+  "method": "A synthetic hostile repository built by the test (never a real repository) is run in real containers through the real driver and the real allow-list docker proxy against the local Docker daemon. The attacker view (probe.js) and the host view (listener hits, leftovers, seeded canaries, process counts) are both checked.",
+  "environment": {
+    "docker_server": "29.9.2",
+    "image": "aisdlc/sandbox:local (node 22.23.4 bookworm-slim, uid 10002)",
+    "isolation": "container-class (not VM-class, D40)",
+    "shared_ruleset": "secrets-rules/2:961394bbf87c"
+  },
+  "profiles": {
+    "K": {
+      "class": "K",
+      "description": "third-party scanners: no NIC, repo read-only, no key, no execution",
+      "network": "none",
+      "repo": "ro",
+      "exec": false,
+      "key": false,
+      "limits": {
+        "cpus": 1,
+        "memory_mb": 512,
+        "pids": 128,
+        "time_s": 300,
+        "out_bytes": 16777216,
+        "work_bytes": 67108864
+      }
+    },
+    "K-exec": {
+      "class": "K-exec",
+      "description": "build/test probe: the package mirror only, no gateway key, repo code runs",
+      "network": "mirror",
+      "repo": "copy",
+      "exec": true,
+      "key": false,
+      "limits": {
+        "cpus": 1,
+        "memory_mb": 1024,
+        "pids": 256,
+        "time_s": 900,
+        "out_bytes": 16777216,
+        "work_bytes": 268435456
+      }
+    }
+  },
+  "summary": {
+    "attempts": 74,
+    "contained": 74,
+    "escaped": 0
+  },
+  "attempts": [
+    {
+      "n": 1,
+      "id": "K-exec:dns_external_name",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "DNS lookup of an external name (example.com)",
+      "expected": "lookup fails: no resolver and no route",
+      "observed": "EAI_AGAIN",
+      "contained": true
+    },
+    {
+      "n": 2,
+      "id": "K-exec:dns_direct_resolver",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "DNS query straight to 8.8.8.8",
+      "expected": "no answer: no route out",
+      "observed": "ECONNREFUSED",
+      "contained": true
+    },
+    {
+      "n": 3,
+      "id": "K-exec:http_external_host",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "HTTP GET to an external host by name",
+      "expected": "no connection",
+      "observed": "EAI_AGAIN",
+      "contained": true
+    },
+    {
+      "n": 4,
+      "id": "K-exec:http_external_ip",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "HTTP GET to an external IP (1.1.1.1)",
+      "expected": "no connection",
+      "observed": "ENETUNREACH",
+      "contained": true
+    },
+    {
+      "n": 5,
+      "id": "K-exec:http_gateway_without_key",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "HTTP to the model gateway without a key",
+      "expected": "gateway is not a peer: name does not resolve",
+      "observed": "EAI_AGAIN",
+      "contained": true
+    },
+    {
+      "n": 6,
+      "id": "K-exec:cloud_metadata_ip",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "HTTP to the cloud metadata IP 169.254.169.254",
+      "expected": "no connection",
+      "observed": "ENETUNREACH",
+      "contained": true
+    },
+    {
+      "n": 7,
+      "id": "K-exec:host_listener",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "TCP to a listener on the Docker host (docker0 address)",
+      "expected": "no connection; the host listener sees 0 hits",
+      "observed": "ENETUNREACH",
+      "contained": true
+    },
+    {
+      "n": 8,
+      "id": "K-exec:default_route",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "look for a default route out of the network",
+      "expected": "no default route",
+      "observed": "no default route",
+      "contained": true
+    },
+    {
+      "n": 9,
+      "id": "K-exec:internal_service_names",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "resolve other factory service names (docker-proxy, postgres, kms-local, core, ...)",
+      "expected": "none resolve",
+      "observed": "10 names, none resolve",
+      "contained": true
+    },
+    {
+      "n": 10,
+      "id": "K-exec:mirror_write",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "PUT a file to the package mirror",
+      "expected": "mirror is read-only (405) or unreachable",
+      "observed": "HTTP 405",
+      "contained": true
+    },
+    {
+      "n": 11,
+      "id": "K-exec:mirror_other_ports",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "connect to other ports of the mirror peer (22, 2375, 5432, 8300, 8410)",
+      "expected": "all closed",
+      "observed": "closed: 22,2375,5432,8300,8410",
+      "contained": true
+    },
+    {
+      "n": 12,
+      "id": "K-exec:env_read",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "read the process environment for credentials and canaries",
+      "expected": "no credential-shaped name, no canary",
+      "observed": "24 variables, 0 credential-shaped names, canary absent",
+      "contained": true
+    },
+    {
+      "n": 13,
+      "id": "K-exec:proc_1_environ",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "read /proc/1/environ",
+      "expected": "only the session own env: no credential, no canary",
+      "observed": "readable (the session own init), 0 credential-shaped names, canary absent",
+      "contained": true
+    },
+    {
+      "n": 14,
+      "id": "K-exec:proc_all_environ",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "read /proc/*/environ of every visible process",
+      "expected": "own pid namespace only: no credential, no canary",
+      "observed": "4 processes visible (own pid namespace), 0 credential-shaped names, canary absent",
+      "contained": true
+    },
+    {
+      "n": 15,
+      "id": "K-exec:fs_walk_for_canaries",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "walk the whole readable filesystem for factory canaries",
+      "expected": "no canary on any readable file",
+      "observed": "over 5000 readable files walked, canary absent",
+      "contained": true
+    },
+    {
+      "n": 16,
+      "id": "K-exec:write_outside_tree",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "write outside the repo tree and /out (/repo, /etc, /usr, /bin, /, /var/run, /proc, /sys, the host scratch path)",
+      "expected": "every target refused (read-only root and mount)",
+      "observed": "11 targets refused (ENOENT,EROFS)",
+      "contained": true
+    },
+    {
+      "n": 17,
+      "id": "K-exec:docker_socket",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "find or connect to a Docker socket (5 paths, 3 directories)",
+      "expected": "no socket path exists",
+      "observed": "no docker socket path exists (5 paths, 3 directories searched)",
+      "contained": true
+    },
+    {
+      "n": 18,
+      "id": "K-exec:privileges",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "privileges: uid, capabilities, mount, chown, no-new-privs, seccomp",
+      "expected": "non-root, no capabilities, mount and chown refused, no-new-privs, seccomp on",
+      "observed": "uid 10002, CapEff 0000000000000000, NoNewPrivs 1, Seccomp 2, mount exit 32, chown exit 1",
+      "contained": true
+    },
+    {
+      "n": 19,
+      "id": "K-exec:mirror_reachable",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "HTTP to the package mirror (the one allowed peer)",
+      "expected": "reachable (control: mirror only)",
+      "observed": "HTTP 200",
+      "contained": true
+    },
+    {
+      "n": 20,
+      "id": "K-exec:network_interfaces",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "list network interfaces",
+      "expected": "loopback and exactly one internal interface",
+      "observed": "eth0,lo",
+      "contained": true
+    },
+    {
+      "n": 21,
+      "id": "K-exec:write_repo_tree",
+      "session": "K-exec / node probe.js main",
+      "class": "K-exec",
+      "attempt": "write into the repo tree",
+      "expected": "a disposable working copy in /work is writable; the mounted repo stays read-only",
+      "observed": "working copy writable (cwd /work/repo)",
+      "contained": true
+    },
+    {
+      "n": 22,
+      "id": "K:dns_external_name",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "DNS lookup of an external name (example.com)",
+      "expected": "lookup fails: no resolver and no route",
+      "observed": "EAI_AGAIN",
+      "contained": true
+    },
+    {
+      "n": 23,
+      "id": "K:dns_direct_resolver",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "DNS query straight to 8.8.8.8",
+      "expected": "no answer: no route out",
+      "observed": "ECONNREFUSED",
+      "contained": true
+    },
+    {
+      "n": 24,
+      "id": "K:http_external_host",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "HTTP GET to an external host by name",
+      "expected": "no connection",
+      "observed": "EAI_AGAIN",
+      "contained": true
+    },
+    {
+      "n": 25,
+      "id": "K:http_external_ip",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "HTTP GET to an external IP (1.1.1.1)",
+      "expected": "no connection",
+      "observed": "ENETUNREACH",
+      "contained": true
+    },
+    {
+      "n": 26,
+      "id": "K:http_gateway_without_key",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "HTTP to the model gateway without a key",
+      "expected": "gateway is not a peer: name does not resolve",
+      "observed": "EAI_AGAIN",
+      "contained": true
+    },
+    {
+      "n": 27,
+      "id": "K:cloud_metadata_ip",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "HTTP to the cloud metadata IP 169.254.169.254",
+      "expected": "no connection",
+      "observed": "ENETUNREACH",
+      "contained": true
+    },
+    {
+      "n": 28,
+      "id": "K:host_listener",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "TCP to a listener on the Docker host (docker0 address)",
+      "expected": "no connection; the host listener sees 0 hits",
+      "observed": "ENETUNREACH",
+      "contained": true
+    },
+    {
+      "n": 29,
+      "id": "K:default_route",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "look for a default route out of the network",
+      "expected": "no default route",
+      "observed": "no default route",
+      "contained": true
+    },
+    {
+      "n": 30,
+      "id": "K:internal_service_names",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "resolve other factory service names (docker-proxy, postgres, kms-local, core, ...)",
+      "expected": "none resolve",
+      "observed": "10 names, none resolve",
+      "contained": true
+    },
+    {
+      "n": 31,
+      "id": "K:mirror_write",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "PUT a file to the package mirror",
+      "expected": "mirror is read-only (405) or unreachable",
+      "observed": "EAI_AGAIN",
+      "contained": true
+    },
+    {
+      "n": 32,
+      "id": "K:mirror_other_ports",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "connect to other ports of the mirror peer (22, 2375, 5432, 8300, 8410)",
+      "expected": "all closed",
+      "observed": "closed: 22,2375,5432,8300,8410",
+      "contained": true
+    },
+    {
+      "n": 33,
+      "id": "K:env_read",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "read the process environment for credentials and canaries",
+      "expected": "no credential-shaped name, no canary",
+      "observed": "24 variables, 0 credential-shaped names, canary absent",
+      "contained": true
+    },
+    {
+      "n": 34,
+      "id": "K:proc_1_environ",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "read /proc/1/environ",
+      "expected": "only the session own env: no credential, no canary",
+      "observed": "readable (the session own init), 0 credential-shaped names, canary absent",
+      "contained": true
+    },
+    {
+      "n": 35,
+      "id": "K:proc_all_environ",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "read /proc/*/environ of every visible process",
+      "expected": "own pid namespace only: no credential, no canary",
+      "observed": "4 processes visible (own pid namespace), 0 credential-shaped names, canary absent",
+      "contained": true
+    },
+    {
+      "n": 36,
+      "id": "K:fs_walk_for_canaries",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "walk the whole readable filesystem for factory canaries",
+      "expected": "no canary on any readable file",
+      "observed": "over 5000 readable files walked, canary absent",
+      "contained": true
+    },
+    {
+      "n": 37,
+      "id": "K:write_outside_tree",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "write outside the repo tree and /out (/repo, /etc, /usr, /bin, /, /var/run, /proc, /sys, the host scratch path)",
+      "expected": "every target refused (read-only root and mount)",
+      "observed": "11 targets refused (ENOENT,EROFS)",
+      "contained": true
+    },
+    {
+      "n": 38,
+      "id": "K:docker_socket",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "find or connect to a Docker socket (5 paths, 3 directories)",
+      "expected": "no socket path exists",
+      "observed": "no docker socket path exists (5 paths, 3 directories searched)",
+      "contained": true
+    },
+    {
+      "n": 39,
+      "id": "K:privileges",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "privileges: uid, capabilities, mount, chown, no-new-privs, seccomp",
+      "expected": "non-root, no capabilities, mount and chown refused, no-new-privs, seccomp on",
+      "observed": "uid 10002, CapEff 0000000000000000, NoNewPrivs 1, Seccomp 2, mount exit 32, chown exit 1",
+      "contained": true
+    },
+    {
+      "n": 40,
+      "id": "K:mirror_reachable",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "HTTP to the package mirror (the one allowed peer)",
+      "expected": "unreachable (no NIC)",
+      "observed": "EAI_AGAIN",
+      "contained": true
+    },
+    {
+      "n": 41,
+      "id": "K:network_interfaces",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "list network interfaces",
+      "expected": "loopback only (no NIC)",
+      "observed": "lo",
+      "contained": true
+    },
+    {
+      "n": 42,
+      "id": "K:write_repo_tree",
+      "session": "K / node probe.js main",
+      "class": "K",
+      "attempt": "write into the repo tree",
+      "expected": "refused: the repo is read-only",
+      "observed": "EROFS",
+      "contained": true
+    },
+    {
+      "n": 43,
+      "id": "K-exec:plant_canary_out",
+      "session": "K-exec / node probe.js plant",
+      "class": "K-exec",
+      "attempt": "plant a factory canary (AISDLC_CANARY_ pattern) into /out",
+      "expected": "the output scan fires and /out is withheld (quarantined)",
+      "observed": "canary detected, quarantined true, files returned 0, findings exfil.txt:aisdlc-canary",
+      "contained": true
+    },
+    {
+      "n": 44,
+      "id": "K-exec:plant_canary_log",
+      "session": "K-exec / node probe.js plant stdout",
+      "class": "K-exec",
+      "attempt": "print a factory canary to the log stream (and plant it in /out)",
+      "expected": "the output scan fires on the logs too, and /out is withheld",
+      "observed": "canary detected, quarantined true, findings exfil.txt:aisdlc-canary,stdout:aisdlc-canary",
+      "contained": true
+    },
+    {
+      "n": 45,
+      "id": "K-exec:seeded_canaries_not_exfiltrated",
+      "session": "all sessions",
+      "class": "K-exec",
+      "attempt": "4 factory canaries seeded where a sandbox must not reach (host process env, a host file beside the scratch root, the gateway peer env, the mirror peer env) searched for in every sandbox's /out, stdout and stderr",
+      "expected": "none found",
+      "observed": "none found in 4 sessions' output",
+      "contained": true
+    },
+    {
+      "n": 46,
+      "id": "K-exec:pids_spawn_loop",
+      "session": "K-exec (pids 64) / node probe.js pids",
+      "class": "K-exec",
+      "attempt": "spawn processes in a loop until the system says no (limit 64 pids)",
+      "expected": "stops below the pids limit with EAGAIN",
+      "observed": "spawned 54 processes, error EAGAIN",
+      "contained": true
+    },
+    {
+      "n": 47,
+      "id": "K-exec:fork_bomb",
+      "session": "K-exec (pids 64, 6 s) / bash fork bomb",
+      "class": "K-exec",
+      "attempt": "a real fork bomb :(){ :|:& };:",
+      "expected": "capped at 64 pids; the container is killed at the time limit or exits; the host process count returns to normal",
+      "observed": "status killed, host process count change 0, container removed",
+      "contained": true
+    },
+    {
+      "n": 48,
+      "id": "K-exec:memory_blowup",
+      "session": "K-exec (128 MiB) / node probe.js mem",
+      "class": "K-exec",
+      "attempt": "allocate and touch memory without end (limit 128 MiB, no swap)",
+      "expected": "killed by the kernel before 128 MiB is passed; the run is void or exits by signal",
+      "observed": "status oom_killed, exit null, last progress 64 MiB",
+      "contained": true
+    },
+    {
+      "n": 49,
+      "id": "K-exec:long_sleep",
+      "session": "K-exec (3 s) / sleep 600",
+      "class": "K-exec",
+      "attempt": "sleep for 600 s (limit 3 s)",
+      "expected": "killed at the limit (status timed_out), the container is removed, the run returns promptly",
+      "observed": "status timed_out after 4 s",
+      "contained": true
+    },
+    {
+      "n": 50,
+      "id": "K-exec:output_flood",
+      "session": "K-exec (out 1 MiB, work 8 MiB) / node probe.js fill",
+      "class": "K-exec",
+      "attempt": "write 1 GiB each to /out, /work and /tmp",
+      "expected": "ENOSPC at the cap (/out 1 MiB, /work 8 MiB, /tmp 8 MiB)",
+      "observed": "/out 1048576B ENOSPC, /work 8126464B ENOSPC, /tmp 8388608B ENOSPC",
+      "contained": true
+    },
+    {
+      "n": 51,
+      "id": "K-exec:out_symlinks",
+      "session": "K-exec / node probe.js links",
+      "class": "K-exec",
+      "attempt": "leave symlinks in /out to /etc/passwd, /proc/1/environ and ../../etc/shadow, and a hard link to /etc/hostname",
+      "expected": "links are skipped, never followed; only regular files are returned",
+      "observed": "files returned: ok.txt",
+      "contained": true
+    },
+    {
+      "n": 52,
+      "id": "K-exec:persistence",
+      "session": "K-exec / a later session",
+      "class": "K-exec",
+      "attempt": "look for files an earlier hostile session wrote (/tmp, /work, the working copy) and for the host scratch directory",
+      "expected": "none exist (tmpfs is gone with the container; the host path is not mounted)",
+      "observed": "exists: /tmp false, /work false, working copy false, host scratch false",
+      "contained": true
+    },
+    {
+      "n": 53,
+      "id": "proxy:a_privileged_container",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a privileged container: create body with Privileged=true",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 54,
+      "id": "proxy:a_container_on_the_host_network",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a container on the host network: create body with NetworkMode=host",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 55,
+      "id": "proxy:the_host_PID_namespace",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for the host PID namespace: create body with PidMode=host",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 56,
+      "id": "proxy:an_added_capability",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for an added capability: create body with CapAdd=[SYS_ADMIN]",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 57,
+      "id": "proxy:a_device",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a device: create body with a /dev/sda device",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 58,
+      "id": "proxy:the_Docker_socket_bind_mounted",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for the Docker socket bind-mounted: create body binding /var/run/docker.sock",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 59,
+      "id": "proxy:the_host_root_bind_mounted",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for the host root bind-mounted: create body binding / (outside the scratch root)",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 60,
+      "id": "proxy:seccomp_unconfined",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for seccomp unconfined: create body with seccomp=unconfined",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 61,
+      "id": "proxy:a_root_user",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a root user: create body with User=root",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 62,
+      "id": "proxy:a_writable_root_filesystem",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a writable root filesystem: create body with ReadonlyRootfs=false",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 63,
+      "id": "proxy:no_memory_limit",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for no memory limit: create body without Memory",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 64,
+      "id": "proxy:a_different_image",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a different image: create body with image alpine:latest",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 65,
+      "id": "proxy:exec_in_a_container",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for exec in a container: POST /containers/<id>/exec",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 66,
+      "id": "proxy:a_build",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a build: POST /build",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 67,
+      "id": "proxy:an_image_pull",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for an image pull: POST /images/create?fromImage=alpine",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 68,
+      "id": "proxy:a_volume",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a volume: POST /volumes/create",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 69,
+      "id": "proxy:starting_a_container_that_is_not_a_sandbox",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for starting a container that is not a sandbox: POST /containers/<mirror peer>/start",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 70,
+      "id": "proxy:removing_a_container_that_is_not_a_sandbox",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for removing a container that is not a sandbox: DELETE /containers/<gateway peer>",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 71,
+      "id": "proxy:a_non_internal_network",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a non-internal network: POST /networks/create with Internal=false",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 72,
+      "id": "proxy:a_peer_under_another_peer_alias",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a peer under another peer alias: POST /networks/<session net>/connect: the mirror as \"gateway\"",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 73,
+      "id": "proxy:a_container_that_is_no_peer",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for a container that is no peer: POST /networks/<session net>/connect: a stranger as \"gateway\"",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    },
+    {
+      "n": 74,
+      "id": "proxy:the_default_bridge",
+      "session": "the docker-proxy (coding instance)",
+      "class": "K-exec",
+      "attempt": "ask the proxy for the default bridge: POST /networks/bridge/connect: attach a peer to the non-internal bridge",
+      "expected": "refused (HTTP 4xx), the daemon never sees it",
+      "observed": "HTTP 403",
+      "contained": true
+    }
+  ]
+}

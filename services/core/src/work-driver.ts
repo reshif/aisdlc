@@ -544,6 +544,11 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
           gate_id: g,
           subject_hash: c.subject_hash,
           facts: c.facts as JsonObject,
+          // B5: the person who wrote the plan by hand is treated like the requester on G3 (and G3s, the skeleton
+          // of the same plan): the kernel's SoD rule, single-holder waiver stamped, never at T2.
+          ...((g === 'G3' || g === 'G3s') && s.plan_author
+            ? { authors: [s.plan_author as PrincipalId] }
+            : {}),
         })),
       });
       if (!cards.ok) throw new Error(`${cards.error.code}: ${cards.error.message}`);

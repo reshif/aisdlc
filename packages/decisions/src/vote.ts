@@ -125,6 +125,7 @@ export async function planVote(
     ctx: ctx.value,
     holders: holders.value,
     requester: p.requester,
+    authors: p.authors ?? [],
     voter: req.voter,
     decision: req.decision,
     approvers: state.approvers as PrincipalId[],
