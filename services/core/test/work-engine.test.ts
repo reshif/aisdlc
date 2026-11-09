@@ -3,6 +3,7 @@ import {
   GATE_EVENT,
   ITEM_EVENT,
   ItemCreatedPayload,
+  isAgentStep,
   type Lane,
 } from '@aisdlc/contracts';
 import { sweepExpired } from '@aisdlc/decisions';
@@ -293,7 +294,13 @@ describe('stage work goes through the stage ports', () => {
     expect(new Set(keys).size).toBe(keys.length);
     expect(JSON.stringify(d.ports.calls())).not.toContain('engine test request');
     for (const c of d.ports.calls()) {
-      expect(Object.keys(c).sort()).toEqual(
+      // M11.2: an agent-acted step also carries which agent runs it (ids and hashes; no key without a gateway)
+      expect('agent' in c).toBe(isAgentStep(c.step));
+      expect(
+        Object.keys(c)
+          .filter((k) => k !== 'agent')
+          .sort(),
+      ).toEqual(
         [
           'approved_gates',
           'attempt',

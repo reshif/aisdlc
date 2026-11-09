@@ -2,6 +2,7 @@ import { ConfigReader, ConfigRegistry, registerGatewayConfig } from '@aisdlc/con
 import {
   DbRegisteredRepos,
   DbWorkInFlight,
+  GatewayAgentKeys,
   HttpKnowledge,
   HttpRoleMapReconciler,
   RefusingStepUp,
@@ -31,6 +32,7 @@ import {
   type WorkInFlightPort,
 } from '@aisdlc/loops';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
+import { GatewayAdminClient } from '@aisdlc/gateway/client';
 import { HttpKillState, KillswitchClient } from '@aisdlc/killswitch/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import { HttpWitness } from '@aisdlc/witness/client';
@@ -220,6 +222,15 @@ export async function bootCoreWorker(
             ports: deps.stagePorts ?? new FakeStagePorts(),
             capacity: deps.capacity ?? new FakeCapacity(),
             ...(killState ? { kill: killState } : {}),
+            // M11.2: every agent-acted stage command gets a per-Unit key minted from the agent's contract
+            ...(cfg.gateway
+              ? {
+                  keys: new GatewayAgentKeys(
+                    new GatewayAdminClient({ baseUrl: cfg.gateway.url, token: cfg.gateway.token }),
+                    { extraModels: cfg.agentExtraModels },
+                  ),
+                }
+              : {}),
             settings: workSettingsFrom(rd),
             decisions: {
               pool,

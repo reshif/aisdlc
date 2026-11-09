@@ -39,6 +39,13 @@ export interface CoreWorkerConfig {
    * `fake`: the deterministic fakes (no real stage work exists before M11-M14). Needs the Notary.
    */
   readonly stagePorts: 'none' | 'fake';
+  /**
+   * The model gateway's admin API (scope `admin`, PLAN M11.2): the work driver mints each agent-acted
+   * stage command's per-Unit virtual key through it. Required with the stage ports: no key, no agent run.
+   */
+  readonly gateway: { readonly url: string; readonly token: string } | null;
+  /** Model ids added to every minted key's allow-list (`CORE_WORKER_AGENT_EXTRA_MODELS`). */
+  readonly agentExtraModels: readonly string[];
   readonly workDriverIntervalMs: number;
   readonly killHoldersIntervalMs: number;
   readonly killObserverIntervalMs: number;
@@ -93,6 +100,11 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   means no new agent work), the holders of every project are pushed to
  *                                   it, and its journal is recorded (with the Notary, also in the ledger).
  *                                   Required with CORE_WORKER_STAGE_PORTS
+ *   CORE_WORKER_GATEWAY_URL, CORE_WORKER_GATEWAY_TOKEN_REF   the model gateway's admin API (scope `admin`): the
+ *                                   work driver mints a per-Unit virtual key for every agent-acted stage
+ *                                   command from the agent's contract. Required with CORE_WORKER_STAGE_PORTS
+ *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
+ *                                   deployment routes everything to `fake-model`); default none
  *   CORE_WORKER_STAGE_PORTS (none | fake; default none): `fake` runs the `work_driver` loop over the
  *                                   deterministic stage-port fakes (needs the Notary); CORE_WORKER_WORK_DRIVER_INTERVAL_MS (5000)
  *   CORE_WORKER_CHECKPOINT_INTERVAL_MS (300000, 5 min), CORE_WORKER_RECONCILE_INTERVAL_MS (60000)
@@ -144,6 +156,12 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_STAGE_PORTS needs the kill switch (CORE_WORKER_KILLSWITCH_URL): agent work is not admitted without one to ask',
     );
   }
+  const gateway = remote('GATEWAY');
+  if (stagePorts !== 'none' && gateway === null) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_STAGE_PORTS needs the model gateway (CORE_WORKER_GATEWAY_URL): an agent step is not run without a key minted for it',
+    );
+  }
   if (stagePorts !== 'none' && ledger === null) {
     throw new ServiceConfigError(
       'CORE_WORKER_STAGE_PORTS needs the Notary (CORE_WORKER_NOTARY_URL): gates open through the decision kernel',
@@ -159,6 +177,11 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     witness,
     killswitch,
     stagePorts,
+    gateway,
+    agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
+      .split(',')
+      .map((m) => m.trim())
+      .filter((m) => m !== ''),
     workDriverIntervalMs: intEnv(env, 'CORE_WORKER_WORK_DRIVER_INTERVAL_MS', 5_000, 100),
     killHoldersIntervalMs: intEnv(env, 'CORE_WORKER_KILL_HOLDERS_INTERVAL_MS', 10_000, 100),
     killObserverIntervalMs: intEnv(env, 'CORE_WORKER_KILL_OBSERVER_INTERVAL_MS', 5_000, 100),

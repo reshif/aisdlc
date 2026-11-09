@@ -19,6 +19,7 @@
     "@aisdlc/contracts": "0.0.0",
     "@aisdlc/core": "0.0.0",
     "@aisdlc/db": "0.0.0",
+    "@aisdlc/gateway": "0.0.0",
     "@aisdlc/kernel": "0.0.0",
     "@aisdlc/killswitch": "0.0.0",
     "@aisdlc/kms-local": "0.0.0",

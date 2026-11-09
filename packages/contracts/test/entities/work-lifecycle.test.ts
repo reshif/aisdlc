@@ -79,6 +79,7 @@ describe('work lifecycle vocabulary (PLAN M9.1, M9.2)', () => {
     expect(StageOutcome.safeParse({ outcome: 'questions', questions: [] }).success).toBe(false);
     expect(Object.keys(StageRequest.shape).sort()).toEqual(
       [
+        'agent',
         'approved_gates',
         'attempt',
         'catalogue_ref',

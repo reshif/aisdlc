@@ -29,3 +29,4 @@ export {
   observeGatewayTriggers,
   type GatewayTriggersLoopOptions,
 } from './gateway-triggers.js';
+export { GatewayAgentKeys, type GatewayKeyClient } from './agent-keys.js';

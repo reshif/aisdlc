@@ -22,6 +22,7 @@ import type { LoopSpec, WorkInFlightPort } from '@aisdlc/loops';
 import { WorkInFlightError } from '@aisdlc/loops';
 import {
   admitAgentWork,
+  type AgentKeyPort,
   type CapacityPort,
   type KillStatePort,
   type StagePorts,
@@ -71,6 +72,7 @@ import {
 } from './controls.js';
 import { syncKillHolds } from './kill.js';
 import { catchUpWork } from './work-projection.js';
+import { dispatchAgent, recordFailure } from './agent-dispatch.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
 
 // The work driver (PLAN M9.2; ADR-0001 "Departure from the runtime review"): what replaces Temporal.
@@ -113,6 +115,13 @@ export interface WorkDriverDeps {
   readonly kill?: KillStatePort;
   /** How long a stage command refused by the kill switch or a control waits before it is offered again (ms). */
   readonly refusedRetryMs?: number;
+  /**
+   * Where per-Unit virtual keys come from (M11.2: the gateway's admin API). With it, a stage command
+   * whose step is agent-acted gets a key minted from the agent's contract (exactly its tools, data class
+   * and budget) before the port is called, and no key means no run. core-worker requires it whenever the
+   * driver runs; a driver built without one (tests of other things) mints nothing and records `vkey_id: null`.
+   */
+  readonly keys?: AgentKeyPort;
 }
 
 const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
@@ -400,6 +409,10 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
           return;
         }
       }
+      // M11.2: the agent that acts at this step, its key minted from its contract, recorded before the call
+      const bound = await dispatchAgent({ ...cd, ...(d.keys ? { keys: d.keys } : {}) }, s, c);
+      if (!bound.ok) throw new Error(bound.error.message);
+      const agent = bound.value;
       const port = d.ports[c.port];
       const r = await port.run({
         command_key: c.key,
@@ -412,8 +425,12 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
         approved_gates: c.approved_gates,
         denied_gates: c.denied_gates,
         catalogue_ref: s.catalogue_ref,
+        ...(agent ? { agent } : {}),
       });
-      if (!r.ok) throw new Error(`${c.port} port: ${r.error.message}`);
+      if (!r.ok) {
+        if (agent) await recordFailure(cd, s, c, agent, 'port_error', r.error.message);
+        throw new Error(`${c.port} port: ${r.error.message}`);
+      }
       must(await ingestItem(cd, item_id, resultDraft(s, c, r.value)));
       return;
     }

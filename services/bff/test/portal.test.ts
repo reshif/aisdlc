@@ -6,6 +6,7 @@ import {
   CORE_TOKEN,
   GATE_ID,
   ITEM_ID,
+  agentRunsFixture,
   S0_ID,
   startFakeCore,
   type FakeCore,
@@ -122,6 +123,62 @@ const CASES: RouteCase[] = [
     allowed: 'alice',
     denied: 'dora',
     forwards: `GET /v1/items/${ITEM_ID}?on_behalf_of=alice`,
+  },
+  {
+    name: 'the agent runs of an item',
+    method: 'GET',
+    path: `/api/agent-runs?item=${ITEM_ID}`,
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `GET /v1/agent-runs?item=${ITEM_ID}&on_behalf_of=alice`,
+  },
+  {
+    name: 'stats of an agent over one project',
+    method: 'GET',
+    path: '/api/agents/coder/stats?project=acme',
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: 'GET /v1/agents/coder/stats?on_behalf_of=alice&project=acme',
+  },
+  {
+    name: 'stats of an agent over the fleet',
+    method: 'GET',
+    path: '/api/agents/A2/stats',
+    allowed: 'root',
+    denied: 'alice',
+    forwards: 'GET /v1/agents/A2/stats?on_behalf_of=root',
+  },
+  {
+    name: 'the eval summary over the fleet',
+    method: 'GET',
+    path: '/api/evals/summary',
+    allowed: 'root',
+    denied: 'alice',
+    forwards: 'GET /v1/evals/summary?on_behalf_of=root',
+  },
+  {
+    name: 'the eval summary of one project tag',
+    method: 'GET',
+    path: '/api/evals/summary?project=acme',
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: 'GET /v1/evals/summary?on_behalf_of=alice&project=acme',
+  },
+  {
+    name: 'the eval history',
+    method: 'GET',
+    path: '/api/evals/runs?suite=triage&limit=5',
+    allowed: 'root',
+    denied: 'alice',
+    forwards: 'GET /v1/evals/runs?on_behalf_of=root&suite=triage&limit=5',
+  },
+  {
+    name: 'the scores of an agent',
+    method: 'GET',
+    path: '/api/agents/A1/scores',
+    allowed: 'root',
+    denied: 'alice',
+    forwards: 'GET /v1/agents/A1/scores?on_behalf_of=root',
   },
   {
     name: 'S0 overview',
@@ -312,6 +369,64 @@ describe.each(CASES)('$name ($method $path)', (c) => {
       expect(core.seen.filter((x) => x.method === 'POST')).toHaveLength(0);
     });
   }
+});
+
+describe('agent runs (M11.2)', () => {
+  it('refuse a bad item, a bad agent and extra query parameters before core is asked', async () => {
+    expect((await api('alice', 'GET', '/api/agent-runs?item=nope')).status).toBe(400);
+    expect((await api('alice', 'GET', '/api/agent-runs')).status).toBe(400);
+    expect((await api('alice', 'GET', `/api/agent-runs?item=${ITEM_ID}&x=1`)).status).toBe(400);
+    expect((await api('root', 'GET', '/api/agents/A99/stats')).status).toBe(400);
+    expect((await api('root', 'GET', '/api/agents/coder/stats?project=Bad Id')).status).toBe(400);
+    expect(core.seen).toHaveLength(0);
+  });
+
+  it('the project of a run list is decided on the project core says the item is in', async () => {
+    core.override.set(`GET /v1/agent-runs?item=${ITEM_ID}&on_behalf_of=alice`, {
+      status: 200,
+      json: { ...agentRunsFixture(), project_id: 'secret' },
+    });
+    const r = await api('alice', 'GET', `/api/agent-runs?item=${ITEM_ID}`);
+    expect(r.status).toBe(403);
+    expect(r.json.error.code).toBe('forbidden');
+  });
+});
+
+describe('evals (M11.3)', () => {
+  it('refuse a bad query, a bad project and a bad agent before core is asked', async () => {
+    expect((await api('root', 'GET', '/api/evals/summary?x=1')).status).toBe(400);
+    expect((await api('root', 'GET', '/api/evals/summary?project=Bad Id')).status).toBe(400);
+    expect((await api('root', 'GET', '/api/evals/runs?limit=')).status).toBe(400);
+    expect((await api('root', 'GET', '/api/agents/A99/scores')).status).toBe(400);
+    expect(core.seen).toHaveLength(0);
+  });
+
+  it('serve the allow-listed rows and nothing else', async () => {
+    const r = await api('root', 'GET', '/api/evals/summary');
+    expect(r.status).toBe(200);
+    expect(Object.keys(r.json.rows[0]).sort()).toEqual(
+      [
+        'k',
+        'pass_k',
+        'pass_rate',
+        'passes',
+        'profile',
+        'provider',
+        'status',
+        'suite',
+        'task_id',
+        'trials',
+      ].sort(),
+    );
+    // a core that answered with more than the contract allows is not passed on
+    core.override.set('GET /v1/evals/summary?on_behalf_of=root', {
+      status: 200,
+      json: { rows: [{ ...r.json.rows[0], output: 'the agent said...', cost_micro_usd: 5 }] },
+    });
+    const leaky = await api('root', 'GET', '/api/evals/summary');
+    expect(leaky.status).toBeGreaterThanOrEqual(500);
+    expect(JSON.stringify(leaky.json)).not.toContain('the agent said');
+  });
 });
 
 describe('project list', () => {

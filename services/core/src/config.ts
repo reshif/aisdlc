@@ -27,6 +27,7 @@ const Callers = z.record(
           'work',
           'ops',
           'integrations',
+          'evals',
         ]),
       )
       .min(1),
