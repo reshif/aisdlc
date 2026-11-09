@@ -110,3 +110,51 @@ describe('the vendor key in the compose stack', () => {
     expect(ks['KILLSWITCH_CALLERS']).toMatch(/"gateway":\{[^}]*"scopes":\["read"\]/);
   });
 });
+
+describe('the gateway database role and the registry wiring in the compose stack', () => {
+  const gw = () => compose.services['gateway']!;
+  const env = (s: Service) => s.environment as Record<string, string>;
+
+  it('connects as its own least-privilege role, not as the owner', () => {
+    expect(env(gw())['GATEWAY_DATABASE_URL']).toBe('file:/run/secrets/db-url-gateway');
+    expect(secretsOf(gw())).toContain('db-url-gateway');
+    expect(secretsOf(gw())).not.toContain('db-url-aisdlc');
+    expect(compose.secrets['db-url-gateway']).toEqual({ file: './secrets/db-url-gateway' });
+    // nobody else reads the gateway's password or URL
+    for (const [name, svc] of Object.entries(compose.services)) {
+      if (name === 'gateway') continue;
+      expect(secretsOf(svc), name).not.toContain('db-url-gateway');
+    }
+    expect(secretsOf(compose.services['db-init']!)).toContain('pg-pass-gateway');
+    const init = readFileSync(join(dir, 'db-init.sh'), 'utf8');
+    expect(init).toContain('CREATE ROLE gateway LOGIN');
+    expect(init).toContain('GRANT aisdlc_gateway TO gateway');
+    expect(init).not.toMatch(/ALTER ROLE gateway[^\n]*CREATEROLE|SUPERUSER/);
+    expect(readFileSync(join(dir, 'init-secrets'), 'utf8')).toContain('secrets/db-url-gateway');
+  });
+
+  it('has no adapter list of its own: the registry names the providers, the deployment only allows a key file and a host', () => {
+    const e = env(gw());
+    expect(e['GATEWAY_PROVIDER_ADAPTERS']).toBeUndefined();
+    expect(JSON.parse(e['GATEWAY_SECRET_REFS']!)).toEqual(['file:/run/secrets/anthropic-api-key']);
+    expect(JSON.parse(e['GATEWAY_EGRESS_HOSTS']!)).toEqual(['api.anthropic.com']);
+  });
+
+  it('has the codehost select its GitHub App from the registry, with the key still in its own file', () => {
+    const ch = compose.services['codehost']!;
+    const e = env(ch);
+    expect(e['CODEHOST_REGISTRY_INTEGRATION']).toBe('github-app');
+    expect(e['CODEHOST_GITHUB_APP_ID']).toBeUndefined();
+    expect(e['CODEHOST_GITHUB_APP_KEY_REF']).toBeUndefined();
+    expect(JSON.parse(e['CODEHOST_SECRET_REFS']!)).toEqual(['file:/run/secrets/github-app.pem']);
+    expect(secretsOf(ch)).toContain('github-app.pem');
+    // the seed registers the row, with a reference to the key (it mounts no key)
+    const seed = compose.services['seed']!;
+    expect(env(seed)['SEED_GITHUB_APP_KEY_REF']).toBe('file:/run/secrets/github-app.pem');
+    expect(secretsOf(seed)).not.toContain('github-app.pem');
+    // core lets the codehost read the registry and report health
+    expect(env(compose.services['core']!)['CORE_CALLERS']).toMatch(
+      /"codehost":\{[^}]*"scopes":\["registry","integrations"\]/,
+    );
+  });
+});

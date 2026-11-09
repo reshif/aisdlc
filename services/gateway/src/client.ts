@@ -23,6 +23,17 @@ export interface GatewayClientError {
 }
 
 const Minted = z.object({ vkey: VKeyView, key: z.string().min(1) });
+const ReloadView = z.object({
+  revision: z.string().nullable(),
+  integrations: z.array(
+    z.object({
+      integration_id: z.string(),
+      adapter: z.string(),
+      state: z.enum(['built', 'refused']),
+      detail: z.string(),
+    }),
+  ),
+});
 const ErrorBody = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 
 export class GatewayAdminClient {
@@ -76,6 +87,13 @@ export class GatewayAdminClient {
   }
   vkey(id: string) {
     return this.call('GET', `/v1/admin/vkeys/${encodeURIComponent(id)}`, undefined, VKeyView);
+  }
+  /** Re-reads the published config and rebuilds the adapters that changed (`force`: all of them). */
+  reload(force = false) {
+    return this.call('POST', '/v1/admin/reload', { force }, ReloadView);
+  }
+  integrations() {
+    return this.call('GET', '/v1/admin/integrations', undefined, ReloadView);
   }
   revokeVKey(id: string) {
     return this.call('POST', `/v1/admin/vkeys/${encodeURIComponent(id)}/revoke`, {}, VKeyView);

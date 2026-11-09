@@ -27,7 +27,11 @@
 #      egress network, a fake-provider call through a per-Unit virtual key succeeds and is metered as a
 #      ModelCall record event (no text), a D3 call is refused, a spent budget stops the key and raises
 #      ET1, and a killed project's calls are refused by the real kill switch
-#  10. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
+#  10. (M10 follow-ups, M10.4) the gateway's database role is least-privilege (refused on every other context,
+#      on UPDATE and DELETE of the record and on DDL; sees only its own events), the GitHub App and the model
+#      providers are rows of the integration registry, both the gateway and the codehost reload from it, and
+#      core serves the health tiles and the events
+#  11. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
 #
 # SMOKE_SKIP_BUILD=1   use the image aisdlc/factory:local as it is (a network that blocks apt or
 #                      the npm registry: build it yourself, see README.md)
@@ -367,6 +371,53 @@ akey_logs=$(dc logs --no-log-prefix --no-color 2>&1 | grep -cF -- "$akey_value" 
 [ "$akey_logs" = 0 ] || fail "the vendor key is in a container log"
 echo "  the vendor key is in no log; $tokens_seen tokens metered for smoke-g1"
 dc logs --no-log-prefix --no-color core-worker 2>&1 | grep -qi 'gateway_triggers.*fail' && fail "the gateway trigger loop failed"
+
+step "the gateway's database role is least-privilege; the integration registry, its reload paths and its health tiles (M10.4)"
+# The gateway connects as the login role `gateway` (db-init.sh; the gateway migration grants it): its own tables,
+# its own `gateway:` record streams (INSERT and SELECT, never UPDATE or DELETE) and the effective-config view.
+gwpsql() { local pw; pw="$(cat secrets/pg-pass-gateway)"; dc exec -T -e PGPASSWORD="$pw" postgres psql -h 127.0.0.1 -U gateway -d aisdlc -At -c "$1" 2>&1 || true; }
+for q in "SELECT count(*) FROM identity.principal" "SELECT count(*) FROM core.work_item" "SELECT count(*) FROM security_findings.finding" "SELECT count(*) FROM ledger.ledger_entry" "SELECT count(*) FROM config.config_revision" "UPDATE record.record_event SET actor = 'x'" "DELETE FROM record.record_event" "CREATE TABLE gateway.evil (x int)"; do
+  out=$(gwpsql "$q")
+  printf '%s' "$out" | grep -qi 'permission denied' || fail "the gateway role was not refused: $q -> $out"
+done
+other_streams=$(gwpsql "SELECT count(*) FROM record.record_event WHERE stream NOT LIKE 'gateway:%'")
+[ "$other_streams" = 0 ] || fail "the gateway role can see $other_streams events of other contexts"
+mine=$(gwpsql "SELECT count(*) FROM record.record_event WHERE stream LIKE 'gateway:%'")
+[ "$mine" -gt 0 ] || fail "the gateway role cannot see its own events ($mine)"
+echo "  gateway role: refused on identity, core, security_findings, the ledger and config tables, and on UPDATE, DELETE and DDL; sees only its own $mine record events"
+# Reload paths (no restart): the gateway re-reads the published config and rebuilds its adapters, the
+# codehost re-reads its row from core. Operator tokens, from inside each container.
+gwnode '
+const h = { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" };
+const r = await fetch("http://127.0.0.1:8410/v1/admin/reload", { method: "POST", headers: h, body: "{}" });
+const j = await r.json();
+if (r.status !== 200) { console.error("reload", r.status, JSON.stringify(j)); process.exit(1); }
+const by = Object.fromEntries(j.integrations.map((i) => [i.integration_id, i.state]));
+if (by.fake !== "built" || by.anthropic !== "built") { console.error("providers not built", JSON.stringify(j)); process.exit(1); }
+console.log(`  gateway reload: revision ${String(j.revision).slice(0, 12)}, providers ${JSON.stringify(by)}`);
+' || fail "the gateway reload failed"
+ch=$(dc exec -T -e T="$(cat secrets/tok-operator-codehost)" codehost node -e '
+const r = await fetch("http://127.0.0.1:8350/v1/admin/reload", { method: "POST", headers: { authorization: `Bearer ${process.env.T}`, "content-type": "application/json" }, body: "{}" });
+const j = await r.json();
+console.log(r.status + " " + j.state + " " + j.detail);
+')
+echo "  codehost reload: $ch"
+[ "$ch" = "200 serving ok" ] || fail "the codehost is not serving from its registry row: $ch"
+coreget() { dc exec -T -e T="$(cat secrets/tok-operator-core)" core node -e "const r = await fetch('http://127.0.0.1:8380$1', { headers: { authorization: 'Bearer ' + process.env.T } }); console.log(await r.text());"; }
+tiles=$(coreget /v1/integrations/health)
+printf '%s' "$tiles" | node -e '
+let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+  const t = JSON.parse(s);
+  const by = Object.fromEntries(t.tiles.map((x) => [x.integration_id, x]));
+  for (const id of ["github-app", "anthropic", "fake"]) if (!by[id]) { console.error("no tile for " + id); process.exit(1); }
+  if (by["github-app"].kind !== "code_host" || by.fake.kind !== "model_provider") { console.error("kinds"); process.exit(1); }
+  if (by["github-app"].state === "down" || by.fake.state === "down") { console.error("a tile is down: " + s); process.exit(1); }
+  console.log("  health tiles: " + t.tiles.map((x) => `${x.integration_id}=${x.state}(${x.detail_code})`).join(" ") + ` (registry ${String(t.registry_revision).slice(0, 12)})`);
+});
+' || fail "the health tiles are wrong"
+events=$(coreget /v1/integrations/events)
+printf '%s' "$events" | grep -q '"github-app"' || fail "no IntegrationEvent for the GitHub App"
+echo "  integration events: $(printf '%s' "$events" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).length+" ledgered"))')"
 
 step "memory at idle (docker stats, once)"
 docker stats --no-stream --format '  {{printf "%-34s" .Name}} {{.MemUsage}}' $(dc ps -q) | sort

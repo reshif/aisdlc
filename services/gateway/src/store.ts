@@ -224,6 +224,82 @@ export async function addReservation(
   );
 }
 
+/** Records a reservation as a row (status `open`) and raises the group's `reserved_*` by it. */
+export async function openReservation(
+  db: Executor,
+  r: { id: string; group: string; vkey_id: string; tokens: number; costMicro: number; at: string },
+): Promise<void> {
+  await db.query(
+    `INSERT INTO gateway.reservation (reservation_id, budget_group, vkey_id, tokens, cost_micro_usd, reserved_at)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [r.id, r.group, r.vkey_id, r.tokens, r.costMicro, r.at],
+  );
+  await addReservation(db, r.group, r.tokens, r.costMicro);
+}
+
+/**
+ * Closes a reservation, once: `true` when this call moved it from `open` (so the hold is still on the
+ * group and the caller must release it), `false` when it was already closed (settled, or abandoned by
+ * the sweep: the hold is gone and releasing it again would double-count).
+ */
+export async function closeReservation(
+  db: Executor,
+  id: string,
+  status: 'settled' | 'abandoned',
+  at: string,
+): Promise<boolean> {
+  const q = await db.query(
+    `UPDATE gateway.reservation SET status = $2, closed_at = $3 WHERE reservation_id = $1 AND status = 'open'`,
+    [id, status, at],
+  );
+  return (q.rowCount ?? 0) === 1;
+}
+
+export interface StaleReservation {
+  readonly reservation_id: string;
+  readonly vkey_id: string;
+  readonly tokens: number;
+  readonly cost_micro_usd: number;
+  readonly reserved_at: Date;
+}
+
+/** Groups that hold an open reservation older than `before`. */
+export async function groupsWithStale(db: Executor, before: string): Promise<string[]> {
+  const q = await db.query<{ budget_group: string }>(
+    `SELECT DISTINCT budget_group FROM gateway.reservation WHERE status = 'open' AND reserved_at < $1 ORDER BY 1`,
+    [before],
+  );
+  return q.rows.map((r) => r.budget_group);
+}
+
+/** Abandons every open reservation of the group older than `before` (the group row must be locked by the caller). */
+export async function abandonStale(
+  db: Executor,
+  group: string,
+  before: string,
+  at: string,
+): Promise<StaleReservation[]> {
+  const q = await db.query<{
+    reservation_id: string;
+    vkey_id: string;
+    tokens: string;
+    cost_micro_usd: string;
+    reserved_at: Date;
+  }>(
+    `UPDATE gateway.reservation SET status = 'abandoned', closed_at = $3
+      WHERE budget_group = $1 AND status = 'open' AND reserved_at < $2
+      RETURNING reservation_id, vkey_id, tokens::text, cost_micro_usd::text, reserved_at`,
+    [group, before, at],
+  );
+  return q.rows.map((r) => ({
+    reservation_id: r.reservation_id,
+    vkey_id: r.vkey_id,
+    tokens: Number(r.tokens),
+    cost_micro_usd: Number(r.cost_micro_usd),
+    reserved_at: r.reserved_at,
+  }));
+}
+
 /** Releases a reservation and adds what was really spent, in one statement. Returns the new state. */
 export async function settleUsage(
   db: Executor,

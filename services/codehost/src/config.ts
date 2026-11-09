@@ -19,7 +19,7 @@ const Callers = z.record(
   z.string().min(1),
   z.strictObject({
     token_ref: z.string().min(1),
-    scopes: z.array(z.enum(['census', 'posture', 'codeowners_sync'])).min(1),
+    scopes: z.array(z.enum(['census', 'posture', 'codeowners_sync', 'reload'])).min(1),
   }),
 );
 
@@ -137,6 +137,75 @@ export function codeHostConfigFromEnv(env: Env): CodeHostConfig {
             token: resolveSecretRef(requiredEnv(env, 'CODEHOST_CORE_TOKEN_REF'), { env }),
           },
     gitUrl,
+    bundleCapBytes: intEnv(env, 'CODEHOST_BUNDLE_CAP_BYTES', BUNDLE_DEFAULT_CAP_BYTES, 1),
+    bundleTimeoutMs: intEnv(env, 'CODEHOST_BUNDLE_TIMEOUT_MS', BUNDLE_DEFAULT_TIMEOUT_MS, 1000),
+  };
+}
+
+/**
+ * Registry mode (PLAN M10.4): the GitHub App is a row of the integration registry, not environment.
+ *   CODEHOST_REGISTRY_INTEGRATION  the integration id of the row to serve (e.g. `github-app`); selects this mode
+ *   CODEHOST_CORE_URL, CODEHOST_CORE_TOKEN_REF   REQUIRED: core's API, where the registry is read (scope `registry`),
+ *                                 health is reported (scope `integrations`) and the registered repos come from
+ *   CODEHOST_SECRET_REFS          JSON ["file:/run/secrets/github-app.pem"]: the key references this deployment lets a row name
+ *   CODEHOST_EGRESS_HOSTS         JSON ["api.github.com", "github.com"]: the hosts the App's credentials may be sent to
+ *   CODEHOST_REGISTRY_INTERVAL_MS poll of the registry (default 30000), CODEHOST_HEALTH_INTERVAL_MS report of health (30000)
+ * plus CODEHOST_CALLERS, CODEHOST_IDENTITY_*, CODEHOST_BUNDLE_*; NOT the CODEHOST_GITHUB_* variables (they are the legacy mode).
+ */
+export interface CodeHostRegistryConfig {
+  readonly integrationId: string;
+  readonly auth: ServiceAuth;
+  readonly callers: Record<string, readonly CodeHostScope[]>;
+  readonly identityUrl: string;
+  readonly identityToken: string;
+  readonly core: { readonly url: string; readonly token: string };
+  readonly secretRefs: readonly string[];
+  readonly egressHosts: readonly string[];
+  readonly registryIntervalMs: number;
+  readonly healthIntervalMs: number;
+  readonly bundleCapBytes: number;
+  readonly bundleTimeoutMs: number;
+}
+
+export function codeHostRegistryConfigFromEnv(env: Env): CodeHostRegistryConfig {
+  const id = requiredEnv(env, 'CODEHOST_REGISTRY_INTEGRATION');
+  if (!/^[a-z][a-z0-9_.-]{0,63}$/.test(id)) {
+    throw new ServiceConfigError('CODEHOST_REGISTRY_INTEGRATION is not an integration id');
+  }
+  for (const legacy of [
+    'CODEHOST_GITHUB_APP_ID',
+    'CODEHOST_GITHUB_INSTALLATION_ID',
+    'CODEHOST_GITHUB_APP_KEY_REF',
+  ]) {
+    if (env[legacy]) {
+      throw new ServiceConfigError(
+        `${legacy} and CODEHOST_REGISTRY_INTEGRATION are two sources for the same thing: the registry row replaces it`,
+      );
+    }
+  }
+  const callers = jsonEnv(env, 'CODEHOST_CALLERS', Callers);
+  const refs = env['CODEHOST_SECRET_REFS']
+    ? jsonEnv(env, 'CODEHOST_SECRET_REFS', z.array(z.string().min(1)).max(32))
+    : [];
+  const hosts = env['CODEHOST_EGRESS_HOSTS']
+    ? jsonEnv(env, 'CODEHOST_EGRESS_HOSTS', z.array(z.string().regex(/^[a-z0-9.-]+$/)).max(32))
+    : [];
+  return {
+    integrationId: id,
+    auth: loadServiceAuth(callers, { env }),
+    callers: Object.fromEntries(
+      Object.entries(callers).map(([n, c]) => [n, c.scopes as CodeHostScope[]]),
+    ),
+    identityUrl: httpUrlEnv(env, 'CODEHOST_IDENTITY_URL'),
+    identityToken: resolveSecretRef(requiredEnv(env, 'CODEHOST_IDENTITY_TOKEN_REF'), { env }),
+    core: {
+      url: httpUrlEnv(env, 'CODEHOST_CORE_URL'),
+      token: resolveSecretRef(requiredEnv(env, 'CODEHOST_CORE_TOKEN_REF'), { env }),
+    },
+    secretRefs: refs,
+    egressHosts: hosts,
+    registryIntervalMs: intEnv(env, 'CODEHOST_REGISTRY_INTERVAL_MS', 30_000, 100),
+    healthIntervalMs: intEnv(env, 'CODEHOST_HEALTH_INTERVAL_MS', 30_000, 100),
     bundleCapBytes: intEnv(env, 'CODEHOST_BUNDLE_CAP_BYTES', BUNDLE_DEFAULT_CAP_BYTES, 1),
     bundleTimeoutMs: intEnv(env, 'CODEHOST_BUNDLE_TIMEOUT_MS', BUNDLE_DEFAULT_TIMEOUT_MS, 1000),
   };

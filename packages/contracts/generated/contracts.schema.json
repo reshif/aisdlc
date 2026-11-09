@@ -18587,6 +18587,11 @@
         "tools_capable": {
           "type": "boolean"
         },
+        "context_window": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
         "max_tokens_cap": {
           "type": "integer",
           "minimum": 1,
@@ -18638,6 +18643,11 @@
           "tools_capable": {
             "type": "boolean"
           },
+          "context_window": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          },
           "max_tokens_cap": {
             "type": "integer",
             "minimum": 1,
@@ -18662,62 +18672,6 @@
           "max_tokens_cap",
           "usd_in_per_mtok",
           "usd_out_per_mtok"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "GatewayProvider": {
-      "type": "object",
-      "properties": {
-        "provider_id": {
-          "type": "string",
-          "maxLength": 64,
-          "pattern": "^[a-z][a-z0-9_.-]*$"
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "anthropic",
-            "fake"
-          ]
-        },
-        "enabled": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "provider_id",
-        "kind",
-        "enabled"
-      ],
-      "additionalProperties": false
-    },
-    "GatewayProviders": {
-      "maxItems": 32,
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "provider_id": {
-            "type": "string",
-            "maxLength": 64,
-            "pattern": "^[a-z][a-z0-9_.-]*$"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "anthropic",
-              "fake"
-            ]
-          },
-          "enabled": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "provider_id",
-          "kind",
-          "enabled"
         ],
         "additionalProperties": false
       }
@@ -22081,6 +22035,1443 @@
         "code_host_issue",
         "factory_proposed",
         "onboarding_hold"
+      ]
+    },
+    "Integration": {
+      "type": "object",
+      "properties": {
+        "integration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "code_host",
+            "model_provider",
+            "notifier",
+            "tracker",
+            "identity"
+          ]
+        },
+        "adapter": {
+          "type": "string",
+          "enum": [
+            "github_app",
+            "fake_github",
+            "anthropic",
+            "openai_compat",
+            "fake"
+          ]
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "enabled",
+            "disabled",
+            "retired"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "credentials": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "credential_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "secret_ref": {
+                "type": "string",
+                "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "app_key",
+                  "pat",
+                  "api_key",
+                  "oauth"
+                ]
+              },
+              "rotated_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "credential_id",
+              "secret_ref",
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "scopes": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "read_repos",
+                  "apply_patch",
+                  "pr_status",
+                  "chat_complete",
+                  "notify"
+                ]
+              },
+              "data_class_max": {
+                "type": "string",
+                "enum": [
+                  "D0",
+                  "D1",
+                  "D2",
+                  "D3"
+                ]
+              },
+              "forbidden": {
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "merge",
+                    "enqueue",
+                    "approve",
+                    "auto_merge",
+                    "force",
+                    "delete",
+                    "dismiss",
+                    "admin"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "scope",
+              "data_class_max",
+              "forbidden"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "provider": {
+          "type": "object",
+          "properties": {
+            "tools_capable": {
+              "type": "boolean"
+            },
+            "streams": {
+              "type": "boolean"
+            },
+            "aws_only": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "tools_capable",
+            "streams",
+            "aws_only"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "integration_id",
+        "kind",
+        "adapter",
+        "display_name",
+        "config",
+        "status",
+        "version",
+        "credentials",
+        "scopes"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationAdapter": {
+      "type": "string",
+      "enum": [
+        "github_app",
+        "fake_github",
+        "anthropic",
+        "openai_compat",
+        "fake"
+      ]
+    },
+    "IntegrationCredential": {
+      "type": "object",
+      "properties": {
+        "credential_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "secret_ref": {
+          "type": "string",
+          "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "app_key",
+            "pat",
+            "api_key",
+            "oauth"
+          ]
+        },
+        "rotated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "credential_id",
+        "secret_ref",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationCredentialKind": {
+      "type": "string",
+      "enum": [
+        "app_key",
+        "pat",
+        "api_key",
+        "oauth"
+      ]
+    },
+    "IntegrationEvent": {
+      "type": "object",
+      "properties": {
+        "integration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "install_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_.-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event": {
+          "type": "string",
+          "enum": [
+            "created",
+            "enabled",
+            "disabled",
+            "retired",
+            "scope_widened",
+            "scope_narrowed",
+            "credential_changed",
+            "config_changed",
+            "install_added",
+            "install_enabled",
+            "install_disabled",
+            "install_removed",
+            "route_added",
+            "route_removed"
+          ]
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rev_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "integration_id",
+        "install_id",
+        "event",
+        "detail",
+        "rev_hash",
+        "ledger_entry_id",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationEventKind": {
+      "type": "string",
+      "enum": [
+        "created",
+        "enabled",
+        "disabled",
+        "retired",
+        "scope_widened",
+        "scope_narrowed",
+        "credential_changed",
+        "config_changed",
+        "install_added",
+        "install_enabled",
+        "install_disabled",
+        "install_removed",
+        "route_added",
+        "route_removed"
+      ]
+    },
+    "IntegrationHealth": {
+      "type": "object",
+      "properties": {
+        "integration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "reporter": {
+          "type": "string",
+          "enum": [
+            "codehost",
+            "gateway"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "degraded",
+            "down",
+            "unknown"
+          ]
+        },
+        "detail_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,47}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "integration_id",
+        "reporter",
+        "state",
+        "detail_code",
+        "as_of"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationHealthReport": {
+      "type": "object",
+      "properties": {
+        "reporter": {
+          "type": "string",
+          "enum": [
+            "codehost",
+            "gateway"
+          ]
+        },
+        "reports": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "integration_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "degraded",
+                  "down",
+                  "unknown"
+                ]
+              },
+              "detail_code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{0,47}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "integration_id",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "reporter",
+        "reports"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationHealthState": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "degraded",
+        "down",
+        "unknown"
+      ]
+    },
+    "IntegrationHealthTile": {
+      "type": "object",
+      "properties": {
+        "integration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "code_host",
+            "model_provider",
+            "notifier",
+            "tracker",
+            "identity"
+          ]
+        },
+        "adapter": {
+          "type": "string",
+          "enum": [
+            "github_app",
+            "fake_github",
+            "anthropic",
+            "openai_compat",
+            "fake"
+          ]
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "enabled",
+            "disabled",
+            "retired"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "degraded",
+            "down",
+            "unknown"
+          ]
+        },
+        "detail_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "as_of": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "reporters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "reporter": {
+                "type": "string",
+                "enum": [
+                  "codehost",
+                  "gateway"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "degraded",
+                  "down",
+                  "unknown"
+                ]
+              },
+              "reported_state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "degraded",
+                  "down",
+                  "unknown"
+                ]
+              },
+              "detail_code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "as_of": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "reporter",
+              "state",
+              "reported_state",
+              "detail_code",
+              "as_of"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "installs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "integration_id",
+        "kind",
+        "adapter",
+        "display_name",
+        "status",
+        "state",
+        "detail_code",
+        "as_of",
+        "stale",
+        "reporters",
+        "installs"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationHealthTiles": {
+      "type": "object",
+      "properties": {
+        "as_of": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "registry_revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "integration_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "code_host",
+                  "model_provider",
+                  "notifier",
+                  "tracker",
+                  "identity"
+                ]
+              },
+              "adapter": {
+                "type": "string",
+                "enum": [
+                  "github_app",
+                  "fake_github",
+                  "anthropic",
+                  "openai_compat",
+                  "fake"
+                ]
+              },
+              "display_name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "enabled",
+                  "disabled",
+                  "retired"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "degraded",
+                  "down",
+                  "unknown"
+                ]
+              },
+              "detail_code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "as_of": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stale": {
+                "type": "boolean"
+              },
+              "reporters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reporter": {
+                      "type": "string",
+                      "enum": [
+                        "codehost",
+                        "gateway"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "degraded",
+                        "down",
+                        "unknown"
+                      ]
+                    },
+                    "reported_state": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "degraded",
+                        "down",
+                        "unknown"
+                      ]
+                    },
+                    "detail_code": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "reporter",
+                    "state",
+                    "reported_state",
+                    "detail_code",
+                    "as_of"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "installs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "integration_id",
+              "kind",
+              "adapter",
+              "display_name",
+              "status",
+              "state",
+              "detail_code",
+              "as_of",
+              "stale",
+              "reporters",
+              "installs"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "as_of",
+        "registry_revision",
+        "tiles"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationInstall": {
+      "type": "object",
+      "properties": {
+        "install_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "integration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "overrides": {
+          "type": "object",
+          "properties": {
+            "repos_allowed": {
+              "maxItems": 256,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+              }
+            },
+            "models_allowed": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "install_id",
+        "integration_id",
+        "project_id",
+        "enabled",
+        "overrides"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationInstalls": {
+      "maxItems": 512,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "install_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_.-]*$"
+          },
+          "integration_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_.-]*$"
+          },
+          "project_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "overrides": {
+            "type": "object",
+            "properties": {
+              "repos_allowed": {
+                "maxItems": 256,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                }
+              },
+              "models_allowed": {
+                "maxItems": 64,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9_.-]*$"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "install_id",
+          "integration_id",
+          "project_id",
+          "enabled",
+          "overrides"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "IntegrationKind": {
+      "type": "string",
+      "enum": [
+        "code_host",
+        "model_provider",
+        "notifier",
+        "tracker",
+        "identity"
+      ]
+    },
+    "IntegrationRegistry": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "integration_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_.-]*$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "code_host",
+              "model_provider",
+              "notifier",
+              "tracker",
+              "identity"
+            ]
+          },
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "github_app",
+              "fake_github",
+              "anthropic",
+              "openai_compat",
+              "fake"
+            ]
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "config": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "enabled",
+              "disabled",
+              "retired"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "credentials": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "credential_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9_.-]*$"
+                },
+                "secret_ref": {
+                  "type": "string",
+                  "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "app_key",
+                    "pat",
+                    "api_key",
+                    "oauth"
+                  ]
+                },
+                "rotated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "expires_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "credential_id",
+                "secret_ref",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scopes": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "read_repos",
+                    "apply_patch",
+                    "pr_status",
+                    "chat_complete",
+                    "notify"
+                  ]
+                },
+                "data_class_max": {
+                  "type": "string",
+                  "enum": [
+                    "D0",
+                    "D1",
+                    "D2",
+                    "D3"
+                  ]
+                },
+                "forbidden": {
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "merge",
+                      "enqueue",
+                      "approve",
+                      "auto_merge",
+                      "force",
+                      "delete",
+                      "dismiss",
+                      "admin"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "scope",
+                "data_class_max",
+                "forbidden"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "provider": {
+            "type": "object",
+            "properties": {
+              "tools_capable": {
+                "type": "boolean"
+              },
+              "streams": {
+                "type": "boolean"
+              },
+              "aws_only": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "tools_capable",
+              "streams",
+              "aws_only"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "integration_id",
+          "kind",
+          "adapter",
+          "display_name",
+          "config",
+          "status",
+          "version",
+          "credentials",
+          "scopes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "IntegrationRegistryView": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "integration_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "code_host",
+                  "model_provider",
+                  "notifier",
+                  "tracker",
+                  "identity"
+                ]
+              },
+              "adapter": {
+                "type": "string",
+                "enum": [
+                  "github_app",
+                  "fake_github",
+                  "anthropic",
+                  "openai_compat",
+                  "fake"
+                ]
+              },
+              "display_name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "enabled",
+                  "disabled",
+                  "retired"
+                ]
+              },
+              "owner": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "credentials": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "credential_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_.-]*$"
+                    },
+                    "secret_ref": {
+                      "type": "string",
+                      "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "app_key",
+                        "pat",
+                        "api_key",
+                        "oauth"
+                      ]
+                    },
+                    "rotated_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "credential_id",
+                    "secret_ref",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "scopes": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "read_repos",
+                        "apply_patch",
+                        "pr_status",
+                        "chat_complete",
+                        "notify"
+                      ]
+                    },
+                    "data_class_max": {
+                      "type": "string",
+                      "enum": [
+                        "D0",
+                        "D1",
+                        "D2",
+                        "D3"
+                      ]
+                    },
+                    "forbidden": {
+                      "maxItems": 16,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "merge",
+                          "enqueue",
+                          "approve",
+                          "auto_merge",
+                          "force",
+                          "delete",
+                          "dismiss",
+                          "admin"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "scope",
+                    "data_class_max",
+                    "forbidden"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "provider": {
+                "type": "object",
+                "properties": {
+                  "tools_capable": {
+                    "type": "boolean"
+                  },
+                  "streams": {
+                    "type": "boolean"
+                  },
+                  "aws_only": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "tools_capable",
+                  "streams",
+                  "aws_only"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "integration_id",
+              "kind",
+              "adapter",
+              "display_name",
+              "config",
+              "status",
+              "version",
+              "credentials",
+              "scopes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "installs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "install_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "integration_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "project_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "overrides": {
+                "type": "object",
+                "properties": {
+                  "repos_allowed": {
+                    "maxItems": 256,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                    }
+                  },
+                  "models_allowed": {
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_.-]*$"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "install_id",
+              "integration_id",
+              "project_id",
+              "enabled",
+              "overrides"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "revision",
+        "integrations",
+        "installs"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationReporter": {
+      "type": "string",
+      "enum": [
+        "codehost",
+        "gateway"
+      ]
+    },
+    "IntegrationScope": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": [
+            "read_repos",
+            "apply_patch",
+            "pr_status",
+            "chat_complete",
+            "notify"
+          ]
+        },
+        "data_class_max": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2",
+            "D3"
+          ]
+        },
+        "forbidden": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "merge",
+              "enqueue",
+              "approve",
+              "auto_merge",
+              "force",
+              "delete",
+              "dismiss",
+              "admin"
+            ]
+          }
+        }
+      },
+      "required": [
+        "scope",
+        "data_class_max",
+        "forbidden"
+      ],
+      "additionalProperties": false
+    },
+    "IntegrationScopeName": {
+      "type": "string",
+      "enum": [
+        "read_repos",
+        "apply_patch",
+        "pr_status",
+        "chat_complete",
+        "notify"
+      ]
+    },
+    "IntegrationStatus": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "enabled",
+        "disabled",
+        "retired"
       ]
     },
     "InventoryFact": {
@@ -30261,7 +31652,8 @@
         "ok",
         "refused",
         "provider_error",
-        "tool_blocked"
+        "tool_blocked",
+        "aborted"
       ]
     },
     "ModelCallPayload": {
@@ -30393,7 +31785,8 @@
             "ok",
             "refused",
             "provider_error",
-            "tool_blocked"
+            "tool_blocked",
+            "aborted"
           ]
         },
         "refusal": {
@@ -30429,6 +31822,16 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "stream": {
+          "default": false,
+          "type": "boolean"
+        },
+        "response_redactions": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         }
       },
       "required": [
@@ -30451,7 +31854,9 @@
         "latency_ms",
         "outcome",
         "refusal",
-        "redactions"
+        "redactions",
+        "stream",
+        "response_redactions"
       ],
       "additionalProperties": false
     },
@@ -31072,12 +32477,25 @@
       ],
       "additionalProperties": false
     },
-    "ModelProviderKind": {
-      "type": "string",
-      "enum": [
-        "anthropic",
-        "fake"
-      ]
+    "ModelProviderFacts": {
+      "type": "object",
+      "properties": {
+        "tools_capable": {
+          "type": "boolean"
+        },
+        "streams": {
+          "type": "boolean"
+        },
+        "aws_only": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "tools_capable",
+        "streams",
+        "aws_only"
+      ],
+      "additionalProperties": false
     },
     "ModelStopReason": {
       "type": "string",
@@ -47495,6 +48913,59 @@
       ],
       "additionalProperties": false
     },
+    "ReservationAbandonedPayload": {
+      "type": "object",
+      "properties": {
+        "reservation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "budget_group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vkey_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "reserved_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "abandoned_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "max_age_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "reservation_id",
+        "budget_group",
+        "vkey_id",
+        "tokens",
+        "cost_micro_usd",
+        "reserved_at",
+        "abandoned_at",
+        "max_age_ms"
+      ],
+      "additionalProperties": false
+    },
     "RevisionDecideRequest": {
       "type": "object",
       "properties": {
@@ -50693,6 +52164,10 @@
         "reason"
       ],
       "additionalProperties": false
+    },
+    "SecretRef": {
+      "type": "string",
+      "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
     },
     "SecurityFinding": {
       "type": "object",

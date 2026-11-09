@@ -7,7 +7,12 @@ import {
   type ModelStopReason,
 } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
-import { modelProviderError, type ModelProviderError, type ModelProviderPort } from '@aisdlc/ports';
+import {
+  modelProviderError,
+  type ModelProviderError,
+  type ModelProviderPort,
+  type ModelStreamEvent,
+} from '@aisdlc/ports';
 
 // The Anthropic adapter (PLAN M10.1): the official SDK, an injectable base URL (tests point it at the
 // in-repo fake Messages API), and the key held in this object and nowhere else. The SDK would put the
@@ -59,20 +64,7 @@ export class AnthropicProvider implements ModelProviderPort {
   ): Promise<Result<ModelCompleteResponse, ModelProviderError>> {
     let msg: Anthropic.Message;
     try {
-      msg = await this.client.messages.create({
-        model: this.resolveModel(req.model),
-        max_tokens: req.max_tokens,
-        messages: req.messages as Anthropic.MessageParam[],
-        ...(req.system === undefined ? {} : { system: req.system }),
-        ...(req.tools?.length ? { tools: req.tools as Anthropic.Tool[] } : {}),
-        ...(req.tool_choice && req.tools?.length
-          ? { tool_choice: req.tool_choice as Anthropic.ToolChoice }
-          : {}),
-        ...(req.temperature === undefined ? {} : { temperature: req.temperature }),
-        ...(req.stop_sequences?.length ? { stop_sequences: req.stop_sequences } : {}),
-        // Only an opaque id of ours goes along, for the vendor's abuse tooling; never text.
-        ...(req.metadata['vkey_id'] ? { metadata: { user_id: req.metadata['vkey_id'] } } : {}),
-      });
+      msg = await this.client.messages.create(this.params(req));
     } catch (e) {
       return err(this.mapError(e));
     }
@@ -105,6 +97,135 @@ export class AnthropicProvider implements ModelProviderPort {
       stop_reason,
       usage: { input_tokens: msg.usage.input_tokens, output_tokens: msg.usage.output_tokens },
     });
+  }
+
+  private params(req: ModelCompleteRequest) {
+    return {
+      model: this.resolveModel(req.model),
+      max_tokens: req.max_tokens,
+      messages: req.messages as Anthropic.MessageParam[],
+      ...(req.system === undefined ? {} : { system: req.system }),
+      ...(req.tools?.length ? { tools: req.tools as Anthropic.Tool[] } : {}),
+      ...(req.tool_choice && req.tools?.length
+        ? { tool_choice: req.tool_choice as Anthropic.ToolChoice }
+        : {}),
+      ...(req.temperature === undefined ? {} : { temperature: req.temperature }),
+      ...(req.stop_sequences?.length ? { stop_sequences: req.stop_sequences } : {}),
+      // Only an opaque id of ours goes along, for the vendor's abuse tooling; never text.
+      ...(req.metadata['vkey_id'] ? { metadata: { user_id: req.metadata['vkey_id'] } } : {}),
+    };
+  }
+
+  /**
+   * The vendor's stream (`stream: true`, server-sent events) as the factory's `ModelStreamEvent`s.
+   * Thinking and server-tool blocks are dropped like in `complete`. A vendor failure, before or after
+   * the first piece, is one `error` event and the end (never a throw); an abort (`signal`) just ends it.
+   */
+  async *stream(
+    req: ModelCompleteRequest,
+    opts: { signal?: AbortSignal } = {},
+  ): AsyncIterable<ModelStreamEvent> {
+    const blocks = new Map<number, { type: 'text' | 'tool' | 'skip'; json: string }>();
+    const content: ModelCompleteResponse['content'] = [];
+    const tools = new Map<number, { id: string; name: string }>();
+    let id = '';
+    let model = req.model;
+    let inTokens: number | null = null;
+    let outTokens: number | null = null;
+    let stop: string | null = null;
+    let text = '';
+    const flushText = () => {
+      if (text !== '') content.push({ type: 'text', text });
+      text = '';
+    };
+    try {
+      const events = await this.client.messages.create(
+        { ...this.params(req), stream: true },
+        opts.signal ? { signal: opts.signal } : {},
+      );
+      for await (const ev of events) {
+        if (ev.type === 'message_start') {
+          id = ev.message.id;
+          model = ev.message.model;
+          inTokens = ev.message.usage?.input_tokens ?? null;
+          yield {
+            type: 'start',
+            id,
+            ...(typeof inTokens === 'number' ? { input_tokens: inTokens } : {}),
+          };
+        } else if (ev.type === 'content_block_start') {
+          const b = ev.content_block;
+          if (b.type === 'text') {
+            blocks.set(ev.index, { type: 'text', json: '' });
+            if (b.text) {
+              text += b.text;
+              yield { type: 'text_delta', text: b.text };
+            }
+          } else if (b.type === 'tool_use') {
+            flushText();
+            blocks.set(ev.index, { type: 'tool', json: '' });
+            tools.set(ev.index, { id: b.id, name: b.name });
+            yield { type: 'tool_use_start', id: b.id, name: b.name };
+          } else {
+            blocks.set(ev.index, { type: 'skip', json: '' });
+          }
+        } else if (ev.type === 'content_block_delta') {
+          const blk = blocks.get(ev.index);
+          if (ev.delta.type === 'text_delta' && blk?.type === 'text') {
+            text += ev.delta.text;
+            yield { type: 'text_delta', text: ev.delta.text };
+          } else if (ev.delta.type === 'input_json_delta' && blk?.type === 'tool') {
+            blk.json += ev.delta.partial_json;
+            yield { type: 'tool_input_delta', partial_json: ev.delta.partial_json };
+          }
+        } else if (ev.type === 'content_block_stop') {
+          const blk = blocks.get(ev.index);
+          const t = tools.get(ev.index);
+          if (blk?.type === 'tool' && t) {
+            let input: Record<string, unknown> = {};
+            try {
+              input = blk.json === '' ? {} : (JSON.parse(blk.json) as Record<string, unknown>);
+            } catch {
+              yield {
+                type: 'error',
+                error: modelProviderError('bad_response', 'a tool input was not JSON'),
+              };
+              return;
+            }
+            content.push({ type: 'tool_use', id: t.id, name: t.name, input });
+          } else if (blk?.type === 'text') flushText();
+        } else if (ev.type === 'message_delta') {
+          stop = ev.delta.stop_reason;
+          outTokens = ev.usage?.output_tokens ?? outTokens;
+          const i = (ev.usage as { input_tokens?: number | null } | undefined)?.input_tokens;
+          if (typeof i === 'number') inTokens = i;
+        }
+      }
+    } catch (e) {
+      if (opts.signal?.aborted) return;
+      yield { type: 'error', error: this.mapError(e) };
+      return;
+    }
+    flushText();
+    if (typeof inTokens !== 'number' || typeof outTokens !== 'number') {
+      yield {
+        type: 'error',
+        error: modelProviderError('bad_response', 'the vendor stream has no usage'),
+      };
+      return;
+    }
+    const stop_reason: ModelStopReason =
+      stop === 'max_tokens' || stop === 'stop_sequence' || stop === 'tool_use' ? stop : 'end_turn';
+    yield {
+      type: 'done',
+      response: {
+        id,
+        model,
+        content,
+        stop_reason,
+        usage: { input_tokens: inTokens, output_tokens: outTokens },
+      },
+    };
   }
 
   private mapError(e: unknown): ModelProviderError {

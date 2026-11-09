@@ -1,8 +1,8 @@
 import { ConfigReader, ConfigRegistry, registerGatewayConfig } from '@aisdlc/config';
-import { AnthropicDefaultModels, GatewayEnvironment } from '@aisdlc/contracts';
+import { GatewayEnvironment, type IntegrationHealthReport } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
+import { recordHealth } from '@aisdlc/integrations';
 import { HttpKillState } from '@aisdlc/killswitch/client';
-import { FakeProvider, type ModelProviderPort } from '@aisdlc/ports';
 import {
   ServiceConfigError,
   httpUrlEnv,
@@ -17,9 +17,8 @@ import {
   type RunningService,
 } from '@aisdlc/service-kit';
 import { z } from 'zod';
-import { AnthropicProvider } from './anthropic-provider.js';
-import { createGatewayApp } from './app.js';
-import { migrateGateway } from './migrations.js';
+import { RegistryAdapters, healthOfStatus } from './adapters.js';
+import { createGatewayApp, type ReloadResult } from './app.js';
 import { GatewayService } from './service.js';
 
 const Callers = z.record(
@@ -27,36 +26,40 @@ const Callers = z.record(
   z.strictObject({ token_ref: z.string(), scopes: z.array(z.enum(['admin', 'read'])) }),
 );
 
-/**
- * One adapter this process holds. `key_ref` is a SECRET REFERENCE (`file:/run/secrets/...`), read once
- * here and held by the adapter alone; `base_url` is where that key may be sent. Neither is ever in the
- * routing config, in a response, a log line, an error or the record.
- */
-const Adapters = z.record(
-  z.string().regex(/^[a-z][a-z0-9_.-]*$/),
-  z.discriminatedUnion('kind', [
-    z.strictObject({
-      kind: z.literal('anthropic'),
-      key_ref: z.string().min(1),
-      base_url: z.string().url().optional(),
-      models: AnthropicDefaultModels.optional(),
-    }),
-    z.strictObject({ kind: z.literal('fake'), tools_capable: z.boolean().optional() }),
-  ]),
-);
+const Refs = z.array(z.string().min(1)).max(32);
+const Hosts = z.array(z.string().regex(/^[a-z0-9.-]+$/)).max(32);
+
+const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
+  const raw = env[name];
+  if (raw === undefined || raw === '') return dflt;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < min) {
+    throw new ServiceConfigError(`${name} must be an integer of at least ${min}`);
+  }
+  return n;
+};
 
 /**
  * Starts the gateway from the environment:
  *
- *   GATEWAY_DATABASE_URL         the record database (the gateway writes `gateway.*` record events and reads config)
+ *   GATEWAY_DATABASE_URL         the record database, as the least-privilege role `gateway` (the gateway writes
+ *                                `gateway.*` record events and reads the published config; it cannot read anything else)
  *   GATEWAY_ENVIRONMENT          local | staging | prod: which routes apply
  *   GATEWAY_CALLERS              JSON {caller: {token_ref, scopes: [admin|read]}} for the admin API
- *   GATEWAY_PROVIDER_ADAPTERS    JSON {provider_id: {kind:'anthropic', key_ref, base_url?, models?} | {kind:'fake'}}
+ *   GATEWAY_SECRET_REFS          JSON ["file:/run/secrets/anthropic-api-key", ...]: the key references this deployment
+ *                                lets a registry row name (its mounted files). The registry holds references only
+ *   GATEWAY_EGRESS_HOSTS         JSON ["api.anthropic.com", ...]: the hosts a vendor key may be sent to
  *   GATEWAY_KILLSWITCH_URL, GATEWAY_KILLSWITCH_TOKEN_REF   the kill switch it asks before every call
  *   GATEWAY_MAX_PROVIDER_CALLS   hard ceiling of vendor calls per process (default 1000)
+ *   GATEWAY_RESERVATION_MAX_AGE_MS  a budget reservation still open after this is abandoned by the sweep (default 900000)
+ *   GATEWAY_SWEEP_INTERVAL_MS    how often the sweep runs (default 60000)
+ *   GATEWAY_HEALTH_INTERVAL_MS   how often it reports integration health (default 30000; a report older than 2 minutes reads unknown)
  *   GATEWAY_HOST (127.0.0.1), GATEWAY_PORT (8410)
  *
- * All configuration (and every key file) is read before the database is touched.
+ * The providers themselves (adapter, base URL, key reference, models) are rows of the integration registry,
+ * read from the published config and followed by revision without a restart. All configuration (and every
+ * key file the registry names at start) is read before the database is touched; the schema is the
+ * `aisdlc-migrate` job's, not this process's (it has no right to change it).
  */
 export async function bootGateway(env: Env): Promise<RunningService> {
   const dbUrl = databaseUrl(env, 'GATEWAY_DATABASE_URL');
@@ -66,64 +69,62 @@ export async function bootGateway(env: Env): Promise<RunningService> {
   }
   const callers = jsonEnv(env, 'GATEWAY_CALLERS', Callers);
   const auth = loadServiceAuth(callers, { env });
-  const adapterSpec = jsonEnv(env, 'GATEWAY_PROVIDER_ADAPTERS', Adapters);
+  const secretRefs = env['GATEWAY_SECRET_REFS'] ? jsonEnv(env, 'GATEWAY_SECRET_REFS', Refs) : [];
+  const egressHosts = env['GATEWAY_EGRESS_HOSTS']
+    ? jsonEnv(env, 'GATEWAY_EGRESS_HOSTS', Hosts)
+    : [];
   const killUrl = httpUrlEnv(env, 'GATEWAY_KILLSWITCH_URL');
   const killToken = resolveSecretRef(requiredEnv(env, 'GATEWAY_KILLSWITCH_TOKEN_REF'), { env });
-  const maxRaw = env['GATEWAY_MAX_PROVIDER_CALLS'];
-  const maxProviderCalls = maxRaw === undefined || maxRaw === '' ? 1000 : Number(maxRaw);
-  if (!Number.isInteger(maxProviderCalls) || maxProviderCalls < 0) {
-    throw new ServiceConfigError('GATEWAY_MAX_PROVIDER_CALLS must be a non-negative integer');
-  }
+  const maxProviderCalls = intEnv(env, 'GATEWAY_MAX_PROVIDER_CALLS', 1000, 0);
+  const reservationMaxAgeMs = intEnv(env, 'GATEWAY_RESERVATION_MAX_AGE_MS', 900_000, 1_000);
+  const sweepEveryMs = intEnv(env, 'GATEWAY_SWEEP_INTERVAL_MS', 60_000, 100);
+  const healthEveryMs = intEnv(env, 'GATEWAY_HEALTH_INTERVAL_MS', 30_000, 100);
   const listenOpts = listenConfig(env, 'GATEWAY', 8410);
-
-  const adapters = new Map<string, ModelProviderPort>();
-  for (const [id, a] of Object.entries(adapterSpec)) {
-    if (a.kind === 'fake') {
-      // A deterministic fake answering for a real route would be a silent downgrade in production.
-      if (environment.data === 'prod') {
-        throw new ServiceConfigError(
-          'the fake provider is not allowed with GATEWAY_ENVIRONMENT=prod',
-        );
-      }
-      adapters.set(id, new FakeProvider({ tools_capable: a.tools_capable ?? true }));
-    } else {
-      // A key that cannot be read (or is too short to be one) is a start-up error, never a fallback.
-      const key = resolveSecretRef(a.key_ref, { env });
-      adapters.set(
-        id,
-        new AnthropicProvider({
-          apiKey: key,
-          ...(a.base_url ? { baseUrl: a.base_url } : {}),
-          ...(a.models ? { models: a.models } : {}),
-        }),
-      );
-    }
-  }
 
   const pool = createPool(dbUrl, 10);
   let reader: ConfigReader | undefined;
+  const timers: NodeJS.Timeout[] = [];
   try {
     const have = await pool.query<Record<string, string | null>>(
       `SELECT to_regclass('record.record_event')::text AS record,
-              to_regclass('ledger.ledger_entry')::text AS ledger,
-              to_regclass('config.config_revision')::text AS config`,
+              to_regclass('config.genuine_publish')::text AS config,
+              to_regclass('gateway.reservation')::text AS gateway,
+              to_regclass('integrations.integration_health')::text AS integrations`,
     );
     const missing = Object.entries(have.rows[0] ?? {})
       .filter(([, v]) => v == null)
       .map(([k]) => k);
     if (missing.length > 0) {
       throw new Error(
-        `the ${missing.join(', ')} schema(s) are missing: migrate the record database first`,
+        `the ${missing.join(', ')} schema(s) are missing: run aisdlc-migrate on the record database first`,
       );
     }
-    await migrateGateway(pool);
     reader = await ConfigReader.create({
       pool,
       registry: registerGatewayConfig(new ConfigRegistry()),
+      // The gateway's role may not write the config read model: it reads what core and core-worker
+      // (and every publish) have folded.
+      catchUp: false,
       onError: (e) =>
         console.error(
           `gateway: config reader: ${e instanceof Error ? e.constructor.name : 'error'}`,
         ),
+    });
+    const adapters = new RegistryAdapters(
+      {
+        env,
+        environment: environment.data,
+        secretRefs: new Set(secretRefs),
+        egressHosts: new Set(egressHosts),
+      },
+      reader,
+    );
+    adapters.sync();
+    reader.subscribe(() => {
+      const st = adapters.sync();
+      console.log(
+        `gateway: registry revision ${adapters.revision?.slice(0, 12) ?? 'none'}: ${st.map((x) => `${x.integration_id}=${x.state}`).join(' ') || 'no providers'}`,
+      );
     });
     await reader.start();
     const service = new GatewayService({
@@ -133,23 +134,66 @@ export async function bootGateway(env: Env): Promise<RunningService> {
       kill: new HttpKillState({ baseUrl: killUrl, token: killToken, timeoutMs: 2_000 }),
       environment: environment.data,
       maxProviderCalls,
+      reservationMaxAgeMs,
+    });
+
+    // IntegrationHealth: the shared shape, one report per enabled provider, from what the adapters and
+    // the calls showed (never a probe of the vendor).
+    const report = async (): Promise<void> => {
+      const reports: IntegrationHealthReport['reports'] = adapters.status().map((st) => {
+        const built = st.state === 'built' ? service.providerEvidence(st.integration_id) : null;
+        const h = built ? { state: built.state, detail: built.detail } : healthOfStatus(st);
+        return { integration_id: st.integration_id, state: h.state, detail_code: h.detail };
+      });
+      await recordHealth(pool, { reporter: 'gateway', reports }, new Date());
+    };
+    const every = (ms: number, fn: () => Promise<unknown>, what: string) => {
+      const t = setInterval(() => {
+        fn().catch((e: unknown) =>
+          console.error(`gateway: ${what}: ${e instanceof Error ? e.constructor.name : 'error'}`),
+        );
+      }, ms);
+      t.unref();
+      timers.push(t);
+    };
+    every(sweepEveryMs, () => service.sweepReservations(), 'reservation sweep');
+    every(healthEveryMs, report, 'health report');
+    await report().catch(() => undefined);
+
+    const snapshot = (): ReloadResult => ({
+      revision: adapters.revision,
+      integrations: adapters.status().map((x) => ({
+        integration_id: x.integration_id,
+        adapter: x.adapter,
+        state: x.state,
+        detail: x.detail,
+      })),
     });
     const app = createGatewayApp({
       service,
       auth,
       callers: Object.fromEntries(Object.entries(callers).map(([n, c]) => [n, c.scopes])),
+      reload: async ({ force }) => {
+        await reader?.refresh();
+        adapters.sync({ force });
+        await report().catch(() => undefined);
+        return snapshot();
+      },
+      integrations: snapshot,
     });
     const url = await listen(app, listenOpts);
     const r = reader;
     return {
       url,
       close: async () => {
+        for (const t of timers) clearInterval(t);
         await app.close();
         await r.stop();
         await pool.end();
       },
     };
   } catch (e) {
+    for (const t of timers) clearInterval(t);
     await reader?.stop().catch(() => undefined);
     await pool.end().catch(() => undefined);
     throw e;

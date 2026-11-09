@@ -15,10 +15,29 @@ import type { GatewayFailure, GatewayService } from './service.js';
 
 export type GatewayScope = 'admin' | 'read';
 
+export interface ReloadResult {
+  /** The factory config revision the adapters now follow (null: nothing published yet). */
+  readonly revision: string | null;
+  /** One entry per enabled model provider of the registry: built, or refused with a code. */
+  readonly integrations: ReadonlyArray<{
+    integration_id: string;
+    adapter: string;
+    state: 'built' | 'refused';
+    detail: string;
+  }>;
+}
+
 export interface GatewayAppOptions {
   service: GatewayService;
   auth: ServiceAuth;
   callers: Record<string, readonly GatewayScope[]>;
+  /**
+   * The reload path (PLAN M10.4): re-read the published config now and rebuild the adapters that changed
+   * (all of them with `force`, which is how a rotated key file is picked up), without a restart.
+   */
+  reload?: (opts: { force: boolean }) => Promise<ReloadResult>;
+  /** What the adapters are, as of the last sync. */
+  integrations?: () => ReloadResult;
 }
 
 const header = (req: FastifyRequest, name: string): string | undefined => {
@@ -55,6 +74,43 @@ export function createGatewayApp(o: GatewayAppOptions): FastifyInstance {
       .send({ type: 'error', error: { type: f.type, code: f.code, message: f.message } });
 
   app.post('/v1/messages', async (req, reply) => {
+    if ((req.body as { stream?: unknown } | null)?.stream === true) {
+      // Server-sent events. A refusal is still a JSON error (no byte of the stream has been written
+      // yet); once it starts, a failure is an `error` event and the end of the stream.
+      const r = await o.service.stream(secretOf(req), req.body, header(req, 'x-aisdlc-data-class'));
+      if (!r.ok) return messagesError(reply, r.error);
+      reply.hijack();
+      const raw = reply.raw;
+      raw.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
+      });
+      // The client went away before the stream ended: stop the vendor call; what was made is charged.
+      raw.on('close', () => {
+        if (!raw.writableEnded) r.value.abort();
+      });
+      try {
+        for await (const frame of r.value.frames) {
+          if (raw.destroyed) break;
+          if (!raw.write(frame)) {
+            await new Promise<void>((resolve) => {
+              const done = () => {
+                raw.off('drain', done);
+                raw.off('close', done);
+                resolve();
+              };
+              raw.once('drain', done);
+              raw.once('close', done);
+            });
+          }
+        }
+      } finally {
+        if (!raw.destroyed) raw.end();
+      }
+      return reply;
+    }
     const r = await o.service.complete(secretOf(req), req.body, header(req, 'x-aisdlc-data-class'));
     return r.ok ? reply.send(r.value) : messagesError(reply, r.error);
   });
@@ -110,6 +166,19 @@ export function createGatewayApp(o: GatewayAppOptions): FastifyInstance {
     if (!needs(req, reply, 'admin')) return;
     const v = await o.service.revoke(id(req), callerOf(req));
     return v ? reply.send(v) : sendError(reply, 404, 'not_found', 'no such key');
+  });
+
+  app.post('/v1/admin/reload', async (req, reply) => {
+    if (!needs(req, reply, 'admin')) return;
+    if (!o.reload) return sendError(reply, 404, 'not_found', 'this gateway has no registry reload');
+    const force = (req.body as { force?: unknown } | null)?.force === true;
+    return reply.send(await o.reload({ force }));
+  });
+
+  app.get('/v1/admin/integrations', async (req, reply) => {
+    if (!needs(req, reply, 'read')) return;
+    if (!o.integrations) return sendError(reply, 404, 'not_found', 'this gateway has no registry');
+    return reply.send(o.integrations());
   });
 
   return app;

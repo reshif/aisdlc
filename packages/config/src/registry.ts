@@ -22,8 +22,25 @@ export interface ConfigKeyDef<T = unknown> {
   readonly description: string;
 }
 
+/**
+ * A rule across keys: it sees the whole validated document (every key at its parsed value, defaults
+ * filled in for the keys the document leaves out) and returns the problems it finds. For what no single
+ * key's schema can say, such as "an install names an integration that exists".
+ */
+export interface ConfigDocRule {
+  readonly name: string;
+  check(values: Readonly<Record<string, unknown>>): readonly string[];
+}
+
 export class ConfigRegistry {
   private readonly defs = new Map<string, ConfigKeyDef>();
+  private readonly rules: ConfigDocRule[] = [];
+
+  /** Registers a cross-key rule; `validate` refuses a document that breaks it. */
+  rule(r: ConfigDocRule): this {
+    this.rules.push(r);
+    return this;
+  }
 
   /** Registers a setting. Throws on a bad key, a duplicate, or a default its own schema refuses. */
   setting<T>(def: {
@@ -107,6 +124,11 @@ export class ConfigRegistry {
         continue;
       }
       out[key] = parsed.data;
+    }
+    if (code !== null) return err(configError(code, problems.join('; ')));
+    const whole = { ...this.defaults(), ...out };
+    for (const rule of this.rules) {
+      for (const p of rule.check(whole)) note('invalid_value', `${rule.name}: ${p}`);
     }
     if (code !== null) return err(configError(code, problems.join('; ')));
     return ok(out);

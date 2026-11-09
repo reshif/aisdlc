@@ -16,9 +16,11 @@ import {
 } from '@aisdlc/decisions';
 import { manualClock, type ManualClock } from '@aisdlc/kernel';
 import { startTestKms } from '@aisdlc/kms-local/testing';
+import { migrateIntegrations } from '@aisdlc/integrations';
 import { migrateLedger } from '@aisdlc/ledger';
 import { startTestNotary } from '@aisdlc/notary/testing';
 import { migrateRecord } from '@aisdlc/record';
+import { migrateGateway } from '../src/migrations.js';
 
 // A real M1 stack for the routing-table tests: kms-local, the Notary, and one database with record,
 // ledger, decisions and config migrated (the same stack `@aisdlc/config`'s own tests run on).
@@ -43,6 +45,8 @@ export async function startM1Stack(): Promise<M1Stack> {
     await migrateLedger(record.pool);
     await migrateDecisions(record.pool);
     await migrateConfig(record.pool);
+    await migrateIntegrations(record.pool);
+    await migrateGateway(record.pool);
     const clock = manualClock('2026-11-09T10:00:00.000Z');
     const notary = await startTestNotary({ custody: kms.custodyFor('notary'), clock });
     stoppers.push(() => notary.stop());

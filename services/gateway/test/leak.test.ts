@@ -1,3 +1,4 @@
+import { modelProviderRow } from '@aisdlc/integrations';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { modelProviderError } from '@aisdlc/ports';
 import { AnthropicProvider } from '../src/anthropic-provider.js';
@@ -18,7 +19,17 @@ beforeAll(async () => {
   gw = await startTestGateway({
     adapters: { anthropic },
     routing: {
-      providers: [{ provider_id: 'anthropic', kind: 'anthropic', enabled: true }],
+      providers: [
+        modelProviderRow('anthropic', 'anthropic', {
+          credentials: [
+            {
+              credential_id: 'key',
+              secret_ref: 'file:/run/secrets/anthropic-api-key',
+              kind: 'api_key',
+            },
+          ],
+        }),
+      ],
       models: [
         {
           ...FAKE_MODEL,

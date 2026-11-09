@@ -1,14 +1,17 @@
 import { randomBytes } from 'node:crypto';
 import {
   GATEWAY_CONFIG_KEYS,
+  INTEGRATION_CONFIG_KEYS,
   type GatewayEnvironment,
   type GatewayModel,
-  type GatewayProvider,
   type GatewayRoute,
+  type Integration,
+  type IntegrationInstall,
   type VKeyMint,
   type VKeyView,
 } from '@aisdlc/contracts';
 import { createTestDatabase, type TestDatabase } from '@aisdlc/db/testing';
+import { modelProviderRow } from '@aisdlc/integrations';
 import { manualClock, type ManualClock } from '@aisdlc/kernel';
 import {
   FakeKillState,
@@ -37,7 +40,8 @@ export class StaticConfig implements ConfigSource {
   set(doc: Partial<RoutingDoc>): void {
     this.rev += 1;
     this.values = {
-      [GATEWAY_CONFIG_KEYS.providers]: doc.providers ?? [],
+      [INTEGRATION_CONFIG_KEYS.registry]: doc.providers ?? [],
+      [INTEGRATION_CONFIG_KEYS.installs]: doc.installs ?? [],
       [GATEWAY_CONFIG_KEYS.models]: doc.models ?? [],
       [GATEWAY_CONFIG_KEYS.routes]: doc.routes ?? [],
     };
@@ -54,7 +58,9 @@ export class StaticConfig implements ConfigSource {
 }
 
 export interface RoutingDoc {
-  providers: GatewayProvider[];
+  /** The model providers, as rows of the integration registry. */
+  providers: Integration[];
+  installs: IntegrationInstall[];
   models: GatewayModel[];
   routes: GatewayRoute[];
 }
@@ -73,7 +79,8 @@ export const FAKE_MODEL: GatewayModel = {
 /** A routing table with the fake provider and routes for D0, D1 and D2 in `environment`. */
 export function fakeRouting(environment: GatewayEnvironment = 'local'): RoutingDoc {
   return {
-    providers: [{ provider_id: 'fake', kind: 'fake', enabled: true }],
+    providers: [modelProviderRow('fake', 'fake')],
+    installs: [],
     models: [FAKE_MODEL],
     routes: (['D0', 'D1', 'D2'] as const).map((data_class) => ({
       environment,
@@ -128,6 +135,7 @@ export async function startTestGateway(
     environment?: GatewayEnvironment;
     routing?: Partial<RoutingDoc>;
     maxProviderCalls?: number;
+    reservationMaxAgeMs?: number;
     adapters?: Record<string, ModelProviderPort>;
     config?: ConfigSource;
     callers?: Record<string, readonly GatewayScope[]>;
@@ -161,6 +169,7 @@ export async function startTestGateway(
     kill: opts.kill ?? kill,
     environment,
     maxProviderCalls: opts.maxProviderCalls ?? 1000,
+    ...(opts.reservationMaxAgeMs ? { reservationMaxAgeMs: opts.reservationMaxAgeMs } : {}),
     clock,
   });
   const callers = opts.callers ?? { core: ['admin', 'read'], observer: ['read'] };

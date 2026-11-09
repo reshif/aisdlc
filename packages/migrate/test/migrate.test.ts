@@ -13,6 +13,7 @@ import * as directory from '@aisdlc/directory';
 import * as gateway from '@aisdlc/gateway';
 // Not the package root: nothing outside services/identity imports its writer (single-writer test).
 import * as identity from '@aisdlc/identity/migrations';
+import * as integrations from '@aisdlc/integrations';
 // Not the package root either: the migrations entry only.
 import * as knowledge from '@aisdlc/knowledge/migrations';
 import * as killswitch from '@aisdlc/killswitch';
@@ -38,6 +39,7 @@ const OWNERS = [
   ['bff', bff],
   ['knowledge', knowledge],
   ['core', core],
+  ['integrations', integrations],
   ['gateway', gateway],
   ['notary', notary],
   ['witness', witness],
@@ -110,6 +112,7 @@ describe('the plan', () => {
       'bff',
       'knowledge',
       'core',
+      'integrations',
       'gateway',
     ]);
   });

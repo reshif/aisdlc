@@ -21,12 +21,23 @@ import type { TokenBroker } from './token-broker.js';
  * What a caller may do (PLAN M5.2, M5.3): `census` reads repo facts for the Census (the repos,
  * files, heads, CODEOWNERS) and the credential-free bundle, `posture` reads the posture facts (installation, effective rules,
  * collaborators, CODEOWNERS errors, the B4 verdict), `codeowners_sync` feeds CODEOWNERS owners into
- * the project's g4 group.
+ * the project's g4 group, `reload` re-reads the integration registry now (M10.4).
  */
-export type CodeHostScope = 'census' | 'posture' | 'codeowners_sync';
+export type CodeHostScope = 'census' | 'posture' | 'codeowners_sync' | 'reload';
 
 export interface CodeHostAppOptions {
-  readonly host: AllowListedCodeHost;
+  /** The host to serve with. With `runtime` it is ignored: the runtime's current host is used per request. */
+  readonly host?: AllowListedCodeHost;
+  /**
+   * A host and broker that can change under a running process (the registry-selected adapter: a new
+   * revision of its row swaps them without a restart). Read on every request, never cached.
+   */
+  readonly runtime?: {
+    readonly host: AllowListedCodeHost;
+    readonly broker?: TokenBroker | undefined;
+  };
+  /** `POST /v1/admin/reload` (scope `reload`): re-read the registry now; `force` rebuilds even an unchanged row. */
+  readonly reload?: (opts: { force: boolean }) => Promise<unknown>;
   readonly identity: IdentityLinksPort;
   readonly auth: ServiceAuth;
   /** caller name -> scopes. A caller with no entry may do nothing. */
@@ -48,6 +59,8 @@ const statusOf = (r: CodeHostNotOk): number => {
 export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
   const app = newApp();
   const clock = o.clock ?? systemClock;
+  const hostOf = (): AllowListedCodeHost => (o.runtime?.host ?? o.host) as AllowListedCodeHost;
+  const brokerOf = (): TokenBroker | undefined => (o.runtime ? o.runtime.broker : o.broker);
 
   app.get('/healthz', async () => ({ ok: true }));
 
@@ -92,7 +105,7 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
 
   app.get('/v1/repos', async (req, reply) => {
     if (!allowed(req, 'census')) return forbid(reply, 'census');
-    return send(reply, await o.host.list_repos());
+    return send(reply, await hostOf().list_repos());
   });
 
   app.get('/v1/repos/:owner/:name/file', async (req, reply) => {
@@ -101,7 +114,7 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     const sha = GitSha.safeParse(q(req)['sha']);
     const path = q(req)['path'];
     if (!repo || !sha.success || !path) return bad(reply, 'owner/name, sha and path are required');
-    return send(reply, await o.host.read_at_sha({ repo, sha: sha.data, path }));
+    return send(reply, await hostOf().read_at_sha({ repo, sha: sha.data, path }));
   });
 
   app.get('/v1/repos/:owner/:name/head', async (req, reply) => {
@@ -109,7 +122,7 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     const repo = repoOf(req);
     const branch = q(req)['branch'];
     if (!repo || !branch) return bad(reply, 'owner/name and branch are required');
-    return send(reply, await o.host.branch_head({ repo, branch }));
+    return send(reply, await hostOf().branch_head({ repo, branch }));
   });
 
   app.get('/v1/repos/:owner/:name/codeowners', async (req, reply) => {
@@ -117,7 +130,7 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     const repo = repoOf(req);
     const sha = GitSha.safeParse(q(req)['sha']);
     if (!repo || !sha.success) return bad(reply, 'owner/name and sha are required');
-    return send(reply, await o.host.codeowners({ repo, sha: sha.data }));
+    return send(reply, await hostOf().codeowners({ repo, sha: sha.data }));
   });
 
   /**
@@ -134,7 +147,7 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     if (!repo || !refs.success || (base !== undefined && !base.success)) {
       return bad(reply, 'owner/name, refs (all|default_only) and base_sha must be valid');
     }
-    const r = await o.host.bundle({
+    const r = await hostOf().bundle({
       repo,
       refs: refs.data,
       ...(base?.success ? { base_sha: base.data } : {}),
@@ -154,7 +167,7 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
 
   app.get('/v1/installation', async (req, reply) => {
     if (!allowed(req, 'posture')) return forbid(reply, 'posture');
-    return send(reply, await o.host.installation());
+    return send(reply, await hostOf().installation());
   });
 
   app.get('/v1/repos/:owner/:name/rules', async (req, reply) => {
@@ -162,14 +175,14 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     const repo = repoOf(req);
     const branch = q(req)['branch'];
     if (!repo || !branch) return bad(reply, 'owner/name and branch are required');
-    return send(reply, await o.host.rules_for_branch({ repo, branch }));
+    return send(reply, await hostOf().rules_for_branch({ repo, branch }));
   });
 
   app.get('/v1/repos/:owner/:name/collaborators', async (req, reply) => {
     if (!allowed(req, 'posture')) return forbid(reply, 'posture');
     const repo = repoOf(req);
     if (!repo) return bad(reply, 'owner/name is required');
-    return send(reply, await o.host.collaborators({ repo }));
+    return send(reply, await hostOf().collaborators({ repo }));
   });
 
   app.get('/v1/repos/:owner/:name/codeowners/errors', async (req, reply) => {
@@ -179,7 +192,7 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     const ref = q(req)['ref'];
     return send(
       reply,
-      await o.host.codeowners_errors({ repo, ...(ref === undefined ? {} : { ref }) }),
+      await hostOf().codeowners_errors({ repo, ...(ref === undefined ? {} : { ref }) }),
     );
   });
 
@@ -188,22 +201,34 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     if (!allowed(req, 'posture')) return forbid(reply, 'posture');
     const repo = repoOf(req);
     if (!repo) return bad(reply, 'owner/name is required');
-    const repos = await o.host.list_repos();
+    const repos = await hostOf().list_repos();
     if (repos.state !== 'ok') return send(reply, repos);
     const info = repos.value.find((r) => repoKey(r.full_name) === repoKey(repo));
     if (!info) {
       return sendError(reply, 403, 'repo_not_allowed', `${repo} is not on the repo allow-list`);
     }
     const [installation, rules] = await Promise.all([
-      o.host.installation(),
-      o.host.rules_for_branch({ repo, branch: info.default_branch }),
+      hostOf().installation(),
+      hostOf().rules_for_branch({ repo, branch: info.default_branch }),
     ]);
     const report = b4Checks({
       installation,
       required_checks: mapRead(rules, (r) => r.required_checks),
-      ...(o.broker ? { token_permissions: o.broker.observedPermissions() } : {}),
+      ...(brokerOf()
+        ? { token_permissions: (brokerOf() as TokenBroker).observedPermissions() }
+        : {}),
     });
     return { repo: info.full_name, branch: info.default_branch, report };
+  });
+
+  // ------------------------------------------------------------ registry reload (M10.4)
+
+  app.post('/v1/admin/reload', async (req, reply) => {
+    if (!allowed(req, 'reload')) return forbid(reply, 'reload');
+    if (!o.reload)
+      return sendError(reply, 404, 'not_found', 'this code host has no registry reload');
+    const force = (req.body as { force?: unknown } | null)?.force === true;
+    return reply.send(await o.reload({ force }));
   });
 
   // ------------------------------------------------------------ CODEOWNERS feed
@@ -215,7 +240,7 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     const body = CodeownersSyncRequest.safeParse(req.body);
     if (!body.success) return bad(reply, 'body must be {repos: [{repo, sha?}]}');
     const r = await syncCodeowners(
-      { host: o.host, identity: o.identity, clock },
+      { host: hostOf(), identity: o.identity, clock },
       project.data,
       body.data,
     );

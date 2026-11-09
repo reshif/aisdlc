@@ -11,6 +11,7 @@ import {
   ANTHROPIC_DEFAULT_MODELS,
   FACTORY_SCOPE,
   GATEWAY_CONFIG_KEYS,
+  INTEGRATION_CONFIG_KEYS,
   PDP_CONFIG_KEY,
   type JsonObject,
   PrincipalId,
@@ -26,6 +27,7 @@ import {
   type EligibilityPort,
   type StepUpPort,
 } from '@aisdlc/decisions';
+import { codeHostRow, modelProviderRow } from '@aisdlc/integrations';
 import { canonicalJson, err, ok } from '@aisdlc/kernel';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
@@ -77,11 +79,60 @@ const claude = (model_id: string, usd_in_per_mtok: number, usd_out_per_mtok: num
   usd_in_per_mtok,
   usd_out_per_mtok,
 });
-export const LOCAL_GATEWAY_ROUTING = {
-  [GATEWAY_CONFIG_KEYS.providers]: [
-    { provider_id: 'fake', kind: 'fake', enabled: true },
-    { provider_id: 'anthropic', kind: 'anthropic', enabled: true },
-  ],
+
+/** The GitHub App as the seed registers it (all from the compose settings; the KEY is a reference, never a value). */
+export interface SeedGithub {
+  readonly app_id: string;
+  readonly installation_id: number;
+  readonly api_url?: string;
+  readonly git_url?: string;
+  readonly key_ref: string;
+}
+
+/**
+ * The first rows of the integration registry (PLAN M10.4): the model providers that were already
+ * configured (the deterministic fake and Anthropic, whose key stays in the gateway's own file) and, when
+ * the seed is told about one, the GitHub App (a code host, adapter `github_app`, key reference only).
+ */
+export function localIntegrationRegistry(github: SeedGithub | null) {
+  return [
+    modelProviderRow('fake', 'fake', { display_name: 'Deterministic fake (local only)' }),
+    modelProviderRow('anthropic', 'anthropic', {
+      display_name: 'Anthropic',
+      credentials: [
+        {
+          credential_id: 'anthropic-api-key',
+          secret_ref: 'file:/run/secrets/anthropic-api-key',
+          kind: 'api_key',
+        },
+      ],
+    }),
+    ...(github
+      ? [
+          codeHostRow(
+            'github-app',
+            'github_app',
+            {
+              app_id: github.app_id,
+              installation_id: github.installation_id,
+              ...(github.api_url ? { api_url: github.api_url } : {}),
+              ...(github.git_url ? { git_url: github.git_url } : {}),
+              mode: 'census',
+            },
+            {
+              display_name: 'GitHub App',
+              credentials: [
+                { credential_id: 'app-key', secret_ref: github.key_ref, kind: 'app_key' },
+              ],
+            },
+          ),
+        ]
+      : []),
+  ];
+}
+
+export const localGatewayRouting = (github: SeedGithub | null) => ({
+  [INTEGRATION_CONFIG_KEYS.registry]: localIntegrationRegistry(github),
   [GATEWAY_CONFIG_KEYS.models]: [
     {
       model_id: 'fake-model',
@@ -101,7 +152,7 @@ export const LOCAL_GATEWAY_ROUTING = {
     data_class,
     model_id: 'fake-model',
   })),
-};
+});
 const SLOTS: readonly RoleSlot[] = [
   'admin',
   'requesters',
@@ -144,6 +195,32 @@ interface SeedConfig {
   readonly group: string;
   readonly identityUrl: string;
   readonly identityToken: string;
+  /** `SEED_GITHUB_*`: the GitHub App row of the registry; null: no code host is registered. */
+  readonly github: SeedGithub | null;
+}
+
+/**
+ *   SEED_GITHUB_APP_ID, SEED_GITHUB_INSTALLATION_ID, SEED_GITHUB_APP_KEY_REF (a `file:` reference),
+ *   SEED_GITHUB_API_URL, SEED_GITHUB_GIT_URL (empty: GitHub's own)
+ * Without an app id the registry gets no code host row.
+ */
+function seedGithub(env: Env): SeedGithub | null {
+  const id = env['SEED_GITHUB_APP_ID'];
+  if (id === undefined || id === '') return null;
+  const installation = Number(requiredEnv(env, 'SEED_GITHUB_INSTALLATION_ID'));
+  if (!Number.isInteger(installation) || installation < 1) {
+    throw new ServiceConfigError('SEED_GITHUB_INSTALLATION_ID must be a positive integer');
+  }
+  const ref = requiredEnv(env, 'SEED_GITHUB_APP_KEY_REF');
+  const api = env['SEED_GITHUB_API_URL'];
+  const git = env['SEED_GITHUB_GIT_URL'];
+  return {
+    app_id: id,
+    installation_id: installation,
+    key_ref: ref,
+    ...(api ? { api_url: api } : {}),
+    ...(git ? { git_url: git } : {}),
+  };
 }
 
 export function seedConfigFromEnv(env: Env): SeedConfig {
@@ -157,6 +234,7 @@ export function seedConfigFromEnv(env: Env): SeedConfig {
     group: env['SEED_FACTORY_ADMIN_GROUP'] || 'grp-factory-admins',
     identityUrl: httpUrlEnv(env, 'SEED_IDENTITY_URL'),
     identityToken: resolveSecretRef(requiredEnv(env, 'SEED_IDENTITY_TOKEN_REF'), { env }),
+    github: seedGithub(env),
   };
 }
 
@@ -291,7 +369,7 @@ async function bundleStep(env: Env, cfg: SeedConfig, log: (l: string) => void): 
     // The model gateway's routing table (M10.2), local-prod only: the fake provider answers for D0-D2 in
     // `local`, and the Anthropic provider and its models are registered but unrouted. Pointing a route at
     // Claude is a later, gated revision (a human decides it like any other config change). D3 has no route.
-    const routing = LOCAL_GATEWAY_ROUTING as unknown as JsonObject;
+    const routing = localGatewayRouting(cfg.github) as unknown as JsonObject;
     const effective = await mine();
     const same = Object.entries(routing).every(
       ([k, v]) => canonicalJson(effective?.doc[k] ?? null) === canonicalJson(v),

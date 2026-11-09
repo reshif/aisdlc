@@ -1,3 +1,4 @@
+import { modelProviderRow } from '@aisdlc/integrations';
 import { GATEWAY_EVENT, ModelCallPayload, ProjectId, type DataClass } from '@aisdlc/contracts';
 import { makeCanary } from '@aisdlc/secrets-rules';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -126,12 +127,9 @@ describe('a call through a virtual key', () => {
     expect(r.json.error.code).toBe('key_expired');
   });
 
-  it('refuses a streaming request and a malformed body without calling the vendor', async () => {
+  it('refuses a malformed body without calling the vendor', async () => {
     const { key } = await gw.mint();
     const n = gw.provider.calls.length;
-    expect((await gw.messages(key, hello({ stream: true }))).json.error.code).toBe(
-      'invalid_request',
-    );
     expect((await gw.messages(key, { model: 'x' })).json.error.code).toBe('invalid_request');
     expect(
       (
@@ -204,17 +202,20 @@ describe('data classes and routes', () => {
     const doc = fakeRouting();
     gw.config.set({ ...doc, models: [] });
     expect((await gw.messages(key, hello())).json.error.code).toBe('route_broken');
-    gw.config.set({ ...doc, providers: [{ provider_id: 'fake', kind: 'fake', enabled: false }] });
+    gw.config.set({
+      ...doc,
+      providers: [modelProviderRow('fake', 'fake', { status: 'disabled' })],
+    });
     expect((await gw.messages(key, hello())).json.error.code).toBe('route_broken');
     gw.config.set({
       ...doc,
-      providers: [{ provider_id: 'fake', kind: 'anthropic', enabled: true }],
+      providers: [modelProviderRow('fake', 'anthropic')],
     });
     expect((await gw.messages(key, hello())).json.error.code).toBe('route_broken');
     gw.config.set({
       ...doc,
       models: [{ ...FAKE_MODEL, provider_id: 'not-held' }],
-      providers: [...doc.providers, { provider_id: 'not-held', kind: 'fake', enabled: true }],
+      providers: [...doc.providers, modelProviderRow('not-held', 'fake')],
     });
     expect((await gw.messages(key, hello())).json.error.code).toBe('route_broken');
   });

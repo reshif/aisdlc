@@ -1,5 +1,11 @@
 import { ConfigReader, configPublish, proposeRevision, type ConfigDeps } from '@aisdlc/config';
-import { GATEWAY_CONFIG_KEYS, type GatewayModel, type GatewayRoute } from '@aisdlc/contracts';
+import {
+  GATEWAY_CONFIG_KEYS,
+  INTEGRATION_CONFIG_KEYS,
+  type GatewayModel,
+  type GatewayRoute,
+} from '@aisdlc/contracts';
+import { modelProviderRow } from '@aisdlc/integrations';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FAKE_MODEL, hello, startTestGateway, type TestGateway } from '../src/testing.js';
 import { decideGate, pr, startM1Stack, type M1Stack } from './m1-stack.js';
@@ -33,7 +39,7 @@ const modelB: GatewayModel = {
   provider_model: 'fake-model-b-1',
 };
 const base = {
-  [GATEWAY_CONFIG_KEYS.providers]: [{ provider_id: 'fake', kind: 'fake', enabled: true }],
+  [INTEGRATION_CONFIG_KEYS.registry]: [modelProviderRow('fake', 'fake')],
   [GATEWAY_CONFIG_KEYS.models]: [FAKE_MODEL, modelB],
 };
 const routes = (...r: GatewayRoute[]) => ({ ...base, [GATEWAY_CONFIG_KEYS.routes]: r });
@@ -167,7 +173,9 @@ describe('the routing table as gated config', () => {
     const { key } = await gw.mint({ models: ['fake-model-b'] });
     const doc = {
       ...routes({ environment: 'local', data_class: 'D2', model_id: 'fake-model-b' }),
-      [GATEWAY_CONFIG_KEYS.providers]: [{ provider_id: 'fake', kind: 'fake', enabled: false }],
+      [INTEGRATION_CONFIG_KEYS.registry]: [
+        modelProviderRow('fake', 'fake', { status: 'disabled' }),
+      ],
     };
     const p = await propose(doc);
     const changed = waitForChange();

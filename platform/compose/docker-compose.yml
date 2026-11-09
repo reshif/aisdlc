@@ -109,10 +109,12 @@ secrets:
   pg-pass-notary: { file: ./secrets/pg-pass-notary }
   pg-pass-witness: { file: ./secrets/pg-pass-witness }
   pg-pass-killswitch: { file: ./secrets/pg-pass-killswitch }
+  pg-pass-gateway: { file: ./secrets/pg-pass-gateway }
   db-url-aisdlc: { file: ./secrets/db-url-aisdlc }
   db-url-notary: { file: ./secrets/db-url-notary }
   db-url-witness: { file: ./secrets/db-url-witness }
   db-url-killswitch: { file: ./secrets/db-url-killswitch }
+  db-url-gateway: { file: ./secrets/db-url-gateway }
   bff-oidc-client-secret: { file: ./secrets/bff-oidc-client-secret }
   anthropic-api-key: { file: ./secrets/anthropic-api-key }
   github-app.pem: { file: ./secrets/github-app.pem }
@@ -125,6 +127,7 @@ secrets:
   tok-gateway-killswitch: { file: ./secrets/tok-gateway-killswitch }
   tok-core-gateway: { file: ./secrets/tok-core-gateway }
   tok-operator-gateway: { file: ./secrets/tok-operator-gateway }
+  tok-operator-codehost: { file: ./secrets/tok-operator-codehost }
   tok-knowledge-kms: { file: ./secrets/tok-knowledge-kms }
   tok-bff-kms: { file: ./secrets/tok-bff-kms }
   tok-bff-core: { file: ./secrets/tok-bff-core }
@@ -186,7 +189,15 @@ services:
       PGHOST: postgres
     volumes:
       - ./db-init.sh:/db-init.sh:ro
-    secrets: [pg-superuser, pg-pass-aisdlc, pg-pass-notary, pg-pass-witness, pg-pass-killswitch]
+    secrets:
+      [
+        pg-superuser,
+        pg-pass-aisdlc,
+        pg-pass-notary,
+        pg-pass-witness,
+        pg-pass-killswitch,
+        pg-pass-gateway,
+      ]
     depends_on:
       postgres: { condition: service_healthy }
     networks: [data-record, data-notary, data-witness, data-killswitch]
@@ -380,14 +391,17 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/gateway/dist/main.js']
     environment:
-      GATEWAY_DATABASE_URL: file:/run/secrets/db-url-aisdlc
+      # The least-privilege role `gateway` (db-init.sh, the gateway migration), NOT the `aisdlc` owner.
+      GATEWAY_DATABASE_URL: file:/run/secrets/db-url-gateway
       GATEWAY_ENVIRONMENT: local
       GATEWAY_CALLERS: >-
         {"core":{"token_ref":"file:/run/secrets/tok-core-gateway","scopes":["admin","read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-gateway","scopes":["admin","read"]}}
-      GATEWAY_PROVIDER_ADAPTERS: >-
-        {"anthropic":{"kind":"anthropic","key_ref":"file:/run/secrets/anthropic-api-key"},
-        "fake":{"kind":"fake"}}
+      # What this deployment lets a registry row do. The providers themselves (adapter, base URL, key
+      # reference, models) are rows of the integration registry, published through an M1 gate; a row naming
+      # another key file or host is refused.
+      GATEWAY_SECRET_REFS: '["file:/run/secrets/anthropic-api-key"]'
+      GATEWAY_EGRESS_HOSTS: '["api.anthropic.com"]'
       GATEWAY_KILLSWITCH_URL: http://killswitch:8400
       GATEWAY_KILLSWITCH_TOKEN_REF: file:/run/secrets/tok-gateway-killswitch
       GATEWAY_MAX_PROVIDER_CALLS: ${GATEWAY_MAX_PROVIDER_CALLS:-1000}
@@ -395,7 +409,7 @@ services:
       GATEWAY_PORT: '8410'
     secrets:
       [
-        db-url-aisdlc,
+        db-url-gateway,
         anthropic-api-key,
         tok-core-gateway,
         tok-operator-gateway,
@@ -481,6 +495,13 @@ services:
       SEED_IDENTITY_URL: http://identity:8330
       SEED_IDENTITY_TOKEN_REF: file:/run/secrets/tok-seed-identity
       SEED_FACTORY_ADMIN: alice
+      # The GitHub App is the first code-host row of the integration registry (ids and a key REFERENCE;
+      # the key itself stays in the codehost's own file).
+      SEED_GITHUB_APP_ID: ${GITHUB_APP_ID:?run ./init-secrets first}
+      SEED_GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID:?run ./init-secrets first}
+      SEED_GITHUB_APP_KEY_REF: file:/run/secrets/github-app.pem
+      SEED_GITHUB_API_URL: ${CODEHOST_GITHUB_API_URL:-}
+      SEED_GITHUB_GIT_URL: ${CODEHOST_GIT_URL:-}
     secrets: [db-url-aisdlc, tok-core-notary, tok-core-kms, tok-seed-identity]
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -500,9 +521,9 @@ services:
     environment:
       CORE_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       CORE_CALLERS: >-
-        {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry"]},
+        {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
-        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard"]},
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal"]},
         "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work"]}}
       CORE_NOTARY_URL: http://notary:8310
       CORE_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-notary
@@ -607,14 +628,17 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/codehost/dist/main.js']
     environment:
-      CODEHOST_GITHUB_APP_ID: ${GITHUB_APP_ID:?run ./init-secrets first}
-      CODEHOST_GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID:?run ./init-secrets first}
-      CODEHOST_GITHUB_APP_KEY_REF: file:/run/secrets/github-app.pem
-      # Empty: api.github.com and github.com. The fake profile points both at its own loopback.
-      CODEHOST_GITHUB_API_URL: ${CODEHOST_GITHUB_API_URL:-}
-      CODEHOST_GIT_URL: ${CODEHOST_GIT_URL:-}
+      # The GitHub App is a row of the integration registry (`github-app`, seeded from the compose settings and
+      # changed through an M1 gate), read from core and followed by config revision with no restart. The App
+      # key stays in its own file (the reference is in the row); this deployment allows that one file and these
+      # hosts (api.github.com and github.com; the fake profile adds its own loopback).
+      CODEHOST_REGISTRY_INTEGRATION: github-app
+      CODEHOST_SECRET_REFS: '["file:/run/secrets/github-app.pem"]'
+      CODEHOST_EGRESS_HOSTS: '["api.github.com","github.com","127.0.0.1"]'
+      CODEHOST_REGISTRY_INTERVAL_MS: ${CODEHOST_REGISTRY_INTERVAL_MS:-5000}
       CODEHOST_CALLERS: >-
         {"knowledge":{"token_ref":"file:/run/secrets/tok-knowledge-codehost","scopes":["census"]},
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-codehost","scopes":["reload"]},
         "core":{"token_ref":"file:/run/secrets/tok-core-codehost","scopes":["census","posture"]},
         "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-codehost","scopes":["census","posture"]}}
       CODEHOST_IDENTITY_URL: http://identity:8330
@@ -632,6 +656,7 @@ services:
         tok-knowledge-codehost,
         tok-core-codehost,
         tok-core-worker-codehost,
+        tok-operator-codehost,
         tok-codehost-identity,
         tok-codehost-core,
       ]

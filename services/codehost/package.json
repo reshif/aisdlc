@@ -21,6 +21,7 @@
   "dependencies": {
     "@aisdlc/codeowners": "0.0.0",
     "@aisdlc/contracts": "0.0.0",
+    "@aisdlc/integrations": "0.0.0",
     "@aisdlc/kernel": "0.0.0",
     "@aisdlc/ports": "0.0.0",
     "@aisdlc/service-kit": "0.0.0",

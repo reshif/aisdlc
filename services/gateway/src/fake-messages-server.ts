@@ -22,6 +22,8 @@ export interface FakeMessagesServer {
   reply(...steps: ScriptStep[]): void;
   /** Every request, as it arrived. */
   readonly seen: SeenMessagesRequest[];
+  /** Streams the client closed before the server finished them (an abort reached the vendor). */
+  readonly streamsAborted: number;
   stop(): Promise<void>;
 }
 
@@ -43,13 +45,19 @@ export interface FakeMessagesOptions {
    * careless vendor (or an attacker's server) could. The adapter must not let that text out.
    */
   readonly echoKeyInErrors?: boolean;
+  /** Streaming: pause this long between server-sent events (a test that aborts a stream needs time to do it). */
+  readonly streamDelayMs?: number;
 }
+
+const sse = (event: string, data: unknown): string =>
+  `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
 export async function startFakeMessagesServer(o: FakeMessagesOptions): Promise<FakeMessagesServer> {
   const app: FastifyInstance = newApp();
   const script: ScriptStep[] = [];
   const seen: SeenMessagesRequest[] = [];
   let n = 0;
+  let aborted = 0;
 
   const fail = (reply: FastifyReply, status: number, type: string, message: string) =>
     reply
@@ -106,13 +114,138 @@ export async function startFakeMessagesServer(o: FakeMessagesOptions): Promise<F
       input_tokens: estimate(JSON.stringify([b.system ?? '', b.messages]).length),
       output_tokens: estimate(JSON.stringify(content).length),
     };
+    const messageId = `msg_${hashCanonical({ n, model: b.model }).slice(0, 24)}`;
+    const stop_reason = r.stop_reason ?? (r.tool_uses?.length ? 'tool_use' : 'end_turn');
+    if (b['stream'] === true) {
+      // The real API's server-sent events: message_start, (ping), one content_block_start / delta... /
+      // content_block_stop per block, message_delta with the stop reason and the output tokens, message_stop.
+      reply.hijack();
+      const raw = reply.raw;
+      raw.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+        'request-id': `req_fake_${n}`,
+      });
+      let finished = false;
+      raw.on('close', () => {
+        if (!finished) aborted += 1;
+      });
+      const pause = () =>
+        o.streamDelayMs ? new Promise((res) => setTimeout(res, o.streamDelayMs)) : undefined;
+      const send = async (event: string, data: unknown): Promise<boolean> => {
+        if (raw.destroyed) return false;
+        raw.write(sse(event, data));
+        await pause();
+        return !raw.destroyed;
+      };
+      const run = async (): Promise<void> => {
+        if (
+          !(await send('message_start', {
+            type: 'message_start',
+            message: {
+              id: messageId,
+              type: 'message',
+              role: 'assistant',
+              model: b.model,
+              content: [],
+              stop_reason: null,
+              stop_sequence: null,
+              usage: { input_tokens: usage.input_tokens, output_tokens: 1 },
+            },
+          }))
+        )
+          return;
+        if (!(await send('ping', { type: 'ping' }))) return;
+        let index = 0;
+        let sent = 0;
+        for (const blk of content as Array<Record<string, unknown>>) {
+          if (blk['type'] === 'text') {
+            const full = String(blk['text']);
+            if (
+              !(await send('content_block_start', {
+                type: 'content_block_start',
+                index,
+                content_block: { type: 'text', text: '' },
+              }))
+            )
+              return;
+            for (const piece of r.chunks ?? full.split(/(?<= )/)) {
+              if (r.fail_after_chunks !== undefined && sent >= r.fail_after_chunks) {
+                await send('error', {
+                  type: 'error',
+                  error: { type: 'overloaded_error', message: 'Overloaded' },
+                });
+                raw.end();
+                finished = true;
+                return;
+              }
+              sent += 1;
+              if (
+                !(await send('content_block_delta', {
+                  type: 'content_block_delta',
+                  index,
+                  delta: { type: 'text_delta', text: piece },
+                }))
+              )
+                return;
+            }
+          } else {
+            const json = JSON.stringify(blk['input']);
+            const mid = Math.ceil(json.length / 2);
+            if (
+              !(await send('content_block_start', {
+                type: 'content_block_start',
+                index,
+                content_block: { type: 'tool_use', id: blk['id'], name: blk['name'], input: {} },
+              }))
+            )
+              return;
+            for (const piece of [json.slice(0, mid), json.slice(mid)]) {
+              if (
+                !(await send('content_block_delta', {
+                  type: 'content_block_delta',
+                  index,
+                  delta: { type: 'input_json_delta', partial_json: piece },
+                }))
+              )
+                return;
+            }
+          }
+          if (!(await send('content_block_stop', { type: 'content_block_stop', index }))) return;
+          index += 1;
+        }
+        if (r.fail_after_chunks !== undefined && sent <= r.fail_after_chunks) {
+          await send('error', {
+            type: 'error',
+            error: { type: 'overloaded_error', message: 'Overloaded' },
+          });
+          raw.end();
+          finished = true;
+          return;
+        }
+        if (
+          !(await send('message_delta', {
+            type: 'message_delta',
+            delta: { stop_reason, stop_sequence: null },
+            usage: { output_tokens: usage.output_tokens },
+          }))
+        )
+          return;
+        await send('message_stop', { type: 'message_stop' });
+        finished = true;
+        raw.end();
+      };
+      await run();
+      return reply;
+    }
     return reply.header('request-id', `req_fake_${n}`).send({
-      id: `msg_${hashCanonical({ n, model: b.model }).slice(0, 24)}`,
+      id: messageId,
       type: 'message',
       role: 'assistant',
       model: b.model,
       content,
-      stop_reason: r.stop_reason ?? (r.tool_uses?.length ? 'tool_use' : 'end_turn'),
+      stop_reason,
       stop_sequence: null,
       usage: {
         ...usage,
@@ -128,6 +261,13 @@ export async function startFakeMessagesServer(o: FakeMessagesOptions): Promise<F
     url,
     reply: (...steps) => void script.push(...steps),
     seen,
-    stop: () => app.close(),
+    get streamsAborted() {
+      return aborted;
+    },
+    stop: async () => {
+      // a test may leave a stream open on purpose (an abort): close its sockets, then the server
+      app.server.closeAllConnections();
+      await app.close();
+    },
   };
 }

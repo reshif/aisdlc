@@ -5,7 +5,8 @@ import { IsoDateTime, ProjectId, Sha256Hex } from './ids.js';
 // The model gateway's vocabulary (PLAN M10; DM §3.8, §4 ModelProviderPort; RV §2 "Model key custody").
 //
 // Three groups live here and nowhere else:
-//   1. the ROUTING TABLE, as config (`gateway.providers`, `gateway.models`, `gateway.routes`): a route
+//   1. the ROUTING TABLE, as config (`gateway.models`, `gateway.routes`; the providers are the integration
+//      registry's rows): a route
 //      is `(environment, data_class) -> model`, D3 never has one, and the keys reach the gateway only
 //      through `config_publish` behind an M1 gate;
 //   2. the MESSAGES vocabulary the sandbox and the providers speak (an Anthropic Messages subset);
@@ -17,26 +18,15 @@ import { IsoDateTime, ProjectId, Sha256Hex } from './ids.js';
 export const GatewayEnvironment = z.enum(['local', 'staging', 'prod']);
 export type GatewayEnvironment = z.infer<typeof GatewayEnvironment>;
 
-/** Adapters the gateway knows how to build. `fake` is the deterministic golden fake (never in prod). */
-export const ModelProviderKind = z.enum(['anthropic', 'fake']);
-export type ModelProviderKind = z.infer<typeof ModelProviderKind>;
-
 const Slug = z
   .string()
   .max(64)
   .regex(/^[a-z][a-z0-9_.-]*$/, 'lowercase slug');
 
-/**
- * One provider row. It names NO key and NO URL: the credential reference and the endpoint belong to
- * the gateway's own deployment (`GATEWAY_PROVIDER_ADAPTERS`), so a config revision can switch a
- * provider off or point a route at it, but can never make the gateway send a key somewhere new.
- */
-export const GatewayProvider = z.strictObject({
-  provider_id: Slug,
-  kind: ModelProviderKind,
-  enabled: z.boolean(),
-});
-export type GatewayProvider = z.infer<typeof GatewayProvider>;
+// A provider is an INTEGRATION of kind `model_provider` (`integrations.ts`: one registry for code hosts
+// and model providers). Its row names the adapter, the non-secret settings (base URL) and a credential
+// REFERENCE; the gateway builds the adapter from it, and only from references and hosts its own
+// deployment allows (`GATEWAY_SECRET_REFS`, `GATEWAY_EGRESS_HOSTS`).
 
 /** A model of a provider, with its price (the cost table is config: DM `ModelPrice`). */
 export const GatewayModel = z.strictObject({
@@ -46,6 +36,8 @@ export const GatewayModel = z.strictObject({
   /** What the vendor calls it (`claude-sonnet-5-5`). */
   provider_model: z.string().min(1).max(128),
   tools_capable: z.boolean(),
+  /** The model's context window in tokens (DM `ProviderModel`); informational. */
+  context_window: z.number().int().min(1).max(100_000_000).optional(),
   /** A call asking for more output tokens than this is clamped to it. */
   max_tokens_cap: z.number().int().min(1).max(1_000_000),
   usd_in_per_mtok: z.number().min(0).max(100_000),
@@ -65,7 +57,6 @@ export const GatewayRoute = z.strictObject({
 export type GatewayRoute = z.infer<typeof GatewayRoute>;
 
 export const GATEWAY_CONFIG_KEYS = {
-  providers: 'gateway.providers',
   models: 'gateway.models',
   routes: 'gateway.routes',
 } as const;
@@ -73,10 +64,6 @@ export const GATEWAY_CONFIG_KEYS = {
 const uniqueBy = <T>(rows: readonly T[], key: (r: T) => string): boolean =>
   new Set(rows.map(key)).size === rows.length;
 
-export const GatewayProviders = z
-  .array(GatewayProvider)
-  .max(32)
-  .refine((r) => uniqueBy(r, (p) => p.provider_id), 'duplicate provider_id');
 export const GatewayModels = z
   .array(GatewayModel)
   .max(128)
@@ -86,7 +73,6 @@ export const GatewayRoutes = z
   .max(64)
   .refine((r) => uniqueBy(r, (x) => `${x.environment}/${x.data_class}`), 'duplicate route');
 
-export type GatewayProviders = z.infer<typeof GatewayProviders>;
 export type GatewayModels = z.infer<typeof GatewayModels>;
 export type GatewayRoutes = z.infer<typeof GatewayRoutes>;
 
@@ -260,6 +246,7 @@ export const GATEWAY_EVENT = {
   budget_exhausted: 'gateway.budget_exhausted',
   vkey_minted: 'gateway.vkey_minted',
   vkey_revoked: 'gateway.vkey_revoked',
+  reservation_abandoned: 'gateway.reservation_abandoned',
 } as const;
 export type GatewayEventType = (typeof GATEWAY_EVENT)[keyof typeof GATEWAY_EVENT];
 
@@ -268,7 +255,14 @@ export const gatewayVkeyStream = (vkeyId: string): string => `gateway:vkey:${vke
 export const gatewayBudgetStream = (group: string): string => `gateway:budget:${group}`;
 export const GATEWAY_ADMIN_STREAM = 'gateway:admin';
 
-export const ModelCallOutcome = z.enum(['ok', 'refused', 'provider_error', 'tool_blocked']);
+/** `aborted`: a stream that ended early (the client went away, or the vendor failed part-way) and was charged what had been produced. */
+export const ModelCallOutcome = z.enum([
+  'ok',
+  'refused',
+  'provider_error',
+  'tool_blocked',
+  'aborted',
+]);
 export type ModelCallOutcome = z.infer<typeof ModelCallOutcome>;
 
 /** Why a call was refused (HTTP status in `GATEWAY_REFUSAL_STATUS` of the service). */
@@ -319,6 +313,10 @@ export const ModelCallPayload = z.strictObject({
   refusal: GatewayRefusal.nullable(),
   /** How many values secrets-rules replaced in what left for the vendor. */
   redactions: z.number().int().min(0),
+  /** True for a call made with `stream: true`. */
+  stream: z.boolean().default(false),
+  /** How many values secrets-rules replaced in the streamed answer before it reached the caller. */
+  response_redactions: z.number().int().min(0).default(0),
 });
 export type ModelCallPayload = z.infer<typeof ModelCallPayload>;
 
@@ -357,3 +355,21 @@ export const VKeyMintedPayload = z.strictObject({
   minted_by: z.string().min(1),
 });
 export type VKeyMintedPayload = z.infer<typeof VKeyMintedPayload>;
+
+/**
+ * A reservation the recovery sweep settled as `abandoned` (PLAN M10 follow-up): the call that made it
+ * never settled (the process died, or the vendor call hung), so the hold on the budget group was
+ * released after the configured bound. A call that completes AFTER this still adds what it spent, but
+ * never releases the hold a second time.
+ */
+export const ReservationAbandonedPayload = z.strictObject({
+  reservation_id: z.string().min(1),
+  budget_group: z.string().min(1),
+  vkey_id: z.string().min(1),
+  tokens: z.number().int().min(0),
+  cost_micro_usd: z.number().int().min(0),
+  reserved_at: IsoDateTime,
+  abandoned_at: IsoDateTime,
+  max_age_ms: z.number().int().min(1),
+});
+export type ReservationAbandonedPayload = z.infer<typeof ReservationAbandonedPayload>;

@@ -117,10 +117,76 @@ export function modelProviderContract(
         let done: unknown;
         for await (const e of h.port.stream(REQ())) {
           if (e.type === 'text_delta') text += e.text;
-          else done = e.response;
+          else if (e.type === 'done') done = e.response;
         }
         expect(text).toBe('a b c');
-        expect(done).toMatchObject({ usage: { input_tokens: 5, output_tokens: 2 } });
+        expect(done).toMatchObject({
+          content: [{ type: 'text', text: 'a b c' }],
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 5, output_tokens: 2 },
+        });
+      }));
+
+    it('streams a tool call as a start, input pieces that join to the input, and a done with usage', () =>
+      withHarness(async (h) => {
+        if (!h.port.stream || !h.port.tools_capable) return;
+        h.reply({
+          tool_uses: [{ id: 'toolu_s1', name: 'read_file', input: { path: 'src/a.ts' } }],
+          usage: { input_tokens: 40, output_tokens: 9 },
+        });
+        const tools = [
+          {
+            name: 'read_file',
+            input_schema: { type: 'object', properties: { path: { type: 'string' } } },
+          },
+        ];
+        const seen: string[] = [];
+        let json = '';
+        let done: unknown;
+        for await (const e of h.port.stream(REQ({ tools }))) {
+          seen.push(e.type);
+          if (e.type === 'tool_input_delta') json += e.partial_json;
+          if (e.type === 'tool_use_start')
+            expect(e).toMatchObject({ id: 'toolu_s1', name: 'read_file' });
+          if (e.type === 'done') done = e.response;
+        }
+        expect(seen.indexOf('tool_use_start')).toBeGreaterThanOrEqual(0);
+        expect(seen.at(-1)).toBe('done');
+        expect(JSON.parse(json)).toEqual({ path: 'src/a.ts' });
+        expect(done).toMatchObject({
+          stop_reason: 'tool_use',
+          usage: { input_tokens: 40, output_tokens: 9 },
+        });
+      }));
+
+    it('a vendor failure before the first piece is an error event, not a throw', () =>
+      withHarness(async (h) => {
+        if (!h.port.stream) return;
+        h.reply({ error: modelProviderError('rate_limited', 'slow down', 429) });
+        const events = [];
+        for await (const e of h.port.stream(REQ())) events.push(e);
+        const last = events.at(-1);
+        expect(last).toMatchObject({ type: 'error', error: { code: 'rate_limited' } });
+        expect(events.some((e) => e.type === 'done')).toBe(false);
+      }));
+
+    it('a stream cut part-way ends in an error event and never in a done', () =>
+      withHarness(async (h) => {
+        if (!h.port.stream) return;
+        h.reply({
+          text: 'one two three four',
+          chunks: ['one ', 'two ', 'three ', 'four'],
+          fail_after_chunks: 2,
+        });
+        let text = '';
+        const events = [];
+        for await (const e of h.port.stream(REQ())) {
+          events.push(e);
+          if (e.type === 'text_delta') text += e.text;
+        }
+        expect(text).toBe('one two ');
+        expect(events.at(-1)).toMatchObject({ type: 'error' });
+        expect(events.some((e) => e.type === 'done')).toBe(false);
       }));
   });
 }

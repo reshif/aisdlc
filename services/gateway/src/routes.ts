@@ -4,10 +4,10 @@ import {
   type GatewayEnvironment,
   type GatewayModel,
   type GatewayModels,
-  type GatewayProviders,
   type GatewayRefusal,
   type GatewayRoutes,
 } from '@aisdlc/contracts';
+import { enabledFor, enabledOf, readRegistry } from '@aisdlc/integrations';
 import type { ModelProviderPort } from '@aisdlc/ports';
 
 // The routing table as the gateway uses it: read from the effective config on EVERY call, so a
@@ -24,6 +24,9 @@ export interface ConfigSource {
   };
 }
 
+/** The adapters this process holds, by integration id (a `Map` is one; the registry-driven set is another). */
+export type AdapterSource = Pick<ReadonlyMap<string, ModelProviderPort>, 'get'>;
+
 export type Resolved =
   | {
       readonly ok: true;
@@ -37,9 +40,10 @@ export type Resolved =
 
 export function resolveRoute(
   source: ConfigSource,
-  adapters: ReadonlyMap<string, ModelProviderPort>,
+  adapters: AdapterSource,
   environment: GatewayEnvironment,
   dataClass: DataClass,
+  project?: string,
 ): Resolved {
   // D3 never has a route. The registry schema cannot hold one either; this is the call-time half,
   // so a hand-edited or corrupted snapshot still cannot route it.
@@ -57,22 +61,42 @@ export function resolveRoute(
     };
   }
   const models = snap.get<GatewayModels>(GATEWAY_CONFIG_KEYS.models) ?? [];
-  const providers = snap.get<GatewayProviders>(GATEWAY_CONFIG_KEYS.providers) ?? [];
+  // The providers are rows of the integration registry (one registry for code hosts and model
+  // providers): enabled ones only, and the adapter this process holds for that row must be of its kind.
+  const registry = readRegistry(snap);
+  const providers = enabledOf(registry, 'model_provider');
   const model = models.find((m) => m.model_id === route.model_id);
-  const provider = model ? providers.find((p) => p.provider_id === model.provider_id) : undefined;
-  const adapter = provider ? adapters.get(provider.provider_id) : undefined;
-  if (!model || !provider || !provider.enabled || !adapter || adapter.kind !== provider.kind) {
+  const provider = model
+    ? providers.find((p) => p.integration_id === model.provider_id)
+    : undefined;
+  const adapter = provider ? adapters.get(provider.integration_id) : undefined;
+  if (!model || !provider || !adapter || adapter.kind !== provider.adapter) {
     return {
       ok: false,
       refusal: 'route_broken',
       message: `the route for ${dataClass} in ${environment} does not lead to a usable model`,
     };
   }
+  // An install row for the project can only NARROW what the fleet-wide provider offers: a disabled one,
+  // or a models allow-list that leaves this model out, refuses the call. No row: the fleet-wide default.
+  if (project !== undefined) {
+    const { install } = enabledFor(registry, provider.integration_id, project);
+    if (
+      install &&
+      (!install.enabled || install.overrides.models_allowed?.includes(model.model_id) === false)
+    ) {
+      return {
+        ok: false,
+        refusal: 'model_not_allowed',
+        message: `project ${project} may not use ${model.model_id} through ${provider.integration_id}`,
+      };
+    }
+  }
   return {
     ok: true,
     model,
     provider: adapter,
-    provider_id: provider.provider_id,
+    provider_id: provider.integration_id,
     revision: snap.revisions.factory,
   };
 }

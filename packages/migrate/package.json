@@ -31,6 +31,7 @@
     "@aisdlc/directory": "0.0.0",
     "@aisdlc/gateway": "0.0.0",
     "@aisdlc/identity": "0.0.0",
+    "@aisdlc/integrations": "0.0.0",
     "@aisdlc/killswitch": "0.0.0",
     "@aisdlc/kms-local": "0.0.0",
     "@aisdlc/knowledge": "0.0.0",

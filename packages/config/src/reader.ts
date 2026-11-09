@@ -34,6 +34,12 @@ export interface ConfigReaderOptions {
   readonly pollIntervalMs?: number;
   /** LISTEN for publishes. Default true. */
   readonly listen?: boolean;
+  /**
+   * Fold the record into the config read model before each load. Default true. A reader whose database
+   * role may not write the read model (the model gateway's) passes false and reads what the writers'
+   * readers (core, core-worker) and every publish have already folded.
+   */
+  readonly catchUp?: boolean;
   /** Errors of background refreshes. A failed refresh keeps the last good snapshot. */
   readonly onError?: (e: unknown) => void;
 }
@@ -172,8 +178,10 @@ export class ConfigReader {
 }
 
 async function loadSnapshot(o: ConfigReaderOptions): Promise<EffectiveConfig> {
-  const caught = await runProjection(o.pool, configProjection);
-  if (!caught.ok) throw new Error(`config projection: ${JSON.stringify(caught.error)}`);
+  if (o.catchUp !== false) {
+    const caught = await runProjection(o.pool, configProjection);
+    if (!caught.ok) throw new Error(`config projection: ${JSON.stringify(caught.error)}`);
+  }
   const factory = await loadEffective(o.pool, { layer: 'factory', scope: FACTORY_SCOPE });
   const projectLineage: ConfigLineage | null = o.project
     ? { layer: 'project', scope: { kind: 'project', ref: o.project } }
