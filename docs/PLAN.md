@@ -22,8 +22,9 @@ Paused by the user after M13 (to resume: read this section, then start M14).
 - **Done and merged or in the M13 PR:** M0–M13. Main has M0–M12; M13 (sandbox, admission, S6 build, push broker, spike) is PR reshif/aisdlc#12 on `build/m13`, **not merged: its GitHub CI fails.** Locally (password Postgres, Docker available) all 3638 tests pass.
 - **First thing on resume — fix M13 CI:** run 25 hit the old 15-minute job limit (now 40); run 26 failed after 16 minutes with a test failure not yet identified (the log tail is only Postgres output; read the Vitest summary earlier in the job log). Most likely cause to check first: the Docker sandbox tests (`services/sandbox-driver`, `services/coding-runner`, `services/docker-proxy` stub tests) need the `aisdlc/sandbox` and agent images, which the GitHub runner does not have; they must either build them in CI or skip cleanly with a clear message when the images are absent. Then merge #12 once green.
 - **Next:** M14 (S7 verify, signed Evidence Pack, gate-check), then M15 (S8/S9), M16 (Light onboarding — first real agent lanes L1–L3), M17, M18, M19 (floor, audit), M20 (dogfood).
-- **How the build runs:** one task per agent, each reviewed; `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55433/postgres npm run check` must exit 0 (start that password Postgres from `/var/tmp/aisdlc-cipg` or the db test helper), then `timeout 600 npm run build`, `npm ci --dry-run`, and `npm run smoke:compose` (in a sandbox without apt, build the image from `aisdlc-sandbox-node-git:local` and run with `SMOKE_SKIP_BUILD=1`). PR per milestone; merge after GitHub CI is green (user authorised).
+- **How the build runs:** one task per agent, each reviewed; `npm run check` must exit 0 with `DATABASE_URL` pointing at the local CI-style cluster on 127.0.0.1:55433 (user and password `postgres`) (start that password Postgres from `/var/tmp/aisdlc-cipg` or the db test helper), then `timeout 600 npm run build`, `npm ci --dry-run`, and `npm run smoke:compose` (in a sandbox without apt, build the image from `aisdlc-sandbox-node-git:local` and run with `SMOKE_SKIP_BUILD=1`). PR per milestone; merge after GitHub CI is green (user authorised).
 - **Open follow-ups to carry:** M7.7 single-flight S0 driver; M8.0b non-local genesis; M9.7 kill signing timeout, portal kill/control screens, L0/L7 eligibility (user to decide; suggestion L0 from Light, L7 from Census); M10.6 response redaction for non-streamed calls, per-model prices to confirm before real spend, install-absent semantics; M13 follow-ups: Handoff Pack as an artefact type, self-heal for a crash between push and receipt, B15 rebase path, codehost push in registry mode, compose wiring of real coding sessions.
+- **Portal:** the full portal is designed as a prototype (`docs/design/portal-prototype/`); what it covers and what is missing is in `docs/design/portal-coverage.md`; M21 lifts `services/web` to it after M20, and each milestone from M14 builds its own screens on the way. Six decisions it exposed are in coverage §5.
 - **User actions pending:** live Census on their machine (`docs/runbooks/m8.5-live-census.md`); pin the real eval-store key (`aisdlc-evals pin`) before first eval; `issues:write` on the App at M16; share `floor.html` before M19 if available.
 
 ## 1. Principles
@@ -299,6 +300,20 @@ Floor read models (ItemPosition, FlowWindow, SessionActivity, Heartbeat, GateFea
 ### M20 — Dogfood (OB R5, R7)
 
 Pre-push full-history scan, squashed push, multi-repo allow-list, Census + 0.4 + M4 of this repo, L8 merges through the L8 gate-check profile; later Full per area, the O4 cross-family reviewer, the first agent-led L2 on this repo. Gated by DEC-16, DEC-22..26.
+
+### M21 — Portal lift (after M20)
+
+The portal prototype (`docs/design/portal-prototype/`, published as the "AISDLC Portal" artifact) is the design reference for the whole portal: 40 routes, sign-in and sign-out, accounts, and a permission engine mirrored from the contracts. [`docs/design/portal-coverage.md`](design/portal-coverage.md) lists what it covers (§2), what is thin (§3), what is missing (§4) and the decisions it exposed (§5).
+
+From M14 on, each milestone also builds the portal screens for what it adds (the coverage file names the milestone per row). M21 lifts `services/web` to the full portal:
+- the component library from the prototype's tokens;
+- server-side access hints (`GET /api/me/access` over the PDP), while the PDP still decides every write;
+- OIDC sign-in, session policy and sign-out;
+- every screen ported (home, inbox, item, all gate screens, floor on the M19 read models, projects and onboarding, operate, quality, govern, admin);
+- the rows of coverage §3 and §4 not built earlier;
+- Playwright runs per persona that prove the menu and buttons match the PDP's answers, and that a viewer sees no content.
+
+Done when coverage §3 and §4 are empty or dropped by the user, §5 is decided, and the persona e2e is green in CI.
 
 ## 5. Target local-prod topology (after M15)
 
