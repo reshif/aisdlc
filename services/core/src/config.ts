@@ -28,6 +28,7 @@ const Callers = z.record(
           'ops',
           'integrations',
           'evals',
+          'push_guard',
         ]),
       )
       .min(1),

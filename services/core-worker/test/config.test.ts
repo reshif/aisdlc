@@ -66,3 +66,62 @@ describe('core-worker config: S2 and S3 with real agents (PLAN M12)', () => {
     ).toThrow(/none`, `fake` or `agents/);
   });
 });
+
+describe('core-worker config: real coding sessions (M13.3, M13.4)', () => {
+  const WITH_AGENTS = {
+    ...BASE,
+    CORE_WORKER_STAGE_PORTS: 'agents',
+    CORE_WORKER_GATEWAY_URL: 'http://127.0.0.1:5',
+    CORE_WORKER_GATEWAY_TOKEN_REF: 'env:T',
+  };
+  const SANDBOX = {
+    CORE_WORKER_SANDBOX_PROXY_URL: 'http://docker-proxy-coding:2375',
+    CORE_WORKER_SANDBOX_PROXY_TOKEN_REF: 'env:T',
+    CORE_WORKER_SANDBOX_SCRATCH: '/var/lib/aisdlc/sandbox-scratch',
+    CORE_WORKER_SANDBOX_MIRROR: 'aisdlc-package-mirror',
+    CORE_WORKER_SANDBOX_GATEWAY: 'aisdlc-gateway',
+  };
+  it('no proxy: no sessions, the stage ports as before', () => {
+    expect(coreWorkerConfigFromEnv(WITH_AGENTS).sandbox).toBeNull();
+  });
+  it('reads the proxy, its bearer token (a reference), the peers and the defaults', () => {
+    const cfg = coreWorkerConfigFromEnv({ ...WITH_AGENTS, ...SANDBOX });
+    expect(cfg.sandbox).toEqual({
+      proxyUrl: 'http://docker-proxy-coding:2375',
+      proxyToken: 'x'.repeat(32),
+      image: 'aisdlc/sandbox-agent:local',
+      scratch: '/var/lib/aisdlc/sandbox-scratch',
+      mirror: 'aisdlc-package-mirror',
+      gateway: 'aisdlc-gateway',
+      storeDir: '/var/lib/aisdlc/sessions',
+      model: 'claude-sonnet-5-5',
+    });
+  });
+  it('real sessions need the agents stage ports, a token reference (never a literal) and a plain scratch directory', () => {
+    expect(() =>
+      coreWorkerConfigFromEnv({
+        ...BASE,
+        ...SANDBOX,
+        CORE_WORKER_GATEWAY_URL: 'http://127.0.0.1:5',
+        CORE_WORKER_GATEWAY_TOKEN_REF: 'env:T',
+      }),
+    ).toThrow(/STAGE_PORTS=agents/);
+    expect(() =>
+      coreWorkerConfigFromEnv({
+        ...WITH_AGENTS,
+        ...SANDBOX,
+        CORE_WORKER_SANDBOX_PROXY_TOKEN_REF: 'literal-token',
+      }),
+    ).toThrow(/env:NAME or file:PATH/);
+    expect(() =>
+      coreWorkerConfigFromEnv({ ...WITH_AGENTS, ...SANDBOX, CORE_WORKER_SANDBOX_SCRATCH: '/' }),
+    ).toThrow(/plain absolute/);
+    expect(() =>
+      coreWorkerConfigFromEnv({
+        ...WITH_AGENTS,
+        ...SANDBOX,
+        CORE_WORKER_SANDBOX_SCRATCH: '/a/../b',
+      }),
+    ).toThrow(/plain absolute/);
+  });
+});

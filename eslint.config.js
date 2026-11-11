@@ -10,6 +10,8 @@ export default tseslint.config(
       '.cache/**',
       '.pgdata/**',
       '**/.tmp/**',
+      // the portal prototype is a design artefact (plain browser JS), not part of the build
+      'docs/design/**',
     ],
   },
   js.configs.recommended,

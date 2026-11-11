@@ -10,6 +10,8 @@ import {
 import {
   CONFIG_EVENT,
   CONSTITUTION_CONFIG_KEY,
+  SANDBOX_EXEC_ALLOWED_REPOS_KEY,
+  SandboxExecAllowedRepos,
   Constitution,
   DEFAULT_CONSTITUTION,
   DEFAULT_GATING_PROFILE,
@@ -119,6 +121,13 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
       description:
         'the factory constitution 4.5 checks a design against: deterministic rules (egress, migrations). Factory layer only, M1-gated',
     })
+    .setting({
+      key: SANDBOX_EXEC_ALLOWED_REPOS_KEY,
+      schema: SandboxExecAllowedRepos,
+      default: [],
+      description:
+        'DEC-18: the repositories whose code may run in a container-class sandbox (the owner allow-list). Empty: none. Factory layer only, M1-gated',
+    })
     .opsFlag({
       key: MAINTENANCE_FLAG_KEY,
       default: false,
@@ -155,6 +164,21 @@ export function constitutionFrom(reader: ConfigReader): () => Constitution | nul
     const v = c.get(CONSTITUTION_CONFIG_KEY);
     if (v === undefined) return DEFAULT_CONSTITUTION;
     const parsed = Constitution.safeParse(v);
+    return parsed.success ? parsed.data : null;
+  };
+}
+
+/**
+ * The owner allow-list for container-class execution from the config reader (DEC-18). A published value that no
+ * longer fits its schema reads as `null`, which allows nothing (unknown means unmet).
+ */
+export function execAllowedReposFrom(reader: ConfigReader): () => readonly string[] | null {
+  return () => {
+    const c = reader.current();
+    if (c.rejected.includes(SANDBOX_EXEC_ALLOWED_REPOS_KEY)) return null;
+    const v = c.get(SANDBOX_EXEC_ALLOWED_REPOS_KEY);
+    if (v === undefined) return [];
+    const parsed = SandboxExecAllowedRepos.safeParse(v);
     return parsed.success ? parsed.data : null;
   };
 }

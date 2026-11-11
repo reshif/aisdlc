@@ -1,0 +1,41 @@
+#!/bin/sh
+# aisdlc-run: the entrypoint of every sandbox container (PLAN M13.2). Not a security boundary: the container is.
+#
+#   1. the repo is a read-only mount at /repo; in `copy` mode (classes that may build) it is copied into /work,
+#      the mount stays read-only
+#   2. the session command runs under an inner time limit (the driver also kills from outside)
+#   3. /out is a size-capped tmpfs and a container's tmpfs cannot be read by `docker cp`, so the files of /out
+#      leave on stdout as ONE tar, base64, between two marker lines that carry the session's random mark. The
+#      driver reads that block from the log stream, caps it, and treats every byte of it as untrusted
+#
+# Environment (set by the driver, checked by the socket proxy): AISDLC_REPO_MODE (ro|copy), AISDLC_OUT_MARK,
+# AISDLC_OUT_BYTES, AISDLC_TIME_S. No credential is ever among them.
+set -u
+mark="${AISDLC_OUT_MARK:-AISDLC-OUT}"
+mode="${AISDLC_REPO_MODE:-ro}"
+limit="${AISDLC_OUT_BYTES:-16777216}"
+secs="${AISDLC_TIME_S:-3600}"
+case "$limit" in *[!0-9]*) limit=16777216 ;; esac
+case "$secs" in *[!0-9]*) secs=3600 ;; esac
+
+if [ "$mode" = copy ]; then
+  mkdir -p /work/repo && cp -a /repo/. /work/repo/ || {
+    echo "aisdlc-run: could not copy the repo into /work" >&2
+    code=125
+    skip=1
+  }
+  cd /work/repo 2>/dev/null || cd /work
+else
+  cd /repo 2>/dev/null || cd /work
+fi
+
+if [ "${skip:-0}" != 1 ]; then
+  timeout --signal=KILL "$((secs + 5))" "$@"
+  code=$?
+fi
+
+# ship /out: the tar is cut at the cap plus header slack, so a sparse file cannot stream for ever
+printf '\n%s BEGIN exit=%s\n' "$mark" "$code"
+tar -C /out -cf - . 2>/dev/null | head -c "$((limit + 4194304))" | base64 -w 76
+printf '\n%s END\n' "$mark"
+exit 0

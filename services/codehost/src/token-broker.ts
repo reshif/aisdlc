@@ -106,9 +106,16 @@ export class TokenBroker {
         err(readUnreadable('refused', `role ${role} would request forbidden permissions`)),
       );
     }
-    if (this.o.mode === 'census' && !codeHostRoleIsReadOnly(role)) {
+    // Census mints only roles that read; the Push Broker's mode adds `docs` (contents and pull requests write) and
+    // nothing else that writes: `tracker` (issues) is for a later milestone.
+    if (!codeHostRoleIsReadOnly(role) && !(this.o.mode === 'push' && role === 'docs')) {
       return Promise.resolve(
-        err(readUnreadable('refused', `role ${role} writes and is not mintable in Census mode`)),
+        err(
+          readUnreadable(
+            'refused',
+            `role ${role} writes and is not mintable in ${this.o.mode} mode`,
+          ),
+        ),
       );
     }
     const cached = this.cache.get(role);

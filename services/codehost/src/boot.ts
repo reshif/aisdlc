@@ -2,6 +2,7 @@ import { systemClock } from '@aisdlc/kernel';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { FakeRegisteredRepos, FileRegisteredRepos, HttpRegisteredRepos } from '@aisdlc/ports';
 import { GitHubRestCodeHost } from './adapter.js';
+import { HttpPushGuards } from './push-guards.js';
 import { createCodeHostApp } from './app.js';
 import { codeHostConfigFromEnv, codeHostRegistryConfigFromEnv } from './config.js';
 import { HttpIdentityLinks } from './identity-client.js';
@@ -54,6 +55,15 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
         transport,
         installationId: cfg.installationId,
         clock,
+        // the Push Broker: only in push mode, and only with the Unit owner (core) answering for leases and X2
+        ...(cfg.mode === 'push' && cfg.core
+          ? {
+              push: {
+                guards: new HttpPushGuards({ baseUrl: cfg.core.url, token: cfg.core.token }),
+                committer: cfg.committer,
+              },
+            }
+          : {}),
         git: {
           broker,
           gitBaseUrl: cfg.gitUrl,

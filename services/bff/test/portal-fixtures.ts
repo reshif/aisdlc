@@ -428,6 +428,17 @@ export async function startFakeCore(): Promise<FakeCore> {
       if (method === 'GET' && path.startsWith(`/v1/items/${ITEM_ID}?on_behalf_of=`)) {
         return reply(200, itemViewFixture());
       }
+      if (method === 'POST' && path === `/v1/items/${ITEM_ID}/plan`) {
+        return reply(200, {
+          item: itemViewFixture(),
+          units: 1,
+          base_sha: 'b'.repeat(40),
+          outputs: { '5.1': 'c'.repeat(64) },
+        });
+      }
+      if (method === 'POST' && /^\/v1\/items\/[0-9a-f-]+\/(ready|answers|observe)$/.test(path)) {
+        return reply(200, { item: itemViewFixture(), duplicate: false });
+      }
       if (method === 'GET' && path.startsWith(`/v1/agent-runs?item=${ITEM_ID}&on_behalf_of=`)) {
         return reply(200, agentRunsFixture());
       }

@@ -36,10 +36,10 @@
       "sha256": "00aebd8c2391440ceccc517f7b31caba17ccd7fcdc9a91ecca67f106472d11c2",
       "contract_version": "1.1.0"
     },
-    "a6_test@1.0.0": {
-      "file": "a6_test@1.0.0.md",
-      "sha256": "0dee4eb1887dbd9bca6e4053ba7a09ea95e6b4633c1dd1bf5b792668fc7b4f7d",
-      "contract_version": "1.0.0"
+    "a6_test@1.1.0": {
+      "file": "a6_test@1.1.0.md",
+      "sha256": "f200024498ac228ad0c3ec9a556d6b62662016f8348a89921792ba87f40fd8cd",
+      "contract_version": "1.1.0"
     },
     "a9_reverse_engineering@1.0.0": {
       "file": "a9_reverse_engineering@1.0.0.md",

@@ -1,0 +1,29 @@
+{
+  "name": "@aisdlc/coding-runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/bundle.mjs runner",
+    "typecheck": "tsc -p tsconfig.check.json"
+  },
+  "dependencies": {
+    "@aisdlc/contracts": "0.0.0",
+    "@aisdlc/kernel": "0.0.0",
+    "@aisdlc/secrets-rules": "0.0.0",
+    "@aisdlc/tripwires": "0.0.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.319"
+  },
+  "devDependencies": {
+    "@aisdlc/docker-proxy": "0.0.0",
+    "@aisdlc/gateway": "0.0.0",
+    "@aisdlc/ports": "0.0.0",
+    "@aisdlc/sandbox-driver": "0.0.0"
+  }
+}

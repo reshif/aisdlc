@@ -1,5 +1,10 @@
 import { PrincipalId } from '@aisdlc/contracts';
-import { emptySeed, type CodeHostSeed, type FakeRegisteredRepos } from '@aisdlc/ports';
+import {
+  emptySeed,
+  type CodeHostSeed,
+  type FakeRegisteredRepos,
+  type PushGuardsPort,
+} from '@aisdlc/ports';
 import { contractSeed } from '@aisdlc/ports/testing';
 import { ServiceAuth, listen } from '@aisdlc/service-kit';
 import type { FastifyInstance } from 'fastify';
@@ -40,6 +45,7 @@ export const TOKENS = {
   sync: 'sync-token-'.padEnd(32, 'x'),
   all: 'all-token-'.padEnd(32, 'x'),
   none: 'none-token-'.padEnd(32, 'x'),
+  push: 'push-token-'.padEnd(32, 'x'),
 };
 
 export interface Reply {
@@ -71,8 +77,14 @@ export async function startCodeHostApp(
     { project_id: 'acme', repo: 'acme/app' },
   ],
   git?: NonNullable<Parameters<typeof startTestCodeHost>[0]>['git'],
+  /** The Push Broker (M13.6): with guards the host runs in push mode and the `push` caller may use it. */
+  guards?: PushGuardsPort,
 ): Promise<CodeHostTestApp> {
-  const gh = await startTestCodeHost({ seed, ...(git ? { git } : {}) });
+  const gh = await startTestCodeHost({
+    seed,
+    ...(git ? { git } : {}),
+    ...(guards ? { guards, mode: 'push' as const } : {}),
+  });
   gh.registered.set(registered as never);
   const host = new AllowListedCodeHost(gh.rest, gh.registered);
   const callers: Record<string, readonly CodeHostScope[]> = {
@@ -81,6 +93,7 @@ export async function startCodeHostApp(
     sync: ['codeowners_sync'],
     all: ['census', 'posture', 'codeowners_sync'],
     none: [],
+    push: ['push'],
   };
   const app = createCodeHostApp({
     host,

@@ -104,6 +104,9 @@ when { resource.slot == "admin" };
 @id("role/project.admin/gate.view")
 permit (principal in Role::"project.admin", action == Action::"gate.view", resource);
 
+@id("role/project.admin/item.ready")
+permit (principal in Role::"project.admin", action == Action::"item.ready", resource);
+
 @id("role/project.admin/item.view_floor")
 permit (principal in Role::"project.admin", action == Action::"item.view_floor", resource);
 
@@ -154,6 +157,12 @@ when { resource.slot == "design" };
 @id("role/project.design_approver/gate.view")
 permit (principal in Role::"project.design_approver", action == Action::"gate.view", resource);
 
+@id("role/project.design_approver/item.observe")
+permit (principal in Role::"project.design_approver", action == Action::"item.observe", resource);
+
+@id("role/project.design_approver/item.plan")
+permit (principal in Role::"project.design_approver", action == Action::"item.plan", resource);
+
 @id("role/project.design_approver/item.view_floor")
 permit (principal in Role::"project.design_approver", action == Action::"item.view_floor", resource);
 
@@ -191,6 +200,9 @@ when { resource.slot == "intent" };
 
 @id("role/project.intent_approver/gate.view")
 permit (principal in Role::"project.intent_approver", action == Action::"gate.view", resource);
+
+@id("role/project.intent_approver/item.ready")
+permit (principal in Role::"project.intent_approver", action == Action::"item.ready", resource);
 
 @id("role/project.intent_approver/item.view_floor")
 permit (principal in Role::"project.intent_approver", action == Action::"item.view_floor", resource);
@@ -266,6 +278,9 @@ when { resource.slot == "requesters" };
 
 @id("role/project.requester/gate.view")
 permit (principal in Role::"project.requester", action == Action::"gate.view", resource);
+
+@id("role/project.requester/item.ready")
+permit (principal in Role::"project.requester", action == Action::"item.ready", resource);
 
 @id("role/project.requester/item.view_floor")
 permit (principal in Role::"project.requester", action == Action::"item.view_floor", resource);

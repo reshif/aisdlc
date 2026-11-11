@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1.7
+#
+# The W (coding session) image (PLAN M13.4): the sandbox image plus the coding runner and the agent harness's
+# native binary, and nothing else. The runner (`services/coding-runner`, one bundled file) wraps the Claude Agent
+# SDK; the binary is the harness the SDK drives. Both are COPIED from a context the build script assembles on the
+# host (nothing is fetched or installed here, so the image builds with no network, like the base).
+#
+#   platform/sandbox/build-agent.sh        -> aisdlc/sandbox-agent:local
+#
+# The runner is not a security boundary: the container is (SEC-OB-3). It is what keeps the harness to the factory's
+# system prompt, the contract's tools and the Unit's virtual key (LF4, harness isolation).
+ARG BASE=aisdlc/sandbox:local
+FROM ${BASE}
+USER root
+COPY --chmod=0555 runner.js /opt/agent/runner.js
+COPY --chmod=0555 claude /opt/agent/claude
+
+USER 10002:10002
+ARG RUNNER_SHA=unknown
+LABEL aisdlc.runner.sha256=$RUNNER_SHA

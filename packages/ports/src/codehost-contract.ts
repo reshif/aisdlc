@@ -6,6 +6,7 @@ import {
   FileAtSha,
   InstallationInfo,
   InstallationRepo,
+  WorkItemId,
   type CodeHostNotOk,
   type CodeHostRead,
 } from '@aisdlc/contracts';
@@ -364,22 +365,48 @@ export function codeHostContract(
         }),
     );
 
-    it('apply_patch and pr_status are interface only: unreadable/not_implemented', () =>
+    it('apply_patch refuses a ref outside agent/** and pr_status of a missing PR is not_found, with no write request', () =>
       withHost(async ({ port, requests }) => {
         const before = requests().length;
-        const reads = [
-          await port.apply_patch({
-            repo: 'acme/app',
-            branch: 'agent/x/y',
+        const refused = await port.apply_patch({
+          repo: 'acme/app',
+          item_id: WorkItemId.parse('0198aaaa-1111-7222-8333-444455556666'),
+          unit_key: 'main',
+          lane: 'L4',
+          lease_epoch: 1,
+          branch: 'main',
+          base_sha: SHA_A,
+          expected_head: null,
+          patch: {
+            schema: 'patch/1',
+            files: [{ op: 'put', path: 'a.txt', mode: '100644', content_b64: 'eA==' }],
+          },
+          message: 'm',
+          evidence: {
+            title: 't',
+            lane: 'L4',
             base_sha: SHA_A,
-            patch: '',
-            message: 'm',
-          }),
-          await port.pr_status({ repo: 'acme/app', number: 1 }),
-        ];
-        for (const r of reads)
-          expect(notOk(r)).toMatchObject({ state: 'unreadable', reason: 'not_implemented' });
-        expect(requests().length).toBe(before);
+            oracles: [],
+            files_changed: 1,
+            lines_changed: 1,
+            checks: [],
+            refs: {},
+          },
+        });
+        expect(notOk(refused)).toMatchObject({
+          state: 'unreadable',
+          reason: 'refused',
+          code: 'branch_not_allowed',
+        });
+        // a pull request that is not there: not_found (a host that may read pulls), or refused (Census mode has no row for it)
+        const pr = notOk(await port.pr_status({ repo: 'acme/app', number: 1 }));
+        expect(pr.state).toBe('unreadable');
+        expect(['not_found', 'refused']).toContain(pr.reason);
+        expect(
+          requests()
+            .slice(before)
+            .every((r) => r.method === 'GET'),
+        ).toBe(true);
       }));
 
     it('has no method that can express a forbidden verb, and only ever GETs', () =>

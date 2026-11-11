@@ -27,6 +27,8 @@ const EXPECTED: Record<
     actions: [
       ...VIEWS,
       'work.request',
+      // M12.5: the steps of the lifecycle that are not gates (Ready, answers to questions)
+      'item.ready',
       'project.settings.edit',
       'kill.request',
       'kill.release',
@@ -42,17 +44,18 @@ const EXPECTED: Record<
     cards: true,
   },
   'project.requester': {
-    actions: [...VIEWS, 'work.request'],
+    actions: [...VIEWS, 'work.request', 'item.ready'],
     decides: (g) => g === 'G6',
     cards: true,
   },
   'project.intent_approver': {
-    actions: VIEWS,
+    actions: [...VIEWS, 'item.ready'],
     decides: (g) => ['G0', 'G1', 'G1f', 'G2'].includes(g),
     cards: true,
   },
   'project.design_approver': {
-    actions: VIEWS,
+    // M12.5: the observed signals during G3d and the human-written plan are the design slot's
+    actions: [...VIEWS, 'item.observe', 'item.plan'],
     decides: (g) => ['G3', 'G3d', 'G3s', 'G3o'].includes(g),
     cards: true,
   },

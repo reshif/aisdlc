@@ -83,6 +83,10 @@ export const ArtefactType = z.enum([
   'verification_binding',
   'budget_envelope',
   'capacity_input',
+  // M13.6: what S6 stores: the oracle test files A6 wrote at 6.3, the patch an X2 decides at 6.6, the L7 spike report
+  'oracle_code',
+  'patch',
+  'spike_report',
 ]);
 export type ArtefactType = z.infer<typeof ArtefactType>;
 export const ArtefactTypeValues: readonly ArtefactType[] = ArtefactType.options;
@@ -146,6 +150,12 @@ export const AgentDefinition = z
     role: z.string().min(1).max(64).nullable(),
     note: z.string().min(1).max(500).nullable(),
     steps: z.array(StepId).max(64),
+    /**
+     * Steps a DETERMINISTIC (D) step calls the agent in for (M13.6: 6.3 "D check: matches the G2-approved oracle specs":
+     * the check and the lock are the factory's, A6 writes the test files). The work driver binds this agent and mints
+     * its key at the step like any agent's, but the step stays a D step in the flow and the catalogue.
+     */
+    specialist_steps: z.array(StepId).max(8).default([]),
     contract: AgentContract,
     prompt: PromptRef,
   })
@@ -156,6 +166,10 @@ export const AgentDefinition = z
   .refine((d) => new Set(d.steps).size === d.steps.length, {
     message: 'duplicate step',
     path: ['steps'],
+  })
+  .refine((d) => d.specialist_steps.every((s) => !d.steps.includes(s) && !isAgentStep(s)), {
+    message: 'a specialist step is a deterministic step no agent is the primary of',
+    path: ['specialist_steps'],
   });
 export type AgentDefinition = z.infer<typeof AgentDefinition>;
 

@@ -34,7 +34,7 @@ with a different `command` and environment (RV §5.2, "image x config"); there i
 image because none has a different dependency set worth a second build. Containers run read-only,
 with all capabilities dropped, `no-new-privileges`, an init process, a memory limit, a restart
 policy and a `/healthz` health check (the dev IdP's is its discovery document). No container
-mounts the Docker socket; the smoke test checks it.
+mounts the Docker socket, except the two allow-list proxies of the optional `sandbox` profile (below); the smoke test checks it.
 
 `migrate` builds the image and runs `aisdlc-migrate --notary --witness --killswitch` first, after `db-init` has
 created the roles and databases; every other service waits for it (`service_completed_successfully`).
@@ -236,8 +236,9 @@ SMOKE_SKIP_BUILD=1 npm run smoke:compose      # or: docker compose up -d --wait 
 knowledge with the `search` scope its token carries (the `KnowledgeSearch` tool). The seed registers the local
 fake provider with `fixtures: planning`: it answers each planning step with one canned valid output (no model, no
 key), so a local stack can run a request through the real port, the gateway and the gates. A Census project
-cannot run L4 (OB §2.1 routes it to L8) and the portal has no Ready decision yet, so `e2e.sh` stops a request
-at 1.6 with S1's artefacts stored; the L4 path to the plan approval is covered by `services/core` tests over the
+cannot run L4 (OB §2.1 routes it to L8), so `e2e.sh` asks for L4, has the browser answer a clarification question
+if the scripted fake asks one (it does not today) and decide Ready (1.6) on `/items/:id` (M12.5), and checks the
+item stays on L8 and goes on to its gates; the L4 path to the plan approval is covered by `services/core` tests over the
 same fixtures.
 
 ## The ledger loops (M8.0b)
@@ -320,3 +321,15 @@ bound to the record hash. The readiness record page and the ledger page then sho
 Screenshots (deviceScaleFactor 2) are in `docs/screenshots/`.
 
 Not done yet and visible here: the cards C2 and C3 (Light and Full) have no Decide screen because core has no card for them yet.
+
+## The sandbox plane (profile `sandbox`, M13.2)
+
+`docker compose --profile sandbox up -d --wait` adds three containers; `smoke.sh` always runs with them.
+
+| Container             | Port | Networks       | Boundary | Why                                                                                                                                                                                                                                                                                            |
+| --------------------- | ---- | -------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docker-proxy-cvw`    | 2375 | docker-cvw     | D        | allow-list in front of the Docker socket for the CVW: network-less sandboxes only. The ONLY kind of container that mounts the socket                                                                                                                                                           |
+| `docker-proxy-coding` | 2375 | docker-coding  | D        | the same list plus per-session internal networks and the attach of the gateway and the mirror, for the coding worker. Still no exec, build, pull, volume, privileged, host namespace, device, added capability, or bind mount other than the session's read-only repo copy; one coding session |
+| `package-mirror`      | 8420 | sandbox-mirror | E        | the one peer (with the gateway) a sandbox network has: read-only, no upstream, fixture directory `services/package-mirror/fixtures` (empty until DEC-17)                                                                                                                                       |
+
+The proxies run as the factory uid with the socket's group added (`DOCKER_GID`, default 0; `smoke.sh` sets it from `stat`). They need the sandbox image (`docker build -t aisdlc/sandbox:local platform/sandbox`, nothing is fetched: the pinned node base is local) and a scratch directory the sandbox driver writes read-only repo copies to (`SANDBOX_SCRATCH`, default `/var/lib/aisdlc/sandbox-scratch`; the same path in the client and for the daemon). The gateway and the mirror carry the label `aisdlc.sandbox.peer` and a fixed container name so the coding proxy may attach them to a session network under their fixed aliases (`gateway`, `package-mirror`). `sandbox-smoke` (profile `sandbox-smoke`) is the smoke client: one K session and one K-exec session through the coding proxy, then the refusals (a create body with `Privileged=true`, host network, host PID, an added capability, the socket as a bind, a root user, exec, build, pull). The hostile-probe evidence is `docs/evidence/sec-ob-3.md`; the design is `docs/adr/0002-sandbox-container-class.md`.

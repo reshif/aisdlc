@@ -82,26 +82,22 @@ describe('effectiveBranchRules', () => {
 });
 
 describe('FakeGitHub', () => {
-  it('logs the request each call stands for (a bundle: git ref discovery), and apply_patch/pr_status log nothing', async () => {
+  it('logs the request each call stands for (a bundle: git ref discovery), and a refused apply_patch logs nothing', async () => {
     const f = new FakeGitHub(contractSeed());
     await f.list_repos();
     await f.rules_for_branch({ repo: 'acme/app', branch: 'feature/x' });
     await f.read_at_sha({ repo: 'acme/app', sha: SHA_A, path: 'docs/a b.md' });
     const b = await f.bundle({ repo: 'acme/app', base_sha: SHA_A, refs: 'all' });
     if (b.state === 'ok') b.value.dispose();
-    await f.apply_patch({
-      repo: 'acme/app',
-      branch: 'agent/x/y',
-      base_sha: SHA_A,
-      patch: '',
-      message: 'm',
-    });
+    // a refused push and a missing PR: the refusal makes no request at all
+    await f.apply_patch({ branch: 'main' } as never);
     await f.pr_status({ repo: 'acme/app', number: 1 });
     expect(f.requests).toEqual([
       { method: 'GET', path: '/installation/repositories' },
       { method: 'GET', path: '/repos/acme/app/rules/branches/feature%2Fx' },
       { method: 'GET', path: '/repos/acme/app/contents/docs/a%20b.md' },
       { method: 'GET', path: '/acme/app.git/info/refs?service=git-upload-pack' },
+      { method: 'GET', path: '/repos/acme/app/pulls/1' },
     ]);
   });
 

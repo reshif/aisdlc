@@ -236,6 +236,48 @@ describe('own request (requester is not the approver)', () => {
   });
 });
 
+describe('plan author (B5): barred like the requester on G3', () => {
+  const vote = (over: Partial<VoteInput>): ReturnType<typeof evaluateVote> =>
+    evaluateVote({
+      key: 'G3',
+      ctx: T0,
+      holders: people(2),
+      requester: pr('cy'),
+      authors: [pr('ann')],
+      voter: pr('ann'),
+      decision: 'approve',
+      approvers: [],
+      frozenQuorum: 1,
+      ...over,
+    });
+  it('refuses the author when someone else can decide', () => {
+    const v = vote({});
+    expect(!v.ok && v.error.code).toBe('own_request');
+    // reject is a decision too: the author does not end the gate either
+    const r = vote({ decision: 'reject' });
+    expect(!r.ok && r.error.code).toBe('own_request');
+  });
+  it('lets the other holder decide, no waiver', () => {
+    const v = vote({ voter: pr('bob') });
+    expect(v.ok && [v.value.outcome, v.value.sod_waiver]).toEqual(['decided', false]);
+  });
+  it('the sole holder who wrote the plan decides with a stamped sod_waiver (not T2)', () => {
+    const v = vote({ holders: people(1) });
+    expect(v.ok && [v.value.outcome, v.value.sod_waiver]).toEqual(['decided', true]);
+  });
+  it('T2: the sole holder who wrote the plan cannot decide, and the gate cannot open', () => {
+    expect(vote({ ctx: T2, holders: people(1) }).ok).toBe(false);
+    expect(planQuorum('G3', T2, people(1), pr('cy'), [pr('ann')]).ok).toBe(false);
+  });
+  it('two holders who are both the requester and the author: nobody may decide (no waiver for two)', () => {
+    expect(planQuorum('G3', T0, people(2), pr('ann'), [pr('bob')]).ok).toBe(false);
+  });
+  it('a gate that allows the own request (G6) ignores authors', () => {
+    const v = vote({ key: 'G6', ctx: T2 });
+    expect(v.ok && v.value.sod_waiver).toBe(false);
+  });
+});
+
 describe('evaluateVote', () => {
   const base: VoteInput = {
     key: 'X1',

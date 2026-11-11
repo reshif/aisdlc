@@ -414,11 +414,12 @@ try {
   await page.locator('[data-status="done"]').waitFor();
   await shot('m8-s0.png');
 
-  // 12b. (M12, Gap A) S1 with the REAL planning agents on this stack: core-worker runs the work driver with
+  // 12b. (M12, Gap A; M12.5) S1 with the REAL planning agents on this stack: core-worker runs the work driver with
   // `CORE_WORKER_STAGE_PORTS=agents`, the gateway's local fake provider answers each planning step with a
   // canned valid output (`fixtures: planning`), the port validates it and stores it as an artefact. A Census
-  // project cannot run L4 (OB 2.1: the lane is routed to L8), and there is no Ready decision in the portal
-  // yet, so the item rests at 1.6 with what S1 produced: the classification and the intent block.
+  // project cannot run L4 (OB 2.1: the lane is routed to L8). After the Ask the BROWSER answers a clarification
+  // question if the scripted fake asked one (it does not today, so that branch is only taken when it does) and
+  // decides Ready (1.6) on the item page; the lane stays L8 and the item goes on to its gates.
   {
     const csrf = (await (await context.request.get(`${base}/api/me`)).json()).csrf_token;
     const asked = await context.request.post(`${base}/api/requests`, {
@@ -432,17 +433,58 @@ try {
     });
     must(asked.status() === 201, `Ask answered ${asked.status()}: ${await asked.text()}`);
     const itemId = (await asked.json()).item_id;
-    const item = await until(async () => {
+    const readItem = async () => {
       const r = await context.request.get(`${base}/api/items/${itemId}`);
-      const v = r.status() === 200 ? await r.json() : null;
-      return v && v.waiting === 'human:ready' ? v : null;
-    }, 'the item to reach the Ready decision (S1 run by the agents)');
+      return r.status() === 200 ? await r.json() : null;
+    };
+    // S1 runs; it rests at a clarification (if the fake asks) or at 1.6
+    let item = await until(async () => {
+      const v = await readItem();
+      return v && (v.waiting === 'human:ready' || v.questions.some((q) => !q.answered)) ? v : null;
+    }, 'the item to reach a question or the Ready decision (S1 run by the agents)');
+    await page.goto(`${base}/items/${itemId}`);
+    await page.getByRole('heading', { level: 1, name: 'Work item' }).waitFor();
+    if (item.questions.some((q) => !q.answered)) {
+      // the browser answers each open question, as the requester
+      for (const q of item.questions.filter((x) => !x.answered)) {
+        await page
+          .getByLabel('Your answer')
+          .first()
+          .fill('The audit_log table; CSV with a header row.');
+        await page.getByRole('button', { name: 'Send answer' }).first().click();
+        await until(async () => {
+          const v = await readItem();
+          return v?.questions.find((x) => x.question_id === q.question_id)?.answered ? v : null;
+        }, `the answer to "${q.text}" to be recorded`);
+      }
+      log('the browser answered the S1 clarification question(s)');
+      item = await until(async () => {
+        const v = await readItem();
+        return v && v.waiting === 'human:ready' ? v : null;
+      }, 'the item to reach the Ready decision after the answers');
+    } else {
+      log('S1 asked no clarification question: nothing to answer');
+    }
     must(
       item.proposed_lane === 'L8',
       `a census project routes L4 to L8, not ${item.proposed_lane}`,
     );
+    must(item.may.ready === true, 'the PDP does not let alice decide Ready');
     log(
       `S1 ran with the real planning port: item ${itemId} waits at 1.6 (proposed lane ${item.proposed_lane})`,
+    );
+    // Ready, decided in the browser: one press, then the item leaves 1.6 and keeps its L8 route
+    await page.reload();
+    await page.getByRole('button', { name: 'Say it is ready' }).click();
+    const after = await until(async () => {
+      const v = await readItem();
+      return v && v.waiting !== 'human:ready' ? v : null;
+    }, 'the item to leave the Ready decision');
+    must(after.proposed_lane === 'L8', `the lane changed after Ready: ${after.proposed_lane}`);
+    must(after.may.ready === false, 'Ready is still offered after it was decided');
+    await page.getByRole('button', { name: 'Say it is ready' }).waitFor({ state: 'detached' });
+    log(
+      `Ready decided in the browser: item ${itemId} is now at ${after.waiting} (lane ${after.proposed_lane})`,
     );
     globalThis.__e2eItem = itemId;
   }

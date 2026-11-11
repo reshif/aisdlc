@@ -11,6 +11,7 @@ import {
   type FileAtSha,
   type GitSha,
 } from '@aisdlc/contracts';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { z } from 'zod';
 import {
@@ -34,6 +35,14 @@ import {
   type ReadAtShaRequest,
   type RepoRequest,
 } from './codehost.js';
+import {
+  NO_PUSH_GUARDS,
+  commitMessage,
+  preflightPush,
+  refusal,
+  renderPr,
+  type PushGuardsPort,
+} from './push.js';
 
 // FakeGitHub (PLAN M5.1): a deterministic in-memory `CodeHostPort` with a request log. It is
 // seeded with a `CodeHostSeed` (the same document the in-repo fake GitHub HTTP server of
@@ -85,27 +94,70 @@ export const emptySeed = (over: Partial<CodeHostSeed> = {}): CodeHostSeed => ({
 });
 
 export interface LoggedRequest {
-  readonly method: 'GET';
+  readonly method: 'GET' | 'POST' | 'PATCH';
   readonly path: string;
 }
 
-type PortMethod = (typeof CODEHOST_PORT_METHODS)[number];
+interface FakeCommit {
+  readonly sha: string;
+  readonly parent: string | null;
+  readonly tree: string;
+  readonly message: string;
+  /** The whole tree after the commit: path -> bytes (base64) and mode. */
+  readonly files: ReadonlyMap<string, { readonly b64: string; readonly mode: string }>;
+}
 
-const notImplemented = (what: string): CodeHostNotOk =>
-  readUnreadable('not_implemented', `${what} is not implemented yet`);
+interface FakePr {
+  readonly number: number;
+  readonly head_ref: string;
+  head_sha: string;
+  title: string;
+  body: string;
+  state: 'open' | 'closed';
+  merged: boolean;
+  draft: boolean;
+}
+
+export interface FakeGitHubOptions {
+  /** The Unit's owner (lease and X2). Default: none, so a push is refused (fail closed). */
+  readonly guards?: PushGuardsPort;
+}
+
+type PortMethod = (typeof CODEHOST_PORT_METHODS)[number];
 
 export class FakeGitHub implements CodeHostPort {
   readonly requests: LoggedRequest[] = [];
   private seed: CodeHostSeed = emptySeed();
   private readonly broken = new Map<PortMethod, CodeHostNotOk>();
+  private readonly guards: PushGuardsPort;
+  private commits = new Map<string, FakeCommit>();
+  private prs = new Map<string, FakePr[]>();
+  /** What the last accepted `apply_patch` wrote: for tests that look at the commit and the PR body. */
+  readonly pushed: Array<{ commit: FakeCommit; pr: FakePr; repo: string }> = [];
 
-  constructor(seed?: CodeHostSeed) {
+  constructor(seed?: CodeHostSeed, opts: FakeGitHubOptions = {}) {
+    this.guards = opts.guards ?? NO_PUSH_GUARDS;
     if (seed) this.load(seed);
+  }
+
+  /** The PR the fake holds (the body is what a person would read), for tests. */
+  prOf(repo: string, number: number): FakePr | undefined {
+    return this.prs.get(repoKey(repo))?.find((p) => p.number === number);
+  }
+
+  /** Somebody else wrote to the branch (a person pushed, against the rules): the next push is not a fast-forward. */
+  moveBranch(repo: string, branch: string, sha: string): this {
+    const h = this.seed.heads.find((x) => repoKey(x.repo) === repoKey(repo) && x.branch === branch);
+    if (h) h.sha = sha;
+    else this.seed.heads.push({ repo, branch, sha });
+    return this;
   }
 
   /** Replaces everything the fake knows (the request log is kept). */
   load(seed: CodeHostSeed): this {
     this.seed = structuredClone(CodeHostSeed.parse(seed));
+    this.commits = new Map();
+    this.prs = new Map();
     return this;
   }
 
@@ -137,7 +189,11 @@ export class FakeGitHub implements CodeHostPort {
     return this;
   }
 
-  private gate(method: PortMethod, method_: 'GET', path: string): CodeHostNotOk | null {
+  private gate(
+    method: PortMethod,
+    method_: 'GET' | 'POST' | 'PATCH',
+    path: string,
+  ): CodeHostNotOk | null {
     this.requests.push({ method: method_, path });
     return this.broken.get(method) ?? null;
   }
@@ -176,6 +232,18 @@ export class FakeGitHub implements CodeHostPort {
     );
     if (b) return b;
     if (!this.repoKnown(req.repo)) return this.missingRepo(req.repo);
+    const pushed = this.commits.get(req.sha)?.files.get(req.path);
+    if (pushed) {
+      const content = Buffer.from(pushed.b64, 'base64').toString('utf8');
+      return readOk({
+        path: req.path,
+        sha: req.sha,
+        blob_sha: gitBlobSha(content),
+        size: Buffer.byteLength(content),
+        content,
+      });
+    }
+    if (this.commits.has(req.sha)) return readOk(null);
     const f = this.seed.files.find(
       (x) => repoKey(x.repo) === repoKey(req.repo) && x.sha === req.sha && x.path === req.path,
     );
@@ -281,11 +349,137 @@ export class FakeGitHub implements CodeHostPort {
     });
   }
 
-  async apply_patch(_req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>> {
-    return notImplemented('apply_patch (M13)');
+  /** The files of a commit: a pushed one, or the seed's files at that sha. */
+  private filesAt(repo: string, sha: string): FakeCommit['files'] {
+    const c = this.commits.get(sha);
+    if (c) return c.files;
+    const m = new Map<string, { b64: string; mode: string }>();
+    for (const f of this.seed.files) {
+      if (repoKey(f.repo) === repoKey(repo) && f.sha === sha) {
+        m.set(f.path, { b64: Buffer.from(f.content).toString('base64'), mode: '100644' });
+      }
+    }
+    return m;
   }
 
-  async pr_status(_req: PrStatusRequest): Promise<CodeHostRead<PrStatus>> {
-    return notImplemented('pr_status (M14)');
+  async apply_patch(req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>> {
+    // everything the broker checks before the network, once (`preflightPush`)
+    const pf = await preflightPush(req, this.guards);
+    if (!pf.ok) return pf.error;
+    const { patch_hash, protected_rules } = pf.value;
+    const b = this.broken.get('apply_patch');
+    if (b) return b;
+    const repo = this.seed.repos.find((r) => repoKey(r.full_name) === repoKey(req.repo));
+    if (!repo) return this.missingRepo(req.repo);
+    const known =
+      this.commits.has(req.base_sha) ||
+      this.seed.heads.some((h) => repoKey(h.repo) === repoKey(req.repo) && h.sha === req.base_sha);
+    if (!known) return refusal('base_unknown', 'the base commit is not one the host holds');
+    const head = this.seed.heads.find(
+      (h) => repoKey(h.repo) === repoKey(req.repo) && h.branch === req.branch,
+    );
+    if ((head?.sha ?? null) !== req.expected_head) {
+      return refusal('non_fast_forward', 'the branch is not where the writer last left it');
+    }
+    const parent = head?.sha ?? req.base_sha;
+    const files = new Map(this.filesAt(req.repo, req.base_sha));
+    for (const f of req.patch.files) {
+      this.requests.push({ method: 'POST', path: `/repos/${req.repo}/git/blobs` });
+      if (f.op === 'put') files.set(f.path, { b64: f.content_b64, mode: f.mode });
+      else files.delete(f.path);
+    }
+    const tree = createHash('sha1')
+      .update(
+        JSON.stringify(
+          [...files].sort(([a], [c]) => (a < c ? -1 : 1)).map(([p, v]) => [p, v.mode, v.b64]),
+        ),
+      )
+      .digest('hex');
+    this.requests.push({ method: 'POST', path: `/repos/${req.repo}/git/trees` });
+    const message = commitMessage(req.message, {
+      item_id: req.item_id,
+      unit_key: req.unit_key,
+      lease_epoch: req.lease_epoch,
+      patch_hash,
+      protected_rules,
+    });
+    const sha = createHash('sha1').update(`commit\0${tree}\0${parent}\0${message}`).digest('hex');
+    this.requests.push({ method: 'POST', path: `/repos/${req.repo}/git/commits` });
+    const commit: FakeCommit = { sha, parent, tree, message, files };
+    this.commits.set(sha, commit);
+    if (head) {
+      this.requests.push({
+        method: 'PATCH',
+        path: `/repos/${req.repo}/git/refs/heads/${req.branch.split('/').map(encodeURIComponent).join('/')}`,
+      });
+      head.sha = sha;
+    } else {
+      this.requests.push({ method: 'POST', path: `/repos/${req.repo}/git/refs` });
+      this.seed.heads.push({ repo: req.repo, branch: req.branch, sha });
+    }
+    const list = this.prs.get(repoKey(req.repo)) ?? [];
+    this.prs.set(repoKey(req.repo), list);
+    const text = renderPr(req.evidence, {
+      item_id: req.item_id,
+      unit_key: req.unit_key,
+      lease_epoch: req.lease_epoch,
+      patch_hash,
+      protected_rules,
+    });
+    let pr = list.find((p) => p.head_ref === req.branch && p.state === 'open');
+    if (pr) {
+      this.requests.push({ method: 'PATCH', path: `/repos/${req.repo}/pulls/${pr.number}` });
+      pr.head_sha = sha;
+      pr.title = text.title;
+      pr.body = text.body;
+    } else {
+      this.requests.push({ method: 'POST', path: `/repos/${req.repo}/pulls` });
+      pr = {
+        number: list.length + 1,
+        head_ref: req.branch,
+        head_sha: sha,
+        title: text.title,
+        body: text.body,
+        state: 'open',
+        merged: false,
+        draft: true,
+      };
+      list.push(pr);
+    }
+    this.pushed.push({ commit, pr: { ...pr }, repo: req.repo });
+    return readOk({
+      branch: req.branch,
+      commit_sha: sha,
+      parent_sha: parent,
+      tree_sha: tree,
+      created: head === undefined,
+      patch_hash,
+      pr: {
+        number: pr.number,
+        draft: pr.draft,
+        state: pr.state,
+        head_sha: sha,
+        head_ref: req.branch,
+        base_ref: repo.default_branch,
+        html_url: `https://github.example/${req.repo}/pull/${pr.number}`,
+      },
+    });
+  }
+
+  async pr_status(req: PrStatusRequest): Promise<CodeHostRead<PrStatus>> {
+    const b = this.gate('pr_status', 'GET', `/repos/${req.repo}/pulls/${req.number}`);
+    if (b) return b;
+    if (!this.repoKnown(req.repo)) return this.missingRepo(req.repo);
+    const pr = this.prs.get(repoKey(req.repo))?.find((p) => p.number === req.number);
+    if (!pr) return readUnreadable('not_found', `no pull request ${req.number}`);
+    return readOk({
+      number: pr.number,
+      state: pr.state,
+      merged: pr.merged,
+      head_sha: pr.head_sha,
+      draft: pr.draft,
+      checks_read: false,
+      checks: [],
+    });
   }
 }

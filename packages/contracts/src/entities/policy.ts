@@ -193,6 +193,35 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'slots', slots: ['requesters', 'admin'] }],
     log_allow: true,
   },
+  // M12.5: the portal's actions on a work item during planning. They are steps of the lifecycle, not gates:
+  // the decisions they lead to (G0, E1, G3) are still decided by their own slots and ledgered.
+  'item.ready': {
+    action_id: 'item.ready',
+    description:
+      'Say a request is ready for G0 (S1 step 1.6) and answer S1 clarification questions',
+    class: 'write',
+    resource_types: ['Item'],
+    grants: [{ kind: 'slots', slots: ['requesters', 'intent', 'admin'] }],
+    log_allow: true,
+  },
+  'item.observe': {
+    action_id: 'item.observe',
+    description:
+      'Raise an observed signal while G3d is open: B4 (the design reveals a gap in the spec) or R2 (smaller than the lane)',
+    class: 'write',
+    resource_types: ['Item'],
+    grants: [{ kind: 'slots', slots: ['design'] }],
+    log_allow: true,
+  },
+  'item.plan': {
+    action_id: 'item.plan',
+    description:
+      'Write the plan by hand after B5 (the human never pushes code; G3 decides the plan)',
+    class: 'write',
+    resource_types: ['Item'],
+    grants: [{ kind: 'slots', slots: ['design'] }],
+    log_allow: true,
+  },
   'project.view': {
     action_id: 'project.view',
     description: 'See a project and its settings',
@@ -351,7 +380,7 @@ export const LOGGED_ALLOW_ACTIONS: readonly ActionId[] = ACTION_IDS.filter(
 );
 
 /** Bump with any change to the actions, their grants, the entity model or the cross-cutting rules. */
-export const PDP_POLICY_VERSION = '1.2.0';
+export const PDP_POLICY_VERSION = '1.3.0';
 
 const VIEW_RANK: Readonly<Record<ViewLevel, number>> = { V1: 1, V2: 2, V3: 3 };
 

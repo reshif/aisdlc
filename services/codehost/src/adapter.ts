@@ -21,8 +21,14 @@ import {
   gitBlobSha,
   readOk,
   readUnknown,
+  NO_PUSH_GUARDS,
+  commitMessage,
+  preflightPush,
   readUnreadable,
+  refusal,
+  renderPr,
   repoKey,
+  type PushGuardsPort,
   type AppliedPatch,
   type ApplyPatchRequest,
   type BranchRequest,
@@ -74,6 +80,16 @@ const ContentFile = z.looseObject({
 
 const RefObject = z.looseObject({
   object: z.looseObject({ sha: z.string(), type: z.string() }),
+});
+
+const PullJson = z.looseObject({
+  number: z.number().int().min(1),
+  state: z.enum(['open', 'closed']),
+  draft: z.boolean().optional(),
+  merged: z.boolean().optional(),
+  html_url: z.string().optional(),
+  head: z.looseObject({ ref: z.string(), sha: z.string() }),
+  base: z.looseObject({ ref: z.string() }),
 });
 
 const CodeownersErrors = z.looseObject({
@@ -137,6 +153,15 @@ export interface GitHubRestOptions {
   readonly clock?: Clock;
   /** How long the installation's repo list is trusted for file reads. Default one minute. */
   readonly repoCacheMs?: number;
+  /**
+   * The Push Broker (M13.6): who answers for the Unit's lease and X2 decisions (core), and the identity the commits
+   * are made under (the App's: the factory is the committer). Without `guards` nothing is pushed; with a transport in
+   * census mode every write is refused by the allow-list anyway.
+   */
+  readonly push?: {
+    readonly guards: PushGuardsPort;
+    readonly committer: { readonly name: string; readonly email: string };
+  };
   /**
    * What `bundle` needs: the token broker (role `hub`) and where git clones from. Without it
    * `bundle` is `unreadable/not_implemented` (the REST-only harness of the contract suite).
@@ -397,11 +422,194 @@ export class GitHubRestCodeHost implements CodeHostPort {
     );
   }
 
-  async apply_patch(_req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>> {
-    return notImplemented('apply_patch (M13)');
+  /**
+   * The Push Broker's one write: blobs, tree, ONE commit (Git Data API, so no working tree and no git push), the
+   * branch ref (created, or fast-forwarded with `force: false`), and a Draft PR (opened, or updated by title and body).
+   * Every check that needs no GitHub runs first (`preflightPush`): a refused patch makes no request.
+   */
+  async apply_patch(input: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>> {
+    const pf = await preflightPush(input, this.o.push?.guards ?? NO_PUSH_GUARDS);
+    if (!pf.ok) return pf.error;
+    const { req, patch_hash, protected_rules } = pf.value;
+    const push = this.o.push;
+    if (!push) return readUnreadable('refused', 'this code host has no Push Broker configured');
+    const repo = this.parseRepo(req.repo);
+    if ('state' in repo) return repo;
+    const base = `/repos/${repo.owner}/${repo.name}`;
+    const t = this.o.transport;
+
+    const repos = await this.list_repos();
+    if (repos.state !== 'ok') return repos;
+    const info = repos.value.find((r) => repoKey(r.full_name) === repoKey(req.repo));
+    if (!info) {
+      return readUnreadable(
+        'not_found',
+        `repository ${req.repo} is not reachable by this installation`,
+      );
+    }
+    if (info.archived) return readUnreadable('refused', 'the repository is archived');
+
+    // the base commit's tree: the patch is against it
+    const bc = await t.get(`${base}/git/commits/${req.base_sha}`);
+    if (!bc.ok) {
+      return bc.error.reason === 'not_found'
+        ? refusal('base_unknown', 'the base commit is not one the host holds')
+        : bc.error;
+    }
+    const baseCommit = z
+      .looseObject({ tree: z.looseObject({ sha: z.string() }) })
+      .safeParse(bc.value.json);
+    if (!baseCommit.success || !GitSha.safeParse(baseCommit.data.tree.sha).success) {
+      return readUnknown('malformed', 'the base commit has an unexpected shape');
+    }
+    const baseTree = baseCommit.data.tree.sha;
+
+    // where the branch is now: it must be where the writer last left it (a person pushing is not a fast-forward)
+    const hr = await t.get(`${base}/git/ref/heads/${encPath(req.branch)}`);
+    let head: string | null = null;
+    if (hr.ok) {
+      const p = RefObject.safeParse(hr.value.json);
+      if (!p.success || !GitSha.safeParse(p.data.object.sha).success) {
+        return readUnknown('malformed', 'the branch ref has an unexpected shape');
+      }
+      head = p.data.object.sha;
+    } else if (hr.error.reason !== 'not_found') return hr.error;
+    if (head !== req.expected_head) {
+      return refusal(
+        'non_fast_forward',
+        'the branch is not where the writer last left it: it is never forced',
+      );
+    }
+    const parent = head ?? req.base_sha;
+
+    // blobs, tree
+    const entries: Array<{ path: string; mode: string; type: 'blob'; sha: string | null }> = [];
+    for (const f of req.patch.files) {
+      if (f.op === 'delete') {
+        entries.push({ path: f.path, mode: '100644', type: 'blob', sha: null });
+        continue;
+      }
+      const b = await t.post(`${base}/git/blobs`, { content: f.content_b64, encoding: 'base64' });
+      if (!b.ok) return b.error;
+      const sha = z.looseObject({ sha: z.string() }).safeParse(b.value.json);
+      if (!sha.success) return readUnknown('malformed', 'a blob answer has no sha');
+      entries.push({ path: f.path, mode: f.mode, type: 'blob', sha: sha.data.sha });
+    }
+    const tr = await t.post(`${base}/git/trees`, { base_tree: baseTree, tree: entries });
+    if (!tr.ok) return tr.error;
+    const tree = z.looseObject({ sha: z.string() }).safeParse(tr.value.json);
+    if (!tree.success || !GitSha.safeParse(tree.data.sha).success) {
+      return readUnknown('malformed', 'the tree answer has no sha');
+    }
+
+    // ONE commit, the factory's (the App's identity) as author and committer
+    const facts = {
+      item_id: req.item_id,
+      unit_key: req.unit_key,
+      lease_epoch: req.lease_epoch,
+      patch_hash,
+      protected_rules,
+    };
+    const who = { name: push.committer.name, email: push.committer.email };
+    const cm = await t.post(`${base}/git/commits`, {
+      message: commitMessage(req.message, facts),
+      tree: tree.data.sha,
+      parents: [parent],
+      author: who,
+      committer: who,
+    });
+    if (!cm.ok) return cm.error;
+    const commit = z.looseObject({ sha: z.string() }).safeParse(cm.value.json);
+    if (!commit.success || !GitSha.safeParse(commit.data.sha).success) {
+      return readUnknown('malformed', 'the commit answer has no sha');
+    }
+
+    // the ref: created, or moved forward without force
+    const ref =
+      head === null
+        ? await t.post(`${base}/git/refs`, {
+            ref: `refs/heads/${req.branch}`,
+            sha: commit.data.sha,
+          })
+        : await t.patch(`${base}/git/refs/heads/${req.branch}`, {
+            sha: commit.data.sha,
+            force: false,
+          });
+    if (!ref.ok) {
+      // 422 from GitHub: not a fast-forward (the branch moved between the read and the update), or it now exists
+      return ref.error.reason === 'refused'
+        ? refusal('non_fast_forward', 'GitHub refused the ref update as not a fast-forward')
+        : ref.error;
+    }
+
+    // the Draft PR: opened, or (SK-1) updated after a re-push; never marked ready
+    const text = renderPr(req.evidence, facts);
+    const open = await t.get(
+      `${base}/pulls?head=${enc(`${repo.owner}:${req.branch}`)}&state=open&per_page=10`,
+    );
+    if (!open.ok) return open.error;
+    const existing = z
+      .array(z.looseObject({ number: z.number().int() }))
+      .safeParse(open.value.json);
+    if (!existing.success)
+      return readUnknown('malformed', 'the pull request list has an unexpected shape');
+    const pr =
+      existing.data[0] !== undefined
+        ? await t.patch(`${base}/pulls/${existing.data[0].number}`, {
+            title: text.title,
+            body: text.body,
+          })
+        : await t.post(`${base}/pulls`, {
+            title: text.title,
+            head: req.branch,
+            base: info.default_branch,
+            body: text.body,
+            draft: true,
+          });
+    if (!pr.ok) return pr.error;
+    const pull = PullJson.safeParse(pr.value.json);
+    if (!pull.success)
+      return readUnknown('malformed', 'the pull request answer has an unexpected shape');
+    return readOk({
+      branch: req.branch,
+      commit_sha: commit.data.sha,
+      parent_sha: parent,
+      tree_sha: tree.data.sha,
+      created: head === null,
+      patch_hash,
+      pr: {
+        number: pull.data.number,
+        draft: pull.data.draft ?? true,
+        state: pull.data.state,
+        head_sha: pull.data.head.sha,
+        head_ref: pull.data.head.ref,
+        base_ref: pull.data.base.ref,
+        html_url: pull.data.html_url ?? null,
+      },
+    });
   }
 
-  async pr_status(_req: PrStatusRequest): Promise<CodeHostRead<PrStatus>> {
-    return notImplemented('pr_status (M14)');
+  async pr_status(req: PrStatusRequest): Promise<CodeHostRead<PrStatus>> {
+    const repo = this.parseRepo(req.repo);
+    if ('state' in repo) return repo;
+    if (!Number.isInteger(req.number) || req.number < 1) {
+      return readUnreadable('refused', 'a pull request number is a positive integer');
+    }
+    const r = await this.o.transport.get(`/repos/${repo.owner}/${repo.name}/pulls/${req.number}`);
+    if (!r.ok) return r.error;
+    const p = PullJson.safeParse(r.value.json);
+    if (!p.success || !GitSha.safeParse(p.data.head.sha).success) {
+      return readUnknown('malformed', 'the pull request has an unexpected shape');
+    }
+    return readOk({
+      number: p.data.number,
+      state: p.data.state,
+      merged: p.data.merged ?? false,
+      head_sha: p.data.head.sha,
+      draft: p.data.draft ?? false,
+      // the broker's own tokens cannot read check runs: say so, never an empty list that looks like "no failures"
+      checks_read: false,
+      checks: [],
+    });
   }
 }

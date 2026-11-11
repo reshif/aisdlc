@@ -74,6 +74,12 @@ export const GateOpenedPayload = z.strictObject({
   evidence_pack_hash: Sha256Hex.nullable(),
   /** Who asked for the work; the SoD rule keeps them from approving it. `null`: nobody to exclude. */
   requester: PrincipalId.nullable(),
+  /**
+   * Who wrote the artefact this gate decides (B5: the person who wrote the plan by hand). Treated exactly
+   * like the requester by the SoD rule: they cannot decide it unless they are the sole holder of the slot
+   * (stamped `sod_waiver`, never T2). Absent: nobody besides the requester.
+   */
+  authors: z.array(PrincipalId).max(8).optional(),
   /** Conflict facts, project policy; `expires_at` drives the TTL sweep and is always present. */
   facts: Expiring,
   /** Frozen at open. The projection decides `decided` by this number. */

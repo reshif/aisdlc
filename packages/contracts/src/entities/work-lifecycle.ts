@@ -333,6 +333,8 @@ export const CAUSE_PARK_TIMEOUT = 'park.timeout';
 export const CAUSE_E4_ABANDON = 'e4.abandon';
 export const CAUSE_E4_HANDED_OVER = 'e4.handed_over';
 export const CAUSE_B18_REJECTED = 'b18.requester_rejected';
+/** SECT confirmed a quarantine of an item that never reached S6: there is no branch to take over, the item ends. */
+export const CAUSE_SECT_CONFIRMED = 'sect.confirmed';
 
 // ---------------------------------------------------------------- Re-laning (R1-R4)
 
@@ -469,6 +471,8 @@ export const StageOutcome = z.discriminatedUnion('outcome', [
     outcome: z.literal('trigger'),
     trigger: TriggerId,
     reason_code: z.string().min(1).max(64),
+    /** The Handoff Pack (D1, A11) or the quarantine's evidence (ET10) this trigger carries: bound into the pack's hash. */
+    output_hash: Sha256Hex.optional(),
   }),
   /** 1.3: the lane the classifier proposes. G0 binds it; 1.4 checks it. */
   z.strictObject({ outcome: z.literal('classified'), lane: Lane, output_hash: Sha256Hex }),
@@ -810,6 +814,7 @@ export const ItemEventPayloads = {
     step: StepId,
     command_key: z.string().min(1).optional(),
     reason_code: z.string().min(1).max(64),
+    output_hash: Sha256Hex.optional(),
   }),
   /**
    * A timer of the item ran out. Core computes `due_at` on the business calendar from the facts the

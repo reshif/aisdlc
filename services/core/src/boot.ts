@@ -18,6 +18,7 @@ import { createCoreApp } from './app.js';
 import { BootstrapEligibility } from './bootstrap.js';
 import { cardDepsFrom, identityEligibility } from './card-wiring.js';
 import { HttpKnowledge } from './clients.js';
+import { CensusGrounding } from './planning/grounding.js';
 import { coreConfigFromEnv } from './config.js';
 import { s0SettingsFrom } from './driver.js';
 import { migrateCore } from './migrations.js';
@@ -137,6 +138,17 @@ export async function bootCore(env: Env): Promise<RunningService> {
       registry,
       ...(config ? { config } : {}),
       ...(cards ? { cards } : {}),
+      // B5 (M12.5): a hand-written plan is made against the merged head knowledge's census names
+      ...(cfg.cards
+        ? {
+            grounding: new CensusGrounding(
+              new HttpKnowledge({
+                baseUrl: cfg.cards.knowledge.url,
+                token: cfg.cards.knowledge.token,
+              }),
+            ),
+          }
+        : {}),
     });
     const url = await listen(app, listenOpts);
     const r = reader;

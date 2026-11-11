@@ -233,6 +233,7 @@ export class Sim {
           step: c.step,
           trigger: out.trigger,
           reason_code: out.reason_code,
+          ...(out.output_hash ? { output_hash: out.output_hash } : {}),
         });
         return;
       case 'classified':

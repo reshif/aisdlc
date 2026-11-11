@@ -19,7 +19,7 @@ const Callers = z.record(
   z.string().min(1),
   z.strictObject({
     token_ref: z.string().min(1),
-    scopes: z.array(z.enum(['census', 'posture', 'codeowners_sync', 'reload'])).min(1),
+    scopes: z.array(z.enum(['census', 'posture', 'codeowners_sync', 'reload', 'push'])).min(1),
   }),
 );
 
@@ -40,6 +40,8 @@ export interface CodeHostConfig {
   readonly gitUrl: string;
   readonly bundleCapBytes: number;
   readonly bundleTimeoutMs: number;
+  /** The identity commits are made under in `push` mode (the App's bot, never a person). */
+  readonly committer: { readonly name: string; readonly email: string };
 }
 
 const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
@@ -59,7 +61,9 @@ const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
  *   CODEHOST_GITHUB_APP_ID, CODEHOST_GITHUB_INSTALLATION_ID
  *   CODEHOST_GITHUB_APP_KEY_REF   `file:/path/to/app-key.pem` (an env: reference is refused)
  *   CODEHOST_GITHUB_API_URL       default https://api.github.com; plain http only to loopback (tests)
- *   CODEHOST_MODE                 `census` (default and the only mode)
+ *   CODEHOST_MODE                 `census` (default: reads only), or `push` (M13.6: adds the Push Broker's writes with the
+ *                                 `docs` role; needs CODEHOST_CORE_URL, which answers for leases and X2 decisions)
+ *   CODEHOST_COMMITTER_NAME, CODEHOST_COMMITTER_EMAIL   the commit identity in push mode (default aisdlc[bot])
  *   CODEHOST_CALLERS              JSON {caller: {token_ref, scopes: [census|posture|codeowners_sync]}}
  *   CODEHOST_IDENTITY_URL, CODEHOST_IDENTITY_TOKEN_REF   identity API and the codehost's token there
  *   CODEHOST_GIT_URL              default https://github.com; plain http only to loopback (tests)
@@ -98,10 +102,17 @@ export function codeHostConfigFromEnv(env: Env): CodeHostConfig {
     );
   }
   const mode = env['CODEHOST_MODE'] ?? 'census';
-  if (mode !== 'census') throw new ServiceConfigError('CODEHOST_MODE must be census');
+  if (mode !== 'census' && mode !== 'push') {
+    throw new ServiceConfigError('CODEHOST_MODE must be census or push');
+  }
   const callers = jsonEnv(env, 'CODEHOST_CALLERS', Callers);
   const file = env['CODEHOST_REGISTERED_REPOS_FILE'];
   const coreUrl = env['CODEHOST_CORE_URL'];
+  if (mode === 'push' && (coreUrl === undefined || coreUrl === '')) {
+    throw new ServiceConfigError(
+      'CODEHOST_MODE=push needs CODEHOST_CORE_URL: the Unit owner answers for leases and X2 decisions',
+    );
+  }
   if (coreUrl !== undefined && coreUrl !== '' && file !== undefined && file !== '') {
     throw new ServiceConfigError(
       'CODEHOST_CORE_URL and CODEHOST_REGISTERED_REPOS_FILE are two sources for the same thing: set one',
@@ -139,6 +150,10 @@ export function codeHostConfigFromEnv(env: Env): CodeHostConfig {
     gitUrl,
     bundleCapBytes: intEnv(env, 'CODEHOST_BUNDLE_CAP_BYTES', BUNDLE_DEFAULT_CAP_BYTES, 1),
     bundleTimeoutMs: intEnv(env, 'CODEHOST_BUNDLE_TIMEOUT_MS', BUNDLE_DEFAULT_TIMEOUT_MS, 1000),
+    committer: {
+      name: env['CODEHOST_COMMITTER_NAME'] || 'aisdlc[bot]',
+      email: env['CODEHOST_COMMITTER_EMAIL'] || 'aisdlc@users.noreply.github.com',
+    },
   };
 }
 

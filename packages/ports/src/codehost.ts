@@ -6,6 +6,8 @@ import {
   type BranchRules,
   type BundleManifest,
   type BundleRequest,
+  type ApplyPatchRequest,
+  type AppliedPatch,
   type CodeHostNotOk,
   type CodeHostRead,
   type CodeHostReason,
@@ -90,19 +92,15 @@ export interface BundleResult {
   dispose(): void;
 }
 
-/** Implemented in M13. The branch must be an `agent/<s0-uuid>/...` branch, never a protected one. */
-export interface ApplyPatchRequest extends RepoRequest {
-  readonly branch: string;
-  readonly base_sha: GitSha;
-  readonly patch: string;
-  readonly message: string;
-}
-export interface AppliedPatch {
-  readonly branch: string;
-  readonly commit_sha: GitSha;
-}
+/**
+ * M13.6, the Push Broker's one write (`ApplyPatchRequest` and `AppliedPatch` are contracts): one Unit's patch as ONE
+ * commit on `agent/<item>/<unit>` and a Draft PR from it. Refused (`unreadable/refused` with a `code`) before any
+ * request: a ref outside `agent/**`, a stale lease epoch, a secret in the patch, a protected path with no X2 bound to
+ * exactly this patch, a path trick, a spike. A branch that moved is not fast-forwarded: it is refused.
+ */
+export type { ApplyPatchRequest, AppliedPatch } from '@aisdlc/contracts';
 
-/** Implemented in M14. Read-only facts about a pull request; the factory never acts on it. */
+/** M13.6. Read-only facts about a pull request; the factory never acts on it. */
 export interface PrStatusRequest extends RepoRequest {
   readonly number: number;
 }
@@ -111,6 +109,9 @@ export interface PrStatus {
   readonly state: 'open' | 'closed';
   readonly merged: boolean;
   readonly head_sha: GitSha;
+  readonly draft: boolean;
+  /** `false`: the check runs were not read (no token of the Push Broker can), so `checks` is empty and says nothing. */
+  readonly checks_read: boolean;
   readonly checks: ReadonlyArray<{
     readonly name: string;
     readonly conclusion: string | null;
@@ -139,9 +140,9 @@ export interface CodeHostPort {
   collaborators(req: RepoRequest): Promise<CodeHostRead<Collaborator[]>>;
   /** A credential-free `git bundle` of the repo, at the default branch's head. */
   bundle(req: BundleRequest): Promise<CodeHostRead<BundleResult>>;
-  /** Interface only until M13. */
+  /** The Push Broker's one write (M13.6). */
   apply_patch(req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>>;
-  /** Interface only until M14. */
+  /** Facts about a pull request, read only (M13.6). */
   pr_status(req: PrStatusRequest): Promise<CodeHostRead<PrStatus>>;
 }
 

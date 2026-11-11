@@ -7,6 +7,8 @@ import {
   CAUSE_E4_ABANDON,
   CAUSE_E4_HANDED_OVER,
   CAUSE_PARK_TIMEOUT,
+  CAUSE_SECT_CONFIRMED,
+  EXEC_NOT_ALLOWED,
   GATE_ARTEFACT_STEPS,
   ITEM_EVENT,
   RELANE_SOURCES,
@@ -52,7 +54,7 @@ import {
   isCountUnit,
   reworkTotalLimit,
 } from './limits.js';
-import type { ItemState } from './state.js';
+import type { ItemState, QuarantineRecord } from './state.js';
 
 // The interpreter (PLAN M9.2, ADR-0001 "Departure from the runtime review"): a PURE fold over an
 // item's event stream, driven by the catalogue. `interpret(state, event, catalogue, pinnedProfile)`
@@ -731,6 +733,120 @@ function evaluateHandoffGates(s: ItemState, cat: CatalogueData, out: ItemCommand
   } else reopen();
 }
 
+// ---------------------------------------------------------------- Quarantine (Q1) and the security triage (SECT)
+
+const SECT_STATION_PREFIX = 'sect:';
+const SECT_OUTCOMES = ['approve', 'reject', 'request_changes'];
+/** The phases a session of an agent runs in and ET10 can stop (the phase table: S1, S6 and S7 reach Quarantined). */
+const QUARANTINABLE: readonly WorkItemPhase[] = ['S1', 'S6', 'S7'];
+
+/**
+ * ET10, misbehaviour (FL Q1): the session is stopped at once, tainted, its snapshot kept; in-flight work is dropped,
+ * the item counts toward ET14 (R3) and SECT opens for the security slot BEFORE any handoff. Returns why nothing
+ * happened (and nothing changed), or `null`.
+ */
+function quarantineItem(
+  s: ItemState,
+  cat: CatalogueData,
+  out: ItemCommand[],
+  p: ItemEventPayload<'item.trigger_fired'>,
+): string | null {
+  if (!cat.triggers.ET10.effects.some((e) => e.kind === 'quarantine')) return 'not_a_quarantine';
+  const origin = s.underlying;
+  if (origin === 'Quarantined') return 'already_quarantined';
+  if (!QUARANTINABLE.includes(origin)) return `not_from_${origin}`;
+  if (p.command_key !== undefined && takeOutstanding(s, p.command_key) === null) return 'stale';
+  s.waiting = null;
+  dropInFlight(s, out, `quarantine:${p.reason_code}`);
+  if (p.output_hash !== undefined) s.outputs[p.step] = p.output_hash;
+  s.lease = null;
+  setUnderlying(s, 'Quarantined');
+  const n = (s.quarantines?.length ?? 0) + 1;
+  const q: QuarantineRecord = {
+    n,
+    trigger: 'ET10',
+    cause: p.reason_code,
+    origin_phase: origin,
+    origin_step: p.step,
+    pack_sha256: p.output_hash ?? null,
+    resolved: null,
+    branch_quarantined: false,
+  };
+  s.quarantines = [...(s.quarantines ?? []), q];
+  countEt14(s, out, 'Q1', s.lane ?? s.proposed_lane);
+  const station = `${SECT_STATION_PREFIX}${n}`;
+  s.waiting = { kind: 'gates', station, gates: ['SECT'], conditional: null };
+  openGates(s, cat, out, {
+    stationKey: station,
+    gates: ['SECT'],
+    step: null,
+    extra: {
+      quarantine: {
+        n,
+        cause: q.cause,
+        origin_phase: origin,
+        origin_step: p.step,
+        pack_sha256: q.pack_sha256,
+      },
+    },
+  });
+  return null;
+}
+
+/**
+ * SECT decided. False positive: a cold rebuild and a NEW session (6.1; 1.3 when the item was still in S1). Confirmed:
+ * the branch is quarantined and the item goes to L8 human-led with no hand-back (autonomy demoted); an item
+ * that never reached S6 is abandoned.
+ */
+function resolveSect(
+  s: ItemState,
+  cat: CatalogueData,
+  out: ItemCommand[],
+  station: string,
+  falsePositive: boolean,
+): void {
+  const q = s.quarantines?.[s.quarantines.length - 1];
+  consumeStation(s, station);
+  s.waiting = null;
+  if (q === undefined) {
+    stuck(s, 'sect:no_quarantine');
+    return;
+  }
+  if (falsePositive) {
+    q.resolved = 'false_positive';
+    const target: StepId = q.origin_phase === 'S1' ? '1.3' : '6.1';
+    if (!jumpTo(s, cat, out, { step: target }, 'sect_false_positive')) {
+      stuck(s, `sect:no_${target}`);
+      return;
+    }
+    if (target === '6.1') newLease(s);
+    advance(s, cat, out);
+    return;
+  }
+  q.resolved = 'confirmed';
+  q.branch_quarantined = true;
+  if (q.origin_phase === 'S1') {
+    terminate(s, 'Abandoned', CAUSE_SECT_CONFIRMED, s.seq, out);
+    return;
+  }
+  const lane_before: Lane = s.lane ?? s.proposed_lane;
+  const lane_was = s.lane;
+  s.lane = 'L8';
+  const i = routeOf(s, cat).findIndex((x) => x.kind === 'human_led');
+  if (i < 0) {
+    s.lane = lane_was;
+    stuck(s, 'sect:no_human_led_station');
+    return;
+  }
+  dropInFlight(s, out, 'sect_confirmed');
+  // D4 is spent: a confirmed incident is not handed back to the agent
+  s.takeover = { lane_before, hand_backs: handBackLimit(cat) ?? 1 };
+  s.cursor = i;
+  setUnderlying(s, 'S6');
+  newLease(s);
+  s.waiting = { kind: 'human', what: 'human_led' };
+}
+
 // ---------------------------------------------------------------- Denied conditional gates
 
 /** Where a denied conditional gate leaves the item (FL FIX 1, FIX 8, B12). */
@@ -752,6 +868,10 @@ function onDenied(
   };
   switch (key) {
     case 'X1@6.4':
+    case 'X2@6.6':
+    case 'E6@6.3':
+    case 'E6@6.4':
+    case 'G3o@6.4':
       return handoff('D1');
     case 'X2@7.4':
     case 'G3o@7.2':
@@ -1055,6 +1175,16 @@ function evaluateGates(s: ItemState, cat: CatalogueData, seq: number, out: ItemC
   if (w.gates.some((g) => !latest.has(g))) return; // gates_opened has not told us the instances yet
   const mine = w.gates.map((g) => latest.get(g) as (typeof s.gates)[number]);
 
+  // SECT (the security triage after a quarantine): approved is a false positive, refused is confirmed. Expiry
+  // never approves: an instance that ended without a decision is opened again below.
+  if (w.conditional === null && w.station.startsWith(SECT_STATION_PREFIX)) {
+    const g = mine[0];
+    if (g !== undefined && g.status === 'decided' && SECT_OUTCOMES.includes(g.outcome ?? '')) {
+      resolveSect(s, cat, out, w.station, g.outcome === 'approve');
+      return;
+    }
+  }
+
   const refused = mine.find((i) => i.outcome === 'reject' || i.outcome === 'request_changes');
   if (refused) {
     if (w.conditional !== null) {
@@ -1190,6 +1320,7 @@ export function interpret(
       denied: {},
       extensions: 0,
       human_plan: false,
+      plan_author: null,
       outputs: {},
       plan_base_sha: null,
       assumptions: [],
@@ -1335,7 +1466,7 @@ export function interpret(
         };
         break;
       }
-      if (p.gate === 'E6') {
+      if (p.gate === 'E6' && p.step === '7.2') {
         // B12: a locked test must change. 1x, then D2; it counts toward the rework budget.
         s.waiting = null;
         if (countEdge(s, catalogue, out, { edge: 'B12' }) === 'loop') {
@@ -1361,6 +1492,12 @@ export function interpret(
 
     case ITEM_EVENT.trigger_fired: {
       const p = event.payload;
+      // ET10 is not a handoff: the session is stopped, tainted, and the security triage (SECT) comes first (Q1).
+      if (p.trigger === 'ET10') {
+        const why = quarantineItem(s, catalogue, out, p);
+        if (why !== null) ignore(s, `trigger_fired:ET10:${why}`);
+        break;
+      }
       // D1 from S6, D2 from S7, D3 from G4: the trigger's effects (the ET table) must name the handoff.
       let code = ({ S6: 'D1', S7: 'D2', G4: 'D3' } as Record<string, HandoffCode>)[s.underlying];
       // ET8 "agent gave up" (M12: a planning step whose output stayed invalid through its automatic
@@ -1384,6 +1521,8 @@ export function interpret(
         break;
       }
       s.waiting = null;
+      // the Handoff Pack (A11) the stage built: bound into the pack reference's hash with the step's outputs
+      if (p.output_hash !== undefined) s.outputs[p.step] = p.output_hash;
       openHandoff(s, catalogue, out, { code, trigger: p.trigger, step: p.step });
       break;
     }
@@ -1525,6 +1664,8 @@ export function interpret(
             if (step.startsWith('5.') && sha !== undefined) s.outputs[step] = sha;
           }
           if (event.payload.base_sha !== undefined) s.plan_base_sha = event.payload.base_sha;
+          // The author of a hand-written plan: G3 treats them like the requester.
+          if (event.payload.outputs !== undefined) s.plan_author = event.payload.by;
         }
         if (!jumpTo(s, catalogue, out, { gate: 'G3' }, 'human_plan')) stuck(s, 'human_plan:no_G3');
         else advance(s, catalogue, out);
@@ -2068,7 +2209,13 @@ function applyRework(
     const c = s.outstanding.find((x) => x.key === p.command_key);
     if (c === undefined || c.type !== 'run_stage') return 'stale';
     // B3 "validator/critic fail": the validator is 3.3; the critic (the clean-context review) is 3.5
-    if (c.step !== from && !(edge === 'B3' && c.step === '3.5')) return `wrong_step:${c.step}`;
+    if (
+      c.step !== from &&
+      !(edge === 'B3' && c.step === '3.5') &&
+      // B6 "red baseline / env broken": the environment can be broken before the baseline runs (6.1 provisioning)
+      !(edge === 'B6' && c.step === '6.1')
+    )
+      return `wrong_step:${c.step}`;
     if (edge === 'B6') {
       takeOutstanding(s, c.key);
       s.waiting = null;
@@ -2153,7 +2300,9 @@ function blockBaseline(
 ): string | null {
   if (countEdge(s, cat, out, { edge: 'B6' }) === 'moved') return null;
   s.waiting = { kind: 'blocked', cause, owner: 'platform_owner' };
-  requestSpawn(s, out, 'B6', SPAWN_RULES.B6.kind, 'L2', 0, seq);
+  // DEC-18: a repo that is not on the owner allow-list is not an environment defect an L2 item could repair:
+  // the owner adds the repo (an M1 decision) or the item stays blocked. Everything else spawns the remediation.
+  if (cause !== EXEC_NOT_ALLOWED) requestSpawn(s, out, 'B6', SPAWN_RULES.B6.kind, 'L2', 0, seq);
   return null;
 }
 

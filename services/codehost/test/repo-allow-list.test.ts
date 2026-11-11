@@ -1,3 +1,4 @@
+import { writeRequest } from '@aisdlc/ports/testing';
 import { FakeGitHub, FakeRegisteredRepos } from '@aisdlc/ports';
 import { SHA_A, contractSeed } from '@aisdlc/ports/testing';
 import { describe, expect, it } from 'vitest';
@@ -30,11 +31,8 @@ describe('AllowListedCodeHost (installation repos ∩ repos with an S0 record)',
       await host.collaborators({ repo: 'acme/lib' }),
       await host.bundle({ repo: 'acme/lib', base_sha: SHA_A, refs: 'all' }),
       await host.apply_patch({
+        ...writeRequest([{ op: 'put', path: 'a.txt', mode: '100644', content_b64: 'eA==' }]),
         repo: 'acme/lib',
-        branch: 'agent/x/y',
-        base_sha: SHA_A,
-        patch: '',
-        message: 'm',
       }),
       await host.pr_status({ repo: 'acme/lib', number: 1 }),
     ];

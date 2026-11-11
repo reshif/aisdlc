@@ -1,4 +1,4 @@
-import { agentDefinition, agentStats, primaryAgentFor } from '@aisdlc/agents';
+import { agentDefinition, agentStats, primaryAgentFor, specialistAgentFor } from '@aisdlc/agents';
 import {
   AGENT_EVENT,
   GATEWAY_EVENT,
@@ -102,15 +102,18 @@ describe('dispatch: the agent, its key and the record of both', () => {
     expect(item?.state.terminal).toBe('Done');
 
     const calls = d.ports.calls();
-    const agentCalls = calls.filter((c) => isAgentStep(c.step));
-    const otherCalls = calls.filter((c) => !isAgentStep(c.step));
+    // M13.6: 6.3 is a deterministic step that calls in A6 (the specialist): it gets the agent and its key too
+    const agentOf = (step: Parameters<typeof primaryAgentFor>[0]) =>
+      primaryAgentFor(step) ?? specialistAgentFor(step);
+    const agentCalls = calls.filter((c) => agentOf(c.step) !== null);
+    const otherCalls = calls.filter((c) => agentOf(c.step) === null);
     expect(agentCalls.length).toBeGreaterThan(10);
     expect(otherCalls.length).toBeGreaterThan(5);
     for (const c of otherCalls) expect(c.agent, `step ${c.step}`).toBeUndefined();
 
     const bound = new Set<string>();
     for (const c of agentCalls) {
-      const def = primaryAgentFor(c.step);
+      const def = agentOf(c.step);
       expect(c.agent, `step ${c.step}`).toBeDefined();
       expect(c.agent).toMatchObject({
         agent_id: def?.agent_id,
@@ -130,13 +133,14 @@ describe('dispatch: the agent, its key and the record of both', () => {
       expect(k?.step).toBe(c.step);
       expect(k?.lane).toBe('L4');
       // a command's own job key ends when the command is answered (M12); a Unit's key (S6) outlives it
-      if (c.step === '6.4' || c.step === '6.6') expect(k?.revoked_at).toBeNull();
+      if (c.step === '6.3' || c.step === '6.4' || c.step === '6.6')
+        expect(k?.revoked_at).toBeNull();
       else expect(k?.revoked_at).not.toBeNull();
     }
     // one key per command, however often a command was delivered
     expect(keys.all()).toHaveLength(bound.size);
     for (const r of keys.requests) {
-      const def = primaryAgentFor(r.mint.step as never);
+      const def = agentOf(r.mint.step as never);
       expect(r.mint.models).toEqual(def?.contract.models);
       expect(r.budget).toMatchObject({
         max_tokens: def?.contract.budget.max_tokens,
@@ -145,11 +149,13 @@ describe('dispatch: the agent, its key and the record of both', () => {
       expect(r.mint.budget_group).toBe(r.budget.group_id);
       // S6 is the Unit's key; every other step has a key of its own job
       expect(r.mint.scope.kind).toBe(
-        r.mint.step === '6.4' || r.mint.step === '6.6' ? 'unit' : 'job',
+        r.mint.step === '6.3' || r.mint.step === '6.4' || r.mint.step === '6.6' ? 'unit' : 'job',
       );
     }
     // no step the registry gives no agent was minted for
-    for (const step of StepIdValues.filter((x) => !isAgentStep(x))) {
+    for (const step of StepIdValues.filter(
+      (x) => !isAgentStep(x) && specialistAgentFor(x) === null,
+    )) {
       expect(keys.requests.some((r) => r.mint.step === step)).toBe(false);
     }
     // the dispatches are on the item's agent stream, one per command, and never hold a secret

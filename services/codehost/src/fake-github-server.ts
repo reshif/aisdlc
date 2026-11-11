@@ -2,6 +2,7 @@ import { createPublicKey, createVerify, generateKeyPairSync, randomBytes } from 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { gitBlobSha, repoKey, type CodeHostSeed } from '@aisdlc/ports';
+import { GitObjects } from './fake-github-objects.js';
 import { emptySeed } from '@aisdlc/ports';
 import { systemClock, type Clock } from '@aisdlc/kernel';
 
@@ -21,6 +22,19 @@ export interface FakeGitHubRequest {
   /** How the caller authenticated: the App JWT, an installation token, or not at all. */
   readonly auth: 'jwt' | 'installation' | 'none';
   readonly status: number;
+}
+
+/** A pull request the fake holds (GitHub's fields, the ones the broker reads and writes). */
+export interface FakePull {
+  number: number;
+  repo: string;
+  title: string;
+  body: string;
+  state: 'open' | 'closed';
+  draft: boolean;
+  merged: boolean;
+  head: { ref: string; sha: string };
+  base: { ref: string };
 }
 
 export interface IssuedToken {
@@ -68,6 +82,9 @@ export class FakeGitHubServer {
   /** Every bearer credential (JWT or installation token) any request carried, for leak checks. */
   readonly seenBearers = new Set<string>();
   private seed: CodeHostSeed;
+  /** Blobs, trees and commits the Git Data API wrote (real git hashes). */
+  readonly objects: GitObjects;
+  readonly pulls: FakePull[] = [];
   private server: Server | null = null;
   private readonly revoked = new Set<string>();
   /** When set, every resource request (not token minting) answers with this status. */
@@ -79,6 +96,7 @@ export class FakeGitHubServer {
 
   constructor(private readonly o: FakeGitHubServerOptions) {
     this.seed = o.seed ?? emptySeed();
+    this.objects = new GitObjects(this.seed);
   }
 
   private get clock(): Clock {
@@ -87,6 +105,16 @@ export class FakeGitHubServer {
 
   load(seed: CodeHostSeed): this {
     this.seed = seed;
+    this.objects.load(seed);
+    this.pulls.length = 0;
+    return this;
+  }
+
+  /** Somebody else wrote to a branch (a person pushed, against the rules): it now points at `sha`. */
+  moveBranch(repo: string, branch: string, sha: string): this {
+    const h = this.seed.heads.find((x) => repoKey(x.repo) === repoKey(repo) && x.branch === branch);
+    if (h) h.sha = sha;
+    else this.seed.heads.push({ repo, branch, sha });
     return this;
   }
 
@@ -280,11 +308,16 @@ export class FakeGitHubServer {
         this.json(res, this.override.status, { message: 'overridden' }, this.override.headers),
       );
     }
-    if (method !== 'GET') return void log(this.json(res, 405, { message: 'Method Not Allowed' }));
+    if (!['GET', 'POST', 'PATCH'].includes(method)) {
+      return void log(this.json(res, 405, { message: 'Method Not Allowed' }));
+    }
     if (who.kind === 'none' || who.bad)
       return void log(this.json(res, 401, { message: 'Bad credentials' }));
 
     const inst = /^\/app\/installations\/(\d+)$/.exec(path);
+    if (method !== 'GET' && !/^\/repos\//.test(path)) {
+      return void log(this.json(res, 405, { message: 'Method Not Allowed' }));
+    }
     if (inst) {
       if (who.kind !== 'jwt')
         return void log(this.json(res, 401, { message: 'A JSON web token could not be decoded' }));
@@ -341,11 +374,53 @@ export class FakeGitHubServer {
     const same = (r: string): boolean => repoKey(r) === repoKey(full);
     const dec = (s: string): string => decodeURIComponent(s);
 
+    if (method !== 'GET') {
+      return void log(this.write(res, method, full, rest, perms, body));
+    }
     let c: RegExpExecArray | null;
+    if ((c = /^pulls$/.exec(rest))) {
+      if (!needs('pull_requests')) return void log(forbidden());
+      const head = url.searchParams.get('head') ?? '';
+      const state = url.searchParams.get('state') ?? 'open';
+      const list = this.pulls
+        .filter((p) => same(p.repo) && (state === 'all' || p.state === state))
+        .filter((p) => head === '' || `${full.split('/')[0]}:${p.head.ref}` === head)
+        .map((p) => this.pullJson(p));
+      return void log(this.page(res, url, list, (items) => items));
+    }
+    if ((c = /^pulls\/(\d+)$/.exec(rest))) {
+      if (!needs('pull_requests')) return void log(forbidden());
+      const p = this.pulls.find((x) => same(x.repo) && x.number === Number(c![1]));
+      return void log(p ? this.json(res, 200, this.pullJson(p)) : this.json(res, 404, notFound));
+    }
+    if ((c = /^git\/commits\/([0-9a-f]{40})$/.exec(rest))) {
+      if (!needs('contents')) return void log(forbidden());
+      const cm = this.objects.commit(full, c[1] as string);
+      if (!cm) return void log(this.json(res, 404, notFound));
+      return void log(
+        this.json(res, 200, {
+          sha: cm.sha,
+          url: `${this.baseUrl}/repos/${full}/git/commits/${cm.sha}`,
+          tree: { sha: cm.tree, url: `${this.baseUrl}/repos/${full}/git/trees/${cm.tree}` },
+          parents: cm.parents.map((x) => ({ sha: x })),
+          message: cm.message,
+          author: cm.author,
+          committer: cm.committer,
+        }),
+      );
+    }
     if ((c = /^contents\/(.+)$/.exec(rest))) {
       if (!needs('contents')) return void log(forbidden());
       const p = c[1]!.split('/').map(dec).join('/');
       const ref = url.searchParams.get('ref') ?? '';
+      if (this.objects.created(ref)) {
+        const bytes = this.objects.fileAt(full, ref, p);
+        if (bytes)
+          return void log(
+            this.json(res, 200, contentJson(this.baseUrl, full, p, bytes.toString('utf8'))),
+          );
+        return void log(this.json(res, 404, notFound));
+      }
       const files = this.seed.files.filter((f) => same(f.repo) && f.sha === ref);
       const file = files.find((f) => f.path === p);
       if (file)
@@ -433,6 +508,193 @@ export class FakeGitHubServer {
       );
     }
     return void log(this.json(res, 404, notFound));
+  }
+
+  private pullJson(p: FakePull): Record<string, unknown> {
+    // a pull request's head follows its branch, as on GitHub
+    const live = this.seed.heads.find(
+      (h) => repoKey(h.repo) === repoKey(p.repo) && h.branch === p.head.ref,
+    );
+    if (live) p.head.sha = live.sha;
+    return {
+      url: `${this.baseUrl}/repos/${p.repo}/pulls/${p.number}`,
+      html_url: `https://github.example/${p.repo}/pull/${p.number}`,
+      number: p.number,
+      state: p.state,
+      draft: p.draft,
+      merged: p.merged,
+      title: p.title,
+      body: p.body,
+      head: { ref: p.head.ref, sha: p.head.sha, label: `${p.repo.split('/')[0]}:${p.head.ref}` },
+      base: { ref: p.base.ref },
+      user: { login: 'aisdlc[bot]', type: 'Bot' },
+    };
+  }
+
+  /**
+   * The write endpoints of the Git Data API and the pull requests, as GitHub answers them (PLAN M13.6): blobs, trees,
+   * commits, refs (a ref update that is not a fast-forward is 422 `Update is not a fast forward`, as GitHub says it),
+   * and draft pull requests. It checks what GitHub checks: the token's `contents` and `pull_requests` write. There is no
+   * merge, review, status or delete here: those are 404.
+   */
+  private write(
+    res: ServerResponse,
+    method: string,
+    full: string,
+    rest: string,
+    perms: Record<string, string>,
+    raw: string,
+  ): number {
+    const canWrite = (name: string): boolean => (LEVEL[perms[name] ?? ''] ?? 0) >= 2;
+    const denied = (): number =>
+      this.json(res, 403, { message: 'Resource not accessible by integration', status: '403' });
+    const bad = (message: string): number =>
+      this.json(res, 422, {
+        message,
+        documentation_url: 'https://docs.github.com/rest',
+        status: '422',
+      });
+    let j: Record<string, unknown>;
+    try {
+      j = JSON.parse(raw || '{}') as Record<string, unknown>;
+    } catch {
+      return this.json(res, 400, { message: 'Problems parsing JSON' });
+    }
+    const same = (r: string): boolean => repoKey(r) === repoKey(full);
+    const now = this.clock.now().toISOString();
+    let c: RegExpExecArray | null;
+    if (method === 'POST' && rest === 'git/blobs') {
+      if (!canWrite('contents')) return denied();
+      if (typeof j['content'] !== 'string' || j['encoding'] !== 'base64')
+        return bad('Invalid blob');
+      const sha = this.objects.addBlob(Buffer.from(j['content'], 'base64'));
+      return this.json(res, 201, { sha, url: `${this.baseUrl}/repos/${full}/git/blobs/${sha}` });
+    }
+    if (method === 'POST' && rest === 'git/trees') {
+      if (!canWrite('contents')) return denied();
+      const entries = Array.isArray(j['tree'])
+        ? (j['tree'] as Array<Record<string, unknown>>)
+        : null;
+      if (!entries) return bad('tree is required');
+      const base = typeof j['base_tree'] === 'string' ? j['base_tree'] : undefined;
+      const t = this.objects.createTree(
+        base,
+        entries.map((e) => ({
+          path: String(e['path']),
+          mode: String(e['mode']),
+          sha: e['sha'] === null ? null : String(e['sha']),
+        })),
+      );
+      if ('error' in t) return bad(t.error);
+      return this.json(res, 201, {
+        sha: t.sha,
+        url: `${this.baseUrl}/repos/${full}/git/trees/${t.sha}`,
+        tree: entries.map((e) => ({
+          path: e['path'],
+          mode: e['mode'],
+          type: 'blob',
+          sha: e['sha'],
+        })),
+        truncated: false,
+      });
+    }
+    if (method === 'POST' && rest === 'git/commits') {
+      if (!canWrite('contents')) return denied();
+      const who = (v: unknown): { name: string; email: string; date: string } => {
+        const o = (v ?? {}) as Record<string, unknown>;
+        return {
+          name: typeof o['name'] === 'string' ? o['name'] : 'aisdlc[bot]',
+          email: typeof o['email'] === 'string' ? o['email'] : 'bot@users.noreply.github.example',
+          date: typeof o['date'] === 'string' ? o['date'] : now,
+        };
+      };
+      const k = this.objects.createCommit(full, {
+        tree: String(j['tree']),
+        parents: Array.isArray(j['parents']) ? (j['parents'] as unknown[]).map(String) : [],
+        message: String(j['message'] ?? ''),
+        author: who(j['author']),
+        committer: who(j['committer'] ?? j['author']),
+      });
+      if ('error' in k) return bad(k.error);
+      return this.json(res, 201, {
+        sha: k.sha,
+        url: `${this.baseUrl}/repos/${full}/git/commits/${k.sha}`,
+        tree: { sha: String(j['tree']) },
+        parents: (j['parents'] as unknown[]).map((x) => ({ sha: String(x) })),
+        message: String(j['message'] ?? ''),
+      });
+    }
+    if (method === 'POST' && rest === 'git/refs') {
+      if (!canWrite('contents')) return denied();
+      const ref = String(j['ref'] ?? '');
+      const m = /^refs\/heads\/(.+)$/.exec(ref);
+      if (!m) return bad('Reference is invalid');
+      const branch = m[1] as string;
+      if (this.seed.heads.some((h) => same(h.repo) && h.branch === branch)) {
+        return bad('Reference already exists');
+      }
+      const sha = String(j['sha'] ?? '');
+      if (!this.objects.commit(full, sha)) return bad('Object does not exist');
+      this.seed.heads.push({ repo: full, branch, sha });
+      return this.json(res, 201, {
+        ref,
+        object: { sha, type: 'commit', url: `${this.baseUrl}/repos/${full}/git/commits/${sha}` },
+      });
+    }
+    if (method === 'PATCH' && (c = /^git\/refs\/heads\/(.+)$/.exec(rest))) {
+      if (!canWrite('contents')) return denied();
+      const branch = c[1]!.split('/').map(decodeURIComponent).join('/');
+      const head = this.seed.heads.find((h) => same(h.repo) && h.branch === branch);
+      if (!head) return this.json(res, 404, notFound);
+      const sha = String(j['sha'] ?? '');
+      if (!this.objects.commit(full, sha)) return bad('Object does not exist');
+      if (j['force'] !== true && !this.objects.isAncestor(full, head.sha, sha)) {
+        return bad('Update is not a fast forward');
+      }
+      head.sha = sha;
+      return this.json(res, 200, {
+        ref: `refs/heads/${branch}`,
+        object: { sha, type: 'commit', url: `${this.baseUrl}/repos/${full}/git/commits/${sha}` },
+      });
+    }
+    if (method === 'POST' && rest === 'pulls') {
+      if (!canWrite('pull_requests')) return denied();
+      const headRef = String(j['head'] ?? '');
+      const head = this.seed.heads.find((h) => same(h.repo) && h.branch === headRef);
+      const baseRef = String(j['base'] ?? '');
+      if (!head) return bad('Validation Failed: head ref does not exist');
+      if (!this.seed.heads.some((h) => same(h.repo) && h.branch === baseRef)) {
+        return bad('Validation Failed: base ref does not exist');
+      }
+      if (this.pulls.some((p) => same(p.repo) && p.state === 'open' && p.head.ref === headRef)) {
+        return bad('A pull request already exists for this head');
+      }
+      const p: FakePull = {
+        number: this.pulls.filter((x) => same(x.repo)).length + 1,
+        repo: full,
+        title: String(j['title'] ?? ''),
+        body: String(j['body'] ?? ''),
+        state: 'open',
+        draft: j['draft'] === true,
+        merged: false,
+        head: { ref: headRef, sha: head.sha },
+        base: { ref: baseRef },
+      };
+      this.pulls.push(p);
+      return this.json(res, 201, this.pullJson(p));
+    }
+    if (method === 'PATCH' && (c = /^pulls\/(\d+)$/.exec(rest))) {
+      if (!canWrite('pull_requests')) return denied();
+      const p = this.pulls.find((x) => same(x.repo) && x.number === Number(c![1]));
+      if (!p) return this.json(res, 404, notFound);
+      if (typeof j['title'] === 'string') p.title = j['title'];
+      if (typeof j['body'] === 'string') p.body = j['body'];
+      // a pull request's head follows its branch
+      const head = this.seed.heads.find((h) => same(h.repo) && h.branch === p.head.ref);
+      if (head) p.head.sha = head.sha;
+      return this.json(res, 200, this.pullJson(p));
+    }
+    return this.json(res, 404, notFound);
   }
 
   /** One page of `items` per `per_page`/`page`, with a `Link` header when there is a next page. */

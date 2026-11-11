@@ -349,6 +349,48 @@ function findings(title: string, c: Obj): string[] {
   ];
 }
 
+/**
+ * The patch an X2 decision is bound to (M13.6): the paths it touches, which are protected, and how big each file is. NOT the
+ * file contents (the card shows what the decision covers; the full patch is in the artefact by its hash, and the decider
+ * reads the hash they approve). Paths are shown as text in code spans.
+ */
+function patchSummary(c: Obj): string[] {
+  const files = arr(c['files']).filter(isObj);
+  return [
+    '# Patch (what this decision covers)',
+    '',
+    `${files.length} files. The hash of this patch is the hash the Push Broker checks: another patch is another decision.`,
+    '',
+    ...files.map((f) => {
+      const bytes = f['op'] === 'put' ? Math.floor((str(f['content_b64']).length * 3) / 4) : 0;
+      return `- \`${line(f['op'])}\` \`${line(f['path'])}\`${f['op'] === 'put' ? ` (${bytes} bytes)` : ''}`;
+    }),
+  ];
+}
+
+/** The oracle test files A6 wrote at 6.3: their paths and sizes (the code is in the artefact by its hash). */
+function oracleCode(c: Obj): string[] {
+  const files = arr(c['files']).filter(isObj);
+  return [
+    `# Oracle test files (unit ${line(c['unit_key'])})`,
+    '',
+    ...files.map((f) => `- \`${line(f['path'])}\` (${str(f['content']).length} characters)`),
+  ];
+}
+
+function spikeReport(c: Obj): string[] {
+  return [
+    '# Spike report',
+    '',
+    ...bullets('Findings', c['findings']),
+    '',
+    '### Recommendation',
+    line(c['recommendation']),
+    '',
+    `Files changed: ${line(c['files_changed'])}. Archived work: \`${line(c['archive_ref']) || 'none'}\`. Nothing was pushed.`,
+  ];
+}
+
 /** The markdown of an artefact's content. An unknown shape is shown as the JSON it is, in a code fence. */
 export function renderArtefact(type: ArtefactType, content: unknown): string {
   if (!isObj(content)) return '```json\n' + JSON.stringify(content, null, 2) + '\n```\n';
@@ -412,6 +454,15 @@ export function renderArtefact(type: ArtefactType, content: unknown): string {
       break;
     case 'validation_report':
       out = findings('Validation', content);
+      break;
+    case 'patch':
+      out = patchSummary(content);
+      break;
+    case 'oracle_code':
+      out = oracleCode(content);
+      break;
+    case 'spike_report':
+      out = spikeReport(content);
       break;
     default:
       out = ['```json', JSON.stringify(content, null, 2), '```'];

@@ -59,6 +59,8 @@ export const STEP_ARTEFACT: Readonly<Partial<Record<StepIdT, ArtefactType>>> = {
   '5.4': 'verification_binding',
   '5.5': 'budget_envelope',
   '5.6': 'capacity_input',
+  // S6 (M13.6): 6.6's artefact is the patch an X2 decision is bound to (its sha256 IS the patch hash)
+  '6.6': 'patch',
 };
 
 /**
@@ -78,6 +80,8 @@ export const GATE_ARTEFACT_STEPS: Readonly<Partial<Record<string, readonly StepI
   // S4: the design review decides all five design artefacts; E2 decides the constitution report
   G3d: ['4.1', '4.2', '4.3', '4.4', '4.5'],
   E2: ['4.5'],
+  // M13.6: X2 at 6.6 decides exactly one patch: the artefact's hash is the patch hash the Push Broker checks
+  X2: ['6.6'],
   // S5: G3 decides the whole plan (and, in the subject hash, the base commit); G3s is the skeleton of it:
   // the Units, their paths and their order, without the task detail
   G3: ['5.1', '5.2', '5.3', '5.4', '5.5', '5.6'],
@@ -191,8 +195,8 @@ export const UnitsPlannedPayload = z.strictObject({
   repo: z.string().min(1),
   /** Hash of the plan artefacts the Units came from (5.1 to 5.4): a re-plan is a different hash. */
   plan_sha256: Sha256Hex,
-  /** The merged commit the plan was made against (G3 binds it). */
-  base_sha: GitSha,
+  /** The merged commit the plan was made against (G3 binds it); `null` for a Unit no plan made (M13.1: L0's implicit one). */
+  base_sha: GitSha.nullable(),
   units: z.array(PlannedUnit).min(1).max(30),
 });
 export type UnitsPlannedPayload = z.infer<typeof UnitsPlannedPayload>;
@@ -212,7 +216,7 @@ export const Unit = z.strictObject({
   envelope: UnitEnvelope,
   state: UnitState,
   plan_sha256: Sha256Hex,
-  base_sha: GitSha,
+  base_sha: GitSha.nullable(),
   branch: z.string().nullable(),
   lease_epoch: z.number().int().nullable(),
   head_sha: z.string().nullable(),

@@ -1,5 +1,10 @@
 import type {
   ActionId,
+  ItemActionResult,
+  ItemObserveRequest,
+  ItemPlanRequest,
+  ItemPlanResult,
+  PortalItemView,
   CardDeciders,
   LedgerAuditView,
   OnboardRequest,
@@ -174,6 +179,12 @@ export interface RevisionDecision {
   readonly publish_error: string | null;
 }
 
+/** The browser's observed-signal bodies: the principal is the session's, never a field. */
+export type PortalObserve =
+  | Omit<Extract<ItemObserveRequest, { edge: 'B4' }>, 'on_behalf_of'>
+  | Omit<Extract<ItemObserveRequest, { edge: 'R2' }>, 'on_behalf_of'>;
+export type PortalPlan = Omit<ItemPlanRequest, 'on_behalf_of'>;
+
 async function request<T>(
   method: 'GET' | 'POST',
   path: string,
@@ -312,6 +323,15 @@ export const api = {
       {},
       csrf,
     ),
+  item: (id: string) => request<PortalItemView>('GET', `/api/items/${encodeURIComponent(id)}`),
+  itemReady: (id: string, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/ready`, {}, csrf),
+  itemAnswer: (id: string, b: { question_id: string; text: string }, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/answers`, b, csrf),
+  itemObserve: (id: string, b: PortalObserve, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/observe`, b, csrf),
+  itemPlan: (id: string, b: PortalPlan, csrf: string) =>
+    request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
   ledger: (project: string, s0?: string) =>

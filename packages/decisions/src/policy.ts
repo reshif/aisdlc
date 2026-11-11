@@ -21,7 +21,8 @@ import { err, ok, type Result } from '@aisdlc/kernel';
 //  - A slot with exactly one holder decides alone; so does a project with the setting off (never
 //    T2). Relying on either is stamped `sod_waiver`.
 //  - The requester cannot decide their own request, unless they are the sole holder of the slot
-//    (stamped `sod_waiver`, never T2). Gates whose policy says `own_request: allowed` (G6, the
+//    (stamped `sod_waiver`, never T2). The author of what a gate decides (B5: the person who wrote the
+//    plan by hand) is treated exactly like the requester. Gates whose policy says `own_request: allowed` (G6, the
 //    requester's own acceptance) have no such rule.
 //  - T2: no waiver of any kind, so a T2 two-person gate with one holder is infeasible.
 //  - Any eligible voter's reject or request_changes ends the gate; one approve is a vote.
@@ -52,6 +53,12 @@ export interface PolicyRefusal {
 }
 const refuse = (code: PolicyRefusalCode, message: string): PolicyRefusal => ({ code, message });
 
+/** The requester and the authors: the people who may not decide the gate (unless the sole holder). */
+export const barredOf = (
+  requester: PrincipalId | null,
+  authors: readonly PrincipalId[],
+): PrincipalId[] => [...new Set([...(requester === null ? [] : [requester]), ...authors])];
+
 const unique = (xs: readonly PrincipalId[]): PrincipalId[] => [...new Set(xs)];
 
 /**
@@ -64,6 +71,8 @@ export function planQuorum(
   ctx: PolicyContext,
   holdersIn: readonly PrincipalId[],
   requester: PrincipalId | null,
+  /** Authors of the decided artefact: barred like the requester (B5 plan author). */
+  authors: readonly PrincipalId[] = [],
 ): Result<QuorumPlan, PolicyRefusal> {
   const policy = gatePolicy(key);
   const holders = unique(holdersIn);
@@ -73,12 +82,14 @@ export function planQuorum(
     err(refuse('quorum_infeasible', `${key}: ${why} (slot ${slot}, ${holders.length} holder(s))`));
   if (holders.length === 0) return infeasible('nobody holds the slot');
 
-  const blocked = policy.own_request === 'blocked' && requester !== null;
-  const requesterHolds = blocked && holders.includes(requester);
-  const others = requesterHolds ? holders.filter((h) => h !== requester) : holders;
+  const barred = policy.own_request === 'blocked' ? barredOf(requester, authors) : [];
+  const requesterHolds = holders.some((h) => barred.includes(h));
+  const others = holders.filter((h) => !barred.includes(h));
 
   // The sole holder is the requester: only the single-holder waiver lets them decide.
   if (requesterHolds && others.length === 0) {
+    // Only the SINGLE-holder waiver exists: several holders who are all barred (requester and plan author) cannot decide.
+    if (holders.length > 1) return infeasible('every holder is the requester or the author');
     if (t2) return infeasible('T2 allows no waiver, and the only holder is the requester');
     return ok({ slot, required: 1, basis: 'own_item', waiver: true });
   }
@@ -103,6 +114,8 @@ export interface VoteInput {
   /** The current holders of the deciding slot (from the `EligibilityPort`). */
   readonly holders: readonly PrincipalId[];
   readonly requester: PrincipalId | null;
+  /** Authors of the decided artefact (B5 plan author): barred like the requester. */
+  readonly authors?: readonly PrincipalId[];
   readonly voter: PrincipalId;
   readonly decision: VoteDecision;
   /** Distinct approvers already on the ledger for this instance. */
@@ -130,9 +143,10 @@ export function evaluateVote(v: VoteInput): Result<VoteVerdict, PolicyRefusal> {
   if (!holders.includes(v.voter)) {
     return err(refuse('not_eligible', `${v.voter} does not hold slot ${policy.slot}`));
   }
-  const selfDecided = policy.own_request === 'blocked' && v.requester === v.voter;
+  const selfDecided =
+    policy.own_request === 'blocked' && barredOf(v.requester, v.authors ?? []).includes(v.voter);
 
-  const plan = planQuorum(v.key, v.ctx, holders, v.requester);
+  const plan = planQuorum(v.key, v.ctx, holders, v.requester, v.authors ?? []);
   if (!plan.ok) {
     // The plan is infeasible; a requester voting on their own request gets the clearer refusal.
     return err(
