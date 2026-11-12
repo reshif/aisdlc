@@ -59303,6 +59303,92 @@
       ],
       "additionalProperties": false
     },
+    "KnowledgeAreaView": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "manifest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "source_files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "test_files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "typescript",
+              "javascript",
+              "python",
+              "other"
+            ]
+          }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "used_by": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "census",
+                "light",
+                "full"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "area",
+        "manifest",
+        "files",
+        "source_files",
+        "test_files",
+        "languages",
+        "depends_on",
+        "used_by",
+        "level"
+      ],
+      "additionalProperties": false
+    },
     "KnowledgeDefect": {
       "type": "object",
       "properties": {
@@ -59493,6 +59579,54 @@
       "required": [
         "kind",
         "ref"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeGoldenView": {
+      "type": "object",
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "test": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "accept",
+                "reject"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "candidate_id",
+        "area",
+        "test",
+        "subjects",
+        "verdict"
       ],
       "additionalProperties": false
     },
@@ -61460,6 +61594,488 @@
         "done",
         "error"
       ]
+    },
+    "KnowledgeRepoView": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "s0_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "baseline": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "baseline_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "baseline_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "census_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "recorded_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "decided": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "baseline_hash",
+                "baseline_sha",
+                "census_hash",
+                "recorded_at",
+                "decided"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "index": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "files": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "not_indexed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "excluded_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "excluded": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "protected_path",
+                          "sensitive_path",
+                          "generated_or_vendored"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "files",
+                "not_indexed",
+                "excluded_count",
+                "excluded"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "areas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "manifest": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "files": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "source_files": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "test_files": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "typescript",
+                    "javascript",
+                    "python",
+                    "other"
+                  ]
+                }
+              },
+              "depends_on": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "used_by": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "census",
+                      "light",
+                      "full"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "area",
+              "manifest",
+              "files",
+              "source_files",
+              "test_files",
+              "languages",
+              "depends_on",
+              "used_by",
+              "level"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "code_graph": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "graph_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "map_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "files": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "edges": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "external_imports": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "area_edges": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "to": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "imports": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "from",
+                      "to",
+                      "imports"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "graph_hash",
+                "map_hash",
+                "files",
+                "edges",
+                "external_imports",
+                "truncated",
+                "area_edges"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seeds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seed_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "observed",
+                  "intended"
+                ]
+              },
+              "verdict": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "affirm",
+                      "correct",
+                      "keep_observed"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "text": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "text_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "withheld": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "seed_id",
+              "area",
+              "path",
+              "status",
+              "verdict",
+              "text",
+              "text_sha256",
+              "withheld"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "golden": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "candidate_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "test": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "subjects": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "verdict": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "accept",
+                      "reject"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "candidate_id",
+              "area",
+              "test",
+              "subjects",
+              "verdict"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "repo",
+        "s0_id",
+        "baseline",
+        "index",
+        "areas",
+        "code_graph",
+        "seeds",
+        "golden"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeSeedView": {
+      "type": "object",
+      "properties": {
+        "seed_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "observed",
+            "intended"
+          ]
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "affirm",
+                "correct",
+                "keep_observed"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "withheld": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "seed_id",
+        "area",
+        "path",
+        "status",
+        "verdict",
+        "text",
+        "text_sha256",
+        "withheld"
+      ],
+      "additionalProperties": false
     },
     "Lane": {
       "type": "string",
@@ -76406,6 +77022,449 @@
       "type": "string",
       "maxLength": 128,
       "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "ProjectKnowledgeView": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+              },
+              "s0_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "baseline": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseline_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "baseline_sha": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$"
+                      },
+                      "census_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "recorded_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "decided": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "baseline_hash",
+                      "baseline_sha",
+                      "census_hash",
+                      "recorded_at",
+                      "decided"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "index": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "not_indexed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "excluded_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "excluded": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "reason": {
+                              "type": "string",
+                              "enum": [
+                                "protected_path",
+                                "sensitive_path",
+                                "generated_or_vendored"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "path",
+                            "reason"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "files",
+                      "not_indexed",
+                      "excluded_count",
+                      "excluded"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "areas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "area": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "manifest": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "files": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "source_files": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "test_files": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "typescript",
+                          "javascript",
+                          "python",
+                          "other"
+                        ]
+                      }
+                    },
+                    "depends_on": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "used_by": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "level": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "census",
+                            "light",
+                            "full"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "area",
+                    "manifest",
+                    "files",
+                    "source_files",
+                    "test_files",
+                    "languages",
+                    "depends_on",
+                    "used_by",
+                    "level"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "code_graph": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "graph_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "map_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "files": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "edges": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "external_imports": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "truncated": {
+                        "type": "boolean"
+                      },
+                      "area_edges": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "from": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 256
+                            },
+                            "to": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 256
+                            },
+                            "imports": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "from",
+                            "to",
+                            "imports"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "graph_hash",
+                      "map_hash",
+                      "files",
+                      "edges",
+                      "external_imports",
+                      "truncated",
+                      "area_edges"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seeds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "seed_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "area": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "path": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "observed",
+                        "intended"
+                      ]
+                    },
+                    "verdict": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "affirm",
+                            "correct",
+                            "keep_observed"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "text_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "withheld": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "seed_id",
+                    "area",
+                    "path",
+                    "status",
+                    "verdict",
+                    "text",
+                    "text_sha256",
+                    "withheld"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "golden": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "candidate_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "area": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "test": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "subjects": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "verdict": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "accept",
+                            "reject"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "candidate_id",
+                    "area",
+                    "test",
+                    "subjects",
+                    "verdict"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "repo",
+              "s0_id",
+              "baseline",
+              "index",
+              "areas",
+              "code_graph",
+              "seeds",
+              "golden"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "data_class": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2",
+            "D3"
+          ]
+        }
+      },
+      "required": [
+        "project_id",
+        "repos",
+        "data_class"
+      ],
+      "additionalProperties": false
     },
     "ProjectLearnView": {
       "type": "object",

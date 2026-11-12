@@ -87,6 +87,7 @@ import {
 } from './controls.js';
 import { laneEligibility } from './lane-eligibility.js';
 import { listReonboardProposals } from './knowledge-defects.js';
+import { projectKnowledge } from './portal-knowledge.js';
 import {
   getProject,
   getProjectDetail,
@@ -1702,6 +1703,22 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       );
     } catch {
       return fail(reply, coreError('unavailable', 'the readiness record could not be read'));
+    }
+  });
+
+  // M17: the Knowledge screen's read, from the record (the Full baseline and card 3's decision), at D2: the bff
+  // checks project.view and V2 and cuts it to the person's data class.
+  app.get('/v1/projects/:id/knowledge', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const id = projectIdOf(req);
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    try {
+      return (
+        (await projectKnowledge(o.pool, id)) ??
+        fail(reply, coreError('not_found', 'no such project'))
+      );
+    } catch {
+      return fail(reply, coreError('unavailable', 'the knowledge could not be read'));
     }
   });
 

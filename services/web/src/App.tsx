@@ -13,6 +13,7 @@ import { IssueTwinPage } from './pages/IssueTwinPage';
 import { RevisionPage } from './pages/RevisionPage';
 import { OnboardPage } from './pages/Onboard';
 import { ProjectDetailPage } from './pages/ProjectDetail';
+import { KnowledgePage } from './pages/KnowledgePage';
 import { ProjectListPage } from './pages/ProjectList';
 import { S0Page } from './pages/S0Page';
 import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
@@ -219,6 +220,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <RevisionPage gate={route.id} csrf={me.csrf_token} />;
     case 'readiness':
       return <PrrPage project={route.id} />;
+    case 'knowledge':
+      return <KnowledgePage project={route.id} />;
     case 'issues':
       return <IssueTwinPage project={route.id} csrf={me.csrf_token} />;
     case 'ledger':

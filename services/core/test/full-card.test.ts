@@ -24,6 +24,7 @@ import {
   recordKnowledgeDefects,
   listPushReceipts,
   projectFullPack,
+  projectKnowledge,
   projectPack,
   rebuildPacks,
   syncCards,
@@ -393,7 +394,30 @@ describe('the oracle lock through X2 (M17)', () => {
         ok: true,
         value: { kind: 'full', state: 'waiting_for_c2' },
       });
+      // the Knowledge screen before card 3 is decided: the baseline is recorded, nothing is decided
+      await sync(c);
+      const before = await projectKnowledge(s.record.pool, c.project);
+      const mine = (v: typeof before) => v?.repos.find((r) => r.repo === c.repo);
+      expect(mine(before)?.baseline?.decided).toBe(false);
+      expect(mine(before)?.seeds.map((x) => [x.status, x.verdict])).toEqual([
+        ['observed', null],
+        ['observed', null],
+      ]);
       const view = await approveC3(c);
+      // after it: the corrected seed is intended with the person's text, the golden tasks carry their verdicts,
+      // the repo index and the map come from the recorded baseline (D2: core answers in full; the bff cuts it)
+      const k = mine(await projectKnowledge(s.record.pool, c.project));
+      expect(k?.baseline).toMatchObject({ decided: true, baseline_sha: BASELINE_A });
+      expect(k?.areas.map((a) => a.area)).toEqual(['.', 'packages/money']);
+      expect(k?.code_graph?.area_edges).toEqual([{ from: '.', to: 'packages/money', imports: 1 }]);
+      const corrected = k?.seeds.find((x) => x.area === 'packages/money');
+      expect(corrected).toMatchObject({
+        status: 'intended',
+        verdict: 'correct',
+        text: CORRECTED.trim(),
+      });
+      expect(k?.golden.map((g) => g.verdict)).toEqual(['accept', 'accept']);
+      expect(k?.index?.files).toBe(6);
 
       const v = await projectFullPack(deps, c.s0);
       if (!v.ok) throw new Error(v.error.message);

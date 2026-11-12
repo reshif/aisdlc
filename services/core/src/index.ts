@@ -56,3 +56,4 @@ export * from './issue-twin/index.js';
 export * from './factory-m1.js';
 export * from './config-console.js';
 export * from './knowledge-defects.js';
+export * from './portal-knowledge.js';

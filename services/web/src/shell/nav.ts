@@ -75,7 +75,7 @@ export const NAV: readonly NavEntry[] = [
     '/projects',
     'Projects',
     SIGNED_IN,
-    at('projects', 'project', 's0', 'readiness', 'ledger', 'issues'),
+    at('projects', 'project', 's0', 'readiness', 'knowledge', 'ledger', 'issues'),
   ),
   entry(
     'Projects',

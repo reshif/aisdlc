@@ -56,3 +56,4 @@ export * from './onboarding-pack.js';
 export * from './issue-twin.js';
 export * from './portal-lists.js';
 export * from './knowledge-defects.js';
+export * from './portal-knowledge.js';
