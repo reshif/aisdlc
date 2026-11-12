@@ -47,8 +47,10 @@ const repoView = () => ({
     bypass: { logins: ['carol'], list_hash: bypassListHash(['carol']) },
   },
   level_up: ['full'],
+  reonboarding: [],
   history: [],
 });
+const PROPOSAL = 'd'.repeat(64);
 
 interface Seen {
   readonly method: string;
@@ -102,6 +104,15 @@ beforeAll(async () => {
           s0_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe55',
           level: 'full',
           reason: 'level_up',
+          duplicate: false,
+        });
+      if (path === '/v1/projects/acme/reonboarding/decide')
+        return send(201, {
+          proposal_id: PROPOSAL,
+          decision: 'accept',
+          status: 'accepted',
+          new_s0_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe66',
+          ledger_entry_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77',
           duplicate: false,
         });
       return send(404, { error: { code: 'not_found', message: 'no' } });
@@ -164,6 +175,7 @@ describe('GET /api/projects/:id/drift', () => {
       reaffirm: false,
       recheck: false,
       request_version: false,
+      reonboard: false,
     });
     seen.length = 0;
     expect((await api('carol', 'GET', '/api/projects/acme/drift')).status).toBe(403);
@@ -239,5 +251,36 @@ describe('the writes', () => {
     expect(
       (await api('dora', 'POST', '/api/projects/acme/drift/recheck', { repo: 'acme/web' })).status,
     ).toBe(403);
+  });
+
+  it('a re-onboarding decision (M17): project.settings.edit; as the session’s principal; a body naming one is refused', async () => {
+    const body = {
+      repo: 'acme/web',
+      proposal_id: PROPOSAL,
+      decision: 'accept',
+      reason: 'the docs drifted',
+    };
+    expect((await api('dora', 'POST', '/api/projects/acme/reonboarding/decide', body)).status).toBe(
+      403,
+    );
+    expect(
+      (
+        await api('alice', 'POST', '/api/projects/acme/reonboarding/decide', {
+          ...body,
+          on_behalf_of: 'dora',
+        })
+      ).status,
+    ).toBe(400);
+    expect(seen).toEqual([]);
+    const r = await api('alice', 'POST', '/api/projects/acme/reonboarding/decide', body);
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ status: 'accepted', decision: 'accept' });
+    expect(seen).toEqual([
+      {
+        method: 'POST',
+        path: '/v1/projects/acme/reonboarding/decide',
+        body: { ...body, on_behalf_of: 'alice' },
+      },
+    ]);
   });
 });

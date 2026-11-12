@@ -220,7 +220,7 @@ export interface CreateItemInput {
   readonly item_id: string;
   readonly request: Pick<
     WorkRequestedPayload,
-    'request_id' | 'project_id' | 'repo' | 'requester' | 'channel'
+    'request_id' | 'project_id' | 'repo' | 'requester' | 'channel' | 'area'
   >;
   /** The governing PRR: the item pins its gating profile and tier. */
   readonly prr: PrrVersion;
@@ -266,6 +266,7 @@ export async function createItemIn(
     tier: prr.tier.value,
     prr: { version: i.prr.version, record_hash: prr.record_hash },
     proposed_lane: i.proposed_lane,
+    ...(i.request.area === undefined ? {} : { area: i.request.area }),
     intake: i.intake,
     origin: i.origin,
   });

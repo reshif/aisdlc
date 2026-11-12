@@ -183,6 +183,12 @@ describe('eligibility(repo, lane): the table (PLAN M7.6, DEC-8)', () => {
         },
         seeded_areas: ['.', 'docs'],
         graph_truncated: false,
+        // card 2: the root text covers every area; one affirmed claim about each (LF5, LF6 per area)
+        instruction_areas: ['.'],
+        claims: ['package.json', 'docs/a.md', 'lib/a.ts'].map((p) => ({
+          verdict: 'affirm' as const,
+          paths: [p],
+        })),
       },
     });
     expect(prr.level.by_area).toEqual({ '.': 'full', docs: 'census', lib: 'light' });
@@ -211,6 +217,80 @@ describe('eligibility(repo, lane): the table (PLAN M7.6, DEC-8)', () => {
       { area: '.', level: 'light', floors: [], lanes: ['L0', 'L1', 'L2', 'L3', 'L7', 'L8'] },
     ]);
     expect(routeLane('acme/x', 'L1', one, NOW, undefined, 'packages/any').route).toBe('normal');
+  });
+
+  it('R3 zones (M17, OB §8): an unresolved defect proposal confines its area to the Census lanes, in the record hash', () => {
+    const area = (name: string) => ({
+      area: name,
+      manifest: `${name}/package.json`,
+      files: 3,
+      source_files: 2,
+      test_files: 1,
+      languages: ['typescript' as const],
+      depends_on: [],
+      used_by: [],
+    });
+    const areas = {
+      system_map: {
+        graph_hash: 'a'.repeat(64),
+        map_hash: 'b'.repeat(64),
+        edges: [],
+        areas: [area('.'), area('lib'), area('svc')],
+      },
+      seeded_areas: ['.', 'lib', 'svc'],
+      graph_truncated: false,
+      instruction_areas: ['.'],
+      claims: ['package.json', 'lib/a.ts', 'svc/a.ts'].map((p) => ({
+        verdict: 'affirm' as const,
+        paths: [p],
+      })),
+    };
+    const P = 'c'.repeat(64);
+    const plain = built({ ...inputs({ level: 'full' }), areas });
+    // the proposal named a path under lib (an older record's area): placed in the area that holds it
+    const zoned = built({
+      ...inputs({ level: 'full' }),
+      areas,
+      r3: [{ area: 'lib/deep', proposal_id: P }],
+    });
+    expect(plain.autonomy.r3_zones).toEqual([]);
+    expect(plain.autonomy.r3_sources).toBeUndefined();
+    expect(zoned.autonomy.r3_zones).toEqual(['lib/**']);
+    expect(zoned.autonomy.r3_sources).toEqual([
+      { area: 'lib', glob: 'lib/**', trigger: 'knowledge_defects', proposal_ids: [P] },
+    ]);
+    // bound in the record hash; a zone never changes a level
+    expect(zoned.record_hash).not.toBe(plain.record_hash);
+    expect(zoned.level.by_area).toEqual(plain.level.by_area);
+    expect(zoned.level.areas?.map((a) => [a.area, a.lanes])).toEqual([
+      ['.', ['L0', 'L1', 'L2', 'L3', 'L4', 'L6', 'L7', 'L8']],
+      ['lib', ['L7', 'L8']],
+      ['svc', ['L0', 'L1', 'L2', 'L3', 'L4', 'L6', 'L7', 'L8']],
+    ]);
+    expect(zoned.autonomy.lanes_eligible).toEqual(['L7', 'L8']);
+    expect(zoned.writes).toBe(plain.writes);
+    const g = version(zoned);
+    const at = (lane: Lane, a?: string) => {
+      const v = routeLane('acme/x', lane, g, NOW, undefined, a);
+      return `${v.route}:${v.reason}`;
+    };
+    expect(at('L1', 'lib')).toBe('l8:r3_zone');
+    expect(at('L8', 'lib')).toBe('normal:eligible');
+    expect(at('L4', 'svc')).toBe('normal:eligible');
+    expect(at('L1')).toBe('l8:r3_zone');
+    // the live R3 state tightens a record that holds no zone (never loosens one)
+    const live = (lane: Lane, a?: string) =>
+      routeLane('acme/x', lane, version(plain), NOW, undefined, a, [
+        { area: 'svc', proposal_id: P },
+      ]).reason;
+    expect(live('L4', 'svc')).toBe('r3_zone');
+    expect(live('L4', 'lib')).toBe('eligible');
+    // the root area is everything: its zone confines every area
+    const root = version(
+      built({ ...inputs({ level: 'full' }), areas, r3: [{ area: '.', proposal_id: P }] }),
+    );
+    expect(root.prr.autonomy.r3_zones).toEqual(['**']);
+    expect(routeLane('acme/x', 'L1', root, NOW, undefined, 'svc').reason).toBe('r3_zone');
   });
 
   it('a T2 repo needs Full for the hotfix and the spike too (R-OPK-3)', () => {

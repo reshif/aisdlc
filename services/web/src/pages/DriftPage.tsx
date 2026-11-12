@@ -348,6 +348,110 @@ function NewVersion({
   );
 }
 
+/**
+ * M17 (OB §8): a re-onboarding proposal knowledge defects raised in an area is a card for the admin slot. Accept is a
+ * ledgered decision that starts a new onboarding from 0.1 at the signed level (cards, 0.4, 0.5 and M4 again); the
+ * signed version stays in force until that M4. Decline closes it and changes nothing. Neither changes a level.
+ */
+function Reonboarding({
+  project,
+  repo,
+  csrf,
+}: {
+  project: string;
+  repo: RepoDriftView;
+  csrf: string;
+}) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [reason, setReason] = useState('');
+  const decide = useMutation({
+    mutationFn: (b: { proposal_id: string; decision: 'accept' | 'decline' }) =>
+      api.reonboardDecide(project, { repo: repo.repo, ...b, reason: reason.trim() }, csrf),
+    onSuccess: (r) => {
+      toast(
+        r.decision === 'accept'
+          ? 'Accepted: a new onboarding starts at 0.1; the signed record stays in force until its M4.'
+          : 'Declined: the proposal is closed and nothing changed.',
+      );
+      setReason('');
+      void qc.invalidateQueries({ queryKey: ['drift', project] });
+    },
+    onError: (e) => toast(describeError(e), 'bad'),
+  });
+  if (repo.reonboarding.length === 0) return null;
+  const open = repo.reonboarding.filter((p) => p.status === 'proposed');
+  const decided = repo.reonboarding.filter((p) => p.status !== 'proposed');
+  return (
+    <Card title="Re-onboarding proposed" testId={`reonboard-${repo.repo}`}>
+      {open.map((p) => (
+        <div key={p.proposal_id} className="drift-reonboard" data-testid="reonboard-open">
+          <p>
+            {p.count} knowledge defect{p.count === 1 ? '' : 's'} in area{' '}
+            <span className="ui-mono">{p.area}</span> within {p.window_days} days (threshold{' '}
+            {p.threshold}), proposed {shortTime(p.proposed_at)}.
+          </p>
+          <p className="muted">
+            Accepting starts a new onboarding from 0.1 at the signed level: the cards, 0.4, 0.5 and
+            M4 again. The signed record stays in force until that M4. A proposal never changes a
+            level.
+          </p>
+          <label>
+            Reason{' '}
+            <input
+              type="text"
+              value={reason}
+              maxLength={500}
+              onChange={(e) => setReason(e.target.value)}
+              aria-label="Reason for the decision"
+            />
+          </label>
+          <div className="actions">
+            <Guarded
+              action="project.settings.edit"
+              resource={pdpResource.project(project)}
+              label="Accept"
+            >
+              <button
+                type="button"
+                className="ui-btn ui-btn-primary"
+                disabled={decide.isPending || reason.trim().length === 0}
+                onClick={() => decide.mutate({ proposal_id: p.proposal_id, decision: 'accept' })}
+              >
+                Accept: re-onboard
+              </button>
+            </Guarded>
+            <Guarded
+              action="project.settings.edit"
+              resource={pdpResource.project(project)}
+              label="Decline"
+            >
+              <button
+                type="button"
+                className="ui-btn"
+                disabled={decide.isPending || reason.trim().length === 0}
+                onClick={() => decide.mutate({ proposal_id: p.proposal_id, decision: 'decline' })}
+              >
+                Decline
+              </button>
+            </Guarded>
+          </div>
+        </div>
+      ))}
+      {decided.length > 0 ? (
+        <ul className="muted" data-testid="reonboard-decided">
+          {decided.map((p) => (
+            <li key={p.proposal_id}>
+              <span className="ui-mono">{p.area}</span>: {p.status}
+              {p.decision ? ` by ${p.decision.by} (${shortTime(p.decision.at)})` : ''}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Card>
+  );
+}
+
 const HISTORY_KIND: Record<DriftHistoryRow['type'], TimelineKind> = {
   evaluated: 'det',
   suspended: 'bad',
@@ -438,6 +542,7 @@ function RepoDrift({
           {prr.status === 'suspended' && !prr.expired ? (
             <Restore project={project} repo={repo} csrf={csrf} />
           ) : null}
+          <Reonboarding project={project} repo={repo} csrf={csrf} />
           <NewVersion project={project} repo={repo} csrf={csrf} />
           <Card title="History">
             {repo.history.length === 0 ? (

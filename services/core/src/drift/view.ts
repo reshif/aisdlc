@@ -28,6 +28,7 @@ import {
   readDriftedText,
   restoreWhyNot,
 } from './actions.js';
+import { listReonboardProposals } from '../knowledge-defects.js';
 import { catchUp } from '../queries.js';
 import { repoIdentity } from '../prr-store.js';
 import type { DriftDeps } from './check.js';
@@ -190,6 +191,12 @@ export async function repoDriftView(
       bypass: shown ?? { logins: [], list_hash: bypassListHash([]) },
     },
     level_up: g && g.status !== 'expired' ? levelsAbove(g.prr.level.signed) : [],
+    // open proposals first (each is a card for the admin slot), then the decided ones, newest first
+    reonboarding: (await listReonboardProposals(db, l.repo_ref)).sort(
+      (a, b) =>
+        Number(a.status !== 'proposed') - Number(b.status !== 'proposed') ||
+        (a.proposed_at < b.proposed_at ? 1 : a.proposed_at > b.proposed_at ? -1 : 0),
+    ),
     history: hist.slice(0, 50),
   });
 }
@@ -324,6 +331,11 @@ export async function driftInboxItems(
       const s = [...l.drift.suspensions].reverse().find((x) => x.prr_version === g.version);
       out.push(await item('prr_restore', s?.at ?? l.files?.at ?? g.prr.issued_at));
     }
+    // M17: an open re-onboarding proposal (knowledge defects in an area) is a card for the admin slot
+    const open = (await listReonboardProposals(pool, l.repo_ref)).filter(
+      (p) => p.status === 'proposed',
+    );
+    if (open.length > 0) out.push(await item('reonboard', open[0]?.proposed_at ?? g.prr.issued_at));
     if (evaluateDrift(inputs).some((f) => f.effect === 'reaffirm')) {
       out.push(
         await item(

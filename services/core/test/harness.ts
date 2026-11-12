@@ -134,6 +134,22 @@ export function makeHarness(stack: () => CoreStack, prefix: string) {
     };
   }
 
+  /** The same repo's NEXT S0 record (a level-up, a re-sign, an accepted re-onboarding): same host and knowledge. */
+  function next(c: Scn, s0: string): Scn {
+    const d = driverDeps(s(), c.host, c.knowledge);
+    return {
+      ...c,
+      s0,
+      async drive() {
+        for (let i = 0; i < 8; i++) {
+          await driveS0(d, s0);
+          if ((await loadS0(s().record.pool, s0))?.s0.record.status === 'card') break;
+        }
+        return (await loadS0(s().record.pool, s0))?.s0.record.status ?? 'gone';
+      },
+    };
+  }
+
   const sync = async (c: Scn) => {
     const r = await syncCards(c.deps, c.s0);
     if (!r.ok) throw new Error(r.error.message);
@@ -281,6 +297,7 @@ export function makeHarness(stack: () => CoreStack, prefix: string) {
 
   return {
     scenario,
+    next,
     sync,
     summaries,
     actionable,
