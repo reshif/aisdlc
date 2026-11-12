@@ -9,6 +9,7 @@ import {
   KILL_RELEASE_POLICY,
   RoleSlotValues,
   gatePolicy,
+  stepUpOf,
   gateStream,
 } from '../../src/index.js';
 
@@ -59,5 +60,25 @@ describe('gate lifecycle contracts', () => {
     expect(gatePolicy('kill_release')).toBe(KILL_RELEASE_POLICY);
     expect(GateEventType.options.sort()).toEqual(Object.values(GATE_EVENT).sort());
     expect(gateStream(U)).toBe(`gate:${U}`);
+  });
+});
+
+describe('stepUpOf (RC-SEC-4): a gate that needs two people needs each to step up', () => {
+  const h = 'a'.repeat(64);
+  const p = (required: number, stepUp: boolean) => ({
+    quorum: {
+      required,
+      slot: 'x',
+      basis: required >= 2 ? 'two_person' : 'single',
+    } as never,
+    step_up: { required: stepUp, bound_hash: h } as never,
+  });
+  it('is required for a quorum of two or more, even on a payload opened without it', () => {
+    expect(stepUpOf(p(2, false))).toEqual({ required: true, bound_hash: h });
+    expect(stepUpOf(p(3, false)).required).toBe(true);
+  });
+  it('follows the payload for a single decider', () => {
+    expect(stepUpOf(p(1, false)).required).toBe(false);
+    expect(stepUpOf(p(1, true)).required).toBe(true);
   });
 });

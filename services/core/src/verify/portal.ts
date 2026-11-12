@@ -5,6 +5,7 @@ import {
   VERIFY_STEPS,
   VerifyCheckRecordedPayload,
   repairClassOf,
+  stepUpOf,
   verifyResultHash,
   verifyStream,
   type EvidencePackContents,
@@ -476,7 +477,7 @@ export async function gateCardContext(
     })),
     subject_hash: p.subject_hash,
     binds,
-    step_up: p.step_up,
+    step_up: stepUpOf(p),
     check,
     head_sha: head,
     quarantine: f.quarantine

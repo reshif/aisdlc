@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { gateInstanceProjection, openGate } from '../src/index.js';
 import {
   decideAs,
+  STEPPED_UP,
   hash,
   ledgerCount,
   open,
@@ -189,13 +190,24 @@ describe('two-person gates', () => {
       });
       const g = await open(s, `tp-${gate.toLowerCase()}`, gate, { requester: pr('cy') });
       expect(await state(g.gate_instance_id)).toMatchObject({ quorum_required: 2 });
-      const a = await decideAs(s, g.gate_instance_id, 'ann', 'approve');
+      // RC-SEC-4: each of the two is a person who stepped up, not a name a caller sent
+      const bare = await decideAs(s, g.gate_instance_id, 'ann', 'approve');
+      expect(!bare.ok && bare.error.code).toBe('step_up_required');
+      const theirs = await decideAs(s, g.gate_instance_id, 'ann', 'approve', {
+        stepUp: s.stepUp.issue(g.subject_hash, 'bob'),
+      });
+      expect(!theirs.ok && theirs.error.code).toBe('step_up_invalid');
+      expect(await entriesOf(g.gate_instance_id)).toHaveLength(0);
+      const a = await decideAs(s, g.gate_instance_id, 'ann', 'approve', STEPPED_UP);
       expect(a.ok && a.value.after).toMatchObject({ status: 'pending', approvers: ['ann'] });
-      const again = await decideAs(s, g.gate_instance_id, 'ann', 'approve');
+      expect(a.ok && a.value.entry.body).toMatchObject({
+        step_up: { bound_hash: g.subject_hash },
+      });
+      const again = await decideAs(s, g.gate_instance_id, 'ann', 'approve', STEPPED_UP);
       expect(!again.ok && again.error.code).toBe('already_voted');
       expect(await entriesOf(g.gate_instance_id)).toHaveLength(1);
       expect((await state(g.gate_instance_id))?.status).toBe('pending');
-      const b = await decideAs(s, g.gate_instance_id, 'bob', 'approve');
+      const b = await decideAs(s, g.gate_instance_id, 'bob', 'approve', STEPPED_UP);
       expect(b.ok && b.value.after).toMatchObject({
         status: 'decided',
         outcome: 'approve',
@@ -292,11 +304,14 @@ describe('reject and request_changes end the gate', () => {
     async (d) => {
       setupProject(s, `end-${d}`, { tier: 'T0', slots: { x: ['ann', 'bob', 'cy'] } });
       const g = await open(s, `end-${d}`, 'X2');
-      expect((await decideAs(s, g.gate_instance_id, 'ann', 'approve')).ok).toBe(true);
-      const r = await decideAs(s, g.gate_instance_id, 'bob', d);
+      expect((await decideAs(s, g.gate_instance_id, 'ann', 'approve', STEPPED_UP)).ok).toBe(true);
+      // a reject or request_changes on a two-person gate needs the step-up too (the gate decides)
+      const bare = await decideAs(s, g.gate_instance_id, 'bob', d);
+      expect(!bare.ok && bare.error.code).toBe('step_up_required');
+      const r = await decideAs(s, g.gate_instance_id, 'bob', d, STEPPED_UP);
       expect(r.ok && r.value.after).toMatchObject({ status: 'decided', outcome: d });
       expect(await state(g.gate_instance_id)).toMatchObject({ status: 'decided', outcome: d });
-      const late = await decideAs(s, g.gate_instance_id, 'cy', 'approve');
+      const late = await decideAs(s, g.gate_instance_id, 'cy', 'approve', STEPPED_UP);
       expect(!late.ok && late.error.code).toBe('gate_not_pending');
     },
   );
@@ -331,7 +346,7 @@ describe('fail closed', () => {
     setupProject(s, 'race2', { tier: 'T0', slots: { x: ['ann', 'bob'] } });
     const g = await open(s, 'race2', 'X1');
     const rs = await Promise.all(
-      [1, 2, 3].map(() => decideAs(s, g.gate_instance_id, 'ann', 'approve')),
+      [1, 2, 3].map(() => decideAs(s, g.gate_instance_id, 'ann', 'approve', STEPPED_UP)),
     );
     expect(rs.filter((r) => r.ok)).toHaveLength(1);
     expect(await entriesOf(g.gate_instance_id)).toHaveLength(1);

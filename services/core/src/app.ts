@@ -1701,7 +1701,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   );
   app.post('/v1/revisions/:gate/decide', (req, reply) =>
     revisionAction(req, reply, RevisionDecideRequest, (d, _gate, b) =>
-      decideRevision(d, { nonce: b.nonce, decision: b.decision }),
+      decideRevision(d, { nonce: b.nonce, decision: b.decision, step_up: b.step_up }),
     ),
   );
   /** Retries the publish of an approved revision (the decision is already on the ledger). */

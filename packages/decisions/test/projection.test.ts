@@ -9,6 +9,7 @@ import { gateInstanceProjection, openGate, sweepExpired, withdrawGate } from '..
 import { applyVote, enterGate } from '../src/vote.js';
 import {
   decideAs,
+  STEPPED_UP,
   hash,
   open,
   pr,
@@ -49,9 +50,9 @@ describe('gate_instance projection over the record and the ledger', () => {
     expect((await decideAs(s, a.gate_instance_id, 'ann', 'approve')).ok).toBe(true);
     const b = await open(s, 'pj', 'X1');
     await run(1);
-    expect((await decideAs(s, b.gate_instance_id, 'ann', 'approve')).ok).toBe(true);
+    expect((await decideAs(s, b.gate_instance_id, 'ann', 'approve', STEPPED_UP)).ok).toBe(true);
     await run(3);
-    expect((await decideAs(s, b.gate_instance_id, 'bob', 'approve')).ok).toBe(true);
+    expect((await decideAs(s, b.gate_instance_id, 'bob', 'approve', STEPPED_UP)).ok).toBe(true);
     const c = await open(s, 'pj', 'G2', { subject_kind: 's0_record' });
     const c2 = await openGate(s.deps, { ...c.input, subject_hash: hash('c2') });
     expect(c2.ok).toBe(true);
@@ -74,7 +75,7 @@ describe('gate_instance projection over the record and the ledger', () => {
     const sw = await sweepExpired(s.deps);
     expect(sw.ok && sw.value.expired).toContain(d.gate_instance_id);
     const e = await open(s, 'pj', 'X2');
-    expect((await decideAs(s, e.gate_instance_id, 'cy', 'reject')).ok).toBe(true);
+    expect((await decideAs(s, e.gate_instance_id, 'cy', 'reject', STEPPED_UP)).ok).toBe(true);
     s.clock.advance(-2000);
 
     const snap = await expectRebuildEqualsLive(s.record.pool, gateInstanceProjection);

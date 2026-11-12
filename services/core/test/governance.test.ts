@@ -21,7 +21,7 @@ import {
 } from '@aisdlc/contracts';
 import { configPublish, readFactoryM1Policy } from '@aisdlc/config';
 import { withTransaction } from '@aisdlc/db';
-import { readGateState } from '@aisdlc/decisions';
+import { readGateState, type FakeStepUp } from '@aisdlc/decisions';
 import { grantFleetRole, seedPrincipals } from '@aisdlc/identity/testing';
 import { ok as okR } from '@aisdlc/kernel';
 import { FakeEnvelope, FakeProjectSettings, FakeWaitSnapshots } from '@aisdlc/ports';
@@ -115,7 +115,11 @@ async function decideFactory(gate: string, who: string, decision = 'approve') {
     evidence_hash: p.value.evidence_hash,
   });
   if (!v.ok) return v;
-  return decideRevision(kdeps(), { nonce: p.value.nonce, decision });
+  // a factory M1 with two approvers needs each to step up (RC-SEC-4): the person signed in again
+  const step_up = p.value.step_up.required
+    ? { proof: (s.config.stepUp as FakeStepUp).issue(p.value.step_up.bound_hash, who) }
+    : undefined;
+  return decideRevision(kdeps(), { nonce: p.value.nonce, decision, step_up });
 }
 
 /** Proposes a factory key as `proposer` and has `approver` decide it; returns the gate. */
@@ -218,6 +222,19 @@ describe('factory M1: a factory admin other than the proposer decides', () => {
       }),
     );
     expect(ok(await factoryRevisionView(kdeps(), p.gate_instance_id)).quorum).toBe(2);
+    // two people means two step-ups: a bare vote is refused
+    const bare = ok(
+      await prepareRevision(kdeps(), { gate: p.gate_instance_id, principal: pr('ben') }),
+    );
+    expect(bare.step_up.required).toBe(true);
+    ok(
+      await recordRevisionEvidence(kdeps(), {
+        nonce: bare.nonce,
+        evidence_hash: bare.evidence_hash,
+      }),
+    );
+    const refused = await decideRevision(kdeps(), { nonce: bare.nonce, decision: 'approve' });
+    expect(!refused.ok && refused.error.message).toMatch(/step_up_required/);
     expect(ok(await decideFactory(p.gate_instance_id, 'ben'))).toMatchObject({ published: false });
     expect(ok(await decideFactory(p.gate_instance_id, 'cyd'))).toMatchObject({
       outcome: 'approve',
