@@ -17,7 +17,7 @@ import { createCoreApp } from './app.js';
 import { HttpAdmissionVerdict } from './floor-live.js';
 import { BootstrapEligibility } from './bootstrap.js';
 import { cardDepsFrom, identityEligibility } from './card-wiring.js';
-import { HttpKnowledge } from './clients.js';
+import { HttpAccessGrants, HttpKnowledge } from './clients.js';
 import { assistantDepsFrom } from './conversation/wire.js';
 import { CensusGrounding } from './planning/grounding.js';
 import { coreConfigFromEnv } from './config.js';
@@ -159,6 +159,15 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(reader ? { bypass: mergeBypassFrom(reader) } : {}),
       ...(cfg.admissionUrl
         ? { kill: new HttpAdmissionVerdict({ baseUrl: cfg.admissionUrl }) }
+        : {}),
+      // P1-6: identity's `grant` scope, which writes what an approved access M1 decided
+      ...(cfg.identity
+        ? {
+            grants: new HttpAccessGrants({
+              baseUrl: cfg.identity.url,
+              token: cfg.identity.token,
+            }),
+          }
         : {}),
       // B5 (M12.5): a hand-written plan is made against the merged head knowledge's census names
       ...(cfg.cards

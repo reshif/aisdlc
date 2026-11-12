@@ -29,7 +29,9 @@ export type NavGuard =
   /** The PDP allows any of these actions on the fleet. */
   | { readonly kind: 'fleet_any'; readonly actions: readonly ActionId[] }
   /** The PDP allows the action on the fleet or on at least one project (from `actions.projects`). */
-  | { readonly kind: 'somewhere'; readonly action: ActionId };
+  | { readonly kind: 'somewhere'; readonly action: ActionId }
+  /** Any of these guards passes (P1-6: People is the directory's readers and whoever manages access somewhere). */
+  | { readonly kind: 'any'; readonly guards: readonly NavGuard[] };
 
 export interface NavEntry {
   readonly group: NavGroup;
@@ -129,10 +131,23 @@ export const NAV: readonly NavEntry[] = [
     { kind: 'fleet_any', actions: ['config.propose', 'audit.read'] },
     at('config', 'configKey'),
   ),
-  entry('Admin', '/people', 'People', FLEET_AUDIT, at('people')),
+  // P1-6: the directory's readers, and whoever holds access.manage somewhere (grant and revoke there)
+  entry(
+    'Admin',
+    '/people',
+    'People',
+    { kind: 'any', guards: [FLEET_AUDIT, { kind: 'somewhere', action: 'access.manage' }] },
+    at('people'),
+  ),
   entry('Admin', '/teams', 'Teams', FLEET_AUDIT, at('teams')),
   entry('Admin', '/roles', 'Roles', SIGNED_IN, at('roles')),
-  entry('Admin', '/access-requests', 'Access requests', SIGNED_IN, at('accessRequests')),
+  entry(
+    'Admin',
+    '/access-requests',
+    'Access requests',
+    SIGNED_IN,
+    at('accessRequests', 'accessGrant'),
+  ),
   entry(
     'Admin',
     '/access-explain',
@@ -155,6 +170,8 @@ export const guardPasses = (g: NavGuard, me: Me): boolean => {
         me.actions.fleet.includes(g.action) ||
         me.actions.projects.some((p) => p.actions.includes(g.action))
       );
+    case 'any':
+      return g.guards.some((x) => guardPasses(x, me));
   }
 };
 
@@ -163,7 +180,13 @@ export const guardOf = (to: string): NavGuard | null => NAV.find((e) => e.to ===
 
 /** The action a guard names, for the 403's reason. */
 export const guardAction = (g: NavGuard): ActionId | null =>
-  g.kind === 'signed_in' ? null : g.kind === 'fleet_any' ? (g.actions[0] ?? null) : g.action;
+  g.kind === 'signed_in'
+    ? null
+    : g.kind === 'fleet_any'
+      ? (g.actions[0] ?? null)
+      : g.kind === 'any'
+        ? (g.guards.map(guardAction).find((a) => a !== null) ?? null)
+        : g.action;
 
 /** The groups and entries this person may open, in prototype order; empty groups dropped. */
 export function navFor(me: Me): ReadonlyArray<{ group: NavGroup; entries: readonly NavEntry[] }> {

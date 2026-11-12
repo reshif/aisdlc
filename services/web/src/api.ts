@@ -1,4 +1,10 @@
 import type {
+  AccessBindingList,
+  AccessChange,
+  AccessDecideResult,
+  AccessGrantView,
+  AccessProposeResult,
+  GrantScope,
   ActionId,
   AskResult,
   AssistantBudgetView,
@@ -118,6 +124,9 @@ export interface Me {
     readonly projects: ReadonlyArray<{ project_id: string; actions: readonly ActionId[] }>;
   };
 }
+
+/** `GET /api/access/grants[/:id]`: core's view plus whether this person may decide it now (P1-6). */
+export type AccessGrantWire = AccessGrantView & { readonly may_decide: boolean };
 
 /** `GET /api/config/keys/:key`: core's view plus what only the bff knows for this person. */
 export type ConfigKeyWire = ConfigKeyView & {
@@ -846,6 +855,42 @@ export const api = {
     csrf: string,
   ) =>
     request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/decide`, b, csrf),
+  // P1-6: role-binding grants, revokes and access requests (each decided by an M1)
+  accessGrants: () => request<{ grants: AccessGrantWire[] }>('GET', '/api/access/grants'),
+  accessGrant: (id: string) =>
+    request<AccessGrantWire>('GET', `/api/access/grants/${encodeURIComponent(id)}`),
+  proposeAccess: (b: { change: AccessChange; reason: string }, csrf: string) =>
+    request<AccessProposeResult>('POST', '/api/access/grants', b, csrf),
+  requestAccess: (
+    b: { role_id: string; scope: GrantScope; expiry: string | null; reason: string },
+    csrf: string,
+  ) => request<AccessProposeResult>('POST', '/api/access/requests', b, csrf),
+  prepareAccess: (id: string, csrf: string) =>
+    request<PreparedRevision>(
+      'POST',
+      `/api/access/grants/${encodeURIComponent(id)}/prepare`,
+      {},
+      csrf,
+    ),
+  accessEvidence: (id: string, b: { nonce: string; evidence_hash: string }, csrf: string) =>
+    request<unknown>('POST', `/api/access/grants/${encodeURIComponent(id)}/evidence`, b, csrf),
+  decideAccess: (
+    id: string,
+    b: {
+      nonce: string;
+      decision: 'approve' | 'reject' | 'request_changes';
+      step_up?: { proof: string };
+    },
+    csrf: string,
+  ) =>
+    request<AccessDecideResult>(
+      'POST',
+      `/api/access/grants/${encodeURIComponent(id)}/decide`,
+      b,
+      csrf,
+    ),
+  accessBindings: (scope: string) =>
+    request<AccessBindingList>('GET', `/api/access/bindings?scope=${encodeURIComponent(scope)}`),
   ledger: (project: string, s0?: string) =>
     request<LedgerAuditView>(
       'GET',

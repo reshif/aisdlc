@@ -9,6 +9,9 @@ import {
   type PrincipalId,
   type ProjectId,
   type SetFindingStateRequest,
+  IdentityGrantResult,
+  type IdentityGrantRequest,
+  type IdentityRevokeRequest,
 } from '@aisdlc/contracts';
 import { err, ok, taggedError, type Result, type TaggedError } from '@aisdlc/kernel';
 import {
@@ -558,6 +561,48 @@ export class FakeRoleMapReconciler implements RoleMapReconcilerPort {
     if (this.refuse) return err(remoteError('refused', 'identity refused'));
     this.calls.push({ project, ...o });
     return ok({ events: 1 });
+  }
+}
+
+// ---------------------------------------------------------------- Identity: the decided grant path (P1-6)
+
+/** Identity's scope `grant`: writes or ends the binding an approved M1 decided. Idempotent on identity's side. */
+export interface AccessGrantWriterPort {
+  grant(req: IdentityGrantRequest): Promise<Result<IdentityGrantResult, RemoteError>>;
+  revoke(req: IdentityRevokeRequest): Promise<Result<IdentityGrantResult, RemoteError>>;
+}
+
+/** `AccessGrantWriterPort` over identity's `POST /v1/grants` and `/v1/grants/revoke` (scope `grant`). */
+export class HttpAccessGrants implements AccessGrantWriterPort {
+  constructor(private readonly o: RemoteOptions) {}
+
+  private async post(
+    path: string,
+    body: unknown,
+  ): Promise<Result<IdentityGrantResult, RemoteError>> {
+    const r = await call(this.o, 'POST', path, body);
+    if (!r.reached) return err(remoteError('unreachable', 'identity did not answer'));
+    if (r.status !== 200) {
+      const d = z
+        .looseObject({
+          error: z.looseObject({ code: z.string().optional(), message: z.string().optional() }),
+        })
+        .safeParse(r.json);
+      const why = d.success ? ` ${d.data.error.code ?? ''} ${d.data.error.message ?? ''}` : '';
+      return err(failFor(r.status, `identity${why}`.trim()));
+    }
+    const p = IdentityGrantResult.safeParse(r.json);
+    return p.success
+      ? ok(p.data)
+      : err(remoteError('invalid', 'identity answered with an unexpected shape'));
+  }
+
+  grant(req: IdentityGrantRequest) {
+    return this.post('/v1/grants', req);
+  }
+
+  revoke(req: IdentityRevokeRequest) {
+    return this.post('/v1/grants/revoke', req);
   }
 }
 

@@ -350,6 +350,7 @@ secrets:
   tok-seed-identity: { file: ./secrets/tok-seed-identity }
   tok-codehost-core: { file: ./secrets/tok-codehost-core }
   tok-identity-core: { file: ./secrets/tok-identity-core }
+  tok-core-identity: { file: ./secrets/tok-core-identity }
   tok-operator-core: { file: ./secrets/tok-operator-core }
   tok-core-knowledge: { file: ./secrets/tok-core-knowledge }
   tok-core-worker-knowledge: { file: ./secrets/tok-core-worker-knowledge }
@@ -710,7 +711,8 @@ services:
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-identity","scopes":["reconcile"]},
         "codehost":{"token_ref":"file:/run/secrets/tok-codehost-identity","scopes":["read","codeowners"]},
         "knowledge":{"token_ref":"file:/run/secrets/tok-knowledge-identity","scopes":["read"]},
-        "seed":{"token_ref":"file:/run/secrets/tok-seed-identity","scopes":["read","write","sync"]}}
+        "seed":{"token_ref":"file:/run/secrets/tok-seed-identity","scopes":["read","write","sync"]},
+        "core":{"token_ref":"file:/run/secrets/tok-core-identity","scopes":["grant"]}}
       NOTARY_URL: http://notary:8310
       IDENTITY_NOTARY_TOKEN_REF: file:/run/secrets/tok-identity-notary
       KMS_URL: http://kms-local:8300
@@ -730,6 +732,7 @@ services:
         tok-codehost-identity,
         tok-knowledge-identity,
         tok-seed-identity,
+        tok-core-identity,
         tok-identity-notary,
         tok-identity-kms,
         tok-identity-core,
@@ -865,6 +868,9 @@ services:
       CORE_PORT: '8380'
       # M19: the floor's kill banner reads core-worker's read-only verdict (core is not on the kill switch's network)
       CORE_ADMISSION_URL: http://core-worker:8360
+      # P1-6: identity's `grant` scope (core only): writes the role binding an approved access M1 decided
+      CORE_IDENTITY_URL: http://identity:8330
+      CORE_IDENTITY_TOKEN_REF: file:/run/secrets/tok-core-identity
     secrets:
       [
         db-url-aisdlc,
@@ -877,6 +883,7 @@ services:
         tok-core-knowledge,
         tok-core-codehost,
         tok-core-gateway,
+        tok-core-identity,
         tok-sandbox-controller-core,
         tok-audit-core,
         object-store-access-key,

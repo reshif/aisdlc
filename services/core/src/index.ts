@@ -55,6 +55,7 @@ export * from './conversation/index.js';
 export * from './issue-twin/index.js';
 export * from './drift/index.js';
 export * from './factory-m1.js';
+export * from './access-grants.js';
 export * from './config-console.js';
 export * from './health.js';
 export * from './degraded.js';
