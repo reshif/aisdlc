@@ -8,7 +8,11 @@ import * as values from './values.js';
  * Every exported Zod schema of this package, by export name. A test fails when an exported schema
  * is missing here, so the generated JSON Schema cannot silently lag the contracts.
  */
-export const SCHEMAS = {
+/*
+ * Annotated explicitly: the inferred object type of every schema grew past what tsc will serialize
+ * into a declaration file (TS7056), which fails the package build. No caller needs the key types.
+ */
+export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   ScopeKind: values.ScopeKind,
   Scope: values.Scope,
   DataClass: values.DataClass,
@@ -1147,7 +1151,7 @@ export const SCHEMAS = {
   LegalHoldList: entities.LegalHoldList,
   RetentionView: entities.RetentionView,
   SignedExportBytes: entities.SignedExportBytes,
-} as const satisfies Record<string, z.ZodType>;
+};
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
 
@@ -1155,7 +1159,8 @@ export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema
 export function generateJsonSchema(): Record<string, unknown> {
   const $defs: Record<string, unknown> = {};
   for (const name of Object.keys(SCHEMAS).sort()) {
-    const schema = SCHEMAS[name as keyof typeof SCHEMAS];
+    const schema = SCHEMAS[name];
+    if (schema === undefined) continue;
     const def: Record<string, unknown> = {
       ...z.toJSONSchema(schema, { target: 'draft-2020-12', io: 'output' }),
     };
