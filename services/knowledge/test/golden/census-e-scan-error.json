@@ -20,7 +20,7 @@
       "hash": "601beaae85ea26e30b0f13349571b76d549871ea7020afbd2199fb313a86a123"
     },
     "criteria_set": "CRITERIA_V2@1.3.0",
-    "detector_set_version": "detectors/1:76e87cfdb5f7",
+    "detector_set_version": "detectors/1:be3f9b49f675",
     "rules_version": "secrets-rules/2:961394bbf87c",
     "assembly": "census-rules/1"
   },
@@ -1716,5 +1716,5 @@
       "visibility_class": "private_only"
     }
   ],
-  "census_hash": "b1f31ffc91c6ae8d0a65d3f823a7652c20d628d69843fda7c8774450b6cd7ece"
+  "census_hash": "a607b9246720fcb37ee018bb7e32612fd843eaef2fbbdde01f6d269b4ee50d9d"
 }
