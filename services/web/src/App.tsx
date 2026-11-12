@@ -28,6 +28,14 @@ import {
   SandboxesPage,
   SchedulerPage,
 } from './pages/OperatePages';
+import { AuditPage, CataloguePage, FleetLedgerPage } from './pages/GovernPages';
+import {
+  AccessRequestsPage,
+  ExplainPage,
+  PeoplePage,
+  RolesPage,
+  TeamsPage,
+} from './pages/AdminPages';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
 import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
@@ -167,6 +175,22 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <KillPage />;
     case 'health':
       return <HealthPage />;
+    case 'fleetLedger':
+      return <FleetLedgerPage me={me} />;
+    case 'audit':
+      return <AuditPage />;
+    case 'catalogue':
+      return <CataloguePage />;
+    case 'people':
+      return <PeoplePage />;
+    case 'teams':
+      return <TeamsPage />;
+    case 'roles':
+      return <RolesPage />;
+    case 'accessRequests':
+      return <AccessRequestsPage />;
+    case 'explain':
+      return <ExplainPage me={me} />;
     case 'onboard':
       return <OnboardPage csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':

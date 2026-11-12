@@ -95,10 +95,30 @@ export const NAV: readonly NavEntry[] = [
   entry('Quality', '/integrations', 'Integrations', FLEET_AUDIT, at('integrations')),
   entry(
     'Govern',
+    '/ledger',
+    'Ledger',
+    { kind: 'somewhere', action: 'audit.read' },
+    at('fleetLedger'),
+  ),
+  entry('Govern', '/audit', 'Audit', FLEET_AUDIT, at('audit')),
+  entry('Govern', '/catalogue', 'Catalogue', SIGNED_IN, at('catalogue')),
+  entry(
+    'Govern',
     '/config',
     'Configuration',
     { kind: 'fleet_any', actions: ['config.propose', 'audit.read'] },
     at('config', 'configKey'),
+  ),
+  entry('Admin', '/people', 'People', FLEET_AUDIT, at('people')),
+  entry('Admin', '/teams', 'Teams', FLEET_AUDIT, at('teams')),
+  entry('Admin', '/roles', 'Roles', SIGNED_IN, at('roles')),
+  entry('Admin', '/access-requests', 'Access requests', SIGNED_IN, at('accessRequests')),
+  entry(
+    'Admin',
+    '/access-explain',
+    'Who can do what',
+    { kind: 'somewhere', action: 'access.explain' },
+    at('explain'),
   ),
 ];
 
