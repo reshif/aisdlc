@@ -24,6 +24,8 @@ cd "$(dirname "$0")"
 repo_root="$(cd ../.. && pwd)"
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-e2e}"
+# its own subnets (docker-compose.yml: every network has a /24 under this prefix), so it can run beside another stack
+export AISDLC_SUBNET_PREFIX="${AISDLC_SUBNET_PREFIX:-10.233}"
 # M12: the work driver runs the real planning port (S1 to S5); the gateway's local fake provider answers with
 # canned outputs and the knowledge token carries the `search` scope (see docker-compose.yml, core-worker).
 export CORE_WORKER_STAGE_PORTS="${CORE_WORKER_STAGE_PORTS:-agents}"

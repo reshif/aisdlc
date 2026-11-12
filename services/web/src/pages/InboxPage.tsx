@@ -6,6 +6,7 @@ import { PageError, Loading } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
 import { PageHead } from '../ui';
+import { DegradedBanners } from '../components/Degraded';
 
 const CARD_TITLE = {
   C1: 'Card 1: confirm the census',
@@ -116,6 +117,10 @@ export function InboxPage() {
         eyebrow="Decide"
         title="Inbox"
         sub="The open cards you may decide, with when an answer is due, then the ones you can only see."
+      />
+      <DegradedBanners
+        projects={[...decide, ...view].map((i) => i.project_id)}
+        readModels={['work_item']}
       />
       <h2>
         Waiting for you {decide.length > 0 ? <span className="count">{decide.length}</span> : null}

@@ -1,0 +1,48 @@
+# The OpenTelemetry collector of the local-prod stack (PLAN M19; ADR-0003 §2 Telemetry). Profile `telemetry`.
+#
+# It receives OTLP/HTTP (JSON or protobuf) on 4318 from the services that set OTEL_EXPORTER_OTLP_ENDPOINT, and prints
+# a line per batch (`debug`, basic verbosity: counts, not content). It has no exporter that leaves the machine: in
+# production this file gains the backend's exporter, and only the collector holds that backend's address and key.
+# What arrives is content-free by construction (route templates, methods, status codes, durations, trace ids:
+# packages/service-kit/src/telemetry.ts); the `attributes/strip` processor still deletes anything that would carry a
+# query, a full URL, a header or a principal, so a future exporter cannot widen what is kept.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 96
+    spike_limit_mib: 24
+  attributes/strip:
+    actions:
+      - { key: url.full, action: delete }
+      - { key: url.query, action: delete }
+      - { key: http.request.header.authorization, action: delete }
+      - { key: http.request.header.cookie, action: delete }
+      - { key: enduser.id, action: delete }
+  batch:
+    timeout: 5s
+
+exporters:
+  debug:
+    verbosity: basic
+
+service:
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      level: none
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/strip, batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]

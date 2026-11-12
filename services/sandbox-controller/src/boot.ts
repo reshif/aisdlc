@@ -26,6 +26,7 @@ import { createControllerApp } from './app.js';
 import { ConfigCaps } from './caps.js';
 import { SandboxController } from './controller.js';
 import { RecordGrants } from './grants.js';
+import { CoreHeartbeats, HeartbeatReporter } from './heartbeat.js';
 
 const Callers = z.record(
   z.string(),
@@ -107,6 +108,11 @@ function driverFromEnv(env: Env): SandboxPort {
  *                                     K-exec session must ALSO name the image `onboarding.sandbox_image` approves
  *   SANDBOX_CONTROLLER_BODY_LIMIT_MB  the largest session request (default 64)
  *   SANDBOX_CONTROLLER_CAPS_RELOAD_MS how often the caps are read again (default 5000); `POST /v1/admin/reload` too
+ *   SANDBOX_CONTROLLER_CORE_URL, SANDBOX_CONTROLLER_CORE_TOKEN_REF   M19: core, and this host's token there (scope
+ *                                     `activity` only): every running session's heartbeat is posted to
+ *                                     `POST /v1/sessions/heartbeat`. Both or neither; without them no heartbeat is sent
+ *                                     (a session's model calls and dispatches are then its only activity)
+ *   SANDBOX_CONTROLLER_HEARTBEAT_MS   how often each running session beats (default 30000; a session also beats at start)
  *   SANDBOX_CONTROLLER_HOST (127.0.0.1), SANDBOX_CONTROLLER_PORT (8430)
  *
  * `deps.driver` replaces the Docker driver (tests).
@@ -128,6 +134,21 @@ export async function bootSandboxController(
   const reloadMs = intEnv(env, 'SANDBOX_CONTROLLER_CAPS_RELOAD_MS', 5_000, 100);
   const listenOpts = listenConfig(env, 'SANDBOX_CONTROLLER', 8430);
   const driver = deps.driver ?? driverFromEnv(env);
+  const coreUrl = env['SANDBOX_CONTROLLER_CORE_URL'] ?? '';
+  const coreTokenRef = env['SANDBOX_CONTROLLER_CORE_TOKEN_REF'] ?? '';
+  if ((coreUrl === '') !== (coreTokenRef === '')) {
+    throw new ServiceConfigError(
+      'SANDBOX_CONTROLLER_CORE_URL and SANDBOX_CONTROLLER_CORE_TOKEN_REF are set together or not at all',
+    );
+  }
+  const heartbeatSink =
+    coreUrl === ''
+      ? null
+      : new CoreHeartbeats({
+          baseUrl: httpUrlEnv(env, 'SANDBOX_CONTROLLER_CORE_URL'),
+          token: resolveSecretRef(coreTokenRef, { env }),
+        });
+  const heartbeatMs = intEnv(env, 'SANDBOX_CONTROLLER_HEARTBEAT_MS', 30_000, 1_000);
 
   const pool = createPool(dbUrl, 4);
   let reader: ConfigReader | undefined;
@@ -157,6 +178,10 @@ export async function bootSandboxController(
       catchUp: false,
       // the reloads below are this process's own, so a failed one is seen (and the caps fall back)
       pollIntervalMs: 0,
+      // and only they read: a publish is notified when its transaction commits, BEFORE core folds it into the view
+      // this role reads, so a refresh on the notification could read the old caps (or the new ones: a race), and its
+      // failure would bypass the fallback above. The caps change on a reload, periodic or `POST /v1/admin/reload`.
+      listen: false,
       onError,
     });
     await reader.start();
@@ -164,14 +189,26 @@ export async function bootSandboxController(
     const r0 = reader;
     timer = setInterval(() => void caps.reload(), reloadMs);
     timer.unref();
-    const controller = new SandboxController({
+    const grants = new RecordGrants(pool);
+    let reporter: HeartbeatReporter | undefined;
+    const controller: SandboxController = new SandboxController({
       driver,
       caps,
-      grants: new RecordGrants(pool),
+      grants,
       hostId: host.data,
+      onStart: (s) => void reporter?.beat(s),
       // M16: the image M1 approved, from the same reader; a failed last reload reads as none (fail closed)
       probeImage: () => (caps.isStale ? null : (onboardingImageFrom(r0.current())?.image ?? null)),
     });
+    if (heartbeatSink !== null) {
+      reporter = new HeartbeatReporter({
+        sessions: () => controller.sessions(),
+        grants,
+        sink: heartbeatSink,
+        log: (l) => console.error(l),
+      });
+      reporter.start(heartbeatMs);
+    }
     const app = createControllerApp({
       controller,
       auth,
@@ -186,6 +223,7 @@ export async function bootSandboxController(
       url,
       close: async () => {
         clearInterval(t);
+        reporter?.stop();
         await app.close();
         await r.stop();
         await pool.end();

@@ -12,6 +12,7 @@ import { describeError } from '../format';
 import { PlanForm } from '../items/PlanForm';
 import { newKey, waitingText } from '../items/waiting';
 import { Link } from '../router';
+import { DegradedBanners } from '../components/Degraded';
 
 // One work item and what the signed-in person may do with it now (PLAN M12.5): answer S1's questions, give the
 // Ready decision (1.6), raise B4 or R2 while the design review (G3d) is open, write the plan after B5. Every
@@ -34,6 +35,7 @@ export function ItemPage({ id, csrf }: { id: string; csrf: string }) {
       <p className="crumbs">
         <Link to={`/projects/${it.project_id}`}>{it.project_id}</Link> / work item
       </p>
+      <DegradedBanners projects={[it.project_id]} readModels={['work_item']} />
       <h1>Work item</h1>
       <dl className="facts facts-wide">
         <div>
