@@ -423,12 +423,13 @@ export class GatewayService {
 
     const wire = MessagesWire.safeParse(body);
     if (!wire.success) {
+      // field paths and the rule, never a value (the body is a prompt)
       return refuse(
         'invalid_request',
         wire.error.issues
-          .map((i) => i.message)
+          .map((i) => `${i.path.join('.') || '(body)'}: ${i.message}`)
           .join('; ')
-          .slice(0, 300),
+          .slice(0, 600),
       );
     }
     if ((wire.data.stream === true) !== (mode === 'stream')) {
