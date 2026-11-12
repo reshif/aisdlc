@@ -9,6 +9,7 @@ import {
   type Gap,
 } from '@aisdlc/contracts';
 import { configPublish } from '@aisdlc/config';
+import { RELEASE_CONFIG_KEY } from '@aisdlc/contracts';
 import {
   decideCard,
   listInbox,
@@ -36,6 +37,8 @@ import {
   loadProjectSettings,
   planC1,
   prepareOnboardingCard,
+  proposeProjectSettings,
+  settingsRevision,
   recheckControls,
   recordOnboardingEvidence,
   requestOnboarding,
@@ -815,6 +818,53 @@ describe('card 4 (0.4): the controls report, the attestations, the role map, the
       revoked_at: null,
     });
     expect((await stateOf(c)).steps.get('0.4')?.state).toBe('done');
+  });
+
+  it('M15.5: card 4 asks the G5 release choice; it rides in the revision, and a later settings change keeps it', async () => {
+    const c = await scenario();
+    await throughC1(c);
+    const release = { mode: 'target', environment: 'production' };
+    const { r } = await throughC4(c, { release });
+    expect(r.value.applied).toBe('applied');
+    const applied = (await events(c, S0_EVENT.card_applied)).find((e) => e.card === 'C4');
+    const proposed = await s.record.pool.query<{ body: Json }>(
+      `SELECT body FROM record.record_event WHERE type = 'config.proposed' AND body ->> 'rev_hash' = $1`,
+      [applied.refs.config_rev_hash],
+    );
+    expect(proposed.rows[0]?.body.doc[RELEASE_CONFIG_KEY]).toEqual(release);
+    // the revision view shows it
+    const view = ok(
+      await settingsRevision(
+        { pool: s.record.pool, config: s.config },
+        applied.refs.m1_gate_instance_id,
+      ),
+    );
+    expect(view.value.release).toEqual(release);
+    ok(await decideGate(s, applied.refs.m1_gate_instance_id, 'alice', 'approve'));
+    ok(await configPublish(s.config, { rev_hash: applied.refs.config_rev_hash }));
+    // a later settings change that does not name the release (nor the admission limits) keeps it
+    const later = ok(
+      await proposeProjectSettings(s.config, {
+        project: pid(c.project),
+        change: { two_person: { enabled: false, default: 'on_if_2plus', locked_on: false } },
+        proposed_by: pr('alice'),
+      }),
+    );
+    const doc = await s.record.pool.query<{ body: Json }>(
+      `SELECT body FROM record.record_event WHERE type = 'config.proposed' AND body ->> 'rev_hash' = $1`,
+      [later.value.rev_hash],
+    );
+    expect(doc.rows[0]?.body.doc[RELEASE_CONFIG_KEY]).toEqual(release);
+    // a card 4 that is not chosen says so: null, nothing is released
+    const c2 = await scenario();
+    await throughC1(c2);
+    await throughC4(c2, { release: null });
+    const a2 = (await events(c2, S0_EVENT.card_applied)).find((e) => e.card === 'C4');
+    const p2 = await s.record.pool.query<{ body: Json }>(
+      `SELECT body FROM record.record_event WHERE type = 'config.proposed' AND body ->> 'rev_hash' = $1`,
+      [a2.refs.config_rev_hash],
+    );
+    expect(p2.rows[0]?.body.doc[RELEASE_CONFIG_KEY]).toBeNull();
   });
 
   it('a missing blocking control: the card shows the instruction; "re-check" reads the host again; after the fix it passes', async () => {

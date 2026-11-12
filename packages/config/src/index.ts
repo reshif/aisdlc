@@ -29,5 +29,15 @@ export {
 export { registerGatewayConfig } from './gateway.js';
 export { onboardingImageFrom, registerSandboxConfig } from './sandbox.js';
 export { registerGateCheckConfig } from './gate-check.js';
+export { readReleaseSetting, registerReleaseConfig, type ReleaseRead } from './gate-relay.js';
 export { registerNotificationsConfig } from './notifications.js';
 export { findSecrets, registerIntegrationConfig } from './integrations.js';
+export {
+  readAdmissionSettings,
+  readFactoryM1Policy,
+  readLearnConfig,
+  readSandboxCaps,
+  registerAdmissionConfig,
+  registerGovernanceConfig,
+  type SettingRead,
+} from './learn.js';

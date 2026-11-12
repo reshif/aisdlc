@@ -6,6 +6,7 @@ import {
 } from '@aisdlc/config';
 import {
   AdmissionCapacity,
+  DbPrincipalLinks,
   DbProjectSettings,
   DbRegisteredRepos,
   GatewayEnvelope,
@@ -19,6 +20,7 @@ import {
   CorePush,
   buildStagePorts,
   verifyStagePorts,
+  releaseStagePorts,
   execAllowedReposFrom,
   cardDepsFrom,
   cardsLoop,
@@ -29,6 +31,11 @@ import {
   mergeReviewLoop,
   issueTwinLoop,
   CensusGapRecheck,
+  auditSampleLoop,
+  learnLoop,
+  closeOutStagePorts,
+  mergeReconcileLoop,
+  DbWatchedPulls,
   registerCoreConfig,
   constitutionFrom,
   roleMapSyncLoop,
@@ -58,6 +65,7 @@ import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
 import {
   LoopSupervisor,
+  agentPullsLoop,
   defaultBranchHeadLoop,
   effectiveRulesLoop,
   installationLoop,
@@ -340,7 +348,8 @@ export async function bootCoreWorker(
       const beforeVerify = built ? built.stagePorts : agentPorts;
       // M14.3: S7 7.1 to 7.5 through the verify service (its kits through the sandbox-controller); M14.4: 7.6 here, the
       // Evidence Pack signed by the Notary's evidence purpose and stored in the object store's write-once bucket
-      const stagePorts =
+      const verifying = Boolean(cfg.verify && cfg.knowledge && cfg.objectStore && ledger);
+      const afterVerify =
         cfg.verify && cfg.knowledge && cfg.objectStore && ledger
           ? verifyStagePorts({
               pool,
@@ -363,6 +372,12 @@ export async function bootCoreWorker(
               ...(built ? { store: built.store } : {}),
             })
           : beforeVerify;
+      // M15.3: S8b through gate-relay's record (the deployment of an approved G5, its health; B16 on a rollback)
+      const released = cfg.releaseViaGateRelay
+        ? releaseStagePorts({ pool, base: afterVerify, deps: { pool } })
+        : afterVerify;
+      // M15.4: 9.3 records the close-out (record + ledger) wherever the ledger is
+      const stagePorts = ledger ? closeOutStagePorts({ pool, ledger, base: released }) : released;
       // M13.1: 6.0 admission (a lease epoch, an approver slot, capacity, the envelope reserved in the gateway)
       // and the capacity port behind it, which frees the held items only when their next admission can succeed
       const admissionBase = cfg.gateway
@@ -385,6 +400,9 @@ export async function bootCoreWorker(
               ? { admission: { ...admissionBase, attempted: realCapacity.attempted } }
               : {}),
             ...(cfg.stagePorts === 'agents' ? { vault } : {}),
+            // M15.1: with S7's Evidence Packs, G4 opens with its review (mode C or E, the pack of exactly each PR head,
+            // CODEOWNERS at the base through the codehost, the owners' principals through identity's links)
+            ...(verifying ? { review: { source, links: new DbPrincipalLinks(readPool) } } : {}),
             capacity: deps.capacity ?? realCapacity ?? new FakeCapacity(),
             ...(killState ? { kill: killState } : {}),
             // M11.2: every agent-acted stage command gets a per-Unit key minted from the agent's contract
@@ -472,20 +490,42 @@ export async function bootCoreWorker(
       // M14.5: the X4 review of every merge gate-check recorded without aisdlc/gate passing (a bypass by a listed
       // person, or an unauthorised merge). gate-check has no route to core: it records, this loop opens the cards.
       const rd = await ensureReader();
+      const decisions = {
+        pool,
+        ledger,
+        eligibility: identityEligibility(readPool, registry),
+        stepUp: new RefusingStepUp(),
+        maintenance: maintenanceFrom(rd),
+      };
+      const links = new DbPrincipalLinks(readPool);
+      supervisor.add(mergeReviewLoop({ decisions, links }, { startDelayMs: 3_500 }));
+      // M15.4 9.5: the mode-E audit sample, drawn from the close-out records off the closing chain
       supervisor.add(
-        mergeReviewLoop(
-          {
-            decisions: {
-              pool,
-              ledger,
-              eligibility: identityEligibility(readPool, registry),
-              stepUp: new RefusingStepUp(),
-              maintenance: maintenanceFrom(rd),
-            },
-          },
-          { startDelayMs: 3_500 },
-        ),
+        auditSampleLoop({ pool, sampleOneIn: cfg.auditSampleOneIn }, { startDelayMs: 5_000 }),
       );
+      // M15.5 9.4 Learn: close-out evidence into META proposals (M1, M2, M3, M5, M6), each a card the project admins
+      // decide; only a decided M5 (read from the ledger) promotes autonomy or lifts B19
+      supervisor.add(learnLoop({ pool, decisions }, { startDelayMs: 6_000 }));
+      if (cfg.pushBroker) {
+        // M15.2 8.2: a person merges an agent PR on the host. The poll records what the host says of every agent PR
+        // of an item in flight (record first, the Push Broker's read-only `pr_status`); the reconcile then completes
+        // S8 for exactly the approved head, opens X4 for any other merge, and takes B15a or B15b at 8.2.
+        supervisor
+          .add(
+            agentPullsLoop(
+              {
+                pool,
+                source: new HttpCodeHostPush({
+                  baseUrl: cfg.codehostUrl,
+                  token: cfg.codehostToken,
+                }),
+                watched: new DbWatchedPulls(pool),
+              },
+              { startDelayMs: 4_000 },
+            ),
+          )
+          .add(mergeReconcileLoop({ pool, decisions, links }, { startDelayMs: 4_500 }));
+      }
     }
     if (cfg.knowledge || cfg.identity) {
       const rd = await ensureReader();

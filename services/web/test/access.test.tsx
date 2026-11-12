@@ -156,13 +156,15 @@ describe('reasonText', () => {
 describe('the shell and My access', () => {
   it('navigation is grouped, and an entry the person cannot open is not listed', async () => {
     mockApi({ 'GET /api/me': { json: me([]) }, 'GET /api/projects': { json: [] } });
-    renderAt('/');
+    renderAt('/projects');
     const nav = await screen.findByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('heading', { name: 'Decide' })).toBeInTheDocument();
     expect(within(nav).getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
-    // groups with no screen yet are not shown
-    expect(within(nav).queryByRole('heading', { name: 'Admin' })).toBeNull();
+    // a group with nothing the person may open is not shown: Operate and Quality need audit.read on the fleet
+    expect(within(nav).queryByRole('heading', { name: 'Operate' })).toBeNull();
+    expect(within(nav).queryByRole('heading', { name: 'Quality' })).toBeNull();
     expect(within(nav).queryByRole('link', { name: 'Onboard a repo' })).toBeNull();
+    expect(within(nav).queryByRole('link', { name: 'People' })).toBeNull();
     expect(within(nav).getByRole('link', { name: 'Projects' })).toHaveAttribute(
       'aria-current',
       'page',

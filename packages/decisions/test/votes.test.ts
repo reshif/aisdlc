@@ -338,3 +338,40 @@ describe('fail closed', () => {
     expect((await state(g.gate_instance_id))?.status).toBe('pending');
   });
 });
+
+describe('deciders narrow the slot (G4 mode C: the code owners of the changed paths)', () => {
+  it('only a holder who is also a decider may prepare and decide; the open event carries the list', async () => {
+    setupProject(s, 'pd1', { tier: 'T1', slots: { g4: ['ann', 'bob', 'dan'] } });
+    const g = await open(s, 'pd1', 'G4', {
+      requester: pr('carol'),
+      deciders: [pr('dan'), pr('bob'), pr('zed')],
+    });
+    const opened = await s.record.pool.query<{ body: { deciders?: string[] } }>(
+      `SELECT body FROM record.record_event WHERE stream = $1 AND seq = 1`,
+      [`gate:${g.gate_instance_id}`],
+    );
+    expect(opened.rows[0]?.body.deciders).toEqual(['bob', 'dan', 'zed']);
+    // a holder of the slot who is no decider: not eligible
+    const ann = await decideAs(s, g.gate_instance_id, 'ann', 'approve');
+    expect(!ann.ok && ann.error.code).toBe('not_eligible');
+    // a decider who does not hold the slot: the list never widens it
+    const zed = await decideAs(s, g.gate_instance_id, 'zed', 'approve');
+    expect(!zed.ok && zed.error.code).toBe('not_eligible');
+    expect(await entriesOf(g.gate_instance_id)).toHaveLength(0);
+    expect((await decideAs(s, g.gate_instance_id, 'dan', 'approve')).ok).toBe(true);
+  });
+
+  it('deciders none of whom holds the slot: the gate is refused at open (it could never be decided)', async () => {
+    setupProject(s, 'pd2', { tier: 'T1', slots: { g4: ['ann'] } });
+    const refused = await openGate(s.deps, {
+      gate_id: 'G4',
+      project_id: 'pd2' as never,
+      subject_kind: 'item',
+      subject_id: uuid(),
+      subject_hash: hash('pd2'),
+      requester: pr('carol'),
+      deciders: [pr('zed')],
+    });
+    expect(!refused.ok && refused.error.code).toBe('quorum_infeasible');
+  });
+});

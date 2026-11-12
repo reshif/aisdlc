@@ -22,7 +22,7 @@ describe('the shell', () => {
       'GET /api/projects': { json: [summaryOf()] },
       'POST /api/logout': { json: { ok: true } },
     });
-    renderAt('/');
+    renderAt('/projects');
     expect(await screen.findByText('Alice Admin')).toBeInTheDocument();
     const list = await screen.findByRole('list', { name: 'Projects' });
     const row = within(list).getByRole('link', { name: 'testbed' });
@@ -55,7 +55,7 @@ describe('the shell', () => {
         ],
       },
     });
-    renderAt('/');
+    renderAt('/projects');
     const list = await screen.findByRole('list', { name: 'Projects' });
     const rows = within(list).getAllByRole('listitem');
     const first = within(rows[0] as HTMLElement);
@@ -70,14 +70,14 @@ describe('the shell', () => {
 
   it('the onboard link is shown only to those the PDP lets onboard (cosmetic: the route decides)', async () => {
     mockApi({ 'GET /api/me': { json: me([]) }, 'GET /api/projects': { json: [] } });
-    renderAt('/');
+    renderAt('/projects');
     await screen.findByText(/No projects yet/);
     expect(screen.queryByRole('link', { name: 'Onboard a repo' })).toBeNull();
   });
 
   it('an empty list invites the first onboarding for an admin', async () => {
     mockApi({ 'GET /api/me': { json: me() }, 'GET /api/projects': { json: [] } });
-    renderAt('/');
+    renderAt('/projects');
     expect(await screen.findByRole('link', { name: 'Onboard the first repo.' })).toHaveAttribute(
       'href',
       '/onboard',
@@ -93,7 +93,7 @@ describe('the shell', () => {
         json: { error: { code: 'forbidden', message: 'project.view denied' } },
       },
     });
-    renderAt('/');
+    renderAt('/projects');
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/not allowed/);
     m.table['GET /api/projects'] = { json: [] };
@@ -104,7 +104,7 @@ describe('the shell', () => {
   it('is keyboard reachable: a skip link first, main landmark focusable, buttons and links in the tab order', async () => {
     const user = userEvent.setup();
     mockApi({ 'GET /api/me': { json: me() }, 'GET /api/projects': { json: [summaryOf()] } });
-    renderAt('/');
+    renderAt('/projects');
     await screen.findByRole('list', { name: 'Projects' });
     await user.tab();
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveFocus();

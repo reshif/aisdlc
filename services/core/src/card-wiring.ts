@@ -1,3 +1,4 @@
+import { FactoryM1Eligibility } from './factory-m1.js';
 import type { ConfigDeps, ConfigRegistry } from '@aisdlc/config';
 import { PortError, type EligibilityPort, type StepUpPort } from '@aisdlc/decisions';
 import { IdentityEligibility } from '@aisdlc/identity/read';
@@ -67,7 +68,11 @@ export function cardDepsFrom(w: CardWiring): CardDeps {
 
 /** Identity's answer to "who holds this slot", over the record database (the plain port, see above). */
 export function identityEligibility(pool: pg.Pool, registry: ConfigRegistry): EligibilityPort {
-  return new IdentityEligibility({ pool, settings: new DbProjectSettings({ pool, registry }) });
+  // M15.5: the factory pseudo-project's M1 is decided under `factory.m1_policy` (FactoryM1Eligibility)
+  return FactoryM1Eligibility.over(
+    new IdentityEligibility({ pool, settings: new DbProjectSettings({ pool, registry }) }),
+    pool,
+  );
 }
 
 /**

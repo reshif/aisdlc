@@ -1,6 +1,8 @@
 import { currentCatalogueRef, type CatalogueData } from '@aisdlc/catalogue';
+import { readReleaseSetting } from '@aisdlc/config';
 import {
   ITEM_EVENT,
+  applyReleaseSetting,
   ItemCreatedPayload,
   type CatalogueRef,
   ItemEventPayloads,
@@ -246,6 +248,9 @@ export async function createItemIn(
     return ok({ item_id: i.item_id, created: false });
   }
   const prr = i.prr.prr;
+  // M15.3: the project's release choice shapes the route it pins: `off` has no G5 (and S8b releases nothing), a
+  // target keeps G5 (and the T2 floor holds it on). Not chosen or unreadable leaves the readiness record's profile.
+  const release = await readReleaseSetting(tx, i.request.project_id);
   const created = ItemCreatedPayload.safeParse({
     item_id: i.item_id,
     project_id: i.request.project_id,
@@ -254,7 +259,10 @@ export async function createItemIn(
     requester: i.request.requester,
     channel: i.request.channel,
     catalogue_ref: i.catalogue_ref ?? currentCatalogueRef(),
-    gating_profile: prr.gating_profile,
+    gating_profile: applyReleaseSetting(
+      prr.gating_profile,
+      release.state === 'ok' ? release.value : null,
+    ),
     tier: prr.tier.value,
     prr: { version: i.prr.version, record_hash: prr.record_hash },
     proposed_lane: i.proposed_lane,

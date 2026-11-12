@@ -33,6 +33,7 @@ import { registerAssistantRoutes } from './assistant.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerPortalRoutes } from './portal.js';
+import { registerPortalListRoutes } from './portal-lists.js';
 import { levelsOn } from './levels.js';
 import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
 import { registerWebFiles } from './static.js';
@@ -53,6 +54,7 @@ import type { StepUpIssuer } from './stepup/issuer.js';
 //   POST /api/step-up       start a step-up bound to a hash (re-authentication, or DEC-11(c-ii))
 //   GET  /api/step-up/:id   collect the proof once, after the re-authentication returned
 //   /api/projects, /api/onboard, /api/s0/*, /api/cards/*   the portal's calls to core (portal.ts)
+//   /api/items, /api/agents, /api/admission, /api/slots, /api/controls, ...  lists and operate (portal-lists.ts)
 //   everything else         the web bundle (`webDir`), single-page app, strict CSP (static.ts)
 //
 // Rate limits (rate-limit.ts): `/auth/login` 10 at once then 10 a minute per client IP; the step-up
@@ -87,6 +89,8 @@ export interface BffAppOptions {
   readonly notifier?: CoreClient;
   /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
   readonly gateCheck?: CoreClient;
+  /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it the Sandboxes screen says so. */
+  readonly sandboxController?: CoreClient;
   /** The built web bundle (`index.html` and `assets/`) to serve; without it the bff serves only its API. */
   readonly webDir?: string;
   /** Overrides of `DEFAULT_RATE_LIMITS`. */
@@ -524,6 +528,15 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
       if (!caught.ok) return null;
       return (await getDirectoryPrincipal(o.pool, id))?.display_name ?? null;
     },
+  });
+  registerPortalListRoutes({
+    app,
+    pool: o.pool,
+    pdp: o.pdp,
+    core: o.core,
+    ...(o.sandboxController ? { sandboxController: o.sandboxController } : {}),
+    now: () => clock.now(),
+    principalOf: (req) => ctx(req).session.principal_id,
   });
   registerPortalRoutes({
     app,

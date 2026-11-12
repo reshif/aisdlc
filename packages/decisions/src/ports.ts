@@ -24,6 +24,23 @@ export interface EligibilityPort {
   policy(project: ProjectId): Promise<Result<PolicyContext, PortError>>;
 }
 
+/**
+ * Who may decide one gate: the holders of its slot, narrowed to the gate's `deciders` when it was opened with them
+ * (G4 mode C: the code owners of the changed paths). The narrowing never widens: a decider who does not hold the slot
+ * is not eligible. Used by open, prepare and vote alike, so the three never disagree.
+ */
+export async function gateHolders(
+  eligibility: EligibilityPort,
+  project: ProjectId,
+  slot: RoleSlot,
+  deciders: readonly PrincipalId[] | undefined,
+): Promise<Result<readonly PrincipalId[], PortError>> {
+  const h = await eligibility.holders(project, slot);
+  if (!h.ok || deciders === undefined) return h;
+  const only = new Set(deciders);
+  return ok(h.value.filter((p) => only.has(p)));
+}
+
 /** Deterministic in-memory `EligibilityPort`. Anything not set is an error: unknown means unmet. */
 export class FakeEligibility implements EligibilityPort {
   private readonly slots = new Map<string, readonly PrincipalId[]>();

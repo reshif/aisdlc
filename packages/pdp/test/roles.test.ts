@@ -17,6 +17,8 @@ import { ACTION_IDS, FLEET, RESOURCES, applicable, lane, proj, rig } from './hel
 // shows up here as a deliberate edit.
 
 const VIEWS: ActionId[] = ['project.view', 'floor.read', 'item.view_floor', 'gate.view'];
+/** M15.5: the close-out record is a V2 read. */
+const V2: ActionId[] = [...VIEWS, 'closeout.read'];
 
 /** Actions a role holds outright, and the gates it may decide (`decide`), by role. */
 const EXPECTED: Record<
@@ -25,10 +27,15 @@ const EXPECTED: Record<
 > = {
   'project.admin': {
     actions: [
-      ...VIEWS,
+      ...V2,
       'work.request',
+      // M15.5: B17 and 9.4 Learn
+      'item.escape',
+      'learn.propose',
       // M12.5: the steps of the lifecycle that are not gates (Ready, answers to questions)
       'item.ready',
+      // M15.3: RELHOLD's re-request
+      'item.release',
       'project.settings.edit',
       'kill.request',
       'kill.release',
@@ -44,39 +51,57 @@ const EXPECTED: Record<
     cards: true,
   },
   'project.requester': {
-    actions: [...VIEWS, 'work.request', 'item.ready'],
+    actions: [...V2, 'work.request', 'item.ready', 'item.escape'],
     decides: (g) => g === 'G6',
     cards: true,
   },
   'project.intent_approver': {
-    actions: [...VIEWS, 'item.ready'],
+    actions: [...V2, 'item.ready'],
     decides: (g) => ['G0', 'G1', 'G1f', 'G2'].includes(g),
     cards: true,
   },
   'project.design_approver': {
     // M12.5: the observed signals during G3d and the human-written plan are the design slot's
-    actions: [...VIEWS, 'item.observe', 'item.plan', 'item.human_done'],
+    actions: [...V2, 'item.observe', 'item.plan', 'item.human_done'],
     decides: (g) => ['G3', 'G3d', 'G3s', 'G3o'].includes(g),
     cards: true,
   },
-  'project.code_owner': { actions: VIEWS, decides: (g) => g === 'G4', cards: true },
-  'project.release_approver': { actions: VIEWS, decides: (g) => g === 'G5', cards: true },
-  'project.exception_approver': { actions: VIEWS, decides: (g) => /^(X|E)\d/.test(g), cards: true },
+  'project.code_owner': {
+    // M15.5: B14 (unsure), B17 (escape) and the 9.5 audit are the G4 slot's
+    actions: [...V2, 'item.unsure', 'item.escape', 'audit.record'],
+    decides: (g) => g === 'G4',
+    cards: true,
+  },
+  'project.release_approver': {
+    // M15.3: RELHOLD's re-request is the release slot's
+    actions: [...V2, 'item.release'],
+    decides: (g) => g === 'G5',
+    cards: true,
+  },
+  'project.exception_approver': {
+    actions: [...V2, 'item.escape'],
+    decides: (g) => /^(X|E)\d/.test(g),
+    cards: true,
+  },
   'project.security_approver': {
-    actions: VIEWS,
+    actions: V2,
     decides: (g) => g === 'Q1' || g === 'SECT',
     cards: true,
   },
-  'project.onboarding_signer': { actions: VIEWS, decides: (g) => g === 'M4', cards: true },
+  'project.onboarding_signer': { actions: V2, decides: (g) => g === 'M4', cards: true },
   'project.kill_holder': {
-    actions: [...VIEWS, 'kill.request', 'kill.release'],
+    actions: [...V2, 'kill.request', 'kill.release'],
     decides: () => false,
   },
   'project.viewer': { actions: VIEWS, decides: () => false },
   'factory.admin': {
     actions: [
-      ...VIEWS,
+      ...V2,
       'project.onboard',
+      // M15.5: B17, 9.4 Learn and the factory M1 (the kernel applies factory.m1_policy)
+      'item.escape',
+      'learn.propose',
+      'config.decide',
       'project.settings.edit',
       'kill.request',
       'kill.release',
@@ -91,7 +116,7 @@ const EXPECTED: Record<
   },
   // Fleet-bound: onboarding anywhere, and V1 reads. It decides no gate and no card.
   'factory.onboarder': { actions: [...VIEWS, 'project.onboard'], decides: () => false },
-  'factory.auditor': { actions: [...VIEWS, 'audit.read', 'access.explain'], decides: () => false },
+  'factory.auditor': { actions: [...V2, 'audit.read', 'access.explain'], decides: () => false },
 };
 
 const bindAt = (r: RoleDef): Scope => (r.scope_kinds.includes('fleet') ? FLEET : proj('p1'));

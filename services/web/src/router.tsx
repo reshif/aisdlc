@@ -29,12 +29,43 @@ export type Route =
   | { name: 'ask' }
   | { name: 'notifications' }
   | { name: 'notificationPrefs' }
+  | { name: 'closeout'; id: string }
+  | { name: 'learn'; id: string }
+  | { name: 'factoryRevision'; id: string }
+  | { name: StaticScreen }
   | { name: 'notfound' };
+
+/** Screens with one fixed path (2026-11-12: home, lists, quality, operate, govern, admin). */
+export const STATIC_SCREENS = {
+  '/projects': 'projects',
+  '/items': 'items',
+  '/board': 'board',
+  '/agents': 'agents',
+  '/evals': 'evals',
+  '/models': 'models',
+  '/integrations': 'integrations',
+  '/scheduler': 'scheduler',
+  '/sandboxes': 'sandboxes',
+  '/controls': 'controls',
+  '/kill': 'kill',
+  '/health': 'health',
+  '/ledger': 'fleetLedger',
+  '/audit': 'audit',
+  '/catalogue': 'catalogue',
+  '/people': 'people',
+  '/teams': 'teams',
+  '/roles': 'roles',
+  '/access-requests': 'accessRequests',
+  '/access-explain': 'explain',
+} as const;
+export type StaticScreen = (typeof STATIC_SCREENS)[keyof typeof STATIC_SCREENS];
 
 export function parseRoute(path: string): Route {
   const p = path.replace(/\/+$/, '') || '/';
   if (p === '/') return { name: 'home' };
   if (p === '/onboard') return { name: 'onboard' };
+  const fixed = (STATIC_SCREENS as Readonly<Record<string, StaticScreen>>)[p];
+  if (fixed) return { name: fixed };
   if (p === '/inbox') return { name: 'inbox' };
   if (p === '/me/access') return { name: 'access' };
   if (p === '/config') return { name: 'config' };
@@ -43,6 +74,12 @@ export function parseRoute(path: string): Route {
   if (p === '/me/notifications/preferences') return { name: 'notificationPrefs' };
   const cfg = /^\/config\/([^/]+)$/.exec(p);
   if (cfg) return { name: 'configKey', key: decodeURIComponent(cfg[1] as string) };
+  const closeout = /^\/items\/([^/]+)\/closeout$/.exec(p);
+  if (closeout) return { name: 'closeout', id: decodeURIComponent(closeout[1] as string) };
+  const learn = /^\/projects\/([^/]+)\/learn$/.exec(p);
+  if (learn) return { name: 'learn', id: decodeURIComponent(learn[1] as string) };
+  const frev = /^\/config\/revisions\/([^/]+)$/.exec(p);
+  if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
   const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
   if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
   const sub = /^\/projects\/([^/]+)\/(readiness|ledger|issues)$/.exec(p);

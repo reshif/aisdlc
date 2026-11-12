@@ -534,10 +534,29 @@ export interface PrincipalLinksPort {
   ): Promise<Result<Record<string, PrincipalId | null>, RemoteError>>;
 }
 
-/** Deterministic `PrincipalLinksPort`. */
-export class FakePrincipalLinks implements PrincipalLinksPort {
+/**
+ * The links and the factory administrators (M15.4): who decides an X4 when the merger cannot be mapped to a principal.
+ * An error is a refusal, never "nobody" or "everyone".
+ */
+export interface MergerLinksPort extends PrincipalLinksPort {
+  factoryAdmins(): Promise<Result<PrincipalId[], RemoteError>>;
+}
+
+/** Deterministic `PrincipalLinksPort` (and `MergerLinksPort`). */
+export class FakePrincipalLinks implements MergerLinksPort {
   private readonly links = new Map<string, PrincipalId>();
+  private readonly admins = new Set<PrincipalId>();
   down = false;
+
+  admin(principal: PrincipalId | string): this {
+    this.admins.add(principal as PrincipalId);
+    return this;
+  }
+
+  async factoryAdmins() {
+    if (this.down) return err(remoteError('unreachable', 'identity is down'));
+    return ok([...this.admins].sort());
+  }
 
   link(login: string, principal: PrincipalId | string): this {
     this.links.set(login.toLowerCase(), principal as PrincipalId);

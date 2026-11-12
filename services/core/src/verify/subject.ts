@@ -10,7 +10,7 @@ import { canonicalJson, err, ok, type Result } from '@aisdlc/kernel';
 import type { ItemState } from '@aisdlc/work';
 import type pg from 'pg';
 import { CoreBuildSource } from '../build/source.js';
-import { listPushReceipts } from '../build/push.js';
+import { listPullRequests, listPushReceipts } from '../build/push.js';
 import { designFactsOf } from '../planning/design.js';
 import { latestArtefact } from '../planning/store.js';
 import { listUnits } from '../planning/units.js';
@@ -81,7 +81,11 @@ export class CoreVerifySubjects {
     const receipts = (await listPushReceipts(this.d.pool, req.item_id)).filter(
       (r) => r.unit_key === unitKey && r.status === 'applied' && r.head_sha !== null,
     );
-    const head = unit?.head_sha ?? receipts.at(-1)?.head_sha ?? null;
+    // the PR's head: the Unit's last push, or the commit a clean rebase on the host made of it (B15a, M15.2)
+    const pull = (await listPullRequests(this.d.pool, req.item_id)).find(
+      (p) => p.unit_key === unitKey && p.state === 'open',
+    );
+    const head = pull?.head_sha ?? unit?.head_sha ?? receipts.at(-1)?.head_sha ?? null;
     if (head === null || !/^[0-9a-f]{40}$/.test(head)) return err('no_unit_head');
 
     // the locks: the coding session's own (they moved after an approved E6 and G3o), else the bound oracle files

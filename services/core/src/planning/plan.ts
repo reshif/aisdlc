@@ -1,3 +1,4 @@
+import { CODING_SESSION_CAP as CONTRACT_CODING_SESSION_CAP } from '@aisdlc/contracts';
 import type { PlannedUnit, UnitSize } from '@aisdlc/contracts';
 import { UnitKey } from '@aisdlc/contracts';
 
@@ -276,17 +277,24 @@ export function validateCapacity(out: unknown, split: unknown): PlanFinding[] {
  * The most Units the factory runs at once. M13.2: "concurrency cap of one coding session"; the plan's own
  * proposal is bounded by it, so a plan cannot ask for parallelism the sandbox will not give.
  */
-export const CODING_SESSION_CAP = 1;
+export const CODING_SESSION_CAP = CONTRACT_CODING_SESSION_CAP;
 
-/** The capacity artefact: the agent's proposal and what the factory will use of it. */
-export function boundCapacity(out: Obj, split: unknown): Obj {
+/**
+ * The capacity artefact: the agent's proposal and what the factory will use of it. `codingCap` (M15.5): the published
+ * `sandbox.caps` coding cap (the caller reads it); default the factory's default cap.
+ */
+export function boundCapacity(
+  out: Obj,
+  split: unknown,
+  codingCap: number = CODING_SESSION_CAP,
+): Obj {
   const n = splitUnits(split).length;
   const proposed = typeof out['max_parallel_units'] === 'number' ? out['max_parallel_units'] : 1;
   return {
     kind: 'capacity_input',
     proposed_parallel_units: proposed,
-    max_parallel_units: Math.max(1, Math.min(proposed, n, CODING_SESSION_CAP)),
-    bounded_by: { units: n, coding_sessions: CODING_SESSION_CAP },
+    max_parallel_units: Math.max(1, Math.min(proposed, n, codingCap)),
+    bounded_by: { units: n, coding_sessions: codingCap },
     review_minutes: out['review_minutes'] ?? [],
     rationale: out['rationale'] ?? '',
     assumptions: out['assumptions'] ?? [],

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ServiceConfigError, requiredEnv, runService } from '@aisdlc/service-kit';
 import { FakeGitHubServer } from './fake-github-server.js';
-import { GATE_CHECK_APP_PERMISSIONS } from '@aisdlc/contracts';
+import { GATE_CHECK_APP_PERMISSIONS, GATE_RELAY_APP_PERMISSIONS } from '@aisdlc/contracts';
 import { buildTestbed, testbedSeed } from './fake-github-testbed.js';
 import { GitHttpTestServer } from './git-server-testing.js';
 
@@ -25,6 +25,10 @@ import { GitHttpTestServer } from './git-server-testing.js';
 //                                     installation, its grant (`checks: write`, pull requests read)
 //   FAKE_GITHUB_GATE_CHECK_PORT       (M14.5, optional) a second API listener on 0.0.0.0 for gate-check, which runs
 //                                     in its own container and reaches this one on the `gatecheck-github` network
+//   FAKE_GITHUB_DEPLOY_APP_ID, FAKE_GITHUB_DEPLOY_INSTALLATION_ID, FAKE_GITHUB_DEPLOY_APP_PUBLIC_KEY_FILE
+//                                     (M15.3, optional) gate-relay's own App: its key, its installation, its grant
+//                                     (`deployments: write`, metadata read)
+//   FAKE_GITHUB_GATE_RELAY_PORT       (M15.3, optional) a listener on 0.0.0.0 for gate-relay (`gaterelay-github`)
 //
 // Each request is one stdout line: `fake-github api {"method":"GET","path":...}` or `fake-github git ...`.
 
@@ -36,6 +40,30 @@ const port = (name: string, dflt: number): number => {
   }
   return n;
 };
+
+/** A second App on the host from `<prefix>_APP_ID`, `_INSTALLATION_ID`, `_APP_PUBLIC_KEY_FILE`, or none. */
+function secondApp(
+  env: NodeJS.ProcessEnv,
+  prefix: string,
+  mainInstallation: number,
+  permissions: Record<string, string>,
+) {
+  const id = env[`${prefix}_APP_ID`];
+  if (!id) return undefined;
+  const inst = Number(requiredEnv(env, `${prefix}_INSTALLATION_ID`));
+  if (!Number.isInteger(inst) || inst < 1 || inst === mainInstallation) {
+    throw new ServiceConfigError(
+      `${prefix}_INSTALLATION_ID must be a positive integer other than the main installation`,
+    );
+  }
+  let pem: string;
+  try {
+    pem = readFileSync(requiredEnv(env, `${prefix}_APP_PUBLIC_KEY_FILE`), 'utf8');
+  } catch (cause) {
+    throw new ServiceConfigError(`${prefix}_APP_PUBLIC_KEY_FILE is not readable`, { cause });
+  }
+  return { appId: id, appPublicKeyPem: pem, installationId: inst, permissions };
+}
 
 await runService('fake-github', async () => {
   const env = process.env;
@@ -87,7 +115,14 @@ await runService('fake-github', async () => {
       permissions: { ...GATE_CHECK_APP_PERMISSIONS },
     };
   }
+  const deployApp = secondApp(env, 'FAKE_GITHUB_DEPLOY', installationId, {
+    ...GATE_RELAY_APP_PERMISSIONS,
+  });
+  if (deployApp && checksApp && deployApp.installationId === checksApp.installationId) {
+    throw new ServiceConfigError('the deploy and checks Apps need installations of their own');
+  }
   const gcPort = env['FAKE_GITHUB_GATE_CHECK_PORT'];
+  const grPort = env['FAKE_GITHUB_GATE_RELAY_PORT'];
   const api = await new FakeGitHubServer({
     appId: requiredEnv(env, 'FAKE_GITHUB_APP_ID'),
     appPublicKeyPem: publicKeyPem,
@@ -95,6 +130,10 @@ await runService('fake-github', async () => {
     listenHost: '127.0.0.1',
     listenPort: apiPort,
     ...(checksApp ? { checksApp } : {}),
+    ...(deployApp ? { deployApp } : {}),
+    ...(grPort
+      ? { extraListens: [{ host: '0.0.0.0', port: port('FAKE_GITHUB_GATE_RELAY_PORT', 8356) }] }
+      : {}),
     ...(gcPort
       ? { extraListen: { host: '0.0.0.0', port: port('FAKE_GITHUB_GATE_CHECK_PORT', 8355) } }
       : {}),

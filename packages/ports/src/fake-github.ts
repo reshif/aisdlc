@@ -11,7 +11,9 @@ import {
   type FileAtSha,
   type GateCheckAuthor,
   type GitSha,
+  type DeploymentState,
   type GithubPermissions,
+  type PrMergeability,
 } from '@aisdlc/contracts';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -52,6 +54,13 @@ import {
   type FakeTrackerIdentity,
 } from './fake-issue-tracker.js';
 import type { IssueTrackerPort } from './issue-tracker.js';
+import {
+  badDeploymentCreate,
+  type DeploymentCreate,
+  type DeploymentRead,
+  type DeploymentStatusRead,
+  type GateRelayHostPort,
+} from './gate-relay-host.js';
 import {
   NO_PUSH_GUARDS,
   commitMessage,
@@ -141,12 +150,21 @@ interface FakePr {
   merged_by: string | null;
   merge_commit_sha: string | null;
   merged_at: string | null;
+  /** M15.2: what the host says of merging it onto its base (`setPullBaseState`); `current` by default. */
+  mergeable?: PrMergeability;
 }
 
 /** An App's credential on the fake host: its id and what its installation token carries. */
 export interface FakeAppIdentity {
   readonly app_id: number;
   readonly permissions: GithubPermissions;
+}
+
+/** M15.3: a deployment on the fake host, with the App that created it and its statuses (oldest first). */
+interface StoredDeployment extends DeploymentRead {
+  readonly app_id: number;
+  readonly description: string;
+  readonly statuses: DeploymentStatusRead[];
 }
 
 interface StoredCheckRun extends CheckRunRead {
@@ -180,6 +198,8 @@ export class FakeGitHub implements CodeHostPort {
   readonly pushed: Array<{ commit: FakeCommit; pr: FakePr; repo: string }> = [];
   private checkRunsByRepo = new Map<string, StoredCheckRun[]>();
   private nextCheckRunId = 1;
+  private deploymentsByRepo = new Map<string, StoredDeployment[]>();
+  private nextDeploymentId = 1;
   private readonly brokerLogin: string;
   private brokenChecks: CodeHostNotOk | null = null;
   private issuesByRepo = new Map<string, FakeIssue[]>();
@@ -215,6 +235,7 @@ export class FakeGitHub implements CodeHostPort {
     this.prs = new Map();
     this.checkRunsByRepo = new Map();
     this.issuesByRepo = new Map();
+    this.deploymentsByRepo = new Map();
     return this;
   }
 
@@ -543,12 +564,21 @@ export class FakeGitHub implements CodeHostPort {
     if (!this.repoKnown(req.repo)) return this.missingRepo(req.repo);
     const pr = this.prs.get(repoKey(req.repo))?.find((p) => p.number === req.number);
     if (!pr) return readUnreadable('not_found', `no pull request ${req.number}`);
+    const base =
+      this.seed.heads.find((h) => repoKey(h.repo) === repoKey(req.repo) && h.branch === pr.base_ref)
+        ?.sha ?? null;
     return readOk({
       number: pr.number,
       state: pr.state,
       merged: pr.merged,
       head_sha: pr.head_sha,
       draft: pr.draft,
+      base_ref: pr.base_ref,
+      base_sha: base,
+      mergeable: pr.merged ? 'unknown' : (pr.mergeable ?? 'current'),
+      merge_commit_sha: pr.merged ? pr.merge_commit_sha : null,
+      merged_at: pr.merged ? pr.merged_at : null,
+      merged_by: pr.merged ? pr.merged_by : null,
       checks_read: false,
       checks: [],
     });
@@ -612,6 +642,14 @@ export class FakeGitHub implements CodeHostPort {
     pr.merged_by = by;
     pr.merged_at = at;
     pr.merge_commit_sha = createHash('sha1').update(`merge\0${pr.head_sha}\0${by}`).digest('hex');
+    return this;
+  }
+
+  /** M15.2: what the host reports of merging a PR onto its base (the base moved: `behind`; a conflict: `conflict`). */
+  setPullBaseState(repo: string, number: number, m: PrMergeability): this {
+    const pr = this.prOf(repo, number);
+    if (!pr) throw new Error(`no pull request ${number}`);
+    pr.mergeable = m;
     return this;
   }
 
@@ -726,6 +764,49 @@ export class FakeGitHub implements CodeHostPort {
       broken: () => this.brokenChecks,
       nextNumber: (repo) => this.nextNumberOf(repo),
       nextCommentId: () => this.nextCommentId++,
+    };
+  }
+
+  /**
+   * The host as one App's DEPLOYMENT credential sees it (M15.3): gate-relay's App creates and reads deployments only if
+   * its token carries `deployments: write` (read for the reads); the Push Broker's (`pushApp`) and gate-check's tokens
+   * do not, so their views refuse. The view has no push, check-run or status method at all.
+   */
+  asDeployApp(app: FakeAppIdentity): GateRelayHostPort {
+    return new FakeDeployView(this, app);
+  }
+
+  /** The deploy system reports on a deployment (tests: what GitHub Actions in the environment would write). */
+  setDeploymentStatus(repo: string, deploymentId: number, state: DeploymentState): this {
+    const d = this.deploymentsByRepo.get(repoKey(repo))?.find((x) => x.id === deploymentId);
+    if (!d) throw new Error(`no deployment ${deploymentId}`);
+    d.statuses.push({
+      id: d.statuses.length + 1,
+      state,
+      created_at: new Date(Date.parse(d.created_at) + 1000 * (d.statuses.length + 1)).toISOString(),
+    });
+    return this;
+  }
+
+  /** Every deployment created in a repo, in order (tests). */
+  deploymentsOf(repo: string): ReadonlyArray<Omit<StoredDeployment, 'statuses'>> {
+    return (this.deploymentsByRepo.get(repoKey(repo)) ?? []).map(({ statuses: _s, ...d }) => ({
+      ...d,
+    }));
+  }
+
+  /** @internal the deployment views' access to the host's state. */
+  _deploys(): {
+    readonly list: (repo: string) => StoredDeployment[];
+    readonly nextId: () => number;
+  } {
+    return {
+      list: (repo) => {
+        const l = this.deploymentsByRepo.get(repoKey(repo)) ?? [];
+        this.deploymentsByRepo.set(repoKey(repo), l);
+        return l;
+      },
+      nextId: () => this.nextDeploymentId++,
     };
   }
 
@@ -902,5 +983,109 @@ class FakeAppView implements GateCheckHostPort {
       summary: req.summary,
     });
     return readOk({ id, app_id: this.app.app_id });
+  }
+}
+
+/** One App's deployment view of a `FakeGitHub` (see `asDeployApp`). */
+class FakeDeployView implements GateRelayHostPort {
+  readonly app_id: number;
+
+  constructor(
+    private readonly host: FakeGitHub,
+    private readonly app: FakeAppIdentity,
+  ) {
+    this.app_id = app.app_id;
+  }
+
+  private start(
+    method: 'GET' | 'POST',
+    path: string,
+    repo: string,
+    level: 'read' | 'write',
+  ): CodeHostNotOk | null {
+    const h = this.host._apps();
+    h.log(method, path);
+    const b = h.broken();
+    if (b) return b;
+    if (!h.repoKnown(repo))
+      return readUnreadable(
+        'not_found',
+        `repository ${repo} is not reachable by this installation`,
+      );
+    const held = LEVEL[this.app.permissions['deployments'] ?? ''] ?? 0;
+    if (held < (LEVEL[level] ?? 99)) {
+      return readUnreadable(
+        'forbidden',
+        `${method} ${path}: 403 (the token has no deployments:${level})`,
+      );
+    }
+    return null;
+  }
+
+  private readOf(d: StoredDeployment): DeploymentRead {
+    return {
+      id: d.id,
+      sha: d.sha,
+      environment: d.environment,
+      tag: d.tag === null ? null : structuredClone(d.tag),
+      created_at: d.created_at,
+    };
+  }
+
+  async list_deployments(req: {
+    repo: string;
+    sha: string;
+    environment: string;
+  }): Promise<CodeHostRead<DeploymentRead[]>> {
+    const no = this.start('GET', `/repos/${req.repo}/deployments`, req.repo, 'read');
+    if (no) return no;
+    const all = this.host._deploys().list(req.repo);
+    return readOk(
+      all
+        .filter((d) => d.sha === req.sha && d.environment === req.environment)
+        .reverse()
+        .map((d) => this.readOf(d)),
+    );
+  }
+
+  async create_deployment(req: DeploymentCreate): Promise<CodeHostRead<DeploymentRead>> {
+    const bad = badDeploymentCreate(req);
+    if (bad) return readUnreadable('refused', bad);
+    const no = this.start('POST', `/repos/${req.repo}/deployments`, req.repo, 'write');
+    if (no) return no;
+    const d = this.host._deploys();
+    const list = d.list(req.repo);
+    const id = d.nextId();
+    const stored: StoredDeployment = {
+      id,
+      sha: req.sha,
+      environment: req.environment,
+      tag: structuredClone(req.tag),
+      created_at: new Date(Date.UTC(2026, 10, 12, 12, 0, id)).toISOString(),
+      app_id: this.app.app_id,
+      description: req.description,
+      statuses: [],
+    };
+    list.push(stored);
+    return readOk(this.readOf(stored));
+  }
+
+  async deployment_statuses(req: {
+    repo: string;
+    deployment_id: number;
+  }): Promise<CodeHostRead<DeploymentStatusRead[]>> {
+    const no = this.start(
+      'GET',
+      `/repos/${req.repo}/deployments/${req.deployment_id}/statuses`,
+      req.repo,
+      'read',
+    );
+    if (no) return no;
+    const d = this.host
+      ._deploys()
+      .list(req.repo)
+      .find((x) => x.id === req.deployment_id);
+    if (!d) return readUnreadable('not_found', `no deployment ${req.deployment_id}`);
+    return readOk([...d.statuses].reverse().map((x) => ({ ...x })));
   }
 }

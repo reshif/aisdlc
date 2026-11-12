@@ -2,7 +2,10 @@ import {
   ONBOARDING_PACK_EPOCH,
   ONBOARDING_PACK_LANE,
   ONBOARDING_PACK_UNIT,
+  MERGE_EVENT,
+  MergeReconciledPayload,
   PUSH_EVENT,
+  mergeStream,
   PUSH_LEDGER_ENTRY_TYPE,
   PushIntendedPayload,
   PushReceipt,
@@ -194,6 +197,16 @@ interface FoldedPush {
 
 /** Folds one push event into the rows. Idempotent (an upsert by key). */
 export async function applyPushEvent(tx: Tx, e: FoldedPush): Promise<void> {
+  if (e.type === MERGE_EVENT.reconciled) {
+    // M15.2 B15a: the PR was rebased cleanly onto the moved base on the host; its head is now the rebased commit
+    const m = MergeReconciledPayload.parse(e.payload);
+    if (m.outcome !== 'rebased') return;
+    await tx.query(
+      `UPDATE core.pull_request SET head_sha = $3 WHERE lower(repo) = lower($1) AND number = $2 AND item_id = $4`,
+      [m.repo, m.pr_number, m.head_sha, m.item_id],
+    );
+    return;
+  }
   if (e.type !== PUSH_EVENT.receipt_recorded) return;
   const r = PushReceipt.parse(e.payload);
   await tx.query(
@@ -230,12 +243,15 @@ export async function applyPushEvent(tx: Tx, e: FoldedPush): Promise<void> {
   }
 }
 
-/** Rebuilds an item's receipts and pull requests from its push events alone. Returns how many receipts. */
+/**
+ * Rebuilds an item's receipts and pull requests from its push events and its merge reconciliations (a B15a rebase
+ * moves a PR's head), in record order. Returns how many receipts.
+ */
 export async function rebuildPushes(d: CoreDeps, itemId: string): Promise<number> {
   const q = await d.pool.query<{ type: string; body: unknown; global_seq: string }>(
     `SELECT type, body, global_seq::text AS global_seq FROM record.record_event
-      WHERE stream = $1 ORDER BY record_event.global_seq`,
-    [pushStream(itemId)],
+      WHERE stream = ANY($1::text[]) ORDER BY record_event.global_seq`,
+    [[pushStream(itemId), mergeStream(itemId)]],
   );
   const w = await inCoreTx(d, async (_j, tx) => {
     await lockKeys(tx, [pushLockKey(itemId)]);
@@ -333,6 +349,8 @@ export class CorePush implements PushPort {
       patch_hash,
       files: req.patch.files.length,
       command_key: req.command_key,
+      // M15.1: what G4 reads as the changed paths of the head this patch becomes (the patch is the whole diff)
+      paths: [...new Set(req.patch.files.map((f) => f.path))].sort(),
     });
     const w = await this.recordIntent(intent);
     if (!w.ok) throw new Error(w.error.message);

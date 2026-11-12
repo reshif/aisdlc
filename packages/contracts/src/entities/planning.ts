@@ -346,7 +346,13 @@ export type GateCardGate = z.infer<typeof GateCardGate>;
 export const GateCardView = z.strictObject({
   card_id: z.string().min(1),
   project_id: ProjectId,
-  item_id: WorkItemId,
+  /**
+   * The item; `null` for a project's META card (9.4 Learn, M15.5), whose subject is a proposal, and for the X2
+   * card of an S0 record's onboarding pack (M16), whose subject is the record.
+   */
+  item_id: WorkItemId.nullable(),
+  /** What the card decides: a work item (default), a 9.4 proposal (`learn`) or an S0 record's pack (`s0_record`). */
+  subject_kind: z.enum(['item', 'learn', 's0_record']).optional(),
   status: CardStatus,
   gates: z.array(GateCardGate).min(1),
   subject_hash: Sha256Hex,
