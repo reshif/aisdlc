@@ -64,7 +64,7 @@ export interface G4Opening {
 }
 
 /** The changed paths of a head: the intent of the applied push that wrote it, or `null` when the record has none. */
-async function changedPaths(
+export async function changedPaths(
   db: Executor,
   itemId: string,
   unitKey: string,

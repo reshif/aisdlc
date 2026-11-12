@@ -827,8 +827,20 @@ export function registerPortalRoutes(d: PortalDeps): void {
     const lv = await contentLevels(req, reply, got.value.project_id);
     if (!lv) return;
     const ctx = cutGateContext(got.value, lv.data_class);
+    // the people the subject names (G4's path owners and authors, G6's requester) are named too
+    const sub = ctx.subject;
+    const named =
+      sub?.kind === 'merge_review'
+        ? [...sub.review.deciders.principals, ...sub.review.authors]
+        : sub?.kind === 'acceptance' && sub.acceptance
+          ? [sub.acceptance.requester]
+          : [];
     const ids = [
-      ...new Set([...ctx.decisions.map((x) => x.actor), ...(ctx.requester ? [ctx.requester] : [])]),
+      ...new Set([
+        ...ctx.decisions.map((x) => x.actor),
+        ...(ctx.requester ? [ctx.requester] : []),
+        ...named,
+      ]),
     ];
     return { ...ctx, principal_names: await names(ids) };
   });

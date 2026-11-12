@@ -1,5 +1,9 @@
 import {
   HandoffChoice,
+  G4_REVIEW_FACT,
+  G5_FACTS_KEY,
+  G6_ACCEPTANCE_FACT,
+  GATE_NEEDED_FACT,
   ITEM_EVENT,
   VERIFY_CHECK_OF_STEP,
   VERIFY_EVENT,
@@ -22,7 +26,7 @@ import {
   type VerifyStepView,
 } from '@aisdlc/contracts';
 import { readCardOpened, readCardState } from '@aisdlc/decisions';
-import { err, ok, type Result } from '@aisdlc/kernel';
+import { err, hashCanonical, ok, type Result } from '@aisdlc/kernel';
 import type { ObjectStorePort } from '@aisdlc/ports';
 import type { ItemState } from '@aisdlc/work';
 import type pg from 'pg';
@@ -33,6 +37,7 @@ import { artefactByHash } from '../planning/store.js';
 import { listUnits } from '../planning/units.js';
 import { readItem, readItemEvents } from '../work-items.js';
 import { listEvidencePacks, readSignedPack } from './evidence.js';
+import { gateSubjectOf } from './gate-subject.js';
 
 // The portal's reads of S7 (PLAN M14.6): the checks 7.1 to 7.5 of a Unit head, the signed Evidence Pack of 7.6 and
 // what an exception or quarantine gate binds. Every answer is built from the record alone: the verify service's
@@ -161,7 +166,7 @@ function stepView(
   };
 }
 
-const summaryOf = (p: EvidencePackSignedPayload): EvidencePackSummary => ({
+export const packSummaryOf = (p: EvidencePackSignedPayload): EvidencePackSummary => ({
   pack_sha256: p.pack_sha256,
   unit_key: p.unit_key,
   base_sha: p.base_sha,
@@ -248,7 +253,8 @@ export async function itemVerifyView(
         cards,
       ),
     ),
-    pack: packs.length > 0 ? summaryOf(packs[packs.length - 1] as EvidencePackSignedPayload) : null,
+    pack:
+      packs.length > 0 ? packSummaryOf(packs[packs.length - 1] as EvidencePackSignedPayload) : null,
     data_class: 'D2',
   });
 }
@@ -307,11 +313,11 @@ export async function evidencePackView(
     }
   }
   const s = item.state;
-  const summary = chosen ? summaryOf(chosen) : null;
+  const summary = chosen ? packSummaryOf(chosen) : null;
   return ok({
     item_id: s.item_id as never,
     project_id: s.project_id as never,
-    packs: recorded.map(summaryOf).reverse(),
+    packs: recorded.map(packSummaryOf).reverse(),
     pack: summary,
     contents,
     contents_problem: problem,
@@ -408,6 +414,18 @@ export async function gateCardContext(
     binds.push({ label: 'quarantine evidence', value: f.quarantine.pack_sha256 });
   }
   if (f.handoff?.pack) binds.push({ label: 'Handoff Pack', value: f.handoff.pack.content_sha256 });
+  // what core adds to the engine's subject (G4's review, G5's binding, G6's acceptance, an X1's or G3o's report)
+  const raw = (p.facts ?? {}) as Record<string, unknown>;
+  for (const [key, label] of [
+    [G4_REVIEW_FACT, 'G4 review'],
+    [G5_FACTS_KEY, 'release binding'],
+    [G6_ACCEPTANCE_FACT, 'acceptance'],
+    [GATE_NEEDED_FACT, 'stage report'],
+  ] as const) {
+    if (raw[key] !== undefined && raw[key] !== null) {
+      binds.push({ label, value: hashCanonical(raw[key] as never) });
+    }
+  }
   if (step !== null) {
     const approved = item.state.approved[step] ?? [];
     binds.push({
@@ -526,6 +544,14 @@ export async function gateCardContext(
     dependencies,
     constitution,
     handoff,
+    subject: await gateSubjectOf({
+      pool,
+      item: item.state,
+      gate: p.gate_id,
+      gate_instance_id: g.gate_instance_id,
+      step,
+      facts: p.facts,
+    }),
     data_class: 'D2',
   });
 }

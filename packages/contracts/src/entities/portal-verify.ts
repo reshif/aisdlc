@@ -1,11 +1,23 @@
 import { z } from 'zod';
 import { GateId } from '../flow.js';
 import { DataClass, Lane, StepId } from '../values.js';
+import { G6Acceptance } from './closeout.js';
+import { RepoFullName } from './codehost.js';
 import { CatalogueRef } from './config.js';
 import { EvidenceGate, EvidenceStep, S7Disposition } from './evidence.js';
 import { GateCheckOutcome, GateCheckReason } from './gate-check.js';
+import {
+  ReleaseBinding,
+  ReleaseEnvironment,
+  ReleaseRefusal,
+  ReleaseSetting,
+  ReleaseStatusState,
+} from './gate-relay.js';
 import { GitSha, IsoDateTime, PrincipalId, ProjectId, Sha256Hex, WorkItemId } from './ids.js';
 import { HandoffChoice, HandoffCode, HandoffPackRef, HandoffUuid } from './work-lifecycle.js';
+import { UnitKey } from './planning.js';
+import { G4Review, G4StandingState } from './review.js';
+import { IrreversibleOperationDetail, OracleDeviationKind } from './work-lifecycle.js';
 import {
   CheckVerdict,
   FindingKind,
@@ -215,9 +227,213 @@ export const GateDecisionView = z.strictObject({
 });
 export type GateDecisionView = z.infer<typeof GateDecisionView>;
 
+// ---------------------------------------------------------------- what a merge, release, acceptance, X1 or G3o decides
+//
+// P1-3, P1-7, P1-8 (portal review §12): the subject facts of G4, G5, G6, X1 and G3o, built by core from the gate's own
+// facts (what its subject hash binds: `g4_review`, `release`, `g6_acceptance`, `gate_needed`) and the record around
+// it. Nothing here is decided; text an agent or a person wrote (an X1 command, an agent's note, the intent, the oracle
+// specs) is withheld below the data class that reaches it (`cutGateContext`).
+
+/** A pull request as a card links it. `url` is the code host's web page of the PR. */
+export const PullRequestLink = z.strictObject({
+  repo: RepoFullName,
+  number: z.number().int().min(1),
+  head_ref: z.string().min(1).max(255).nullable(),
+  state: z.enum(['open', 'closed']).nullable(),
+  url: z.string().min(1).max(500),
+});
+export type PullRequestLink = z.infer<typeof PullRequestLink>;
+
+/** One changed path of a PR head, flagged against the sensitive and the protected globs. */
+export const ChangedPathView = z.strictObject({
+  path: z.string().min(1).max(1024),
+  /** In the review's sensitive paths (a sensitive or protected glob): codeowner plus the D37 step-up. */
+  sensitive: z.boolean(),
+  /** Matches the protected globs (DEFAULT_PROTECTED_GLOBS). */
+  protected: z.boolean(),
+});
+export type ChangedPathView = z.infer<typeof ChangedPathView>;
+
+/** One S7 step of a head, as a card summarises it (the item's Verify tab has the findings). */
+export const StepStatusView = z.strictObject({
+  step: VerifyStep,
+  check: VerifyCheckId,
+  status: VerifyStepStatus,
+});
+export type StepStatusView = z.infer<typeof StepStatusView>;
+
+/** One Unit of a G4: its PR, the pack G4 binds, the steps of the head, the diff by path. */
+export const MergeReviewUnitView = z.strictObject({
+  unit_key: UnitKey,
+  head_sha: GitSha,
+  base_sha: GitSha,
+  pack_sha256: Sha256Hex,
+  pr: PullRequestLink,
+  /** The recorded pack G4 binds (`null`: not in the record, so not verified here: never a pass). */
+  pack: EvidencePackSummary.nullable(),
+  steps: z.array(StepStatusView).max(5),
+  /** The paths the head changed (the push intent); `null` when the record does not have them (mode C, step-up). */
+  paths: z.array(ChangedPathView).max(500).nullable(),
+  paths_truncated: z.boolean(),
+});
+export type MergeReviewUnitView = z.infer<typeof MergeReviewUnitView>;
+
+export const MergeReviewSubject = z.strictObject({
+  kind: z.literal('merge_review'),
+  /** The review the gate opened with and binds (mode C/E, why, step-up, deciders, CODEOWNERS). */
+  review: G4Review,
+  units: z.array(MergeReviewUnitView).min(1).max(50),
+  /** Whether this G4 still stands for the PRs as they are now. */
+  standing: G4StandingState,
+  /** B13 "G4 changes requested" under the item's pinned catalogue: rounds used, its limit, what is left. */
+  b13: z.strictObject({
+    used: z.number().int().min(0),
+    limit: z.number().int().min(0).nullable(),
+    left: z.number().int().min(0).nullable(),
+    /** Where the item goes when no round is left (the catalogue's exit: D3). */
+    exhausted_to: z.string().min(1).max(32).nullable(),
+  }),
+});
+export type MergeReviewSubject = z.infer<typeof MergeReviewSubject>;
+
+export const ReleaseSubject = z.strictObject({
+  kind: z.literal('release'),
+  /** What G5 binds (merged commit to pack head to target); `null`: the facts carry none (nothing is released). */
+  binding: ReleaseBinding.nullable(),
+  /** The project's release setting now (`unreadable`: unknown, and unknown is not released). */
+  target_now: z.strictObject({
+    state: z.enum(['ok', 'unreadable']),
+    setting: ReleaseSetting.nullable(),
+  }),
+  /** The setting now names another environment, or no target: gate-relay would refuse (`target_changed`). */
+  target_changed: z.boolean(),
+  pr: PullRequestLink.nullable(),
+  /** The release evidence: the pack the binding names, as recorded. */
+  pack: EvidencePackSummary.nullable(),
+  steps: z.array(StepStatusView).max(5),
+  /** gate-relay's deployment state for THIS G5 instance (its `gaterelay:` stream). */
+  deployment: z.strictObject({
+    state: ReleaseStatusState,
+    refusal: ReleaseRefusal.nullable(),
+    marker: z
+      .strictObject({
+        marker_id: z.uuid(),
+        environment: ReleaseEnvironment,
+        merged_sha: GitSha,
+        deployment_id: z.number().int().min(1),
+        created_at: IsoDateTime,
+      })
+      .nullable(),
+    rollback_marker_id: z.uuid().nullable(),
+  }),
+});
+export type ReleaseSubject = z.infer<typeof ReleaseSubject>;
+
+export const AcceptanceSubject = z.strictObject({
+  kind: z.literal('acceptance'),
+  /** What G6 binds: the requester, the merged commit, the release output. */
+  acceptance: G6Acceptance.nullable(),
+  /** The intent block G0/G1 approved (1.5): what the requester asked for. */
+  intent: z
+    .strictObject({
+      sha256: Sha256Hex,
+      /** The gate whose approval bound it (`gate:<id>`), `null` when no approved G0/G1 binds it. */
+      bound_by: z.string().min(1).nullable(),
+      intact: z.boolean(),
+      /** `null` (and the lists empty) when withheld: the text needs data class D1. */
+      goal: z.string().max(1000).nullable(),
+      acceptance_criteria: z.array(z.string().max(500)).max(30),
+      non_goals: z.array(z.string().max(500)).max(20),
+      withheld: z.boolean(),
+    })
+    .nullable(),
+  /** What merged: each PR with the pack of its head and the steps of that head. */
+  merged: z.array(
+    z.strictObject({
+      unit_key: UnitKey,
+      pr: PullRequestLink,
+      head_sha: GitSha,
+      pack: EvidencePackSummary.nullable(),
+      steps: z.array(StepStatusView).max(5),
+    }),
+  ),
+  /** S8b's release, when the project releases (`null`: nothing released). */
+  release: z
+    .strictObject({
+      environment: ReleaseEnvironment.nullable(),
+      state: ReleaseStatusState,
+    })
+    .nullable(),
+});
+export type AcceptanceSubject = z.infer<typeof AcceptanceSubject>;
+
+export const IrreversibleSubject = z.strictObject({
+  kind: z.literal('irreversible_operation'),
+  reason_code: z.string().min(1).max(64).nullable(),
+  /** The operation the gate binds (`null`: the stage reported none: the card says unknown). */
+  operation: IrreversibleOperationDetail.nullable(),
+  /** The command and the agent's note need D2 (tripwire evidence); below it they are `null` and this is true. */
+  command_withheld: z.boolean(),
+});
+export type IrreversibleSubject = z.infer<typeof IrreversibleSubject>;
+
+/** How one oracle reads against the specs G2 approved: as approved, the deviation 6.3 found, or unknown (not reported). */
+export const OracleDiffStatus = z.enum(['as_approved', 'unknown', ...OracleDeviationKind.options]);
+export type OracleDiffStatus = z.infer<typeof OracleDiffStatus>;
+
+export const OracleDeviationSubject = z.strictObject({
+  kind: z.literal('oracle_deviation'),
+  reason_code: z.string().min(1).max(64).nullable(),
+  /** G3o chained after an approved E6 (6.4, 7.2): the locked tests will change; `null` at 6.3. */
+  chained_from: z.literal('E6').nullable(),
+  /** The oracle specs the newest approved G2 bound (3.4). */
+  approved: z.strictObject({
+    gate_instance_id: z.string().min(1).nullable(),
+    sha256: Sha256Hex.nullable(),
+    intact: z.boolean(),
+    oracles: z
+      .array(
+        z.strictObject({
+          oracle_id: z.string().min(1).max(64),
+          requirement_id: z.string().min(1).max(128).nullable(),
+          /** What an oracle marker must carry (`specHashOf`). */
+          spec_sha256: Sha256Hex,
+          /** `null` when withheld (D1). */
+          description: z.string().max(2000).nullable(),
+          expected_failure: z.string().max(2000).nullable(),
+        }),
+      )
+      .max(100),
+  }),
+  /** Every approved oracle with its status, then every oracle file no spec approved. */
+  diff: z
+    .array(
+      z.strictObject({
+        oracle_id: z.string().min(1).max(64).nullable(),
+        path: z.string().min(1).max(1024).nullable(),
+        status: OracleDiffStatus,
+      }),
+    )
+    .max(200),
+  /** The deviations are in the record (6.3 reported them); `false`: unknown, never "as approved". */
+  deviations_known: z.boolean(),
+  text_withheld: z.boolean(),
+});
+export type OracleDeviationSubject = z.infer<typeof OracleDeviationSubject>;
+
+export const GateSubjectView = z.discriminatedUnion('kind', [
+  MergeReviewSubject,
+  ReleaseSubject,
+  AcceptanceSubject,
+  IrreversibleSubject,
+  OracleDeviationSubject,
+]);
+export type GateSubjectView = z.infer<typeof GateSubjectView>;
+
 /**
  * `GET /v1/cards/:id/gate/context`: the gate-specific facts of a work-item card raised by S7 (Q1 through its SECT
- * triage, E6, X2, E2 at 7.5), by S6 (X3, X2 at 6.6, E6) or at 4.5 (E2), and what its subject hash binds.
+ * triage, E6, X2, E2 at 7.5), by S6 (X3, X2 at 6.6, E6, X1, G3o) or at 4.5 (E2), and of G4, G5 and G6, and what its
+ * subject hash binds.
  */
 export const GateCardContext = z.strictObject({
   card_id: z.string().min(1),
@@ -293,6 +509,8 @@ export const GateCardContext = z.strictObject({
       choice: HandoffChoice.nullable(),
     })
     .nullable(),
+  /** G4, G5, G6, X1, G3o: what the gate decides (P1-3, P1-7, P1-8); `null` for the other gates. */
+  subject: GateSubjectView.nullable(),
   data_class: DataClass,
 });
 export type GateCardContext = z.infer<typeof GateCardContext>;
@@ -332,7 +550,55 @@ export const cutVerifyView = (v: ItemVerifyView, dc: DataClass): ItemVerifyView 
   data_class: dc,
 });
 
-/** The gate context cut to a data class (the constitution's text needs D1). */
+/**
+ * A gate's subject cut to a data class: an X1's command and the agent's note need D2 (tripwire evidence, the agent's
+ * own text); the intent and the oracle specs need D1 (the content of the work). Ids, hashes, paths and verdicts stay.
+ */
+export function cutGateSubject(s: GateSubjectView, dc: DataClass): GateSubjectView {
+  switch (s.kind) {
+    case 'irreversible_operation': {
+      if (s.operation === null || reachesClass(dc, 'D2')) return s;
+      const withheld = s.operation.command !== null || s.operation.agent_note !== null;
+      return {
+        ...s,
+        operation: { ...s.operation, command: null, agent_note: null },
+        command_withheld: s.command_withheld || withheld,
+      };
+    }
+    case 'oracle_deviation':
+      return reachesClass(dc, 'D1')
+        ? s
+        : {
+            ...s,
+            approved: {
+              ...s.approved,
+              oracles: s.approved.oracles.map((o) => ({
+                ...o,
+                description: null,
+                expected_failure: null,
+              })),
+            },
+            text_withheld: true,
+          };
+    case 'acceptance':
+      return s.intent === null || reachesClass(dc, 'D1')
+        ? s
+        : {
+            ...s,
+            intent: {
+              ...s.intent,
+              goal: null,
+              acceptance_criteria: [],
+              non_goals: [],
+              withheld: true,
+            },
+          };
+    default:
+      return s;
+  }
+}
+
+/** The gate context cut to a data class (the constitution's text needs D1; the subject as `cutGateSubject`). */
 export const cutGateContext = (c: GateCardContext, dc: DataClass): GateCardContext => ({
   ...c,
   check: c.check === null ? null : cutStep(c.check, dc),
@@ -340,5 +606,6 @@ export const cutGateContext = (c: GateCardContext, dc: DataClass): GateCardConte
     c.constitution === null
       ? null
       : { ...c.constitution, markdown: reachesClass(dc, 'D1') ? c.constitution.markdown : null },
+  subject: c.subject === null ? null : cutGateSubject(c.subject, dc),
   data_class: dc,
 });

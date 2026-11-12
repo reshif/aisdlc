@@ -125,7 +125,83 @@ const gateContext = () => ({
   dependencies: [],
   constitution: null,
   handoff: null,
+  subject: null,
   data_class: 'D2',
+});
+
+// P1-3, P1-7, P1-8: the subject of a G4, a G6 and an X1, as core answers them (uncut)
+const prLink = {
+  repo: 'acme/web',
+  number: 12,
+  head_ref: 'agent/x/main',
+  state: 'open',
+  url: 'https://github.com/acme/web/pull/12',
+};
+const g4Subject = () => ({
+  kind: 'merge_review',
+  review: {
+    schema: 'g4-review/1',
+    mode: 'C',
+    reasons: ['sensitive_path'],
+    units: [{ unit_key: 'main', pr_number: 12, head_sha: HEAD, base_sha: BASE, pack_sha256: PACK }],
+    evidence_sha256: PACK,
+    changed_paths: { count: 2, sha256: 'f'.repeat(64) },
+    sensitive_paths: ['db/migrations/1.sql'],
+    step_up: true,
+    deciders: { basis: 'path_owners', principals: ['bob'] },
+    codeowners: { read: 'ok', at_sha: BASE, unmapped: [] },
+    authors: [],
+  },
+  units: [
+    {
+      unit_key: 'main',
+      head_sha: HEAD,
+      base_sha: BASE,
+      pack_sha256: PACK,
+      pr: prLink,
+      pack: packSummary,
+      steps: [{ step: '7.1', check: 'deterministic', status: 'passed' }],
+      paths: [
+        { path: 'db/migrations/1.sql', sensitive: true, protected: false },
+        { path: 'src/a.ts', sensitive: false, protected: false },
+      ],
+      paths_truncated: false,
+    },
+  ],
+  standing: 'pending',
+  b13: { used: 0, limit: 2, left: 2, exhausted_to: 'D3' },
+});
+const x1Subject = () => ({
+  kind: 'irreversible_operation',
+  reason_code: 'irreversible_operation',
+  operation: {
+    kind: 'irreversible_operation',
+    source: 'tripwire',
+    what: 'a force push',
+    command: 'git push --force origin main',
+    target: null,
+    agent_note: null,
+  },
+  command_withheld: false,
+});
+const g6Subject = () => ({
+  kind: 'acceptance',
+  acceptance: { requester: 'carol', merged_sha: HEAD, release_output: null },
+  intent: {
+    sha256: 'e'.repeat(64),
+    bound_by: 'gate:g-0',
+    intact: true,
+    goal: 'Admins can export orders',
+    acceptance_criteria: ['An admin can download a CSV'],
+    non_goals: [],
+    withheld: false,
+  },
+  merged: [{ unit_key: 'main', pr: prLink, head_sha: HEAD, pack: packSummary, steps: [] }],
+  release: null,
+});
+const withSubject = (gate: string, subject: unknown) => ({
+  status: 200,
+  json: { ...gateContext(), gate, station: gate, check: null, quarantine: null, subject },
 });
 
 interface Fake {
@@ -363,6 +439,42 @@ describe('the gate screens', () => {
     const b = await get('bob', `/api/cards/${CARD_ID}/gate/context`);
     expect(b.json.check.findings.items[0].message).toBe('the oracle passed on the base');
     expect((await get('dora', `/api/cards/${CARD_ID}/gate/context`)).status).toBe(403);
+  });
+
+  it('G4 (P1-3): the review, the PR link, the pack and the diff by path pass through to a V2 person', async () => {
+    core.override.set(`/v1/cards/${CARD_ID}/gate/context`, withSubject('G4', g4Subject()));
+    const a = await get('alice', `/api/cards/${CARD_ID}/gate/context`);
+    expect(a.status).toBe(200);
+    expect(a.json.subject).toEqual(g4Subject());
+    expect((await get('dora', `/api/cards/${CARD_ID}/gate/context`)).status).toBe(403);
+  });
+
+  it('X1 (P1-8): the command is tripwire evidence: D2 sees it, D1 gets the classification only', async () => {
+    core.override.set(`/v1/cards/${CARD_ID}/gate/context`, withSubject('X1', x1Subject()));
+    const a = await get('alice', `/api/cards/${CARD_ID}/gate/context`);
+    expect(a.json.subject).toMatchObject({
+      operation: { what: 'a force push', command: null },
+      command_withheld: true,
+    });
+    const b = await get('bob', `/api/cards/${CARD_ID}/gate/context`);
+    expect(b.json.subject).toEqual(x1Subject());
+  });
+
+  it('G6 (P1-7): the intent and its acceptance criteria reach D1 and above', async () => {
+    core.override.set(`/v1/cards/${CARD_ID}/gate/context`, withSubject('G6', g6Subject()));
+    const a = await get('alice', `/api/cards/${CARD_ID}/gate/context`);
+    expect(a.json.subject.intent).toMatchObject({
+      acceptance_criteria: ['An admin can download a CSV'],
+      withheld: false,
+    });
+  });
+
+  it('a subject that is not the contract’s shape is refused (502), never shown in part', async () => {
+    core.override.set(
+      `/v1/cards/${CARD_ID}/gate/context`,
+      withSubject('G4', { ...g4Subject(), b13: { used: -1 } }),
+    );
+    expect((await get('alice', `/api/cards/${CARD_ID}/gate/context`)).status).toBe(502);
   });
 
   it('GET /api/cards/:id/gate says why not: the PDP’s reasons first, then the slot', async () => {

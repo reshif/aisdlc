@@ -1,3 +1,4 @@
+import { hashCanonical } from '@aisdlc/kernel';
 import { z } from 'zod';
 import { BackEdgeId, GateId, HoldReason, AbandonCause, RelaneId, TriggerId } from '../flow.js';
 import { EntryChannel, Lane, StageId, StepId, Tier } from '../values.js';
@@ -439,6 +440,69 @@ export type StagePortName = z.infer<typeof StagePortName>;
 export const RaisableGate = GateId.extract(['G3o', 'X1', 'X2', 'X3', 'E1', 'E2', 'E6']);
 export type RaisableGate = z.infer<typeof RaisableGate>;
 
+/**
+ * 6.3's oracle binding check (`checkOracleBinding` in `@aisdlc/build`): how an oracle test deviates from the oracle
+ * specs G2 approved. `oracle_not_red` is an oracle that passes before the change (6.3 runs each one, red).
+ */
+export const OracleDeviationKind = z.enum([
+  'oracle_missing',
+  'oracle_unbound',
+  'spec_mismatch',
+  'no_marker',
+  'duplicate_oracle',
+  'oracle_not_red',
+  'repro_missing',
+]);
+export type OracleDeviationKind = z.infer<typeof OracleDeviationKind>;
+
+export const OracleDeviation = z.strictObject({
+  kind: OracleDeviationKind,
+  oracle_id: z.string().min(1).max(64).nullable(),
+  path: z.string().min(1).max(1024).nullable(),
+});
+export type OracleDeviation = z.infer<typeof OracleDeviation>;
+
+/**
+ * P1-8: what a stage tells the person deciding the gate it raised, beside its reason code. Recorded on the item's
+ * `stage_gate_needed` event and bound by core into the gate's facts (`GATE_NEEDED_FACT`) and subject hash, so an
+ * approval is of exactly this operation or these deviations.
+ *
+ *   irreversible_operation  X1: what the operation is (the factory's own words), the command line the agent was about
+ *                           to run (secrets masked; the agent's text, data, shown only at D2) and its target path
+ *   oracle_deviation        G3o at 6.3: every way the oracle code deviates from the specs G2 approved
+ */
+export const IrreversibleOperationDetail = z.strictObject({
+  kind: z.literal('irreversible_operation'),
+  /** `tripwire`: the factory stopped the command before it ran; `agent_blocker`: the agent said it needs one. */
+  source: z.enum(['tripwire', 'agent_blocker']),
+  /** The factory's classification (`classifyCommand`), never repo or agent text. */
+  what: z.string().min(1).max(300),
+  command: z.string().min(1).max(500).nullable(),
+  target: z.string().min(1).max(1024).nullable(),
+  /** `agent_blocker`: what the agent said about it (masked, at most 500 characters; data, D2). */
+  agent_note: z.string().min(1).max(500).nullable(),
+});
+export type IrreversibleOperationDetail = z.infer<typeof IrreversibleOperationDetail>;
+
+export const OracleDeviationDetail = z.strictObject({
+  kind: z.literal('oracle_deviation'),
+  deviations: z.array(OracleDeviation).min(1).max(100),
+});
+export type OracleDeviationDetail = z.infer<typeof OracleDeviationDetail>;
+
+export const GateNeededDetail = z.discriminatedUnion('kind', [
+  IrreversibleOperationDetail,
+  OracleDeviationDetail,
+]);
+export type GateNeededDetail = z.infer<typeof GateNeededDetail>;
+
+/** The key a gate's facts carry its stage's `GateNeededDetail` under (X1, G3o at 6.3). */
+export const GATE_NEEDED_FACT = 'gate_needed';
+
+/** The subject hash of a gate that binds a `GateNeededDetail`: the engine's subject and the detail, together. */
+export const gateNeededSubjectHash = (engineSubjectHash: string, d: GateNeededDetail): string =>
+  hashCanonical({ engine: engineSubjectHash, [GATE_NEEDED_FACT]: d } as never);
+
 /** What a stage port answers. The fakes are deterministic; a real one is an agent or a service. */
 export const StageOutcome = z.discriminatedUnion('outcome', [
   z.strictObject({
@@ -496,6 +560,8 @@ export const StageOutcome = z.discriminatedUnion('outcome', [
     reason_code: z.string().min(1).max(64),
     /** The artefact the gate decides (4.5's constitution report for E2): bound into the gate's subject hash. */
     output_hash: Sha256Hex.optional(),
+    /** P1-8: what an X1 or a G3o at 6.3 is about; core binds it into the gate's facts and subject hash. */
+    detail: GateNeededDetail.optional(),
   }),
   z.strictObject({ outcome: z.literal('failed'), code: z.string().min(1).max(64) }),
 ]);
@@ -697,6 +763,7 @@ export const ItemStagePayloads = {
     gate: RaisableGate,
     reason_code: z.string().min(1),
     output_hash: Sha256Hex.optional(),
+    detail: GateNeededDetail.optional(),
   }),
   [ITEM_EVENT.questions_raised]: z.strictObject({
     ...Answers,
