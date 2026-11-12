@@ -63,6 +63,20 @@ export interface FakeCheckRun {
   readonly title: string;
 }
 
+/** A deployment the fake holds (M15.3), with the App that created it and its statuses (oldest first). */
+export interface FakeDeployment {
+  readonly id: number;
+  readonly repo: string;
+  readonly sha: string;
+  readonly ref: string;
+  readonly environment: string;
+  readonly payload: unknown;
+  readonly description: string;
+  readonly app_id: number;
+  readonly created_at: string;
+  readonly statuses: Array<{ id: number; state: string; created_at: string }>;
+}
+
 export interface IssuedToken {
   readonly token: string;
   readonly permissions: Record<string, string>;
@@ -97,11 +111,17 @@ export interface FakeGitHubServerOptions {
   readonly onRequest?: (r: FakeGitHubRequest) => void;
   /** M14.5: gate-check's App on the same host. */
   readonly checksApp?: FakeSecondApp;
+  /** M15.3: gate-relay's App on the same host (`deployments: write`). */
+  readonly deployApp?: FakeSecondApp;
   /** The login the Push Broker's PRs are authored by (default `aisdlc[bot]`). */
   readonly brokerLogin?: string;
   /** A second listener (the compose stack: gate-check reaches the host from another container). */
   readonly extraListen?: { readonly host: string; readonly port: number };
+  /** More listeners (M15.3: gate-relay's door, on its own network). */
+  readonly extraListens?: ReadonlyArray<{ readonly host: string; readonly port: number }>;
 }
+
+type AppName = 'main' | 'checks' | 'deploys';
 
 const ISO = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 const LEVEL: Record<string, number> = { read: 1, write: 2, admin: 3 };
@@ -131,8 +151,9 @@ export class FakeGitHubServer {
   readonly objects: GitObjects;
   readonly pulls: FakePull[] = [];
   readonly checkRuns: FakeCheckRun[] = [];
+  readonly deployments: FakeDeployment[] = [];
   private server: Server | null = null;
-  private extra: Server | null = null;
+  private extra: Server[] = [];
   private readonly revoked = new Set<string>();
   /** When set, every resource request (not token minting) answers with this status. */
   private override: { status: number; headers: Record<string, string> } | null = null;
@@ -155,6 +176,15 @@ export class FakeGitHubServer {
     this.objects.load(seed);
     this.pulls.length = 0;
     this.checkRuns.length = 0;
+    this.deployments.length = 0;
+    return this;
+  }
+
+  /** M15.3: the deploy system reports a state on a deployment (what GitHub Actions in the environment would write). */
+  setDeploymentStatus(repo: string, id: number, state: string): this {
+    const d = this.deployments.find((x) => repoKey(x.repo) === repoKey(repo) && x.id === id);
+    if (!d) throw new Error(`no deployment ${id}`);
+    d.statuses.push({ id: d.statuses.length + 1, state, created_at: ISO(this.clock.now()) });
     return this;
   }
 
@@ -275,20 +305,25 @@ export class FakeGitHubServer {
     await new Promise<void>((resolve) =>
       this.server?.listen(this.o.listenPort ?? 0, this.o.listenHost ?? '127.0.0.1', resolve),
     );
-    if (this.o.extraListen) {
-      const x = this.o.extraListen;
-      this.extra = createServer(handler);
-      await new Promise<void>((resolve) => this.extra?.listen(x.port, x.host, resolve));
+    for (const x of [
+      ...(this.o.extraListen ? [this.o.extraListen] : []),
+      ...(this.o.extraListens ?? []),
+    ]) {
+      const srv = createServer(handler);
+      this.extra.push(srv);
+      await new Promise<void>((resolve) => srv.listen(x.port, x.host, resolve));
     }
     this.baseUrl = `http://127.0.0.1:${(this.server?.address() as AddressInfo).port}`;
     return this;
   }
 
   async stop(): Promise<void> {
-    const e = this.extra;
-    this.extra = null;
-    e?.closeAllConnections();
-    await new Promise<void>((resolve) => (e ? e.close(() => resolve()) : resolve()));
+    const extras = this.extra;
+    this.extra = [];
+    for (const e of extras) {
+      e.closeAllConnections();
+      await new Promise<void>((resolve) => e.close(() => resolve()));
+    }
     const s = this.server;
     this.server = null;
     s?.closeAllConnections();
@@ -308,11 +343,13 @@ export class FakeGitHubServer {
     return status;
   }
 
-  /** The App a JWT is from (`main`, or `checks` for gate-check's), or `null` when it verifies for neither. */
-  private jwtApp(token: string): 'main' | 'checks' | null {
+  /** The App a JWT is from (`main`, `checks` for gate-check's, `deploys` for gate-relay's), or `null`. */
+  private jwtApp(token: string): AppName | null {
     if (this.verifyJwt(token, this.o.appId, this.o.appPublicKeyPem)) return 'main';
     const c = this.o.checksApp;
     if (c && this.verifyJwt(token, c.appId, c.appPublicKeyPem)) return 'checks';
+    const d = this.o.deployApp;
+    if (d && this.verifyJwt(token, d.appId, d.appPublicKeyPem)) return 'deploys';
     return null;
   }
 
@@ -348,7 +385,7 @@ export class FakeGitHubServer {
     kind: 'jwt' | 'installation' | 'none';
     perms?: Record<string, string>;
     bad?: boolean;
-    app?: 'main' | 'checks';
+    app?: AppName;
     appId?: number;
   } {
     const m = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '');
@@ -400,11 +437,15 @@ export class FakeGitHubServer {
       }
       // each App mints tokens for its own installation only
       const c = this.o.checksApp;
+      const dep = this.o.deployApp;
       const forChecks = c !== undefined && Number(mint[1]) === c.installationId;
-      if (forChecks ? who.app !== 'checks' : who.app !== 'main') {
+      const forDeploys = dep !== undefined && Number(mint[1]) === dep.installationId;
+      const second = forChecks ? c : forDeploys ? dep : undefined;
+      const owner: AppName = forChecks ? 'checks' : forDeploys ? 'deploys' : 'main';
+      if (who.app !== owner) {
         return void log(this.json(res, 404, notFound));
       }
-      if (!forChecks && Number(mint[1]) !== this.seed.installation.installation_id)
+      if (!second && Number(mint[1]) !== this.seed.installation.installation_id)
         return void log(this.json(res, 404, notFound));
       let asked: Record<string, string>;
       try {
@@ -413,7 +454,7 @@ export class FakeGitHubServer {
       } catch {
         return void log(this.json(res, 400, { message: 'Problems parsing JSON' }));
       }
-      const held = forChecks && c ? c.permissions : this.seed.installation.permissions;
+      const held = second ? second.permissions : this.seed.installation.permissions;
       for (const [name, level] of Object.entries(asked)) {
         if ((LEVEL[held[name] ?? ''] ?? 0) < (LEVEL[level] ?? 99)) {
           return void log(
@@ -435,7 +476,7 @@ export class FakeGitHubServer {
         token,
         permissions,
         expires_at: expires,
-        app_id: forChecks && c ? Number(c.appId) || 2 : this.mainAppId,
+        app_id: second ? Number(second.appId) || 2 : this.mainAppId,
       });
       return void log(
         this.json(res, 201, {
@@ -571,6 +612,31 @@ export class FakeGitHubServer {
           output: { title: r.title },
         }));
       return void log(this.json(res, 200, { total_count: runs.length, check_runs: runs }));
+    }
+    if ((c = /^deployments$/.exec(rest))) {
+      // M15.3: gate-relay's reads; GitHub needs `deployments: read`
+      if (!needs('deployments')) return void log(forbidden());
+      const sha = url.searchParams.get('sha');
+      const env = url.searchParams.get('environment');
+      const list = this.deployments
+        .filter((d) => same(d.repo) && (sha === null || d.sha === sha))
+        .filter((d) => env === null || d.environment === env)
+        .reverse()
+        .map((d) => deploymentJson(d));
+      return void log(this.page(res, url, list, (items) => items));
+    }
+    if ((c = /^deployments\/(\d+)\/statuses$/.exec(rest))) {
+      if (!needs('deployments')) return void log(forbidden());
+      const d = this.deployments.find((x) => same(x.repo) && x.id === Number(c![1]));
+      if (!d) return void log(this.json(res, 404, notFound));
+      return void log(
+        this.page(
+          res,
+          url,
+          [...d.statuses].reverse().map((x) => ({ ...x, environment: d.environment })),
+          (items) => items,
+        ),
+      );
     }
     if ((c = /^pulls\/(\d+)$/.exec(rest))) {
       if (!needs('pull_requests')) return void log(forbidden());
@@ -884,6 +950,30 @@ export class FakeGitHubServer {
       this.pulls.push(p);
       return this.json(res, 201, this.pullJson(p));
     }
+    if (method === 'POST' && rest === 'deployments') {
+      // M15.3: what gate-relay writes. GitHub needs `deployments: write`; the deployment carries its creator App.
+      if (!canWrite('deployments')) return denied();
+      const ref = String(j['ref'] ?? '');
+      const env = String(j['environment'] ?? 'production');
+      const sha = /^[0-9a-f]{40}$/.test(ref)
+        ? ref
+        : (this.seed.heads.find((h) => same(h.repo) && h.branch === ref)?.sha ?? null);
+      if (sha === null) return this.json(res, 409, { message: 'No ref found for: ' + ref });
+      const d: FakeDeployment = {
+        id: this.deployments.length + 1,
+        repo: full,
+        sha,
+        ref,
+        environment: env,
+        payload: j['payload'] ?? {},
+        description: String(j['description'] ?? ''),
+        app_id: appId,
+        created_at: now,
+        statuses: [],
+      };
+      this.deployments.push(d);
+      return this.json(res, 201, deploymentJson(d));
+    }
     if (method === 'POST' && rest === 'check-runs') {
       // M14.5: what gate-check writes. GitHub needs `checks: write`; the run carries the App that wrote it.
       if (!canWrite('checks')) return denied();
@@ -955,6 +1045,22 @@ export class FakeGitHubServer {
 }
 
 // ---------------------------------------------------------------- JSON shapes (GitHub REST docs)
+
+function deploymentJson(d: FakeDeployment): Record<string, unknown> {
+  return {
+    id: d.id,
+    sha: d.sha,
+    ref: d.ref,
+    task: 'deploy',
+    payload: d.payload,
+    environment: d.environment,
+    description: d.description,
+    creator: { login: 'app', type: 'Bot' },
+    performed_via_github_app: { id: d.app_id },
+    created_at: d.created_at,
+    updated_at: d.created_at,
+  };
+}
 
 function repoJson(r: CodeHostSeed['repos'][number]): Record<string, unknown> {
   const [owner, name] = r.full_name.split('/') as [string, string];
