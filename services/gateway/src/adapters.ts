@@ -5,7 +5,12 @@ import {
   type IntegrationHealthState,
 } from '@aisdlc/contracts';
 import { enabledOf, readRegistry } from '@aisdlc/integrations';
-import { FakeProvider, planningFixtureReply, type ModelProviderPort } from '@aisdlc/ports';
+import {
+  FakeProvider,
+  planningFixtureReply,
+  testbedFixtureReply,
+  type ModelProviderPort,
+} from '@aisdlc/ports';
 import { resolveSecretRef, type Env } from '@aisdlc/service-kit';
 import { AnthropicProvider } from './anthropic-provider.js';
 import { OpenAICompatProvider } from './openai-compat-provider.js';
@@ -138,6 +143,7 @@ export class RegistryAdapters implements AdapterSource {
       return new FakeProvider({
         tools_capable: cfg.data.tools_capable ?? row.provider?.tools_capable ?? true,
         ...(cfg.data.fixtures === 'planning' ? { respond: planningFixtureReply } : {}),
+        ...(cfg.data.fixtures === 'testbed' ? { respond: testbedFixtureReply } : {}),
       });
     }
     if (row.adapter !== 'anthropic' && row.adapter !== 'openai_compat') return 'adapter_unknown';
