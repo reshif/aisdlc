@@ -61,6 +61,13 @@ export interface PdpEntityPort {
     at: Date,
     ask?: PdpAsk,
   ): Promise<Result<PdpPrincipalFacts | null, PdpEntityError>>;
+  /**
+   * M19 (the load test's floor hot spot): a view of this source for ONE batch of decisions (`Pdp.decideEach`: one
+   * principal, one action, many resources), which may do once what every call would do again (catch the read model up,
+   * read the principal, the bindings at a scope seen before in the batch). It answers what this source answers for
+   * each ask, as of the batch's start. Absent: the batch asks this source itself, call by call.
+   */
+  batch?(): PdpEntityPort;
 }
 
 interface FakePrincipal {

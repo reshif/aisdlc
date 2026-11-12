@@ -103,6 +103,59 @@ export class Pdp {
     return { ...out, decision_id };
   }
 
+  /**
+   * M19: one action of one principal on many resources (the floor's per-item `item.view_floor`), not logged: the
+   * same answers `decide(..., { log: false })` gives one by one, with the bundle verified once and the entity source's
+   * batch view (`PdpEntityPort.batch`: identity's read model caught up once, the principal and each scope's bindings
+   * read once, the live bootstrap grant once per project). The load test measured the floor at 30 items doing 30
+   * bundle verifications and 30 identity read-model folds per read (docs/evidence/load-m19.md).
+   */
+  async decideEach(
+    principal: PrincipalId | string,
+    action: string,
+    resources: readonly PdpResource[],
+  ): Promise<PdpDecision[]> {
+    const now = (this.o.clock ?? systemClock).now();
+    const a = ActionId.safeParse(action);
+    if (!a.success) return resources.map(() => deny('unknown_action'));
+    let bundle: ReturnType<typeof verifyBundle>;
+    try {
+      bundle = verifyBundle(this.o.source.current());
+    } catch (e) {
+      const why = `evaluator_error:${e instanceof Error ? e.message : String(e)}`;
+      return resources.map(() => deny(why));
+    }
+    const src = this.o.entities.batch?.() ?? this.o.entities;
+    const out: PdpDecision[] = [];
+    for (const raw of resources) {
+      try {
+        const r = PdpResource.safeParse(raw);
+        if (!r.success) {
+          out.push(deny('invalid_resource'));
+          continue;
+        }
+        if (!(actionDef(a.data).resource_types as readonly string[]).includes(r.data.type)) {
+          out.push(deny('action_not_applicable'));
+          continue;
+        }
+        if (!bundle.ok) {
+          out.push(this.evaluateWith(bundle, a.data, r.data, null));
+          continue;
+        }
+        const facts = await src.principalFacts(
+          principal as PrincipalId,
+          resourceScopes(r.data),
+          now,
+          { action: a.data, resource: r.data },
+        );
+        out.push(this.evaluateWith(bundle, a.data, r.data, facts));
+      } catch (e) {
+        out.push(deny(`evaluator_error:${e instanceof Error ? e.message : String(e)}`));
+      }
+    }
+    return out;
+  }
+
   /** The catalogue actions that apply to this resource type and that the principal may do here. Not logged. */
   async allowedActions(
     principal: PrincipalId | string,
@@ -125,6 +178,24 @@ export class Pdp {
     now: Date,
   ): Promise<PdpDecision> {
     const v = verifyBundle(this.o.source.current());
+    const facts = v.ok
+      ? await this.o.entities.principalFacts(
+          principal as PrincipalId,
+          resourceScopes(resource),
+          now,
+          { action, resource },
+        )
+      : null;
+    return this.evaluateWith(v, action, resource, facts);
+  }
+
+  /** The evaluation of one request over a verified bundle and the principal's facts (shared by decide and decideEach). */
+  private evaluateWith(
+    v: ReturnType<typeof verifyBundle>,
+    action: ActionId,
+    resource: PdpResource,
+    facts: Awaited<ReturnType<PdpEntityPort['principalFacts']>> | null,
+  ): PdpDecision {
     if (!v.ok) {
       return deny(v.error.reason, {
         bundle_version: v.error.bundle_version,
@@ -137,13 +208,7 @@ export class Pdp {
       bundle_hash: bundle.bundle_hash,
     };
 
-    const facts = await this.o.entities.principalFacts(
-      principal as PrincipalId,
-      resourceScopes(resource),
-      now,
-      { action, resource },
-    );
-    if (!facts.ok) return deny('entity_source_error', stamp);
+    if (facts === null || !facts.ok) return deny('entity_source_error', stamp);
     if (facts.value === null) return deny('unknown_principal', stamp);
 
     const built = buildEntities(facts.value, resource, this.o.catalogue ?? ROLE_CATALOGUE);
