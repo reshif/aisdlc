@@ -46,6 +46,7 @@ import {
   probeFilesOf,
   probeLoop,
   packLoop,
+  driftLoop,
   lightTestsFrom,
   workDriverLoop,
   workSettingsFrom,
@@ -646,6 +647,17 @@ export async function bootCoreWorker(
                 : {}),
             },
             { intervalMs: cfg.cardsIntervalMs * 2, startDelayMs: 6_000 },
+          ),
+        );
+      }
+      if (ledger) {
+        // M16 after onboarding (OB §4.2, §8, DEC-21): the affirmed files at the recorded head (record-first), the drift
+        // fold against the governing readiness record (a loosened control suspends it, ledgered; never lifted here),
+        // and the `fresh_until` sweep
+        supervisor.add(
+          driftLoop(
+            { pool, source, ledger },
+            { intervalMs: cfg.headIntervalMs, startDelayMs: 8_000 },
           ),
         );
       }

@@ -193,6 +193,8 @@ export const PushRefusalCode = z.enum([
   'base_unknown',
   'guards_unavailable',
   'repo_not_allowed',
+  /** M16 (OB §8, DEC-21): the repo's readiness record is suspended for drift; only an L8 (human-led) push goes on. */
+  'prr_suspended',
   /** Any other refusal (the allow-list, a host rule): the message says which. */
   'refused',
 ]);
@@ -300,5 +302,7 @@ export const PushLeaseFacts = z.strictObject({
   held: z.boolean(),
   epoch: z.number().int().min(0),
   lane: z.string().min(1).max(8),
+  /** M16: the repo's governing readiness record is `suspended` (drift). Absent: not suspended (an older owner). */
+  suspended: z.boolean().optional(),
 });
 export type PushLeaseFacts = z.infer<typeof PushLeaseFacts>;

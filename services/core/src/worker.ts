@@ -9,6 +9,13 @@ export { cardsLoop, type CardsLoopOptions } from './cards/loop.js';
 export { instructionTemplateFrom } from './cards/light.js';
 export { probeFilesOf, probeLoop, runOnboardingProbe, type ProbeDeps } from './cards/probe.js';
 export { packLoop, projectPack, type PackDeps } from './cards/pack.js';
+export {
+  driftLoop,
+  checkDrift,
+  pollAffirmedFiles,
+  expireRecord,
+  type DriftDeps,
+} from './drift/check.js';
 export { lightTestsFrom } from './cards/spikes.js';
 export * from './card-wiring.js';
 export {

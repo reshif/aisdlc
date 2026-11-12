@@ -7,6 +7,7 @@ import {
   ReleaseSetting,
   S0_EVENT,
   SettingsRevisionView,
+  gatePolicy,
   s0Stream,
   type CoreInboxItem,
   type PrincipalId,
@@ -19,6 +20,7 @@ import { configPublish, readLineage, type ConfigDeps } from '@aisdlc/config';
 import {
   decide as decideGate,
   prepare as prepareGate,
+  readCardState,
   readGateState,
   recordEvidenceViewed,
 } from '@aisdlc/decisions';
@@ -27,6 +29,8 @@ import { EVENT_COLUMNS, toRecordEvent, type EventRow } from '@aisdlc/record';
 import type pg from 'pg';
 import { decisionRefusal } from './cards/api.js';
 import { isLive } from './cards/sync.js';
+import { AFTER_ONBOARDING_SLOT } from './drift/actions.js';
+import { driftInboxItems } from './drift/view.js';
 import { SLOT_OF_CARD, type CardDeps } from './cards/model.js';
 import { loadS0, s0Cards } from './cards/read.js';
 import { decidersFrom, decidersOf } from './cards/views.js';
@@ -276,6 +280,41 @@ export async function coreInbox(deps: {
       }
     }
   }
+  // the X2 card of an S0 record's onboarding pack (M16 R2b): decided through the gate-card routes, listed here too
+  const x2 = await pool.query<{ card_id: string }>(
+    `SELECT substring(stream from 6) AS card_id FROM record.record_event
+      WHERE type = 'card.opened' AND body ->> 'subject_kind' = 's0_record' AND body ->> 'label' = 'X2'
+      ORDER BY global_seq`,
+  );
+  for (const { card_id } of x2.rows) {
+    const st = await readCardState(pool, card_id);
+    if (!st || st.status !== 'open') continue;
+    const project = st.open.project_id;
+    const slot = gatePolicy('X2').slot;
+    const who = await decidersOf(deps.cards, project, slot, st.open.subject_id);
+    const due = st.open.sla_due_at;
+    out.push({
+      kind: 'onboarding_card',
+      id: CardId.parse(card_id),
+      project_id: project as never,
+      s0_id: st.open.subject_id as never,
+      label: 'X2',
+      slot,
+      opened_at: st.opened_at,
+      sla_due_at: due,
+      overdue: now >= Date.parse(due),
+      escalated: st.escalations.length > 0,
+      holders: [...who.holders],
+    });
+  }
+  // after onboarding (M16, OB §8): re-affirm, restore, re-sign; one per repo, decided by the project's admin slot
+  out.push(
+    ...(await driftInboxItems(pool, {
+      clock: deps.clock ?? systemClock,
+      holders: async (project) =>
+        (await decidersOf(deps.cards, project, AFTER_ONBOARDING_SLOT)).holders,
+    })),
+  );
   return out.sort((a, b) =>
     a.overdue !== b.overdue
       ? a.overdue

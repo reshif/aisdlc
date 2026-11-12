@@ -55,6 +55,7 @@ import {
   projectOfScope,
   SIGNED_EVIDENCE_PACK_CONTENT_TYPE,
   type ActionId,
+  type MergeBypassConfig,
   type PdpResource,
 } from '@aisdlc/contracts';
 import type { ConfigDeps, ConfigRegistry } from '@aisdlc/config';
@@ -128,6 +129,7 @@ import {
 import type { AssistantDeps } from './conversation/assistant.js';
 import { registerAssistantRoutes } from './conversation/routes.js';
 import { registerIssueTwinRoutes } from './issue-twin/routes.js';
+import { registerDriftRoutes } from './drift/routes.js';
 import { registerGovernanceRoutes } from './governance-routes.js';
 import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
@@ -194,6 +196,8 @@ export interface CoreAppOptions {
   readonly assistant?: AssistantDeps;
   /** The object store of the Evidence Packs (M14.6: the pack viewer reads them back); without it the contents are not shown. */
   readonly objects?: ObjectStorePort;
+  /** M16: config `codehost.merge_bypass` now in force (a restore re-attests it); absent or `null`: no restore. */
+  readonly bypass?: () => MergeBypassConfig | null;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -1716,6 +1720,25 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   // ------------------------------------------------------------ the GitHub issue twin (M16)
 
   registerIssueTwinRoutes({ app, deps, allowed: (req) => allowed(req, 'work'), guard });
+
+  // ------------------------------------------------------------ after onboarding: drift, restore, re-affirm (M16)
+
+  registerDriftRoutes({
+    app,
+    deps,
+    allowed: (req) => allowed(req, 'work'),
+    guard,
+    ...(o.cards
+      ? {
+          drift: {
+            source: o.cards.source,
+            eligibility: o.cards.decisions.eligibility,
+            stepUp: o.cards.decisions.stepUp,
+            bypass: o.bypass ?? (() => null),
+          },
+        }
+      : {}),
+  });
   // ------------------------------------------------------------ M15.5: B14, B17, 9.3, 9.5, 9.4 and the factory M1
 
   registerGovernanceRoutes({

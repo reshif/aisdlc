@@ -60,6 +60,7 @@ import {
   readItem,
   rebuildPushes,
   requestFromTwin,
+  setPrrStatus,
   storeArtefact,
   submitRequest,
   planUnits,
@@ -643,6 +644,21 @@ describe('the broker’s refusals, each recorded as a receipt and a ledger entry
       [w.itemId],
     );
 
+  it('M16 (OB §8, DEC-21): a repo suspended for drift refuses an agent push in flight; nothing is written to GitHub', async () => {
+    const w = await atLease();
+    ok(
+      await setPrrStatus(s.deps, {
+        repo: w.repo,
+        to: 'suspended',
+        cause: 'drift.controls' as never,
+      }),
+    );
+    const r = ok(await w.push.push(baseReq(w)));
+    expect(r).toMatchObject({ kind: 'refused', code: 'prr_suspended' });
+    expect(await refusedCodes(w)).toEqual(['refused:prr_suspended']);
+    expect(writesOf(w)).toEqual([]);
+  });
+
   it('a stale lease epoch is refused (the Unit owner says the lease is at another epoch); recorded as refused_stale_epoch', async () => {
     const w = await atLease();
     const r = ok(await w.push.push(baseReq(w, { lease_epoch: 2 })));
@@ -928,7 +944,7 @@ describe('core answers the Push Broker over HTTP (scope push_guard): the same fa
       expect((await get(TOKENS.reader, lease)).status).toBe(403);
       expect((await fetch(new URL(lease, url))).status).toBe(401);
       const ok1 = await get(TOKENS.codehost, lease);
-      expect(await ok1.json()).toEqual({ held: true, epoch: 1, lane: 'L3' });
+      expect(await ok1.json()).toEqual({ held: true, epoch: 1, lane: 'L3', suspended: false });
       expect(
         (await get(TOKENS.codehost, `/v1/push-guards/${w.itemId}/units/Bad..Key/lease`)).status,
       ).toBe(400);

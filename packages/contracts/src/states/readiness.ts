@@ -16,9 +16,11 @@ export const ReadinessStatusValues: readonly ReadinessStatus[] = ReadinessStatus
 
 /**
  * DM: `proposed -> active` (only an M4 decision) `-> stale | suspended | expired | superseded`.
- * Choices: no edge leads back to `active`; a level change or a re-affirmation raises a NEW version
- * that goes `proposed -> active` through its own M4 decision (`projects_prr_version_once`), and the
- * old one is `superseded`. Between the live states only tightening edges exist, so a stale record
+ * Choices: one edge leads back to `active`, `suspended -> active`, and only a person's one-click
+ * restore takes it (DEC-21(b), OB §8: the re-check passes, then a confirm plus bypass re-attestation,
+ * ledgered); a level change raises a NEW version that goes `proposed -> active` through its own M4
+ * decision (`projects_prr_version_once`), and the old one is `superseded`. An expired record is
+ * never restored: it is re-signed as a new version. Between the live states only tightening edges exist, so a stale record
  * can still be suspended or expired (otherwise a loosened protect-main would be unrecordable on it).
  * `stale -> superseded` and `suspended -> superseded` let the new version replace them.
  */
@@ -26,7 +28,7 @@ export const READINESS_TRANSITIONS: TransitionTable<ReadinessStatus> = {
   proposed: ['active'],
   active: ['stale', 'suspended', 'expired', 'superseded'],
   stale: ['suspended', 'expired', 'superseded'],
-  suspended: ['expired', 'superseded'],
+  suspended: ['active', 'expired', 'superseded'],
   expired: [],
   superseded: [],
 };
@@ -35,15 +37,19 @@ export const ReadinessMachine = defineMachine('ReadinessRecord', READINESS_TRANS
 export const canTransitionReadiness = ReadinessMachine.canTransition;
 export const assertTransitionReadiness = ReadinessMachine.assertTransition;
 
-/** Who causes a change: an M4 decision (a human, ledgered) or a mechanical check. */
-export const ReadinessActor = z.enum(['m4_decision', 'mechanical']);
+/**
+ * Who causes a change: an M4 decision (a human, ledgered), a mechanical check, or a person's
+ * one-click restore of a suspended record (DEC-21(b), ledgered with the bypass re-attestation).
+ */
+export const ReadinessActor = z.enum(['m4_decision', 'mechanical', 'restore']);
 export type ReadinessActor = z.infer<typeof ReadinessActor>;
 export const ReadinessActorValues: readonly ReadinessActor[] = ReadinessActor.options;
 
 /**
  * Mechanical checks (poll, nightly staleness, rules poll, expiry sweep) may only tighten: they can
  * move `active` or `stale` towards stale, suspended or expired, never activate and never supersede
- * (superseding is the effect of a newer record's M4 decision). An M4 decision may take any edge.
+ * (superseding is the effect of a newer record's M4 decision). An M4 decision may take any other
+ * edge; `suspended -> active` is the restore's alone.
  */
 const MECHANICAL_TARGETS: readonly ReadinessStatus[] = ['stale', 'suspended', 'expired'];
 
@@ -53,7 +59,9 @@ export function canTransitionReadinessBy(
   to: ReadinessStatus,
 ): boolean {
   if (!canTransitionReadiness(from, to)) return false;
-  if (to === 'active') return actor === 'm4_decision';
+  // a restore lifts a suspension and does nothing else; nothing else lifts one
+  if (actor === 'restore') return from === 'suspended' && to === 'active';
+  if (to === 'active') return actor === 'm4_decision' && from === 'proposed';
   return actor === 'm4_decision' || MECHANICAL_TARGETS.includes(to);
 }
 

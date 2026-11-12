@@ -23,6 +23,7 @@ import { coreConfigFromEnv } from './config.js';
 import { s0SettingsFrom } from './driver.js';
 import { instructionTemplateFrom } from './cards/light.js';
 import { lightTestsFrom } from './cards/spikes.js';
+import { mergeBypassFrom } from './drift/routes.js';
 import { migrateCore } from './migrations.js';
 import { maintenanceFrom, registerCoreConfig } from './settings.js';
 
@@ -153,6 +154,8 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(cards ? { cards } : {}),
       ...(assistant ? { assistant } : {}),
       ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
+      // M16: a drift restore re-attests the per-repo bypass list in force
+      ...(reader ? { bypass: mergeBypassFrom(reader) } : {}),
       // B5 (M12.5): a hand-written plan is made against the merged head knowledge's census names
       ...(cfg.cards
         ? {
