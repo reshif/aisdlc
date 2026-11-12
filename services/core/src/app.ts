@@ -86,6 +86,7 @@ import {
   publishBanner,
 } from './controls.js';
 import { laneEligibility } from './lane-eligibility.js';
+import { listReonboardProposals } from './knowledge-defects.js';
 import {
   getProject,
   getProjectDetail,
@@ -1701,6 +1702,18 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       );
     } catch {
       return fail(reply, coreError('unavailable', 'the readiness record could not be read'));
+    }
+  });
+
+  // M17: the re-onboarding proposals knowledge defects raised for a repo (OB §8), from the record.
+  app.get('/v1/repos/:owner/:name/reonboarding', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
+    if (!repo.success) return fail(reply, coreError('invalid_input', 'owner/name is required'));
+    try {
+      return { repo: repo.data, proposals: await listReonboardProposals(o.pool, repo.data) };
+    } catch {
+      return fail(reply, coreError('unavailable', 'the proposals could not be read'));
     }
   });
 

@@ -3,8 +3,13 @@ import {
   ORACLE_LOCK_PATH,
   PACK_EVENT,
   S0_EVENT,
+  KDEFECT_EVENT,
+  REONBOARD_EVENT,
+  kdefectStream,
   packStream,
+  reonboardStream,
   type Fact,
+  type KnowledgeDefect,
 } from '@aisdlc/contracts';
 import { startTestCodeHost } from '@aisdlc/codehost/testing';
 import { readCardState } from '@aisdlc/decisions';
@@ -14,6 +19,9 @@ import { makeCanary } from '@aisdlc/secrets-rules';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CorePushGuards,
+  listReonboardProposals,
+  rebuildKnowledgeDefects,
+  recordKnowledgeDefects,
   listPushReceipts,
   projectFullPack,
   projectPack,
@@ -258,6 +266,12 @@ describe('card 3 (Full 0.3)', () => {
       intent: { attested_by: 'alice' },
     });
     expect(prr.autonomy.lanes_eligible).toEqual(expect.arrayContaining(['L4', 'L6']));
+    // DEC-25: the levels per area of the system map, the table M4 binds to (in the record, so its hash)
+    expect(prr.level.by_area).toEqual({ '.': 'full', 'packages/money': 'full' });
+    expect(prr.level.areas.map((a: Json) => [a.area, a.floors.map((f: Json) => f.state)])).toEqual([
+      ['.', ['met', 'met']],
+      ['packages/money', ['met', 'met']],
+    ]);
     const kn7 = (prr.gaps as Json[]).filter((g) => g.criterion === 'RS-KN-7');
     expect(kn7.map((g) => g.status)).toEqual(['closed_verified']);
   });
@@ -491,5 +505,145 @@ describe('the oracle lock through X2 (M17)', () => {
     } finally {
       await host.stop();
     }
+  });
+});
+
+describe('knowledge defects as a re-onboarding trigger (M17, OB §8)', () => {
+  const ATTEST = {
+    bypass_has_no_factory_app: true,
+    app_scope_selected: true,
+    github_token_readonly: true,
+    actions_cannot_approve_prs: true,
+    fork_pr_approval_required: true,
+    secret_scanning: 'on',
+    plan: 'free',
+    operations_md: true,
+  };
+  const defect = (path: string | null, rules: string[] = ['L-GATE']): KnowledgeDefect =>
+    ({
+      kind: 'directive_in_repo_text',
+      level: 7,
+      path,
+      rules,
+      detail: 'kept as data',
+    }) as KnowledgeDefect;
+
+  async function signedFull(): Promise<Scn> {
+    const c = await toFull();
+    await sync(c);
+    const card = await actionable(c, 'C3');
+    const d = await detail(c, card.card_id);
+    ok(await decideAs(c, card.card_id, 'alice', 'approve', c3Content(d.view)));
+    await h.throughC4(c, { attestations: ATTEST });
+    const { card: c5 } = await h.toC5(c);
+    ok(await decideAs(c, c5.card_id, 'alice', 'approve', {}));
+    return c;
+  }
+
+  it('the threshold is config, not a constant: one defect in 30 days trips it when the value says so', async () => {
+    const c = await signedFull();
+    const r = await recordKnowledgeDefects(
+      {
+        pool: s.record.pool,
+        clock: s.clock,
+        reonboardTriggers: () => ({ knowledge_defects: { count: 1, window_days: 30 } }),
+      },
+      { repo: c.repo, defects: [defect('AGENTS.md')], source: { kind: 'other', ref: 'x' } },
+    );
+    expect(r.ok && r.value.proposals.map((p) => [p.area, p.threshold])).toEqual([['.', 1]]);
+  });
+
+  it('records repo defects in their area; three in an area within 30 days propose re-onboarding once, recorded first', async () => {
+    const c = await signedFull();
+    const deps = { pool: s.record.pool, clock: s.clock };
+    const src = (n: number) => ({ kind: 'item_step' as const, ref: `item-${n}:3.1` });
+
+    // context paths (the request, an earlier artefact) are not repo text: nothing is recorded
+    const none = await recordKnowledgeDefects(deps, {
+      repo: c.repo,
+      defects: [defect('artefact:request@abc'), defect(null)],
+      source: src(0),
+    });
+    expect(none).toMatchObject({ ok: true, value: { recorded: 0, proposals: [] } });
+
+    // two in packages/money and one in the root area: below the threshold in each
+    const first = await recordKnowledgeDefects(deps, {
+      repo: c.repo,
+      defects: [defect('packages/money/README.md'), defect('README.md')],
+      source: src(1),
+    });
+    expect(first).toMatchObject({ ok: true, value: { recorded: 2, proposals: [] } });
+    // the same defect from the same source is recorded once
+    const repeat = await recordKnowledgeDefects(deps, {
+      repo: c.repo,
+      defects: [defect('packages/money/README.md')],
+      source: src(1),
+    });
+    expect(repeat).toMatchObject({ ok: true, value: { recorded: 0 } });
+    const second = await recordKnowledgeDefects(deps, {
+      repo: c.repo,
+      defects: [defect('packages/money/src/index.ts', ['L-LANE'])],
+      source: src(2),
+    });
+    expect(second.ok && second.value.proposals).toEqual([]);
+    const ev = await s.record.pool.query<{ body: Json }>(
+      'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2 ORDER BY seq',
+      [kdefectStream(c.repo), KDEFECT_EVENT.recorded],
+    );
+    expect(ev.rows.map((r) => r.body.area)).toEqual(['packages/money', '.', 'packages/money']);
+    expect(JSON.stringify(ev.rows)).not.toContain('kept as data'); // logged, never quoted
+
+    // the third in packages/money trips it: a proposal for that area, recorded
+    const third = await recordKnowledgeDefects(deps, {
+      repo: c.repo,
+      defects: [defect('packages/money/test/ledger.test.ts')],
+      source: src(3),
+    });
+    if (!third.ok) throw new Error(third.error.message);
+    expect(third.value.proposals).toHaveLength(1);
+    expect(third.value.proposals[0]).toMatchObject({
+      area: 'packages/money',
+      trigger: 'knowledge_defects',
+      count: 3,
+      threshold: 3,
+      window_days: 30,
+      prr_version: 1,
+    });
+    const rec = await s.record.pool.query<{ type: string }>(
+      'SELECT type FROM record.record_event WHERE stream = $1 ORDER BY seq',
+      [reonboardStream(c.repo)],
+    );
+    expect(rec.rows.map((r) => r.type)).toEqual([REONBOARD_EVENT.proposed]);
+    // while it is open, more defects in the area propose nothing new
+    const fourth = await recordKnowledgeDefects(deps, {
+      repo: c.repo,
+      defects: [defect('packages/money/package.json')],
+      source: src(4),
+    });
+    expect(fourth.ok && fourth.value.proposals).toEqual([]);
+    // the proposal never changes a level: one record, as signed
+    const prr = await s.record.pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM record.record_event WHERE type = 'prr.proposed' AND body ->> 's0_id' = $1`,
+      [c.s0],
+    );
+    expect(prr.rows[0]?.n).toBe('1');
+
+    // the read models are rebuilt from the events alone
+    await s.record.pool.query('DELETE FROM core.reonboard_proposal WHERE repo = $1', [
+      c.repo.toLowerCase(),
+    ]);
+    expect(await rebuildKnowledgeDefects(deps, c.repo)).toBe(6);
+    expect((await listReonboardProposals(s.record.pool, c.repo)).map((p) => p.area)).toEqual([
+      'packages/money',
+    ]);
+
+    // outside the window: the old root-area defect does not count with two new ones
+    s.clock.advance(31 * 86_400_000);
+    const late = await recordKnowledgeDefects(deps, {
+      repo: c.repo,
+      defects: [defect('src/server.ts'), defect('test/server.test.ts')],
+      source: src(5),
+    });
+    expect(late.ok && late.value).toMatchObject({ recorded: 2, proposals: [] });
   });
 });

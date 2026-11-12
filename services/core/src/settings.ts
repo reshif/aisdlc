@@ -22,6 +22,9 @@ import {
   DEFAULT_LIGHT_TESTS,
   LightTestsConfig,
   ONBOARDING_LIGHT_TESTS_KEY,
+  REONBOARD_TRIGGERS_KEY,
+  ReonboardTriggersConfig,
+  DEFAULT_REONBOARD_TRIGGERS,
   InstructionTemplate,
   SANDBOX_EXEC_ALLOWED_REPOS_KEY,
   SandboxExecAllowedRepos,
@@ -166,6 +169,14 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
       overridable: false,
       description:
         "M16: the W image LF4 is about (by digest; null: LF4 unknown) and the Light spikes' thresholds (SP-STD-1 runs, SP-STD-3 false-positive ceiling, planted catch floor, policy rules). Factory layer only, M1-gated",
+    })
+    .setting({
+      key: REONBOARD_TRIGGERS_KEY,
+      schema: ReonboardTriggersConfig,
+      default: DEFAULT_REONBOARD_TRIGGERS,
+      overridable: false,
+      description:
+        'M17 (OB §8): how many knowledge defects in one area within how many days trigger a re-onboarding proposal (the spec: 3 in 30). Factory layer only, M1-gated',
     })
     .setting({
       key: SANDBOX_EXEC_ALLOWED_REPOS_KEY,

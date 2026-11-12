@@ -59373,6 +59373,129 @@
         "required_over_budget"
       ]
     },
+    "KnowledgeDefectRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "defect_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "level_conflict",
+            "directive_in_repo_text",
+            "provenance_mismatch",
+            "unmerged_excluded",
+            "required_over_budget"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "L-TIER",
+              "L-AUTONOMY",
+              "L-LANE",
+              "L-GATE",
+              "L-BUDGET",
+              "L-GRANT",
+              "L-ADDRESS",
+              "L-DIRECTIVE",
+              "L-SECRET",
+              "L-URL",
+              "L-PIPE-SH",
+              "L-PROSE",
+              "L-FMT-LINES",
+              "L-FMT-FRONTMATTER"
+            ]
+          }
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "item_step",
+                "assistant",
+                "other"
+              ]
+            },
+            "ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        "detected_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "defect_id",
+        "repo",
+        "project_id",
+        "area",
+        "kind",
+        "path",
+        "rules",
+        "source",
+        "detected_at"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeDefectSource": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "item_step",
+            "assistant",
+            "other"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
     "KnowledgeJob": {
       "type": "object",
       "properties": {
@@ -91836,6 +91959,220 @@
         "pack_head_not_pr_head",
         "no_release_target"
       ]
+    },
+    "ReonboardProposalStatus": {
+      "type": "string",
+      "enum": [
+        "proposed"
+      ]
+    },
+    "ReonboardProposalView": {
+      "type": "object",
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "knowledge_defects"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "threshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "window_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "defect_ids": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "prr_version": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "proposed"
+          ]
+        }
+      },
+      "required": [
+        "proposal_id",
+        "repo",
+        "project_id",
+        "area",
+        "trigger",
+        "count",
+        "threshold",
+        "window_days",
+        "defect_ids",
+        "prr_version",
+        "proposed_at",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "ReonboardProposedPayload": {
+      "type": "object",
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "knowledge_defects"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "threshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "window_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "defect_ids": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "prr_version": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "proposal_id",
+        "repo",
+        "project_id",
+        "area",
+        "trigger",
+        "count",
+        "threshold",
+        "window_days",
+        "defect_ids",
+        "prr_version",
+        "proposed_at"
+      ],
+      "additionalProperties": false
+    },
+    "ReonboardTrigger": {
+      "type": "string",
+      "enum": [
+        "knowledge_defects"
+      ]
+    },
+    "ReonboardTriggersConfig": {
+      "type": "object",
+      "properties": {
+        "knowledge_defects": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "window_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            }
+          },
+          "required": [
+            "count",
+            "window_days"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "knowledge_defects"
+      ],
+      "additionalProperties": false
     },
     "RepairClass": {
       "type": "string",
