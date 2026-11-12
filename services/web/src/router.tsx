@@ -21,6 +21,7 @@ export type Route =
   | { name: 'revision'; id: string }
   | { name: 'readiness'; id: string }
   | { name: 'ledger'; id: string }
+  | { name: 'access' }
   | { name: 'notfound' };
 
 export function parseRoute(path: string): Route {
@@ -28,6 +29,7 @@ export function parseRoute(path: string): Route {
   if (p === '/') return { name: 'home' };
   if (p === '/onboard') return { name: 'onboard' };
   if (p === '/inbox') return { name: 'inbox' };
+  if (p === '/me/access') return { name: 'access' };
   const sub = /^\/projects\/([^/]+)\/(readiness|ledger)$/.exec(p);
   if (sub) {
     return {

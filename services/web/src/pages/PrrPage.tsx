@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type Autonomy, type PrrVersionView } from '@aisdlc/contracts';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
-import { ErrorNote, Loading } from '../components/Notice';
+import { PageError, Loading } from '../components/Notice';
 import { Hash } from '../cards/shared';
 import { bindingCaps } from '../cards/C5Panel';
 import { shortTime } from '../format';
@@ -172,7 +172,7 @@ function Record({ v, repo }: { v: PrrVersionView; repo: string }) {
 export function PrrPage({ project }: { project: string }) {
   const q = useQuery({ queryKey: ['prr', project], queryFn: () => api.prr(project) });
   if (q.isPending) return <Loading what="the readiness record" />;
-  if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
+  if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   return (
     <>
       <p className="crumbs">

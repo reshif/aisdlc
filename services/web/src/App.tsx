@@ -1,11 +1,6 @@
-import {
-  QueryClient,
-  QueryClientProvider,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { AccessProvider } from './access';
 import { ApiError, api, type Me } from './api';
 import { ErrorNote, Loading } from './components/Notice';
 import { CardPage } from './pages/CardPage';
@@ -18,7 +13,10 @@ import { OnboardPage } from './pages/Onboard';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectListPage } from './pages/ProjectList';
 import { S0Page } from './pages/S0Page';
+import { MyAccessPage } from './pages/MyAccessPage';
 import { Link, NavContext, useRoute, type Route } from './router';
+import { Shell } from './shell/Shell';
+import { ErrorState, PageHead, ToastProvider } from './ui';
 
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -62,93 +60,36 @@ function useMe() {
 function Portal() {
   const { route, navigate } = useRoute();
   const me = useMe();
-  const mainRef = useRef<HTMLElement>(null);
-
-  // After a navigation the focus goes to the page, so a keyboard or screen reader user starts at its top.
-  const here = JSON.stringify(route);
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    mainRef.current?.focus();
-  }, [here]);
-
   return (
     <NavContext.Provider value={navigate}>
-      <a className="skip" href="#main">
-        Skip to content
-      </a>
-      <header className="top">
-        <div className="top-inner">
-          <Link to="/" className="brand">
-            AISDLC Factory
-          </Link>
+      <ToastProvider>
+        <Shell me={me.data ?? null} route={route}>
+          {me.isPending ? <Loading what="your session" /> : null}
+          {me.isError ? <ErrorNote error={me.error} retry={() => void me.refetch()} /> : null}
+          {me.data === null ? <SignedOut /> : null}
           {me.data ? (
-            <nav aria-label="Main">
-              <Link to="/">Projects</Link>
-              <Link to="/inbox">Inbox</Link>
-              {me.data.actions.fleet.includes('project.onboard') ? (
-                <Link to="/onboard">Onboard a repo</Link>
-              ) : null}
-            </nav>
+            <AccessProvider me={me.data}>
+              <Page route={route} me={me.data} />
+            </AccessProvider>
           ) : null}
-          <div className="who">{me.data ? <Account me={me.data} /> : null}</div>
-        </div>
-      </header>
-      <main id="main" tabIndex={-1} ref={mainRef}>
-        {me.isPending ? <Loading what="your session" /> : null}
-        {me.isError ? <ErrorNote error={me.error} retry={() => void me.refetch()} /> : null}
-        {me.data === null ? <SignedOut /> : null}
-        {me.data ? <Page route={route} me={me.data} /> : null}
-      </main>
+        </Shell>
+      </ToastProvider>
     </NavContext.Provider>
   );
 }
 
 function SignedOut() {
   return (
-    <section aria-labelledby="signin-h">
-      <h1 id="signin-h">Sign in</h1>
-      <p>
-        The factory takes work through a governed lifecycle, and people decide the gates. Sign in to
-        see your projects and cards.
-      </p>
+    <section aria-labelledby="signin-h" className="signin">
+      <PageHead
+        title={<span id="signin-h">Sign in</span>}
+        sub="The factory takes work through a governed lifecycle, and people decide the gates. Sign in to see your projects and cards."
+      />
       {/* A plain link: the bff starts the sign-in and sends the browser to the identity provider. */}
       <a className="btn" href="/auth/login">
         Sign in
       </a>
     </section>
-  );
-}
-
-function Account({ me }: { me: Me }) {
-  const qc = useQueryClient();
-  const out = useMutation({
-    mutationFn: () => api.logout(me.csrf_token),
-    // The session is gone on the server: forget everything it let us read. Whatever happened, the next
-    // question is "who am I", and the bff answers 401 once the session has ended.
-    onSuccess: () => {
-      qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
-      qc.setQueryData(['me'], null);
-    },
-    onSettled: () => void qc.invalidateQueries({ queryKey: ['me'] }),
-  });
-  return (
-    <>
-      <span className="who-name" title={me.principal.principal_id}>
-        {me.principal.display_name}
-      </span>
-      <button
-        type="button"
-        className="btn btn-quiet"
-        onClick={() => out.mutate()}
-        disabled={out.isPending}
-      >
-        Sign out
-      </button>
-    </>
   );
 }
 
@@ -182,14 +123,9 @@ function Page({ route, me }: { route: Route; me: Me }) {
             : {})}
         />
       );
+    case 'access':
+      return <MyAccessPage />;
     case 'notfound':
-      return (
-        <>
-          <h1>Page not found</h1>
-          <p>
-            <Link to="/">Back to projects</Link>
-          </p>
-        </>
-      );
+      return <ErrorState status={404} action={<Link to="/">Back to projects</Link>} />;
   }
 }

@@ -1,5 +1,8 @@
 import type {
   ActionId,
+  DecisionBatchView,
+  DecisionQuery,
+  MyAccessView,
   ItemActionResult,
   ItemObserveRequest,
   ItemPlanRequest,
@@ -227,6 +230,11 @@ async function request<T>(
 
 export const api = {
   me: () => request<Me>('GET', '/api/me'),
+  /** The person's bindings, view level and data class per project (hints only; the server decides). */
+  myAccess: () => request<MyAccessView>('GET', '/api/me/access'),
+  /** A batch of PDP capability probes; a POST because it carries a body, so it sends the CSRF token. */
+  decisions: (queries: readonly DecisionQuery[], csrf: string) =>
+    request<DecisionBatchView>('POST', '/api/me/decisions', { queries }, csrf),
   logout: (csrf: string) => request<{ ok: true }>('POST', '/api/logout', {}, csrf),
   projects: () => request<ProjectSummary[]>('GET', '/api/projects'),
   project: (id: string) => request<ProjectDetail>('GET', `/api/projects/${encodeURIComponent(id)}`),

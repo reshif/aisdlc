@@ -9,7 +9,7 @@ import {
 import { useEffect, useState } from 'react';
 import { api, type RevisionDecision } from '../api';
 import { Badge } from '../components/Badge';
-import { ErrorNote, Loading } from '../components/Notice';
+import { PageError, Loading } from '../components/Notice';
 import { Hash, nameOf, Section, DecidersLine } from '../cards/shared';
 import { explainDecideError, type DecideProblem } from '../lib/decideErrors';
 import { Link } from '../router';
@@ -83,7 +83,7 @@ export function RevisionPage({ gate, csrf }: { gate: string; csrf: string }) {
   }, [prep, gate, csrf]);
 
   if (q.isPending) return <Loading what="the settings revision" />;
-  if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
+  if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const r = q.data;
   const names = r.principal_names;
 
