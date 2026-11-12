@@ -51,6 +51,7 @@ import type {
   EvalSummaryView,
   IntegrationsView,
   HealthView,
+  DegradedView,
   ItemListView,
   KillsView,
   OpsPreview,
@@ -556,6 +557,11 @@ export const api = {
   evalRuns: () => request<EvalRunsView>('GET', '/api/evals/runs?limit=50'),
   integrations: () => request<IntegrationsView>('GET', '/api/integrations'),
   health: () => request<HealthView>('GET', '/api/health'),
+  degraded: (projects: readonly string[]) =>
+    request<DegradedView>(
+      'GET',
+      `/api/degraded?projects=${encodeURIComponent(projects.join(','))}`,
+    ),
   catalogue: () => request<CatalogueView>('GET', '/api/catalogue'),
   admission: () => request<AdmissionView>('GET', '/api/admission'),
   slots: () => request<SandboxSlots>('GET', '/api/slots'),
