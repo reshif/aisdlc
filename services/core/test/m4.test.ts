@@ -120,7 +120,7 @@ describe('M4 approved on card 5', () => {
         prr_version: 1,
         record_hash: v.prr.record_hash,
         level: 'census',
-        lanes_eligible: ['L8'],
+        lanes_eligible: ['L7', 'L8'],
       }),
     ]);
 

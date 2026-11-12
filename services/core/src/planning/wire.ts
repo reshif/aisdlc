@@ -1,5 +1,5 @@
 import { readPrompt } from '@aisdlc/agents/files';
-import type { Constitution } from '@aisdlc/contracts';
+import type { Constitution, ReonboardTriggersConfig } from '@aisdlc/contracts';
 import type { Clock } from '@aisdlc/kernel';
 import {
   type KnowledgeSearchPort,
@@ -30,6 +30,8 @@ export function agentStagePorts(o: {
   readonly search?: KnowledgeSearchPort;
   /** The factory constitution (`factory.constitution` from the config reader); default: the built-in one. */
   readonly constitution?: () => Constitution | null;
+  /** `onboarding.reonboard_triggers` (M17); default: the spec's 3 knowledge defects in 30 days. */
+  readonly reonboardTriggers?: () => ReonboardTriggersConfig;
   /** The locked prompt text; default: the files beside the bundle (`dist/prompts`). */
   readonly prompt?: (ref: string) => string;
 }): StagePorts {
@@ -43,6 +45,7 @@ export function agentStagePorts(o: {
     search:
       o.search ?? new HttpKnowledgeSearch({ baseUrl: o.knowledge.url, token: o.knowledge.token }),
     ...(o.constitution ? { constitution: o.constitution } : {}),
+    ...(o.reonboardTriggers ? { reonboardTriggers: o.reonboardTriggers } : {}),
     fallback: o.base.planning,
     prompt: o.prompt ?? readPrompt,
   });

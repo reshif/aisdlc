@@ -28,6 +28,7 @@ import type {
   PortalSettingsRevision,
   ProjectDetail,
   ProjectPrrView,
+  ProjectKnowledgeView,
   PortalIssueTwinView,
   IssueTwinBatchResult,
   IssueTwinRequestResult,
@@ -493,6 +494,8 @@ export const api = {
     request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
+  knowledge: (project: string) =>
+    request<ProjectKnowledgeView>('GET', `/api/projects/${encodeURIComponent(project)}/knowledge`),
   // ------------------------------------------------------------ the GitHub issue twin (M16)
   issueTwin: (project: string) =>
     request<PortalIssueTwinView>('GET', `/api/projects/${encodeURIComponent(project)}/issue-twin`),

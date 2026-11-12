@@ -3,6 +3,7 @@ import { LaneValues, LevelValues, TierValues, type Lane, type Level } from '@ais
 import {
   AUTONOMY,
   ELIGIBILITY,
+  catalogueFor,
   effectiveAutonomy,
   eligibleLanes,
   isLaneEligible,
@@ -22,25 +23,58 @@ describe('level to lane eligibility (OB 2.1)', () => {
     }
   });
 
-  it('marks L0 and L7 unspecified at every level, and callers get "not eligible"', () => {
-    for (const level of LevelValues) {
-      for (const lane of ['L0', 'L7'] as const) {
-        expect(laneEligibility(level, lane)).toBe('unspecified');
-        for (const tier of TierValues) expect(isLaneEligible(level, lane, ctx(tier))).toBe(false);
-      }
-    }
+  it('L0 (hotfix) from Light, L7 (spike) from Census (PLAN 7a, catalogue 1.4.0)', () => {
+    expect(laneEligibility('census', 'L0')).toBe('not_eligible');
+    expect(laneEligibility('light', 'L0')).toBe('eligible');
+    expect(laneEligibility('full', 'L0')).toBe('eligible');
+    for (const level of LevelValues) expect(laneEligibility(level, 'L7')).toBe('eligible');
+    expect(isLaneEligible('census', 'L0', ctx('T0'))).toBe(false);
+    expect(isLaneEligible('light', 'L0', ctx('T1'))).toBe(true);
+    expect(isLaneEligible('census', 'L7', ctx('T1'))).toBe(true);
+    // T2 needs Full for every agent-led lane, the hotfix and the spike included (R-OPK-3)
+    expect(isLaneEligible('light', 'L0', ctx('T2'))).toBe(false);
+    expect(isLaneEligible('census', 'L7', ctx('T2'))).toBe(false);
+    expect(isLaneEligible('full', 'L0', ctx('T2'))).toBe(true);
+    expect(isLaneEligible('full', 'L7', ctx('T2'))).toBe(true);
   });
 
-  it('Census unlocks only L8 human-led; L2 at Census is undecided (DEC-16)', () => {
-    expect(eligibleLanes('census', ctx())).toEqual(['L8']);
+  it('an item pinned to catalogue 1.3.0 keeps the old rule: L0 and L7 unspecified everywhere', () => {
+    const old = catalogueFor({
+      version: '1.3.0',
+      hash: '601beaae85ea26e30b0f13349571b76d549871ea7020afbd2199fb313a86a123',
+    });
+    expect(old.ok).toBe(true);
+    if (!old.ok) return;
+    for (const level of LevelValues) {
+      for (const lane of ['L0', 'L7'] as const) {
+        expect(laneEligibility(level, lane, old.value.eligibility)).toBe('unspecified');
+        for (const tier of TierValues)
+          expect(isLaneEligible(level, lane, ctx(tier), old.value.eligibility)).toBe(false);
+      }
+    }
+    expect(eligibleLanes('light', ctx(), old.value.eligibility)).toEqual(['L1', 'L2', 'L3', 'L8']);
+  });
+
+  it('Census unlocks L7 spikes and L8 human-led; L2 at Census is undecided (DEC-16)', () => {
+    expect(eligibleLanes('census', ctx())).toEqual(['L7', 'L8']);
     expect(laneEligibility('census', 'L2')).toBe('unspecified');
-    for (const l of ['L1', 'L3', 'L4', 'L5', 'L6'] as const)
+    for (const l of ['L0', 'L1', 'L3', 'L4', 'L5', 'L6'] as const)
       expect(laneEligibility('census', l)).toBe('not_eligible');
   });
 
-  it('Light adds L1-L3; Full adds L4-L6', () => {
-    expect(eligibleLanes('light', ctx())).toEqual(['L1', 'L2', 'L3', 'L8']);
-    expect(eligibleLanes('full', ctx())).toEqual(['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L8']);
+  it('Light adds L0 and L1-L3; Full adds L4-L6', () => {
+    expect(eligibleLanes('light', ctx())).toEqual(['L0', 'L1', 'L2', 'L3', 'L7', 'L8']);
+    expect(eligibleLanes('full', ctx())).toEqual([
+      'L0',
+      'L1',
+      'L2',
+      'L3',
+      'L4',
+      'L5',
+      'L6',
+      'L7',
+      'L8',
+    ]);
   });
 
   it('each level keeps what the lower one unlocked', () => {

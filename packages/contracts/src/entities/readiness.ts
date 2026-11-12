@@ -3,6 +3,7 @@ import { hashCanonical } from '@aisdlc/kernel';
 import { ReadinessStatus } from '../states/readiness.js';
 import { Autonomy, AutonomyValues, Lane, Level, LevelValues, Tier, TierValues } from '../values.js';
 import { CatalogueRef } from './config.js';
+import { PrrAffirmedFull } from './onboarding-full.js';
 import { CRITERIA_SET_ID, CriterionClass, CriterionId } from './criteria.js';
 import {
   AreaId,
@@ -178,10 +179,39 @@ export const PrrPins = z.strictObject({
   governance_cap_map: z.string().min(1),
 });
 
+/**
+ * The floors judged per area (DEC-25(a)): an area reaches Light only where it holds tests the factory can run
+ * (LF3 in that area), and Full only where FF1 holds for it (the area is on the system map and has a spec seed).
+ * The repo-wide floors (LF1-LF8, FF2) were judged for the whole repo before M4; these only lower an area.
+ */
+export const AreaFloorId = z.enum(['LF3', 'FF1']);
+export type AreaFloorId = z.infer<typeof AreaFloorId>;
+export const AreaFloorState = z.enum(['met', 'unmet', 'unknown']);
+export type AreaFloorState = z.infer<typeof AreaFloorState>;
+
+export const PrrAreaFloor = z.strictObject({
+  id: AreaFloorId,
+  state: AreaFloorState,
+  reason: z.string().min(1).max(200).nullable(),
+});
+export type PrrAreaFloor = z.infer<typeof PrrAreaFloor>;
+
+/** One row of the per-area table M4 binds to (DEC-25(a)): the area's level, its floors and the lanes it opens. */
+export const PrrArea = z.strictObject({
+  area: AreaId,
+  level: Level,
+  floors: z.array(PrrAreaFloor),
+  lanes: z.array(Lane),
+});
+export type PrrArea = z.infer<typeof PrrArea>;
+
 export const PrrLevel = z.strictObject({
   requested: Level,
   signed: Level,
+  /** Area to level, never above `signed`. One repo-wide area `.` until a Full baseline maps the areas. */
   by_area: z.record(AreaId, Level),
+  /** The per-area table (DEC-25(a)), in the order of the system map. Absent on records before M17. */
+  areas: z.array(PrrArea).optional(),
   steps: z.strictObject({
     '0.1': z.literal('done'),
     '0.2': PrrStepState,
@@ -282,6 +312,8 @@ export const PrrAffirmed = z.strictObject({
   claims: PrrClaims,
   intent: z.strictObject({ answers_hash: Sha256Hex, attested_by: PrincipalId }),
   operations: z.strictObject({ text_sha256: Sha256Hex, attested_by: PrincipalId }).nullable(),
+  /** Full (M17): what card 3 decided, by hash and count. Absent below Full. */
+  full: PrrAffirmedFull.optional(),
 });
 
 /** Observed at 0.4, never the factory's wishes. `null` where it could not be read (unknown). */

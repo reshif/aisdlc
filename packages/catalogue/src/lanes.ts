@@ -188,7 +188,7 @@ export const LANES: Readonly<Record<Lane, LaneDef>> = {
       effect: 'block_new_agent_items',
     },
     reentry: null,
-    unspecified: [NO_ENVELOPE, 'whether L0 is allowed at any onboarding level (OB §2.1 is silent)'],
+    unspecified: [NO_ENVELOPE],
   }),
   L1: L1_L3('L1'),
   L2: L1_L3('L2'),
@@ -236,7 +236,6 @@ export const LANES: Readonly<Record<Lane, LaneDef>> = {
     reentry: null,
     unspecified: [
       NO_ENVELOPE,
-      'whether L7 is allowed at any onboarding level (OB §2.1 is silent)',
       'oracle source of a throwaway build',
       'whether 9.4 Learn runs after the spike report (the flow draws SPIKE -> 9.3 only)',
       'whether the X-gates of 6.4 apply in the throwaway S6',

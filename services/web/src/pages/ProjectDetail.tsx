@@ -1,10 +1,47 @@
+import { pdpResource } from '@aisdlc/contracts';
 import { useQuery } from '@tanstack/react-query';
+import { useCan } from '../access';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { PageError, Loading } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
+import { Card } from '../ui';
 import { STATUS_TEXT, levelTitle } from '../vocab';
+import { AreaLevels } from './AreaLevels';
+
+/**
+ * The project's settings that are not settings (prototype: Settings, "Not a setting"): the per-area levels
+ * (DEC-25) of each repository's active readiness record. Read under `project.view`, like the record itself.
+ */
+function AreaLevelSettings({ project }: { project: string }) {
+  const can = useCan('project.view', pdpResource.project(project));
+  const q = useQuery({
+    queryKey: ['prr', project],
+    queryFn: () => api.prr(project),
+    enabled: can.state === 'allow',
+  });
+  if (can.state !== 'allow') return null;
+  if (q.isPending) return <Loading what="the per-area levels" />;
+  if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
+  return (
+    <Card title="Per-area levels (DEC-25)" testId="area-levels">
+      <p className="muted">
+        Not a setting: a level changes only with a new onboarding version signed at M4, never by M1.
+        A repository reaches Full only as a level-up after a Light onboarding.
+      </p>
+      {q.data.repos.map((r) =>
+        r.governing ? (
+          <AreaLevels key={r.repo} record={r.governing.record} repo={r.repo} />
+        ) : (
+          <p key={r.repo} className="muted">
+            <code>{r.repo}</code>: no active readiness record yet.
+          </p>
+        ),
+      )}
+    </Card>
+  );
+}
 
 export function ProjectDetailPage({ id }: { id: string }) {
   const q = useQuery({
@@ -56,6 +93,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
 
       <p className="actions">
         <Link to={`/projects/${project.project_id}/readiness`}>Readiness record</Link>
+        <Link to={`/projects/${project.project_id}/knowledge`}>Knowledge</Link>
         <Link to={`/projects/${project.project_id}/ledger`}>Ledger entries</Link>
         <Link to={`/projects/${project.project_id}/issues`}>Issue twin</Link>
         <Link to={`/projects/${project.project_id}/learn`}>What it has learned (9.4)</Link>
@@ -78,6 +116,9 @@ export function ProjectDetailPage({ id }: { id: string }) {
           ))}
         </ul>
       )}
+
+      <h2>Settings</h2>
+      <AreaLevelSettings project={project.project_id} />
 
       <h2>Onboarding records</h2>
       {s0.length === 0 ? (

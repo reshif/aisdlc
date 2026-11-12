@@ -52,6 +52,7 @@ import {
   SubmitRequestBody,
   RepoFullName,
   TwoPerson,
+  AreaId,
   Lane,
   Level,
   pdpResource,
@@ -88,6 +89,8 @@ import {
   publishBanner,
 } from './controls.js';
 import { laneEligibility } from './lane-eligibility.js';
+import { listReonboardProposals } from './knowledge-defects.js';
+import { projectKnowledge } from './portal-knowledge.js';
 import {
   getProject,
   getProjectDetail,
@@ -458,10 +461,21 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
     const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
     if (!repo.success) return fail(reply, coreError('invalid_input', 'owner/name is required'));
-    const lane = Lane.safeParse((req.query as { lane?: string }).lane);
+    const q = req.query as { lane?: string; area?: string };
+    const lane = Lane.safeParse(q.lane);
     if (!lane.success) return fail(reply, coreError('invalid_input', 'lane must be L0 to L8'));
+    // DEC-25: `?area=` asks for one area of the repo (the system map's), absent the repo as a whole
+    const area = q.area === undefined ? undefined : AreaId.safeParse(q.area);
+    if (area && !area.success) return fail(reply, coreError('invalid_input', 'area is invalid'));
     try {
-      return await laneEligibility(o.pool, repo.data, lane.data, clock);
+      return await laneEligibility(
+        o.pool,
+        repo.data,
+        lane.data,
+        clock,
+        undefined,
+        area?.success ? area.data : undefined,
+      );
     } catch {
       return fail(reply, coreError('unavailable', 'the eligibility could not be read'));
     }
@@ -1720,6 +1734,34 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       );
     } catch {
       return fail(reply, coreError('unavailable', 'the readiness record could not be read'));
+    }
+  });
+
+  // M17: the Knowledge screen's read, from the record (the Full baseline and card 3's decision), at D2: the bff
+  // checks project.view and V2 and cuts it to the person's data class.
+  app.get('/v1/projects/:id/knowledge', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const id = projectIdOf(req);
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    try {
+      return (
+        (await projectKnowledge(o.pool, id)) ??
+        fail(reply, coreError('not_found', 'no such project'))
+      );
+    } catch {
+      return fail(reply, coreError('unavailable', 'the knowledge could not be read'));
+    }
+  });
+
+  // M17: the re-onboarding proposals knowledge defects raised for a repo (OB §8), from the record.
+  app.get('/v1/repos/:owner/:name/reonboarding', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
+    if (!repo.success) return fail(reply, coreError('invalid_input', 'owner/name is required'));
+    try {
+      return { repo: repo.data, proposals: await listReonboardProposals(o.pool, repo.data) };
+    } catch {
+      return fail(reply, coreError('unavailable', 'the proposals could not be read'));
     }
   });
 

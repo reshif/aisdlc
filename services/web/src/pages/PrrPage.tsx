@@ -7,6 +7,7 @@ import { Hash } from '../cards/shared';
 import { bindingCaps } from '../cards/C5Panel';
 import { shortTime } from '../format';
 import { Link } from '../router';
+import { AreaLevels } from './AreaLevels';
 
 const STATUS_TONE = {
   proposed: 'attention',
@@ -120,6 +121,13 @@ function Record({ v, repo }: { v: PrrVersionView; repo: string }) {
           </tr>
         </tbody>
       </table>
+
+      <h3>Per-area levels</h3>
+      <p className="muted">
+        Levels and floors are judged per area, a part of the repository with its own manifest
+        (DEC-25). M4 signed this table with the record.
+      </p>
+      <AreaLevels record={r} repo={repo} />
 
       <h3>What the factory may do</h3>
       <p>

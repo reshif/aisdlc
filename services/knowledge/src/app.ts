@@ -16,6 +16,7 @@ import type { PrincipalDirectory } from './principals.js';
 import { getLatestCensus } from './census/store.js';
 import type { JobRunner } from './runner.js';
 import { SearchQuery, searchRepo } from './search.js';
+import { codeGraphAt } from './codegraph.js';
 import {
   countFindings,
   getFinding,
@@ -157,6 +158,27 @@ export function createKnowledgeApp(o: KnowledgeAppOptions): FastifyInstance {
       return sendError(reply, 409, 'stale_index', 'the index is not at the requested commit');
     }
     return { repo: repo.data, commit_sha: q.data.sha, hits: r.hits };
+  });
+
+  /**
+   * The code graph of a repo's indexed head tree (PLAN M17, step 0.3): files, areas, exported names and the
+   * imports between them; paths, blob ids and identifiers only. Same commit rule as the search: another
+   * commit is `409 stale_index`, no index `404`. Scope `census` (it is part of the onboarding baseline).
+   */
+  app.get('/v1/repos/:owner/:name/codegraph', async (req, reply) => {
+    if (!allowed(req, 'census')) return forbid(reply, 'census');
+    const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
+    if (!repo.success) return bad(reply, 'owner/name is not a repository');
+    const sha = query(req)['sha'] ?? '';
+    if (!/^[0-9a-f]{40}$/.test(sha)) return bad(reply, 'sha must be a 40-hex commit');
+    const r = await codeGraphAt(o.pool, repo.data, sha);
+    if (r.state === 'not_indexed') {
+      return fail(reply, knowledgeError('not_found', 'this repository has no index'));
+    }
+    if (r.state === 'stale_index') {
+      return sendError(reply, 409, 'stale_index', 'the index is not at the requested commit');
+    }
+    return r.graph;
   });
 
   // ------------------------------------------------------------ Security only

@@ -48,6 +48,7 @@ import {
 import { loadS0, raisesOf, s0Cards, type LoadedS0, type OnboardingCard } from './read.js';
 import { c5Context, c5View, evidenceHashOf, settingsOf } from './views.js';
 import { ensureLightProposal } from './light.js';
+import { ensureFullBaseline } from './full.js';
 
 // Keeping the cards and the S0 record in step (PLAN M7.3). `syncCards` is idempotent and safe to
 // run from several places (the portal, a loop): it
@@ -67,7 +68,7 @@ export interface SyncReport {
   readonly pending: string[];
 }
 
-const STEP_CARDS = ['C1', 'C2', 'C4', 'C5'] as const satisfies readonly HandledCard[];
+const STEP_CARDS = ['C1', 'C2', 'C3', 'C4', 'C5'] as const satisfies readonly HandledCard[];
 
 /** The record is waiting at the step's card: the only time a step card can be decided. */
 export function waitingAt(s0: LoadedS0['s0'], step: OnboardingStepId): boolean {
@@ -238,6 +239,11 @@ async function openStepCard(
   if (kind === 'C2') {
     const proposed = await ensureLightProposal(deps, loaded, occurrence);
     if (!proposed.ok) return proposed;
+  }
+  // Card 3 likewise: the Full baseline is built and recorded before the card opens (M17).
+  if (kind === 'C3') {
+    const built = await ensureFullBaseline(deps, loaded, occurrence);
+    if (!built.ok) return built;
   }
   const { s0 } = loaded;
   const r = await openCard(decisionsFor(deps, s0.record.s0_id), {

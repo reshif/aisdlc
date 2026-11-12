@@ -21,6 +21,8 @@ export interface CensusOptions {
   /** `a`: clean; `b`: a secret in history (B1 blocked). */
   readonly golden?: 'a' | 'b';
   readonly extraGaps?: number;
+  /** Adds an open tracked gap for each of these criteria (M17: RS-KN-7, closed by card 3). */
+  readonly trackedGaps?: readonly string[];
   /** Turns the gap of this criterion into a blocking one at the census level. */
   readonly blocking?: readonly string[];
   readonly tierFloor?: Tier;
@@ -47,6 +49,22 @@ export function censusFixture(repo: string, o: CensusOptions = {}): CensusLatest
       ? { ...g, severity: 'blocking' as const, blocks_level: 'census' as const, disposition: null }
       : g,
   );
+  for (const criterion of o.trackedGaps ?? []) {
+    gaps.push({
+      gap_id: gapId(repoId, criterion, '.'),
+      repo_id: repoId,
+      criterion,
+      area: '.',
+      severity: 'tracked',
+      blocks_level: null,
+      disposition: null,
+      status: 'open',
+      issue: null,
+      remediation_item_ref: null,
+      waiver: null,
+      visibility_class: 'public_safe',
+    } as Gap);
+  }
   for (let i = 0; i < (o.extraGaps ?? 0); i++) {
     gaps.push({
       gap_id: gapId(repoId, `RS-GAP-${i}`, '.'),

@@ -9,6 +9,7 @@ export * from './content.js';
 export * from './sync.js';
 export * from './api.js';
 export * from './light.js';
+export * from './full.js';
 export * from './links.js';
 export { cardsLoop, type CardsLoopOptions } from './loop.js';
 export * from './probe.js';

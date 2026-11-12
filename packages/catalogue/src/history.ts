@@ -4,6 +4,7 @@ import s100 from './snapshots/1.0.0.json' with { type: 'json' };
 import s110 from './snapshots/1.1.0.json' with { type: 'json' };
 import s120 from './snapshots/1.2.0.json' with { type: 'json' };
 import s130 from './snapshots/1.3.0.json' with { type: 'json' };
+import s140 from './snapshots/1.4.0.json' with { type: 'json' };
 import { CatalogueData } from './schema.js';
 
 // Catalogue history. An item pins {version, hash} when it is created (M1.6) and keeps that pin for
@@ -28,6 +29,7 @@ export const CATALOGUE_SNAPSHOTS: readonly CatalogueSnapshot[] = [
   s110 as unknown as CatalogueSnapshot,
   s120 as unknown as CatalogueSnapshot,
   s130 as unknown as CatalogueSnapshot,
+  s140 as unknown as CatalogueSnapshot,
 ];
 
 export const CatalogueUnknown = taggedError('CatalogueUnknown');

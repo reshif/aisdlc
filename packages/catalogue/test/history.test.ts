@@ -25,6 +25,7 @@ const RELEASED: Record<string, string> = {
   '1.1.0': '2ac87af649a1a97b9ff84130896683d652f930e935a9cf70abfd8cbb62e5e93a',
   '1.2.0': '6ed4d1f2e037aaa092efd30dad245578d1bf01c381bbe35d927b4e55279210c6',
   '1.3.0': '601beaae85ea26e30b0f13349571b76d549871ea7020afbd2199fb313a86a123',
+  '1.4.0': '05b89d8d188eb3ce5c3ef73a59f3183ec15465996ff773b59e9a13e407660217',
 };
 
 const newest = (): CatalogueSnapshot => CATALOGUE_SNAPSHOTS[CATALOGUE_SNAPSHOTS.length - 1]!;

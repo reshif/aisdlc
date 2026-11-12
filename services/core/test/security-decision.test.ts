@@ -123,6 +123,7 @@ async function withFindings(n: number): Promise<{ c: Scn; ids: string[] }> {
     openFindings: (r) => http.openFindings(r),
     setFindingState: (f, req) => http.setFindingState(f, req),
     detectorFacts: (j) => c.knowledge.detectorFacts(j),
+    codeGraph: (r, sha) => c.knowledge.codeGraph(r, sha),
   };
   return { c: { ...c, deps: { ...c.deps, knowledge: hybrid } }, ids };
 }
