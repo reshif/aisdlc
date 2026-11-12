@@ -25,7 +25,7 @@ Resumed on 2026-11-12, sequentially: one milestone at a time, no parallel tracks
 - **How the build runs:** one task per agent, each reviewed; `npm run check` must exit 0 with `DATABASE_URL` pointing at the local CI-style cluster on 127.0.0.1:55433 (user and password `postgres`) (start that password Postgres from `/var/tmp/aisdlc-cipg` or the db test helper), then `timeout 600 npm run build`, `npm ci --dry-run`, and `npm run smoke:compose` (in a sandbox without apt, build the image from `aisdlc-sandbox-node-git:local` and run with `SMOKE_SKIP_BUILD=1`). PR per milestone; merge after GitHub CI is green (user authorised).
 - **Open follow-ups to carry:** M7.7 single-flight S0 driver; M8.0b non-local genesis; M9.7 kill signing timeout, portal kill/control screens, L0/L7 eligibility (decided 2026-11-11: L0 from Light, L7 from Census; needs a catalogue version); M10.6 response redaction for non-streamed calls, per-model prices to confirm before real spend, install-absent semantics; M13 follow-ups: Handoff Pack as an artefact type, self-heal for a crash between push and receipt, B15 rebase path, codehost push in registry mode, compose wiring of real coding sessions.
 - **Architecture:** ADR-0003 is the target (18 services, 22 containers locally, sandboxes on separate hosts); PLAN §5 lists what each milestone adds.
-- **Portal:** the full portal is designed as a prototype (`docs/design/portal-prototype/`); what it covers and what is missing is in `docs/design/portal-coverage.md`; M21 lifts `services/web` to it after M20, and each milestone from M14 builds its own screens on the way. Six decisions it exposed are in coverage §5.
+- **Portal:** the full portal is designed as a prototype (`docs/design/portal-prototype/`); what it covers and what is missing is in `docs/design/portal-coverage.md`; M21 was dissolved on 2026-11-12: screens are built as each backend lands, the floor is in M19 and the cross-cutting pass closes M20. Six decisions it exposed are in coverage §5.
 - **User actions pending:** live Census on their machine (`docs/runbooks/m8.5-live-census.md`); pin the real eval-store key (`aisdlc-evals pin`) before first eval; `issues:write` on the App at M16; share `floor.html` before M19 if available.
 
 ## 1. Principles
@@ -300,25 +300,17 @@ Thread, Turn, Draft, Citation, ProposalButton (actions only through buttons that
 
 ### M19 — Floor, observability and audit
 
-Floor read models (ItemPosition, FlowWindow, SessionActivity, Heartbeat, GateFeasibility, HealthSnapshot, HealthTile, FloorProject) with lane routes generated from the catalogue; agent score chips from AgentScore and ScoreSignal; StepUpUse with backfill after a Notary outage. Audit as **two services** (RV §1.3): `audit-exporter` (export signing, write-once store) and `audit-backend` (pseudonym resolution, erasure, retention classes, legal hold, permission history, its own signed log); ledger types `audit.export` and `erasure.execute`.
+Floor read models (ItemPosition, FlowWindow, SessionActivity, Heartbeat, GateFeasibility, HealthSnapshot, HealthTile, FloorProject) with lane routes generated from the catalogue; agent score chips from AgentScore and ScoreSignal; **the floor screen** in the portal over those live read models (moved here from M21 on 2026-11-12: belts, gates, rooms, pods, viewer mode without titles); StepUpUse with backfill after a Notary outage. Audit as **two services** (RV §1.3): `audit-exporter` (export signing, write-once store) and `audit-backend` (pseudonym resolution, erasure, retention classes, legal hold, permission history, its own signed log); ledger types `audit.export` and `erasure.execute`.
 
 ### M20 — Dogfood (OB R5, R7)
 
 Pre-push full-history scan, squashed push, multi-repo allow-list, Census + 0.4 + M4 of this repo, L8 merges through the L8 gate-check profile; later Full per area, the O4 cross-family reviewer, the first agent-led L2 on this repo. Gated by DEC-16, DEC-22..26.
 
-### M21 — Portal lift (after M20)
+Closing task (from M21, 2026-11-12): the cross-cutting portal pass: Playwright per persona across every route (menu and buttons match the PDP, a viewer sees no content, an invisible project is 404), WCAG 2.2 AA, the light theme and keyboard map, global search, cost reports per project and team; done when coverage §3 and §4 are built or dropped by the user and §5 is decided.
 
-The portal prototype (`docs/design/portal-prototype/`, published as the "AISDLC Portal" artifact) is the design reference for the whole portal: 40 routes, sign-in and sign-out, accounts, and a permission engine mirrored from the contracts. [`docs/design/portal-coverage.md`](design/portal-coverage.md) lists what it covers (§2), what is thin (§3), what is missing (§4) and the decisions it exposed (§5).
+### M21 — dissolved (2026-11-12)
 
-From M14 on, each milestone also builds the portal screens for what it adds (the coverage file names the milestone per row). M21 lifts `services/web` to the full portal:
-- the component library from the prototype's tokens;
-- server-side access hints (`GET /api/me/access` over the PDP), while the PDP still decides every write;
-- OIDC sign-in, session policy and sign-out;
-- every screen ported (home, inbox, item, all gate screens, floor on the M19 read models, projects and onboarding, operate, quality, govern, admin);
-- the rows of coverage §3 and §4 not built earlier;
-- Playwright runs per persona that prove the menu and buttons match the PDP's answers, and that a viewer sees no content.
-
-Done when coverage §3 and §4 are empty or dropped by the user, §5 is decided, and the persona e2e is green in CI.
+The user dissolved M21 "Portal lift" as a separate milestone on 2026-11-12 (§7a). Screens are built in the real portal (`services/web`, served by the bff) as each backend lands, with the prototype (`docs/design/portal-prototype/`) as the design reference; the screens whose backends were already on main were built on `build/portal`. The floor moved to M19, and the cross-cutting portal pass is M20's closing task. [`docs/design/portal-coverage.md`](design/portal-coverage.md) §6 tracks what is left.
 
 ## 5. Target architecture (ADR-0003)
 
@@ -383,6 +375,7 @@ core-worker keeps one aggregated `/healthz` (503 while any loop is down or an ac
 | DEC-20 | (a) the issue is a twin and the record is the truth; built straight away; blocking, public-safe gaps by default; security findings never on public repos. Needs `issues:write` on the App |
 | DEC-15, DEC-19 | Accepted as written; each value stays a setting changeable by M1 |
 | L0, L7 eligibility | L0 (hotfix) from Light, L7 (spike) from Census. This is a catalogue change, so it needs a new `CATALOGUE_VERSION` |
+| Portal (2026-11-12) | M21 "Portal lift" is dissolved. Each screen is built in `services/web` when its backend lands; the screens whose backends were already on main are built now (`build/portal`). The floor moves to M19 (it needs M19's live read models). The cross-cutting pass (persona e2e across every route, WCAG 2.2 AA, light theme, global search, cost reports) is M20's closing task |
 
 ## 7. Decisions still open for the user
 
