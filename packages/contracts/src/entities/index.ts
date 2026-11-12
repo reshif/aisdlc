@@ -37,3 +37,4 @@ export * from './build.js';
 export * from './push.js';
 export * from './verify.js';
 export * from './evidence.js';
+export * from './gate-check.js';

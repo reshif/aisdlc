@@ -21,6 +21,7 @@ import {
   killHoldersLoop,
   gatewayTriggersLoop,
   killObserverLoop,
+  mergeReviewLoop,
   registerCoreConfig,
   constitutionFrom,
   roleMapSyncLoop,
@@ -406,6 +407,25 @@ export async function bootCoreWorker(
         gatewayTriggersLoop(
           { pool },
           { startDelayMs: 3_000, intervalMs: cfg.gatewayTriggersIntervalMs },
+        ),
+      );
+    }
+    if (ledger) {
+      // M14.5: the X4 review of every merge gate-check recorded without aisdlc/gate passing (a bypass by a listed
+      // person, or an unauthorised merge). gate-check has no route to core: it records, this loop opens the cards.
+      const rd = await ensureReader();
+      supervisor.add(
+        mergeReviewLoop(
+          {
+            decisions: {
+              pool,
+              ledger,
+              eligibility: identityEligibility(readPool, registry),
+              stepUp: new RefusingStepUp(),
+              maintenance: maintenanceFrom(rd),
+            },
+          },
+          { startDelayMs: 3_500 },
         ),
       );
     }

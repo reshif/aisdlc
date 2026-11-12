@@ -36,7 +36,8 @@ psql -v ON_ERROR_STOP=1 \
   -v pw_killswitch="$(cat /run/secrets/pg-pass-killswitch)" \
   -v pw_gateway="$(cat /run/secrets/pg-pass-gateway)" \
   -v pw_sandbox_controller="$(cat /run/secrets/pg-pass-sandbox-controller)" \
-  -v pw_verify="$(cat /run/secrets/pg-pass-verify)" <<'SQL'
+  -v pw_verify="$(cat /run/secrets/pg-pass-verify)" \
+  -v pw_gate_check="$(cat /run/secrets/pg-pass-gate-check)" <<'SQL'
 SELECT 'CREATE ROLE aisdlc_app NOLOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_app') \gexec
 
@@ -64,6 +65,15 @@ SELECT 'CREATE ROLE verify LOGIN'
 SELECT format('ALTER ROLE verify PASSWORD %L', :'pw_verify') \gexec
 GRANT aisdlc_verify TO verify;
 
+-- gate-check's group role (its grants are the gate-check migration's: its two tables and its own record streams,
+-- read-only the ledger, the bypass list's config view and four of core's read models) and its login role (M14.5).
+SELECT 'CREATE ROLE aisdlc_gatecheck NOLOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_gatecheck') \gexec
+SELECT 'CREATE ROLE gate_check LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gate_check') \gexec
+SELECT format('ALTER ROLE gate_check PASSWORD %L', :'pw_gate_check') \gexec
+GRANT aisdlc_gatecheck TO gate_check;
+
 SELECT format('CREATE ROLE %I LOGIN', r)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS r
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r) \gexec
@@ -88,5 +98,6 @@ SELECT format('GRANT CONNECT ON DATABASE %1$I TO %1$I', d)
 GRANT CONNECT ON DATABASE aisdlc TO gateway;
 GRANT CONNECT ON DATABASE aisdlc TO sandbox_controller;
 GRANT CONNECT ON DATABASE aisdlc TO verify;
+GRANT CONNECT ON DATABASE aisdlc TO gate_check;
 SQL
 echo "db-init: roles and databases are in place"

@@ -28,4 +28,5 @@ export {
 } from './reader.js';
 export { registerGatewayConfig } from './gateway.js';
 export { registerSandboxConfig } from './sandbox.js';
+export { registerGateCheckConfig } from './gate-check.js';
 export { findSecrets, registerIntegrationConfig } from './integrations.js';

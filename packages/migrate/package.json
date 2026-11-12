@@ -29,6 +29,7 @@
     "@aisdlc/core": "0.0.0",
     "@aisdlc/decisions": "0.0.0",
     "@aisdlc/directory": "0.0.0",
+    "@aisdlc/gate-check": "0.0.0",
     "@aisdlc/gateway": "0.0.0",
     "@aisdlc/identity": "0.0.0",
     "@aisdlc/integrations": "0.0.0",

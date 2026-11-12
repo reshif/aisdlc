@@ -6586,6 +6586,27 @@
       ],
       "additionalProperties": false
     },
+    "BypassPerson": {
+      "type": "object",
+      "properties": {
+        "login": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 39,
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*$"
+        },
+        "principal_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "login",
+        "principal_id"
+      ],
+      "additionalProperties": false
+    },
     "C1DecisionContent": {
       "type": "object",
       "properties": {
@@ -8499,7 +8520,8 @@
             "item",
             "s0_record",
             "config",
-            "breaker"
+            "breaker",
+            "merge"
           ]
         },
         "subject_id": {
@@ -27628,6 +27650,284 @@
       ],
       "additionalProperties": false
     },
+    "GateCheckAuthor": {
+      "type": "object",
+      "properties": {
+        "login": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "User",
+            "Bot",
+            "Organization"
+          ]
+        }
+      },
+      "required": [
+        "login",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "GateCheckOutcome": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failure",
+        "action_required",
+        "pending"
+      ]
+    },
+    "GateCheckProfile": {
+      "type": "string",
+      "enum": [
+        "agent",
+        "s0",
+        "non_agent"
+      ]
+    },
+    "GateCheckReason": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "passed_no_g3",
+        "no_pack",
+        "pack_not_passing",
+        "head_moved",
+        "pack_invalid",
+        "g3_missing",
+        "g3_pending",
+        "g3_not_approved",
+        "g3_changed",
+        "unknown_agent_pr",
+        "s0_onboarding",
+        "not_factory_work",
+        "laundering_agent_branch",
+        "laundering_agent_head",
+        "laundering_pack_cited",
+        "laundering_trailer",
+        "dependency_unavailable"
+      ]
+    },
+    "GateCheckVerdict": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "head_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "author": {
+          "type": "object",
+          "properties": {
+            "login": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "User",
+                "Bot",
+                "Organization"
+              ]
+            }
+          },
+          "required": [
+            "login",
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "profile": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "s0",
+            "non_agent"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "success",
+            "failure",
+            "action_required",
+            "pending"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "passed_no_g3",
+            "no_pack",
+            "pack_not_passing",
+            "head_moved",
+            "pack_invalid",
+            "g3_missing",
+            "g3_pending",
+            "g3_not_approved",
+            "g3_changed",
+            "unknown_agent_pr",
+            "s0_onboarding",
+            "not_factory_work",
+            "laundering_agent_branch",
+            "laundering_agent_head",
+            "laundering_pack_cited",
+            "laundering_trailer",
+            "dependency_unavailable"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit_key": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pack_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lane": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "g3": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "gate_instance_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "decided",
+                    "superseded",
+                    "expired",
+                    "closed"
+                  ]
+                },
+                "outcome": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "gate_instance_id",
+                "status",
+                "outcome"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "repo",
+        "pr_number",
+        "head_sha",
+        "head_ref",
+        "author",
+        "project_id",
+        "profile",
+        "outcome",
+        "reason",
+        "detail",
+        "item_id",
+        "unit_key",
+        "pack_sha256",
+        "lane",
+        "g3"
+      ],
+      "additionalProperties": false
+    },
     "GateClosedMarker": {
       "type": "object",
       "properties": {
@@ -27792,7 +28092,8 @@
             "item",
             "s0_record",
             "config",
-            "breaker"
+            "breaker",
+            "merge"
           ]
         },
         "subject_id": {
@@ -27919,7 +28220,8 @@
             "item",
             "s0_record",
             "config",
-            "breaker"
+            "breaker",
+            "merge"
           ]
         },
         "subject_id": {
@@ -28515,6 +28817,12 @@
         "tier_floor_applied"
       ],
       "additionalProperties": false
+    },
+    "GitHubUserLogin": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 39,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*$"
     },
     "GitSha": {
       "type": "string",
@@ -29284,7 +29592,8 @@
             "item",
             "s0_record",
             "config",
-            "breaker"
+            "breaker",
+            "merge"
           ]
         },
         "subject_id": {
@@ -42588,7 +42897,8 @@
                 "item",
                 "s0_record",
                 "config",
-                "breaker"
+                "breaker",
+                "merge"
               ]
             },
             {
@@ -42803,7 +43113,8 @@
                 "item",
                 "s0_record",
                 "config",
-                "breaker"
+                "breaker",
+                "merge"
               ]
             },
             {
@@ -43377,6 +43688,272 @@
         "direct",
         "pim_activation"
       ]
+    },
+    "MergeBypassConfig": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "maxLength": 200,
+        "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+      },
+      "additionalProperties": {
+        "maxItems": 10,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "login": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 39,
+              "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*$"
+            },
+            "principal_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            }
+          },
+          "required": [
+            "login",
+            "principal_id"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "MergeClass": {
+      "type": "string",
+      "enum": [
+        "gated",
+        "bypass",
+        "unauthorised",
+        "pre_watch"
+      ]
+    },
+    "MergeObservedPayload": {
+      "type": "object",
+      "properties": {
+        "merge_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "head_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "merge_commit_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "merged_by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "merged_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "author": {
+          "type": "object",
+          "properties": {
+            "login": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "User",
+                "Bot",
+                "Organization"
+              ]
+            }
+          },
+          "required": [
+            "login",
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "gated",
+            "bypass",
+            "unauthorised",
+            "pre_watch"
+          ]
+        },
+        "bypass_person": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "login": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 39,
+                  "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*$"
+                },
+                "principal_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "required": [
+                "login",
+                "principal_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_verdict": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "success",
+                    "failure",
+                    "action_required",
+                    "pending"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "passed_no_g3",
+                    "no_pack",
+                    "pack_not_passing",
+                    "head_moved",
+                    "pack_invalid",
+                    "g3_missing",
+                    "g3_pending",
+                    "g3_not_approved",
+                    "g3_changed",
+                    "unknown_agent_pr",
+                    "s0_onboarding",
+                    "not_factory_work",
+                    "laundering_agent_branch",
+                    "laundering_agent_head",
+                    "laundering_pack_cited",
+                    "laundering_trailer",
+                    "dependency_unavailable"
+                  ]
+                },
+                "profile": {
+                  "type": "string",
+                  "enum": [
+                    "agent",
+                    "s0",
+                    "non_agent"
+                  ]
+                }
+              },
+              "required": [
+                "outcome",
+                "reason",
+                "profile"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "host_check": {
+          "type": "string",
+          "enum": [
+            "success",
+            "not_success",
+            "absent"
+          ]
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "merge_id",
+        "repo",
+        "project_id",
+        "pr_number",
+        "head_sha",
+        "head_ref",
+        "merge_commit_sha",
+        "merged_by",
+        "merged_at",
+        "author",
+        "class",
+        "bypass_person",
+        "last_verdict",
+        "host_check",
+        "item_id"
+      ],
+      "additionalProperties": false
     },
     "ModelCallOutcome": {
       "type": "string",
@@ -62466,6 +63043,43 @@
         "internal"
       ]
     },
+    "RepoWatchedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "watched_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "default_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "watched_at",
+        "default_branch",
+        "head_sha"
+      ],
+      "additionalProperties": false
+    },
     "RequiredCheck": {
       "type": "object",
       "properties": {
@@ -69646,7 +70260,8 @@
         "item",
         "s0_record",
         "config",
-        "breaker"
+        "breaker",
+        "merge"
       ]
     },
     "SubmitRequestBody": {
@@ -71589,6 +72204,259 @@
         "item_id",
         "unit_id",
         "step"
+      ],
+      "additionalProperties": false
+    },
+    "VerdictRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "verdict": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "pr_number": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "head_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "head_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "author": {
+              "type": "object",
+              "properties": {
+                "login": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "User",
+                    "Bot",
+                    "Organization"
+                  ]
+                }
+              },
+              "required": [
+                "login",
+                "type"
+              ],
+              "additionalProperties": false
+            },
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "profile": {
+              "type": "string",
+              "enum": [
+                "agent",
+                "s0",
+                "non_agent"
+              ]
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "success",
+                "failure",
+                "action_required",
+                "pending"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "passed",
+                "passed_no_g3",
+                "no_pack",
+                "pack_not_passing",
+                "head_moved",
+                "pack_invalid",
+                "g3_missing",
+                "g3_pending",
+                "g3_not_approved",
+                "g3_changed",
+                "unknown_agent_pr",
+                "s0_onboarding",
+                "not_factory_work",
+                "laundering_agent_branch",
+                "laundering_agent_head",
+                "laundering_pack_cited",
+                "laundering_trailer",
+                "dependency_unavailable"
+              ]
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "item_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "unit_key": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pack_sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lane": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "L0",
+                    "L1",
+                    "L2",
+                    "L3",
+                    "L4",
+                    "L5",
+                    "L6",
+                    "L7",
+                    "L8"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "g3": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "gate_instance_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "decided",
+                        "superseded",
+                        "expired",
+                        "closed"
+                      ]
+                    },
+                    "outcome": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "gate_instance_id",
+                    "status",
+                    "outcome"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "repo",
+            "pr_number",
+            "head_sha",
+            "head_ref",
+            "author",
+            "project_id",
+            "profile",
+            "outcome",
+            "reason",
+            "detail",
+            "item_id",
+            "unit_key",
+            "pack_sha256",
+            "lane",
+            "g3"
+          ],
+          "additionalProperties": false
+        },
+        "verdict_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "check_verdict_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "check_run_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "verdict",
+        "verdict_sha256",
+        "check_verdict_sha256",
+        "check_run_id",
+        "observed_at"
       ],
       "additionalProperties": false
     },

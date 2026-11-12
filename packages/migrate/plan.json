@@ -48,6 +48,10 @@
       {
         "scope": "verify",
         "dir": "../../services/verify/migrations"
+      },
+      {
+        "scope": "gatecheck",
+        "dir": "../../services/gate-check/migrations"
       }
     ],
     "notary": [

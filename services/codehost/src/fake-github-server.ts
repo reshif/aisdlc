@@ -1,4 +1,10 @@
-import { createPublicKey, createVerify, generateKeyPairSync, randomBytes } from 'node:crypto';
+import {
+  createHash,
+  createPublicKey,
+  createVerify,
+  generateKeyPairSync,
+  randomBytes,
+} from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { gitBlobSha, repoKey, type CodeHostSeed } from '@aisdlc/ports';
@@ -24,7 +30,7 @@ export interface FakeGitHubRequest {
   readonly status: number;
 }
 
-/** A pull request the fake holds (GitHub's fields, the ones the broker reads and writes). */
+/** A pull request the fake holds (GitHub's fields, the ones the broker and gate-check read and write). */
 export interface FakePull {
   number: number;
   repo: string;
@@ -35,12 +41,45 @@ export interface FakePull {
   merged: boolean;
   head: { ref: string; sha: string };
   base: { ref: string };
+  /** M14.5: who opened it (the App that made it, as `<slug>[bot]`, or a person). */
+  user: { login: string; type: 'User' | 'Bot' };
+  /** The commits ahead of the base, oldest first. */
+  commits: Array<{ sha: string; message: string }>;
+  merged_by: string | null;
+  merge_commit_sha: string | null;
+  merged_at: string | null;
+}
+
+/** A check run the fake holds (M14.5), with the App that wrote it. */
+export interface FakeCheckRun {
+  readonly id: number;
+  readonly repo: string;
+  readonly name: string;
+  readonly head_sha: string;
+  readonly status: string;
+  readonly conclusion: string | null;
+  readonly external_id: string | null;
+  readonly app_id: number;
+  readonly title: string;
 }
 
 export interface IssuedToken {
   readonly token: string;
   readonly permissions: Record<string, string>;
   readonly expires_at: Date;
+  /** The App the token was minted for (M14.5: the host knows two). */
+  readonly app_id: number;
+}
+
+/**
+ * A second GitHub App on the same host (M14.5): gate-check's, with its own key, its own installation and its own
+ * grant (`checks: write`). Its tokens are its own; what it writes carries its App id.
+ */
+export interface FakeSecondApp {
+  readonly appId: string;
+  readonly appPublicKeyPem: string;
+  readonly installationId: number;
+  readonly permissions: Record<string, string>;
 }
 
 export interface FakeGitHubServerOptions {
@@ -56,6 +95,12 @@ export interface FakeGitHubServerOptions {
   readonly listenHost?: string;
   /** Called for every request after it was answered (the compose stack prints them as its request log). */
   readonly onRequest?: (r: FakeGitHubRequest) => void;
+  /** M14.5: gate-check's App on the same host. */
+  readonly checksApp?: FakeSecondApp;
+  /** The login the Push Broker's PRs are authored by (default `aisdlc[bot]`). */
+  readonly brokerLogin?: string;
+  /** A second listener (the compose stack: gate-check reaches the host from another container). */
+  readonly extraListen?: { readonly host: string; readonly port: number };
 }
 
 const ISO = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -85,7 +130,9 @@ export class FakeGitHubServer {
   /** Blobs, trees and commits the Git Data API wrote (real git hashes). */
   readonly objects: GitObjects;
   readonly pulls: FakePull[] = [];
+  readonly checkRuns: FakeCheckRun[] = [];
   private server: Server | null = null;
+  private extra: Server | null = null;
   private readonly revoked = new Set<string>();
   /** When set, every resource request (not token minting) answers with this status. */
   private override: { status: number; headers: Record<string, string> } | null = null;
@@ -107,6 +154,67 @@ export class FakeGitHubServer {
     this.seed = seed;
     this.objects.load(seed);
     this.pulls.length = 0;
+    this.checkRuns.length = 0;
+    return this;
+  }
+
+  /** M14.5: a person opens a pull request (not through the Push Broker); its branch points at `head_sha`. */
+  openPull(
+    repo: string,
+    o: {
+      head_ref: string;
+      head_sha: string;
+      author: string;
+      title?: string;
+      body?: string;
+      commits?: ReadonlyArray<{ sha: string; message: string }>;
+    },
+  ): number {
+    this.moveBranch(repo, o.head_ref, o.head_sha);
+    const r = this.seed.repos.find((x) => repoKey(x.full_name) === repoKey(repo));
+    const p: FakePull = {
+      number: this.pulls.filter((x) => repoKey(x.repo) === repoKey(repo)).length + 1,
+      repo,
+      title: o.title ?? 'A change',
+      body: o.body ?? '',
+      state: 'open',
+      draft: false,
+      merged: false,
+      head: { ref: o.head_ref, sha: o.head_sha },
+      base: { ref: r?.default_branch ?? 'main' },
+      user: { login: o.author, type: 'User' },
+      commits: [...(o.commits ?? [{ sha: o.head_sha, message: 'a change' }])],
+      merged_by: null,
+      merge_commit_sha: null,
+      merged_at: null,
+    };
+    this.pulls.push(p);
+    return p.number;
+  }
+
+  private pullOf(repo: string, number: number): FakePull {
+    const p = this.pulls.find((x) => repoKey(x.repo) === repoKey(repo) && x.number === number);
+    if (!p) throw new Error(`no pull request ${number}`);
+    return p;
+  }
+
+  /** Somebody pushed to a PR's branch: its head moves. */
+  pushToPull(repo: string, number: number, sha: string, message = 'another change'): this {
+    const p = this.pullOf(repo, number);
+    p.head.sha = sha;
+    p.commits.push({ sha, message });
+    return this.moveBranch(repo, p.head.ref, sha);
+  }
+
+  /** A person merges a PR on the host (never the factory: the test's hand; no route of the API merges). */
+  landPull(repo: string, number: number, by: string): this {
+    const p = this.pullOf(repo, number);
+    this.pullJson(p);
+    p.state = 'closed';
+    p.merged = true;
+    p.merged_by = by;
+    p.merged_at = ISO(this.clock.now());
+    p.merge_commit_sha = createHash('sha1').update(`merge\0${p.head.sha}\0${by}`).digest('hex');
     return this;
   }
 
@@ -158,19 +266,29 @@ export class FakeGitHubServer {
   }
 
   async start(): Promise<this> {
-    this.server = createServer((req, res) => {
+    const handler = (req: IncomingMessage, res: ServerResponse) => {
       void this.handle(req, res).catch(() => {
         res.writeHead(500).end();
       });
-    });
+    };
+    this.server = createServer(handler);
     await new Promise<void>((resolve) =>
       this.server?.listen(this.o.listenPort ?? 0, this.o.listenHost ?? '127.0.0.1', resolve),
     );
+    if (this.o.extraListen) {
+      const x = this.o.extraListen;
+      this.extra = createServer(handler);
+      await new Promise<void>((resolve) => this.extra?.listen(x.port, x.host, resolve));
+    }
     this.baseUrl = `http://127.0.0.1:${(this.server?.address() as AddressInfo).port}`;
     return this;
   }
 
   async stop(): Promise<void> {
+    const e = this.extra;
+    this.extra = null;
+    e?.closeAllConnections();
+    await new Promise<void>((resolve) => (e ? e.close(() => resolve()) : resolve()));
     const s = this.server;
     this.server = null;
     s?.closeAllConnections();
@@ -190,7 +308,15 @@ export class FakeGitHubServer {
     return status;
   }
 
-  private verifyJwt(token: string): boolean {
+  /** The App a JWT is from (`main`, or `checks` for gate-check's), or `null` when it verifies for neither. */
+  private jwtApp(token: string): 'main' | 'checks' | null {
+    if (this.verifyJwt(token, this.o.appId, this.o.appPublicKeyPem)) return 'main';
+    const c = this.o.checksApp;
+    if (c && this.verifyJwt(token, c.appId, c.appPublicKeyPem)) return 'checks';
+    return null;
+  }
+
+  private verifyJwt(token: string, appId: string, publicKeyPem: string): boolean {
     const parts = token.split('.');
     if (parts.length !== 3) return false;
     const [h, p, s] = parts as [string, string, string];
@@ -203,11 +329,10 @@ export class FakeGitHubServer {
       };
       if (header.alg !== 'RS256') return false;
       const v = createVerify('RSA-SHA256').update(`${h}.${p}`);
-      if (!v.verify(createPublicKey(this.o.appPublicKeyPem), Buffer.from(s, 'base64url')))
-        return false;
+      if (!v.verify(createPublicKey(publicKeyPem), Buffer.from(s, 'base64url'))) return false;
       const now = Math.floor(this.clock.now().getTime() / 1000);
       return (
-        claims.iss === this.o.appId &&
+        claims.iss === appId &&
         typeof claims.iat === 'number' &&
         typeof claims.exp === 'number' &&
         claims.iat <= now + 60 &&
@@ -223,17 +348,26 @@ export class FakeGitHubServer {
     kind: 'jwt' | 'installation' | 'none';
     perms?: Record<string, string>;
     bad?: boolean;
+    app?: 'main' | 'checks';
+    appId?: number;
   } {
     const m = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '');
     if (!m) return { kind: 'none' };
     const token = m[1] as string;
-    if (token.includes('.'))
-      return this.verifyJwt(token) ? { kind: 'jwt' } : { kind: 'jwt', bad: true };
+    if (token.includes('.')) {
+      const app = this.jwtApp(token);
+      return app ? { kind: 'jwt', app } : { kind: 'jwt', bad: true };
+    }
     const t = this.issued.find((x) => x.token === token);
     if (!t || this.revoked.has(token) || t.expires_at.getTime() <= this.clock.now().getTime()) {
       return { kind: 'installation', bad: true };
     }
-    return { kind: 'installation', perms: t.permissions };
+    return { kind: 'installation', perms: t.permissions, appId: t.app_id };
+  }
+
+  /** The numeric id of the main App (the Push Broker's), as GitHub reports `app.id`. */
+  private get mainAppId(): number {
+    return Number(this.o.appId) || 1;
   }
 
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -264,7 +398,13 @@ export class FakeGitHubServer {
       if (who.kind !== 'jwt' || who.bad) {
         return void log(this.json(res, 401, { message: 'A JSON web token could not be decoded' }));
       }
-      if (Number(mint[1]) !== this.seed.installation.installation_id)
+      // each App mints tokens for its own installation only
+      const c = this.o.checksApp;
+      const forChecks = c !== undefined && Number(mint[1]) === c.installationId;
+      if (forChecks ? who.app !== 'checks' : who.app !== 'main') {
+        return void log(this.json(res, 404, notFound));
+      }
+      if (!forChecks && Number(mint[1]) !== this.seed.installation.installation_id)
         return void log(this.json(res, 404, notFound));
       let asked: Record<string, string>;
       try {
@@ -273,7 +413,7 @@ export class FakeGitHubServer {
       } catch {
         return void log(this.json(res, 400, { message: 'Problems parsing JSON' }));
       }
-      const held = this.seed.installation.permissions;
+      const held = forChecks && c ? c.permissions : this.seed.installation.permissions;
       for (const [name, level] of Object.entries(asked)) {
         if ((LEVEL[held[name] ?? ''] ?? 0) < (LEVEL[level] ?? 99)) {
           return void log(
@@ -291,7 +431,12 @@ export class FakeGitHubServer {
       };
       const expires = new Date(this.clock.now().getTime() + (this.o.tokenTtlMs ?? 3_600_000));
       const token = `ghs_${randomBytes(27).toString('base64url')}`;
-      this.issued.push({ token, permissions, expires_at: expires });
+      this.issued.push({
+        token,
+        permissions,
+        expires_at: expires,
+        app_id: forChecks && c ? Number(c.appId) || 2 : this.mainAppId,
+      });
       return void log(
         this.json(res, 201, {
           token,
@@ -375,7 +520,7 @@ export class FakeGitHubServer {
     const dec = (s: string): string => decodeURIComponent(s);
 
     if (method !== 'GET') {
-      return void log(this.write(res, method, full, rest, perms, body));
+      return void log(this.write(res, method, full, rest, perms, body, who.appId ?? 0));
     }
     let c: RegExpExecArray | null;
     if ((c = /^pulls$/.exec(rest))) {
@@ -387,6 +532,45 @@ export class FakeGitHubServer {
         .filter((p) => head === '' || `${full.split('/')[0]}:${p.head.ref}` === head)
         .map((p) => this.pullJson(p));
       return void log(this.page(res, url, list, (items) => items));
+    }
+    if ((c = /^pulls\/(\d+)\/commits$/.exec(rest))) {
+      if (!needs('pull_requests')) return void log(forbidden());
+      const p = this.pulls.find((x) => same(x.repo) && x.number === Number(c![1]));
+      if (!p) return void log(this.json(res, 404, notFound));
+      return void log(
+        this.page(
+          res,
+          url,
+          p.commits.map((k) => ({ sha: k.sha, commit: { message: k.message } })),
+          (items) => items,
+        ),
+      );
+    }
+    if ((c = /^branches\/([^/]+)$/.exec(rest))) {
+      if (!needs('metadata')) return void log(forbidden());
+      const branch = dec(c[1] as string);
+      const h = this.seed.heads.find((x) => same(x.repo) && x.branch === branch);
+      if (!h) return void log(this.json(res, 404, notFound));
+      return void log(
+        this.json(res, 200, { name: branch, commit: { sha: h.sha }, protected: true }),
+      );
+    }
+    if ((c = /^commits\/([0-9a-f]{40})\/check-runs$/.exec(rest))) {
+      if (!needs('checks')) return void log(forbidden());
+      const name = url.searchParams.get('check_name');
+      const runs = this.checkRuns
+        .filter((r) => same(r.repo) && r.head_sha === c![1] && (name === null || r.name === name))
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          head_sha: r.head_sha,
+          status: r.status,
+          conclusion: r.conclusion,
+          external_id: r.external_id,
+          app: { id: r.app_id, slug: r.app_id === this.mainAppId ? 'aisdlc' : 'aisdlc-gate' },
+          output: { title: r.title },
+        }));
+      return void log(this.json(res, 200, { total_count: runs.length, check_runs: runs }));
     }
     if ((c = /^pulls\/(\d+)$/.exec(rest))) {
       if (!needs('pull_requests')) return void log(forbidden());
@@ -515,7 +699,15 @@ export class FakeGitHubServer {
     const live = this.seed.heads.find(
       (h) => repoKey(h.repo) === repoKey(p.repo) && h.branch === p.head.ref,
     );
-    if (live) p.head.sha = live.sha;
+    if (live && p.state === 'open' && live.sha !== p.head.sha) {
+      p.head.sha = live.sha;
+      if (!p.commits.some((k) => k.sha === live.sha)) {
+        p.commits.push({
+          sha: live.sha,
+          message: this.objects.commit(p.repo, live.sha)?.message ?? '',
+        });
+      }
+    }
     return {
       url: `${this.baseUrl}/repos/${p.repo}/pulls/${p.number}`,
       html_url: `https://github.example/${p.repo}/pull/${p.number}`,
@@ -527,7 +719,10 @@ export class FakeGitHubServer {
       body: p.body,
       head: { ref: p.head.ref, sha: p.head.sha, label: `${p.repo.split('/')[0]}:${p.head.ref}` },
       base: { ref: p.base.ref },
-      user: { login: 'aisdlc[bot]', type: 'Bot' },
+      user: { login: p.user.login, type: p.user.type },
+      merged_by: p.merged_by === null ? null : { login: p.merged_by, type: 'User' },
+      merge_commit_sha: p.merge_commit_sha,
+      merged_at: p.merged_at,
     };
   }
 
@@ -544,6 +739,7 @@ export class FakeGitHubServer {
     rest: string,
     perms: Record<string, string>,
     raw: string,
+    appId: number,
   ): number {
     const canWrite = (name: string): boolean => (LEVEL[perms[name] ?? ''] ?? 0) >= 2;
     const denied = (): number =>
@@ -679,9 +875,55 @@ export class FakeGitHubServer {
         merged: false,
         head: { ref: headRef, sha: head.sha },
         base: { ref: baseRef },
+        user: { login: this.o.brokerLogin ?? 'aisdlc[bot]', type: 'Bot' },
+        commits: [{ sha: head.sha, message: this.objects.commit(full, head.sha)?.message ?? '' }],
+        merged_by: null,
+        merge_commit_sha: null,
+        merged_at: null,
       };
       this.pulls.push(p);
       return this.json(res, 201, this.pullJson(p));
+    }
+    if (method === 'POST' && rest === 'check-runs') {
+      // M14.5: what gate-check writes. GitHub needs `checks: write`; the run carries the App that wrote it.
+      if (!canWrite('checks')) return denied();
+      const status = String(j['status'] ?? 'queued');
+      const conclusion = j['conclusion'] === undefined ? null : String(j['conclusion']);
+      const headSha = String(j['head_sha'] ?? '');
+      if (!/^[0-9a-f]{40}$/.test(headSha)) return bad('Validation Failed: head_sha');
+      if (!['queued', 'in_progress', 'completed'].includes(status)) return bad('Invalid status');
+      if (status === 'completed' && conclusion === null) return bad('conclusion is required');
+      const known = [
+        'success',
+        'failure',
+        'neutral',
+        'cancelled',
+        'skipped',
+        'timed_out',
+        'action_required',
+      ];
+      if (conclusion !== null && !known.includes(conclusion)) return bad('Invalid conclusion');
+      const output = (j['output'] ?? {}) as Record<string, unknown>;
+      const run: FakeCheckRun = {
+        id: this.checkRuns.length + 1,
+        repo: full,
+        name: String(j['name'] ?? ''),
+        head_sha: headSha,
+        status,
+        conclusion,
+        external_id: typeof j['external_id'] === 'string' ? j['external_id'] : null,
+        app_id: appId,
+        title: typeof output['title'] === 'string' ? output['title'] : '',
+      };
+      this.checkRuns.push(run);
+      return this.json(res, 201, {
+        id: run.id,
+        name: run.name,
+        head_sha: run.head_sha,
+        status: run.status,
+        conclusion: run.conclusion,
+        app: { id: appId },
+      });
     }
     if (method === 'PATCH' && (c = /^pulls\/(\d+)$/.exec(rest))) {
       if (!canWrite('pull_requests')) return denied();

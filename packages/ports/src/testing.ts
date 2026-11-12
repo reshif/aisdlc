@@ -391,3 +391,4 @@ export * from './codehost-contract.js';
 export * from './codehost-write-contract.js';
 export * from './model-provider-contract.js';
 export * from './sandbox-contract.js';
+export * from './gate-check-host-contract.js';

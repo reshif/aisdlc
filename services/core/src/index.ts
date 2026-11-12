@@ -38,6 +38,7 @@ export * from './app.js';
 export * from './config.js';
 export * from './boot.js';
 export * from './gateway-triggers.js';
+export * from './merge-review.js';
 export * from './agent-runs.js';
 export * from './evals.js';
 export * from './agent-dispatch.js';

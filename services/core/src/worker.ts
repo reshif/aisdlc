@@ -34,3 +34,9 @@ export * from './planning/index.js';
 export * from './admission/index.js';
 export * from './build/index.js';
 export * from './verify/index.js';
+export {
+  MERGE_REVIEW_OBSERVER,
+  mergeReviewLoop,
+  observeBypassMerges,
+  type MergeReviewDeps,
+} from './merge-review.js';
