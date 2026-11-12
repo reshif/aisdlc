@@ -27,4 +27,5 @@ export {
   type EffectiveConfig,
 } from './reader.js';
 export { registerGatewayConfig } from './gateway.js';
+export { registerSandboxConfig } from './sandbox.js';
 export { findSecrets, registerIntegrationConfig } from './integrations.js';

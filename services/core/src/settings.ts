@@ -3,6 +3,7 @@ import {
   loadEffective,
   proposeRevision,
   readLineage,
+  registerSandboxConfig,
   type ConfigDeps,
   type ConfigRegistry,
   type ProposeResult,
@@ -60,6 +61,8 @@ import { getProjectState } from './queries.js';
 
 /** Registers the keys core's context owns: a project's settings, and the S0 driver's tunables. */
 export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
+  // M14.2: the sandbox caps are the sandbox-controller's to enforce; core's revisions must validate them
+  registerSandboxConfig(registry);
   return registry
     .setting({
       key: PROJECT_CONFIG_KEYS.role_map,

@@ -30,7 +30,7 @@ import {
   workSettingsFrom,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
-import { HttpBundleSource, HttpCodeHostPush } from '@aisdlc/ports';
+import { HttpBundleSource, HttpCodeHostPush, HttpSandbox, type SandboxPort } from '@aisdlc/ports';
 import { DockerSandboxDriver } from '@aisdlc/sandbox-driver';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
@@ -251,20 +251,37 @@ export async function bootCoreWorker(
             })
           : baseStagePorts;
       // M13.3, M13.4: with a sandbox proxy, 6.1 to 6.5 run real coding sessions (the DEC-18 owner allow-list and B1 in
-      // front of every session), and HUMAN-WAIT's snapshots are of the session's real workspace
+      // front of every session), and HUMAN-WAIT's snapshots are of the session's real workspace. M14.2: with the
+      // sandbox-controller, the same sessions go to it over HTTP (it owns the driver, the ceilings and the caps; this
+      // process holds no proxy token) and H2 reads its free slots
+      const sc = cfg.sandboxController;
+      const controller = sc ? new HttpSandbox({ baseUrl: sc.url, token: sc.token }) : null;
+      const session: { sandbox: SandboxPort; storeDir: string; model: string } | null =
+        sc && controller
+          ? { sandbox: controller, storeDir: sc.storeDir, model: sc.model }
+          : cfg.sandbox
+            ? {
+                sandbox: new DockerSandboxDriver({
+                  endpoint: {
+                    ...proxyEndpoint(cfg.sandbox.proxyUrl),
+                    token: cfg.sandbox.proxyToken,
+                  },
+                  image: cfg.sandbox.image,
+                  scratch: { local: cfg.sandbox.scratch, host: cfg.sandbox.scratch },
+                  peers: { mirror: cfg.sandbox.mirror, gateway: cfg.sandbox.gateway },
+                  trustedCommands: [],
+                }),
+                storeDir: cfg.sandbox.storeDir,
+                model: cfg.sandbox.model,
+              }
+            : null;
       const built =
-        cfg.sandbox && cfg.knowledge
+        session && cfg.knowledge
           ? buildStagePorts({
               pool,
               base: agentPorts,
-              sandbox: new DockerSandboxDriver({
-                endpoint: { ...proxyEndpoint(cfg.sandbox.proxyUrl), token: cfg.sandbox.proxyToken },
-                image: cfg.sandbox.image,
-                scratch: { local: cfg.sandbox.scratch, host: cfg.sandbox.scratch },
-                peers: { mirror: cfg.sandbox.mirror, gateway: cfg.sandbox.gateway },
-                trustedCommands: [],
-              }),
-              storeDir: cfg.sandbox.storeDir,
+              sandbox: session.sandbox,
+              storeDir: session.storeDir,
               keys: vault,
               bundles: new HttpBundleSource({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken }),
               knowledge: new HttpKnowledge({
@@ -272,7 +289,7 @@ export async function bootCoreWorker(
                 token: cfg.knowledge.token,
               }),
               execAllowedRepos: execAllowedReposFrom(rd),
-              model: cfg.sandbox.model,
+              model: session.model,
               // M13.6: the Push Broker's client, with the record first and the receipt in the record and the ledger
               ...(cfg.pushBroker
                 ? {
@@ -302,6 +319,7 @@ export async function bootCoreWorker(
               new GatewayAdminClient({ baseUrl: cfg.gateway.url, token: cfg.gateway.token }),
             ),
             snapshots: built ? built.snapshots : new ReferenceSnapshots(),
+            ...(controller ? { slots: controller } : {}),
           }
         : null;
       const realCapacity = admissionBase ? new AdmissionCapacity({ pool, ...admissionBase }) : null;

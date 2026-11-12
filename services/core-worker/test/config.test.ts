@@ -97,6 +97,39 @@ describe('core-worker config: real coding sessions (M13.3, M13.4)', () => {
       model: 'claude-sonnet-5-5',
     });
   });
+  it('M14.2: the sandbox-controller instead of an in-process driver (exclusive), with its token as a reference', () => {
+    const CTL = {
+      CORE_WORKER_SANDBOX_CONTROLLER_URL: 'http://sandbox-controller:8430',
+      CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF: 'env:T',
+    };
+    expect(coreWorkerConfigFromEnv(WITH_AGENTS).sandboxController).toBeNull();
+    const cfg = coreWorkerConfigFromEnv({ ...WITH_AGENTS, ...CTL });
+    expect(cfg.sandbox).toBeNull();
+    expect(cfg.sandboxController).toEqual({
+      url: 'http://sandbox-controller:8430',
+      token: 'x'.repeat(32),
+      storeDir: '/var/lib/aisdlc/sessions',
+      model: 'claude-sonnet-5-5',
+    });
+    expect(() => coreWorkerConfigFromEnv({ ...WITH_AGENTS, ...CTL, ...SANDBOX })).toThrow(
+      /exclusive/,
+    );
+    expect(() =>
+      coreWorkerConfigFromEnv({
+        ...WITH_AGENTS,
+        ...CTL,
+        CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF: 'literal-token',
+      }),
+    ).toThrow(/env:NAME or file:PATH/);
+    expect(() =>
+      coreWorkerConfigFromEnv({
+        ...BASE,
+        ...CTL,
+        CORE_WORKER_GATEWAY_URL: 'http://127.0.0.1:5',
+        CORE_WORKER_GATEWAY_TOKEN_REF: 'env:T',
+      }),
+    ).toThrow(/STAGE_PORTS=agents/);
+  });
   it('real sessions need the agents stage ports, a token reference (never a literal) and a plain scratch directory', () => {
     expect(() =>
       coreWorkerConfigFromEnv({

@@ -24,6 +24,7 @@ export * from './knowledge-search.js';
 export * from './planning-fixtures.js';
 export * from './sandbox.js';
 export * from './sandbox-guard.js';
+export * from './http-sandbox.js';
 export * from './http-bundle.js';
 export * from './object-store.js';
 export * from './object-store-s3.js';

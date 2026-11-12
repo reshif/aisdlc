@@ -61189,6 +61189,10 @@
         "D2"
       ]
     },
+    "RunnerHostId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
     "S0BootstrapGrantedPayload": {
       "type": "object",
       "properties": {
@@ -63842,6 +63846,73 @@
       ],
       "additionalProperties": false
     },
+    "SandboxCaps": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "coding": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        }
+      },
+      "required": [
+        "total",
+        "coding"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxCapsConfig": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "coding": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "hosts": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32
+              },
+              "coding": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8
+              }
+            },
+            "required": [
+              "total",
+              "coding"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "total",
+        "coding"
+      ],
+      "additionalProperties": false
+    },
     "SandboxClass": {
       "type": "string",
       "enum": [
@@ -63853,6 +63924,18 @@
         "V"
       ]
     },
+    "SandboxErrorCode": {
+      "type": "string",
+      "enum": [
+        "invalid_spec",
+        "exec_not_allowed",
+        "b1_blocked",
+        "busy",
+        "unavailable",
+        "refused",
+        "driver_failure"
+      ]
+    },
     "SandboxExecAllowedRepos": {
       "maxItems": 200,
       "type": "array",
@@ -63861,6 +63944,38 @@
         "maxLength": 200,
         "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
       }
+    },
+    "SandboxGrantRef": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "item_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "unit_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "grant_id",
+        "item_id",
+        "unit_id",
+        "lease_epoch"
+      ],
+      "additionalProperties": false
     },
     "SandboxLimits": {
       "type": "object",
@@ -63914,6 +64029,35 @@
         "gateway",
         "gateway+mirror"
       ]
+    },
+    "SandboxOutFileWire": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "content_b64": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "size",
+        "sha256",
+        "content_b64"
+      ],
+      "additionalProperties": false
     },
     "SandboxPeer": {
       "type": "string",
@@ -64014,6 +64158,686 @@
         "exec",
         "key",
         "limits"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxRepoFileWire": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "utf8",
+            "base64"
+          ]
+        },
+        "data": {
+          "type": "string"
+        },
+        "executable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path",
+        "encoding",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxRunStatus": {
+      "type": "string",
+      "enum": [
+        "exited",
+        "timed_out",
+        "oom_killed",
+        "out_oversized",
+        "killed"
+      ]
+    },
+    "SandboxRunWire": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "K",
+            "K-exec",
+            "P",
+            "W",
+            "O",
+            "V"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "exited",
+            "timed_out",
+            "oom_killed",
+            "out_oversized",
+            "killed"
+          ]
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "logs_truncated": {
+          "type": "boolean"
+        },
+        "out": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "content_b64": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "size",
+              "sha256",
+              "content_b64"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "out_scan": {
+          "type": "object",
+          "properties": {
+            "clean": {
+              "type": "boolean"
+            },
+            "canary": {
+              "type": "boolean"
+            },
+            "findings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "rule_id": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "path",
+                  "rule_id",
+                  "line"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "clean",
+            "canary",
+            "findings"
+          ],
+          "additionalProperties": false
+        },
+        "quarantined": {
+          "type": "boolean"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cleanup_errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpus": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8
+            },
+            "memory_mb": {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 8192
+            },
+            "pids": {
+              "type": "integer",
+              "minimum": 16,
+              "maximum": 4096
+            },
+            "time_s": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 14400
+            },
+            "out_bytes": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 268435456
+            },
+            "work_bytes": {
+              "type": "integer",
+              "minimum": 1048576,
+              "maximum": 1073741824
+            }
+          },
+          "required": [
+            "cpus",
+            "memory_mb",
+            "pids",
+            "time_s",
+            "out_bytes",
+            "work_bytes"
+          ],
+          "additionalProperties": false
+        },
+        "peers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "session_id",
+        "class",
+        "status",
+        "exit_code",
+        "stdout",
+        "stderr",
+        "logs_truncated",
+        "out",
+        "out_scan",
+        "quarantined",
+        "duration_ms",
+        "detail",
+        "cleanup_errors",
+        "limits",
+        "peers"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxSessionRequest": {
+      "type": "object",
+      "properties": {
+        "grant": {
+          "type": "object",
+          "properties": {
+            "grant_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "item_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "unit_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "lease_epoch": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "grant_id",
+            "item_id",
+            "unit_id",
+            "lease_epoch"
+          ],
+          "additionalProperties": false
+        },
+        "spec": {
+          "type": "object",
+          "properties": {
+            "repo_full_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "session_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "class": {
+              "type": "string",
+              "enum": [
+                "K",
+                "K-exec",
+                "P",
+                "W",
+                "O",
+                "V"
+              ]
+            },
+            "command": {
+              "minItems": 1,
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "repo": {
+              "maxItems": 50000,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "encoding": {
+                    "type": "string",
+                    "enum": [
+                      "utf8",
+                      "base64"
+                    ]
+                  },
+                  "data": {
+                    "type": "string"
+                  },
+                  "executable": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "path",
+                  "encoding",
+                  "data"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "env": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "gateway_key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpus": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 8
+                },
+                "memory_mb": {
+                  "type": "integer",
+                  "minimum": 64,
+                  "maximum": 8192
+                },
+                "pids": {
+                  "type": "integer",
+                  "minimum": 16,
+                  "maximum": 4096
+                },
+                "time_s": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 14400
+                },
+                "out_bytes": {
+                  "type": "integer",
+                  "minimum": 1024,
+                  "maximum": 268435456
+                },
+                "work_bytes": {
+                  "type": "integer",
+                  "minimum": 1048576,
+                  "maximum": 1073741824
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "session_id",
+            "class",
+            "command",
+            "repo"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "grant",
+        "spec"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxSlots": {
+      "type": "object",
+      "properties": {
+        "host_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "caps": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32
+            },
+            "coding": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            }
+          },
+          "required": [
+            "total",
+            "coding"
+          ],
+          "additionalProperties": false
+        },
+        "caps_source": {
+          "type": "string",
+          "enum": [
+            "config",
+            "default"
+          ]
+        },
+        "used_total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "used": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "K",
+              "K-exec",
+              "P",
+              "W",
+              "O",
+              "V"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "required": [
+            "K",
+            "K-exec",
+            "P",
+            "W",
+            "O",
+            "V"
+          ]
+        },
+        "free": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "K",
+              "K-exec",
+              "P",
+              "W",
+              "O",
+              "V"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "required": [
+            "K",
+            "K-exec",
+            "P",
+            "W",
+            "O",
+            "V"
+          ]
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "session_id": {
+                "type": "string"
+              },
+              "class": {
+                "type": "string",
+                "enum": [
+                  "K",
+                  "K-exec",
+                  "P",
+                  "W",
+                  "O",
+                  "V"
+                ]
+              },
+              "grant_id": {
+                "type": "string"
+              },
+              "started_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "session_id",
+              "class",
+              "grant_id",
+              "started_at"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "host_id",
+        "caps",
+        "caps_source",
+        "used_total",
+        "used",
+        "free",
+        "sessions"
+      ],
+      "additionalProperties": false
+    },
+    "SandboxSpecWire": {
+      "type": "object",
+      "properties": {
+        "repo_full_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "K",
+            "K-exec",
+            "P",
+            "W",
+            "O",
+            "V"
+          ]
+        },
+        "command": {
+          "minItems": 1,
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "repo": {
+          "maxItems": 50000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "utf8",
+                  "base64"
+                ]
+              },
+              "data": {
+                "type": "string"
+              },
+              "executable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "encoding",
+              "data"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "env": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "gateway_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpus": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8
+            },
+            "memory_mb": {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 8192
+            },
+            "pids": {
+              "type": "integer",
+              "minimum": 16,
+              "maximum": 4096
+            },
+            "time_s": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 14400
+            },
+            "out_bytes": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 268435456
+            },
+            "work_bytes": {
+              "type": "integer",
+              "minimum": 1048576,
+              "maximum": 1073741824
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "session_id",
+        "class",
+        "command",
+        "repo"
       ],
       "additionalProperties": false
     },

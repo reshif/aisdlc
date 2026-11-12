@@ -12,7 +12,13 @@ import {
   canTransitionUnit,
 } from '@aisdlc/contracts';
 import { err, hashCanonical, ok, type Result } from '@aisdlc/kernel';
-import type { EnvelopePort, ProjectSettingsPort, WaitSnapshotPort } from '@aisdlc/ports';
+import {
+  freeCodingSlots,
+  type EnvelopePort,
+  type ProjectSettingsPort,
+  type SandboxSlotsPort,
+  type WaitSnapshotPort,
+} from '@aisdlc/ports';
 import type { ItemState } from '@aisdlc/work';
 import type pg from 'pg';
 import { coreError, type CoreError } from '../errors.js';
@@ -30,7 +36,8 @@ import { ACTIVE_SESSIONS_SQL, activeGrantCount } from './read.js';
 //   (a) a lease on the Unit's branch `agent/<item>/<unit>` with a fresh epoch (the lease table: the epoch only
 //       increases, and is higher than every epoch the item's engine has already handed out),
 //   (b) an approver slot (H1): the deciders downstream exist in the role map: the G4 slot and the X slot,
-//   (c) capacity (H2): fewer grants hold a coding slot than CODING_SESSION_CAP,
+//   (c) capacity (H2): fewer grants hold a coding slot than CODING_SESSION_CAP, and (M14.2, when the sandbox-controller
+//       is wired) the controller reports a free coding slot under its runner host's caps (unreachable: none free),
 //   (d) the envelope from 5.5 reserved: a budget group in the gateway created for the Unit with that envelope (H3),
 //   (e) the kill switch's admission (the work driver asks it before it dispatches the command: unreachable is a
 //       refusal, and the command is deferred, not failed).
@@ -47,6 +54,12 @@ export interface AdmissionDeps extends CoreDeps {
   readonly snapshots: WaitSnapshotPort;
   /** Grants that may hold a coding slot at once. Default: the factory's cap (one coding session). */
   readonly sessionCap?: number;
+  /**
+   * M14.2: the sandbox-controller's slots (ADR-0003 §6: H2 is asked of it). Read IN ADDITION to the grant count: the
+   * free coding sessions are the lower of the two. An error is "cannot tell": no slot is free and the item waits.
+   * Absent: the grant count alone (an in-process driver).
+   */
+  readonly slots?: SandboxSlotsPort;
   /** Called after an admission attempt, whatever it said (the capacity port's pledge for the item is spent). */
   readonly attempted?: (project_id: string) => void;
 }
@@ -79,6 +92,20 @@ const DEPENDENCY_DONE: readonly UnitState[] = [
 export const grantIdOf = (unitId: string, epoch: number): string => `${unitId}@${epoch}`;
 export const sessionCapOf = (d: { sessionCap?: number }): number =>
   d.sessionCap ?? CODING_SESSION_CAP;
+
+/**
+ * The coding sessions the sandbox-controller can start now (H2's second half), or `Infinity` where no controller is
+ * wired. Unreachable, refused or malformed is 0: unknown means unmet, the item waits in core's queue.
+ */
+export async function controllerCodingFree(d: { slots?: SandboxSlotsPort }): Promise<number> {
+  if (!d.slots) return Number.POSITIVE_INFINITY;
+  try {
+    const r = await d.slots.slots();
+    return r.ok ? Math.max(0, freeCodingSlots(r.value)) : 0;
+  } catch {
+    return 0;
+  }
+}
 
 /** The approver slot (H1): the G4 and X deciders exist in the role map. Unknown (an error) is unmet. */
 export async function approverSlot(
@@ -198,6 +225,9 @@ export async function admitCandidate(
     const cap = sessionCapOf(d);
     if ((await activeGrantCount(d.pool)) >= cap) {
       return held('H2', `${cap} coding session(s) already hold a slot`);
+    }
+    if ((await controllerCodingFree(d)) <= 0) {
+      return held('H2', 'the sandbox-controller has no free coding slot (or did not answer)');
     }
     // H3: the envelope, reserved in the gateway for this Unit (idempotent)
     const group_id = `unit-envelope:${u.unit_id}`;

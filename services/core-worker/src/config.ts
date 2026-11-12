@@ -65,6 +65,18 @@ export interface CoreWorkerConfig {
     readonly model: string;
   } | null;
   /**
+   * M14.2: S6's sessions through the sandbox-controller (`HttpSandbox`), which owns the driver, the class ceilings and
+   * the caps of its runner host; admission's H2 also reads its free slots. Exclusive with `sandbox` (the in-process
+   * driver). Needs `stagePorts: 'agents'`.
+   */
+  readonly sandboxController: {
+    readonly url: string;
+    /** This worker's bearer token at the controller (scopes `run`, `read`). */
+    readonly token: string;
+    readonly storeDir: string;
+    readonly model: string;
+  } | null;
+  /**
    * 6.6 through the Push Broker (PLAN M13.6): with `CORE_WORKER_PUSH_BROKER=1` (and a sandbox) the codehost's `push` route is
    * asked for the Unit's patch (this worker's codehost token needs the scope `push`). Off: 6.6 stays over the stage-port fake.
    */
@@ -133,6 +145,10 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   CORE_WORKER_SANDBOX_GATEWAY (the peers' container names), CORE_WORKER_SESSION_STORE (the workspace
  *                                   store), CORE_WORKER_CODER_MODEL (claude-sonnet-5-5). The owner allow-list is config
  *                                   `sandbox.exec_allowed_repos` (M1-gated): a repo not on it is BLOCKED, never run (DEC-18)
+ *   CORE_WORKER_SANDBOX_CONTROLLER_URL, CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF   (M14.2) the sandbox-controller: S6's
+ *                                   sessions go to it (it holds the proxy token, the ceilings and the caps) instead of a
+ *                                   driver in this process, and H2 reads its free slots. Not with CORE_WORKER_SANDBOX_PROXY_URL.
+ *                                   CORE_WORKER_SESSION_STORE and CORE_WORKER_CODER_MODEL as above
  *   CORE_WORKER_PUSH_BROKER         `1`: 6.6 asks the codehost's Push Broker (route `push`, scope `push`) to write the Unit's patch
  *                                   as a commit on agent/<item>/<unit> and a Draft PR; needs the sandbox. Default off
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
@@ -235,8 +251,30 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_SANDBOX_PROXY_URL runs real coding sessions, which need CORE_WORKER_STAGE_PORTS=agents',
     );
   }
+  const controllerUrl = env['CORE_WORKER_SANDBOX_CONTROLLER_URL'];
+  const sandboxController =
+    controllerUrl === undefined || controllerUrl === ''
+      ? null
+      : {
+          url: httpUrlEnv(env, 'CORE_WORKER_SANDBOX_CONTROLLER_URL'),
+          token: resolveSecretRef(requiredEnv(env, 'CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF'), {
+            env,
+          }),
+          storeDir: dir('CORE_WORKER_SESSION_STORE', '/var/lib/aisdlc/sessions'),
+          model: env['CORE_WORKER_CODER_MODEL'] || 'claude-sonnet-5-5',
+        };
+  if (sandboxController !== null && sandbox !== null) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_SANDBOX_CONTROLLER_URL and CORE_WORKER_SANDBOX_PROXY_URL are exclusive: sessions go through the controller or an in-process driver',
+    );
+  }
+  if (sandboxController !== null && stagePorts !== 'agents') {
+    throw new ServiceConfigError(
+      'CORE_WORKER_SANDBOX_CONTROLLER_URL runs real coding sessions, which need CORE_WORKER_STAGE_PORTS=agents',
+    );
+  }
   const pushBroker = env['CORE_WORKER_PUSH_BROKER'] === '1';
-  if (pushBroker && sandbox === null) {
+  if (pushBroker && sandbox === null && sandboxController === null) {
     throw new ServiceConfigError(
       'CORE_WORKER_PUSH_BROKER=1 needs the sandbox (6.6 pushes what 6.1 to 6.5 built)',
     );
@@ -253,6 +291,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     stagePorts,
     gateway,
     sandbox,
+    sandboxController,
     pushBroker,
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
       .split(',')

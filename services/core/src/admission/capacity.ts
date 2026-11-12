@@ -2,14 +2,15 @@ import type { AdmissionHold } from '@aisdlc/contracts';
 import { err, ok } from '@aisdlc/kernel';
 import { CapacityError, type CapacityPort } from '@aisdlc/ports';
 import type pg from 'pg';
-import { approverSlot, sessionCapOf, type AdmissionDeps } from './admit.js';
+import { approverSlot, controllerCodingFree, sessionCapOf, type AdmissionDeps } from './admit.js';
 import { activeGrantCount } from './read.js';
 
 /**
  * The real `CapacityPort` (PLAN M13.1): how many items HELD at admission may go on now, from the same truth
  * admission itself checks, so the release loop frees an item only when its next admission can succeed:
  *   H1  the approver slot exists in the project's role map (all or none);
- *   H2  free coding sessions: the cap minus the sessions that hold a slot and minus what this port has already
+ *   H2  free coding sessions: the cap minus the sessions that hold a slot (and no more than the sandbox-controller's
+ *       free coding slots, when it is wired: M14.2), minus what this port has already
  *       handed out and the admission has not yet used (a pledge: the loop asks for one item at a time, and the
  *       second must not see the slot the first was just given);
  *   H3  the environment: the envelope service answers (asked with a probe group that is never used);
@@ -21,7 +22,10 @@ export class AdmissionCapacity implements CapacityPort {
   private readonly pledged = new Map<string, number>();
 
   constructor(
-    private readonly d: Pick<AdmissionDeps, 'pool' | 'settings' | 'envelope' | 'sessionCap'>,
+    private readonly d: Pick<
+      AdmissionDeps,
+      'pool' | 'settings' | 'envelope' | 'sessionCap' | 'slots'
+    >,
   ) {}
 
   /** The admission's callback: one pledge of the project is used up, whatever the attempt said. */
@@ -49,11 +53,11 @@ export class AdmissionCapacity implements CapacityPort {
       if (reason === 'H1') {
         free = (await approverSlot(this.d, scope.project_id)).ok ? wanted : 0;
       } else if (reason === 'H2') {
+        // the lower of the grant count and (M14.2) the sandbox-controller's free coding slots, less the pledges
         const cap = sessionCapOf(this.d);
-        free = Math.max(
-          0,
-          cap - (await activeGrantCount(this.d.pool as pg.Pool)) - this.pledges('H2'),
-        );
+        const byGrants = cap - (await activeGrantCount(this.d.pool as pg.Pool));
+        const byController = await controllerCodingFree(this.d);
+        free = Math.max(0, Math.min(byGrants, byController) - this.pledges('H2'));
       } else if (reason === 'H3') {
         const probe = await this.d.envelope.reserve({
           group_id: 'probe:envelope',

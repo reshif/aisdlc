@@ -10,6 +10,7 @@ import {
   type TaskContract,
   type UnitPlan,
 } from '@aisdlc/build';
+import type { SandboxGrantRef } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import type { RepoFile } from '@aisdlc/ports';
 import type pg from 'pg';
@@ -117,6 +118,33 @@ export class CoreBuildSource implements BuildSourcePort {
       // the epoch of the live grant: the writer's epoch the Push Broker checks against the Unit's lease
       ...(live?.lease_epoch !== undefined ? { lease_epoch: live.lease_epoch } : {}),
     });
+  }
+
+  /**
+   * M14.2: the item's ACTIVE admission grant, which every session names to the sandbox-controller (a waiting grant
+   * released its slot in HUMAN-WAIT, a released one has no session). `null` when there is none.
+   */
+  async sessionGrant(item_id: string): Promise<Result<SandboxGrantRef | null, BuildSourceError>> {
+    try {
+      const g = (await listGrants(this.d.pool, item_id)).find((x) => x.status === 'active');
+      return ok(
+        g
+          ? {
+              grant_id: g.grant_id,
+              item_id: g.item_id,
+              unit_id: g.unit_id,
+              lease_epoch: g.lease_epoch,
+            }
+          : null,
+      );
+    } catch (e) {
+      return err(
+        buildSourceError(
+          'unavailable',
+          e instanceof Error ? e.message : 'the grants could not be read',
+        ),
+      );
+    }
   }
 
   /**

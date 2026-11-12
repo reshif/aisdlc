@@ -13,6 +13,9 @@
 #                                      view (never identity, core, knowledge, the ledger, or any UPDATE or DELETE
 #                                      of the record). The gateway holds the vendor keys, so it holds the least
 #                                      database right that works.
+#   role sandbox_controller -> database aisdlc   NOT the owner either (M14.2): a login role in the group role
+#                                      `aisdlc_sandbox_controller`, which the config and core migrations grant
+#                                      SELECT on the effective-config view and on `core.admission_grant`, nothing else.
 #
 # Each role owns only its database and nobody else may connect to it, so a compromised record
 # service cannot read the Notary's or the Witness's state. Same server for all three: a declared
@@ -28,7 +31,8 @@ psql -v ON_ERROR_STOP=1 \
   -v pw_notary="$(cat /run/secrets/pg-pass-notary)" \
   -v pw_witness="$(cat /run/secrets/pg-pass-witness)" \
   -v pw_killswitch="$(cat /run/secrets/pg-pass-killswitch)" \
-  -v pw_gateway="$(cat /run/secrets/pg-pass-gateway)" <<'SQL'
+  -v pw_gateway="$(cat /run/secrets/pg-pass-gateway)" \
+  -v pw_sandbox_controller="$(cat /run/secrets/pg-pass-sandbox-controller)" <<'SQL'
 SELECT 'CREATE ROLE aisdlc_app NOLOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_app') \gexec
 
@@ -39,6 +43,14 @@ SELECT 'CREATE ROLE gateway LOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gateway') \gexec
 SELECT format('ALTER ROLE gateway PASSWORD %L', :'pw_gateway') \gexec
 GRANT aisdlc_gateway TO gateway;
+
+-- The sandbox-controller's group role (its two grants are the config and core migrations') and its login role.
+SELECT 'CREATE ROLE aisdlc_sandbox_controller NOLOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_sandbox_controller') \gexec
+SELECT 'CREATE ROLE sandbox_controller LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sandbox_controller') \gexec
+SELECT format('ALTER ROLE sandbox_controller PASSWORD %L', :'pw_sandbox_controller') \gexec
+GRANT aisdlc_sandbox_controller TO sandbox_controller;
 
 SELECT format('CREATE ROLE %I LOGIN', r)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS r
@@ -62,5 +74,6 @@ SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', d)
 SELECT format('GRANT CONNECT ON DATABASE %1$I TO %1$I', d)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS d \gexec
 GRANT CONNECT ON DATABASE aisdlc TO gateway;
+GRANT CONNECT ON DATABASE aisdlc TO sandbox_controller;
 SQL
 echo "db-init: roles and databases are in place"

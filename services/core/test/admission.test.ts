@@ -10,8 +10,11 @@ import {
 import {
   FakeEnvelope,
   FakeProjectSettings,
+  FakeSandboxSlots,
   FakeStagePorts,
   FakeWaitSnapshots,
+  HttpSandbox,
+  type SandboxSlotsPort,
 } from '@aisdlc/ports';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -104,7 +107,7 @@ interface Rig {
   readonly stall: Set<string>;
 }
 
-function rigOf(cap = 1): Rig {
+function rigOf(cap = 1, slots?: SandboxSlotsPort): Rig {
   const ports = new FakeStagePorts();
   const settings = new FakeProjectSettings();
   const envelope = new FakeEnvelope();
@@ -114,11 +117,19 @@ function rigOf(cap = 1): Rig {
     settings,
     envelope,
     sessionCap: cap,
+    ...(slots ? { slots } : {}),
   });
   const d = {
     ...driverOver(s, { ports }),
     capacity,
-    admission: { settings, envelope, snapshots, sessionCap: cap, attempted: capacity.attempted },
+    admission: {
+      settings,
+      envelope,
+      snapshots,
+      sessionCap: cap,
+      attempted: capacity.attempted,
+      ...(slots ? { slots } : {}),
+    },
   } as WorkDriverDeps & { readonly ports: FakeStagePorts };
   const stall = new Set<string>();
   ports.coding.script((q2) =>
@@ -392,6 +403,52 @@ describe('HELD at admission: the reason, and the release when it clears', () => 
     const order = (await admittedOrder([a.itemId, b.itemId, c.itemId, e.itemId])).slice(1);
     // L1 outranks L3 (the catalogue's lane order), then the two L3 items in the order they were held
     expect(order).toEqual([c.itemId, b.itemId, e.itemId]);
+  });
+});
+
+describe('H2 reads the sandbox-controller (M14.2)', () => {
+  it('no free coding slot on the runner host holds the item even under the grant cap; the item is admitted once one frees', async () => {
+    const slots = new FakeSandboxSlots().occupy('W', 1);
+    const r = rigOf(5, slots);
+    const x = await newItem(r);
+    await runItem(s, r.d, x.itemId, { stop: (st) => st.phase === 'Held' });
+    expect((await state(x.itemId))?.holds[0]).toMatchObject({ reason: 'H2' });
+    expect(await listGrants(s.record.pool, x.itemId)).toEqual([]);
+    expect(slots.asked).toBeGreaterThan(0);
+    // still taken: the release loop frees nothing
+    await driveWork(r.d);
+    expect((await state(x.itemId))?.phase).toBe('Held');
+    // the session on the host ends: the item is released and admitted
+    slots.occupy('W', 0);
+    const done = await settle(r, x.itemId);
+    expect(done?.state.terminal).toBe('Done');
+    expect((await listGrants(s.record.pool, x.itemId))[0]).toMatchObject({ lease_epoch: 1 });
+  });
+
+  it('an unreachable controller is no free slot (unknown is unmet): the item waits, it is never admitted on a guess', async () => {
+    const r = rigOf(5, new HttpSandbox({ baseUrl: 'http://127.0.0.1:1', token: 't'.repeat(32) }));
+    const x = await newItem(r);
+    await runItem(s, r.d, x.itemId, { stop: (st) => st.phase === 'Held' });
+    expect((await state(x.itemId))?.holds[0]).toMatchObject({ reason: 'H2' });
+    for (let i = 0; i < 3; i++) {
+      await driveWork(r.d);
+      s.clock.advance(1_000);
+    }
+    expect((await state(x.itemId))?.phase).toBe('Held');
+    expect(await listGrants(s.record.pool, x.itemId)).toEqual([]);
+  });
+
+  it('the lower of the two counts: a free controller slot does not lift the grant cap', async () => {
+    const r = rigOf(1, new FakeSandboxSlots({ total: 4, coding: 3 }));
+    const a = await newItem(r);
+    r.stall.add(a.itemId);
+    await runItem(s, r.d, a.itemId, { stop: afterAdmission });
+    const b = await newItem(r);
+    await runItem(s, r.d, b.itemId, { stop: (st) => st.phase === 'Held' });
+    expect((await state(b.itemId))?.holds[0]).toMatchObject({ reason: 'H2' });
+    r.stall.delete(a.itemId);
+    expect((await settle(r, a.itemId))?.state.terminal).toBe('Done');
+    expect((await settle(r, b.itemId))?.state.terminal).toBe('Done');
   });
 });
 
