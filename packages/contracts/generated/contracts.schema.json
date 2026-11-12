@@ -28012,6 +28012,271 @@
         "not_evaluated"
       ]
     },
+    "G4DecidersBasis": {
+      "type": "string",
+      "enum": [
+        "path_owners",
+        "g4_slot"
+      ]
+    },
+    "G4Review": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "g4-review/1"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "E",
+            "C"
+          ]
+        },
+        "reasons": {
+          "minItems": 1,
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "evidence_sufficient",
+              "b14_unsure",
+              "sensitive_path",
+              "paths_unknown",
+              "codeowners_unreadable",
+              "no_governing_prr",
+              "posture",
+              "autonomy_a0",
+              "r3_zone",
+              "human_led"
+            ]
+          }
+        },
+        "units": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "unit_key": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+              },
+              "pr_number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "head_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "base_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "pack_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "unit_key",
+              "pr_number",
+              "head_sha",
+              "base_sha",
+              "pack_sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "evidence_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "changed_paths": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "count",
+            "sha256"
+          ],
+          "additionalProperties": false
+        },
+        "sensitive_paths": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "step_up": {
+          "type": "boolean"
+        },
+        "deciders": {
+          "type": "object",
+          "properties": {
+            "basis": {
+              "type": "string",
+              "enum": [
+                "path_owners",
+                "g4_slot"
+              ]
+            },
+            "principals": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              }
+            }
+          },
+          "required": [
+            "basis",
+            "principals"
+          ],
+          "additionalProperties": false
+        },
+        "codeowners": {
+          "type": "object",
+          "properties": {
+            "read": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "none",
+                "unreadable"
+              ]
+            },
+            "at_sha": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "unmapped": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          },
+          "required": [
+            "read",
+            "at_sha",
+            "unmapped"
+          ],
+          "additionalProperties": false
+        },
+        "authors": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "mode",
+        "reasons",
+        "units",
+        "evidence_sha256",
+        "changed_paths",
+        "sensitive_paths",
+        "step_up",
+        "deciders",
+        "codeowners",
+        "authors"
+      ],
+      "additionalProperties": false
+    },
+    "G4ReviewUnit": {
+      "type": "object",
+      "properties": {
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "pack_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "unit_key",
+        "pr_number",
+        "head_sha",
+        "base_sha",
+        "pack_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "G4StandingState": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pending",
+        "approved",
+        "changes_requested",
+        "rejected",
+        "ended",
+        "head_moved"
+      ]
+    },
     "Gap": {
       "type": "object",
       "properties": {
@@ -29688,6 +29953,16 @@
         },
         "authors": {
           "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        },
+        "deciders": {
+          "minItems": 1,
+          "maxItems": 64,
           "type": "array",
           "items": {
             "type": "string",
@@ -63716,6 +63991,15 @@
         "command_key": {
           "type": "string",
           "minLength": 1
+        },
+        "paths": {
+          "maxItems": 2000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
         }
       },
       "required": [
@@ -65094,6 +65378,28 @@
         "max_age_ms"
       ],
       "additionalProperties": false
+    },
+    "ReviewMode": {
+      "type": "string",
+      "enum": [
+        "E",
+        "C"
+      ]
+    },
+    "ReviewReason": {
+      "type": "string",
+      "enum": [
+        "evidence_sufficient",
+        "b14_unsure",
+        "sensitive_path",
+        "paths_unknown",
+        "codeowners_unreadable",
+        "no_governing_prr",
+        "posture",
+        "autonomy_a0",
+        "r3_zone",
+        "human_led"
+      ]
     },
     "RevisionDecideRequest": {
       "type": "object",

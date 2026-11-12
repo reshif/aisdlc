@@ -26,6 +26,7 @@ import {
   type Written,
 } from './internal.js';
 import { evaluateVote } from './policy.js';
+import { gateHolders } from './ports.js';
 import {
   decisionRowOf,
   foldDecisions,
@@ -114,7 +115,12 @@ export async function planVote(
   req: VoteRequest,
 ): Promise<Result<PlannedVote, DecisionError>> {
   const p = state.open.payload;
-  const holders = await deps.eligibility.holders(p.project_id, gatePolicy(p.gate_id).slot);
+  const holders = await gateHolders(
+    deps.eligibility,
+    p.project_id,
+    gatePolicy(p.gate_id).slot,
+    p.deciders,
+  );
   const ctx = await deps.eligibility.policy(p.project_id);
   if (!holders.ok || !ctx.ok) {
     const why = !holders.ok ? holders.error.message : !ctx.ok ? ctx.error.message : '';

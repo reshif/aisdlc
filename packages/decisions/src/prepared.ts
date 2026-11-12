@@ -20,6 +20,7 @@ import {
   type Written,
 } from './internal.js';
 import { applyVote, enterGate, requirePending, type VoteResult } from './vote.js';
+import { gateHolders } from './ports.js';
 import { readGateState, type GateState } from './state.js';
 
 // PreparedDecision (PLAN M3.3, DM `PreparedDecision` and `GateNonce`). A decision is two calls:
@@ -69,10 +70,16 @@ export async function prepare(
     const refusal = requirePending(deps, state);
     if (refusal) return err(refusal);
     const p = state.open.payload;
-    const holders = await deps.eligibility.holders(p.project_id, gatePolicy(p.gate_id).slot);
+    const holders = await gateHolders(
+      deps.eligibility,
+      p.project_id,
+      gatePolicy(p.gate_id).slot,
+      p.deciders,
+    );
     if (!holders.ok) return err(decisionError('eligibility_unavailable', holders.error.message));
     if (!holders.value.includes(input.principal)) {
-      return err(decisionError('not_eligible', `${input.principal} does not hold the slot`));
+      const why = p.deciders ? 'is not one of the deciders of this gate' : 'does not hold the slot';
+      return err(decisionError('not_eligible', `${input.principal} ${why}`));
     }
     const nonce = randomBytes(32).toString('base64url');
     const created = clock.now();

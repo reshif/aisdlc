@@ -27,6 +27,7 @@ import {
   type Written,
 } from './internal.js';
 import { planQuorum } from './policy.js';
+import { gateHolders } from './ports.js';
 import { gateInstanceProjection } from './projection.js';
 import { SYSTEM_ACTORS, isSystemActor, readGateState, type GateState } from './state.js';
 
@@ -46,6 +47,8 @@ export interface OpenGateInput {
   readonly requester?: PrincipalId | null;
   /** Who wrote what this gate decides (B5 plan author): barred like the requester. */
   readonly authors?: readonly PrincipalId[];
+  /** Narrows the slot to these principals (G4 mode C: the code owners of the changed paths). Never widens it. */
+  readonly deciders?: readonly PrincipalId[];
   /** Conflict facts and project policy. `expires_at` is added (`gateTtlMs` after now) if missing. */
   readonly facts?: JsonObject;
   /** Require a step-up even where the gate policy does not (never the other way round). */
@@ -115,7 +118,8 @@ export async function openGate(
     }
 
     const policy = gatePolicy(input.gate_id);
-    const holders = await deps.eligibility.holders(input.project_id, policy.slot);
+    const deciders = input.deciders ? [...new Set(input.deciders)].sort() : undefined;
+    const holders = await gateHolders(deps.eligibility, input.project_id, policy.slot, deciders);
     const ctx = await deps.eligibility.policy(input.project_id);
     if (!holders.ok || !ctx.ok) {
       const why = !holders.ok ? holders.error.message : !ctx.ok ? ctx.error.message : '';
@@ -141,6 +145,7 @@ export async function openGate(
       evidence_pack_hash: input.evidence_pack_hash ?? null,
       requester,
       ...(authors.length > 0 ? { authors } : {}),
+      ...(deciders !== undefined ? { deciders } : {}),
       facts: { ...input.facts, expires_at: expiresAt },
       quorum: { required: plan.value.required, slot: plan.value.slot, basis: plan.value.basis },
       step_up: {
