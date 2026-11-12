@@ -103,6 +103,10 @@ networks:
     internal: true
   docker-coding:
     internal: true
+  # The object store's API (M14.1). No service is attached yet: callers (Evidence Packs, M14.4) join it
+  # when they need it, and the store has no other network and no route out.
+  objectstore-api:
+    internal: true
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
   # network with a route out), so it has no route to GitHub and gets repo content only as bundles
   # from the codehost.
@@ -113,6 +117,7 @@ volumes:
   kms-state: {}
   codehost-work: {}
   knowledge-work: {}
+  objectstore-data: {}
 
 secrets:
   pg-superuser: { file: ./secrets/pg-superuser }
@@ -165,6 +170,8 @@ secrets:
   tok-core-worker-docker-coding: { file: ./secrets/tok-core-worker-docker-coding }
   tok-smoke-docker-coding: { file: ./secrets/tok-smoke-docker-coding }
   tok-cvw-docker-cvw: { file: ./secrets/tok-cvw-docker-cvw }
+  object-store-access-key: { file: ./secrets/object-store-access-key }
+  object-store-secret-key: { file: ./secrets/object-store-secret-key }
 
 services:
   # ------------------------------------------------------------------------------------ data
@@ -935,6 +942,50 @@ services:
     secrets: [tok-smoke-docker-coding]
     networks: [docker-coding]
     mem_limit: 128m
+
+  # ------------------------------------------------------------------- the object store (M14.1)
+
+  # S3-compatible object store for large content (ADR-0003 §2): Evidence Packs from M14.4. MinIO here, any S3
+  # service in the cloud (the adapter is `S3ObjectStore`, packages/ports). The adapter creates and checks the
+  # buckets itself (`declareBucket`; a write-once bucket is created with Object Lock), so there is no init job.
+  # Root credentials are the two secret files, read through MinIO's `_FILE` variables. Image: Chainguard's
+  # build of MinIO, pinned by digest (the upstream minio/minio images are no longer published to Docker Hub).
+  # Its only tools are coreutils and bash, so the healthcheck is a bash /dev/tcp probe of /minio/health/live.
+  # Not a dependency of any service yet.
+  object-store:
+    image: chainguard/minio@sha256:db3f583fa49121942168bd6383a773b2cde3384c9a99bf7193560b9a0f3a28fd
+    user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=64m
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+    command: ['server', '/data', '--address', ':9000', '--quiet']
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/object-store-access-key
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/object-store-secret-key
+      MINIO_BROWSER: 'off'
+      HOME: /tmp
+    volumes:
+      - objectstore-data:/data
+    secrets: [object-store-access-key, object-store-secret-key]
+    healthcheck:
+      test:
+        - CMD
+        - /usr/bin/bash
+        - -c
+        - 'exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /minio/health/live HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" >&3 && read -r l <&3 && [[ "$$l" == *" 200 "* ]]'
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    networks: [objectstore-api]
+    mem_limit: 512m
 
   # ------------------------------------------------------------- the fake GitHub (a profile)
 
