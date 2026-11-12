@@ -353,6 +353,15 @@ const CASES: RouteCase[] = [
     forwards: `POST /v1/cards/${CARD_ID}/instructions`,
   },
   {
+    name: 'card 2 probe retry',
+    method: 'POST',
+    path: `/api/cards/${CARD_ID}/probe/retry`,
+    body: {},
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `POST /v1/cards/${CARD_ID}/probe/retry`,
+  },
+  {
     name: 'settings revision of a record',
     method: 'GET',
     path: `/api/s0/${S0_ID}/revision`,

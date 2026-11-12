@@ -36,6 +36,100 @@ interface C2View {
   practice_questions: LightQuestion[];
   instructions: FileView[];
   step_up: { bound_hash: string | null };
+  /** M16: LF3 (the probe), LF4 (the harness inventory and the isolation test), LF8 (egress) at this census head. */
+  probe?: {
+    lf3: Floor;
+    lf4?: Floor;
+    lf8: Floor;
+    result: {
+      outcome: string;
+      detail: string | null;
+      tests: { total: number | null };
+      recorded_at: string;
+    } | null;
+  };
+}
+interface Floor {
+  state: 'met' | 'unmet' | 'unknown';
+  reasons: string[];
+}
+
+const FLOOR_TONE = { met: 'good', unmet: 'bad', unknown: 'attention' } as const;
+const FLOOR_TEXT: Readonly<Record<string, string>> = {
+  LF3: "The repository's own setup and tests ran once, in the sandbox, and passed",
+  LF4: 'The harness files are inventoried, and the planted-instruction isolation test passed for the worker image in use',
+  LF8: 'What the dependencies need from the package mirror is declared and served',
+};
+/** Outcomes where the probe ran nothing: a person may ask for it again. */
+const NOT_RUN = ['not_allowed', 'b1_blocked', 'no_test_command', 'no_image', 'unavailable'];
+
+function Floors({ v, cardId, csrf }: { v: C2View; cardId: string; csrf: string }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [asked, setAsked] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const p = v.probe;
+  if (!p) return null;
+  const rows: Array<[string, Floor]> = [
+    ['LF3', p.lf3],
+    ['LF4', p.lf4 ?? { state: 'unknown', reasons: ['isolation_test_not_run'] }],
+    ['LF8', p.lf8],
+  ];
+  const canRetry = p.result === null || NOT_RUN.includes(p.result.outcome);
+  const retry = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.retryProbe(cardId, csrf);
+      setAsked(true);
+      await qc.invalidateQueries({ queryKey: ['card', cardId] });
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title="Light floors at this census head" id="c2-floors">
+      <table className="table" aria-label="Light floors">
+        <thead>
+          <tr>
+            <th scope="col">Floor</th>
+            <th scope="col">State</th>
+            <th scope="col">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([id, f]) => (
+            <tr key={id}>
+              <th scope="row">
+                {id}: {FLOOR_TEXT[id]}
+              </th>
+              <td>
+                <Badge tone={FLOOR_TONE[f.state]}>{f.state}</Badge>
+              </td>
+              <td>{f.reasons.join('; ') || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted">
+        {p.result === null
+          ? 'The probe has not run for this census head yet.'
+          : `The probe: ${p.result.outcome}${p.result.tests.total === null ? '' : `, ${p.result.tests.total} test(s)`}${p.result.detail ? ` (${p.result.detail})` : ''}.`}{' '}
+        Unknown is not met. This card cannot be affirmed until LF3 is met (no waiver).
+      </p>
+      {canRetry ? (
+        <p>
+          <button type="button" disabled={busy || asked} onClick={() => void retry()}>
+            {asked ? 'Asked: the probe runs again shortly' : 'Run the probe again'}
+          </button>{' '}
+          <span className="muted">A probe that ran is final for its census head.</span>
+        </p>
+      ) : null}
+      {error ? <ErrorNote error={error} /> : null}
+    </Section>
+  );
 }
 
 const VERDICT_TEXT: Readonly<Record<ClaimVerdict, string>> = {
@@ -248,6 +342,9 @@ export function C2Form({ card, csrf }: { card: CardDetailWire; csrf: string }) {
     ...(affirm.some((f) => f.path === 'AGENTS.md')
       ? []
       : ['AGENTS.md cannot be affirmed yet: edit its text.']),
+    ...(v.probe && v.probe.lf3.state !== 'met'
+      ? ['LF3 is not met: the probe has not passed at this census head.']
+      : []),
   ];
   const content = {
     proposal_hash: v.proposal.proposal_hash,
@@ -346,6 +443,7 @@ export function C2Form({ card, csrf }: { card: CardDetailWire; csrf: string }) {
           These answers describe how this repository is worked on.
         </Check>
       </Section>
+      <Floors v={v} cardId={card.summary.card_id} csrf={csrf} />
       {v.instructions.map((f) => (
         <FileReview key={f.path} file={f} cardId={card.summary.card_id} csrf={csrf} />
       ))}

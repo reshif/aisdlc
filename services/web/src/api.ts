@@ -348,6 +348,9 @@ export const api = {
     request<CardDecision>('POST', `/api/cards/${encodeURIComponent(id)}/decide`, b, csrf),
   recheck: (id: string, csrf: string) =>
     request<unknown>('POST', `/api/cards/${encodeURIComponent(id)}/recheck`, {}, csrf),
+  /** Card 2 (M16): ask for the onboarding probe again (only when it ran nothing; the factory records the request). */
+  retryProbe: (id: string, csrf: string) =>
+    request<unknown>('POST', `/api/cards/${encodeURIComponent(id)}/probe/retry`, {}, csrf),
   /** Card 2: edit one file's proposed instruction text (secret-scanned by the factory before it is stored). */
   editInstructions: (
     id: string,

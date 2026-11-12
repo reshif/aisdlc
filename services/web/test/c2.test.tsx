@@ -129,4 +129,55 @@ describe('card 2', { timeout: 20_000 }, () => {
     const call = m.calls.find((c) => c.path === `/api/cards/${CARD_ID}/instructions`);
     expect(call?.body).toEqual({ path: 'AGENTS.md', text: '# app', base_text_sha256: TEXT_HASH });
   });
+
+  it('shows LF3, LF4 and LF8 at the census head; a probe that ran nothing can be asked for again', async () => {
+    const probe = {
+      lf3: { state: 'unknown', reasons: ['probe_not_run'] },
+      lf4: { state: 'unknown', reasons: ['isolation_test_not_run_for_worker_image'] },
+      lf8: { state: 'met', reasons: [] },
+      result: {
+        outcome: 'not_allowed',
+        detail: 'acme/app is not on the owner allow-list (DEC-18): its code does not run',
+        tests: { total: null },
+        recorded_at: '2026-11-12T10:00:00.000Z',
+      },
+    };
+    const user = userEvent.setup();
+    const m = mockApi(
+      routes({
+        [`GET /api/cards/${CARD_ID}`]: { json: detail('C2', c2View({ probe })) },
+        [`POST /api/cards/${CARD_ID}/probe/retry`]: { json: { requested: true, probe_id: null } },
+      }),
+    );
+    renderAt(`/cards/${CARD_ID}`);
+    const table = await screen.findByRole('table', { name: 'Light floors' });
+    expect(table).toHaveTextContent('LF3');
+    expect(table).toHaveTextContent('probe_not_run');
+    expect(table).toHaveTextContent('isolation_test_not_run_for_worker_image');
+    expect(table).toHaveTextContent('LF8');
+    expect(screen.getByText(/The probe: not_allowed/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Run the probe again' }));
+    await screen.findByRole('button', { name: /Asked: the probe runs again/ });
+    expect(m.calls.filter((c) => c.path === `/api/cards/${CARD_ID}/probe/retry`)).toHaveLength(1);
+    // the approval stays blocked while LF3 is not met
+    expect(screen.getByText(/LF3 is not met/)).toBeInTheDocument();
+  });
+
+  it('a probe that ran offers no retry (one run is final for its head)', async () => {
+    const probe = {
+      lf3: { state: 'unmet', reasons: ['probe_failed'] },
+      lf4: { state: 'met', reasons: [] },
+      lf8: { state: 'met', reasons: [] },
+      result: {
+        outcome: 'failed',
+        detail: null,
+        tests: { total: 3 },
+        recorded_at: '2026-11-12T10:00:00.000Z',
+      },
+    };
+    mockApi(routes({ [`GET /api/cards/${CARD_ID}`]: { json: detail('C2', c2View({ probe })) } }));
+    renderAt(`/cards/${CARD_ID}`);
+    await screen.findByRole('table', { name: 'Light floors' });
+    expect(screen.queryByRole('button', { name: 'Run the probe again' })).toBeNull();
+  });
 });
