@@ -13,6 +13,7 @@ import {
 } from '@aisdlc/contracts';
 import { startTestCodeHost } from '@aisdlc/codehost/testing';
 import { readCardState } from '@aisdlc/decisions';
+import { sha256Hex } from '@aisdlc/kernel';
 import { buildCodeGraph } from '@aisdlc/knowledge';
 import { emptySeed } from '@aisdlc/ports';
 import { makeCanary } from '@aisdlc/secrets-rules';
@@ -20,6 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CorePushGuards,
   coreInbox,
+  gateCardContext,
   laneEligibility,
   listReonboardProposals,
   rebuildKnowledgeDefects,
@@ -536,6 +538,56 @@ describe('the oracle lock through X2 (M17)', () => {
     } finally {
       await host.stop();
     }
+  });
+
+  it('the X2 gate context of a Full pack: the files by hash, card 3, the oracle lock and the intended seeds', async () => {
+    const c = await toFull();
+    s.elig.setHolders(c.project as never, 'x', ['bob' as never]);
+    const deps = {
+      cards: c.deps,
+      push: { pool: s.record.pool, clock: s.clock, ledger: s.deps.ledger as never },
+    };
+    const view = await approveC3(c);
+    const v = await projectFullPack(deps, c.s0);
+    if (!v.ok) throw new Error(v.error.message);
+    const r = await gateCardContext(s.record.pool, v.value.x2_card_id as string);
+    if (!r.ok) throw new Error(r.error.message);
+    expect(r.value).toMatchObject({
+      subject_kind: 's0_record',
+      item_id: null,
+      s0_id: c.s0,
+      gate: 'X2',
+      step: '0.3',
+      subject_hash: v.value.patch_hash,
+    });
+    const k = r.value.onboarding_pack;
+    const lockFile = v.value.files.find((f) => f.path === ORACLE_LOCK_PATH);
+    expect(k).toMatchObject({
+      kind: 'full',
+      branch: `agent/${c.s0}/onboarding-full-pack`,
+      bound: true,
+      intact: true,
+      deciding_card: { card: 'C3' },
+      codeowners: null,
+      oracle_lock: {
+        path: ORACLE_LOCK_PATH,
+        lock_hash: view.oracle_lock.lock_hash,
+        tests: view.oracle_lock.tests.length,
+        truncated: false,
+        file_sha256: lockFile?.sha256,
+      },
+    });
+    expect(k?.files).toEqual(v.value.files);
+    // only the corrected seed is intended (the other was kept `observed`), bound by its corrected text's hash
+    const money = view.seeds.find((x: Json) => x.area === 'packages/money');
+    expect(k?.seeds).toEqual([
+      {
+        seed_id: money.seed_id,
+        area: 'packages/money',
+        path: money.path,
+        text_sha256: sha256Hex(CORRECTED.trim()),
+      },
+    ]);
   });
 });
 

@@ -370,3 +370,117 @@ describe('the gate screens S7 raises', () => {
     expect(await screen.findByTestId('constitution')).toHaveTextContent('C-EGRESS: violation');
   });
 });
+
+describe('X2 on an S0 record: the onboarding pack (M16)', () => {
+  const S0 = '0190a000-0000-7000-8000-0000000000a1';
+  const file = (path: string, source: string, c: string) => ({
+    path,
+    source,
+    sha256: c.repeat(64),
+    bytes: 120,
+    protected_rule: 'factory',
+  });
+  const pack = (kind: 'light' | 'full', over: Record<string, unknown> = {}) => ({
+    kind,
+    s0_id: S0,
+    repo: 'acme/app',
+    base_sha: 'a'.repeat(40),
+    branch: `agent/${S0}/${kind === 'light' ? 'onboarding-pack' : 'onboarding-full-pack'}`,
+    patch_hash: SUBJECT,
+    bound: true,
+    intact: true,
+    deciding_card: {
+      card: kind === 'light' ? 'C2' : 'C3',
+      card_id: '0190a000-0000-7000-8000-0000000000c2',
+      payload_hash: 'e'.repeat(64),
+    },
+    files:
+      kind === 'light'
+        ? [
+            file('.factory/knowledge/claims.yaml', 'claims', '1'),
+            file('.github/CODEOWNERS', 'codeowners', '2'),
+          ]
+        : [file('.factory/oracle-lock.json', 'oracle_lock', '3'), file('specs/m.md', 'seed', '4')],
+    codeowners:
+      kind === 'light'
+        ? {
+            outcome: 'rendered',
+            rendered: true,
+            owners: [
+              { principal_id: 'alice', login: 'alice-gh', reason: 'mapped' },
+              { principal_id: 'carol', login: null, reason: 'no_linked_login' },
+            ],
+          }
+        : null,
+    oracle_lock:
+      kind === 'full'
+        ? {
+            path: '.factory/oracle-lock.json',
+            lock_hash: '5'.repeat(64),
+            tests: 4,
+            truncated: false,
+            file_sha256: '3'.repeat(64),
+          }
+        : null,
+    seeds:
+      kind === 'full'
+        ? [
+            {
+              seed_id: 'seed-1',
+              area: 'packages/m',
+              path: 'specs/m.md',
+              text_sha256: '6'.repeat(64),
+            },
+          ]
+        : [],
+    ...over,
+  });
+  const s0ctx = (k: ReturnType<typeof pack>) =>
+    gateContext('X2', {
+      subject_kind: 's0_record',
+      item_id: null,
+      s0_id: S0,
+      station: 'X2',
+      step: k.kind === 'light' ? '0.2' : '0.3',
+      check: null,
+      head_sha: null,
+      patch: { patch_hash: SUBJECT, source: 'bound_artefact', bound: true },
+      onboarding_pack: k,
+    });
+
+  it('Light: the rendered files with their hashes, the patch, card 2 and CODEOWNERS; links to the record', async () => {
+    mockApi(gateRoutes('X2', gateCard('X2'), s0ctx(pack('light'))));
+    renderAt(`/cards/${CARD}`);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Onboarding pack: protected paths' }),
+    ).toBeInTheDocument();
+    const p = screen.getByTestId('onboarding-pack');
+    expect(within(p).getByTestId('patch-hash')).toHaveTextContent(SUBJECT);
+    const files = within(p).getByTestId('pack-files');
+    expect(files).toHaveTextContent('.factory/knowledge/claims.yaml');
+    expect(files).toHaveTextContent('.github/CODEOWNERS');
+    expect(files).toHaveTextContent('1'.repeat(16));
+    expect(p).toHaveTextContent(/Card 2 payload/);
+    const co = screen.getByTestId('pack-codeowners');
+    expect(co).toHaveTextContent('@alice-gh');
+    expect(co).toHaveTextContent('left out: no linked login');
+    expect(screen.queryByTestId('pack-full')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open record' })).toHaveAttribute('href', `/s0/${S0}`);
+  });
+
+  it('Full: the oracle lock and the seeds card 3 made intended', async () => {
+    mockApi(gateRoutes('X2', gateCard('X2'), s0ctx(pack('full'))));
+    renderAt(`/cards/${CARD}`);
+    const f = await screen.findByTestId('pack-full');
+    expect(f).toHaveTextContent('.factory/oracle-lock.json');
+    expect(f).toHaveTextContent(/Tests locked\s*4/);
+    expect(f).toHaveTextContent('packages/m');
+    expect(screen.queryByTestId('pack-codeowners')).not.toBeInTheDocument();
+  });
+
+  it('a pack that does not match its record says do not decide', async () => {
+    mockApi(gateRoutes('X2', gateCard('X2'), s0ctx(pack('light', { intact: false }))));
+    renderAt(`/cards/${CARD}`);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Do not decide/);
+  });
+});

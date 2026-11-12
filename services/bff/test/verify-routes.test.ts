@@ -99,7 +99,9 @@ const evidenceView = () => ({
 const gateContext = () => ({
   card_id: CARD_ID,
   project_id: 'acme',
+  subject_kind: 'item',
   item_id: ITEM_ID,
+  s0_id: null,
   gate: 'SECT',
   gate_instance_id: 'g-1',
   station: 'sect:1',
@@ -124,6 +126,7 @@ const gateContext = () => ({
   patch: null,
   dependencies: [],
   constitution: null,
+  onboarding_pack: null,
   data_class: 'D2',
 });
 

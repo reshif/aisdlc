@@ -4,7 +4,17 @@ import { DataClass, Lane, StepId } from '../values.js';
 import { CatalogueRef } from './config.js';
 import { EvidenceGate, EvidenceStep, S7Disposition } from './evidence.js';
 import { GateCheckOutcome, GateCheckReason } from './gate-check.js';
-import { GitSha, IsoDateTime, PrincipalId, ProjectId, Sha256Hex, WorkItemId } from './ids.js';
+import { RepoFullName } from './codehost.js';
+import {
+  GitSha,
+  IsoDateTime,
+  PrincipalId,
+  ProjectId,
+  S0RecordId,
+  Sha256Hex,
+  WorkItemId,
+} from './ids.js';
+import { PackCodeownersOutcome, PackFile, PackKind } from './onboarding-pack.js';
 import {
   CheckVerdict,
   FindingKind,
@@ -215,13 +225,81 @@ export const GateDecisionView = z.strictObject({
 export type GateDecisionView = z.infer<typeof GateDecisionView>;
 
 /**
+ * X2 on an S0 record (M16 R2b, M17): what the onboarding pack's X2 binds, read from the record. The files the gate
+ * opened with (each by path, sha256 and the protected-path rule it falls under) against the recorded render
+ * (`pack.rendered`: `intact`), the patch hash against the gate's subject hash (`bound`), the deciding card (card 2 for
+ * Light, card 3 for Full) by its payload hash, who CODEOWNERS names and why (`pack.codeowners_resolved`), and for
+ * Full the oracle lock and the seeds card 3 made `intended`. Hashes and paths only: no file content.
+ */
+export const S0PackGateContext = z.strictObject({
+  kind: PackKind,
+  s0_id: S0RecordId,
+  repo: RepoFullName,
+  base_sha: GitSha,
+  branch: z.string().min(1).max(300),
+  patch_hash: Sha256Hex,
+  /** The gate's subject hash is exactly this patch hash. */
+  bound: z.boolean(),
+  /** The files the gate opened with are the recorded render's, byte for byte (by sha256). `false`: do not decide. */
+  intact: z.boolean(),
+  deciding_card: z.strictObject({
+    card: z.enum(['C2', 'C3']),
+    card_id: z.string().uuid(),
+    payload_hash: Sha256Hex,
+  }),
+  files: z.array(PackFile).max(50),
+  /** Light: who the pack's CODEOWNERS names, resolved once and recorded; `null` when not recorded (Full). */
+  codeowners: z
+    .strictObject({
+      outcome: PackCodeownersOutcome,
+      rendered: z.boolean(),
+      owners: z.array(
+        z.strictObject({
+          principal_id: z.string().min(1).max(200),
+          login: z.string().min(1).max(39).nullable(),
+          reason: z.enum(['mapped', 'no_linked_login']),
+        }),
+      ),
+    })
+    .nullable(),
+  /** Full: the oracle lock card 3 affirmed (`null` for Light, or when the baseline is not on the record). */
+  oracle_lock: z
+    .strictObject({
+      path: z.string().min(1).max(300),
+      lock_hash: Sha256Hex,
+      tests: z.number().int().min(0),
+      truncated: z.boolean(),
+      /** sha256 of the rendered lock file in the pack, `null` when the pack holds none. */
+      file_sha256: Sha256Hex.nullable(),
+    })
+    .nullable(),
+  /** Full: the seeds card 3 made `intended`, by the hash of the text affirmed. */
+  seeds: z
+    .array(
+      z.strictObject({
+        seed_id: z.string().min(1).max(64),
+        area: z.string().min(1).max(300),
+        path: z.string().min(1).max(300),
+        text_sha256: Sha256Hex,
+      }),
+    )
+    .max(100),
+});
+export type S0PackGateContext = z.infer<typeof S0PackGateContext>;
+
+/**
  * `GET /v1/cards/:id/gate/context`: the gate-specific facts of a work-item card raised by S7 (Q1 through its SECT
- * triage, E6, X2, E2 at 7.5), by S6 (X3, X2 at 6.6, E6) or at 4.5 (E2), and what its subject hash binds.
+ * triage, E6, X2, E2 at 7.5), by S6 (X3, X2 at 6.6, E6) or at 4.5 (E2), and what its subject hash binds. M16: also
+ * the X2 of an S0 record's onboarding pack (`subject_kind: s0_record`, `item_id` null, `onboarding_pack` set).
  */
 export const GateCardContext = z.strictObject({
   card_id: z.string().min(1),
   project_id: ProjectId,
-  item_id: WorkItemId,
+  subject_kind: z.enum(['item', 's0_record']),
+  /** `null` for an S0 record's card. */
+  item_id: WorkItemId.nullable(),
+  /** The S0 record of an onboarding card; `null` for a work item's. */
+  s0_id: S0RecordId.nullable(),
   gate: GateId,
   gate_instance_id: z.string().min(1),
   /** The station key (`7.4!X2`, `sect:1`) and the step that raised it (`null` for SECT). */
@@ -273,6 +351,8 @@ export const GateCardContext = z.strictObject({
       markdown: z.string().nullable(),
     })
     .nullable(),
+  /** X2 on an S0 record: the onboarding pack it binds. */
+  onboarding_pack: S0PackGateContext.nullable(),
   data_class: DataClass,
 });
 export type GateCardContext = z.infer<typeof GateCardContext>;

@@ -1,5 +1,6 @@
 import {
   DEFAULT_LIGHT_TESTS,
+  GateCardContext,
   PACK_EVENT,
   PROBE_EVENT,
   IsolationTestReport,
@@ -22,6 +23,7 @@ import {
   CorePushGuards,
   coreInbox,
   createCoreApp,
+  gateCardContext,
   latestSpike,
   lightFloorsOf,
   listPullRequests,
@@ -629,6 +631,111 @@ describe('R2b: the affirmed pack, record-first, through X2 and the Push Broker',
     );
     const again = await projectPack(deps, c.s0);
     expect(again.ok && again.value.patch_hash).toBe(v.value.patch_hash);
+  });
+
+  it('the X2 gate context of a Light pack: the rendered files by hash, the patch it binds, card 2, CODEOWNERS; a tampered fold reads not intact', async () => {
+    tests = DEFAULT_LIGHT_TESTS;
+    const c = await atCard2();
+    s.elig.setHolders(c.project as never, 'admin', ['alice' as never, 'bob' as never]);
+    s.elig.setHolders(c.project as never, 'x', ['bob' as never]);
+    await publishSettings(
+      s,
+      c.project,
+      { role_map: settingsOf('x', { admin: ['alice', 'carol'] }).role_map },
+      'bob',
+      'alice',
+    );
+    const deps = {
+      cards: c.deps,
+      push: { pool: s.record.pool, clock: s.clock, ledger: s.deps.ledger as never },
+    };
+    const c2 = await affirmC2(c);
+    const v = await projectPack(deps, c.s0);
+    if (!v.ok) throw new Error(v.error.message);
+    const cardId = v.value.x2_card_id as string;
+
+    const app = createCoreApp({
+      pool: s.record.pool,
+      auth: new ServiceAuth({ reader: 'reader-at-core-'.padEnd(32, 'x') }),
+      callers: { reader: ['read'] },
+      registry: s.registry,
+      clock: s.clock,
+    });
+    try {
+      const got = await app.inject({
+        method: 'GET',
+        url: `/v1/cards/${cardId}/gate/context`,
+        headers: { authorization: 'Bearer reader-at-core-'.padEnd(39, 'x') },
+      });
+      expect(got.statusCode, got.body).toBe(200);
+      const ctx = GateCardContext.parse(got.json());
+      expect(ctx).toMatchObject({
+        subject_kind: 's0_record',
+        item_id: null,
+        s0_id: c.s0,
+        gate: 'X2',
+        station: 'X2',
+        step: '0.2',
+        subject_hash: v.value.patch_hash,
+        patch: { patch_hash: v.value.patch_hash, source: 'bound_artefact', bound: true },
+        check: null,
+        head_sha: null,
+      });
+      const k = ctx.onboarding_pack;
+      expect(k).toMatchObject({
+        kind: 'light',
+        s0_id: c.s0,
+        repo: c.repo,
+        branch: `agent/${c.s0}/onboarding-pack`,
+        patch_hash: v.value.patch_hash,
+        bound: true,
+        intact: true,
+        deciding_card: { card: 'C2', card_id: c2 },
+        oracle_lock: null,
+        seeds: [],
+      });
+      // every rendered file with its sha256 and protected-path rule, exactly the recorded render
+      expect(k?.files).toEqual(v.value.files);
+      expect(k?.files.every((f) => f.protected_rule !== null)).toBe(true);
+      expect(k?.codeowners).toEqual({
+        outcome: 'rendered',
+        rendered: true,
+        owners: [
+          { principal_id: 'alice', login: 'alice-gh', reason: 'mapped' },
+          { principal_id: 'carol', login: null, reason: 'no_linked_login' },
+        ],
+      });
+      expect(ctx.binds.map((b) => b.label)).toEqual([
+        'S0 record',
+        'station',
+        '0.2 onboarding pack (patch)',
+        'card 2 payload',
+        'base commit',
+        'branch',
+      ]);
+
+      // the fold is derived: a row that no longer matches what X2 opened with reads not intact; a rebuild restores it
+      await s.record.pool.query(
+        `UPDATE core.onboarding_pack SET files = jsonb_set(files, '{0,sha256}', to_jsonb($2::text))
+          WHERE x2_card_id = $1`,
+        [cardId, '0'.repeat(64)],
+      );
+      const bad = await gateCardContext(s.record.pool, cardId);
+      expect(bad.ok && bad.value.onboarding_pack?.intact).toBe(false);
+      await rebuildPacks(c.deps, c.s0);
+      const back = await gateCardContext(s.record.pool, cardId);
+      expect(back.ok && back.value.onboarding_pack?.intact).toBe(true);
+
+      // card 2 itself is not a gate card: 404, never a context
+      const c2ctx = await app.inject({
+        method: 'GET',
+        url: `/v1/cards/${c2}/gate/context`,
+        headers: { authorization: 'Bearer reader-at-core-'.padEnd(39, 'x') },
+      });
+      expect(c2ctx.statusCode).toBe(404);
+    } finally {
+      await app.close();
+    }
   });
 
   it('X2 rejected: nothing is pushed; without a broker an approved pack waits', async () => {

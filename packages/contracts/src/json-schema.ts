@@ -929,6 +929,7 @@ export const SCHEMAS = {
   GateCheckRunsView: entities.GateCheckRunsView,
   GateDecisionView: entities.GateDecisionView,
   GateCardContext: entities.GateCardContext,
+  S0PackGateContext: entities.S0PackGateContext,
   VerifyCheckId: entities.VerifyCheckId,
   CheckVerdict: entities.CheckVerdict,
   FindingSeverity: entities.FindingSeverity,

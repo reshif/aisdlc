@@ -27,6 +27,7 @@ import type { ItemState } from '@aisdlc/work';
 import type pg from 'pg';
 import { z } from 'zod';
 import { listPushReceipts } from '../build/push.js';
+import { packGateContext } from '../cards/pack.js';
 import { coreError, type CoreError } from '../errors.js';
 import { artefactByHash } from '../planning/store.js';
 import { listUnits } from '../planning/units.js';
@@ -369,6 +370,7 @@ export async function gateCardContext(
   cardId: string,
 ): Promise<Result<GateCardContext, CoreError>> {
   const opened = await readCardOpened(pool, cardId);
+  if (opened?.open.subject_kind === 's0_record') return s0GateContext(pool, cardId);
   if (!opened || opened.open.subject_kind !== 'item') {
     return err(coreError('not_found', `${cardId} is not a work item card`));
   }
@@ -460,7 +462,9 @@ export async function gateCardContext(
   return ok({
     card_id: cardId,
     project_id: opened.open.project_id as never,
+    subject_kind: 'item',
     item_id: itemId as never,
+    s0_id: null,
     gate: p.gate_id,
     gate_instance_id: g.gate_instance_id,
     station: station || p.gate_id,
@@ -491,6 +495,72 @@ export async function gateCardContext(
     patch,
     dependencies,
     constitution,
+    onboarding_pack: null,
+    data_class: 'D2',
+  });
+}
+
+/**
+ * The X2 of an S0 record's onboarding pack (M16): what its subject hash binds is the pack's patch hash, and the pack
+ * itself is read from the record (`packGateContext`). Any other S0 card is not a gate card here (404).
+ */
+async function s0GateContext(
+  pool: pg.Pool,
+  cardId: string,
+): Promise<Result<GateCardContext, CoreError>> {
+  const state = await readCardState(pool, cardId);
+  const g = state?.gates[0];
+  if (!state || !g || g.state.open.payload.gate_id !== 'X2') {
+    return err(coreError('not_found', `${cardId} is not an onboarding pack's X2 card`));
+  }
+  const pack = await packGateContext(pool, cardId);
+  if (!pack.ok) return pack;
+  if (pack.value === null) {
+    return err(coreError('not_found', `${cardId} is not an onboarding pack's X2 card`));
+  }
+  const k = pack.value;
+  const p: GateOpenedPayload = g.state.open.payload;
+  const step = k.kind === 'light' ? '0.2' : '0.3';
+  const binds: Array<{ label: string; value: string }> = [
+    { label: 'S0 record', value: k.s0_id },
+    { label: 'station', value: 'X2' },
+    { label: `${step} onboarding pack (patch)`, value: k.patch_hash },
+    {
+      label: `card ${k.deciding_card.card === 'C2' ? 2 : 3} payload`,
+      value: k.deciding_card.payload_hash,
+    },
+    { label: 'base commit', value: k.base_sha },
+    { label: 'branch', value: k.branch },
+  ];
+  return ok({
+    card_id: cardId,
+    project_id: state.open.project_id as never,
+    subject_kind: 's0_record',
+    item_id: null,
+    s0_id: k.s0_id,
+    gate: p.gate_id,
+    gate_instance_id: g.gate_instance_id,
+    station: 'X2',
+    step: step as StepId,
+    requester: p.requester,
+    quorum_required: p.quorum.required,
+    decisions: g.state.decisions.map((d) => ({
+      ledger_seq: d.ledger_seq,
+      actor: d.actor,
+      decision: d.decision,
+      at: d.created_at,
+      sod_waiver: d.sod_waiver,
+    })),
+    subject_hash: p.subject_hash,
+    binds,
+    step_up: p.step_up,
+    check: null,
+    head_sha: null,
+    quarantine: null,
+    patch: { patch_hash: k.patch_hash, source: 'bound_artefact', bound: k.bound },
+    dependencies: [],
+    constitution: null,
+    onboarding_pack: k,
     data_class: 'D2',
   });
 }
