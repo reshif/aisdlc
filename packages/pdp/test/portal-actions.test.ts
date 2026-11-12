@@ -2,12 +2,14 @@ import {
   ROLE_CATALOGUE,
   actionDef,
   pdpResource,
+  policyBundleHash,
   type ActionId,
   type PdpResource,
   type RoleDef,
   type Scope,
 } from '@aisdlc/contracts';
 import { describe, expect, it } from 'vitest';
+import { buildBundle, bundleWithoutPolicies, verifyBundle } from '../src/index.js';
 import { FLEET, proj, rig } from './helpers.js';
 
 // PLAN §7a (2026-11-12): the six portal actions the design proposed (portal-coverage §5 item 6). One table per action,
@@ -63,6 +65,26 @@ const RESOURCE: Record<Where, PdpResource> = {
   other: pdpResource.project('p2'),
 };
 const bindAt = (r: RoleDef): Scope => (r.scope_kinds.includes('fleet') ? FLEET : proj('p1'));
+
+describe('bundleWithoutPolicies (the route tests withhold one grant with it)', () => {
+  it('withholds exactly the policies named, rehashed and still valid, and refuses an unknown id', async () => {
+    const full = buildBundle();
+    const b = bundleWithoutPolicies(full, ['role/factory.auditor/ops.read']);
+    expect(Object.keys(b.policies)).toHaveLength(Object.keys(full.policies).length - 1);
+    expect(b.bundle_hash).toBe(policyBundleHash(b));
+    expect(b.bundle_hash).not.toBe(full.bundle_hash);
+    expect(verifyBundle(b).ok).toBe(true);
+    const { pdp, entities, source } = rig();
+    source.set(b);
+    entities.addPrincipal('aud').bind('aud', 'factory.auditor', FLEET);
+    const ask = (action: ActionId) =>
+      pdp.decide({ principal: 'aud', action, resource: pdpResource.fleet() }, { log: false });
+    expect((await ask('ops.read')).decision).toBe('deny');
+    expect((await ask('audit.read')).decision).toBe('allow');
+    expect((await ask('quality.read')).decision).toBe('allow');
+    expect(() => bundleWithoutPolicies(full, ['role/nobody/ops.read'])).toThrow(/no such policy/);
+  });
+});
 
 describe('the six portal actions (PLAN §7a, 2026-11-12)', () => {
   it('are in the catalogue with fail-closed shapes: config and kill allows are logged, reads are not', () => {

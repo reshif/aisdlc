@@ -85,9 +85,11 @@ beforeAll(async () => {
   core = await startFakeCore();
   sc = await startFakeCore();
   s = await startBffStack({ override: { core: core.client, sandboxController: sc.client } });
-  // alice administers acme; bob is acme's intent holder; root is a factory admin; dora has nothing
+  // alice administers acme; bob is acme's intent holder; root is a factory admin; carol a factory auditor; dora has
+  // nothing
   await bindProject(s.identity, 'acme', { admin: ['alice'], intent: ['bob'] });
   await grantFleetRole(s.identity.deps, 'root', 'factory.admin');
+  await grantFleetRole(s.identity.deps, 'carol', 'factory.auditor');
 });
 afterAll(async () => {
   // a failed beforeAll leaves these unset: report that failure, not a second one here
@@ -101,13 +103,16 @@ beforeEach(() => {
   sc.override.clear();
 });
 
-const fleetReads: ReadonlyArray<{ path: string; core: string; json: unknown }> = [
+/** PLAN §7a: Quality is `quality.read`, Operate `ops.read`, the decision log stays `audit.read` (all on the fleet). */
+const fleetReads: ReadonlyArray<{ path: string; core: string; json: unknown; action: string }> = [
   {
+    action: 'quality.read',
     path: '/api/agents',
     core: '/v1/agents',
     json: { lock_format: 'aisdlc-prompts-lock/v1', agents: [] },
   },
   {
+    action: 'ops.read',
     path: '/api/admission',
     core: '/v1/admission',
     json: {
@@ -119,19 +124,37 @@ const fleetReads: ReadonlyArray<{ path: string; core: string; json: unknown }> =
       held: [],
     },
   },
-  { path: '/api/controls', core: '/v1/controls', json: { controls: [], banners: [] } },
-  { path: '/api/kills', core: '/v1/kills', json: { observed_head: 0, journal: [] } },
-  { path: '/api/audit/decisions', core: '/v1/audit/decisions', json: { decisions: [] } },
+  {
+    action: 'ops.read',
+    path: '/api/controls',
+    core: '/v1/controls',
+    json: { controls: [], banners: [] },
+  },
+  {
+    action: 'ops.read',
+    path: '/api/kills',
+    core: '/v1/kills',
+    json: { observed_head: 0, journal: [] },
+  },
+  {
+    action: 'audit.read',
+    path: '/api/audit/decisions',
+    core: '/v1/audit/decisions',
+    json: { decisions: [] },
+  },
 ];
 
-describe('fleet audit reads', () => {
-  it('need a session, then audit.read on the fleet here; core gets the bff token and the person', async () => {
+describe('fleet reads: Quality, Operate and the decision log', () => {
+  it('need a session, then their action on the fleet here; core gets the bff token and the person', async () => {
     for (const r of fleetReads) {
       core.override.set(`GET ${r.core}?on_behalf_of=root`, { status: 200, json: r.json });
+      core.override.set(`GET ${r.core}?on_behalf_of=carol`, { status: 200, json: r.json });
       expect((await api(null, 'GET', r.path)).status, r.path).toBe(401);
       core.seen.length = 0;
-      // a project admin holds audit.read on their project only, not on the fleet
-      expect((await api('alice', 'GET', r.path)).status, r.path).toBe(403);
+      // a project admin holds these on their project only, not on the fleet
+      const refused = await api('alice', 'GET', r.path);
+      expect(refused.status, r.path).toBe(403);
+      expect(refused.json.error.message, r.path).toBe(`${r.action} denied`);
       expect((await api('dora', 'GET', r.path)).status, r.path).toBe(403);
       expect(core.seen, `${r.path}: a refusal never reaches core`).toEqual([]);
       const ok = await api('root', 'GET', r.path);
@@ -141,6 +164,8 @@ describe('fleet audit reads', () => {
       expect(seen?.path).toBe(`${r.core}?on_behalf_of=root`);
       expect(seen?.headers.authorization).toBe(`Bearer ${CORE_TOKEN}`);
       expect(seen?.headers.cookie).toBeUndefined();
+      // the factory auditor reads every one of them (PLAN §7a: ops.read and quality.read are the auditor's too)
+      expect((await api('carol', 'GET', r.path)).status, r.path).toBe(200);
     }
   });
 
@@ -149,7 +174,7 @@ describe('fleet audit reads', () => {
     expect((await api('root', 'GET', '/api/kills')).status).toBe(502);
   });
 
-  it('integrations: health tiles and events, audit.read on the fleet', async () => {
+  it('integrations: health tiles and events, quality.read or ops.read on the fleet', async () => {
     core.override.set('GET /v1/integrations/health', {
       status: 200,
       json: { as_of: T, registry_revision: null, tiles: [] },
@@ -186,7 +211,7 @@ describe('items and the catalogue', () => {
 });
 
 describe('sandbox slots', () => {
-  it('audit.read on the fleet, then the sandbox-controller; its failure is a 502, never an empty board', async () => {
+  it('ops.read on the fleet, then the sandbox-controller; its failure is a 502, never an empty board', async () => {
     sc.override.set('GET /v1/slots', { status: 200, json: SLOTS });
     expect((await api('alice', 'GET', '/api/slots')).status).toBe(403);
     const ok = await api('root', 'GET', '/api/slots');

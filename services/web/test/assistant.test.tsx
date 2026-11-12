@@ -127,7 +127,7 @@ const askResult = {
   budget,
 };
 
-/** Allows `project.view` and `card.decide`, denies the rest. */
+/** Allows the actions named, denies the rest. */
 const decisions = (allow: readonly string[]) => (c: { body: unknown }) => ({
   json: {
     decisions: (
@@ -161,7 +161,7 @@ describe('the onboarding assistant beside the S0 page', () => {
     let asked = false;
     const api = mockApi(
       s0Routes({
-        'POST /api/me/decisions': decisions(['project.view', 'card.decide']),
+        'POST /api/me/decisions': decisions(['project.view', 'assistant.use', 'card.decide']),
         [`GET /api/assistant/threads?s0=${S0_ID}`]: () => ({
           json: { threads: asked ? [thread] : [] },
         }),
@@ -227,7 +227,7 @@ describe('the onboarding assistant beside the S0 page', () => {
   it('locks a button the PDP denies, and says it answers only people who can see the onboarding', async () => {
     mockApi(
       s0Routes({
-        'POST /api/me/decisions': decisions(['project.view']),
+        'POST /api/me/decisions': decisions(['project.view', 'assistant.use']),
         [`GET /api/assistant/threads?s0=${S0_ID}`]: { json: { threads: [thread] } },
         [`GET /api/assistant/threads/${THREAD}`]: {
           json: {
@@ -252,8 +252,11 @@ describe('the onboarding assistant beside the S0 page', () => {
     mockApi(s0Routes());
     renderAt(`/s0/${S0_ID}`);
     expect(
-      (await screen.findAllByText('The assistant answers only people who can see this onboarding.'))
-        .length,
+      (
+        await screen.findAllByText(
+          'The assistant answers only people who can see this onboarding and may use the assistant.',
+        )
+      ).length,
     ).toBeGreaterThan(0);
   });
 });
@@ -261,8 +264,8 @@ describe('the onboarding assistant beside the S0 page', () => {
 describe('Ask the factory', () => {
   it('starts a conversation about a project the person can see', async () => {
     const api = mockApi({
-      'GET /api/me': { json: me() },
-      'POST /api/me/decisions': decisions(['project.view']),
+      'GET /api/me': { json: me(['project.onboard', 'assistant.use']) },
+      'POST /api/me/decisions': decisions(['project.view', 'assistant.use']),
       'GET /api/projects': { json: [summaryOf()] },
       'GET /api/assistant/threads': { json: { threads: [] } },
       'GET /api/assistant/budget': { json: { ...budget, exhausted: true } },
@@ -296,6 +299,34 @@ describe('Ask the factory', () => {
       }),
     );
     expect(await screen.findByText('Card 1 waits for you. <b>not html</b>')).toBeInTheDocument();
+  });
+
+  it('without assistant.use anywhere (PLAN §7a) Ask is not in the nav and a direct link is the 403 page', async () => {
+    const { calls } = mockApi({ 'GET /api/me': { json: me(['project.onboard']) } });
+    renderAt('/ask');
+    await waitFor(() => expect(document.querySelector('[data-status="403"]')).not.toBeNull());
+    expect(document.querySelector('[data-status="403"]')).toHaveTextContent(
+      'Ask the factory and the onboarding assistant',
+    );
+    expect(screen.queryByRole('link', { name: 'Ask the factory' })).toBeNull();
+    expect(calls.map((c) => c.path)).not.toContain('/api/assistant/threads');
+  });
+});
+
+describe('the onboarding assistant asks for assistant.use too (PLAN §7a)', () => {
+  it('project.view without assistant.use: not available, and nothing of the assistant is read', async () => {
+    const { calls } = mockApi(
+      s0Routes({ 'POST /api/me/decisions': decisions(['project.view', 'card.decide']) }),
+    );
+    renderAt(`/s0/${S0_ID}`);
+    expect(
+      (
+        await screen.findAllByText(
+          'The assistant answers only people who can see this onboarding and may use the assistant.',
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(calls.some((c) => c.path.startsWith('/api/assistant/threads'))).toBe(false);
   });
 });
 

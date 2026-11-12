@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { me, mockApi, renderAt } from './helpers';
 import { ITEM_A, ITEM_B, SHA_A, T, allowOnly, grant, tile } from './screenFixtures';
 
-const AUDITOR = () => me(['audit.read']);
+/** PLAN §7a: Operate is `ops.read` on the fleet (an auditor, a factory admin, ...). */
+const AUDITOR = () => me(['ops.read']);
 const CONTROL = '55555555-6666-4777-8888-999999999999';
 
 describe('operate: scheduler and sandboxes', () => {
@@ -223,5 +224,18 @@ describe('operate: kill switch and health', () => {
     renderAt('/health');
     expect(await screen.findByRole('list', { name: 'Integrations' })).toHaveTextContent('down');
     expect(screen.getByTestId('not-built')).toHaveTextContent('not built yet (M19)');
+  });
+});
+
+describe('operate: the guard is ops.read (PLAN §7a)', () => {
+  it('audit.read alone no longer opens Operate: the 403 page names ops.read, no Operate entry, no Operate call', async () => {
+    const { calls } = mockApi({ 'GET /api/me': { json: me(['audit.read']) } });
+    renderAt('/scheduler');
+    await waitFor(() => expect(document.querySelector('[data-status="403"]')).not.toBeNull());
+    expect(document.querySelector('[data-status="403"]')).toHaveTextContent('See Operate');
+    expect(calls.map((c) => c.path)).not.toContain('/api/admission');
+    for (const name of ['Scheduler', 'Sandboxes', 'Controls', 'Kill switch', 'Health']) {
+      expect(screen.queryByRole('link', { name })).toBeNull();
+    }
   });
 });

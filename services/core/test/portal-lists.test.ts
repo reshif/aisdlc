@@ -11,7 +11,13 @@ import { AGENT_DEFINITIONS } from '@aisdlc/agents';
 import { CATALOGUE_SNAPSHOTS, CATALOGUE_VERSION } from '@aisdlc/catalogue';
 import { bindProject, grantFleetRole, seedPrincipals } from '@aisdlc/identity/testing';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
-import { Pdp, RecordDecisionLog, StaticBundleSource, buildBundle } from '@aisdlc/pdp';
+import {
+  Pdp,
+  RecordDecisionLog,
+  StaticBundleSource,
+  buildBundle,
+  bundleWithoutPolicies,
+} from '@aisdlc/pdp';
 import { ServiceAuth, listen } from '@aisdlc/service-kit';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -29,6 +35,7 @@ let s: CoreStack;
 let app: FastifyInstance;
 let url: string;
 let seeded: Seeded;
+const source = new StaticBundleSource(buildBundle());
 let other: Seeded;
 const TOKENS = {
   bff: 'bff-at-core-'.padEnd(32, 'x'),
@@ -50,7 +57,7 @@ beforeAll(async () => {
   await bindProject(s.id, seeded.project, { requesters: ['ria'] });
   await bindProject(s.id, other.project, { requesters: ['vic'] });
   const pdp = new Pdp({
-    source: new StaticBundleSource(buildBundle()),
+    source,
     entities: new IdentityPdpEntities({ pool: s.record.pool }),
     log: new RecordDecisionLog({ pool: s.record.pool }),
     clock: s.clock,
@@ -124,7 +131,7 @@ describe('GET /v1/items', () => {
   });
 });
 
-describe('audit reads: audit.read on the fleet', () => {
+describe('fleet reads: quality.read, ops.read and audit.read on the fleet (PLAN §7a)', () => {
   const paths = ['/v1/agents', '/v1/admission', '/v1/controls', '/v1/kills', '/v1/audit/decisions'];
 
   it('an auditor and a factory admin may; a project role or nobody may not', async () => {
@@ -163,6 +170,45 @@ describe('audit reads: audit.read on the fleet', () => {
     expect(log.decisions.some((d) => d.decision === 'deny' && d.principal === 'eve')).toBe(true);
     expect((await get('/v1/audit/decisions?on_behalf_of=aud&limit=0')).status).toBe(400);
     expect((await get('/v1/audit/decisions?on_behalf_of=aud&action=DROP')).status).toBe(400);
+  });
+});
+
+describe('the switched reads ask the new action (PLAN §7a)', () => {
+  it('an auditor who keeps audit.read but not ops.read or quality.read is refused Operate and Quality', async () => {
+    source.set(
+      bundleWithoutPolicies(buildBundle(), [
+        'role/factory.auditor/ops.read',
+        'role/factory.auditor/quality.read',
+      ]),
+    );
+    try {
+      const want: ReadonlyArray<[string, string]> = [
+        ['/v1/admission', 'ops.read'],
+        ['/v1/controls', 'ops.read'],
+        ['/v1/kills', 'ops.read'],
+        ['/v1/agents', 'quality.read'],
+        ['/v1/agents/A1/stats', 'quality.read'],
+        ['/v1/evals/summary', 'quality.read'],
+        ['/v1/evals/runs', 'quality.read'],
+        ['/v1/agents/A1/scores', 'quality.read'],
+      ];
+      for (const [path, action] of want) {
+        const r = await get(`${path}?on_behalf_of=aud`);
+        expect(r.status, path).toBe(403);
+        expect(r.json.error.message, path).toBe(`${action} denied`);
+      }
+      // the decision log is still audit.read, and says which action was refused
+      expect((await get('/v1/audit/decisions?on_behalf_of=aud')).status).toBe(200);
+      const log = AuditDecisionsView.parse(
+        (await get('/v1/audit/decisions?on_behalf_of=aud&action=ops.read&limit=50')).json,
+      );
+      expect(log.decisions.some((d) => d.principal === 'aud' && d.decision === 'deny')).toBe(true);
+    } finally {
+      source.set(buildBundle());
+    }
+    // with the catalogue as it is, the auditor reads them again
+    expect((await get('/v1/admission?on_behalf_of=aud')).status).toBe(200);
+    expect((await get('/v1/agents?on_behalf_of=aud')).status).toBe(200);
   });
 });
 

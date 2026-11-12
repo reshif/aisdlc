@@ -7,9 +7,9 @@ import type { Route } from '../router';
 // person may open is not shown at all.
 //
 // The guard reads `/api/me` (the PDP's answers for the fleet and per project, computed by the bff). It
-// is a hint: the route itself, and every call it makes, is decided on the server. Operate, Quality and
-// the factory-wide parts of Govern and Admin are guarded by `audit.read` on the fleet until the proposed
-// `ops.read` and `quality.read` actions exist (portal-coverage §5 item 6).
+// is a hint: the route itself, and every call it makes, is decided on the server. Operate is `ops.read`
+// and Quality `quality.read` on the fleet, Ask the factory `assistant.use` somewhere (PLAN §7a, 2026-11-12);
+// the factory-wide parts of Govern and Admin are `audit.read` on the fleet.
 
 export const NAV_GROUPS = [
   'Work',
@@ -41,6 +41,8 @@ export interface NavEntry {
 }
 
 const FLEET_AUDIT: NavGuard = { kind: 'fleet_action', action: 'audit.read' };
+const FLEET_OPS: NavGuard = { kind: 'fleet_action', action: 'ops.read' };
+const FLEET_QUALITY: NavGuard = { kind: 'fleet_action', action: 'quality.read' };
 const SIGNED_IN: NavGuard = { kind: 'signed_in' };
 const at =
   (...names: Array<Route['name']>) =>
@@ -64,7 +66,13 @@ export const NAV: readonly NavEntry[] = [
   entry('Work', '/board', 'Board', SIGNED_IN, at('board')),
   entry('Work', '/items', 'Items', SIGNED_IN, at('items', 'item', 'pack')),
   // M18: the assistant answers only from what the person can see; every thread is checked on its project
-  entry('Work', '/ask', 'Ask the factory', SIGNED_IN, at('ask')),
+  entry(
+    'Work',
+    '/ask',
+    'Ask the factory',
+    { kind: 'somewhere', action: 'assistant.use' },
+    at('ask'),
+  ),
   entry('Decide', '/inbox', 'Inbox', SIGNED_IN, at('inbox', 'card', 'revision')),
   // M18: what the notifier raised for the person; the inbox stays the record of what waits
   entry(
@@ -88,15 +96,15 @@ export const NAV: readonly NavEntry[] = [
     { kind: 'fleet_action', action: 'project.onboard' },
     at('onboard'),
   ),
-  entry('Operate', '/scheduler', 'Scheduler', FLEET_AUDIT, at('scheduler')),
-  entry('Operate', '/sandboxes', 'Sandboxes', FLEET_AUDIT, at('sandboxes')),
-  entry('Operate', '/controls', 'Controls', FLEET_AUDIT, at('controls')),
-  entry('Operate', '/kill', 'Kill switch', FLEET_AUDIT, at('kill')),
-  entry('Operate', '/health', 'Health', FLEET_AUDIT, at('health')),
-  entry('Quality', '/agents', 'Agents', FLEET_AUDIT, at('agents')),
-  entry('Quality', '/evals', 'Evals', FLEET_AUDIT, at('evals')),
-  entry('Quality', '/models', 'Models and routes', FLEET_AUDIT, at('models')),
-  entry('Quality', '/integrations', 'Integrations', FLEET_AUDIT, at('integrations')),
+  entry('Operate', '/scheduler', 'Scheduler', FLEET_OPS, at('scheduler')),
+  entry('Operate', '/sandboxes', 'Sandboxes', FLEET_OPS, at('sandboxes')),
+  entry('Operate', '/controls', 'Controls', FLEET_OPS, at('controls')),
+  entry('Operate', '/kill', 'Kill switch', FLEET_OPS, at('kill')),
+  entry('Operate', '/health', 'Health', FLEET_OPS, at('health')),
+  entry('Quality', '/agents', 'Agents', FLEET_QUALITY, at('agents')),
+  entry('Quality', '/evals', 'Evals', FLEET_QUALITY, at('evals')),
+  entry('Quality', '/models', 'Models and routes', FLEET_QUALITY, at('models')),
+  entry('Quality', '/integrations', 'Integrations', FLEET_QUALITY, at('integrations')),
   entry(
     'Govern',
     '/ledger',

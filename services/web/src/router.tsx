@@ -62,6 +62,8 @@ export const STATIC_SCREENS = {
   '/roles': 'roles',
   '/access-requests': 'accessRequests',
   '/access-explain': 'explain',
+  // PLAN §7a: guarded by `assistant.use` somewhere, so a direct link is the 403 page like the others
+  '/ask': 'ask',
 } as const;
 export type StaticScreen = (typeof STATIC_SCREENS)[keyof typeof STATIC_SCREENS];
 
@@ -74,7 +76,6 @@ export function parseRoute(path: string): Route {
   if (p === '/inbox') return { name: 'inbox' };
   if (p === '/me/access') return { name: 'access' };
   if (p === '/config') return { name: 'config' };
-  if (p === '/ask') return { name: 'ask' };
   if (p === '/me/notifications') return { name: 'notifications' };
   if (p === '/me/notifications/preferences') return { name: 'notificationPrefs' };
   const cfg = /^\/config\/([^/]+)$/.exec(p);

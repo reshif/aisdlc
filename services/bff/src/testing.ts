@@ -1,4 +1,5 @@
 import { createServer } from 'node:net';
+import type { PolicyBundle } from '@aisdlc/contracts';
 import { migrateConfig } from '@aisdlc/config';
 import { migrateDirectory } from '@aisdlc/directory';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
@@ -142,6 +143,8 @@ export interface StartOptions {
   /** Wraps the real OIDC client (to make the IdP misbehave in a test). */
   readonly wrapOidc?: (real: OidcPort) => OidcPort;
   readonly override?: Partial<BffAppOptions>;
+  /** The policy bundle the PDP loads (default: `buildBundle()`, the catalogues as they are). */
+  readonly bundle?: PolicyBundle;
 }
 
 /**
@@ -199,7 +202,7 @@ async function startBffStackOnce(o: StartOptions): Promise<BffStack> {
     const pool = identity.record.pool;
     const log = new MemoryDecisionLog();
     const pdp = new Pdp({
-      source: new StaticBundleSource(buildBundle()),
+      source: new StaticBundleSource(o.bundle ?? buildBundle()),
       entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
       clock: identity.clock,
       log,
