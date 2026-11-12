@@ -6207,6 +6207,21 @@
       ],
       "additionalProperties": false
     },
+    "AreaFloorId": {
+      "type": "string",
+      "enum": [
+        "LF3",
+        "FF1"
+      ]
+    },
+    "AreaFloorState": {
+      "type": "string",
+      "enum": [
+        "met",
+        "unmet",
+        "unknown"
+      ]
+    },
     "AreaId": {
       "type": "string",
       "minLength": 1,
@@ -31124,7 +31139,8 @@
         "posture_red",
         "staging_separation_not_attested",
         "circuit_breaker",
-        "followup_overdue"
+        "followup_overdue",
+        "area_unknown"
       ]
     },
     "EligibilityRoute": {
@@ -61358,6 +61374,11 @@
             "L8"
           ]
         },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
         "eligible": {
           "type": "boolean"
         },
@@ -61383,7 +61404,8 @@
             "posture_red",
             "staging_separation_not_attested",
             "circuit_breaker",
-            "followup_overdue"
+            "followup_overdue",
+            "area_unknown"
           ]
         },
         "prr": {
@@ -76956,6 +76978,92 @@
                             ]
                           }
                         },
+                        "areas": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "area": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 256
+                              },
+                              "level": {
+                                "type": "string",
+                                "enum": [
+                                  "census",
+                                  "light",
+                                  "full"
+                                ]
+                              },
+                              "floors": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "enum": [
+                                        "LF3",
+                                        "FF1"
+                                      ]
+                                    },
+                                    "state": {
+                                      "type": "string",
+                                      "enum": [
+                                        "met",
+                                        "unmet",
+                                        "unknown"
+                                      ]
+                                    },
+                                    "reason": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "state",
+                                    "reason"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "lanes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "L0",
+                                    "L1",
+                                    "L2",
+                                    "L3",
+                                    "L4",
+                                    "L5",
+                                    "L6",
+                                    "L7",
+                                    "L8"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "area",
+                              "level",
+                              "floors",
+                              "lanes"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
                         "steps": {
                           "type": "object",
                           "properties": {
@@ -78826,6 +78934,92 @@
                                   ]
                                 }
                               },
+                              "areas": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "area": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 256
+                                    },
+                                    "level": {
+                                      "type": "string",
+                                      "enum": [
+                                        "census",
+                                        "light",
+                                        "full"
+                                      ]
+                                    },
+                                    "floors": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string",
+                                            "enum": [
+                                              "LF3",
+                                              "FF1"
+                                            ]
+                                          },
+                                          "state": {
+                                            "type": "string",
+                                            "enum": [
+                                              "met",
+                                              "unmet",
+                                              "unknown"
+                                            ]
+                                          },
+                                          "reason": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "state",
+                                          "reason"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "lanes": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "L0",
+                                          "L1",
+                                          "L2",
+                                          "L3",
+                                          "L4",
+                                          "L5",
+                                          "L6",
+                                          "L7",
+                                          "L8"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "area",
+                                    "level",
+                                    "floors",
+                                    "lanes"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
                               "steps": {
                                 "type": "object",
                                 "properties": {
@@ -80631,6 +80825,92 @@
                   "light",
                   "full"
                 ]
+              }
+            },
+            "areas": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "census",
+                      "light",
+                      "full"
+                    ]
+                  },
+                  "floors": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "enum": [
+                            "LF3",
+                            "FF1"
+                          ]
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "met",
+                            "unmet",
+                            "unknown"
+                          ]
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "state",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "lanes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "L0",
+                        "L1",
+                        "L2",
+                        "L3",
+                        "L4",
+                        "L5",
+                        "L6",
+                        "L7",
+                        "L8"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "area",
+                  "level",
+                  "floors",
+                  "lanes"
+                ],
+                "additionalProperties": false
               }
             },
             "steps": {
@@ -84652,6 +84932,127 @@
       ],
       "additionalProperties": false
     },
+    "PrrArea": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "census",
+            "light",
+            "full"
+          ]
+        },
+        "floors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "enum": [
+                  "LF3",
+                  "FF1"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "met",
+                  "unmet",
+                  "unknown"
+                ]
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "lanes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3",
+              "L4",
+              "L5",
+              "L6",
+              "L7",
+              "L8"
+            ]
+          }
+        }
+      },
+      "required": [
+        "area",
+        "level",
+        "floors",
+        "lanes"
+      ],
+      "additionalProperties": false
+    },
+    "PrrAreaFloor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "LF3",
+            "FF1"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "met",
+            "unmet",
+            "unknown"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
     "PrrAutonomy": {
       "type": "object",
       "properties": {
@@ -85215,6 +85616,92 @@
             ]
           }
         },
+        "areas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "census",
+                  "light",
+                  "full"
+                ]
+              },
+              "floors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "enum": [
+                        "LF3",
+                        "FF1"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "met",
+                        "unmet",
+                        "unknown"
+                      ]
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "state",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "lanes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "L0",
+                    "L1",
+                    "L2",
+                    "L3",
+                    "L4",
+                    "L5",
+                    "L6",
+                    "L7",
+                    "L8"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "area",
+              "level",
+              "floors",
+              "lanes"
+            ],
+            "additionalProperties": false
+          }
+        },
         "steps": {
           "type": "object",
           "properties": {
@@ -85608,6 +86095,92 @@
                       "light",
                       "full"
                     ]
+                  }
+                },
+                "areas": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "census",
+                          "light",
+                          "full"
+                        ]
+                      },
+                      "floors": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "enum": [
+                                "LF3",
+                                "FF1"
+                              ]
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "met",
+                                "unmet",
+                                "unknown"
+                              ]
+                            },
+                            "reason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state",
+                            "reason"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "lanes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "L0",
+                            "L1",
+                            "L2",
+                            "L3",
+                            "L4",
+                            "L5",
+                            "L6",
+                            "L7",
+                            "L8"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "level",
+                      "floors",
+                      "lanes"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "steps": {
@@ -87918,6 +88491,92 @@
                       "light",
                       "full"
                     ]
+                  }
+                },
+                "areas": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "census",
+                          "light",
+                          "full"
+                        ]
+                      },
+                      "floors": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "enum": [
+                                "LF3",
+                                "FF1"
+                              ]
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "met",
+                                "unmet",
+                                "unknown"
+                              ]
+                            },
+                            "reason": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state",
+                            "reason"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "lanes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "L0",
+                            "L1",
+                            "L2",
+                            "L3",
+                            "L4",
+                            "L5",
+                            "L6",
+                            "L7",
+                            "L8"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "level",
+                      "floors",
+                      "lanes"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "steps": {
@@ -108735,7 +109394,8 @@
             "posture_red",
             "staging_separation_not_attested",
             "circuit_breaker",
-            "followup_overdue"
+            "followup_overdue",
+            "area_unknown"
           ]
         }
       },
@@ -109308,7 +109968,8 @@
             "posture_red",
             "staging_separation_not_attested",
             "circuit_breaker",
-            "followup_overdue"
+            "followup_overdue",
+            "area_unknown"
           ]
         },
         "prr_version": {

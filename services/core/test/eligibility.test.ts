@@ -161,6 +161,58 @@ describe('eligibility(repo, lane): the table (PLAN M7.6, DEC-8)', () => {
     expect(!unknown.ok && unknown.error.code).toBe('catalogue_unknown');
   });
 
+  it('per area (DEC-25): each area opens the lanes of its own level; the repo as a whole the lowest', () => {
+    const area = (name: string, test_files: number) => ({
+      area: name,
+      manifest: `${name}/package.json`,
+      files: 3,
+      source_files: 2,
+      test_files,
+      languages: ['typescript' as const],
+      depends_on: [],
+      used_by: [],
+    });
+    const prr = built({
+      ...inputs({ level: 'full' }),
+      areas: {
+        system_map: {
+          graph_hash: 'a'.repeat(64),
+          map_hash: 'b'.repeat(64),
+          edges: [],
+          areas: [area('.', 1), area('docs', 0), area('lib', 1)],
+        },
+        seeded_areas: ['.', 'docs'],
+        graph_truncated: false,
+      },
+    });
+    expect(prr.level.by_area).toEqual({ '.': 'full', docs: 'census', lib: 'light' });
+    expect(prr.level.areas?.map((a) => [a.area, a.level, a.lanes])).toEqual([
+      ['.', 'full', ['L0', 'L1', 'L2', 'L3', 'L4', 'L6', 'L7', 'L8']],
+      ['docs', 'census', ['L7', 'L8']],
+      ['lib', 'light', ['L0', 'L1', 'L2', 'L3', 'L7', 'L8']],
+    ]);
+    // the repo as a whole runs only what its lowest area may
+    expect(prr.autonomy.lanes_eligible).toEqual(['L7', 'L8']);
+    const g = version(prr);
+    const at = (lane: Lane, a?: string) => {
+      const v = routeLane('acme/x', lane, g, NOW, undefined, a);
+      return `${v.route}:${v.reason}${v.area ? `@${v.area}` : ''}`;
+    };
+    expect(at('L4', '.')).toBe('normal:eligible@.');
+    expect(at('L4', 'lib')).toBe('l8:level_too_low@lib');
+    expect(at('L1', 'lib')).toBe('normal:eligible@lib');
+    expect(at('L1', 'docs')).toBe('l8:level_too_low@docs');
+    expect(at('L1')).toBe('l8:level_too_low');
+    // an area the record does not hold is unknown, and unknown is not eligible
+    expect(at('L8', 'services/nowhere')).toBe('l8:area_unknown@services/nowhere');
+    // a record with one repo-wide area holds every path
+    const one = version(built(inputs({ level: 'light' })));
+    expect(one.prr.level.areas).toEqual([
+      { area: '.', level: 'light', floors: [], lanes: ['L0', 'L1', 'L2', 'L3', 'L7', 'L8'] },
+    ]);
+    expect(routeLane('acme/x', 'L1', one, NOW, undefined, 'packages/any').route).toBe('normal');
+  });
+
   it('a T2 repo needs Full for the hotfix and the spike too (R-OPK-3)', () => {
     expect(table(version(built(inputs({ tier: 'T2', level: 'light' }))))).toMatchObject({
       L0: 'l8:no:tier_requires_full',

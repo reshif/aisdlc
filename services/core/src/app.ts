@@ -49,6 +49,7 @@ import {
   SubmitRequestBody,
   RepoFullName,
   TwoPerson,
+  AreaId,
   Lane,
   Level,
   pdpResource,
@@ -427,10 +428,21 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
     const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
     if (!repo.success) return fail(reply, coreError('invalid_input', 'owner/name is required'));
-    const lane = Lane.safeParse((req.query as { lane?: string }).lane);
+    const q = req.query as { lane?: string; area?: string };
+    const lane = Lane.safeParse(q.lane);
     if (!lane.success) return fail(reply, coreError('invalid_input', 'lane must be L0 to L8'));
+    // DEC-25: `?area=` asks for one area of the repo (the system map's), absent the repo as a whole
+    const area = q.area === undefined ? undefined : AreaId.safeParse(q.area);
+    if (area && !area.success) return fail(reply, coreError('invalid_input', 'area is invalid'));
     try {
-      return await laneEligibility(o.pool, repo.data, lane.data, clock);
+      return await laneEligibility(
+        o.pool,
+        repo.data,
+        lane.data,
+        clock,
+        undefined,
+        area?.success ? area.data : undefined,
+      );
     } catch {
       return fail(reply, coreError('unavailable', 'the eligibility could not be read'));
     }

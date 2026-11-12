@@ -30,7 +30,8 @@ import { recordSignedIn } from './s0.js';
 import { fanOutHeld, type FanOutReport } from './work.js';
 import { c5Base } from './cards/views.js';
 import { approvedPayload, loadS0, s0Cards, type LoadedS0 } from './cards/read.js';
-import { affirmedFromC2, affirmedFullFrom } from '@aisdlc/onboarding';
+import { affirmedFromC2, affirmedFullFrom, type AreaLevelInput } from '@aisdlc/onboarding';
+import { fullBaselineOf } from './cards/full.js';
 import type { Clock } from '@aisdlc/kernel';
 import type pg from 'pg';
 
@@ -235,7 +236,9 @@ export async function ensurePrrProposed(
     affirmed = a.value;
   }
 
-  // ---- card 3 (Full, M17): the baseline, interview, exam, seeds and golden tasks, by hash and count
+  // ---- card 3 (Full, M17): the baseline, interview, exam, seeds and golden tasks, by hash and count; and the
+  // areas of its system map, over which the levels are judged (DEC-25(a))
+  let areas: AreaLevelInput | null = null;
   if (s0.steps.get('0.3')?.state === 'done') {
     const c3 = approvedPayload(cards, 'C3');
     const c3Entry = await entryMeta(deps.pool, c3?.card.state.steps[0]?.ledger_entry_id ?? null);
@@ -250,6 +253,17 @@ export async function ensurePrrProposed(
     const f = affirmedFullFrom(c3.payload, { decided_by: c3Entry.actor });
     if (!f.ok) return err(coreError('conflict', f.error.message));
     affirmed = { ...affirmed, full: f.value };
+    const baseline = fullBaselineOf(loaded, c3.card.occurrence);
+    if (!baseline || baseline.baseline_hash !== f.value.baseline_hash) {
+      return err(
+        coreError('conflict', 'card 3 was decided on a baseline the record does not hold'),
+      );
+    }
+    areas = {
+      system_map: baseline.system_map,
+      seeded_areas: baseline.seeds.map((x) => x.area),
+      graph_truncated: baseline.graph.truncated,
+    };
   }
 
   return inCoreTx<ProjectReadinessRecord>(deps, async (j, tx) => {
@@ -316,6 +330,7 @@ export async function ensurePrrProposed(
       security,
       signer: signer.value,
       ...(affirmed ? { affirmed } : {}),
+      areas,
     });
     if (!built.ok) {
       return err(coreError('refused', `${built.error.code}: ${built.error.message}`, built.error));

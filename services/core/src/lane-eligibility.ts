@@ -5,8 +5,10 @@ import {
   type EligibilityCatalogue,
 } from '@aisdlc/catalogue';
 import {
+  levelRank,
   type EligibilityReason,
   type Lane,
+  type Level,
   type LaneEligibility,
   type ReadinessStatus,
 } from '@aisdlc/contracts';
@@ -45,9 +47,13 @@ const SUMMARY = (v: PrrVersion, status: ReadinessStatus): NonNullable<LaneEligib
   fresh_until: v.prr.fresh_until,
 });
 
-/** Why an active record does not open `lane`. */
-function whyClosed(v: PrrVersion, lane: Lane, table: EligibilityCatalogue): EligibilityReason {
-  const level = v.prr.level.signed;
+/** Why an active record does not open `lane` at `level` (the area's, or the lowest area's). */
+function whyClosed(
+  v: PrrVersion,
+  lane: Lane,
+  table: EligibilityCatalogue,
+  level: Level,
+): EligibilityReason {
   const row = tableOf(level, lane, table);
   if (row === 'unspecified') return 'lane_unspecified';
   if (row === 'not_eligible') return 'level_too_low';
@@ -64,8 +70,33 @@ function whyClosed(v: PrrVersion, lane: Lane, table: EligibilityCatalogue): Elig
 }
 
 /**
+ * DEC-25(a): the level and lanes a request gets. Naming an area: that area's row of the per-area table (a
+ * record with one repo-wide area `.` holds every path, so any area is `.`; `null` for an area a mapped record
+ * does not hold). Naming none: the repo as a whole, the LOWEST area's level and the record's `lanes_eligible`.
+ */
+export function areaOf(
+  prr: PrrVersion['prr'],
+  area: string | undefined,
+): { level: Level; lanes: readonly Lane[] } | null {
+  const rows = prr.level.areas ?? [
+    { area: '.', level: prr.level.signed, floors: [], lanes: prr.autonomy.lanes_eligible },
+  ];
+  if (area === undefined) {
+    const level = rows.reduce<Level>(
+      (m, r) => (levelRank(r.level) < levelRank(m) ? r.level : m),
+      prr.level.signed,
+    );
+    return { level, lanes: prr.autonomy.lanes_eligible };
+  }
+  const only = rows.length === 1 && rows[0]?.area === '.' ? rows[0] : undefined;
+  const row = only ?? rows.find((r) => r.area === area);
+  return row ? { level: row.level, lanes: row.lanes } : null;
+}
+
+/**
  * The verdict for one governing version (or none) and a lane. Pure. `table` is the eligibility table
  * of the catalogue the caller is bound to: an item's is its pinned one, a new request's the current.
+ * `area` (DEC-25) asks for one area of the repo; absent, the repo as a whole.
  */
 export function routeLane(
   repo: string,
@@ -73,11 +104,14 @@ export function routeLane(
   governing: PrrVersion | null,
   now: Date,
   table: EligibilityCatalogue = ELIGIBILITY,
+  area?: string,
 ): LaneEligibility {
+  const at = area === undefined ? {} : { area };
   if (!governing) {
     return {
       repo: repo as LaneEligibility['repo'],
       lane,
+      ...at,
       eligible: false,
       route: 'n8_hold',
       reason: 'no_active_prr',
@@ -87,15 +121,22 @@ export function routeLane(
   const expired =
     governing.status === 'active' && now.getTime() >= Date.parse(governing.prr.fresh_until);
   const status: ReadinessStatus = expired ? 'expired' : governing.status;
-  const base = { repo: repo as LaneEligibility['repo'], lane, prr: SUMMARY(governing, status) };
+  const base = {
+    repo: repo as LaneEligibility['repo'],
+    lane,
+    ...at,
+    prr: SUMMARY(governing, status),
+  };
   if (status !== 'active') {
     const reason: EligibilityReason =
       status === 'stale' ? 'prr_stale' : status === 'suspended' ? 'prr_suspended' : 'prr_expired';
     // Human-led L8 is where everything goes; a request for L8 itself is no worse off.
     return { ...base, eligible: lane === 'L8', route: 'l8', reason };
   }
-  const opened = tableOf(governing.prr.level.signed, lane, table);
-  if (governing.prr.autonomy.lanes_eligible.includes(lane)) {
+  const scope = areaOf(governing.prr, area);
+  if (scope === null) return { ...base, eligible: false, route: 'l8', reason: 'area_unknown' };
+  const opened = tableOf(scope.level, lane, table);
+  if (scope.lanes.includes(lane)) {
     if (opened === 'eligible') {
       return { ...base, eligible: true, route: 'normal', reason: 'eligible' };
     }
@@ -106,7 +147,12 @@ export function routeLane(
       reason: opened === 'unspecified' ? 'lane_unspecified' : 'level_too_low',
     };
   }
-  return { ...base, eligible: false, route: 'l8', reason: whyClosed(governing, lane, table) };
+  return {
+    ...base,
+    eligible: false,
+    route: 'l8',
+    reason: whyClosed(governing, lane, table, scope.level),
+  };
 }
 
 /** `eligibility(repo, lane)` from the repo's PRR stream. */
@@ -116,7 +162,8 @@ export async function laneEligibility(
   lane: Lane,
   clock: Clock = systemClock,
   table: EligibilityCatalogue = ELIGIBILITY,
+  area?: string,
 ): Promise<LaneEligibility> {
   const g = await readGoverning(db, repo);
-  return routeLane(g?.repo_ref ?? repo, lane, g?.governing ?? null, clock.now(), table);
+  return routeLane(g?.repo_ref ?? repo, lane, g?.governing ?? null, clock.now(), table, area);
 }

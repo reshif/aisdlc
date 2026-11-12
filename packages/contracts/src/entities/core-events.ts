@@ -548,6 +548,8 @@ export const EligibilityReason = z.enum([
   'circuit_breaker',
   /** R4: a hotfix's L1 follow-up is overdue: no new agent items for the project. */
   'followup_overdue',
+  /** DEC-25: the request names an area the record's per-area table does not hold. */
+  'area_unknown',
 ]);
 export type EligibilityReason = z.infer<typeof EligibilityReason>;
 
@@ -558,6 +560,8 @@ export type EligibilityRoute = z.infer<typeof EligibilityRoute>;
 export const LaneEligibility = z.strictObject({
   repo: RepoFullName,
   lane: Lane,
+  /** DEC-25: the area the verdict is for (absent: the repo as a whole, the lowest area's lanes). */
+  area: z.string().min(1).max(256).optional(),
   eligible: z.boolean(),
   route: EligibilityRoute,
   reason: EligibilityReason,
