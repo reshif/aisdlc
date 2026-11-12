@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  ConfigReader,
   ConfigRegistry,
   configProjection,
   configPublish,
@@ -36,6 +37,7 @@ import { listen, newApp, type RunningService } from '@aisdlc/service-kit';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootSandboxController } from '../src/boot.js';
+import { ConfigCaps } from '../src/caps.js';
 import { RecordGrants } from '../src/grants.js';
 
 // M14.2 on a real Postgres with the WHOLE migrate plan applied: the controller boots as its own least-privilege role
@@ -319,7 +321,8 @@ describe('the booted controller: caps from M1-gated config, grants from the reco
       caps_source: 'default',
     });
     await publishCaps({ total: 6, coding: 0 });
-    // not before the reload
+    // not before the reload: the controller does not act on the publish notification (spec §4), and its periodic
+    // reload is 10 minutes in this test
     expect((await slots()).caps).toEqual({ total: 4, coding: 1 });
     expect((await reload()).status).toBe(200);
     const s = await slots();
@@ -411,6 +414,34 @@ describe('M19: the booted controller posts heartbeats to core with its activity 
     } finally {
       await svc.close();
       await core.close();
+    }
+  });
+});
+
+describe('the reload path on its own (spec §4)', () => {
+  // the controller's own reader options (boot.ts): no fold, no poll, no LISTEN
+  const reader = () =>
+    ConfigReader.create({
+      pool: rolePool,
+      registry: registerSandboxConfig(new ConfigRegistry()),
+      catchUp: false,
+      pollIntervalMs: 0,
+      listen: false,
+    });
+
+  it('with the controller reader options nothing changes until reload() reads the config again', async () => {
+    const r = await reader();
+    await r.start();
+    try {
+      const caps = new ConfigCaps(r, 'runner-z');
+      const before = caps.current().caps;
+      await publishCaps({ total: 5, coding: 1 });
+      // deterministic: nothing in this reader can see the publish yet
+      expect(caps.current().caps).toEqual(before);
+      await caps.reload();
+      expect(caps.current()).toEqual({ caps: { total: 5, coding: 1 }, source: 'config' });
+    } finally {
+      await r.stop();
     }
   });
 });

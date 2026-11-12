@@ -58,7 +58,7 @@ While a session holds its slot, the controller is its heartbeat reporter (DM Hea
 
 ## 4. `POST /v1/admin/reload`
 
-Reads the published config again and answers `200 SandboxSlots` with the caps now in force. The controller also reloads every `SANDBOX_CONTROLLER_CAPS_RELOAD_MS` (default 5000) and on a config publish notification.
+Reads the published config again and answers `200 SandboxSlots` with the caps now in force. The controller also reloads every `SANDBOX_CONTROLLER_CAPS_RELOAD_MS` (default 5000), and only then: a published revision is in force from the first reload after core has folded it, never earlier. It does not act on the config publish notification, which is delivered when the publish commits and so can arrive before the fold (a refresh on it would read the old caps or the new ones depending on timing, and its failure would bypass the fallback of §5).
 
 ## 5. The caps (config)
 

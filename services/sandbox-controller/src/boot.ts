@@ -178,6 +178,10 @@ export async function bootSandboxController(
       catchUp: false,
       // the reloads below are this process's own, so a failed one is seen (and the caps fall back)
       pollIntervalMs: 0,
+      // and only they read: a publish is notified when its transaction commits, BEFORE core folds it into the view
+      // this role reads, so a refresh on the notification could read the old caps (or the new ones: a race), and its
+      // failure would bypass the fallback above. The caps change on a reload, periodic or `POST /v1/admin/reload`.
+      listen: false,
       onError,
     });
     await reader.start();
