@@ -32,7 +32,7 @@ Errors: `400 invalid_request` (field paths only, never values: the body may hold
 
 ## 3. `GET /v1/results?item=&head=` and `GET /v1/results/:sha`
 
-Every recorded result of an item's head in record order (`{results}`), or one result by its hash (`{result_sha256, result}`, `404` when there is none). Scope `read`. Core's 7.6 guard reads the first; the Evidence Pack (M14.4) reads both.
+Every recorded result of an item's head in record order (`{results}`), or one result by its hash (`{result_sha256, result}`, `404` when there is none). Scope `read`. Core's 7.6 (M14.4) reads the first: the Evidence Pack binds the latest result of each step for exactly that head by its hash.
 
 ## 4. The checks
 
@@ -68,3 +68,9 @@ Before any check, core asks DEC-18's owner allow-list and B1 (`checkSessionAllow
 - Dependency advisories: no advisory database; 7.4 checks what was added and whether X3 approved it.
 - A V-class reviewer session: A5 is one gateway call.
 - An L8 (human-led) head that the Push Broker did not write: core finds the head from the Unit and the push receipts only.
+
+## 7.6: the Evidence Pack (M14.4)
+
+7.6 runs in core, not here: `CoreEvidence` (`services/core/src/verify/evidence.ts`) reads the results above for exactly the Unit head and decides with `decide76` (`packages/verify/src/route.ts`). Every step met: the passing pack. Otherwise B9 (back to 6.4, counted against B9's `et3_rounds`) or B11 (back to 5.1) while the item's pinned catalogue leaves the edge a round, else D2 (ET3); a check with no verdict is D2 (ET4), a hard-fail class D2 (ET5), a raised gate not approved D2 (ET6). 7.2 raises E6 (B12) for a locked test whose approved spec moved; 7.3 asks for B10 when A5 names the rule `spec_ambiguous`. The classes are `RepairClass` in contracts (`REPAIR_CLASS_OF_FINDING`), derived from a finding's kind and never stored in a result.
+
+The pack (`aisdlc-evidence-pack/1`, contracts `evidence.ts`) holds ids, hashes, verdicts and counts only: each step's result hash, verdict and failing findings (kind, severity, class, rule, path, line, fingerprint; no message), the Unit, base and head, lane, tier, gating profile hash and pinned catalogue, the gates the item raised with their ledger decisions, the push receipt of the head and the oracle locks. Its id is the sha256 of its canonical JSON. The Notary signs it through its `evidence` scope (`POST /v1/evidence/sign`, a domain-separated message over the id, journalled in `notary.evidence_signature`); the signed bytes (`aisdlc-signed-evidence-pack/1`) go to the write-once bucket `evidence-packs` under their sha256, with a D2's Handoff Pack beside them, and `evidence.pack_signed` is recorded on `evidence:<item>` with a ledger entry. `aisdlc-verify-pack --pack <file> --notary-key <jwk> --head <sha>` checks one offline.

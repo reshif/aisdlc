@@ -36,3 +36,4 @@ export * from './sandbox.js';
 export * from './build.js';
 export * from './push.js';
 export * from './verify.js';
+export * from './evidence.js';

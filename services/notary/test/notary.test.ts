@@ -1,6 +1,7 @@
 import {
   checkLedgerEntrySignature,
   draftOfEntry,
+  evidencePackSigningMessage,
   ledgerDraftHash,
   ledgerEntryMessage,
 } from '@aisdlc/contracts';
@@ -196,6 +197,60 @@ describe('notary service', () => {
         /one entry at a time/,
       );
       await expect(q('DELETE FROM notary.checkpoint_journal')).resolves.toBeDefined(); // empty: no rows, no trigger
+    } finally {
+      await n.stop();
+    }
+  });
+});
+
+describe('notary: Evidence Pack signatures (M14.4)', () => {
+  const req = {
+    pack_sha256: 'a'.repeat(64),
+    item_id: '01890000-0000-7000-8000-000000000001',
+    head_sha: 'b'.repeat(40),
+  };
+
+  it('signs the domain-separated pack message, journalled once, the same signature on a retry', async () => {
+    const n = await start();
+    try {
+      const c = n.clientFor('core');
+      const a = await c.signEvidencePack(req);
+      expect(a.ok, JSON.stringify(a)).toBe(true);
+      if (!a.ok) return;
+      const again = await c.signEvidencePack(req);
+      expect(again).toEqual(a);
+      const jwk = await kms.custodyFor('witness').publicKey('dev:notary');
+      if (!jwk.ok) throw new Error('no key');
+      expect(
+        await verifyEs256(jwk.value, evidencePackSigningMessage(req.pack_sha256), a.value.value),
+      ).toBe(true);
+      // never the bare digest: a pack signature does not verify as a signature over the id itself
+      expect(await verifyEs256(jwk.value, Buffer.from(req.pack_sha256, 'hex'), a.value.value)).toBe(
+        false,
+      );
+      const rows = await n.database.pool.query(
+        'SELECT count(*)::int AS n FROM notary.evidence_signature',
+      );
+      expect(rows.rows[0]).toEqual({ n: 1 });
+      await expect(n.database.pool.query('DELETE FROM notary.evidence_signature')).rejects.toThrow(
+        /append-only/,
+      );
+    } finally {
+      await n.stop();
+    }
+  });
+
+  it('refuses the same pack for another head, a malformed request, and a caller without the scope', async () => {
+    const n = await start();
+    try {
+      const c = n.clientFor('core');
+      expect((await c.signEvidencePack(req)).ok).toBe(true);
+      const other = await c.signEvidencePack({ ...req, head_sha: 'c'.repeat(40) });
+      expect(!other.ok && other.error.code).toBe('invalid_request');
+      const bad = await c.signEvidencePack({ ...req, pack_sha256: 'nope' });
+      expect(!bad.ok && bad.error.code).toBe('invalid_request');
+      const cp = await n.clientFor('checkpointer').signEvidencePack(req);
+      expect(!cp.ok && cp.error.code).toBe('forbidden');
     } finally {
       await n.stop();
     }

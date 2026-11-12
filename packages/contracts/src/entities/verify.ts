@@ -59,7 +59,7 @@ export type FindingSeverity = z.infer<typeof FindingSeverity>;
  *
  *   7.1  command_failed, command_void, no_test_command
  *   7.2  locked_test_edit (ET10), stub_test (ET10), stub_probe_passed (ET10), stub_probe_skipped, mutation_survived,
- *        mutation_score_low, mutation_none, holdout_failed, holdout_none
+ *        mutation_score_low, mutation_none, holdout_failed, holdout_none, locked_test_stale (E6, B12: M14.4)
  *   7.3  oracle_missing, oracle_unbound, spec_mismatch, no_marker, duplicate_oracle, oracle_failing, conformance_review
  *   7.4  secret_new, dependency_new, dependency_unapproved, protected_path (X2)
  *   7.5  constitution_violation (E2), constitution_review (E2 when high)
@@ -77,6 +77,7 @@ export const FindingKind = z.enum([
   'mutation_none',
   'holdout_failed',
   'holdout_none',
+  'locked_test_stale',
   'oracle_missing',
   'oracle_unbound',
   'spec_mismatch',
@@ -132,11 +133,11 @@ export const VerifyKitRun = z.strictObject({
 });
 export type VerifyKitRun = z.infer<typeof VerifyKitRun>;
 
-/** What a check raised through core: a gate (X2 at 7.4, E2 at 7.5) or ET10 (Q1, at 7.2). */
+/** What a check raised through core: a gate (X2 at 7.4, E2 at 7.5, E6 at 7.2 for B12) or ET10 (Q1, at 7.2). */
 export const VerifyRaise = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('gate'),
-    gate: GateId.extract(['X2', 'E2']),
+    gate: GateId.extract(['X2', 'E2', 'E6']),
     reason_code: Text(64),
   }),
   z.strictObject({
@@ -273,3 +274,86 @@ export const VerifyCheckRecordedPayload = z.strictObject({
   result: VerifyCheckResult,
 });
 export type VerifyCheckRecordedPayload = z.infer<typeof VerifyCheckRecordedPayload>;
+
+// ---------------------------------------------------------------- what a failure asks for (M14.4: 7.6, B9 to B12, D2)
+
+/**
+ * What a failing finding asks of the factory (FL S7: B9 "repairable finding", B10 "spec ambiguous", B11 "approach
+ * wrong", B12 "locked test must change", D2 "hard-fail class"). It is DERIVED, never stored: a pure function of the
+ * finding's kind (and, for A5's review findings, its rule id), so a result's hash does not change with the table and
+ * every reader (core's 7.2, 7.3 and 7.6, the Evidence Pack, the portal) classifies a finding the same way.
+ *
+ *   repairable          the coder can fix it in 6.4 (B9 at 7.6)
+ *   spec_ambiguous      the approved spec does not say: G2's portion again (B10 at 7.3)
+ *   approach_wrong      the plan's approach does not work: G3 again (B11 at 7.6)
+ *   locked_test_change  a locked oracle no longer matches the approved spec: E6 then G3o (B12 at 7.2)
+ *   hard_fail           a person must look: D2 at once (a new secret pushed, a protected path without X2, a
+ *                       constitution violation not approved, a command that cannot run, a kit with no answer)
+ *   quarantine          misbehaviour: Q1 (ET10), never a repair
+ */
+export const RepairClass = z.enum([
+  'repairable',
+  'spec_ambiguous',
+  'approach_wrong',
+  'locked_test_change',
+  'hard_fail',
+  'quarantine',
+]);
+export type RepairClass = z.infer<typeof RepairClass>;
+
+/** The class of a failing finding by its kind (A5's review findings may be narrowed by rule id: `REVIEW_RULE_CLASS`). */
+export const REPAIR_CLASS_OF_FINDING: Readonly<Record<FindingKind, RepairClass>> = {
+  command_failed: 'repairable',
+  command_void: 'hard_fail',
+  no_test_command: 'hard_fail',
+  locked_test_edit: 'quarantine',
+  stub_test: 'quarantine',
+  stub_probe_passed: 'quarantine',
+  stub_probe_skipped: 'repairable',
+  mutation_survived: 'repairable',
+  mutation_score_low: 'repairable',
+  mutation_none: 'repairable',
+  holdout_failed: 'repairable',
+  holdout_none: 'repairable',
+  locked_test_stale: 'locked_test_change',
+  oracle_missing: 'repairable',
+  oracle_unbound: 'repairable',
+  spec_mismatch: 'repairable',
+  no_marker: 'repairable',
+  duplicate_oracle: 'repairable',
+  oracle_failing: 'repairable',
+  conformance_review: 'repairable',
+  secret_new: 'hard_fail',
+  dependency_new: 'repairable',
+  dependency_unapproved: 'repairable',
+  protected_path: 'hard_fail',
+  constitution_violation: 'hard_fail',
+  constitution_review: 'repairable',
+  kit_error: 'hard_fail',
+};
+
+/**
+ * The rule ids of an A5 review finding that narrow its class (the reviewer names the rule, the factory decides what
+ * it means). `spec_ambiguous` only counts at 7.3 (B10 starts there); `approach_wrong` at 7.3 and 7.5 (B11 is taken at
+ * 7.6). Both send the item back to people (G2, G3): a rule id can never make a finding pass or skip a gate.
+ */
+export const REVIEW_RULE_CLASS: Readonly<
+  Record<string, { readonly class: RepairClass; readonly steps: readonly VerifyStep[] }>
+> = {
+  spec_ambiguous: { class: 'spec_ambiguous', steps: ['7.3'] },
+  approach_wrong: { class: 'approach_wrong', steps: ['7.3', '7.5'] },
+};
+
+const REVIEW_KINDS: readonly FindingKind[] = ['conformance_review', 'constitution_review'];
+
+/** The class of one finding reported at `step`. */
+export function repairClassOf(
+  f: Pick<VerifyFinding, 'kind' | 'rule_id'>,
+  step: VerifyStep,
+): RepairClass {
+  if (REVIEW_KINDS.includes(f.kind) && f.rule_id !== null) {
+    const r = REVIEW_RULE_CLASS[f.rule_id];
+    if (r !== undefined && r.steps.includes(step)) return r.class;
+  }
+  return REPAIR_CLASS_OF_FINDING[f.kind];
+}

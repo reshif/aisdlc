@@ -31,7 +31,13 @@ import {
   workSettingsFrom,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
-import { HttpBundleSource, HttpCodeHostPush, HttpSandbox, type SandboxPort } from '@aisdlc/ports';
+import {
+  HttpBundleSource,
+  HttpCodeHostPush,
+  HttpSandbox,
+  S3ObjectStore,
+  type SandboxPort,
+} from '@aisdlc/ports';
 import { DockerSandboxDriver } from '@aisdlc/sandbox-driver';
 import { HttpVerify } from '@aisdlc/verify';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
@@ -312,11 +318,19 @@ export async function bootCoreWorker(
             })
           : null;
       const beforeVerify = built ? built.stagePorts : agentPorts;
-      // M14.3: S7 7.1 to 7.5 through the verify service (its kits through the sandbox-controller), the 7.6 guard here
+      // M14.3: S7 7.1 to 7.5 through the verify service (its kits through the sandbox-controller); M14.4: 7.6 here, the
+      // Evidence Pack signed by the Notary's evidence purpose and stored in the object store's write-once bucket
       const stagePorts =
-        cfg.verify && cfg.knowledge
+        cfg.verify && cfg.knowledge && cfg.objectStore && ledger
           ? verifyStagePorts({
               pool,
+              ledger,
+              signer: ledger.notary,
+              objects: new S3ObjectStore({
+                endpoint: cfg.objectStore.endpoint,
+                accessKeyRef: cfg.objectStore.accessKeyRef,
+                secretKeyRef: cfg.objectStore.secretKeyRef,
+              }),
               base: beforeVerify,
               client: new HttpVerify({ baseUrl: cfg.verify.url, token: cfg.verify.token }),
               keys: vault,

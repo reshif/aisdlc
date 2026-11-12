@@ -121,8 +121,8 @@ networks:
     internal: true
   verify-codehost:
     internal: true
-  # The object store's API (M14.1). No service is attached yet: callers (Evidence Packs, M14.4) join it
-  # when they need it, and the store has no other network and no route out.
+  # The object store's API (M14.1). core-worker is its one caller (M14.4: 7.6 stores the signed Evidence Packs in the
+  # write-once bucket); the store has no other network and no route out.
   objectstore-api:
     internal: true
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
@@ -347,7 +347,7 @@ services:
       NOTARY_DATABASE_URL: file:/run/secrets/db-url-notary
       NOTARY_CALLERS: >-
         {"core":{"token_ref":"file:/run/secrets/tok-core-notary","scopes":["ledger","read"]},
-        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-notary","scopes":["ledger","read","checkpoint"]},
+        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-notary","scopes":["ledger","read","checkpoint","evidence"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-notary","scopes":["ledger","read"]}}
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-notary-kms
@@ -671,6 +671,12 @@ services:
       # it, with CORE_WORKER_STAGE_PORTS=agents.
       CORE_WORKER_VERIFY_URL: ${CORE_WORKER_VERIFY_URL:-}
       CORE_WORKER_VERIFY_TOKEN_REF: file:/run/secrets/tok-core-worker-verify
+      # M14.4: 7.6 signs the Evidence Pack through the Notary (scope `evidence`) and stores it in the object store's
+      # write-once bucket `evidence-packs` (with a D2's Handoff Pack beside it); the store's credentials are file
+      # references the S3 adapter resolves. Used only when CORE_WORKER_VERIFY_URL is set.
+      CORE_WORKER_OBJECT_STORE_URL: http://object-store:9000
+      CORE_WORKER_OBJECT_STORE_ACCESS_KEY_REF: file:/run/secrets/object-store-access-key
+      CORE_WORKER_OBJECT_STORE_SECRET_KEY_REF: file:/run/secrets/object-store-secret-key
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-core-worker-kms
       CORE_WORKER_HOST: 0.0.0.0
@@ -688,6 +694,8 @@ services:
         tok-core-worker-kms,
         tok-core-worker-sandbox-controller,
         tok-core-worker-verify,
+        object-store-access-key,
+        object-store-secret-key,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8360']
@@ -715,6 +723,7 @@ services:
         gateway-api,
         sandbox-controller-api,
         verify-api,
+        objectstore-api,
       ]
     mem_limit: 256m
 

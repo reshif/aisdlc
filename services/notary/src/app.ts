@@ -2,10 +2,12 @@ import {
   NOTARY_STATUS,
   NotaryCheckpointRequest,
   NotaryConfirmRequest,
+  NotaryEvidenceSignRequest,
   NotaryReserveRequest,
   NotarySignRequest,
   NotaryVerifyRequest,
   type NotaryError,
+  type EvidenceSignerPort,
   type NotaryErrorCode,
   type NotaryPort,
 } from '@aisdlc/ports';
@@ -16,11 +18,14 @@ import type { Result } from '@aisdlc/kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
 
-/** What a caller may do: `ledger` (reserve, sign, confirm, unconfirmed), `checkpoint`, `read` (verify). */
-export type NotaryScope = 'ledger' | 'checkpoint' | 'read';
+/**
+ * What a caller may do: `ledger` (reserve, sign, confirm, unconfirmed), `checkpoint`, `read` (verify), `evidence`
+ * (sign an Evidence Pack id, PLAN M14.4).
+ */
+export type NotaryScope = 'ledger' | 'checkpoint' | 'read' | 'evidence';
 
 export interface NotaryAppOptions {
-  service: NotaryPort;
+  service: NotaryPort & EvidenceSignerPort;
   auth: ServiceAuth;
   /** caller name -> scopes. A caller with no entry may do nothing. */
   callers: Record<string, readonly NotaryScope[]>;
@@ -118,6 +123,14 @@ export function createNotaryApp(opts: NotaryAppOptions): FastifyInstance {
     // An entry that is not even shaped like one is refused by the service as `invalid_entry`.
     (b) => opts.service.verify(b.entry as LedgerEntry),
     () => ({ valid: true }),
+  );
+  route(
+    'post',
+    '/v1/evidence/sign',
+    'evidence',
+    NotaryEvidenceSignRequest,
+    (b) => opts.service.signEvidencePack(b),
+    (signature) => ({ signature }),
   );
   return app;
 }

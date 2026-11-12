@@ -18,7 +18,7 @@ import {
 import { canonicalJson, sha256Hex } from '@aisdlc/kernel';
 
 // Findings, verdicts and results (PLAN M14.3): one place that says what fails a check, so every check, the service and
-// core's 7.6 guard agree. Fail closed: a kit that gave no verdict makes the check `unknown`, and `unknown` is unmet.
+// core's 7.6 agree. Fail closed: a kit that gave no verdict makes the check `unknown`, and `unknown` is unmet.
 
 /** One line, bounded, no newline (a finding ends up in a card; a newline there could start a heading). */
 export const line = (s: string, max = 480): string => s.replace(/\s+/g, ' ').trim().slice(0, max);
@@ -151,23 +151,43 @@ export function outcomeOf(result: VerifyCheckResult): StageOutcome {
   return { outcome: 'completed', output_hash: h };
 }
 
+/** A gate a check can raise (X2 at 7.4, E2 at 7.5, E6 at 7.2). */
+export type RaisedGate = Extract<VerifyRaise, { kind: 'gate' }>['gate'];
+
+/** The latest result of each step (results in record order). */
+export function latestByStep(
+  results: readonly VerifyCheckResult[],
+): Partial<Record<VerifyStep, VerifyCheckResult>> {
+  const out: Partial<Record<VerifyStep, VerifyCheckResult>> = {};
+  for (const r of results) out[r.step] = r;
+  return out;
+}
+
+/** One step's result is met: passed, and the gate it raised (if any) approved. A trigger is never met. */
+export function stepMet(
+  r: VerifyCheckResult | undefined,
+  approved: (gate: RaisedGate, step: VerifyStep) => boolean,
+): boolean {
+  return (
+    r !== undefined &&
+    r.verdict === 'passed' &&
+    (r.raised === null || (r.raised.kind === 'gate' && approved(r.raised.gate, r.step)))
+  );
+}
+
 /**
- * Whether S7's checks are met for one head (core's 7.6 guard until M14.4 assembles the pack): the latest result of
+ * Whether S7's checks are met for one head (7.6 signs a passing Evidence Pack only when none is unmet: `decide76`): the latest result of
  * EVERY step 7.1 to 7.5 passed, and a gate a check raised was approved. A missing step, an `unknown`, a `failed` or
  * a pending or denied gate is unmet. Returns the steps that are not met (empty: met).
  */
 export function unmetSteps(
   results: readonly VerifyCheckResult[],
-  approved: (gate: 'X2' | 'E2', step: VerifyStep) => boolean,
+  approved: (gate: RaisedGate, step: VerifyStep) => boolean,
 ): VerifyStep[] {
   const out: VerifyStep[] = [];
+  const latest = latestByStep(results);
   for (const step of Object.keys(VERIFY_CHECK_OF_STEP) as VerifyStep[]) {
-    const r = results.filter((x) => x.step === step).at(-1);
-    const ok =
-      r !== undefined &&
-      r.verdict === 'passed' &&
-      (r.raised === null || (r.raised.kind === 'gate' && approved(r.raised.gate, step)));
-    if (!ok) out.push(step);
+    if (!stepMet(latest[step], approved)) out.push(step);
   }
   return out;
 }

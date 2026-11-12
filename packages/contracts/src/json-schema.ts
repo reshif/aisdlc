@@ -698,6 +698,18 @@ export const SCHEMAS = {
   VerifyRunRequest: entities.VerifyRunRequest,
   VerifyRunResponse: entities.VerifyRunResponse,
   VerifyCheckRecordedPayload: entities.VerifyCheckRecordedPayload,
+  RepairClass: entities.RepairClass,
+  S7HandoffTrigger: entities.S7HandoffTrigger,
+  S7Disposition: entities.S7Disposition,
+  EvidenceFinding: entities.EvidenceFinding,
+  EvidenceStep: entities.EvidenceStep,
+  EvidenceDecision: entities.EvidenceDecision,
+  EvidenceGate: entities.EvidenceGate,
+  EvidencePushReceipt: entities.EvidencePushReceipt,
+  EvidencePack: entities.EvidencePack,
+  SignedEvidencePack: entities.SignedEvidencePack,
+  EvidencePackSignedPayload: entities.EvidencePackSignedPayload,
+  D2HandoffRecord: entities.D2HandoffRecord,
 } as const satisfies Record<string, z.ZodType>;
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';

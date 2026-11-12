@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readPrompt } from '@aisdlc/agents/files';
@@ -16,7 +16,9 @@ import { HttpPushGuards } from '@aisdlc/codehost';
 import { startTestCodeHost, type TestCodeHost } from '@aisdlc/codehost/testing';
 import {
   DEFAULT_CONSTITUTION,
+  EVIDENCE_BUCKET,
   VERIFY_EVENT,
+  evidenceStream,
   verifyStream,
   type CodingSessionResult,
   type ProjectSettings,
@@ -26,17 +28,21 @@ import { err, ok as kok } from '@aisdlc/kernel';
 import {
   FakeAgentKeys,
   FakeEnvelope,
+  FakeObjectStore,
+  fakeKeyCustody,
   FakeProjectSettings,
   FakeSandbox,
   FakeStagePorts,
   GuardedSandbox,
   RunKeyVault,
   emptySeed,
+  type EvidenceSignerPort,
+  type ObjectStorePort,
   type RepoFile,
   type SandboxSpec,
   type StagePorts,
 } from '@aisdlc/ports';
-import { FakeReviewer, type RepoFilesPort } from '@aisdlc/verify';
+import { FakeReviewer, verifyPackMain, type RepoFilesPort } from '@aisdlc/verify';
 import { migrateVerify } from '@aisdlc/verify-service';
 import { startTestVerify, type TestVerify } from '@aisdlc/verify-service/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -44,6 +50,10 @@ import {
   AdmissionCapacity,
   AgentVerifyPort,
   CoreBuildSource,
+  CoreEvidence,
+  listEvidencePacks,
+  readSignedPack,
+  rebuildEvidencePacks,
   CorePush,
   CorePushGuards,
   planUnits,
@@ -65,8 +75,9 @@ import {
 // M14.3 end to end through core, with fakes only behind the ports: the real record, ledger and Notary, the real S6 port
 // (a scripted sandbox), the real Push Broker over the in-repo fake GitHub, and the real verify service (its own
 // schema and record streams) reading the base and the pushed head from that fake GitHub, its kits in the same scripted
-// sandbox and A5 as a fake reviewer. S6 -> S7 7.1 to 7.5 -> the 7.6 guard -> G4 -> Done; X2 at 7.4 on a protected
-// path; Q1 at 7.2 on a locked-test edit; the 7.6 guard stops an item whose check failed.
+// sandbox and A5 as a fake reviewer. S6 -> S7 7.1 to 7.5 -> 7.6 (the Evidence Pack signed by the real Notary and
+// stored in a fake write-once object store) -> G4 -> Done; X2 at 7.4 on a protected path; Q1 at 7.2 on a locked-test
+// edit; M14.4: B9 and its limit to D2, B10, B11, B12 -> E6 -> G3o and its limit to D2, a check with no verdict.
 
 void HttpPushGuards;
 let s: CoreStack;
@@ -142,6 +153,7 @@ interface World {
   readonly reviewer: FakeReviewer;
   readonly d: WorkDriverDeps;
   readonly dir: string;
+  readonly objects: CountingObjectStore;
   /** Changes the verify service sees on top of the pushed head (a later push it did not make). */
   tamper: Record<string, string>;
   /** Scripted answers for verify's own sessions (`s7-...`). */
@@ -149,10 +161,21 @@ interface World {
   heads: string[];
 }
 
+/** The fake write-once store, counting the puts that stored something new. */
+class CountingObjectStore extends FakeObjectStore implements ObjectStorePort {
+  readonly stored: string[] = [];
+  override async put(bucket: string, bytes: Uint8Array, opts: { contentType: string }) {
+    const before = await this.head(bucket, sha256b(Buffer.from(bytes))).catch(() => null);
+    const r = await super.put(bucket, bytes, opts);
+    if (r.ok && !(before?.ok && before.value)) this.stored.push(r.value.sha256);
+    return r;
+  }
+}
+
 let counter = 0;
 const worlds: World[] = [];
 
-async function world(): Promise<World> {
+async function world(o: { oracleEntry?: typeof synthOracleEntry } = {}): Promise<World> {
   counter += 1;
   const project = `vfy${counter}`;
   const repo = `acme/${project}`;
@@ -225,7 +248,12 @@ async function world(): Promise<World> {
       run_id: null,
       content,
     });
-  ok(await store$('oracle_specs', '3.4', { kind: 'oracle_specs', oracles: [synthOracleEntry] }));
+  ok(
+    await store$('oracle_specs', '3.4', {
+      kind: 'oracle_specs',
+      oracles: [o.oracleEntry ?? synthOracleEntry],
+    }),
+  );
   ok(
     await store$('verification_binding', '5.4', {
       bindings: [{ unit_key: 'main', oracle_ids: ['O1'] }],
@@ -321,11 +349,21 @@ async function world(): Promise<World> {
     model: 'claude-sonnet-5-5',
     prompt: readPrompt,
   });
+  const objects = new CountingObjectStore();
   const verifyPort = new AgentVerifyPort({
     pool: s.record.pool,
     client: verify.client,
     keys: vault,
     fallback: fakes.verify,
+    evidence: new CoreEvidence({
+      pool: s.record.pool,
+      clock: s.clock,
+      ledger: s.deps.ledger as never,
+      // the core stack's real Notary (over HTTP), whose `core` caller holds the `evidence` scope
+      signer: s.deps.ledger?.notary as unknown as EvidenceSignerPort,
+      objects,
+      store,
+    }),
     constitution: () => DEFAULT_CONSTITUTION,
     guard,
     store,
@@ -345,6 +383,7 @@ async function world(): Promise<World> {
   });
   Object.assign(w, {
     verify,
+    objects,
     fakes,
     reviewer,
     d: {
@@ -383,7 +422,7 @@ const results = async (w: World): Promise<VerifyCheckResult[]> => {
 };
 
 describe('S6 -> S7 through core', () => {
-  it('the pushed head is verified by 7.1 to 7.5 in the verify service; the 7.6 guard lets it on; G4; Done', async () => {
+  it('the pushed head is verified by 7.1 to 7.5 in the verify service; 7.6 signs the passing pack; G4; Done', async () => {
     const w = await world();
     const done = await runItem(s, w.d, w.itemId);
     expect(done?.state.terminal, JSON.stringify(done?.state.waiting)).toBe('Done');
@@ -399,11 +438,16 @@ describe('S6 -> S7 through core', () => {
     const pull = w.host.server.pulls[0];
     expect(new Set(rs.map((r) => r.head_sha))).toEqual(new Set([pull?.head.sha]));
     expect(rs.every((r) => r.base_sha === SYNTH_BASE_SHA)).toBe(true);
-    // each result is bound into the item by hash (its output), and 7.6 (the fake, until M14.4) ran once
+    // each result is bound into the item by hash (its output); 7.6 is the Evidence Pack, never the stage-port fake
     const st = done?.state;
     const { verifyResultHash } = await import('@aisdlc/contracts');
     for (const r of rs) expect(st?.outputs[r.step]).toBe(verifyResultHash(r));
-    expect(w.fakes.verify.calls.map((c) => c.step)).toEqual(['7.6']);
+    expect(w.fakes.verify.calls).toHaveLength(0);
+    const packs = await listEvidencePacks(s.record.pool, w.itemId);
+    expect(packs.map((p) => [p.disposition.kind, p.passing, p.head_sha])).toEqual([
+      ['passed', true, pull?.head.sha],
+    ]);
+    expect(st?.outputs['7.6']).toBe(packs[0]?.pack_sha256);
     // A5 reviewed at 7.3 and 7.5 under the run key the driver minted (lent for the call, never recorded)
     expect(w.reviewer.calls.map((c) => [c.check, c.key_seen])).toEqual([
       ['spec_conformance', true],
@@ -427,6 +471,14 @@ describe('S6 -> S7 through core', () => {
     expect(x2.map((g) => [g.station, g.status, g.outcome])).toEqual([
       ['7.4!X2', 'decided', 'approve'],
     ]);
+    // the passing pack binds the X2 instance with its ledger decision, and 7.4 as met under it
+    const [p] = await listEvidencePacks(s.record.pool, w.itemId);
+    const pack = ok(await readSignedPack(w.objects, p as never)).signed.pack;
+    expect(pack.passing).toBe(true);
+    const g = pack.gates.find((x) => x.gate === 'X2');
+    expect(g).toMatchObject({ station: '7.4!X2', status: 'decided', outcome: 'approve' });
+    expect(g?.decisions.map((d) => d.decision)).toEqual(['approve']);
+    expect(pack.steps[3]).toMatchObject({ step: '7.4', gate_approved: true, met: true });
     expect(rs.map((r) => r.step)).toEqual(['7.1', '7.2', '7.3', '7.4', '7.5']);
   });
 
@@ -458,19 +510,284 @@ describe('S6 -> S7 through core', () => {
     expect(st?.gates.find((g) => g.gate === 'SECT')?.status).toBe('pending');
   });
 
-  it('the 7.6 guard: a check that failed stops the item before 7.6; nothing is taken as a pass', async () => {
+  it('M14.4 7.6: the pack is signed, stored once, recorded with its ledger entry, rebuilt, and verifies offline', async () => {
+    const w = await world();
+    const done = await runItem(s, w.d, w.itemId);
+    expect(done?.state.terminal).toBe('Done');
+    const head = w.host.server.pulls[0]?.head.sha as string;
+    const [p] = await listEvidencePacks(s.record.pool, w.itemId);
+    if (!p) throw new Error('no pack');
+    // stored once in the write-once bucket, under the sha256 of its bytes
+    expect(w.objects.stored).toEqual([p.object_key]);
+    expect((await w.objects.delete(EVIDENCE_BUCKET, p.object_key)).ok).toBe(false);
+    const read = ok(await readSignedPack(w.objects, p));
+    const pack = read.signed.pack;
+    expect(pack).toMatchObject({
+      item_id: w.itemId,
+      head_sha: head,
+      base_sha: SYNTH_BASE_SHA,
+      passing: true,
+      units: [{ unit_key: 'main' }],
+      oracle_locks: { [ORACLE_PATH]: sha256b(synthOracleCode()) },
+    });
+    expect(pack.steps.map((x) => [x.step, x.verdict, x.met])).toEqual([
+      ['7.1', 'passed', true],
+      ['7.2', 'passed', true],
+      ['7.3', 'passed', true],
+      ['7.4', 'passed', true],
+      ['7.5', 'passed', true],
+    ]);
+    expect(pack.push_receipt?.head_sha).toBe(head);
+    // every gate the item had raised by 7.6 (none here: the project's gating is off before G4)
+    expect(pack.gates).toEqual([]);
+    // the record event and the ledger entry carry the pack id, bound to the head
+    const ev = await s.record.pool.query<{ n: number }>(
+      'SELECT count(*)::int AS n FROM record.record_event WHERE stream = $1',
+      [evidenceStream(w.itemId)],
+    );
+    expect(ev.rows[0]?.n).toBe(1);
+    const le = await s.record.pool.query<{ subject_hash: string; head: string }>(
+      `SELECT subject_hash, body->>'head_sha' AS head FROM ledger.ledger_entry
+        WHERE entry_type = 'evidence.pack_signed' AND subject_id = $1`,
+      [w.itemId],
+    );
+    expect(le.rows).toEqual([{ subject_hash: p.pack_sha256, head }]);
+    // the read model is a fold of the record
+    await s.record.pool.query('DELETE FROM core.evidence_pack WHERE item_id = $1', [w.itemId]);
+    expect(await rebuildEvidencePacks(s.deps, w.itemId)).toBe(1);
+    expect(await listEvidencePacks(s.record.pool, w.itemId)).toEqual([p]);
+    // a retry of the 7.6 command signs and stores nothing again
+    const again = await w.d.ports.verify.run({
+      command_key: p.command_key,
+      item_id: w.itemId as never,
+      project_id: done?.state.project_id as never,
+      repo: w.repo as never,
+      lane: 'L3',
+      step: '7.6',
+      attempt: 1,
+      approved_gates: [],
+      denied_gates: [],
+      catalogue_ref: done?.state.catalogue_ref as never,
+    });
+    expect(again).toEqual({
+      ok: true,
+      value: { outcome: 'completed', output_hash: p.pack_sha256 },
+    });
+    expect(w.objects.stored).toHaveLength(1);
+    expect(await listEvidencePacks(s.record.pool, w.itemId)).toHaveLength(1);
+
+    // offline: the CLI with the pack bytes and the Notary's public key only
+    const dir = mkdtempSync(join(tmpdir(), 'aisdlc-pack-'));
+    try {
+      const file = join(dir, 'pack.json');
+      const keyFile = join(dir, 'notary.jwk');
+      writeFileSync(file, read.bytes);
+      writeFileSync(keyFile, JSON.stringify(s.deps.ledger?.notaryKey));
+      const lines: string[] = [];
+      const io = { out: (l: string) => lines.push(l), err: (l: string) => lines.push(l) };
+      const run = (args: string[]) =>
+        verifyPackMain(['--pack', file, '--notary-key', keyFile, ...args], io);
+      expect(await run(['--head', head, '--item', w.itemId, '--object-key', p.object_key])).toBe(0);
+      expect(lines.join('\n')).toMatch(/evidence pack OK/);
+      // a wrong head
+      expect(await run(['--head', 'f'.repeat(40)])).toBe(1);
+      expect(lines.at(-1)).toMatch(/head_mismatch/);
+      // a wrong key
+      const other = await fakeKeyCustody({ seed: 'someone-else' }).publicKey('dev:notary');
+      writeFileSync(keyFile, JSON.stringify(other.ok ? other.value : {}));
+      expect(await run(['--head', head])).toBe(1);
+      expect(lines.at(-1)).toMatch(/bad_signature/);
+      writeFileSync(keyFile, JSON.stringify(s.deps.ledger?.notaryKey));
+      // a tampered pack: one verdict flipped and the file re-canonicalised, then the id fixed up as well
+      const signed = JSON.parse(Buffer.from(read.bytes).toString()) as {
+        pack: { steps: Array<{ verdict: string }> };
+        pack_sha256: string;
+      };
+      const { canonicalJson, sha256Hex } = await import('@aisdlc/kernel');
+      (signed.pack.steps[0] as { verdict: string }).verdict = 'failed';
+      writeFileSync(file, canonicalJson(signed as never));
+      expect(await run(['--head', head])).toBe(1);
+      expect(lines.at(-1)).toMatch(/pack_hash_mismatch/);
+      signed.pack_sha256 = sha256Hex(canonicalJson(signed.pack as never));
+      writeFileSync(file, canonicalJson(signed as never));
+      expect(await run(['--head', head])).toBe(1);
+      expect(lines.at(-1)).toMatch(/bad_signature/);
+      // bytes that are not the canonical form
+      writeFileSync(file, Buffer.concat([Buffer.from(read.bytes), Buffer.from('\n')]));
+      expect(await run(['--head', head])).toBe(1);
+      expect(lines.at(-1)).toMatch(/not_canonical/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('B9: a repairable 7.1 failure goes back to 6.4 under the pinned limit (ET3, 3 rounds), then D2 carries both packs', async () => {
     const w = await world();
     w.s7 = (_spec, cmd) =>
       cmd === 'npm run check' ? { exit_code: 1, stdout: 'not ok 1 - lint\n' } : undefined;
-    await runItem(s, w.d, w.itemId);
-    const st = (await readItem(s.record.pool, w.itemId))?.state;
-    expect(st?.terminal).toBeNull();
-    expect(st?.waiting).toMatchObject({
-      kind: 'stuck',
-      reason: 'stage_failed:s7_unmet',
-      step: '7.6',
+    const st = (await runItem(s, w.d, w.itemId, { stop: (x) => x.underlying === 'Handoff' }))
+      ?.state;
+    expect(st?.underlying, JSON.stringify(st?.waiting)).toBe('Handoff');
+    expect(st?.rework.by_loop['B9:et3_rounds']).toBe(3);
+    expect(st?.attempts['s:6.4']).toBe(4);
+    const packs = await listEvidencePacks(s.record.pool, w.itemId);
+    expect(packs.map((p) => [p.disposition.kind, p.passing])).toEqual([
+      ['rework', false],
+      ['rework', false],
+      ['rework', false],
+      ['handoff', false],
+    ]);
+    expect(packs[0]?.disposition).toEqual({
+      kind: 'rework',
+      edge: 'B9',
+      loop: 'et3_rounds',
+      reason_code: 'repairable_7.1',
     });
-    expect((await results(w)).find((r) => r.step === '7.1')?.verdict).toBe('failed');
+    const d2 = packs[3];
+    expect(d2?.disposition).toEqual({
+      kind: 'handoff',
+      trigger: 'ET3',
+      step: '7.6',
+      reason_code: 'b9_limit',
+    });
+    // D2: the Handoff Pack (A11) beside the Evidence Pack, both in the write-once bucket, both bound into the Handoff
+    const h = st?.handoffs.at(-1);
+    expect(h).toMatchObject({ code: 'D2', trigger: 'ET3', origin_phase: 'S7' });
+    expect(d2?.handoff_pack_sha256).toMatch(/^[0-9a-f]{64}$/);
+    const hp = ok(await w.objects.get(EVIDENCE_BUCKET, d2?.handoff_object_key as string));
+    const handoff = JSON.parse(Buffer.from(hp).toString()) as {
+      schema: string;
+      failing_tests: string[];
+    };
+    expect(handoff.schema).toBe('handoff-pack/1');
+    expect(handoff.failing_tests.some((f) => f.startsWith('7.1 command_failed'))).toBe(true);
+    const { d2HandoffHash } = await import('@aisdlc/contracts');
+    expect(st?.outputs['7.6']).toBe(
+      d2HandoffHash({
+        schema: 'd2-handoff/1',
+        item_id: w.itemId as never,
+        trigger: 'ET3',
+        reason_code: 'b9_limit',
+        evidence_pack_sha256: d2?.pack_sha256 as string,
+        handoff_pack_sha256: d2?.handoff_pack_sha256 ?? null,
+      }),
+    );
+    // every pack of the item is signed and stored, none of them passing
+    for (const p of packs) {
+      const r = ok(await readSignedPack(w.objects, p));
+      expect(r.signed.pack.passing).toBe(false);
+    }
     expect(w.fakes.verify.calls).toHaveLength(0);
+  });
+
+  it('B10: A5 finds the spec ambiguous at 7.3: back to 3.2 (G2 portion again)', async () => {
+    const w = await world();
+    w.reviewer.scripted((req) =>
+      req.check === 'spec_conformance'
+        ? {
+            verdict: 'findings',
+            findings: [
+              {
+                severity: 'high',
+                rule_id: 'spec_ambiguous',
+                location: { path: 'src/calc.js' },
+                message: 'the spec does not say what add does with strings',
+              },
+            ],
+          }
+        : undefined,
+    );
+    const st = (
+      await runItem(s, w.d, w.itemId, {
+        stop: (x) => (x.rework.by_edge['B10'] ?? 0) > 0,
+      })
+    )?.state;
+    expect(st?.rework.by_edge['B10']).toBe(1);
+    // the spec is drafted again (3.2 ran a second time)
+    expect(st?.attempts['s:3.2']).toBe(2);
+    expect(await listEvidencePacks(s.record.pool, w.itemId)).toEqual([]);
+  });
+
+  it('B11: A5 finds the approach wrong: 7.6 records the pack and sends the item back to 5.1 (G3 again)', async () => {
+    const w = await world();
+    w.reviewer.scripted((req) =>
+      req.check === 'spec_conformance'
+        ? {
+            verdict: 'findings',
+            findings: [
+              {
+                severity: 'high',
+                rule_id: 'approach_wrong',
+                location: { path: 'src/calc.js' },
+                message: 'the plan patches add where the parser is the bug',
+              },
+            ],
+          }
+        : undefined,
+    );
+    const st = (
+      await runItem(s, w.d, w.itemId, {
+        stop: (x) => (x.rework.by_edge['B11'] ?? 0) > 0,
+      })
+    )?.state;
+    expect(st?.rework.by_edge['B11']).toBe(1);
+    // the plan is made again (5.1 ran a second time)
+    expect(st?.attempts['s:5.1']).toBe(2);
+    const packs = await listEvidencePacks(s.record.pool, w.itemId);
+    expect(packs.map((p) => p.disposition)).toEqual([
+      { kind: 'rework', edge: 'B11', loop: null, reason_code: 'approach_wrong_7.3' },
+    ]);
+    const r = ok(await readSignedPack(w.objects, packs[0] as never));
+    const s73 = r.signed.pack.steps.find((x) => x.step === '7.3');
+    expect(s73?.findings.items.map((f) => [f.kind, f.repair_class])).toEqual([
+      ['conformance_review', 'approach_wrong'],
+    ]);
+  });
+
+  it('B12: a locked test the approved spec moved away from raises E6 at 7.2, chained to G3o; the 2nd time is D2', async () => {
+    const w = await world({
+      oracleEntry: { ...synthOracleEntry, description: 'add(2, 3) is five' },
+    });
+    const st = (await runItem(s, w.d, w.itemId, { stop: (x) => x.underlying === 'Handoff' }))
+      ?.state;
+    expect(st?.rework.by_edge['B12']).toBe(1);
+    const at72 = st?.gates
+      .filter((g) => g.station.startsWith('7.2!'))
+      .map((g) => [g.gate, g.outcome]);
+    expect(at72).toEqual([
+      ['E6', 'approve'],
+      ['G3o', 'approve'],
+    ]);
+    const r72 = (await results(w)).filter((r) => r.step === '7.2');
+    expect(r72.map((r) => r.raised)).toEqual([
+      { kind: 'gate', gate: 'E6', reason_code: 'locked_test_must_change' },
+      { kind: 'gate', gate: 'E6', reason_code: 'locked_test_must_change' },
+    ]);
+    expect(st?.handoffs.at(-1)).toMatchObject({ code: 'D2', trigger: 'ET3' });
+    const packs = await listEvidencePacks(s.record.pool, w.itemId);
+    expect(packs.map((p) => p.disposition)).toEqual([
+      { kind: 'handoff', trigger: 'ET3', step: '7.2', reason_code: 'b12_limit' },
+    ]);
+    const pack = ok(await readSignedPack(w.objects, packs[0] as never)).signed.pack;
+    expect(pack.steps.map((x) => [x.step, x.met])).toEqual([
+      ['7.1', true],
+      ['7.2', false],
+      ['7.3', false],
+      ['7.4', false],
+      ['7.5', false],
+    ]);
+    expect(pack.steps[1]?.findings.items[0]?.repair_class).toBe('locked_test_change');
+  });
+
+  it('7.6 never signs a passing pack when a step has no verdict: a kit that gave no answer is D2 (ET4)', async () => {
+    const w = await world();
+    // every oracle session of S7 is void (127: the command could not run): no verdict, nothing to repair
+    w.s7 = (_spec, cmd) => (cmd.startsWith('npm test -- ') ? { exit_code: 127 } : undefined);
+    const st = (await runItem(s, w.d, w.itemId, { stop: (x) => x.underlying === 'Handoff' }))
+      ?.state;
+    const packs = await listEvidencePacks(s.record.pool, w.itemId);
+    expect(packs.some((p) => p.passing)).toBe(false);
+    expect(packs.at(-1)?.disposition).toMatchObject({ kind: 'handoff', trigger: 'ET4' });
+    expect(st?.handoffs.at(-1)).toMatchObject({ code: 'D2', trigger: 'ET4' });
   });
 });

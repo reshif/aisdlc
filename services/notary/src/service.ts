@@ -4,7 +4,9 @@ import {
   LedgerEntryDraft,
   checkLedgerEntrySignature,
   checkpointDigestHex,
+  Signature,
   computeLedgerEntryHash,
+  evidencePackSigningDigest,
   ledgerDraftHash,
   type CheckpointCore,
 } from '@aisdlc/contracts';
@@ -21,9 +23,12 @@ import {
 } from '@aisdlc/kernel';
 import {
   assembleLedgerEntry,
+  badEvidenceSignRequest,
   hexBytes,
   notaryError,
   type CheckpointSignRequest,
+  type EvidenceSignRequest,
+  type EvidenceSignerPort,
   type NotaryError,
   type NotaryPort,
   type ReserveRequest,
@@ -33,6 +38,7 @@ import {
   type KeyCustodyPort,
 } from '@aisdlc/ports';
 import type pg from 'pg';
+import type { z } from 'zod';
 
 export interface NotaryServiceOptions {
   /** The Notary's own database (schema `notary`). */
@@ -66,7 +72,7 @@ interface JournalRow {
  * is gap-free in signing order. The KMS call happens while the row lock is held; a failed
  * signature rolls the transaction back and the reservation stays `reserved`.
  */
-export class NotaryService implements NotaryPort {
+export class NotaryService implements NotaryPort, EvidenceSignerPort {
   private readonly keyId: string;
   private readonly clock: Clock;
   private publicKey: Jwk | undefined;
@@ -260,6 +266,61 @@ export class NotaryService implements NotaryPort {
       const bad = await checkLedgerEntrySignature(parsed.data, this.publicKey);
       return bad === null ? ok(true as const) : err(notaryError('invalid_signature', bad));
     });
+  }
+
+  /**
+   * PLAN M14.4: signs an Evidence Pack id under the domain-separated pack message, journalled once per pack. The same
+   * pack asked again gets the signature it got the first time; under the state lock, so two callers never race.
+   */
+  async signEvidencePack(
+    req: EvidenceSignRequest,
+  ): Promise<Result<z.infer<typeof Signature>, NotaryError>> {
+    const bad = badEvidenceSignRequest(req);
+    if (bad) return err(notaryError('invalid_request', bad));
+    return this.guard(() =>
+      withTransaction(this.o.pool, async (tx) => {
+        await this.lockState(tx);
+        const have = await tx.query<{ item_id: string; head_sha: string; signature: unknown }>(
+          'SELECT item_id, head_sha, signature FROM notary.evidence_signature WHERE pack_sha256 = $1',
+          [req.pack_sha256],
+        );
+        const row = have.rows[0];
+        if (row) {
+          if (row.item_id !== req.item_id || row.head_sha !== req.head_sha) {
+            return err(
+              notaryError('invalid_request', 'this pack was signed for another item or head'),
+            );
+          }
+          const sig = Signature.safeParse(row.signature);
+          return sig.success
+            ? ok(sig.data)
+            : err(notaryError('internal', 'the journal holds an invalid signature'));
+        }
+        const raw = await this.o.custody.sign(
+          this.keyId,
+          hexBytes(evidencePackSigningDigest(req.pack_sha256)),
+        );
+        if (!raw.ok) return err(notaryError('signer_unavailable', raw.error.message));
+        const signature = {
+          key_id: this.keyId,
+          alg: LEDGER_SIGNATURE_ALG,
+          value: b64urlEncode(raw.value),
+        };
+        await tx.query(
+          `INSERT INTO notary.evidence_signature (pack_sha256, item_id, head_sha, key_id, signature, signed_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            req.pack_sha256,
+            req.item_id,
+            req.head_sha,
+            this.keyId,
+            JSON.stringify(signature),
+            this.clock.now(),
+          ],
+        );
+        return ok(signature);
+      }),
+    );
   }
 
   private async lockState(tx: pg.PoolClient): Promise<StateRow> {

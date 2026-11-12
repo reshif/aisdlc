@@ -28,10 +28,10 @@ export async function startTestNotary(opts: {
   const database = await createTestDatabase();
   await migrateNotary(database.pool);
   const callers = opts.callers ?? {
-    core: ['ledger', 'read'],
+    core: ['ledger', 'read', 'evidence'],
     checkpointer: ['checkpoint', 'read'],
     /** Every scope, for conformance tests only. */
-    tester: ['ledger', 'checkpoint', 'read'],
+    tester: ['ledger', 'checkpoint', 'read', 'evidence'],
   };
   const tokens = Object.fromEntries(
     Object.keys(callers).map((c) => [c, randomBytes(24).toString('hex')]),

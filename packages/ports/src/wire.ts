@@ -76,6 +76,14 @@ export const NotaryCheckpointResponse = z.strictObject({
 export const NotaryVerifyRequest = z.strictObject({ entry: z.unknown() });
 export const NotaryVerifyResponse = z.strictObject({ valid: z.literal(true) });
 
+/** `POST /v1/evidence/sign` (scope `evidence`, PLAN M14.4): the Notary signs an Evidence Pack id. */
+export const NotaryEvidenceSignRequest = z.strictObject({
+  pack_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  item_id: z.string().min(1).max(64),
+  head_sha: z.string().regex(/^[0-9a-f]{40}$/),
+});
+export const NotaryEvidenceSignResponse = z.strictObject({ signature: Signature });
+
 export const NOTARY_STATUS: Record<NotaryErrorCode, number> = {
   unauthenticated: 401,
   forbidden: 403,

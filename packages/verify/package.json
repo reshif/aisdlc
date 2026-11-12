@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ../../scripts/bundle.mjs verify-pack",
     "typecheck": "tsc -p tsconfig.check.json"
   },
   "dependencies": {
@@ -25,5 +25,8 @@
   },
   "devDependencies": {
     "@aisdlc/catalogue": "1.0.0"
+  },
+  "bin": {
+    "aisdlc-verify-pack": "./dist/verify-pack.js"
   }
 }

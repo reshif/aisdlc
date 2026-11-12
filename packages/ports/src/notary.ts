@@ -5,6 +5,7 @@ import {
   checkLedgerEntrySignature,
   checkpointDigestHex,
   computeLedgerEntryHash,
+  evidencePackSigningDigest,
   ledgerDraftHash,
   type CheckpointCore,
   type Signature,
@@ -107,6 +108,37 @@ export interface NotaryPort {
   verify(entry: LedgerEntry): Promise<Result<true, NotaryError>>;
 }
 
+/** What 7.6 asks the Notary to sign (PLAN M14.4): a pack id, with the item and head it says it is about (journalled). */
+export interface EvidenceSignRequest {
+  pack_sha256: string;
+  item_id: string;
+  head_sha: string;
+}
+
+/**
+ * The Notary's second signing purpose (PLAN M14.4): an Evidence Pack. The Notary signs the domain-separated message of
+ * `evidencePackSigningMessage(pack_sha256)` (never a bare digest the caller chose, so no request can obtain a
+ * signature that verifies as a ledger entry or a checkpoint), journals what it signed, and answers the same signature
+ * for the same pack again (idempotent). The same pack id named with another item or head is refused.
+ */
+export interface EvidenceSignerPort {
+  signEvidencePack(req: EvidenceSignRequest): Promise<Result<Signature, NotaryError>>;
+}
+
+const PACK_REQ = {
+  sha: /^[0-9a-f]{64}$/,
+  item: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  head: /^[0-9a-f]{40}$/,
+};
+
+/** Why an evidence signing request is malformed, or `null` (one check for the fake and the service). */
+export function badEvidenceSignRequest(req: EvidenceSignRequest): string | null {
+  if (!PACK_REQ.sha.test(req.pack_sha256)) return 'pack_sha256 is not a sha256';
+  if (!PACK_REQ.item.test(req.item_id)) return 'item_id is not an item id';
+  if (!PACK_REQ.head.test(req.head_sha)) return 'head_sha is not a commit sha';
+  return null;
+}
+
 /** The ledger row for a draft and the Notary's answer. */
 export function assembleLedgerEntry(
   draft: LedgerEntryDraft,
@@ -136,8 +168,9 @@ interface Row {
  * a `KeyCustodyPort` for the signatures (use `fakeKeyCustody()` for a deterministic one). The
  * shared conformance suite in `@aisdlc/ports/testing` runs against it and the real service.
  */
-export class FakeNotary implements NotaryPort {
+export class FakeNotary implements NotaryPort, EvidenceSignerPort {
   private readonly rows = new Map<number, Row>();
+  private readonly packs = new Map<string, { req: EvidenceSignRequest; signature: Signature }>();
   private lastSeq = 0;
   private lastHash: string | null = null;
 
@@ -227,6 +260,34 @@ export class FakeNotary implements NotaryPort {
       head_hash: core.head_hash,
       signature: { key_id: this.keyId, alg: LEDGER_SIGNATURE_ALG, value: b64urlEncode(sig.value) },
     });
+  }
+
+  /** Every pack this Notary signed (a test reads it). */
+  get signedPacks(): number {
+    return this.packs.size;
+  }
+
+  async signEvidencePack(req: EvidenceSignRequest): Promise<Result<Signature, NotaryError>> {
+    const bad = badEvidenceSignRequest(req);
+    if (bad) return err(notaryError('invalid_request', bad));
+    const have = this.packs.get(req.pack_sha256);
+    if (have) {
+      return have.req.item_id === req.item_id && have.req.head_sha === req.head_sha
+        ? ok(have.signature)
+        : err(notaryError('invalid_request', 'this pack was signed for another item or head'));
+    }
+    const sig = await this.custody.sign(
+      this.keyId,
+      hexBytes(evidencePackSigningDigest(req.pack_sha256)),
+    );
+    if (!sig.ok) return err(notaryError('signer_unavailable', sig.error.message));
+    const signature: Signature = {
+      key_id: this.keyId,
+      alg: LEDGER_SIGNATURE_ALG,
+      value: b64urlEncode(sig.value),
+    };
+    this.packs.set(req.pack_sha256, { req: { ...req }, signature });
+    return ok(signature);
   }
 
   async verify(entry: LedgerEntry) {

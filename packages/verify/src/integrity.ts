@@ -1,5 +1,11 @@
-import { testOneArgv } from '@aisdlc/build';
-import type { MutationScore, VerifyFinding, VerifyKitRun, VerifyRaise } from '@aisdlc/contracts';
+import { bindOracles, testOneArgv } from '@aisdlc/build';
+import type {
+  MutationScore,
+  VerifyFinding,
+  VerifyKitRun,
+  VerifyOracle,
+  VerifyRaise,
+} from '@aisdlc/contracts';
 import { isTestPath, stubReason } from '@aisdlc/tripwires';
 import type { CheckContext } from './context.js';
 import { finding, verdictOf, type ResultParts } from './finding.js';
@@ -46,6 +52,44 @@ export function lockFindings(head: Tree, locks: Readonly<Record<string, string>>
         }),
       );
     }
+  }
+  return out;
+}
+
+/**
+ * B12 "locked test must change" (PLAN M14.4): a locked oracle that is intact (its lock hash holds, so nobody bent it)
+ * but carries an oracle id whose APPROVED spec hash is no longer the one its marker names. The approved spec moved after
+ * the lock (a B10 re-spec, a G2 portion again): the locked test cannot be right any more, and only a person may change a
+ * locked test (E6, then G3o). Pure; L0's reproduction tests carry no spec hash and are never stale.
+ */
+export function staleLockFindings(
+  head: Tree,
+  locks: Readonly<Record<string, string>>,
+  oracles: readonly VerifyOracle[],
+  repro: boolean,
+): VerifyFinding[] {
+  if (repro) return [];
+  const approved = new Map(oracles.map((o) => [o.oracle_id, o.spec_sha256]));
+  const files: Array<{ path: string; content: string }> = [];
+  for (const path of Object.keys(locks).sort()) {
+    const f = head.get(path);
+    const t = textOf(f);
+    if (f === undefined || f.sha256 !== locks[path] || t === null) continue;
+    files.push({ path, content: t });
+  }
+  const out: VerifyFinding[] = [];
+  for (const b of bindOracles(files)) {
+    if (b.oracle_id === null || b.declared_spec_sha256 === null) continue;
+    const want = approved.get(b.oracle_id);
+    if (want === undefined || want === b.declared_spec_sha256) continue;
+    out.push(
+      finding('locked_test_stale', 'high', {
+        rule_id: b.oracle_id.slice(0, 64),
+        path: b.path,
+        message: `the locked oracle ${b.path} (${b.oracle_id}) was locked against a spec the approved one replaced`,
+        key: `${b.declared_spec_sha256}:${want}`,
+      }),
+    );
   }
   return out;
 }
@@ -197,6 +241,17 @@ export async function checkIntegrity(c: CheckContext): Promise<ResultParts> {
       ? 'locked_test_edit'
       : 'stub_test';
     return { findings: tamper, kits, raised: et10(reason), verdict: 'failed' };
+  }
+
+  // B12: a locked test the approved spec has moved away from must change, and only a person may change it (E6)
+  const stale = staleLockFindings(head, req.locks, req.oracles, req.repro);
+  if (stale.length > 0) {
+    return {
+      findings: stale,
+      kits,
+      raised: { kind: 'gate', gate: 'E6', reason_code: 'locked_test_must_change' },
+      verdict: 'failed',
+    };
   }
 
   const test = c.contract.test;

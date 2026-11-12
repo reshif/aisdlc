@@ -5,8 +5,10 @@ import {
   VerifyRunRequest,
   verifyResultHash,
   type Constitution,
+  type S7Disposition,
   type StageOutcome,
   type StageRequest,
+  type VerifyCheckResult,
   type VerifyStep,
 } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
@@ -17,19 +19,23 @@ import {
   type SessionGuardDeps,
   type VerifyPort,
 } from '@aisdlc/ports';
-import { outcomeOf, unmetSteps, type VerifyClient } from '@aisdlc/verify';
+import { B9_LOOP, decide76, decideStep, type EdgeRoom, type VerifyClient } from '@aisdlc/verify';
+import { catalogueOfItem, effectiveLimit, type ItemState } from '@aisdlc/work';
 import type pg from 'pg';
 import { readItem } from '../work-items.js';
-import { CoreVerifySubjects, gateApprovedAt } from './subject.js';
+import { outcomeOfRecorded, evidenceByCommand, type CoreEvidence } from './evidence.js';
+import { CoreVerifySubjects, gateApprovedAt, type SubjectFields } from './subject.js';
 
 // AgentVerifyPort (PLAN M14.3): the real `VerifyPort` for S7 7.1 to 7.5. Each step is one call to the verify service
 // (`services/verify`, the plan's `cvw`), which runs the step's check over the Unit head in its own kits and records the
 // result; this port builds the request from core's own record (the Unit head and base, the locks, the approved oracles,
 // the approvals, the constitution, the live grant) and turns the result into the step's outcome with the ONE pure
-// function `outcomeOf`: ET10 is Q1 (7.2), a raised gate is X2 (7.4) or E2 (7.5), anything else completes the step
-// with the result's hash. 7.6 assembles the Evidence Pack (M14.4); until then this port guards it: 7.6 goes on to the
-// fallback only when every step 7.1 to 7.5 PASSED for this head and every gate a check raised was approved; otherwise
-// the item stops (`failed`, `s7_unmet`). Unknown is unmet.
+// function `decideStep`: ET10 is Q1 (7.2), a raised gate is X2 (7.4), E2 (7.5) or E6 (7.2, B12), a spec found
+// ambiguous at 7.3 is B10, anything else completes the step with the result's hash. 7.6 (M14.4) decides over the
+// results of exactly the head (`decide76`): every step met signs the passing Evidence Pack; otherwise B9 (6.4 again) or
+// B11 (5.1 again) while the pinned catalogue leaves the edge a round, else D2; a hard-fail class or a check with no
+// verdict is D2 at once. Every 7.6 outcome, and a D2 at 7.2 or 7.3 (B12, B10 out of rounds), records a signed pack
+// (`CoreEvidence`): a D2 carries it and the S6 Handoff Pack. Unknown is unmet, and nothing passes unsigned.
 //
 // The D+A steps (7.3, 7.5) carry the A5 binding the work driver minted, and its key is lent from the vault for the
 // length of the one call (it reaches the verify service in the request body, as a session's key reaches the
@@ -40,8 +46,10 @@ export interface AgentVerifyPortDeps {
   readonly pool: pg.Pool;
   readonly client: VerifyClient;
   readonly keys: RunKeyLender;
-  /** 7.6 and everything else (until M14.4). */
+  /** Steps that are not S7's checks (the stage port of a step the verify port does not know). */
   readonly fallback: VerifyPort;
+  /** 7.6: the pack assembly, signing and storage (M14.4). */
+  readonly evidence: CoreEvidence;
   /** The factory constitution in force (`constitutionFrom`); `null` is unreadable config: 7.5 fails closed. */
   readonly constitution: () => Constitution | null;
   /** DEC-18 and B1, as in front of every S6 session. Absent: not checked here (a test of something else). */
@@ -69,7 +77,7 @@ export class AgentVerifyPort implements VerifyPort {
 
   async run(req: StageRequest): Promise<Result<StageOutcome, StagePortError>> {
     try {
-      if (req.step === '7.6') return await this.guard76(req);
+      if (req.step === '7.6') return await this.assemble(req);
       if (!isVerifyStep(req.step)) return await this.d.fallback.run(req);
       return await this.check(req, req.step);
     } catch (e) {
@@ -144,22 +152,94 @@ export class AgentVerifyPort implements VerifyPort {
     ) {
       return portError('the verify service answered a result for another subject');
     }
-    return ok(outcomeOf(result));
-  }
-
-  /** 7.6 until M14.4: every step met for this head, or the item stops (fail closed, never a pass by default). */
-  private async guard76(req: StageRequest): Promise<Result<StageOutcome, StagePortError>> {
-    const subject = await this.subjects.subject(req);
-    if (!subject.ok) return ok({ outcome: 'failed', code: subject.error });
-    const results = await this.d.client.results(req.item_id, subject.value.head_sha);
-    if (!results.ok) {
-      if (results.error.code === 'unavailable') return portError(results.error.message);
-      return ok({ outcome: 'failed', code: 'verify_refused' });
-    }
     const item = await readItem(this.d.pool, req.item_id);
     if (!item) return ok({ outcome: 'failed', code: 'no_item' });
-    const unmet = unmetSteps(results.value, (gate, step) => gateApprovedAt(item.state, gate, step));
-    if (unmet.length > 0) return ok({ outcome: 'failed', code: 's7_unmet' });
-    return this.d.fallback.run(req);
+    const decided = decideStep(result, edgeRoom(item.state));
+    if (decided.kind === 'outcome') return ok(decided.outcome);
+    // B12 or B10 with no round left: D2, with the evidence so far (this step's result is the last of it)
+    if (step !== '7.2' && step !== '7.3') return portError(`a handoff decided at ${step}`);
+    return this.withEvidence(req, subject.value, item.state, {
+      kind: 'handoff',
+      trigger: decided.trigger,
+      step,
+      reason_code: decided.reason_code,
+    });
   }
+
+  /** 7.6: the results of exactly the head decide; the pack is built, signed, stored and recorded for every outcome. */
+  private async assemble(req: StageRequest): Promise<Result<StageOutcome, StagePortError>> {
+    const have = await evidenceByCommand(this.d.pool, req.command_key);
+    if (have) return ok(outcomeOfRecorded(have));
+    const subject = await this.subjects.subject(req);
+    if (!subject.ok) return ok({ outcome: 'failed', code: subject.error });
+    const item = await readItem(this.d.pool, req.item_id);
+    if (!item) return ok({ outcome: 'failed', code: 'no_item' });
+    const results = await this.resultsFor(req.item_id, subject.value.head_sha);
+    if (!results.ok) return results;
+    const s = item.state;
+    const d = decide76(results.value, (gate, step) => gateApprovedAt(s, gate, step), edgeRoom(s));
+    // a step with no result for this head: nothing to sign and nothing to repair; the item stops for a person
+    if (d.kind === 'incomplete') return ok({ outcome: 'failed', code: 's7_incomplete' });
+    return this.withEvidence(req, subject.value, s, d.disposition, results.value);
+  }
+
+  private async resultsFor(
+    itemId: string,
+    head: string,
+  ): Promise<Result<VerifyCheckResult[], StagePortError>> {
+    const results = await this.d.client.results(itemId, head);
+    if (!results.ok) {
+      if (results.error.code === 'unavailable') return portError(results.error.message);
+      return err(
+        StagePortError({ message: 'verify: the verify service refused the results read' }),
+      );
+    }
+    // exactly the head: a result for another commit is never evidence for this one
+    return ok(results.value.filter((r) => r.head_sha === head && r.item_id === itemId));
+  }
+
+  private async withEvidence(
+    req: StageRequest,
+    subject: SubjectFields,
+    s: ItemState,
+    disposition: S7Disposition,
+    known?: VerifyCheckResult[],
+  ): Promise<Result<StageOutcome, StagePortError>> {
+    let results = known;
+    if (results === undefined) {
+      const r = await this.resultsFor(req.item_id, subject.head_sha);
+      if (!r.ok) return r;
+      results = r.value;
+    }
+    const p = await this.d.evidence.produce({
+      command_key: req.command_key,
+      item: s,
+      subject,
+      results,
+      approved: (gate, step) => gateApprovedAt(s, gate, step),
+      disposition,
+    });
+    // not signed, not stored or not recorded: the command is delivered again (never a pass, never a handoff unseen)
+    if (!p.ok) return portError(`7.6 evidence: ${p.error}`);
+    return ok(outcomeOfRecorded(p.value));
+  }
+}
+
+/**
+ * Whether an S7 edge may loop once more under the item's PINNED catalogue (the reader is `@aisdlc/work`'s `limits.ts`;
+ * no number here): its counted rounds plus this one within the limit. B9 counts against `et3_rounds` (ET3's threshold:
+ * the flow gives the S7 loops no number of their own), B10 to B12 against their first limit (`times`). An edge with no
+ * number is bounded by the item's rework budget only, which the engine applies.
+ */
+export function edgeRoom(s: ItemState): EdgeRoom {
+  const cat = catalogueOfItem(s);
+  return (edge) => {
+    const lim = cat.back_edge_limits[edge];
+    if (lim.kind !== 'limited') return true;
+    const l = edge === 'B9' ? lim.limits.find((x) => x.key === B9_LOOP) : lim.limits[0];
+    if (l === undefined) return true;
+    const v = effectiveLimit(cat, l);
+    if (v === null) return true;
+    return (s.rework.by_loop[`${edge}:${l.key}`] ?? 0) + 1 <= v;
+  };
 }
