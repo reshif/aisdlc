@@ -111,6 +111,8 @@ export interface WorkDriverDeps {
   readonly decisions?: DecisionDeps;
   /** Commands taken from the outbox per claim. */
   readonly batch?: number;
+  /** M19: how long one pass may dispatch before it ends and the next records the gates decided since (default 10 s). */
+  readonly dispatchBudgetMs?: number;
   /** The business calendar of the timers and MM-2 (the config reader's). Default: weekends off, MM-2 off. */
   readonly settings?: () => WorkSettings;
   /** Who says how many HELD items may go on (M9.3). Absent, no held item is ever released by the driver. */
@@ -781,7 +783,17 @@ export async function driverItemIds(pool: pg.Pool): Promise<string[]> {
  */
 export async function driveWork(
   d: WorkDriverDeps,
-  o: { readonly onItemError?: (item: string, e: unknown) => void; readonly rounds?: number } = {},
+  o: {
+    readonly onItemError?: (item: string, e: unknown) => void;
+    readonly rounds?: number;
+    /**
+     * M19 (the load test): how long one pass may dispatch commands before it ends (default `d.dispatchBudgetMs`, else
+     * 10 s). A gate decided is taken into the item's stream only at the start of a pass (`watchGates`), so a pass that
+     * dispatched 20 rounds of 20 commands (measured: 400 commands, 170 s at 120 items in flight) kept every decided
+     * gate waiting that long. What is left is dispatched by the next pass, one interval later, in the same order.
+     */
+    readonly dispatchBudgetMs?: number;
+  } = {},
 ): Promise<WorkPassReport> {
   const settings = (d.settings ?? (() => DEFAULT_WORK_SETTINGS))();
   const mm = settings.maintenance();
@@ -912,7 +924,10 @@ export async function driveWork(
   let failed = 0;
   let dead = 0;
   let deferred = 0;
+  const budget = o.dispatchBudgetMs ?? d.dispatchBudgetMs ?? 10_000;
+  const dispatchStart = Date.now();
   for (let round = 0; round < (o.rounds ?? 20); round++) {
+    if (round > 0 && Date.now() - dispatchStart >= budget) break;
     const out = await dispatchOutbox(
       d.pool,
       WORK_COMMAND_DESTINATION,
