@@ -17,6 +17,7 @@ import {
   CardPrepareRequest,
   BannerSeverity,
   BannerTarget,
+  C2InstructionEditRequest,
   CardRecheckRequest,
   ControlKind,
   ControlScope,
@@ -118,6 +119,7 @@ import {
   recordOnboardingEvidence,
   syncCards,
   type CardDeps,
+  editOnboardingInstructions,
 } from './cards/index.js';
 
 /**
@@ -1265,6 +1267,18 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         ...(b.content === undefined ? {} : { content: b.content }),
         ...(b.reason === undefined ? {} : { reason: b.reason }),
         ...(b.step_up === undefined ? {} : { step_up: b.step_up }),
+      }),
+    ),
+  );
+  /** Card 2: the person edits a file's proposed instruction text (secret-scanned before it is stored). */
+  app.post('/v1/cards/:cardId/instructions', (req, reply) =>
+    cardAction(req, reply, C2InstructionEditRequest, (c, id, b) =>
+      editOnboardingInstructions(c, {
+        card_id: id,
+        principal: b.on_behalf_of,
+        path: b.path,
+        text: b.text,
+        base_text_sha256: b.base_text_sha256,
       }),
     ),
   );

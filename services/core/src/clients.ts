@@ -1,5 +1,6 @@
 import {
   CensusLatest,
+  Fact,
   FindingCounts,
   FindingMachine,
   FindingState,
@@ -112,6 +113,12 @@ export interface KnowledgePort {
     findingId: string,
     req: SetFindingStateRequest,
   ): Promise<Result<{ state: FindingState }, RemoteError>>;
+  /**
+   * The detector facts of a finished census job (card 2's static cartographer, M16): names, paths
+   * and evidence, never a repo value. `null` when the job recorded no detector result (the facts
+   * are then unknown, never "none").
+   */
+  detectorFacts(jobId: string): Promise<Result<Fact[] | null, RemoteError>>;
 }
 
 const JobShape = z.looseObject({
@@ -135,6 +142,17 @@ const SummaryShape = z.looseObject({
   b2_reasons: z.array(z.string()),
 });
 const FindingRow = z.looseObject({ finding_id: z.string().min(1), state: FindingState });
+const JobFactsShape = z.looseObject({
+  state: KnowledgeJobState,
+  result: z
+    .looseObject({
+      detectors: z
+        .looseObject({ facts: z.array(Fact) })
+        .nullable()
+        .optional(),
+    })
+    .nullable(),
+});
 const FindingsShape = z.looseObject({ findings: z.array(FindingRow) });
 
 const failFor = (status: number, what: string): RemoteError =>
@@ -166,6 +184,18 @@ export class HttpKnowledge implements KnowledgePort {
     return p.success
       ? ok({ state: p.data.state, error: p.data.error ?? null })
       : err(remoteError('invalid', 'knowledge answered with an unexpected shape'));
+  }
+
+  async detectorFacts(jobId: string) {
+    const r = await call(this.o, 'GET', `/v1/jobs/${encodeURIComponent(jobId)}`);
+    if (!r.reached) return err(remoteError('unreachable', 'knowledge did not answer'));
+    if (r.status !== 200) return err(failFor(r.status, 'knowledge'));
+    const p = JobFactsShape.safeParse(r.json);
+    if (!p.success) {
+      return err(remoteError('invalid', 'knowledge answered with an unexpected shape'));
+    }
+    if (p.data.state !== 'done') return err(remoteError('refused', 'the job is not done'));
+    return ok(p.data.result?.detectors?.facts ?? null);
   }
 
   async latestCensus(repo: string) {
@@ -321,6 +351,19 @@ export class FakeKnowledge implements KnowledgePort {
     if (this.down) return err(remoteError('unreachable', 'knowledge is down'));
     const j = this.jobs.get(jobId);
     return j ? ok({ state: j.state, error: j.error }) : err(remoteError('refused', 'no such job'));
+  }
+
+  /** Detector facts by job id; a job with none set reports `null` (unknown). */
+  private readonly factsByJob = new Map<string, Fact[]>();
+  /** Facts every job of any repo reports unless `setFacts` named that job. */
+  defaultFacts: Fact[] | null = null;
+  setFacts(jobId: string, facts: Fact[]): void {
+    this.factsByJob.set(jobId, facts);
+  }
+
+  async detectorFacts(jobId: string) {
+    if (this.down) return err(remoteError('unreachable', 'knowledge is down'));
+    return ok(this.factsByJob.get(jobId) ?? this.defaultFacts);
   }
 
   async latestCensus(repo: string) {

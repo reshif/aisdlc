@@ -12,6 +12,9 @@ import {
 import {
   CONFIG_EVENT,
   CONSTITUTION_CONFIG_KEY,
+  DEFAULT_INSTRUCTION_TEMPLATE,
+  INSTRUCTION_TEMPLATE_CONFIG_KEY,
+  InstructionTemplate,
   SANDBOX_EXEC_ALLOWED_REPOS_KEY,
   SandboxExecAllowedRepos,
   Constitution,
@@ -126,6 +129,13 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
       default: DEFAULT_CONSTITUTION,
       description:
         'the factory constitution 4.5 checks a design against: deterministic rules (egress, migrations). Factory layer only, M1-gated',
+    })
+    .setting({
+      key: INSTRUCTION_TEMPLATE_CONFIG_KEY,
+      schema: InstructionTemplate,
+      default: DEFAULT_INSTRUCTION_TEMPLATE,
+      description:
+        'DEC-11 (refined): the factory template card 2 checks every AGENTS.md and CLAUDE.md section against: what is taken and what never is (tools, permissions, network, rule-overrides, secrets). Factory layer only, M1-gated',
     })
     .setting({
       key: SANDBOX_EXEC_ALLOWED_REPOS_KEY,

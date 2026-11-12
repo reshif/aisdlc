@@ -28,6 +28,7 @@ import {
   s0DriverLoop,
   maintenanceFrom,
   s0SettingsFrom,
+  instructionTemplateFrom,
   workDriverLoop,
   workSettingsFrom,
 } from '@aisdlc/core/worker';
@@ -456,7 +457,7 @@ export async function bootCoreWorker(
         );
       }
       if (cfg.knowledge && ledger) {
-        // Cards 1, 4, 5 and the security card (PLAN M7.3): opened, applied and withdrawn as the S0
+        // Cards 1, 2 (M16), 4, 5 and the security card (PLAN M7.3): opened, applied and withdrawn as the S0
         // records move. The scoped bootstrap grant is the card layer's (`bootstrap: true`).
         supervisor.add(
           cardsLoop(
@@ -473,6 +474,7 @@ export async function bootCoreWorker(
               }),
               source,
               settings: s0SettingsFrom(rd),
+              instructionTemplate: instructionTemplateFrom(rd),
               maintenance: maintenanceFrom(rd),
             }),
             {

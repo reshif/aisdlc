@@ -6,6 +6,7 @@ export * from './clients.js';
 export * from './registry.js';
 export * from './settings.js';
 export { cardsLoop, type CardsLoopOptions } from './cards/loop.js';
+export { instructionTemplateFrom } from './cards/light.js';
 export * from './card-wiring.js';
 export {
   DbWorkInFlight,

@@ -3,6 +3,7 @@ import {
   AgentRunsView,
   AgentScoresView,
   AgentStats,
+  C2InstructionEditRequest,
   CardDecideRequest,
   CardEvidenceRequest,
   GateCardDecideRequest,
@@ -114,6 +115,8 @@ export const PortalOnboardBody = OnboardRequest.omit({ on_behalf_of: true });
 export const PortalAskBody = SubmitRequestBody.omit({ on_behalf_of: true, channel: true });
 export const PortalEvidenceBody = CardEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalDecideBody = CardDecideRequest.omit({ on_behalf_of: true });
+/** Card 2 (M16): a person edits a file's proposed instruction text. */
+export const PortalInstructionEditBody = C2InstructionEditRequest.omit({ on_behalf_of: true });
 export const PortalGateEvidenceBody = GateCardEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalGateDecideBody = GateCardDecideRequest.omit({ on_behalf_of: true });
 export const PortalRevisionEvidenceBody = RevisionEvidenceRequest.omit({ on_behalf_of: true });
@@ -696,7 +699,7 @@ export function registerPortalRoutes(d: PortalDeps): void {
     req: FastifyRequest,
     reply: FastifyReply,
     schema: S,
-    verb: 'prepare' | 'evidence' | 'decide' | 'recheck',
+    verb: 'prepare' | 'evidence' | 'decide' | 'recheck' | 'instructions',
   ) {
     const c = core(reply);
     const id = idParam(req, reply);
@@ -724,6 +727,9 @@ export function registerPortalRoutes(d: PortalDeps): void {
     cardMove(req, reply, PortalDecideBody, 'decide'),
   );
   app.post('/api/cards/:id/recheck', (req, reply) => cardMove(req, reply, EmptyBody, 'recheck'));
+  app.post('/api/cards/:id/instructions', (req, reply) =>
+    cardMove(req, reply, PortalInstructionEditBody, 'instructions'),
+  );
 
   // ------------------------------------------------------------ inbox (M8.3)
 
