@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProbeId } from './onboarding-probe.js';
 import { hashCanonical } from '@aisdlc/kernel';
 import { GateId } from '../flow.js';
 import { LedgerDecision } from '../states/gate-instance.js';
@@ -231,6 +232,17 @@ export const CardPayloadItem = z.discriminatedUnion('kind', [
     lint_report_hash: Sha256Hex,
     bound_hash: Sha256Hex,
     step_up_ref: Sha256Hex,
+  }),
+  /**
+   * Card 2: the probe that met LF3 (M16): the recorded result card 2 was shown, by hash. Only a `passed` probe of
+   * the proposal's census head is ever written here.
+   */
+  z.strictObject({
+    kind: z.literal('light_probe'),
+    probe_id: ProbeId,
+    result_hash: Sha256Hex,
+    baseline_sha: z.string().regex(/^[0-9a-f]{40}$/),
+    outcome: z.literal('passed'),
   }),
   /**
    * A work-item gate card (M12, Gap B): why the person rejected it or asked for changes (or said anything with
