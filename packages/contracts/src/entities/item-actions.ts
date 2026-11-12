@@ -59,6 +59,13 @@ export const ItemPlanRequest = z.strictObject({
 });
 export type ItemPlanRequest = z.infer<typeof ItemPlanRequest>;
 
+/**
+ * D5 (M14.6): the developer says the human-led work of an L8 item is done; the item goes on to 7.1. `key` is the
+ * retry key of this one signal (a second round of human-led work, after SECT confirmed, is a new key).
+ */
+export const ItemHumanDoneRequest = z.strictObject({ on_behalf_of: PrincipalId, key: Key });
+export type ItemHumanDoneRequest = z.infer<typeof ItemHumanDoneRequest>;
+
 /** What an action answers: the item as it stands, and whether the same signal had been recorded already. */
 export const ItemActionResult = z.strictObject({
   item: ItemView,

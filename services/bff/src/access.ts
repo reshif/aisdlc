@@ -15,7 +15,6 @@ import {
   type PdpResource,
   type PrincipalId,
   type RoleId,
-  type Scope,
 } from '@aisdlc/contracts';
 import { queryGrants } from '@aisdlc/identity/read';
 import type { Clock } from '@aisdlc/kernel';
@@ -23,6 +22,7 @@ import type { Pdp } from '@aisdlc/pdp';
 import { sendError } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
+import { higher, projectOfScope } from './levels.js';
 
 // The person's own access, for the portal (portal-coverage §6 step 2). Both routes sit behind the
 // session hook in app.ts (no session: 401) and answer only about the signed-in principal, never
@@ -49,17 +49,7 @@ export interface AccessDeps {
   readonly displayNameOf: (principal: string) => Promise<string | null>;
 }
 
-/** The project a binding's scope lies in, or `null` for scopes above a project. */
-export function projectOfScope(scope: Scope): string | null {
-  if (scope.kind === 'project') return scope.ref;
-  if (scope.kind === 'lane' || scope.kind === 'repo' || scope.kind === 'item') {
-    return scope.ref.split('/')[0] ?? null;
-  }
-  return null;
-}
-
-const higher = <T extends string>(order: readonly T[], a: T | null, b: T): T =>
-  a === null || order.indexOf(b) > order.indexOf(a) ? b : a;
+export { projectOfScope } from './levels.js';
 
 /** The project a resource lives under, or `null` for the fleet and a team. */
 const projectOfResource = (r: PdpResource): string | null =>

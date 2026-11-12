@@ -678,3 +678,144 @@ textarea {
   font-size: inherit;
   color: var(--accent);
 }
+
+/* ---- M14.6: S7 Verify, the Evidence Pack viewer and the exception/quarantine gate screens ---- */
+.s7 {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.s7-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+  gap: 14px;
+  align-items: start;
+}
+.s7-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.s7-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+@media (max-width: 860px) {
+  .s7-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.s7-chk {
+  border-top: 1px solid var(--line);
+}
+.s7-chk:first-child {
+  border-top: 0;
+}
+.s7-chk > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.s7-sp {
+  flex: 1;
+}
+.s7-body {
+  padding: 0 14px 14px;
+  min-width: 0;
+}
+.s7-verdict {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.s7-faint {
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+.s7-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--info-line);
+  background: var(--info-bg);
+  color: var(--info-fg);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0;
+}
+.s7-banner-bad {
+  border-color: var(--bad-line);
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+.s7-banner-gate {
+  border-color: var(--gate-line);
+  background: var(--gate-bg);
+  color: var(--warn-fg);
+}
+.s7-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.s7-pad {
+  padding: 12px 14px;
+}
+.s7-rules {
+  margin: 8px 0 0;
+  padding-left: 1.1rem;
+}
+.s7-rules li {
+  margin: 4px 0;
+}
+.s7-history {
+  margin: 8px 0;
+  padding-left: 1.1rem;
+}
+.s7-lead {
+  font-size: 1.05rem;
+  margin-top: 0;
+}
+.s7-cant {
+  border: 1px solid var(--bad-line);
+  background: var(--bad-bg);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.s7-who li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 0;
+}
+.s7-form {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.s7-choice {
+  border: 0;
+  padding: 0;
+  margin: 0 0 10px;
+}
+.s7-choice label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 0;
+}
+.s7-choice small {
+  display: block;
+  color: var(--muted);
+}
+section[aria-label] > .ui-eyebrow {
+  margin-top: 12px;
+}

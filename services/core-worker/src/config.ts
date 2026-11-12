@@ -88,6 +88,12 @@ export interface CoreWorkerConfig {
    */
   readonly verify: { readonly url: string; readonly token: string } | null;
   /**
+   * M14.6: `exceptions` scripts the S7 fakes to raise the exception gates one after another (`scriptVerifyExceptions`:
+   * Q1, X2, E2 on the first item to reach S7, E6 on the second) for the compose e2e. Only with FACTORY_ENV=local, the
+   * stage-port fakes and no verify service.
+   */
+  readonly fakeVerify: 'default' | 'exceptions';
+  /**
    * M14.4: the S3-compatible object store the Evidence Packs go to (`CORE_WORKER_OBJECT_STORE_URL`), with its
    * credentials as `file:`/`env:` references, resolved by the adapter (never held in this config).
    */
@@ -172,6 +178,9 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   7.1 to 7.5 run there and 7.6 signs and stores the Evidence Pack (M14.4). Needs
  *                                   CORE_WORKER_STAGE_PORTS=agents, the Notary (scope `evidence`) and the object store;
  *                                   without it S7 stays over the stage-port fakes
+ *   CORE_WORKER_FAKE_VERIFY (default | exceptions; default default) (M14.6) `exceptions` scripts S7's fakes to raise
+ *                                   Q1, X2, E2 (first item in S7) and E6 (second) for the compose e2e; FACTORY_ENV=local
+ *                                   only, with the stage ports and without CORE_WORKER_VERIFY_URL
  *   CORE_WORKER_OBJECT_STORE_URL, CORE_WORKER_OBJECT_STORE_ACCESS_KEY_REF, CORE_WORKER_OBJECT_STORE_SECRET_KEY_REF
  *                                   (M14.4) the S3-compatible object store of the Evidence Packs (write-once bucket)
  *   CORE_WORKER_STAGE_PORTS (none | fake | agents; default none): `fake` runs the `work_driver` loop over the
@@ -327,6 +336,23 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_VERIFY_URL signs and stores the 7.6 Evidence Pack: it needs CORE_WORKER_NOTARY_URL and CORE_WORKER_OBJECT_STORE_URL',
     );
   }
+  const fv = env['CORE_WORKER_FAKE_VERIFY'] ?? 'default';
+  if (fv !== 'default' && fv !== 'exceptions') {
+    throw new ServiceConfigError('CORE_WORKER_FAKE_VERIFY must be `default` or `exceptions`');
+  }
+  if (fv === 'exceptions') {
+    if (env['FACTORY_ENV'] !== 'local') {
+      throw new ServiceConfigError(
+        'CORE_WORKER_FAKE_VERIFY=exceptions runs only with FACTORY_ENV=local',
+      );
+    }
+    if (stagePorts === 'none' || verify !== null) {
+      throw new ServiceConfigError(
+        'CORE_WORKER_FAKE_VERIFY=exceptions scripts the S7 fakes: it needs CORE_WORKER_STAGE_PORTS and no CORE_WORKER_VERIFY_URL',
+      );
+    }
+  }
+  const fakeVerify: 'default' | 'exceptions' = fv;
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
@@ -342,6 +368,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     sandboxController,
     pushBroker,
     verify,
+    fakeVerify,
     objectStore,
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
       .split(',')

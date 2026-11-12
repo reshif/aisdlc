@@ -9,9 +9,11 @@
 //   re-login at the dev IdP -> PRR active, repo level census, S0 done -> the PRR page and the
 //   ledger page show it. Screenshots at deviceScaleFactor 2, accessibility checks on every page,
 //   the strict CSP watched all along.
-import { mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -20,6 +22,8 @@ const base = process.env.E2E_BASE_URL ?? 'http://localhost:8340';
 const shots = process.env.E2E_SCREENSHOT_DIR ?? 'docs/screenshots';
 const REPO = { owner: 'reshif', name: 'asf-factory-testbed' };
 const ALICE = '00000000-0000-4000-8000-000000000001';
+const BOB = '00000000-0000-4000-8000-000000000002';
+const composeDir = dirname(fileURLToPath(import.meta.url));
 const T = 240_000;
 
 const log = (m) => console.log(`  ${m}`);
@@ -256,6 +260,13 @@ try {
   await page.getByLabel('Free', { exact: true }).check();
   await page.getByLabel(/^admin:/).fill('alice');
   await page.getByLabel(/^m4:/).fill('alice');
+  // M14.6: bob decides the work item's gates (alice requests it, so she may not) and does its human-led work
+  // g4 defaults to the code owners on GitHub (the testbed's are alice's login): bob is named instead
+  const owners = page.getByRole('checkbox', { name: /^g4:/ });
+  if (await owners.isChecked()) await owners.uncheck();
+  for (const slot of ['intent', 'design', 'g4', 'x', 'sec']) {
+    await page.getByRole('textbox', { name: new RegExp(`^${slot}:`) }).fill('bob');
+  }
   const two = page.getByLabel(/Require a second person/);
   if (await two.isChecked()) await two.uncheck();
   await audit(page, 'card 4');
@@ -487,6 +498,250 @@ try {
       `Ready decided in the browser: item ${itemId} is now at ${after.waiting} (lane ${after.proposed_lane})`,
     );
     globalThis.__e2eItem = itemId;
+  }
+
+  // 12c. (M14.6) S7's exception gates decided in the browser. core-worker runs S7 over the fakes scripted by
+  // CORE_WORKER_FAKE_VERIFY=exceptions: on the first item to reach S7, 7.2 hits ET10 (Q1, decided through SECT), 7.4
+  // raises X2 and 7.5 raises E2; on the second, 7.2 raises E6. Census routes everything to L8, so each item waits for
+  // the developer's D5 before S7. bob holds intent, design, g4, x and sec; alice requested the items. X3 is not
+  // reachable here (it is raised only at 6.4, which L8 never runs): the component and route tests cover it.
+  await s7Exceptions(globalThis.__e2eItem);
+
+  /** Every card id the item's gates were opened on, by gate (from the record; the inbox lists onboarding cards only). */
+  function cardsOf(itemId) {
+    const pw = readFileSync(join(composeDir, 'secrets/pg-superuser'), 'utf8').trim();
+    const out = execFileSync(
+      'docker',
+      [
+        'compose',
+        '--profile',
+        'fake-github',
+        'exec',
+        '-T',
+        '-e',
+        `PGPASSWORD=${pw}`,
+        'postgres',
+        'psql',
+        '-U',
+        'postgres',
+        '-d',
+        'aisdlc',
+        '-At',
+        '-c',
+        `SELECT body::text FROM record.record_event WHERE stream = 'item:${itemId}' AND type = 'item.gates_opened' ORDER BY seq`,
+      ],
+      { cwd: composeDir, encoding: 'utf8' },
+    );
+    const byGate = {};
+    for (const line of out.split('\n').filter(Boolean)) {
+      const b = JSON.parse(line);
+      const p = b.payload ?? b;
+      for (const g of p.gates ?? []) (byGate[g.gate] ??= []).push(p.card_ids[0]);
+    }
+    return byGate;
+  }
+
+  async function s7Exceptions(itemOne) {
+    const bobCtx = await browser.newContext({
+      deviceScaleFactor: 2,
+      viewport: { width: 1000, height: 1100 },
+    });
+    const bp = await bobCtx.newPage();
+    bp.setDefaultTimeout(30_000);
+    // The card page asks for an onboarding card first; a work-item gate card answers that 404 and the page goes on to
+    // its gate (CardPage). That one designed 404 per card visit is expected; every other 4xx is a problem.
+    let probes = 0;
+    bp.on('response', (r) => {
+      if (r.status() === 404 && /\/api\/cards\/[0-9a-f-]{36}$/.test(r.url())) probes += 1;
+      else if (r.status() >= 400 && !r.url().endsWith('/api/me'))
+        problems.push(`bob saw ${r.status()} from ${r.request().method()} ${r.url()}`);
+    });
+    bp.on('console', (m) => {
+      if (probes > 0 && /status of 404/.test(m.text())) {
+        probes -= 1;
+        return;
+      }
+      if (m.type() === 'error' || /Content Security Policy/i.test(m.text()))
+        problems.push(`console (bob, ${bp.url()}): ${m.text()}`);
+    });
+    bp.on('pageerror', (e) => problems.push(`pageerror (bob): ${e.message}`));
+    await bp.goto(`${base}/`);
+    await bp.getByRole('link', { name: 'Sign in' }).first().click();
+    await bp.waitForURL(/dev-oidc\.localhost:8390\/authorize/);
+    await bp.locator('select[name=dev_user]').selectOption(BOB);
+    await bp.getByRole('button', { name: 'Sign in' }).click();
+    await bp.getByRole('button', { name: 'Sign out' }).waitFor();
+    problems.length = 0;
+    const bobCsrf = (await (await bobCtx.request.get(`${base}/api/me`)).json()).csrf_token;
+    const aliceCsrf = (await (await context.request.get(`${base}/api/me`)).json()).csrf_token;
+    const readAs = async (ctx, id) => {
+      const r = await ctx.request.get(`${base}/api/items/${id}`);
+      return r.status() === 200 ? await r.json() : null;
+    };
+    const pendingGate = (gate) => (v) =>
+      v.gates.some((g) => g.gate === gate && g.status === 'pending');
+    const waitFor = (id, pred, what) =>
+      until(async () => {
+        const v = await readAs(bobCtx, id);
+        return v && pred(v) ? v : null;
+      }, what);
+    const cardFor = async (id, gate) =>
+      until(async () => cardsOf(id)[gate]?.at(-1) ?? null, `the ${gate} card of ${id}`);
+    // A gate this e2e does not test the screen of (G0, G4): decided by bob through the same API the screen uses.
+    const decideByApi = async (id, gate) => {
+      await waitFor(id, pendingGate(gate), `${gate} to open`);
+      const card = await cardFor(id, gate);
+      const h = { 'x-csrf-token': bobCsrf };
+      const prep = await bobCtx.request.post(`${base}/api/cards/${card}/gate/prepare`, {
+        headers: h,
+        data: {},
+      });
+      must(prep.ok(), `${gate} prepare: ${prep.status()} ${await prep.text()}`);
+      const gates = (await prep.json()).gates;
+      const ev = await bobCtx.request.post(`${base}/api/cards/${card}/gate/evidence`, {
+        headers: h,
+        data: { views: gates.map((g) => ({ nonce: g.nonce, evidence_hash: g.evidence_hash })) },
+      });
+      must(ev.ok(), `${gate} evidence: ${ev.status()} ${await ev.text()}`);
+      const dec = await bobCtx.request.post(`${base}/api/cards/${card}/gate/decide`, {
+        headers: h,
+        data: { decision: 'approve', votes: gates.map((g) => ({ nonce: g.nonce })) },
+      });
+      must(dec.ok(), `${gate} decide: ${dec.status()} ${await dec.text()}`);
+      log(`${gate} approved by bob (API) on card ${card}`);
+    };
+    const humanDone = async (id, key) => {
+      await waitFor(
+        id,
+        (v) => v.waiting === 'human:human_led',
+        'the human-led work (D5) to be asked for',
+      );
+      const r = await bobCtx.request.post(`${base}/api/items/${id}/human-done`, {
+        headers: { 'x-csrf-token': bobCsrf },
+        data: { key },
+      });
+      must(r.ok(), `D5 answered ${r.status()}: ${await r.text()}`);
+      log(`D5 by bob (${key}): the human-led work of ${id} is done`);
+    };
+    // One exception gate on its screen: who may decide, the subject hash, read the evidence, a reason, the button.
+    const decideOnScreen = async (id, gate, o) => {
+      await waitFor(id, pendingGate(gate), `${gate} to open`);
+      const card = await cardFor(id, gate);
+      await bp.goto(`${base}/cards/${card}`);
+      await bp.getByRole('heading', { level: 1, name: o.title }).waitFor();
+      await bp.getByTestId('subject-hash').waitFor();
+      must(
+        /^sha256:[0-9a-f]{64}$/.test((await bp.getByTestId('subject-hash').innerText()).trim()),
+        `${gate}: no subject hash`,
+      );
+      await bp.getByTestId('deciders').waitFor();
+      await bp.waitForFunction(
+        () => !/Getting the decision form ready/.test(document.body.innerText),
+      );
+      if (o.choice) await bp.getByRole('radio', { name: o.choice }).check();
+      await bp.getByLabel(/I have read the evidence/).check();
+      await bp.getByLabel(/Reason \(required/).fill(o.reason);
+      await audit(bp, `the ${gate} screen`);
+      await bp.mouse.move(0, 0);
+      await bp.screenshot({ path: join(shots, o.shot), fullPage: true });
+      log(`screenshot: ${join(shots, o.shot)}`);
+      await bp.getByRole('button', { name: o.button, exact: true }).click();
+      await bp.getByTestId('decided').waitFor();
+      const receipt = await bp.getByTestId('decided').innerText();
+      must(
+        /[0-9a-f]{64}|#\d+/.test(receipt),
+        `${gate}: the receipt shows no ledger entry: ${receipt}`,
+      );
+      log(
+        `${gate} decided in the browser (${o.button}${o.choice ? `: ${o.choice}` : ''}); receipt ${receipt.replace(/\s+/g, ' ').slice(0, 160)}`,
+      );
+      noProblems(`the ${gate} screen`);
+    };
+
+    // Item one: G0, D5, then Q1 (SECT confirmed: back to the developer), D5 again, X2, E2, G4.
+    await decideByApi(itemOne, 'G0');
+    await humanDone(itemOne, 'd5-1');
+    const quarantined = await waitFor(itemOne, pendingGate('SECT'), 'Q1: SECT to open after 7.2');
+    must(quarantined.waiting?.startsWith('gates'), `Q1 item waits at ${quarantined.waiting}`);
+    // the S7 tab shows 7.2 raised
+    await bp.goto(`${base}/items/${itemOne}`);
+    await bp.getByRole('heading', { level: 1, name: 'Work item' }).waitFor();
+    await bp.getByRole('tab', { name: 'Verify' }).click();
+    await bp.waitForLoadState('networkidle');
+    await audit(bp, 'the Verify tab');
+    await bp.mouse.move(0, 0);
+    await bp.screenshot({ path: join(shots, 'm14-verify-tab.png'), fullPage: true });
+    log(`screenshot: ${join(shots, 'm14-verify-tab.png')}`);
+    await decideOnScreen(itemOne, 'SECT', {
+      title: 'Test integrity quarantine',
+      choice: /Confirmed: bent tests/,
+      reason: 'The locked oracle was edited in the head: a real breach.',
+      button: 'Record my finding',
+      shot: 'm14-q1.png',
+    });
+    await humanDone(itemOne, 'd5-2');
+    await decideOnScreen(itemOne, 'X2', {
+      title: 'Protected-path change',
+      reason: 'The protected path change is the one the request asked for.',
+      button: 'Approve',
+      shot: 'm14-x2.png',
+    });
+    await decideOnScreen(itemOne, 'E2', {
+      title: 'Constitution exception',
+      reason: 'Accepted for this item; the rule stays as it is.',
+      button: 'Approve the exception',
+      shot: 'm14-e2.png',
+    });
+    await decideByApi(itemOne, 'G4');
+    const one = await waitFor(itemOne, (v) => !pendingGate('G4')(v), 'G4 to be decided');
+    const decided = (g, out) =>
+      one.gates.some((x) => x.gate === g && x.status === 'decided' && x.outcome === out);
+    must(
+      decided('SECT', 'reject') &&
+        decided('X2', 'approve') &&
+        decided('E2', 'approve') &&
+        decided('G4', 'approve'),
+      `item one's gates: ${JSON.stringify(one.gates.map((g) => [g.gate, g.outcome]))}`,
+    );
+    log(`item one ${itemOne}: SECT confirmed, X2 and E2 approved, G4 approved; now ${one.waiting}`);
+
+    // Item two: alice asks, Ready, G0, D5, then E6 at 7.2, rejected in the browser: the D2 handoff.
+    const asked = await context.request.post(`${base}/api/requests`, {
+      headers: { 'x-csrf-token': aliceCsrf },
+      data: {
+        project_id: 'testbed',
+        repo: `${REPO.owner}/${REPO.name}`,
+        lane: 'L4',
+        text: 'Rename the export column header.',
+      },
+    });
+    must(asked.status() === 201, `second Ask answered ${asked.status()}: ${await asked.text()}`);
+    const itemTwo = (await asked.json()).item_id;
+    await until(
+      async () => (await readAs(context, itemTwo))?.waiting === 'human:ready',
+      'item two at Ready',
+    );
+    const ready = await context.request.post(`${base}/api/items/${itemTwo}/ready`, {
+      headers: { 'x-csrf-token': aliceCsrf },
+      data: {},
+    });
+    must(ready.ok(), `Ready on item two: ${ready.status()} ${await ready.text()}`);
+    await decideByApi(itemTwo, 'G0');
+    await humanDone(itemTwo, 'd5-1');
+    await decideOnScreen(itemTwo, 'E6', {
+      title: 'Locked test change',
+      reason: 'The spec did not change; the locked test stays.',
+      button: 'Reject (D2)',
+      shot: 'm14-e6.png',
+    });
+    const two = await waitFor(
+      itemTwo,
+      (v) => v.handoff !== null,
+      'the D2 handoff after E6 rejected',
+    );
+    must(two.handoff?.code === 'D2', `item two's handoff is ${JSON.stringify(two.handoff)}`);
+    log(`item two ${itemTwo}: E6 rejected in the browser, handoff ${two.handoff.code}`);
+    await bobCtx.close();
   }
 
   // 13. Sign out ends the session.

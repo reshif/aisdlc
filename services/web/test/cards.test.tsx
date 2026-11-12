@@ -875,6 +875,10 @@ describe('a work-item gate card (G2): the artefacts it decides', () => {
           ],
         }),
       },
+      [`GET /api/cards/${CARD_ID}/gate`]: {
+        status: 403,
+        json: { error: { code: 'forbidden', message: 'x' } },
+      },
     });
     renderAt(`/cards/${CARD_ID}`);
     expect(await screen.findByText(/An artefact is not intact/)).toBeTruthy();

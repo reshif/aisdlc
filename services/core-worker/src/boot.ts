@@ -59,6 +59,7 @@ import { HttpWitness } from '@aisdlc/witness/client';
 import {
   FakeCapacity,
   FakeStagePorts,
+  scriptVerifyExceptions,
   FileRegisteredRepos,
   RunKeyVault,
   type CapacityPort,
@@ -244,7 +245,12 @@ export async function bootCoreWorker(
       // M12: with `agents`, S2 and S3 run with real agents; the key secrets pass from the driver to the
       // planning port through this one in-process vault and go nowhere else
       const vault = new RunKeyVault();
-      const baseStagePorts = deps.stagePorts ?? new FakeStagePorts();
+      const fakes = deps.stagePorts ?? new FakeStagePorts();
+      // M14.6: the compose e2e's scripted S7 (FACTORY_ENV=local only, checked by the config)
+      const baseStagePorts =
+        cfg.fakeVerify === 'exceptions' && fakes instanceof FakeStagePorts
+          ? scriptVerifyExceptions(fakes)
+          : fakes;
       if (cfg.stagePorts === 'agents' && (!cfg.gateway || !cfg.knowledge)) {
         throw new Error('CORE_WORKER_STAGE_PORTS=agents needs the gateway and knowledge');
       }
