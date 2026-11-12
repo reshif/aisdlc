@@ -30,6 +30,7 @@ import {
 } from './sessions.js';
 import { registerAccessRoutes } from './access.js';
 import { registerAssistantRoutes } from './assistant.js';
+import { registerDriftRoutes } from './drift.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerPortalRoutes } from './portal.js';
@@ -555,6 +556,12 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     },
   });
   registerIssueTwinRoutes({
+    app,
+    pdp: o.pdp,
+    core: o.core,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  registerDriftRoutes({
     app,
     pdp: o.pdp,
     core: o.core,

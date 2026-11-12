@@ -989,10 +989,15 @@ export function registerPortalRoutes(d: PortalDeps): void {
     const items: Array<Omit<PortalInboxItem, 'deciders'>> = [];
     for (const item of got.value) {
       if (!(await allowed(who, 'project.view', pdpResource.project(item.project_id)))) continue;
+      // M16 after onboarding: a re-affirm or a restore is `project.settings.edit`, a re-sign `project.onboard`
       const pdpYes =
         item.kind === 'onboarding_card'
           ? await allowed(who, 'card.decide', pdpResource.card(item.project_id, item.id))
-          : await allowed(who, 'gate.decide', pdpResource.gate(item.project_id, item.id, 'M1'));
+          : item.kind === 'settings_revision'
+            ? await allowed(who, 'gate.decide', pdpResource.gate(item.project_id, item.id, 'M1'))
+            : item.kind === 'prr_resign'
+              ? await allowed(who, 'project.onboard', pdpResource.fleet())
+              : await allowed(who, 'project.settings.edit', pdpResource.project(item.project_id));
       items.push({ ...item, may_decide: pdpYes && item.holders.includes(who as never) });
     }
     const nameOf = await names([...new Set(items.flatMap((i) => i.holders))]);
