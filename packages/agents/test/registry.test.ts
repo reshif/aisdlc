@@ -20,10 +20,11 @@ import {
 import { sha256File } from '../src/prompt-files.js';
 
 describe('the agent registry (PLAN M11.1)', () => {
-  it('defines every agent id the specs name, once: A1 to A12 and coder', () => {
+  it('defines every agent id the specs name, once: A1 to A12 and coder, and the M18 assistant', () => {
     expect(AGENT_DEFINITIONS.map((d) => d.agent_id).sort()).toEqual([...AgentIdValues].sort());
-    expect(AgentIdValues).toHaveLength(13);
+    expect(AgentIdValues).toHaveLength(14);
     expect(AgentIdValues).toContain('coder');
+    expect(AgentIdValues).toContain('assistant');
   });
 
   it('takes names and roles from the specs, and leaves null where the specs give only an id', () => {
@@ -95,8 +96,21 @@ describe('the agent registry (PLAN M11.1)', () => {
     }
   });
 
-  it('an agent with no step has no tools and the lowest data class: it can do nothing', () => {
-    for (const d of AGENT_DEFINITIONS.filter((x) => x.steps.length === 0)) {
+  it('the assistant acts at no step, retrieves read-only and carries D1 at most (portal-config §4)', () => {
+    const a = agentDefinition('assistant');
+    expect(a.steps).toEqual([]);
+    expect(a.specialist_steps).toEqual([]);
+    expect(a.contract.tools).toEqual(['KnowledgeSearch']);
+    expect(a.contract.data_class_max).toBe('D1');
+    expect(
+      AGENT_DEFINITIONS.filter((d) => d.steps.length > 0).map((d) => d.agent_id),
+    ).not.toContain('assistant');
+  });
+
+  it('an agent with no step (but the assistant) has no tools and the lowest data class: it can do nothing', () => {
+    for (const d of AGENT_DEFINITIONS.filter(
+      (x) => x.steps.length === 0 && x.agent_id !== 'assistant',
+    )) {
       expect(d.contract.tools).toEqual([]);
       expect(d.contract.data_class_max).toBe('D0');
     }

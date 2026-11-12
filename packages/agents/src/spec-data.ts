@@ -309,6 +309,21 @@ export const AGENT_SPECS: readonly AgentSpec[] = [
     budget: planning(2_000_000, 25, 21_600),
     prompt: 'coder@1.0.0',
   },
+  {
+    agent_id: 'assistant',
+    name: 'assistant',
+    role: 'assistant',
+    note: "M18 (docs/design/portal-config.md §4): the onboarding assistant beside the S0 page and \"Ask the factory\". It acts at no step: it answers one person, read-only, from the context core builds of what that person can see, grounded on the census head. Its key is minted per ask on the person's day budget group (`assistant_user_day`); the budget below is that group's limit for a day, the TTL the per-ask key's.",
+    steps: [],
+    contract_version: '1.0.0',
+    output_schema_id: 'assistant.v1',
+    artefacts: [],
+    tools: ['KnowledgeSearch'],
+    data_class_max: 'D1',
+    models: [SONNET],
+    budget: planning(200_000, 2, 600),
+    prompt: 'assistant@1.0.0',
+  },
 ];
 
 /**

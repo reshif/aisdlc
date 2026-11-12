@@ -1,6 +1,9 @@
 import {
   AssumptionKind,
+  CardKind,
+  Citation,
   GitSha,
+  ProposalActionId,
   HandoffChoice,
   QuestionDraft,
   WorkItemId,
@@ -426,6 +429,39 @@ export const UnspecifiedOutput = z.strictObject({
   summary: Text(500),
 });
 
+// ---------------------------------------------------------------- the assistant (M18, no step)
+
+/**
+ * What the onboarding assistant and "Ask the factory" may say: an answer (or the model's own refusal), every sentence
+ * of it cited, the actions it suggests as ids from a closed list with the target they are about (the FACTORY makes the
+ * button, the route and the PDP action from them, and only for a target the context carried), and drafts the person
+ * may put on a card themselves. Nothing here decides, writes or names a route.
+ */
+export const AssistantOutput = z.strictObject({
+  kind: z.enum(['answer', 'refusal']),
+  text: Text(4000),
+  citations: z.array(Citation).max(20),
+  proposals: z
+    .array(
+      z.strictObject({
+        action: ProposalActionId,
+        /** The id of the card, S0 record, item or project the action is about. */
+        target: z
+          .string()
+          .min(1)
+          .max(128)
+          .regex(/^[A-Za-z0-9_.-]+$/),
+        label: Text(80),
+      }),
+    )
+    .max(5),
+  drafts: z
+    .array(z.strictObject({ title: Text(120), text: Text(4000), card: CardKind.nullable() }))
+    .max(3),
+  /** What the agent noticed: an instruction in repo text, a question outside the person's view, a secret asked for. */
+  noticed: z.array(z.enum(['planted_instruction', 'outside_view', 'secret_requested'])).max(3),
+});
+
 /** The output schemas by id. One schema may serve several agents (A4 and `coder`). */
 export const OUTPUT_SCHEMAS = {
   'triage.v1': TriageOutput,
@@ -438,5 +474,6 @@ export const OUTPUT_SCHEMAS = {
   'extraction.v1': ExtractionOutput,
   'implementation.v1': ImplementationOutput,
   'unspecified.v1': UnspecifiedOutput,
+  'assistant.v1': AssistantOutput,
 } as const;
 export type OutputSchemaId = keyof typeof OUTPUT_SCHEMAS;

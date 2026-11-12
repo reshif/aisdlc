@@ -547,7 +547,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "contract_version": {
@@ -757,7 +758,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "name": {
@@ -1076,7 +1078,8 @@
         "A10",
         "A11",
         "A12",
-        "coder"
+        "coder",
+        "assistant"
       ]
     },
     "AgentInputArtefact": {
@@ -1613,7 +1616,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "contract_version": {
@@ -1869,7 +1873,8 @@
                 "A10",
                 "A11",
                 "A12",
-                "coder"
+                "coder",
+                "assistant"
               ]
             },
             "contract_version": {
@@ -2136,7 +2141,8 @@
                 "A10",
                 "A11",
                 "A12",
-                "coder"
+                "coder",
+                "assistant"
               ]
             },
             "contract_version": {
@@ -2694,7 +2700,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "contract_version": {
@@ -3264,7 +3271,8 @@
                   "A10",
                   "A11",
                   "A12",
-                  "coder"
+                  "coder",
+                  "assistant"
                 ]
               },
               "contract_version": {
@@ -3734,7 +3742,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "prompt_sha256": {
@@ -3901,7 +3910,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "scores": {
@@ -3928,7 +3938,8 @@
                   "A10",
                   "A11",
                   "A12",
-                  "coder"
+                  "coder",
+                  "assistant"
                 ]
               },
               "prompt_sha256": {
@@ -4116,7 +4127,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "project_id": {
@@ -5085,6 +5097,1211 @@
         "markdown"
       ],
       "additionalProperties": false
+    },
+    "AskId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "AskRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "ask_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "principal": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "budget_group": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "vkey_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grounding_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "context_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "answered",
+            "refused"
+          ]
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "budget_exhausted",
+                "stale_head",
+                "no_census",
+                "not_visible",
+                "output_invalid",
+                "secret_in_output",
+                "gateway_refused",
+                "unavailable",
+                "declined"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "ask_id",
+        "thread_id",
+        "principal",
+        "budget_group",
+        "vkey_id",
+        "grounding_sha",
+        "context_sha256",
+        "outcome",
+        "refusal",
+        "attempts",
+        "tokens_in",
+        "tokens_out",
+        "started_at",
+        "finished_at"
+      ],
+      "additionalProperties": false
+    },
+    "AskRequest": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "subject": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "s0"
+                },
+                "s0_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              },
+              "required": [
+                "kind",
+                "s0_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "project"
+                },
+                "project_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "required": [
+                "kind",
+                "project_id"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "viewer_data_class": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2",
+            "D3"
+          ]
+        }
+      },
+      "required": [
+        "text",
+        "on_behalf_of",
+        "viewer_data_class"
+      ],
+      "additionalProperties": false
+    },
+    "AskResult": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "object",
+          "properties": {
+            "thread_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "owner": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            "subject": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "s0"
+                    },
+                    "s0_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "s0_id",
+                    "project_id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "project"
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "project_id"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "turns": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "thread_id",
+            "owner",
+            "subject",
+            "title",
+            "turns",
+            "created_at",
+            "updated_at"
+          ],
+          "additionalProperties": false
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "thread_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "seq": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "assistant"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "message",
+                  "answer",
+                  "drafts",
+                  "refusal"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "payload_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "redactions": {
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "rule_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "rule_id",
+                        "count"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "erased_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "payload_id",
+                  "sha256",
+                  "redactions",
+                  "erased_at"
+                ],
+                "additionalProperties": false
+              },
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "citations": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "file"
+                        },
+                        "path": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 512,
+                          "pattern": "^[^\\0\\n]+$"
+                        },
+                        "commit_sha": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "line_from": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "line_to": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "path",
+                        "commit_sha",
+                        "line_from",
+                        "line_to"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "record"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^(s0|card|item|step|project):[A-Za-z0-9_.:/-]{1,200}$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "ledger"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^ledger:[A-Za-z0-9_.:-]{1,128}$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "proposals": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "action_id": {
+                      "type": "string",
+                      "enum": [
+                        "open_card",
+                        "recheck_controls",
+                        "open_s0",
+                        "open_item",
+                        "ask_for_work"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "navigate",
+                        "call"
+                      ]
+                    },
+                    "route": {
+                      "type": "object",
+                      "properties": {
+                        "method": {
+                          "type": "string",
+                          "enum": [
+                            "GET",
+                            "POST"
+                          ]
+                        },
+                        "path": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "pattern": "^\\/[A-Za-z0-9/_-]*$"
+                        }
+                      },
+                      "required": [
+                        "method",
+                        "path"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "pdp_action": {
+                      "type": "string",
+                      "enum": [
+                        "project.onboard",
+                        "work.request",
+                        "item.ready",
+                        "item.observe",
+                        "item.plan",
+                        "project.view",
+                        "project.settings.edit",
+                        "floor.read",
+                        "item.view_floor",
+                        "gate.view",
+                        "gate.decide",
+                        "card.decide",
+                        "kill.request",
+                        "kill.release",
+                        "config.propose",
+                        "audit.read",
+                        "control.apply",
+                        "control.lift",
+                        "banner.publish",
+                        "access.explain"
+                      ]
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "Fleet",
+                            "Team",
+                            "Project",
+                            "Lane",
+                            "Repo",
+                            "Item",
+                            "Gate",
+                            "Card"
+                          ]
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "project": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lane": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "item": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "gate_id": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "G0",
+                                "G1",
+                                "G1f",
+                                "G2",
+                                "G3",
+                                "G3d",
+                                "G3s",
+                                "G3o",
+                                "G4",
+                                "G5",
+                                "G6",
+                                "X1",
+                                "X2",
+                                "X3",
+                                "X4",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5",
+                                "E6",
+                                "M1",
+                                "M2",
+                                "M3",
+                                "M4",
+                                "M5",
+                                "M6",
+                                "Q1",
+                                "SECT"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "project",
+                        "lane",
+                        "item",
+                        "gate_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "action_id",
+                    "label",
+                    "kind",
+                    "route",
+                    "pdp_action",
+                    "resource"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "drafts": {
+                "maxItems": 3,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "draft_id": {
+                      "type": "string",
+                      "pattern": "^d[0-9]{1,2}$"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "card": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "C1",
+                            "C2",
+                            "C3",
+                            "C4",
+                            "C5",
+                            "SECR",
+                            "BATCH",
+                            "X2"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lint": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      }
+                    }
+                  },
+                  "required": [
+                    "draft_id",
+                    "title",
+                    "text",
+                    "card",
+                    "lint"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "flags": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "planted_instruction",
+                    "outside_view",
+                    "secret_requested",
+                    "stale_head",
+                    "proposal_dropped",
+                    "secret_masked"
+                  ]
+                }
+              },
+              "refusal": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "budget_exhausted",
+                      "stale_head",
+                      "no_census",
+                      "not_visible",
+                      "output_invalid",
+                      "secret_in_output",
+                      "gateway_refused",
+                      "unavailable",
+                      "declined"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grounding_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ask_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "thread_id",
+              "seq",
+              "role",
+              "kind",
+              "at",
+              "payload",
+              "text",
+              "citations",
+              "proposals",
+              "drafts",
+              "flags",
+              "refusal",
+              "grounding_sha",
+              "ask_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ask": {
+          "type": "object",
+          "properties": {
+            "ask_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "thread_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "principal": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            "budget_group": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "vkey_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "grounding_sha": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "context_sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "answered",
+                "refused"
+              ]
+            },
+            "refusal": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "budget_exhausted",
+                    "stale_head",
+                    "no_census",
+                    "not_visible",
+                    "output_invalid",
+                    "secret_in_output",
+                    "gateway_refused",
+                    "unavailable",
+                    "declined"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "tokens_in": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "tokens_out": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "started_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "finished_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "ask_id",
+            "thread_id",
+            "principal",
+            "budget_group",
+            "vkey_id",
+            "grounding_sha",
+            "context_sha256",
+            "outcome",
+            "refusal",
+            "attempts",
+            "tokens_in",
+            "tokens_out",
+            "started_at",
+            "finished_at"
+          ],
+          "additionalProperties": false
+        },
+        "budget": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "group_id": {
+                  "type": "string",
+                  "pattern": "^assistant_user_day:[0-9a-f]{24}:[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                },
+                "max_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "max_cost_micro_usd": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "used_tokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "used_cost_micro_usd": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "exhausted": {
+                  "type": "boolean"
+                },
+                "resets_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "group_id",
+                "max_tokens",
+                "max_cost_micro_usd",
+                "used_tokens",
+                "used_cost_micro_usd",
+                "exhausted",
+                "resets_at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "thread",
+        "turns",
+        "ask",
+        "budget"
+      ],
+      "additionalProperties": false
+    },
+    "AskSession": {
+      "type": "object",
+      "properties": {
+        "ask_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "principal": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "budget_group": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "vkey_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grounding_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "context_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "answered",
+            "refused"
+          ]
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "budget_exhausted",
+                "stale_head",
+                "no_census",
+                "not_visible",
+                "output_invalid",
+                "secret_in_output",
+                "gateway_refused",
+                "unavailable",
+                "declined"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "ask_id",
+        "thread_id",
+        "principal",
+        "budget_group",
+        "vkey_id",
+        "grounding_sha",
+        "context_sha256",
+        "outcome",
+        "refusal",
+        "attempts",
+        "tokens_in",
+        "tokens_out",
+        "started_at",
+        "finished_at"
+      ],
+      "additionalProperties": false
+    },
+    "AssistantBudgetGroupId": {
+      "type": "string",
+      "pattern": "^assistant_user_day:[0-9a-f]{24}:[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "AssistantBudgetView": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "pattern": "^assistant_user_day:[0-9a-f]{24}:[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "max_cost_micro_usd": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "used_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "used_cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "exhausted": {
+          "type": "boolean"
+        },
+        "resets_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "group_id",
+        "max_tokens",
+        "max_cost_micro_usd",
+        "used_tokens",
+        "used_cost_micro_usd",
+        "exhausted",
+        "resets_at"
+      ],
+      "additionalProperties": false
+    },
+    "AssistantFlag": {
+      "type": "string",
+      "enum": [
+        "planted_instruction",
+        "outside_view",
+        "secret_requested",
+        "stale_head",
+        "proposal_dropped",
+        "secret_masked"
+      ]
     },
     "Assumption": {
       "type": "object",
@@ -16952,6 +18169,83 @@
       ],
       "additionalProperties": false
     },
+    "Citation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "file"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[^\\0\\n]+$"
+            },
+            "commit_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "line_from": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "line_to": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "kind",
+            "path",
+            "commit_sha",
+            "line_from",
+            "line_to"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "record"
+            },
+            "ref": {
+              "type": "string",
+              "pattern": "^(s0|card|item|step|project):[A-Za-z0-9_.:/-]{1,200}$"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "ledger"
+            },
+            "ref": {
+              "type": "string",
+              "pattern": "^ledger:[A-Za-z0-9_.:-]{1,128}$"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "ClaimVerdict": {
       "type": "string",
       "enum": [
@@ -23255,6 +24549,62 @@
       ],
       "additionalProperties": false
     },
+    "Draft": {
+      "type": "object",
+      "properties": {
+        "draft_id": {
+          "type": "string",
+          "pattern": "^d[0-9]{1,2}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "card": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "C1",
+                "C2",
+                "C3",
+                "C4",
+                "C5",
+                "SECR",
+                "BATCH",
+                "X2"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lint": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        }
+      },
+      "required": [
+        "draft_id",
+        "title",
+        "text",
+        "card",
+        "lint"
+      ],
+      "additionalProperties": false
+    },
     "EligibilityReason": {
       "type": "string",
       "enum": [
@@ -23413,7 +24763,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "profile": {
@@ -23551,7 +24902,8 @@
                   "A10",
                   "A11",
                   "A12",
-                  "coder"
+                  "coder",
+                  "assistant"
                 ]
               },
               "profile": {
@@ -23691,7 +25043,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "profile": {
@@ -24311,7 +25664,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "profile": {
@@ -24479,7 +25833,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "profile": {
@@ -24731,7 +26086,8 @@
                   "A10",
                   "A11",
                   "A12",
-                  "coder"
+                  "coder",
+                  "assistant"
                 ]
               },
               "profile": {
@@ -24961,7 +26317,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "profile": {
@@ -49744,6 +51101,56 @@
       ],
       "additionalProperties": false
     },
+    "PayloadErasedPayload": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "payload_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "thread_id",
+        "payload_id",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "PayloadId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "PayloadRedaction": {
+      "type": "object",
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "rule_id",
+        "count"
+      ],
+      "additionalProperties": false
+    },
     "PdpDecision": {
       "type": "object",
       "properties": {
@@ -60328,6 +61735,205 @@
       ],
       "additionalProperties": false
     },
+    "ProposalActionId": {
+      "type": "string",
+      "enum": [
+        "open_card",
+        "recheck_controls",
+        "open_s0",
+        "open_item",
+        "ask_for_work"
+      ]
+    },
+    "ProposalButton": {
+      "type": "object",
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "enum": [
+            "open_card",
+            "recheck_controls",
+            "open_s0",
+            "open_item",
+            "ask_for_work"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "navigate",
+            "call"
+          ]
+        },
+        "route": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST"
+              ]
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^\\/[A-Za-z0-9/_-]*$"
+            }
+          },
+          "required": [
+            "method",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "pdp_action": {
+          "type": "string",
+          "enum": [
+            "project.onboard",
+            "work.request",
+            "item.ready",
+            "item.observe",
+            "item.plan",
+            "project.view",
+            "project.settings.edit",
+            "floor.read",
+            "item.view_floor",
+            "gate.view",
+            "gate.decide",
+            "card.decide",
+            "kill.request",
+            "kill.release",
+            "config.propose",
+            "audit.read",
+            "control.apply",
+            "control.lift",
+            "banner.publish",
+            "access.explain"
+          ]
+        },
+        "resource": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "Fleet",
+                "Team",
+                "Project",
+                "Lane",
+                "Repo",
+                "Item",
+                "Gate",
+                "Card"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "project": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lane": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "item": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gate_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "G0",
+                    "G1",
+                    "G1f",
+                    "G2",
+                    "G3",
+                    "G3d",
+                    "G3s",
+                    "G3o",
+                    "G4",
+                    "G5",
+                    "G6",
+                    "X1",
+                    "X2",
+                    "X3",
+                    "X4",
+                    "E1",
+                    "E2",
+                    "E3",
+                    "E4",
+                    "E5",
+                    "E6",
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "Q1",
+                    "SECT"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "project",
+            "lane",
+            "item",
+            "gate_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "action_id",
+        "label",
+        "kind",
+        "route",
+        "pdp_action",
+        "resource"
+      ],
+      "additionalProperties": false
+    },
     "ProposalKind": {
       "type": "string",
       "enum": [
@@ -60462,7 +62068,8 @@
             "A10",
             "A11",
             "A12",
-            "coder"
+            "coder",
+            "assistant"
           ]
         },
         "attempt": {
@@ -66500,6 +68107,63 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
+    "RedactablePayload": {
+      "type": "object",
+      "properties": {
+        "payload_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "redactions": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rule_id",
+              "count"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "erased_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "payload_id",
+        "sha256",
+        "redactions",
+        "erased_at"
+      ],
+      "additionalProperties": false
+    },
     "RefEntry": {
       "type": "object",
       "properties": {
@@ -66517,6 +68181,20 @@
         "sha"
       ],
       "additionalProperties": false
+    },
+    "RefusalCode": {
+      "type": "string",
+      "enum": [
+        "budget_exhausted",
+        "stale_head",
+        "no_census",
+        "not_visible",
+        "output_invalid",
+        "secret_in_output",
+        "gateway_refused",
+        "unavailable",
+        "declined"
+      ]
     },
     "RegisteredRepo": {
       "type": "object",
@@ -73959,7 +75637,8 @@
                 "A10",
                 "A11",
                 "A12",
-                "coder"
+                "coder",
+                "assistant"
               ]
             },
             "contract_version": {
@@ -74657,6 +76336,1145 @@
         "Deferred"
       ]
     },
+    "Thread": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "owner": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "subject": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "s0"
+                },
+                "s0_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "project_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "required": [
+                "kind",
+                "s0_id",
+                "project_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "project"
+                },
+                "project_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "required": [
+                "kind",
+                "project_id"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "thread_id",
+        "owner",
+        "subject",
+        "title",
+        "turns",
+        "created_at",
+        "updated_at"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadGrounding": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "census_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stale": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "repo",
+        "census_sha",
+        "stale"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "ThreadList": {
+      "type": "object",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "thread_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "owner": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "subject": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "s0"
+                      },
+                      "s0_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "project_id": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "s0_id",
+                      "project_id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "project"
+                      },
+                      "project_id": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "project_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "turns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "thread_id",
+              "owner",
+              "subject",
+              "title",
+              "turns",
+              "created_at",
+              "updated_at"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadOpenedPayload": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "owner": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "subject": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "s0"
+                },
+                "s0_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "project_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "required": [
+                "kind",
+                "s0_id",
+                "project_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "project"
+                },
+                "project_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "required": [
+                "kind",
+                "project_id"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "title_payload": {
+          "type": "object",
+          "properties": {
+            "payload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "redactions": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rule_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "rule_id",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "payload_id",
+            "sha256",
+            "redactions"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "thread_id",
+        "owner",
+        "subject",
+        "title_payload"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadSubject": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "s0"
+            },
+            "s0_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            }
+          },
+          "required": [
+            "kind",
+            "s0_id",
+            "project_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "project"
+            },
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            }
+          },
+          "required": [
+            "kind",
+            "project_id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ThreadSubjectRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "s0"
+            },
+            "s0_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "required": [
+            "kind",
+            "s0_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "project"
+            },
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            }
+          },
+          "required": [
+            "kind",
+            "project_id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ThreadView": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "object",
+          "properties": {
+            "thread_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "owner": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            "subject": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "s0"
+                    },
+                    "s0_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "s0_id",
+                    "project_id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "project"
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "project_id"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "turns": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "thread_id",
+            "owner",
+            "subject",
+            "title",
+            "turns",
+            "created_at",
+            "updated_at"
+          ],
+          "additionalProperties": false
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "thread_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "seq": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "assistant"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "message",
+                  "answer",
+                  "drafts",
+                  "refusal"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "payload_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "redactions": {
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "rule_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "rule_id",
+                        "count"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "erased_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "payload_id",
+                  "sha256",
+                  "redactions",
+                  "erased_at"
+                ],
+                "additionalProperties": false
+              },
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "citations": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "file"
+                        },
+                        "path": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 512,
+                          "pattern": "^[^\\0\\n]+$"
+                        },
+                        "commit_sha": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "line_from": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "line_to": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "path",
+                        "commit_sha",
+                        "line_from",
+                        "line_to"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "record"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^(s0|card|item|step|project):[A-Za-z0-9_.:/-]{1,200}$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "ledger"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^ledger:[A-Za-z0-9_.:-]{1,128}$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "proposals": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "action_id": {
+                      "type": "string",
+                      "enum": [
+                        "open_card",
+                        "recheck_controls",
+                        "open_s0",
+                        "open_item",
+                        "ask_for_work"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "navigate",
+                        "call"
+                      ]
+                    },
+                    "route": {
+                      "type": "object",
+                      "properties": {
+                        "method": {
+                          "type": "string",
+                          "enum": [
+                            "GET",
+                            "POST"
+                          ]
+                        },
+                        "path": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "pattern": "^\\/[A-Za-z0-9/_-]*$"
+                        }
+                      },
+                      "required": [
+                        "method",
+                        "path"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "pdp_action": {
+                      "type": "string",
+                      "enum": [
+                        "project.onboard",
+                        "work.request",
+                        "item.ready",
+                        "item.observe",
+                        "item.plan",
+                        "project.view",
+                        "project.settings.edit",
+                        "floor.read",
+                        "item.view_floor",
+                        "gate.view",
+                        "gate.decide",
+                        "card.decide",
+                        "kill.request",
+                        "kill.release",
+                        "config.propose",
+                        "audit.read",
+                        "control.apply",
+                        "control.lift",
+                        "banner.publish",
+                        "access.explain"
+                      ]
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "Fleet",
+                            "Team",
+                            "Project",
+                            "Lane",
+                            "Repo",
+                            "Item",
+                            "Gate",
+                            "Card"
+                          ]
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "project": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lane": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "item": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "gate_id": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "G0",
+                                "G1",
+                                "G1f",
+                                "G2",
+                                "G3",
+                                "G3d",
+                                "G3s",
+                                "G3o",
+                                "G4",
+                                "G5",
+                                "G6",
+                                "X1",
+                                "X2",
+                                "X3",
+                                "X4",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5",
+                                "E6",
+                                "M1",
+                                "M2",
+                                "M3",
+                                "M4",
+                                "M5",
+                                "M6",
+                                "Q1",
+                                "SECT"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "project",
+                        "lane",
+                        "item",
+                        "gate_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "action_id",
+                    "label",
+                    "kind",
+                    "route",
+                    "pdp_action",
+                    "resource"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "drafts": {
+                "maxItems": 3,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "draft_id": {
+                      "type": "string",
+                      "pattern": "^d[0-9]{1,2}$"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "card": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "C1",
+                            "C2",
+                            "C3",
+                            "C4",
+                            "C5",
+                            "SECR",
+                            "BATCH",
+                            "X2"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lint": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      }
+                    }
+                  },
+                  "required": [
+                    "draft_id",
+                    "title",
+                    "text",
+                    "card",
+                    "lint"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "flags": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "planted_instruction",
+                    "outside_view",
+                    "secret_requested",
+                    "stale_head",
+                    "proposal_dropped",
+                    "secret_masked"
+                  ]
+                }
+              },
+              "refusal": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "budget_exhausted",
+                      "stale_head",
+                      "no_census",
+                      "not_visible",
+                      "output_invalid",
+                      "secret_in_output",
+                      "gateway_refused",
+                      "unavailable",
+                      "declined"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grounding_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ask_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "thread_id",
+              "seq",
+              "role",
+              "kind",
+              "at",
+              "payload",
+              "text",
+              "citations",
+              "proposals",
+              "drafts",
+              "flags",
+              "refusal",
+              "grounding_sha",
+              "ask_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "grounding": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "census_sha": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stale": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "repo",
+            "census_sha",
+            "stale"
+          ],
+          "additionalProperties": false
+        },
+        "budget": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "group_id": {
+                  "type": "string",
+                  "pattern": "^assistant_user_day:[0-9a-f]{24}:[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                },
+                "max_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "max_cost_micro_usd": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "used_tokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "used_cost_micro_usd": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "exhausted": {
+                  "type": "boolean"
+                },
+                "resets_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "group_id",
+                "max_tokens",
+                "max_cost_micro_usd",
+                "used_tokens",
+                "used_cost_micro_usd",
+                "exhausted",
+                "resets_at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "thread",
+        "turns",
+        "grounding",
+        "budget"
+      ],
+      "additionalProperties": false
+    },
     "Tier": {
       "type": "string",
       "enum": [
@@ -74946,6 +77764,1002 @@
         "diff_budget"
       ],
       "additionalProperties": false
+    },
+    "Turn": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "person",
+            "assistant"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "message",
+            "answer",
+            "drafts",
+            "refusal"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "payload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "redactions": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rule_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "rule_id",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "erased_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "payload_id",
+            "sha256",
+            "redactions",
+            "erased_at"
+          ],
+          "additionalProperties": false
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "citations": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "file"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "pattern": "^[^\\0\\n]+$"
+                  },
+                  "commit_sha": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "line_from": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "line_to": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "path",
+                  "commit_sha",
+                  "line_from",
+                  "line_to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "record"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^(s0|card|item|step|project):[A-Za-z0-9_.:/-]{1,200}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "ledger"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^ledger:[A-Za-z0-9_.:-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "proposals": {
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "action_id": {
+                "type": "string",
+                "enum": [
+                  "open_card",
+                  "recheck_controls",
+                  "open_s0",
+                  "open_item",
+                  "ask_for_work"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "navigate",
+                  "call"
+                ]
+              },
+              "route": {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "POST"
+                    ]
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^\\/[A-Za-z0-9/_-]*$"
+                  }
+                },
+                "required": [
+                  "method",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              "pdp_action": {
+                "type": "string",
+                "enum": [
+                  "project.onboard",
+                  "work.request",
+                  "item.ready",
+                  "item.observe",
+                  "item.plan",
+                  "project.view",
+                  "project.settings.edit",
+                  "floor.read",
+                  "item.view_floor",
+                  "gate.view",
+                  "gate.decide",
+                  "card.decide",
+                  "kill.request",
+                  "kill.release",
+                  "config.propose",
+                  "audit.read",
+                  "control.apply",
+                  "control.lift",
+                  "banner.publish",
+                  "access.explain"
+                ]
+              },
+              "resource": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "Fleet",
+                      "Team",
+                      "Project",
+                      "Lane",
+                      "Repo",
+                      "Item",
+                      "Gate",
+                      "Card"
+                    ]
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "project": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "item": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gate_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "id",
+                  "project",
+                  "lane",
+                  "item",
+                  "gate_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "action_id",
+              "label",
+              "kind",
+              "route",
+              "pdp_action",
+              "resource"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "drafts": {
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "draft_id": {
+                "type": "string",
+                "pattern": "^d[0-9]{1,2}$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "card": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "C1",
+                      "C2",
+                      "C3",
+                      "C4",
+                      "C5",
+                      "SECR",
+                      "BATCH",
+                      "X2"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lint": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                }
+              }
+            },
+            "required": [
+              "draft_id",
+              "title",
+              "text",
+              "card",
+              "lint"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "flags": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "planted_instruction",
+              "outside_view",
+              "secret_requested",
+              "stale_head",
+              "proposal_dropped",
+              "secret_masked"
+            ]
+          }
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "budget_exhausted",
+                "stale_head",
+                "no_census",
+                "not_visible",
+                "output_invalid",
+                "secret_in_output",
+                "gateway_refused",
+                "unavailable",
+                "declined"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grounding_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ask_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "thread_id",
+        "seq",
+        "role",
+        "kind",
+        "at",
+        "payload",
+        "text",
+        "citations",
+        "proposals",
+        "drafts",
+        "flags",
+        "refusal",
+        "grounding_sha",
+        "ask_id"
+      ],
+      "additionalProperties": false
+    },
+    "TurnKind": {
+      "type": "string",
+      "enum": [
+        "message",
+        "answer",
+        "drafts",
+        "refusal"
+      ]
+    },
+    "TurnRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "person",
+            "assistant"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "message",
+            "answer",
+            "drafts",
+            "refusal"
+          ]
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "payload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "redactions": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rule_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "rule_id",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "payload_id",
+            "sha256",
+            "redactions"
+          ],
+          "additionalProperties": false
+        },
+        "citations": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "file"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "pattern": "^[^\\0\\n]+$"
+                  },
+                  "commit_sha": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "line_from": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "line_to": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "path",
+                  "commit_sha",
+                  "line_from",
+                  "line_to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "record"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^(s0|card|item|step|project):[A-Za-z0-9_.:/-]{1,200}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "ledger"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^ledger:[A-Za-z0-9_.:-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "proposals": {
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "action_id": {
+                "type": "string",
+                "enum": [
+                  "open_card",
+                  "recheck_controls",
+                  "open_s0",
+                  "open_item",
+                  "ask_for_work"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "navigate",
+                  "call"
+                ]
+              },
+              "route": {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "POST"
+                    ]
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^\\/[A-Za-z0-9/_-]*$"
+                  }
+                },
+                "required": [
+                  "method",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              "pdp_action": {
+                "type": "string",
+                "enum": [
+                  "project.onboard",
+                  "work.request",
+                  "item.ready",
+                  "item.observe",
+                  "item.plan",
+                  "project.view",
+                  "project.settings.edit",
+                  "floor.read",
+                  "item.view_floor",
+                  "gate.view",
+                  "gate.decide",
+                  "card.decide",
+                  "kill.request",
+                  "kill.release",
+                  "config.propose",
+                  "audit.read",
+                  "control.apply",
+                  "control.lift",
+                  "banner.publish",
+                  "access.explain"
+                ]
+              },
+              "resource": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "Fleet",
+                      "Team",
+                      "Project",
+                      "Lane",
+                      "Repo",
+                      "Item",
+                      "Gate",
+                      "Card"
+                    ]
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "project": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "item": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gate_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "id",
+                  "project",
+                  "lane",
+                  "item",
+                  "gate_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "action_id",
+              "label",
+              "kind",
+              "route",
+              "pdp_action",
+              "resource"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "drafts": {
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "draft_id": {
+                "type": "string",
+                "pattern": "^d[0-9]{1,2}$"
+              },
+              "card": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "C1",
+                      "C2",
+                      "C3",
+                      "C4",
+                      "C5",
+                      "SECR",
+                      "BATCH",
+                      "X2"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "draft_id",
+              "card",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "flags": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "planted_instruction",
+              "outside_view",
+              "secret_requested",
+              "stale_head",
+              "proposal_dropped",
+              "secret_masked"
+            ]
+          }
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "budget_exhausted",
+                "stale_head",
+                "no_census",
+                "not_visible",
+                "output_invalid",
+                "secret_in_output",
+                "gateway_refused",
+                "unavailable",
+                "declined"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grounding_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ask_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "thread_id",
+        "seq",
+        "role",
+        "kind",
+        "payload",
+        "citations",
+        "proposals",
+        "drafts",
+        "flags",
+        "refusal",
+        "grounding_sha",
+        "ask_id"
+      ],
+      "additionalProperties": false
+    },
+    "TurnRole": {
+      "type": "string",
+      "enum": [
+        "person",
+        "assistant"
+      ]
     },
     "TwoPerson": {
       "type": "object",
@@ -77831,7 +81645,8 @@
                         "A10",
                         "A11",
                         "A12",
-                        "coder"
+                        "coder",
+                        "assistant"
                       ]
                     },
                     "contract_version": {

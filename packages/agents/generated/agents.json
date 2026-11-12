@@ -3707,6 +3707,324 @@
         "ref": "coder@1.0.0",
         "sha256": "5251fad4bd108ef4ee0da7f87345176a842360f13d1ea3dd1379dcb3b51779c0"
       }
+    },
+    {
+      "agent_id": "assistant",
+      "name": "assistant",
+      "role": "assistant",
+      "note": "M18 (docs/design/portal-config.md §4): the onboarding assistant beside the S0 page and \"Ask the factory\". It acts at no step: it answers one person, read-only, from the context core builds of what that person can see, grounded on the census head. Its key is minted per ask on the person's day budget group (`assistant_user_day`); the budget below is that group's limit for a day, the TTL the per-ask key's.",
+      "steps": [],
+      "specialist_steps": [],
+      "contract": {
+        "contract_version": "1.0.0",
+        "input_schema_id": "assistant_input.v1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "item_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "0.1",
+                "0.2",
+                "0.3",
+                "0.4",
+                "0.5",
+                "1.1",
+                "1.2",
+                "1.3",
+                "1.4",
+                "1.5",
+                "1.6",
+                "2.1",
+                "2.1b",
+                "2.2",
+                "2.3",
+                "2.4",
+                "2.5",
+                "3.1",
+                "3.2",
+                "3.3",
+                "3.4",
+                "3.5",
+                "4.1",
+                "4.2",
+                "4.3",
+                "4.4",
+                "4.5",
+                "4.6",
+                "5.1",
+                "5.2",
+                "5.3",
+                "5.4",
+                "5.5",
+                "5.6",
+                "5.7",
+                "5.8",
+                "6.0",
+                "6.1",
+                "6.2",
+                "6.3",
+                "6.4",
+                "6.5",
+                "6.6",
+                "7.1",
+                "7.2",
+                "7.3",
+                "7.4",
+                "7.5",
+                "7.6",
+                "8.1",
+                "8.2",
+                "S8b",
+                "9.2",
+                "9.3",
+                "9.4",
+                "9.5"
+              ]
+            },
+            "attempt": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "artefacts": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "not": {}
+              }
+            }
+          },
+          "required": [
+            "item_id",
+            "step",
+            "attempt",
+            "artefacts"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema_id": "assistant.v1",
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "answer",
+                "refusal"
+              ]
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "citations": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "file"
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "pattern": "^[^\\0\\n]+$"
+                      },
+                      "commit_sha": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$"
+                      },
+                      "line_from": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "line_to": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "path",
+                      "commit_sha",
+                      "line_from",
+                      "line_to"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "record"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "pattern": "^(s0|card|item|step|project):[A-Za-z0-9_.:/-]{1,200}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "ledger"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "pattern": "^ledger:[A-Za-z0-9_.:-]{1,128}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "proposals": {
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "open_card",
+                      "recheck_controls",
+                      "open_s0",
+                      "open_item",
+                      "ask_for_work"
+                    ]
+                  },
+                  "target": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.-]+$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "action",
+                  "target",
+                  "label"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "drafts": {
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "card": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "C1",
+                          "C2",
+                          "C3",
+                          "C4",
+                          "C5",
+                          "SECR",
+                          "BATCH",
+                          "X2"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "title",
+                  "text",
+                  "card"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "noticed": {
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "planted_instruction",
+                  "outside_view",
+                  "secret_requested"
+                ]
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "text",
+            "citations",
+            "proposals",
+            "drafts",
+            "noticed"
+          ],
+          "additionalProperties": false
+        },
+        "tools": [
+          "KnowledgeSearch"
+        ],
+        "data_class_max": "D1",
+        "models": [
+          "claude-sonnet-5-5"
+        ],
+        "budget": {
+          "max_tokens": 200000,
+          "max_cost_micro_usd": 2000000,
+          "ttl_seconds": 600
+        }
+      },
+      "prompt": {
+        "ref": "assistant@1.0.0",
+        "sha256": "e9686d388c378026bee7564e178ace211920a40411a0916c1b460ec4c4e2d821"
+      }
     }
   ]
 }
