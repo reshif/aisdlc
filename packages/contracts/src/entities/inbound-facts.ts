@@ -19,6 +19,8 @@ export const InboundFactKind = z.enum([
   'installation',
   /** The effective rules on the default branch. */
   'effective_rules',
+  /** M15.2: the agent pull requests the factory watches (state, head, base, mergeability, merge): `AgentPullsFact`. */
+  'agent_pulls',
 ]);
 export type InboundFactKind = z.infer<typeof InboundFactKind>;
 export const InboundFactKindValues: readonly InboundFactKind[] = InboundFactKind.options;

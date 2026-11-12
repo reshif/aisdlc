@@ -319,6 +319,8 @@ export async function applyCard(
           two_person: settings.two_person,
           gating_profile: settings.gating_profile,
           kill_delegations: settings.kill_delegations,
+          // M15.5: card 4's release choice rides in the same project-layer revision
+          ...(settings.release !== undefined ? { release: settings.release } : {}),
         },
         proposed_by: by,
       });

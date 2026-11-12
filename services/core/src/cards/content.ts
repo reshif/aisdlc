@@ -253,6 +253,8 @@ export function planC4(
       two_person,
       gating_profile: d.gating_profile,
       kill_delegations: kills.value,
+      // M15.5: the G5 release choice card 4 asks (absent: the person was not asked, the choice in force stays)
+      ...(d.release !== undefined ? { release: d.release } : {}),
     },
   ] as CardPayloadItem[]);
 }

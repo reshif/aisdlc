@@ -10,6 +10,9 @@ import {
   ItemPlanRequest,
   ItemHumanDoneRequest,
   ItemReadyRequest,
+  ItemReleaseRequest,
+  ProjectDefaultEnvelope,
+  ProjectWipLimit,
   CardDecideRequest,
   GateCardDecideRequest,
   GateCardEvidenceRequest,
@@ -29,6 +32,7 @@ import {
   IntegrationKind,
   IsoDateTime,
   KillDelegation,
+  ReleaseSetting,
   OnboardRequest,
   PrincipalId,
   ProjectId,
@@ -98,7 +102,7 @@ import {
 } from './verify/portal.js';
 import type { ObjectStorePort } from '@aisdlc/ports';
 import { answerQuestion, decideReady, submitRequest } from './requests.js';
-import { observeRelane, requestRework } from './work-signals.js';
+import { observeRelane, reRequestRelease, requestRework } from './work-signals.js';
 import { submitHumanPlan } from './planning/human-plan.js';
 import { completeHumanWork } from './work-signals.js';
 import type { GroundingPort } from './planning/grounding.js';
@@ -118,6 +122,7 @@ import {
 } from './portal-reads.js';
 import type { AssistantDeps } from './conversation/assistant.js';
 import { registerAssistantRoutes } from './conversation/routes.js';
+import { registerGovernanceRoutes } from './governance-routes.js';
 import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
   cardDetail,
@@ -780,6 +785,28 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return { item: await view(it.id), duplicate: r.value.duplicate };
   });
 
+  /** RELHOLD (M15.3): the release approvers ask for the held release again after the fix window; G5 opens again. */
+  app.post('/v1/items/:id/release/re-request', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemReleaseRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.release');
+    if (!it) return;
+    const signalKey = `rerequest:${b.value.key}`;
+    const taken = (await readItemEvents(o.pool, it.id)).some(
+      (e) => e.idempotency_key === signalKey,
+    );
+    if (!taken && it.state.waiting?.kind !== 'release_held') {
+      return fail(reply, coreError('conflict', 'the release is not held'));
+    }
+    if (await maintenanceOn()) {
+      return fail(reply, coreError('refused', 'maintenance mode MM-2: decisions are disabled'));
+    }
+    const r = await reRequestRelease(itemDeps, it.id, b.value.on_behalf_of, b.value.key);
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), duplicate: r.value.duplicate };
+  });
+
   /** B5: a person writes the plan (the four parts, the same checks as the agent's); G3 decides it. */
   app.post('/v1/items/:id/plan', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -1155,6 +1182,11 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         two_person: TwoPerson.optional(),
         gating_profile: GatingProfile.optional(),
         kill_delegations: z.array(KillDelegation).optional(),
+        // M15.3: the release choice, off or a deploy target (null: not chosen)
+        release: ReleaseSetting.nullable().optional(),
+        // M15.5: the project's admission limits (ADR-0003 §6)
+        wip_limit: ProjectWipLimit.optional(),
+        default_envelope: ProjectDefaultEnvelope.optional(),
         on_behalf_of: PrincipalId,
       }),
       req.body,
@@ -1598,6 +1630,17 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     } catch {
       return fail(reply, coreError('unavailable', 'the ledger entries could not be read'));
     }
+  });
+
+  // ------------------------------------------------------------ M15.5: B14, B17, 9.3, 9.5, 9.4 and the factory M1
+
+  registerGovernanceRoutes({
+    app,
+    pool: o.pool,
+    deps,
+    config: o.config ?? o.cards?.config,
+    allowed: (req, scope) => allowed(req, scope),
+    guard,
   });
 
   // ------------------------------------------------------------ the assistant (M18)

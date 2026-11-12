@@ -382,3 +382,63 @@ describe('T2 never gets a sod_waiver (exhaustive over gates, holders, requesters
     expect(isT2(ctx(null))).toBe(false);
   });
 });
+
+describe('the factory M1 (M15.5): never the proposer, no waiver, the policy decides how many', () => {
+  const factory = (approvers: number): PolicyContext => ({
+    ...ctx(null),
+    factory_m1: { approvers },
+  });
+  const [ann, bob, cyd] = people(3) as [
+    ReturnType<typeof pr>,
+    ReturnType<typeof pr>,
+    ReturnType<typeof pr>,
+  ];
+
+  it('the sole holder who proposed cannot decide: infeasible, not a waiver', () => {
+    expect(planQuorum('M1', factory(1), [ann], ann).ok).toBe(false);
+    // the same project rule without the factory policy would waive it
+    expect(planQuorum('M1', ctx('T1'), [ann], ann)).toMatchObject({
+      ok: true,
+      value: { waiver: true },
+    });
+  });
+
+  it('one other holder decides at one approver; the proposer is refused as own request', () => {
+    expect(planQuorum('M1', factory(1), [ann, bob], ann)).toMatchObject({
+      ok: true,
+      value: { required: 1, waiver: false },
+    });
+    const base = {
+      key: 'M1' as const,
+      ctx: factory(1),
+      holders: [ann, bob],
+      requester: ann,
+      decision: 'approve' as const,
+      approvers: [],
+      frozenQuorum: 1,
+    };
+    expect(evaluateVote({ ...base, voter: ann })).toMatchObject({
+      ok: false,
+      error: { code: 'own_request' },
+    });
+    expect(evaluateVote({ ...base, voter: bob })).toMatchObject({
+      ok: true,
+      value: { outcome: 'decided', sod_waiver: false },
+    });
+  });
+
+  it('two approvers need two holders besides the proposer', () => {
+    expect(planQuorum('M1', factory(2), [ann, bob], ann).ok).toBe(false);
+    expect(planQuorum('M1', factory(2), [ann, bob, cyd], ann)).toMatchObject({
+      ok: true,
+      value: { required: 2, basis: 'two_person', waiver: false },
+    });
+  });
+
+  it('only M1 follows it: another gate of the context keeps its own rule', () => {
+    expect(planQuorum('M5', factory(2), [ann], ann)).toMatchObject({
+      ok: true,
+      value: { waiver: true },
+    });
+  });
+});

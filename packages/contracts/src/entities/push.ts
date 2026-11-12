@@ -279,6 +279,12 @@ export const PushIntendedPayload = z.strictObject({
   patch_hash: Sha256Hex,
   files: z.number().int().min(0),
   command_key: z.string().min(1),
+  /**
+   * The paths the patch touches (M15.1): what G4 reads as the changed paths of the head this patch became. The patch
+   * is the Unit's whole diff against the base, so its paths are the PR's. Absent in events older than M15.1: G4 then
+   * treats the paths as unknown (mode C with the step-up, fail closed).
+   */
+  paths: z.array(z.string().min(1).max(1024)).max(PATCH_MAX_FILES).optional(),
 });
 export type PushIntendedPayload = z.infer<typeof PushIntendedPayload>;
 

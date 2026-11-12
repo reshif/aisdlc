@@ -1,9 +1,13 @@
 import {
   ConfigReader,
+  configProjection,
   loadEffective,
   proposeRevision,
   readLineage,
+  registerAdmissionConfig,
   registerGateCheckConfig,
+  registerGovernanceConfig,
+  registerReleaseConfig,
   registerNotificationsConfig,
   registerSandboxConfig,
   type ConfigDeps,
@@ -24,6 +28,11 @@ import {
   KillDelegation,
   MAINTENANCE_FLAG_KEY,
   PROJECT_CONFIG_KEYS,
+  RELEASE_CONFIG_KEY,
+  PROJECT_DEFAULT_ENVELOPE_KEY,
+  PROJECT_WIP_LIMIT_KEY,
+  type ProjectDefaultEnvelope,
+  type ProjectWipLimit,
   ProjectSettings,
   ProjectSettingsDoc,
   RoleMap,
@@ -40,6 +49,7 @@ import {
   type PrincipalId,
   type ProjectId,
   type ProjectSettingsWire,
+  type ReleaseSetting,
   type Tier,
 } from '@aisdlc/contracts';
 import type { Written } from '@aisdlc/decisions';
@@ -49,6 +59,7 @@ import {
   type ProjectSettingsError,
   type ProjectSettingsPort,
 } from '@aisdlc/ports';
+import { runProjection } from '@aisdlc/record';
 import { z } from 'zod';
 import type pg from 'pg';
 import { coreError, type CoreError } from './errors.js';
@@ -67,8 +78,13 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   registerSandboxConfig(registry);
   // M14.5: the per-repo merge bypass list is gate-check's to read; core's revisions must validate it
   registerGateCheckConfig(registry);
+  // M15.3: a project's release choice (off or a deploy target), part of its project layer like its other settings
+  registerReleaseConfig(registry);
   // M18: the notifier's channel rows are the notifier's to read; core's revisions must validate them
   registerNotificationsConfig(registry);
+  // M15.5: who decides a factory M1, 9.4 Learn's thresholds, and a project's WIP limit and default envelope
+  registerGovernanceConfig(registry);
+  registerAdmissionConfig(registry);
   return registry
     .setting({
       key: PROJECT_CONFIG_KEYS.role_map,
@@ -271,6 +287,12 @@ export interface SettingsChange {
   readonly two_person?: TwoPerson | undefined;
   readonly gating_profile?: GatingProfile | undefined;
   readonly kill_delegations?: KillDelegation[] | undefined;
+  /** M15.3: the release choice (`project.release`); absent keeps the one in force. */
+  readonly release?: ReleaseSetting | null | undefined;
+  /** M15.5: the project's WIP limit (`project.wip_limit`); absent keeps the one in force. */
+  readonly wip_limit?: ProjectWipLimit | undefined;
+  /** M15.5: the project's default envelope (`project.default_envelope`); absent keeps the one in force. */
+  readonly default_envelope?: ProjectDefaultEnvelope | undefined;
 }
 
 const mapConfigError = (e: { code: string; message: string }): CoreError =>
@@ -297,6 +319,8 @@ export async function proposeProjectSettings(
 ): Promise<Result<Written<ProposeResult>, CoreError>> {
   const state = await getProjectState(deps.pool, input.project);
   if (!state) return err(coreError('not_found', `unknown project ${input.project}`));
+  // the layer in force now: the read model caught up first, so a revision just published is the base
+  await runProjection(deps.pool, configProjection).catch(() => undefined);
   const current = await loadEffective(deps.pool, lineageOf(input.project));
   const base = (current?.doc ?? {}) as Record<string, unknown>;
   const doc = {
@@ -311,6 +335,9 @@ export async function proposeProjectSettings(
     [PROJECT_CONFIG_KEYS.kill_delegations]:
       input.change.kill_delegations ?? base[PROJECT_CONFIG_KEYS.kill_delegations] ?? [],
   };
+  // the release choice lives in the same project layer: a settings change keeps it unless it changes it
+  const release =
+    input.change.release !== undefined ? input.change.release : base[RELEASE_CONFIG_KEY];
   const parsed = ProjectSettingsDoc.safeParse(doc);
   if (!parsed.success) return err(coreError('invalid_input', parsed.error.message));
   const tier: Tier | null = state.project.tier ?? state.attestations.tier_floor ?? null;
@@ -329,10 +356,18 @@ export async function proposeProjectSettings(
     );
     if (problems.length > 0) return err(coreError('refused', problems.join('; ')));
   }
+  // every other key of the project layer is kept (M15.5: the release choice, the WIP limit, the default envelope):
+  // a settings change replaces only what it names
+  const full: Record<string, unknown> = { ...base, ...doc };
+  if (release !== undefined) full[RELEASE_CONFIG_KEY] = release;
+  if (input.change.wip_limit !== undefined) full[PROJECT_WIP_LIMIT_KEY] = input.change.wip_limit;
+  if (input.change.default_envelope !== undefined) {
+    full[PROJECT_DEFAULT_ENVELOPE_KEY] = input.change.default_envelope;
+  }
   const r = await proposeRevision(deps, {
     layer: 'project',
     scope: { kind: 'project', ref: input.project },
-    doc,
+    doc: full,
     proposed_by: input.proposed_by,
   });
   return r.ok ? ok(r.value) : err(mapConfigError(r.error));

@@ -145,6 +145,8 @@ export async function restWriteHarness(seed: CodeHostSeed): Promise<CodeHostWrit
         path: r.path,
       })),
     moveBranch: (repo, branch, sha) => void t.server.moveBranch(repo, branch, sha),
+    landPull: (repo, n, by) => void t.server.landPull(repo, n, by),
+    setPullBaseState: (repo, n, st) => void t.server.setPullBaseState(repo, n, st),
     stop: () => t.stop(),
   };
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ReleaseSetting } from './gate-relay.js';
 import { hashCanonical } from '@aisdlc/kernel';
 import { Scope, Tier } from '../values.js';
 import { B4Report, BranchRules, GithubPermissions, RepoFullName } from './codehost.js';
@@ -158,6 +159,11 @@ export const C4DecisionContent = z.strictObject({
   two_person_enabled: z.boolean(),
   gating_profile: GatingProfile,
   kill_delegations: z.array(KillDelegationInput).max(100),
+  /**
+   * M15.5: the G5 release choice (PLAN §7a "G5 release": off, or a deploy target), `project.release` in the same
+   * project-layer revision. `null`: not chosen (nothing is released). Absent: keep the choice in force.
+   */
+  release: ReleaseSetting.nullable().optional(),
 });
 export type C4DecisionContent = z.infer<typeof C4DecisionContent>;
 

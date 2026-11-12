@@ -7,6 +7,7 @@ import {
   CodeownersFile,
   FileAtSha,
   GitSha,
+  PrMergeability,
   InstallationInfo,
   InstallationRepo,
   type CodeHostRead,
@@ -199,6 +200,12 @@ export class HttpCodeHostPush implements Pick<CodeHostPort, 'apply_patch' | 'pr_
         merged: z.boolean(),
         head_sha: GitSha,
         draft: z.boolean(),
+        base_ref: z.string(),
+        base_sha: GitSha.nullable(),
+        mergeable: PrMergeability,
+        merge_commit_sha: GitSha.nullable(),
+        merged_at: z.string().nullable(),
+        merged_by: z.string().nullable(),
         checks_read: z.boolean(),
         checks: z.array(
           z.looseObject({

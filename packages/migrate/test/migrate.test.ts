@@ -13,6 +13,7 @@ import * as directory from '@aisdlc/directory';
 import * as gateway from '@aisdlc/gateway';
 // The migrations entry only: the package root boots a service.
 import * as gatecheck from '@aisdlc/gate-check/migrations';
+import * as gaterelay from '@aisdlc/gate-relay/migrations';
 // The migrations entry only: the package root boots a service.
 import * as notifier from '@aisdlc/notifier/migrations';
 import * as verify from '@aisdlc/verify-service';
@@ -48,6 +49,7 @@ const OWNERS = [
   ['gateway', gateway],
   ['verify', verify],
   ['gatecheck', gatecheck],
+  ['gaterelay', gaterelay],
   ['notifier', notifier],
   ['notary', notary],
   ['witness', witness],
@@ -124,6 +126,7 @@ describe('the plan', () => {
       'gateway',
       'verify',
       'gatecheck',
+      'gaterelay',
       'notifier',
     ]);
   });

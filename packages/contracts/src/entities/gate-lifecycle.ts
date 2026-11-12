@@ -80,6 +80,12 @@ export const GateOpenedPayload = z.strictObject({
    * (stamped `sod_waiver`, never T2). Absent: nobody besides the requester.
    */
   authors: z.array(PrincipalId).max(8).optional(),
+  /**
+   * Narrows who may decide (M15.1, G4 mode C: the code owners of the changed paths): only holders of the slot who are
+   * also in this list are eligible. It never widens the slot: a principal here who does not hold the slot cannot
+   * decide. Frozen at open. Absent: every holder of the slot.
+   */
+  deciders: z.array(PrincipalId).min(1).max(64).optional(),
   /** Conflict facts, project policy; `expires_at` drives the TTL sweep and is always present. */
   facts: Expiring,
   /** Frozen at open. The projection decides `decided` by this number. */

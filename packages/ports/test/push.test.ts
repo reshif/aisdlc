@@ -1,3 +1,4 @@
+import { mergeabilityOf } from '@aisdlc/contracts';
 import { describe, expect, it } from 'vitest';
 import { FakeGitHub, FakePushGuards, commitMessage, inertText, renderPr } from '../src/index.js';
 import { WRITE_ITEM, codeHostWriteContract, writeRequest, writeSeed } from '../src/testing.js';
@@ -11,6 +12,8 @@ codeHostWriteContract('FakeGitHub', async (seed) => {
     guards,
     requests: () => f.requests,
     moveBranch: (repo, branch, sha) => void f.moveBranch(repo, branch, sha),
+    landPull: (repo, n, by) => void f.landPull(repo, n, by),
+    setPullBaseState: (repo, n, st) => void f.setPullBaseState(repo, n, mergeabilityOf(st)),
   };
 });
 

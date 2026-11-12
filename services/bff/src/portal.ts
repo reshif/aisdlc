@@ -56,6 +56,7 @@ import { sendError, type CallResult } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CoreClient } from './core-client.js';
+import { registerGovernancePortalRoutes } from './governance.js';
 import type { Levels } from './levels.js';
 
 // The portal's API (PLAN M8.1): the only thing the browser calls besides the sign-in routes. Each
@@ -1129,5 +1130,18 @@ export function registerPortalRoutes(d: PortalDeps): void {
     if (q.data.limit) qs.set('limit', String(q.data.limit));
     const path = `/v1/projects/${id.data}/ledger${qs.size > 0 ? `?${qs}` : ''}`;
     return upstream(reply, await c.call('GET', path), (v) => LedgerAuditView.parse(v))?.value;
+  });
+
+  // ------------------------------------------------------------ M15.5: RELHOLD, B14, B17, 9.3, 9.5, 9.4, factory M1
+
+  registerGovernancePortalRoutes({
+    app,
+    principalOf: d.principalOf,
+    core,
+    allowed,
+    deny,
+    upstream,
+    idParam,
+    itemOf,
   });
 }

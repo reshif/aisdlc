@@ -10,6 +10,7 @@ import {
 } from '@aisdlc/contracts';
 import {
   decideCard,
+  gateHolders,
   prepareCard,
   readCardOpened,
   readCardState,
@@ -32,14 +33,18 @@ import { coreError, type CoreError } from './errors.js';
 
 export interface ItemCardHead {
   readonly project_id: string;
-  readonly item_id: string;
+  /** `null` for a project's META card (9.4 Learn, M15.5): its subject is a proposal, not an item. */
+  readonly item_id: string | null;
+  readonly subject_kind: 'item' | 'learn';
   readonly gates: ReadonlyArray<{ gate_instance_id: string; gate: GateId }>;
 }
 
 /** The project, item and gates of a work-item card; `null` for anything that is not one. */
 export async function itemCardHead(pool: pg.Pool, cardId: string): Promise<ItemCardHead | null> {
   const o = await readCardOpened(pool, cardId);
-  if (!o || o.open.subject_kind !== 'item') return null;
+  // M15.5: a 9.4 META card (subject `learn`) is decided the same way, on its project
+  if (!o || (o.open.subject_kind !== 'item' && o.open.subject_kind !== 'learn')) return null;
+  const kind = o.open.subject_kind;
   const gates: Array<{ gate_instance_id: string; gate: GateId }> = [];
   for (const t of o.open.targets) {
     if (t.target !== 'gate') continue;
@@ -52,7 +57,12 @@ export async function itemCardHead(pool: pg.Pool, cardId: string): Promise<ItemC
   }
   return gates.length === 0
     ? null
-    : { project_id: o.open.project_id, item_id: o.open.subject_id, gates };
+    : {
+        project_id: o.open.project_id,
+        item_id: kind === 'item' ? o.open.subject_id : null,
+        subject_kind: kind,
+        gates,
+      };
 }
 
 const Facts = z.looseObject({
@@ -86,10 +96,17 @@ export async function gateCardView(
   const facts = Facts.safeParse(first.facts);
   const slots = [...new Set(gates.map((g) => g.slot))];
   const holders = new Set<string>();
-  for (const slot of slots) {
-    const h = await d.eligibility.holders(head.project_id as never, slot as never);
+  // per gate: a gate opened with deciders (G4 mode C: the code owners of the changed paths) narrows its slot
+  for (const g of state.gates) {
+    const p = g.state.open.payload;
+    const h = await gateHolders(
+      d.eligibility,
+      head.project_id as never,
+      gatePolicy(p.gate_id).slot,
+      p.deciders,
+    );
     if (!h.ok) return err(coreError('unavailable', 'who holds the role could not be read'));
-    for (const p of h.value) holders.add(p);
+    for (const x of h.value) holders.add(x);
   }
   const reason = state.payload?.payload.find((i) => i.kind === 'decision_reason');
   return ok(
@@ -97,6 +114,7 @@ export async function gateCardView(
       card_id: cardId,
       project_id: head.project_id,
       item_id: head.item_id,
+      subject_kind: head.subject_kind,
       status: state.status,
       gates,
       subject_hash: first.subject_hash,

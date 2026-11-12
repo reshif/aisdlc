@@ -24,7 +24,7 @@ export class AdmissionCapacity implements CapacityPort {
   constructor(
     private readonly d: Pick<
       AdmissionDeps,
-      'pool' | 'settings' | 'envelope' | 'sessionCap' | 'slots'
+      'pool' | 'settings' | 'envelope' | 'sessionCap' | 'runnerHost' | 'slots'
     >,
   ) {}
 
@@ -54,7 +54,7 @@ export class AdmissionCapacity implements CapacityPort {
         free = (await approverSlot(this.d, scope.project_id)).ok ? wanted : 0;
       } else if (reason === 'H2') {
         // the lower of the grant count and (M14.2) the sandbox-controller's free coding slots, less the pledges
-        const cap = sessionCapOf(this.d);
+        const cap = await sessionCapOf(this.d);
         const byGrants = cap - (await activeGrantCount(this.d.pool as pg.Pool));
         const byController = await controllerCodingFree(this.d);
         free = Math.max(0, Math.min(byGrants, byController) - this.pledges('H2'));

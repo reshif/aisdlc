@@ -6,7 +6,6 @@ import {
 } from '@aisdlc/config';
 import { PgProofStore, SignedStepUp } from '@aisdlc/bff/stepup';
 import { createPool } from '@aisdlc/db';
-import { IdentityEligibility } from '@aisdlc/identity/read';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
 import { HttpNotary } from '@aisdlc/notary/client';
 import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
@@ -23,7 +22,7 @@ import { CensusGrounding } from './planning/grounding.js';
 import { coreConfigFromEnv } from './config.js';
 import { s0SettingsFrom } from './driver.js';
 import { migrateCore } from './migrations.js';
-import { DbProjectSettings, maintenanceFrom, registerCoreConfig } from './settings.js';
+import { maintenanceFrom, registerCoreConfig } from './settings.js';
 
 /**
  * Starts core from the environment (see `coreConfigFromEnv`). All configuration is read before the
@@ -99,10 +98,8 @@ export async function bootCore(env: Env): Promise<RunningService> {
             // requester of its first onboarding is the provisional admin of the M1 gate that
             // publishes it. Everything else is identity's answer.
             eligibility: new BootstrapEligibility(
-              new IdentityEligibility({
-                pool: eligibilityPool,
-                settings: new DbProjectSettings({ pool: eligibilityPool, registry }),
-              }),
+              // M15.5: a factory revision's M1 is decided under `factory.m1_policy`
+              identityEligibility(eligibilityPool, registry),
               { pool: eligibilityPool },
             ),
             stepUp,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ReleaseSetting } from './gate-relay.js';
 import { Tier } from '../values.js';
 import { RepoFullName } from './codehost.js';
 import { VoteDecision } from './decisions.js';
@@ -96,6 +97,8 @@ export const SettingsRevisionView = z.strictObject({
     gating_profile: GatingProfile,
     kill_delegations: z.array(KillDelegation),
   }),
+  /** M15.5: the release choice the revision carries (`project.release`); `null`: not chosen. */
+  release: ReleaseSetting.nullable().optional(),
   /** What a decision is bound to (the gate's evidence hash). */
   evidence_hash: Sha256Hex,
   deciders: CardDeciders,
