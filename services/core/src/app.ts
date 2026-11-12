@@ -1886,7 +1886,10 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     allowed: (req, scope) => allowed(req, scope),
     guard,
     may: async (principal, action, resource) =>
-      o.pdp ? (await o.pdp.decide({ principal, action, resource })).decision === 'allow' : false,
+      // a capability probe to filter a list: not logged (every write still asks, and is logged)
+      o.pdp
+        ? (await o.pdp.decide({ principal, action, resource }, { log: false })).decision === 'allow'
+        : false,
   });
 
   // ------------------------------------------------------------ the erasable payloads (M19, the audit service)
