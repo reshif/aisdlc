@@ -50,7 +50,7 @@ pattern, the onboarding agent console and the backend gaps) are specified in [`p
 | Shell | `login` | signed out | SSO → account → security key; session policy shown |
 | Shell | `home` | signed in | per person: needs you, your requests, your projects, role summary; extra blocks for factory admin, auditor, security, viewer |
 | Shell | `my-access` | signed in | bindings, the per-project "what can I do" matrix (click a cell for the policy), own access requests, sessions |
-| Work | `floor` | floor.read | live belts, gates with waiting initials, rooms, pods, back-edges, lane shortcuts; hover a chip for its route; station, gate and room drawers; agent score chips; lane holds and kills; viewer mode without titles |
+| Work | `floor` | floor.read | live belts, gates with waiting initials, rooms, pods, back-edges, lane shortcuts; hover a chip for its route; station, gate and room drawers; agent score chips; lane holds and kills; viewer mode without titles. **Built (M19, `build/m19`)**: `/floor` over core's `core.floor_position` / `core.floor_move` read model and the bff's cut (`/api/floor/:project`): belts, gates with initials, rooms, pods, back-edges, lane filters, drawers, viewer mode, stale banner |
 | Work | `fleet` | visible projects | one row per project; confidential collapsed for fleet roles only |
 | Work | `board`, `items` | project.view | filtered to visible items; titles at D1 |
 | Work | `item-<KEY>` | item.view_floor | 7 tabs by view level and data class; actions item.ready / observe / plan; decide only when decideCheck allows |
