@@ -7,6 +7,9 @@ The portal prototype lives in [`portal-prototype/`](portal-prototype/) (plain br
 It is a **design reference**: the real portal is `services/web` (React + Vite, served by the bff), and nothing in the prototype
 calls the bff. Where the prototype and the specs disagree, the specs win; the open points are listed in §5.
 
+Configuration and maintenance (what each setting is, who proposes and decides it, which routes exist, the one propose → M1 → publish
+pattern, the onboarding agent console and the backend gaps) are specified in [`portal-config.md`](portal-config.md).
+
 ## 1. What the prototype is built on
 
 - **Access model, mirrored from the contracts** (`portal-prototype/src/access.js`):
