@@ -33590,7 +33590,8 @@
         "staging_separation_not_attested",
         "circuit_breaker",
         "followup_overdue",
-        "area_unknown"
+        "area_unknown",
+        "r3_zone"
       ]
     },
     "EligibilityRoute": {
@@ -70074,7 +70075,8 @@
             "staging_separation_not_attested",
             "circuit_breaker",
             "followup_overdue",
-            "area_unknown"
+            "area_unknown",
+            "r3_zone"
           ]
         },
         "prr": {
@@ -89012,6 +89014,44 @@
                             "type": "string",
                             "minLength": 1
                           }
+                        },
+                        "r3_sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "area": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 256
+                              },
+                              "glob": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "trigger": {
+                                "type": "string",
+                                "enum": [
+                                  "knowledge_defects"
+                                ]
+                              },
+                              "proposal_ids": {
+                                "minItems": 1,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{64}$"
+                                }
+                              }
+                            },
+                            "required": [
+                              "area",
+                              "glob",
+                              "trigger",
+                              "proposal_ids"
+                            ],
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "required": [
@@ -91031,6 +91071,44 @@
                                   "type": "string",
                                   "minLength": 1
                                 }
+                              },
+                              "r3_sources": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "area": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 256
+                                    },
+                                    "glob": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "trigger": {
+                                      "type": "string",
+                                      "enum": [
+                                        "knowledge_defects"
+                                      ]
+                                    },
+                                    "proposal_ids": {
+                                      "minItems": 1,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "area",
+                                    "glob",
+                                    "trigger",
+                                    "proposal_ids"
+                                  ],
+                                  "additionalProperties": false
+                                }
                               }
                             },
                             "required": [
@@ -92986,6 +93064,44 @@
               "items": {
                 "type": "string",
                 "minLength": 1
+              }
+            },
+            "r3_sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "glob": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "trigger": {
+                    "type": "string",
+                    "enum": [
+                      "knowledge_defects"
+                    ]
+                  },
+                  "proposal_ids": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "required": [
+                  "area",
+                  "glob",
+                  "trigger",
+                  "proposal_ids"
+                ],
+                "additionalProperties": false
               }
             }
           },
@@ -96791,6 +96907,44 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "r3_sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "glob": {
+                "type": "string",
+                "minLength": 1
+              },
+              "trigger": {
+                "type": "string",
+                "enum": [
+                  "knowledge_defects"
+                ]
+              },
+              "proposal_ids": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            "required": [
+              "area",
+              "glob",
+              "trigger",
+              "proposal_ids"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -98448,6 +98602,44 @@
                     "type": "string",
                     "minLength": 1
                   }
+                },
+                "r3_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "glob": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "trigger": {
+                        "type": "string",
+                        "enum": [
+                          "knowledge_defects"
+                        ]
+                      },
+                      "proposal_ids": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "glob",
+                      "trigger",
+                      "proposal_ids"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "required": [
@@ -99449,6 +99641,41 @@
       "required": [
         "s0_id",
         "prr"
+      ],
+      "additionalProperties": false
+    },
+    "PrrR3Zone": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "glob": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "knowledge_defects"
+          ]
+        },
+        "proposal_ids": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "required": [
+        "area",
+        "glob",
+        "trigger",
+        "proposal_ids"
       ],
       "additionalProperties": false
     },
@@ -100968,6 +101195,44 @@
                   "items": {
                     "type": "string",
                     "minLength": 1
+                  }
+                },
+                "r3_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "glob": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "trigger": {
+                        "type": "string",
+                        "enum": [
+                          "knowledge_defects"
+                        ]
+                      },
+                      "proposal_ids": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "glob",
+                      "trigger",
+                      "proposal_ids"
+                    ],
+                    "additionalProperties": false
                   }
                 }
               },
@@ -103073,6 +103338,12 @@
         "cross_repo",
         "irreversible_migration",
         "x2_sensitive_path"
+      ]
+    },
+    "R3ZoneTrigger": {
+      "type": "string",
+      "enum": [
+        "knowledge_defects"
       ]
     },
     "RaisableGate": {
@@ -123654,7 +123925,8 @@
             "staging_separation_not_attested",
             "circuit_breaker",
             "followup_overdue",
-            "area_unknown"
+            "area_unknown",
+            "r3_zone"
           ]
         }
       },
@@ -124228,7 +124500,8 @@
             "staging_separation_not_attested",
             "circuit_breaker",
             "followup_overdue",
-            "area_unknown"
+            "area_unknown",
+            "r3_zone"
           ]
         },
         "prr_version": {

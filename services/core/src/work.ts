@@ -29,6 +29,7 @@ import { createItemIn, itemIdOfRequest, openItemsOfRepo } from './work-items.js'
 import type { PrrVersion } from './fold.js';
 import { clockOf, inCoreTx, lockKeys, type CoreDeps, type Journal } from './journal.js';
 import { applyGuard, projectGuard } from './breaker.js';
+import { unresolvedR3 } from './knowledge-defects.js';
 import { routeLane } from './lane-eligibility.js';
 import { governingPrr } from './fold.js';
 import { repoIdentity } from './prr-store.js';
@@ -139,7 +140,15 @@ export async function requestWork(
     const prr = id ? governingPrr(await j.prr(id.project_id, id.repo_id)) : null;
     const repoRef = id?.repo_ref ?? input.repo;
     const verdict = applyGuard(
-      routeLane(repoRef, input.lane, prr, clockOf(deps).now()),
+      routeLane(
+        repoRef,
+        input.lane,
+        prr,
+        clockOf(deps).now(),
+        undefined,
+        undefined,
+        prr ? await unresolvedR3(tx, repoRef, prr.version) : [],
+      ),
       id
         ? await projectGuard(tx, {
             project_id: id.project_id,
@@ -375,7 +384,15 @@ export async function fanOutHeld(
     // Re-fold under the lock: the request may have moved since the listing.
     const cur = foldWork(await j.events(workStream(h.id)));
     if (cur?.state !== 'held') continue;
-    const verdict = routeLane(o.repo, h.request.lane, o.version, o.now);
+    const verdict = routeLane(
+      o.repo,
+      h.request.lane,
+      o.version,
+      o.now,
+      undefined,
+      undefined,
+      await unresolvedR3(tx, o.repo, o.version.version),
+    );
     const ok_ = verdict.route === 'normal' && verdict.eligible;
     const w = await j.emit(
       workStream(h.id),

@@ -16,7 +16,7 @@ import {
   type KnowledgeDefectSource,
 } from '@aisdlc/contracts';
 import type { ConfigReader } from '@aisdlc/config';
-import { areaOfPath } from '@aisdlc/onboarding';
+import { areaOfPath, type TrippedArea } from '@aisdlc/onboarding';
 import { hashCanonical, ok, type Result } from '@aisdlc/kernel';
 import type { Executor, Tx } from '@aisdlc/record';
 import type { CoreError } from './errors.js';
@@ -154,6 +154,31 @@ export async function listReonboardProposals(
       decision: r.decision ?? null,
     }),
   );
+}
+
+/**
+ * The R3 state of a repo (OB §8, read-only): the areas with an unresolved knowledge-defect proposal. Open proposals
+ * count whatever version they were raised under; an accepted one counts while the version it was about still governs
+ * (its re-onboarding has not signed yet), except for the onboarding it started (`exceptS0`: the record that resolves
+ * it). Declined ones never count.
+ */
+export async function unresolvedR3(
+  db: Executor,
+  repo: string,
+  governingVersion: number | null,
+  exceptS0?: string,
+): Promise<TrippedArea[]> {
+  return (await listReonboardProposals(db, repo))
+    .filter((p) =>
+      p.status === 'proposed'
+        ? true
+        : p.status === 'accepted' &&
+          p.decision !== null &&
+          p.decision !== undefined &&
+          p.decision.prr_version === governingVersion &&
+          p.decision.new_s0_id !== (exceptS0 ?? null),
+    )
+    .map((p) => ({ area: p.area, proposal_id: p.proposal_id }));
 }
 
 /** One proposal of a repo, or `null`. */

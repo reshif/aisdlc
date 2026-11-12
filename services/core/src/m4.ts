@@ -37,6 +37,7 @@ import {
   type AreaLevelInput,
 } from '@aisdlc/onboarding';
 import { lightProposalOf } from './cards/light.js';
+import { unresolvedR3 } from './knowledge-defects.js';
 import { fullBaselineOf } from './cards/full.js';
 import type { Clock } from '@aisdlc/kernel';
 import type pg from 'pg';
@@ -288,6 +289,10 @@ export async function ensurePrrProposed(
     };
   }
 
+  // R3 (OB §8): the knowledge-defect proposals still unresolved are this record's zones (read-only projection)
+  const governingNow = governingPrr(await readPrrState(deps.pool, project, repoId));
+  const r3 = await unresolvedR3(deps.pool, s0.repo, governingNow?.version ?? null, s0Id);
+
   return inCoreTx<ProjectReadinessRecord>(deps, async (j, tx) => {
     await lockKeys(tx, [`project:${project}`, `repo:${s0.repo.toLowerCase()}`, `s0:${s0Id}`]);
     const cur = await j.s0(s0Id);
@@ -353,6 +358,7 @@ export async function ensurePrrProposed(
       signer: signer.value,
       ...(affirmed ? { affirmed } : {}),
       areas,
+      r3,
     });
     if (!built.ok) {
       return err(coreError('refused', `${built.error.code}: ${built.error.message}`, built.error));

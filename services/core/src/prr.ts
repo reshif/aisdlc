@@ -1,4 +1,11 @@
-import { areaLevelsOf, lowestAreaLevel, type AreaLevelInput } from '@aisdlc/onboarding';
+import {
+  areaLevelsOf,
+  inR3Zone,
+  lowestAreaLevel,
+  r3ZonesOf,
+  type AreaLevelInput,
+  type TrippedArea,
+} from '@aisdlc/onboarding';
 import {
   AUTONOMY,
   catalogueFor,
@@ -202,6 +209,11 @@ export interface PrrInputs {
    * repo-wide area `.` at the signed level.
    */
   readonly areas?: AreaLevelInput | null;
+  /**
+   * R3 (OB §8): the knowledge-defect re-onboarding proposals unresolved when the record is built (the areas they name).
+   * Each makes its area an R3 zone in this record: only the Census lanes there. Absent: none.
+   */
+  readonly r3?: readonly TrippedArea[];
 }
 
 const TIER_RANK: Readonly<Record<Tier, number>> = { T0: 0, T1: 1, T2: 2 };
@@ -460,13 +472,23 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
       pinned.value.eligibility,
     );
   const areaRows = areaLevelsOf(signed, i.areas ?? null);
+  // R3 zones (OB §8, read-only): an area with an unresolved knowledge-defect proposal opens only the Census lanes; a
+  // zone never changes a level. The repo as a whole runs what every area may, so any zone confines it too.
+  const zones = r3ZonesOf(
+    areaRows.map((r) => r.area),
+    i.r3 ?? [],
+  );
+  const zoned = new Set(zones.map((z) => z.area));
+  const censusLanes = lanesAt('census');
   const areas: PrrArea[] = areaRows.map((r) => ({
     area: r.area,
     level: r.level,
     floors: [...r.floors],
-    lanes: lanesAt(r.level),
+    lanes: inR3Zone(r.area, zoned) ? censusLanes : lanesAt(r.level),
   }));
-  const lanes_eligible: Lane[] = lanesAt(lowestAreaLevel(areaRows));
+  const levelLanes: Lane[] = lanesAt(lowestAreaLevel(areaRows));
+  const lanes_eligible: Lane[] =
+    zones.length > 0 ? levelLanes.filter((l) => censusLanes.includes(l)) : levelLanes;
 
   // ---- writes. B3 decides whether the factory may write at all; a read-only Census signs without it.
   const b3 = b3Met(c4);
@@ -476,7 +498,8 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
       `protect-main is not effective (B3): ${signed} needs it; only a read-only Census may sign without`,
     );
   }
-  const agentLane = lanes_eligible.some((l) => ['L1', 'L2', 'L3', 'L4', 'L5', 'L6'].includes(l));
+  // what the factory may write follows the levels: a zone confines lanes, not the record's write capability
+  const agentLane = levelLanes.some((l) => ['L1', 'L2', 'L3', 'L4', 'L5', 'L6'].includes(l));
   const writes = !b3 ? 'none' : agentLane ? 'agent' : 'docs';
 
   const controls = controlsOf(c4);
@@ -557,7 +580,8 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
       probation_until: aut.probation_until as never,
       effective: aut.effective,
       lanes_eligible,
-      r3_zones: [],
+      r3_zones: [...new Set(zones.map((z) => z.glob))].sort(),
+      ...(zones.length > 0 ? { r3_sources: zones } : {}),
     },
     writes,
     affirmed: i.affirmed ?? {

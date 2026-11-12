@@ -14,6 +14,7 @@ import {
   readGoverning,
   rebuildKnowledgeDefects,
   recordKnowledgeDefects,
+  unresolvedR3,
   type DriftActionDeps,
 } from '../src/index.js';
 import { pid, pr, setSlots, startCoreStack, type CoreStack } from '../src/testing.js';
@@ -161,6 +162,13 @@ describe('accepting a re-onboarding proposal (M17, OB §8)', () => {
       ),
     ).toBe(false);
 
+    // R3 (read-only): while it re-onboards, the accepted proposal is unresolved for version 1; a new trip in the area
+    // proposes again (the first is no longer open)
+    expect((await unresolvedR3(s.record.pool, c.repo, 1)).map((x) => x.proposal_id)).toEqual([
+      p.proposal_id,
+    ]);
+    const p2 = await propose(c, 'docs/x.md');
+
     // until the new M4 the signed version governs: same version, same hash, still active
     const n = h.next(c, newS0);
     await h.throughC1(n);
@@ -179,6 +187,15 @@ describe('accepting a re-onboarding proposal (M17, OB §8)', () => {
     const v2 = await governing(c);
     expect(v2).toMatchObject({ version: 2, status: 'active' });
     expect(v2?.prr.supersedes).toBe(v1?.prr.record_hash);
+    // the new record projects R3: the proposal this onboarding resolves is not a zone, the open one is (the whole
+    // repo-wide area, so `**`), bound in its hash
+    expect(v2?.prr.autonomy.r3_zones).toEqual(['**']);
+    expect(v2?.prr.autonomy.r3_sources).toEqual([
+      { area: '.', glob: '**', trigger: 'knowledge_defects', proposal_ids: [p2.proposal_id] },
+    ]);
+    expect((await unresolvedR3(s.record.pool, c.repo, 2)).map((x) => x.proposal_id)).toEqual([
+      p2.proposal_id,
+    ]);
 
     // rebuilt from the events alone: the decision is on the proposal
     await s.record.pool.query('DELETE FROM core.reonboard_proposal WHERE repo = $1', [
@@ -190,6 +207,7 @@ describe('accepting a re-onboarding proposal (M17, OB §8)', () => {
         status: 'accepted',
         decision: expect.objectContaining({ by: 'alice', new_s0_id: newS0, level: 'census' }),
       }),
+      expect.objectContaining({ proposal_id: p2.proposal_id, status: 'proposed' }),
     ]);
   });
 

@@ -335,6 +335,8 @@ export const SCHEMAS = {
   PrrArea: entities.PrrArea,
   PrrAreaFloor: entities.PrrAreaFloor,
   AreaFloorId: entities.AreaFloorId,
+  R3ZoneTrigger: entities.R3ZoneTrigger,
+  PrrR3Zone: entities.PrrR3Zone,
   AreaFloorState: entities.AreaFloorState,
   PrrTier: entities.PrrTier,
   PrrCriterionResult: entities.PrrCriterionResult,

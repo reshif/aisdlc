@@ -550,6 +550,8 @@ export const EligibilityReason = z.enum([
   'followup_overdue',
   /** DEC-25: the request names an area the record's per-area table does not hold. */
   'area_unknown',
+  /** M17: the area (or, for the repo as a whole, some area) is an R3 zone: only the Census lanes run there. */
+  'r3_zone',
 ]);
 export type EligibilityReason = z.infer<typeof EligibilityReason>;
 

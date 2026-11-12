@@ -697,6 +697,16 @@ describe('knowledge defects as a re-onboarding trigger (M17, OB §8)', () => {
       [reonboardStream(c.repo)],
     );
     expect(rec.rows.map((r) => r.type)).toEqual([REONBOARD_EVENT.proposed]);
+    // R3 (OB §8, read-only): while it is open the area is a zone, only the Census lanes run there; the rest of the
+    // repo keeps its lanes, and the repo as a whole is confined
+    const lane = (l: 'L1' | 'L4' | 'L8', area?: string) =>
+      laneEligibility(s.record.pool, c.repo, l, s.clock, undefined, area).then(
+        (v) => `${v.route}:${v.reason}`,
+      );
+    expect(await lane('L1', 'packages/money')).toBe('l8:r3_zone');
+    expect(await lane('L8', 'packages/money')).toBe('normal:eligible');
+    expect(await lane('L4', '.')).toBe('normal:eligible');
+    expect(await lane('L1')).toBe('l8:r3_zone');
     // while it is open, more defects in the area propose nothing new
     const fourth = await recordKnowledgeDefects(deps, {
       repo: c.repo,

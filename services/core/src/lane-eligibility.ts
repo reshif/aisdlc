@@ -13,9 +13,11 @@ import {
   type ReadinessStatus,
 } from '@aisdlc/contracts';
 import type { Clock } from '@aisdlc/kernel';
+import { inR3Zone, r3ZonesOf, type TrippedArea } from '@aisdlc/onboarding';
 import { systemClock } from '@aisdlc/kernel';
 import type { Executor } from '@aisdlc/record';
 import type { PrrVersion } from './fold.js';
+import { unresolvedR3 } from './knowledge-defects.js';
 import { readGoverning } from './prr-store.js';
 
 // The eligibility producer (PLAN M7.6; DEC-8; OB "N8 and L8 routing"): `eligibility(repo, lane)`
@@ -34,6 +36,10 @@ import { readGoverning } from './prr-store.js';
 // The record's `lanes_eligible` was computed from the S0 record's pinned catalogue; the caller's table
 // (an item's pinned one, a new request's the current) must ALSO open the lane at the record's level,
 // so an item keeps the rule of the catalogue it was created under.
+//
+// R3 zones (M17, OB §8): an area the record holds as a zone, or one with a knowledge-defect proposal unresolved NOW (the
+// live R3 state, tightening only), runs only the lanes Census opens; anything else there goes to L8 (`r3_zone`). A
+// request that names no area is the repo as a whole, which any zone confines.
 //
 // Drift and too-low levels never use N8, and this is not the R3 circuit breaker (flow.md R3 is
 // ET14 only). Expiry never approves: an `active` record past its `fresh_until` is treated as
@@ -77,7 +83,7 @@ function whyClosed(
 export function areaOf(
   prr: PrrVersion['prr'],
   area: string | undefined,
-): { level: Level; lanes: readonly Lane[] } | null {
+): { level: Level; lanes: readonly Lane[]; area?: string } | null {
   const rows = prr.level.areas ?? [
     { area: '.', level: prr.level.signed, floors: [], lanes: prr.autonomy.lanes_eligible },
   ];
@@ -90,7 +96,23 @@ export function areaOf(
   }
   const only = rows.length === 1 && rows[0]?.area === '.' ? rows[0] : undefined;
   const row = only ?? rows.find((r) => r.area === area);
-  return row ? { level: row.level, lanes: row.lanes } : null;
+  return row ? { level: row.level, lanes: row.lanes, area: row.area } : null;
+}
+
+/** Whether a request's scope lies in an R3 zone: the record's zones and the live unresolved proposals. */
+export function inZoneOf(
+  prr: PrrVersion['prr'],
+  area: string | undefined,
+  scopeArea: string | undefined,
+  live: readonly TrippedArea[],
+): boolean {
+  const names = prr.level.areas?.map((a) => a.area) ?? Object.keys(prr.level.by_area);
+  const zoned = new Set([
+    ...(prr.autonomy.r3_sources ?? []).map((z) => z.area),
+    ...r3ZonesOf(names.length > 0 ? names : ['.'], live).map((z) => z.area),
+  ]);
+  if (zoned.size === 0) return false;
+  return area === undefined || scopeArea === undefined ? true : inR3Zone(scopeArea, zoned);
 }
 
 /**
@@ -105,6 +127,8 @@ export function routeLane(
   now: Date,
   table: EligibilityCatalogue = ELIGIBILITY,
   area?: string,
+  /** R3 now: the repo's unresolved knowledge-defect proposals (`unresolvedR3`). */
+  liveR3: readonly TrippedArea[] = [],
 ): LaneEligibility {
   const at = area === undefined ? {} : { area };
   if (!governing) {
@@ -135,6 +159,12 @@ export function routeLane(
   }
   const scope = areaOf(governing.prr, area);
   if (scope === null) return { ...base, eligible: false, route: 'l8', reason: 'area_unknown' };
+  if (
+    tableOf('census', lane, table) !== 'eligible' &&
+    inZoneOf(governing.prr, area, scope.area, liveR3)
+  ) {
+    return { ...base, eligible: false, route: 'l8', reason: 'r3_zone' };
+  }
   const opened = tableOf(scope.level, lane, table);
   if (scope.lanes.includes(lane)) {
     if (opened === 'eligible') {
@@ -165,5 +195,6 @@ export async function laneEligibility(
   area?: string,
 ): Promise<LaneEligibility> {
   const g = await readGoverning(db, repo);
-  return routeLane(g?.repo_ref ?? repo, lane, g?.governing ?? null, clock.now(), table, area);
+  const live = g?.governing ? await unresolvedR3(db, g.repo_ref, g.governing.version) : [];
+  return routeLane(g?.repo_ref ?? repo, lane, g?.governing ?? null, clock.now(), table, area, live);
 }
