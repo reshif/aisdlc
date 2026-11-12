@@ -70,7 +70,7 @@ const CODEOWNERS = '* @alice-gh\n';
 
 const goodRules = () => [
   rawRules.pr({}),
-  rawRules.checks([{ context: 'gate-check', integration_id: 99 }], false),
+  rawRules.checks([{ context: 'aisdlc/gate', integration_id: 99 }], false),
   rawRules.simple('non_fast_forward'),
   rawRules.simple('deletion'),
 ];
@@ -676,7 +676,7 @@ describe('a loosened control suspends (DEC-21): recorded, ledgered, lanes closed
     w.push({
       sha: H2,
       files: { 'AGENTS.md': ORIGINAL, '.github/CODEOWNERS': CODEOWNERS },
-      rules: [rawRules.checks([{ context: 'gate-check' }], false), rawRules.simple('deletion')],
+      rules: [rawRules.checks([{ context: 'aisdlc/gate' }], false), rawRules.simple('deletion')],
     });
     const c = await poll(w);
     expect(c?.suspended).toBe(true);

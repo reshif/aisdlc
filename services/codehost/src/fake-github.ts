@@ -183,7 +183,12 @@ await runService('fake-github', async () => {
   const api = await new FakeGitHubServer({
     appId: requiredEnv(env, 'FAKE_GITHUB_APP_ID'),
     appPublicKeyPem: publicKeyPem,
-    seed: testbedSeed({ repo, head, installationId }),
+    seed: testbedSeed({
+      repo,
+      head,
+      installationId,
+      ...(checksApp ? { gateCheckAppId: Number(checksApp.appId) } : {}),
+    }),
     listenHost: '127.0.0.1',
     listenPort: apiPort,
     ...(checksApp ? { checksApp } : {}),

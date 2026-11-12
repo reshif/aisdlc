@@ -142,7 +142,7 @@ export function hostSeed(repo: string, o: HostOptions = {}): CodeHostSeed {
             [
               o.unpinnedStatuses
                 ? { context: 'ci' }
-                : { context: 'gate-check', integration_id: 99 },
+                : { context: 'aisdlc/gate', integration_id: 99 },
             ],
             false,
           ),
