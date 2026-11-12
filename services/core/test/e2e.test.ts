@@ -197,6 +197,18 @@ describe('step 0.1 through the real services', () => {
     expect(api.length).toBeGreaterThan(0);
     expect(api.every((x) => x.method === 'GET')).toBe(true);
     expect(api.some((x) => x.path.includes('acme/blank'))).toBe(false);
+
+    // M17: the code graph card 3 is built from, over HTTP, at the census head only.
+    const graph = await driver.knowledge.codeGraph('acme/app', fixture.head);
+    if (!graph.ok || graph.value === null) throw new Error('no code graph');
+    expect(graph.value.commit_sha).toBe(fixture.head);
+    expect(graph.value.files.length).toBeGreaterThan(0);
+    const stale = await driver.knowledge.codeGraph('acme/app', 'b'.repeat(40));
+    expect(stale).toMatchObject({ ok: false, error: { kind: 'refused' } });
+    expect(await driver.knowledge.codeGraph('acme/none', fixture.head)).toEqual({
+      ok: true,
+      value: null,
+    });
   });
 
   it('a repo the App is not installed on waits ("0.1 waiting: App not installed") and starts no job', async () => {
