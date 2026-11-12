@@ -14,6 +14,13 @@ const Key = z.string().min(1).max(64);
 export const ItemReadyRequest = z.strictObject({ on_behalf_of: PrincipalId });
 export type ItemReadyRequest = z.infer<typeof ItemReadyRequest>;
 
+/** M15.3: RELHOLD's re-request after the fix window (`key`: the caller's idempotency key). */
+export const ItemReleaseRequest = z.strictObject({
+  on_behalf_of: PrincipalId,
+  key: z.string().regex(/^[A-Za-z0-9_.:-]{1,64}$/),
+});
+export type ItemReleaseRequest = z.infer<typeof ItemReleaseRequest>;
+
 export const ItemAnswerRequest = z.strictObject({
   on_behalf_of: PrincipalId,
   question_id: z.string().min(1).max(128),

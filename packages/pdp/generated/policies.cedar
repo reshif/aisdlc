@@ -107,6 +107,9 @@ permit (principal in Role::"project.admin", action == Action::"gate.view", resou
 @id("role/project.admin/item.ready")
 permit (principal in Role::"project.admin", action == Action::"item.ready", resource);
 
+@id("role/project.admin/item.release")
+permit (principal in Role::"project.admin", action == Action::"item.release", resource);
+
 @id("role/project.admin/item.view_floor")
 permit (principal in Role::"project.admin", action == Action::"item.view_floor", resource);
 
@@ -259,6 +262,9 @@ when { resource.slot == "g5" };
 
 @id("role/project.release_approver/gate.view")
 permit (principal in Role::"project.release_approver", action == Action::"gate.view", resource);
+
+@id("role/project.release_approver/item.release")
+permit (principal in Role::"project.release_approver", action == Action::"item.release", resource);
 
 @id("role/project.release_approver/item.view_floor")
 permit (principal in Role::"project.release_approver", action == Action::"item.view_floor", resource);

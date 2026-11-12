@@ -18,6 +18,7 @@ action "work.request" appliesTo { principal: [Principal], resource: [Project] };
 action "item.ready" appliesTo { principal: [Principal], resource: [Item] };
 action "item.observe" appliesTo { principal: [Principal], resource: [Item] };
 action "item.plan" appliesTo { principal: [Principal], resource: [Item] };
+action "item.release" appliesTo { principal: [Principal], resource: [Item] };
 action "project.view" appliesTo { principal: [Principal], resource: [Project] };
 action "project.settings.edit" appliesTo { principal: [Principal], resource: [Project] };
 action "floor.read" appliesTo { principal: [Principal], resource: [Fleet, Project] };

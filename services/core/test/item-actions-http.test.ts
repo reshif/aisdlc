@@ -20,6 +20,7 @@ import { pid, pr, startCoreStack, type CoreStack } from '../src/testing.js';
 import { OTHER_SHA, planningRig, sharedProvider, startPlanningGateway } from './planning.js';
 import {
   GATING_OFF,
+  GATING_ON,
   approvers,
   driverOver,
   loadReports,
@@ -360,4 +361,50 @@ describe('observed signals during G3d (B4, R2) and the human-written plan (B5)',
     expect((await send('dee', 'p6')).status).toBe(409);
     void provider;
   });
+});
+
+describe('RELHOLD re-request (M15.3)', () => {
+  it('only while the release is held, only by the release slot; G5 opens again and the signal is idempotent', async () => {
+    const seeded = await seedActivePrr(s, { level: 'full', gating: GATING_ON });
+    approvers(s, seeded.project, ['bob']);
+    await bindProject(s.id, seeded.project, { requesters: ['ria'], g5: ['ivy'] });
+    const sub = await submitRequest(s.deps, {
+      project_id: pid(seeded.project),
+      repo: seeded.repo,
+      lane: 'L4',
+      requester: pr('ria'),
+      channel: 'N1',
+      text: 'Release held test.',
+    });
+    if (!sub.ok) throw new Error(sub.error.message);
+    const item = sub.value.item_id as string;
+    const d = driverOver(s);
+    const body = (who: string) => ({ on_behalf_of: who, key: 'rr-1' });
+    // not held: a conflict
+    expect((await post(`/v1/items/${item}/release/re-request`, body('ivy'))).status).toBe(409);
+    await runItem(s, d, item, {
+      decide: (g) => (g === 'G5' ? 'reject' : 'approve'),
+      stop: (st) => st.waiting?.kind === 'release_held',
+    });
+    expect((await state(item))?.waiting).toMatchObject({ kind: 'release_held' });
+    // the requester, a reader token, a body that is not the contract: refused
+    expect((await post(`/v1/items/${item}/release/re-request`, body('ria'))).status).toBe(403);
+    expect(
+      (await post(`/v1/items/${item}/release/re-request`, body('ivy'), TOKENS.reader)).status,
+    ).toBe(403);
+    expect(
+      (await post(`/v1/items/${item}/release/re-request`, { on_behalf_of: 'ivy' })).status,
+    ).toBe(400);
+    const ok = await post(`/v1/items/${item}/release/re-request`, body('ivy'));
+    expect(ok.status).toBe(200);
+    expect(ok.json.duplicate).toBe(false);
+    expect((await post(`/v1/items/${item}/release/re-request`, body('ivy'))).json.duplicate).toBe(
+      true,
+    );
+    await runItem(s, d, item, {
+      decide: () => 'hold',
+      stop: (st) => st.gates.filter((g) => g.gate === 'G5').length >= 2,
+    });
+    expect((await state(item))?.gates.filter((g) => g.gate === 'G5')).toHaveLength(2);
+  }, 200_000);
 });

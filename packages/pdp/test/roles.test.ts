@@ -29,6 +29,8 @@ const EXPECTED: Record<
       'work.request',
       // M12.5: the steps of the lifecycle that are not gates (Ready, answers to questions)
       'item.ready',
+      // M15.3: RELHOLD's re-request
+      'item.release',
       'project.settings.edit',
       'kill.request',
       'kill.release',
@@ -60,7 +62,12 @@ const EXPECTED: Record<
     cards: true,
   },
   'project.code_owner': { actions: VIEWS, decides: (g) => g === 'G4', cards: true },
-  'project.release_approver': { actions: VIEWS, decides: (g) => g === 'G5', cards: true },
+  'project.release_approver': {
+    // M15.3: RELHOLD's re-request is the release slot's
+    actions: [...VIEWS, 'item.release'],
+    decides: (g) => g === 'G5',
+    cards: true,
+  },
   'project.exception_approver': { actions: VIEWS, decides: (g) => /^(X|E)\d/.test(g), cards: true },
   'project.security_approver': {
     actions: VIEWS,

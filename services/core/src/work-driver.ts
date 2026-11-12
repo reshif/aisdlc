@@ -75,6 +75,7 @@ import {
 import { syncKillHolds } from './kill.js';
 import { catchUpWork } from './work-projection.js';
 import { dispatchAgent, recordFailure, releaseRun } from './agent-dispatch.js';
+import { g5Card, releaseBindingOf } from './release/binding.js';
 import { admitUnit, ensureAdmitted, syncUnits, type AdmissionPorts } from './admission/index.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
 
@@ -536,6 +537,14 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
 
     case 'open_gates': {
       if (!d.decisions) throw new Error('the decision kernel is not configured: gates cannot open');
+      // M15.3: G5's card binds the merged commit to the Evidence Pack's head and the release target, in its facts and
+      // its subject hash (gate-relay checks the same binding again before it deploys)
+      const g5 = c.gates.includes('G5')
+        ? g5Card(
+            { subject_hash: c.subject_hash, facts: c.facts as JsonObject },
+            await releaseBindingOf(d.pool, s),
+          )
+        : null;
       const cards = await openCards(d.decisions, {
         project_id: s.project_id as ProjectId,
         requester: s.requester as PrincipalId,
@@ -543,8 +552,8 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
         subject_id: s.item_id,
         gates: c.gates.map((g) => ({
           gate_id: g,
-          subject_hash: c.subject_hash,
-          facts: c.facts as JsonObject,
+          subject_hash: g === 'G5' && g5 ? g5.subject_hash : c.subject_hash,
+          facts: g === 'G5' && g5 ? g5.facts : (c.facts as JsonObject),
           // B5: the person who wrote the plan by hand is treated like the requester on G3 (and G3s, the skeleton
           // of the same plan): the kernel's SoD rule, single-holder waiver stamped, never at T2.
           ...((g === 'G3' || g === 'G3s') && s.plan_author
