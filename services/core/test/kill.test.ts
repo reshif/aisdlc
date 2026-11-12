@@ -52,7 +52,8 @@ let seeded: Seeded;
 let killId = '';
 
 beforeAll(async () => {
-  ks = await startTestKillswitch({ custody, admins: ['root', 'root2'] });
+  // the bff's key custody is its own link: its step-up proofs still come while the kill switch's is down
+  ks = await startTestKillswitch({ custody, stepUpSigner: base, admins: ['root', 'root2'] });
 });
 afterAll(async () => {
   await s?.stop();

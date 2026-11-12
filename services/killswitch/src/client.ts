@@ -33,6 +33,10 @@ const CODES: readonly KillswitchErrorCode[] = [
   'unavailable',
 ];
 
+const KillswitchErrorEnvelope = z.strictObject({
+  error: ErrorEnvelope.shape.error.extend({ reasons: z.array(z.string()).optional() }),
+});
+
 async function request<S extends z.ZodType>(
   o: KillswitchClientOptions,
   method: 'GET' | 'POST' | 'PUT',
@@ -51,7 +55,8 @@ async function request<S extends z.ZodType>(
   });
   if (!r.reached) return err(killswitchError('unavailable', r.message));
   if (r.status < 200 || r.status > 299) {
-    const e = ErrorEnvelope.safeParse(r.json);
+    // the kill switch adds `reasons` to a PDP refusal; the code and message are what a caller reads
+    const e = KillswitchErrorEnvelope.safeParse(r.json);
     if (!e.success) return err(killswitchError('unavailable', `HTTP ${r.status}`));
     const code = CODES.find((c) => c === e.data.error.code) ?? 'unavailable';
     return err(killswitchError(code, e.data.error.message));
@@ -84,27 +89,35 @@ const Events = z.object({ events: z.array(KillEvent), key: z.unknown().optional(
 export class KillswitchClient {
   constructor(private readonly o: KillswitchClientOptions) {}
 
-  kill(on_behalf_of: string, scope: unknown, reason: string) {
-    return request(this.o, 'POST', '/v1/kills', { on_behalf_of, scope, reason }, KillRecord);
+  // Every act carries the acting person's step-up proof for exactly that act (`killActHash`, RC-SEC-3):
+  // the kill switch takes the actor from the proof. The caller cannot name anyone.
+  kill(proof: string, scope: unknown, reason: string) {
+    return request(this.o, 'POST', '/v1/kills', { step_up: { proof }, scope, reason }, KillRecord);
   }
-  release(on_behalf_of: string, kill_id: string) {
-    return request(this.o, 'POST', `/v1/kills/${kill_id}/release`, { on_behalf_of }, KillRecord);
+  release(proof: string, kill_id: string) {
+    return request(
+      this.o,
+      'POST',
+      `/v1/kills/${kill_id}/release`,
+      { step_up: { proof } },
+      KillRecord,
+    );
   }
-  delegate(on_behalf_of: string, delegate: string, scope: unknown) {
+  delegate(proof: string, delegate: string, scope: unknown) {
     return request(
       this.o,
       'POST',
       '/v1/delegations',
-      { on_behalf_of, delegate, scope },
+      { step_up: { proof }, delegate, scope },
       KillDelegationGrant,
     );
   }
-  revoke(on_behalf_of: string, delegation_id: string) {
+  revoke(proof: string, delegation_id: string) {
     return request(
       this.o,
       'POST',
       `/v1/delegations/${delegation_id}/revoke`,
-      { on_behalf_of },
+      { step_up: { proof } },
       KillDelegationGrant,
     );
   }
