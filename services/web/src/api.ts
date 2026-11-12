@@ -34,6 +34,22 @@ import type {
   GateCardContext,
   GateCheckRunsView,
   ItemVerifyView,
+  AccessExplainView,
+  AdmissionView,
+  AgentRegistryView,
+  AuditDecisionsView,
+  CatalogueView,
+  ControlKind,
+  ControlsView,
+  DirectoryView,
+  EvalRunsView,
+  EvalSummaryView,
+  IntegrationsView,
+  ItemListView,
+  KillsView,
+  OpsPreview,
+  SandboxSlots,
+  Scope,
 } from '@aisdlc/contracts';
 import type { JsonSchema } from './lib/schema';
 
@@ -443,6 +459,37 @@ export const api = {
       { preferences },
       csrf,
     ),
+  // ------------------------------------------------------------ lists, quality, operate, govern, admin (2026-11-12)
+  items: (project?: string) =>
+    request<ItemListView>(
+      'GET',
+      `/api/items${project ? `?project=${encodeURIComponent(project)}` : ''}`,
+    ),
+  agents: () => request<AgentRegistryView>('GET', '/api/agents'),
+  evalSummary: () => request<EvalSummaryView>('GET', '/api/evals/summary'),
+  evalRuns: () => request<EvalRunsView>('GET', '/api/evals/runs?limit=50'),
+  integrations: () => request<IntegrationsView>('GET', '/api/integrations'),
+  catalogue: () => request<CatalogueView>('GET', '/api/catalogue'),
+  admission: () => request<AdmissionView>('GET', '/api/admission'),
+  slots: () => request<SandboxSlots>('GET', '/api/slots'),
+  controls: () => request<ControlsView>('GET', '/api/controls'),
+  previewControl: (b: { kind: ControlKind; scope: Scope }, csrf: string) =>
+    request<OpsPreview>('POST', '/api/controls/preview', b, csrf),
+  applyControl: (
+    b: { kind: ControlKind; scope: Scope; preview_id: string; nonce: string },
+    csrf: string,
+  ) => request<unknown>('POST', '/api/controls', b, csrf),
+  liftControl: (id: string, reason: string, csrf: string) =>
+    request<unknown>('POST', `/api/controls/${encodeURIComponent(id)}/lift`, { reason }, csrf),
+  kills: () => request<KillsView>('GET', '/api/kills'),
+  auditDecisions: (action?: string) =>
+    request<AuditDecisionsView>(
+      'GET',
+      `/api/audit/decisions?limit=200${action ? `&action=${encodeURIComponent(action)}` : ''}`,
+    ),
+  directory: () => request<DirectoryView>('GET', '/api/directory'),
+  explain: (project: string) =>
+    request<AccessExplainView>('GET', `/api/projects/${encodeURIComponent(project)}/explain`),
   ledger: (project: string, s0?: string) =>
     request<LedgerAuditView>(
       'GET',

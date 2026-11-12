@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { AccessProvider } from './access';
+import { useState, type ReactNode } from 'react';
+import { AccessProvider, reasonText } from './access';
 import { ApiError, api, type Me } from './api';
 import { ErrorNote, Loading } from './components/Notice';
 import { CardPage } from './pages/CardPage';
@@ -18,7 +18,11 @@ import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
 import { MyAccessPage } from './pages/MyAccessPage';
 import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsPage';
 import { AskPage } from './assistant/AskPage';
-import { Link, NavContext, useRoute, type Route } from './router';
+import { HomePage } from './pages/HomePage';
+import { BoardPage, ItemsPage } from './pages/ItemsPage';
+import { guardAction, guardOf, guardPasses } from './shell/nav';
+
+import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
 import { Shell } from './shell/Shell';
 import { ErrorState, PageHead, ToastProvider } from './ui';
 
@@ -97,11 +101,46 @@ function SignedOut() {
   );
 }
 
+/**
+ * A screen the navigation would not list for this person is a 403 with the policy's reason, before any
+ * call: the server refuses the reads anyway, this only saves the person a broken page.
+ */
+function Screen({ me, route, children }: { me: Me; route: Route; children: ReactNode }) {
+  const path = Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
+  const guard = path ? guardOf(path) : null;
+  if (guard && !guardPasses(guard, me)) {
+    const action = guardAction(guard);
+    return (
+      <ErrorState
+        status={403}
+        {...(action ? { reason: reasonText(action, ['no_policy_permits']) } : {})}
+        action={<Link to="/me/access">See my access</Link>}
+      />
+    );
+  }
+  return <>{children}</>;
+}
+
 function Page({ route, me }: { route: Route; me: Me }) {
+  return (
+    <Screen me={me} route={route}>
+      <PageBody route={route} me={me} />
+    </Screen>
+  );
+}
+
+function PageBody({ route, me }: { route: Route; me: Me }) {
   const mayOnboard = me.actions.fleet.includes('project.onboard');
+  const csrf = me.csrf_token;
   switch (route.name) {
     case 'home':
+      return <HomePage me={me} />;
+    case 'projects':
       return <ProjectListPage canOnboard={mayOnboard} />;
+    case 'items':
+      return <ItemsPage />;
+    case 'board':
+      return <BoardPage />;
     case 'onboard':
       return <OnboardPage csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':
@@ -142,6 +181,6 @@ function Page({ route, me }: { route: Route; me: Me }) {
     case 'notificationPrefs':
       return <NotificationPrefsPage csrf={me.csrf_token} />;
     case 'notfound':
-      return <ErrorState status={404} action={<Link to="/">Back to projects</Link>} />;
+      return <ErrorState status={404} action={<Link to="/">Back home</Link>} />;
   }
 }

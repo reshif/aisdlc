@@ -1,0 +1,164 @@
+/* Screens built 2026-11-12 (home, items and board, quality, operate, govern, admin): `pg-` layout only.
+   Colours come from the tokens (ui/tokens.css); nothing here widens the page past the viewport. */
+.pg-split {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
+  margin-top: 16px;
+}
+.pg-col {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.pg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pg-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pg-list li:last-child {
+  border-bottom: 0;
+}
+.pg-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+}
+.pg-role {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.pg-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+.pg-step-spec {
+  border-style: dashed;
+}
+.pg-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  margin: 12px 0;
+}
+.pg-filters select,
+.pg-form select,
+.pg-form input,
+.pg-inline input {
+  max-width: 100%;
+}
+.pg-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: end;
+}
+.pg-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.pg-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.pg-preview {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.pg-pad {
+  padding: 12px 16px;
+}
+.pg-board {
+  /* the containing block of the visually hidden lane names, so they scroll with the board */
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(13rem, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  max-width: 100%;
+}
+.pg-board-col {
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 0;
+}
+.pg-board-col h2 {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+.pg-board-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.pg-board-card {
+  display: grid;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.pg-tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+}
+.pg-tile {
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+.pg-tile-hd {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+.pg-stack {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.pg-notes {
+  margin: 0;
+  padding-left: 18px;
+}
+.pg-notes li {
+  padding: 4px 0;
+}
