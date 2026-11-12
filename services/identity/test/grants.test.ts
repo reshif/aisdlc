@@ -106,7 +106,8 @@ describe('the grant scope', () => {
     expect(
       (await call(TOKENS.core, '/v1/grants', grant({ role_id: 'factory.admin' }))).status,
     ).toBe(400);
-    const { m_gate_ref: _drop, ...noGate } = grant();
+    const noGate: Record<string, unknown> = grant();
+    delete noGate['m_gate_ref'];
     expect((await call(TOKENS.core, '/v1/grants', noGate)).status).toBe(400);
     expect(
       (
