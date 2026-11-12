@@ -176,6 +176,61 @@ export const CardPayloadItem = z.discriminatedUnion('kind', [
     kind: z.literal('claim_verdict'),
     claim_id: z.string().min(1),
     verdict: ClaimVerdict,
+    /** Card 2: the person's correct statement, with `correct` only (secret-scanned before it is stored). */
+    correction: z.string().min(1).max(1000).optional(),
+  }),
+  /** Card 2: the proposal the person decided on (recorded first, DEC-12(a)), and what it was built from. */
+  z.strictObject({
+    kind: z.literal('light_proposal'),
+    proposal_hash: Sha256Hex,
+    census_hash: Sha256Hex,
+    template_hash: Sha256Hex,
+  }),
+  /** Card 2: the claims as decided (LF6, the PRR's `affirmed.claims`). */
+  z.strictObject({
+    kind: z.literal('claims_summary'),
+    total_high_impact: z.number().int().min(0),
+    affirmed: z.number().int().min(0),
+    corrected: z.number().int().min(0),
+    unknown: z.number().int().min(0),
+    pct: z.number().min(0).max(100),
+    claims_hash: Sha256Hex,
+  }),
+  /** Card 2: the intent answers, verbatim (ON10). Secret-scanned before they are stored. */
+  z.strictObject({
+    kind: z.literal('intent_answers'),
+    question_set: z.string().min(1),
+    answers: z.array(
+      z.strictObject({ question_id: z.string().min(1), answer: z.string().min(1).max(2000) }),
+    ),
+    answers_hash: Sha256Hex,
+  }),
+  /** Card 2: the practices interview, attested (ON9). */
+  z.strictObject({
+    kind: z.literal('practices_attestation'),
+    question_set: z.string().min(1),
+    answers: z.array(
+      z.strictObject({ question_id: z.string().min(1), answer: z.string().min(1).max(2000) }),
+    ),
+    answers_hash: Sha256Hex,
+  }),
+  /**
+   * Card 2: one instruction file affirmed (OB §4.1 item 4): the text is the record copy the proposal
+   * or an edit holds, by hash; the D37 step-up was bound to `bound_hash` (all files affirmed on the
+   * card); `step_up_ref` is the sha256 of that proof. `sod_waiver` is the ledger entry's.
+   */
+  z.strictObject({
+    kind: z.literal('instruction_affirmation'),
+    area: z.string().min(1).max(256),
+    path: z.string().min(1).max(256),
+    text_sha256: Sha256Hex,
+    source_blob_sha: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/)
+      .nullable(),
+    lint_report_hash: Sha256Hex,
+    bound_hash: Sha256Hex,
+    step_up_ref: Sha256Hex,
   }),
   /**
    * A work-item gate card (M12, Gap B): why the person rejected it or asked for changes (or said anything with
@@ -263,6 +318,8 @@ export function cardPayloadItemKey(item: CardPayloadItem): string {
       return `dispute:${item.ref}`;
     case 'finding_state':
       return `finding:${item.finding_id}`;
+    case 'instruction_affirmation':
+      return `instruction:${item.path}`;
     default:
       return item.kind;
   }

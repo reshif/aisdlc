@@ -7,6 +7,7 @@ export * from './readiness.js';
 export * from './config.js';
 export * from './onboarding.js';
 export * from './onboarding-cards.js';
+export * from './onboarding-light.js';
 export * from './decisions.js';
 export * from './work.js';
 export * from './agent-definitions.js';
