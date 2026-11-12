@@ -258,6 +258,20 @@ export async function linkGithubLogin(
   if (!r.ok) throw new Error(`link ${login}: ${r.error.message}`);
 }
 
+/** Links an email address to a principal (`email`, the IdP's address: what the notifier mails); throws on failure. */
+export async function linkEmail(
+  deps: IdentityDeps,
+  principal: string,
+  email: string,
+): Promise<void> {
+  const r = await linkIdentity(
+    deps,
+    { principal_id: principal, kind: 'email', issuer: null, value: email },
+    'system.test',
+  );
+  if (!r.ok) throw new Error(`link ${principal}: ${r.error.message}`);
+}
+
 /** The identity HTTP API over a stack, on a loopback port, for tests of other services. */
 export async function startTestIdentityApi(
   s: IdentityStack,

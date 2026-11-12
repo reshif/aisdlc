@@ -4,6 +4,7 @@ import {
   proposeRevision,
   readLineage,
   registerGateCheckConfig,
+  registerNotificationsConfig,
   registerSandboxConfig,
   type ConfigDeps,
   type ConfigRegistry,
@@ -69,6 +70,8 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   registerSandboxConfig(registry);
   // M14.5: the per-repo merge bypass list is gate-check's to read; core's revisions must validate it
   registerGateCheckConfig(registry);
+  // M18: the notifier's channel rows are the notifier's to read; core's revisions must validate them
+  registerNotificationsConfig(registry);
   return registry
     .setting({
       key: PROJECT_CONFIG_KEYS.role_map,

@@ -1,5 +1,12 @@
 import type {
   ActionId,
+  AskResult,
+  AssistantBudgetView,
+  NotificationList,
+  NotificationPreferences,
+  NotificationPreferencesView,
+  ThreadList,
+  ThreadView,
   ConfigKeySummary,
   ConfigKeyView,
   ConfigProposeResult,
@@ -23,6 +30,10 @@ import type {
   ProjectPrrView,
   ProjectSummary,
   S0Overview,
+  EvidencePackView,
+  GateCardContext,
+  GateCheckRunsView,
+  ItemVerifyView,
 } from '@aisdlc/contracts';
 import type { JsonSchema } from './lib/schema';
 
@@ -122,10 +133,17 @@ export interface GateCardWire {
   readonly deciders: { readonly slots: readonly string[]; readonly holders: readonly string[] };
   readonly decisions_allowed: readonly string[];
   readonly decision_reason: string | null;
-  /** The PDP's yes, the person holds the role, the card is open and no gate needs a step-up. */
+  /** The PDP's yes, the person holds the role and the card is open (a step-up gate asks for the proof first). */
   readonly may_decide: boolean;
+  /** Why not this person: the PDP's reasons first (`pdp_denied`), then `not_slot_holder`, `not_open`. */
+  readonly why_not?: { readonly code: string; readonly reasons: readonly string[] } | null;
   readonly principal_names: Readonly<Record<string, string>>;
 }
+
+/** `GET /api/cards/:id/gate/context`: what an exception or quarantine gate binds, with the names of its deciders. */
+export type GateContextWire = GateCardContext & {
+  readonly principal_names: Readonly<Record<string, string>>;
+};
 
 export interface GateCardPreparedWire {
   readonly card_id: string;
@@ -197,8 +215,19 @@ export type PortalObserve =
   | Omit<Extract<ItemObserveRequest, { edge: 'R2' }>, 'on_behalf_of'>;
 export type PortalPlan = Omit<ItemPlanRequest, 'on_behalf_of'>;
 
+/** What the browser sends to the assistant: never a person or a data class (the bff adds them from the session). */
+export type AskInput =
+  | {
+      /** `ThreadSubjectRequest`'s two shapes, with plain ids as the browser holds them. */
+      readonly subject:
+        | { readonly kind: 's0'; readonly s0_id: string }
+        | { readonly kind: 'project'; readonly project_id: string };
+      readonly text: string;
+    }
+  | { readonly thread_id: string; readonly text: string };
+
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PUT',
   path: string,
   body?: unknown,
   csrf?: string,
@@ -272,6 +301,8 @@ export const api = {
     request<GateArtefactsWire>('GET', `/api/cards/${encodeURIComponent(id)}/artefacts`),
   gateCard: (id: string) =>
     request<GateCardWire>('GET', `/api/cards/${encodeURIComponent(id)}/gate`),
+  gateContext: (id: string) =>
+    request<GateContextWire>('GET', `/api/cards/${encodeURIComponent(id)}/gate/context`),
   prepareGateCard: (id: string, csrf: string) =>
     request<GateCardPreparedWire>(
       'POST',
@@ -295,7 +326,7 @@ export const api = {
     b: {
       decision: 'approve' | 'request_changes' | 'reject';
       reason?: string;
-      votes: ReadonlyArray<{ nonce: string }>;
+      votes: ReadonlyArray<{ nonce: string; step_up?: { proof: string } }>;
     },
     csrf: string,
   ) =>
@@ -363,6 +394,18 @@ export const api = {
       csrf,
     ),
   item: (id: string) => request<PortalItemView>('GET', `/api/items/${encodeURIComponent(id)}`),
+  itemVerify: (id: string, head?: string) =>
+    request<ItemVerifyView>(
+      'GET',
+      `/api/items/${encodeURIComponent(id)}/verify${head ? `?head=${encodeURIComponent(head)}` : ''}`,
+    ),
+  itemEvidence: (id: string, pack?: string) =>
+    request<EvidencePackView>(
+      'GET',
+      `/api/items/${encodeURIComponent(id)}/evidence${pack ? `?pack=${encodeURIComponent(pack)}` : ''}`,
+    ),
+  itemGateCheck: (id: string) =>
+    request<GateCheckRunsView>('GET', `/api/items/${encodeURIComponent(id)}/gate-check`),
   itemReady: (id: string, csrf: string) =>
     request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/ready`, {}, csrf),
   itemAnswer: (id: string, b: { question_id: string; text: string }, csrf: string) =>
@@ -373,9 +416,47 @@ export const api = {
     request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
+  // ------------------------------------------------------------ the assistant (M18)
+  ask: (input: AskInput, csrf: string) =>
+    request<AskResult>('POST', '/api/assistant/ask', input, csrf),
+  threads: (f: { s0?: string; project?: string }) => {
+    const qs = new URLSearchParams();
+    if (f.s0) qs.set('s0', f.s0);
+    if (f.project) qs.set('project', f.project);
+    const q = qs.toString();
+    return request<ThreadList>('GET', `/api/assistant/threads${q ? `?${q}` : ''}`);
+  },
+  thread: (id: string) =>
+    request<ThreadView>('GET', `/api/assistant/threads/${encodeURIComponent(id)}`),
+  assistantBudget: () => request<AssistantBudgetView>('GET', '/api/assistant/budget'),
+  /**
+   * A proposal button of kind `call`: the bff route it names, under the person's own session (the PDP decides there).
+   * Only a path under `/api/` is ever called; the button never carries a body.
+   */
+  callProposal: (path: string, csrf: string) => {
+    if (!/^\/api\/[A-Za-z0-9/_-]+$/.test(path)) {
+      return Promise.reject(new ApiError(400, 'invalid_route', 'Not a route the portal calls.'));
+    }
+    return request<unknown>('POST', path, {}, csrf);
+  },
+  // ------------------------------------------------------------ notifications (M18)
+  notifications: () => request<NotificationList>('GET', '/api/me/notifications'),
+  notificationPrefs: () =>
+    request<NotificationPreferencesView>('GET', '/api/me/notifications/preferences'),
+  setNotificationPrefs: (preferences: NotificationPreferences, csrf: string) =>
+    request<NotificationPreferencesView>(
+      'PUT',
+      '/api/me/notifications/preferences',
+      { preferences },
+      csrf,
+    ),
   ledger: (project: string, s0?: string) =>
     request<LedgerAuditView>(
       'GET',
       `/api/projects/${encodeURIComponent(project)}/ledger${s0 ? `?s0=${encodeURIComponent(s0)}` : ''}`,
     ),
 };
+
+/** Where the browser downloads a pack's signed bytes (a plain GET with the session cookie). */
+export const signedPackHref = (item: string, pack: string): string =>
+  `/api/items/${encodeURIComponent(item)}/evidence/${encodeURIComponent(pack)}/signed`;

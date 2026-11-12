@@ -54,6 +54,10 @@ import {
   listEvidencePacks,
   readSignedPack,
   rebuildEvidencePacks,
+  evidencePackView,
+  gateCardContext,
+  itemVerifyView,
+  signedPackBytes,
   CorePush,
   CorePushGuards,
   planUnits,
@@ -480,6 +484,45 @@ describe('S6 -> S7 through core', () => {
     expect(g?.decisions.map((d) => d.decision)).toEqual(['approve']);
     expect(pack.steps[3]).toMatchObject({ step: '7.4', gate_approved: true, met: true });
     expect(rs.map((r) => r.step)).toEqual(['7.1', '7.2', '7.3', '7.4', '7.5']);
+
+    // M14.6: the portal's reads of the same record
+    const v = ok(await itemVerifyView(s.record.pool, w.itemId));
+    expect(v.head_sha).toBe(r74?.head_sha);
+    expect(v.steps.map((x) => `${x.step}:${x.status}`)).toEqual([
+      '7.1:passed',
+      '7.2:passed',
+      '7.3:passed',
+      '7.4:raised',
+      '7.5:passed',
+    ]);
+    const s74 = v.steps[3];
+    expect(s74?.gate).toMatchObject({ gate: 'X2', status: 'decided', outcome: 'approve' });
+    expect(s74?.gate?.card_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(s74?.findings.items.some((f) => f.kind === 'protected_path')).toBe(true);
+    expect(v.pack).toMatchObject({ pack_sha256: p?.pack_sha256, passing: true });
+    const ev = ok(await evidencePackView(s.record.pool, w.objects, w.itemId));
+    expect(ev.contents).toMatchObject({ verified: true, units: [pack.units[0]?.unit_key] });
+    expect(ev.contents?.steps).toEqual(pack.steps);
+    expect(ev.verify_command).toContain(`--head ${pack.head_sha}`);
+    const without = ok(await evidencePackView(s.record.pool, undefined, w.itemId));
+    expect([without.contents, without.contents_problem]).toEqual([
+      null,
+      'the object store is not configured for this service',
+    ]);
+    const bytes = ok(
+      await signedPackBytes(s.record.pool, w.objects, w.itemId, p?.pack_sha256 as string),
+    );
+    expect(sha256b(Buffer.from(bytes.bytes))).toBe(p?.object_key);
+    const ctx = ok(await gateCardContext(s.record.pool, s74?.gate?.card_id as string));
+    expect(ctx).toMatchObject({ gate: 'X2', station: '7.4!X2', step: '7.4', quorum_required: 1 });
+    expect(ctx.decisions.map((d) => d.decision)).toEqual(['approve']);
+    expect(ctx.check?.result_sha256).toBe(s74?.result_sha256);
+    // X2 at 7.4 binds the patch 6.6 pushed (its artefact's hash is the patch hash)
+    expect(ctx.patch).toMatchObject({ source: 'bound_artefact', bound: true });
+    expect(
+      ctx.binds.some((b) => b.label === '6.6 patch' && b.value === ctx.patch?.patch_hash),
+    ).toBe(true);
+    expect(ctx.binds.map((b) => b.label)).toContain('station');
   });
 
   it('no X2 at 7.4 when the head touches no protected path', async () => {
@@ -508,6 +551,19 @@ describe('S6 -> S7 through core', () => {
     const { verifyResultHash } = await import('@aisdlc/contracts');
     expect(q?.pack_sha256).toBe(r72 ? verifyResultHash(r72) : 'none');
     expect(st?.gates.find((g) => g.gate === 'SECT')?.status).toBe('pending');
+
+    // M14.6: Q1 on the portal: 7.2 raised ET10, and the SECT card's context is the quarantine and that result
+    const v = ok(await itemVerifyView(s.record.pool, w.itemId));
+    const s72 = v.steps[1];
+    expect(s72).toMatchObject({ step: '7.2', status: 'raised' });
+    expect(s72?.raised).toMatchObject({ kind: 'trigger', trigger: 'ET10' });
+    expect(s72?.gate).toMatchObject({ gate: 'SECT', status: 'pending' });
+    expect(s72?.findings.items[0]?.repair_class).toBe('quarantine');
+    const ctx = ok(await gateCardContext(s.record.pool, s72?.gate?.card_id as string));
+    expect(ctx).toMatchObject({ gate: 'SECT', step: null, station: 'sect:1' });
+    expect(ctx.quarantine).toMatchObject({ cause: 'locked_test_edit', origin_step: '7.2' });
+    expect(ctx.check?.step).toBe('7.2');
+    expect(ctx.binds.find((b) => b.label === 'quarantine evidence')?.value).toBe(q?.pack_sha256);
   });
 
   it('M14.4 7.6: the pack is signed, stored once, recorded with its ledger entry, rebuilt, and verifies offline', async () => {

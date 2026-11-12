@@ -9,7 +9,7 @@
 #
 # Ports: every service has its own (postgres 5432, kms-local 8300, notary 8310, witness 8320,
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
-# killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, fake GitHub 8353 api /
+# killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, notifier 8460, fake GitHub 8353 api /
 # 8354 git / 8355 gate-check's door). Only the bff and dev-oidc are published, on 127.0.0.1.
 
 x-factory:
@@ -122,8 +122,9 @@ networks:
     internal: true
   verify-codehost:
     internal: true
-  # The object store's API (M14.1). core-worker is its one caller (M14.4: 7.6 stores the signed Evidence Packs in the
-  # write-once bucket); the store has no other network and no route out.
+  # The object store's API (M14.1). core-worker writes (M14.4: 7.6 stores the signed Evidence Packs in the
+  # write-once bucket), core reads them for the portal (M14.6), gate-check reads them (M14.5); the store has no
+  # other network and no route out.
   objectstore-api:
     internal: true
   # gate-check (M14.5, ADR-0003 §1 Integration plane, profile `gate-check`): `data-gatecheck` is its own way to Postgres
@@ -134,9 +135,22 @@ networks:
   # token of the codehost, so the codehost's API on the same network refuses it.
   data-gatecheck:
     internal: true
+  # M14.6: how the bff reads gate-check's verdicts for the portal (scope read); nobody else is on it.
+  gatecheck-api:
+    internal: true
   gatecheck-github:
     internal: true
   gatecheck-egress: {}
+  # The notifier (M18, ADR-0003 §1 Integration plane, profile `notifier`): `data-notifier` is its own way to Postgres
+  # (its role: its own tables and `notifier:` record streams, read-only the gate, card and kill events it notifies
+  # about, identity's read model and the channel rows' config view); `notifier-api` is the bff's way to it (its only
+  # caller); `notifier-egress` is its own way out, to Slack's webhooks and the SMTP relay. It holds the channel
+  # credentials, and nothing else holds them.
+  data-notifier:
+    internal: true
+  notifier-api:
+    internal: true
+  notifier-egress: {}
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
   # network with a route out), so it has no route to GitHub and gets repo content only as bundles
   # from the codehost.
@@ -171,6 +185,10 @@ secrets:
   gate-check-app.pub.pem: { file: ./secrets/gate-check-app.pub.pem }
   tok-gate-check-kms: { file: ./secrets/tok-gate-check-kms }
   tok-operator-gate-check: { file: ./secrets/tok-operator-gate-check }
+  tok-bff-gate-check: { file: ./secrets/tok-bff-gate-check }
+  pg-pass-notifier: { file: ./secrets/pg-pass-notifier }
+  db-url-notifier: { file: ./secrets/db-url-notifier }
+  tok-bff-notifier: { file: ./secrets/tok-bff-notifier }
   bff-oidc-client-secret: { file: ./secrets/bff-oidc-client-secret }
   anthropic-api-key: { file: ./secrets/anthropic-api-key }
   github-app.pem: { file: ./secrets/github-app.pem }
@@ -248,6 +266,7 @@ services:
         data-sandbox-controller,
         data-verify,
         data-gatecheck,
+        data-notifier,
       ]
     mem_limit: 512m
     shm_size: 64m
@@ -277,6 +296,7 @@ services:
         pg-pass-sandbox-controller,
         pg-pass-verify,
         pg-pass-gate-check,
+        pg-pass-notifier,
       ]
     depends_on:
       postgres: { condition: service_healthy }
@@ -467,8 +487,8 @@ services:
   # API, the kill switch's read link, Postgres (a network of its own) and its egress. Egress is a whole network
   # here; the cloud target is a security group or proxy that allows api.anthropic.com only.
   # Local-prod routes D0-D2 to the deterministic fake provider (the seed publishes that table); a
-  # gated config revision points a route at Claude. `core` mounts tok-core-gateway when the work
-  # engine mints per-Unit keys (M11); the operator token is how a person (or smoke.sh) reaches it now.
+  # gated config revision points a route at Claude. `core-worker` mints the agents' per-Unit and per-job keys
+  # (M11, M12), `core` the assistant's per-ask keys (M18); the operator token is how a person (or smoke.sh) reaches it.
   gateway:
     <<: *factory
     # A sandbox network peer (M13.2): the coding proxy attaches a container to a session network only if it
@@ -623,6 +643,17 @@ services:
       CORE_KNOWLEDGE_TOKEN_REF: file:/run/secrets/tok-core-knowledge
       CORE_CODEHOST_URL: http://codehost:8350
       CORE_CODEHOST_TOKEN_REF: file:/run/secrets/tok-core-codehost
+      # M14.6: the portal's Evidence Pack viewer reads the signed packs 7.6 stored (read only: core never writes there).
+      CORE_OBJECT_STORE_URL: http://object-store:9000
+      CORE_OBJECT_STORE_ACCESS_KEY_REF: file:/run/secrets/object-store-access-key
+      CORE_OBJECT_STORE_SECRET_KEY_REF: file:/run/secrets/object-store-secret-key
+      # M18: the onboarding assistant and "Ask the factory". The gateway's admin API (scopes admin, read: the person's
+      # day budget group, a per-ask key with exactly the assistant contract's tools) and its /v1/messages under that
+      # key; the knowledge token above carries `search` (the KnowledgeSearch tool). Local routes serve `fake-model`.
+      # Reached per ask: while the gateway is down an ask is refused, nothing else in core waits for it.
+      CORE_GATEWAY_URL: http://gateway:8410
+      CORE_GATEWAY_TOKEN_REF: file:/run/secrets/tok-core-gateway
+      CORE_ASSISTANT_EXTRA_MODELS: fake-model
       CORE_HOST: 0.0.0.0
       CORE_PORT: '8380'
     secrets:
@@ -636,6 +667,9 @@ services:
         tok-core-kms,
         tok-core-knowledge,
         tok-core-codehost,
+        tok-core-gateway,
+        object-store-access-key,
+        object-store-secret-key,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8380']
@@ -648,7 +682,8 @@ services:
       seed: { condition: service_completed_successfully }
       notary: { condition: service_healthy }
       kms-local: { condition: service_healthy }
-    networks: [app, data-record, kms-clients, notary-api]
+      object-store: { condition: service_healthy }
+    networks: [app, data-record, kms-clients, notary-api, objectstore-api, gateway-api]
     mem_limit: 256m
 
   # The one process that hosts every loop (code-host polls, S0 driver, role-map sync, cards,
@@ -682,6 +717,9 @@ services:
       # run asks: e2e.sh sets `agents`; `fake` is the deterministic stage ports. The knowledge token above
       # carries the `search` scope (the KnowledgeSearch tool).
       CORE_WORKER_STAGE_PORTS: ${CORE_WORKER_STAGE_PORTS:-none}
+      # M14.6: `exceptions` scripts S7's fakes to raise Q1, X2, E2 and E6 for the e2e (FACTORY_ENV=local only)
+      CORE_WORKER_FAKE_VERIFY: ${CORE_WORKER_FAKE_VERIFY:-default}
+      FACTORY_ENV: local
       CORE_WORKER_GATEWAY_URL: http://gateway:8410
       CORE_WORKER_GATEWAY_TOKEN_REF: file:/run/secrets/tok-core-worker-gateway
       CORE_WORKER_AGENT_EXTRA_MODELS: fake-model
@@ -812,7 +850,7 @@ services:
     environment:
       KNOWLEDGE_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       KNOWLEDGE_CALLERS: >-
-        {"core":{"token_ref":"file:/run/secrets/tok-core-knowledge","scopes":["census","security"]},
+        {"core":{"token_ref":"file:/run/secrets/tok-core-knowledge","scopes":["census","security","search"]},
         "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-knowledge","scopes":["census","security","search"]}}
       KNOWLEDGE_CODEHOST_URL: http://codehost:8350
       KNOWLEDGE_CODEHOST_TOKEN_REF: file:/run/secrets/tok-knowledge-codehost
@@ -867,14 +905,30 @@ services:
       # web bundle the image carries, served same-origin with a strict CSP.
       BFF_CORE_URL: http://core:8380
       BFF_CORE_TOKEN_REF: file:/run/secrets/tok-bff-core
+      # M18: the notifier (profile `notifier`), scope people. Best effort: while it is not running only the
+      # /api/me/notifications routes answer 502; nothing else in the portal waits for it.
+      BFF_NOTIFIER_URL: http://notifier:8460
+      BFF_NOTIFIER_TOKEN_REF: file:/run/secrets/tok-bff-notifier
       BFF_WEB_DIR: /app/services/web/dist
+      # M14.6: the S7 tab's gate-check runs (scope read). gate-check is in a profile: when it is not running the
+      # portal shows the runs as unknown, never as passing.
+      BFF_GATE_CHECK_URL: http://gate-check:8450
+      BFF_GATE_CHECK_TOKEN_REF: file:/run/secrets/tok-bff-gate-check
       # Plain http on localhost only; behind TLS this is true.
       BFF_COOKIE_SECURE: 'false'
       BFF_HOST: 0.0.0.0
       BFF_PORT: '8340'
     ports:
       - '127.0.0.1:8340:8340'
-    secrets: [db-url-aisdlc, bff-oidc-client-secret, tok-bff-kms, tok-bff-core]
+    secrets:
+      [
+        db-url-aisdlc,
+        bff-oidc-client-secret,
+        tok-bff-kms,
+        tok-bff-core,
+        tok-bff-gate-check,
+        tok-bff-notifier,
+      ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
       interval: 5s
@@ -887,7 +941,7 @@ services:
       kms-local: { condition: service_healthy }
       dev-oidc: { condition: service_healthy }
       core: { condition: service_healthy }
-    networks: [edge, data-record, kms-clients]
+    networks: [edge, data-record, kms-clients, gatecheck-api, notifier-api]
     mem_limit: 256m
 
   # The dev identity provider (FACTORY_ENV=local only: it refuses to start otherwise). The browser
@@ -1095,7 +1149,8 @@ services:
     environment:
       GATE_CHECK_DATABASE_URL: file:/run/secrets/db-url-gate-check
       GATE_CHECK_CALLERS: >-
-        {"operator":{"token_ref":"file:/run/secrets/tok-operator-gate-check","scopes":["read"]}}
+        {"operator":{"token_ref":"file:/run/secrets/tok-operator-gate-check","scopes":["read"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-gate-check","scopes":["read"]}}
       GATE_CHECK_APP_ID: ${GATE_CHECK_APP_ID:-654321}
       GATE_CHECK_INSTALLATION_ID: ${GATE_CHECK_INSTALLATION_ID:-2}
       GATE_CHECK_APP_KEY_REF: file:/run/secrets/gate-check-app.pem
@@ -1116,6 +1171,7 @@ services:
         gate-check-app.pem,
         tok-gate-check-kms,
         tok-operator-gate-check,
+        tok-bff-gate-check,
         object-store-access-key,
         object-store-secret-key,
       ]
@@ -1129,8 +1185,48 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
-    networks: [data-gatecheck, kms-clients, objectstore-api, gatecheck-github, gatecheck-egress]
+    networks:
+      [
+        data-gatecheck,
+        kms-clients,
+        objectstore-api,
+        gatecheck-github,
+        gatecheck-egress,
+        gatecheck-api,
+      ]
     mem_limit: 192m
+
+  # The notifier (M18; ADR-0003 §1 Integration plane): Slack (incoming webhook) and email (SMTP) delivery of what waits
+  # for a person (a gate on their slot, B21, a quarantine, a handoff, a kill), read from the record as its own
+  # least-privilege role. The portal inbox stays the authoritative channel: the notifier decides nothing, and a channel
+  # that is down only delays its own deliveries (retries with backoff, then given up). Its channel rows are config
+  # (`notifications.channels`, M1-gated, empty by default: no channel until a factory revision adds one); the key files
+  # a row may name and the hosts it may reach are bounded here, by the deployment. Mount a webhook URL or an SMTP
+  # password as a secret and list its path in NOTIFIER_SECRET_REFS; nothing is mounted by default.
+  notifier:
+    <<: *factory
+    profiles: [notifier]
+    command: ['node', '--enable-source-maps', '/app/services/notifier/dist/main.js']
+    environment:
+      NOTIFIER_DATABASE_URL: file:/run/secrets/db-url-notifier
+      NOTIFIER_CALLERS: >-
+        {"bff":{"token_ref":"file:/run/secrets/tok-bff-notifier","scopes":["people"]}}
+      NOTIFIER_PORTAL_URL: ${NOTIFIER_PORTAL_URL:-http://localhost:8340}
+      NOTIFIER_SECRET_REFS: ${NOTIFIER_SECRET_REFS:-[]}
+      NOTIFIER_EGRESS_HOSTS: ${NOTIFIER_EGRESS_HOSTS:-["hooks.slack.com"]}
+      NOTIFIER_HOST: 0.0.0.0
+      NOTIFIER_PORT: '8460'
+    secrets: [db-url-notifier, tok-bff-notifier]
+    healthcheck:
+      test: ['CMD', 'node', '/app/healthcheck.mjs', '8460']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [data-notifier, notifier-api, notifier-egress]
+    mem_limit: 160m
 
   # The package mirror (RV §2: with the gateway, the ONLY thing a sandbox reaches): a read-only HTTP server over
   # a fixed directory, on an internal network, no upstream. The fixture set is empty until the real wheels are

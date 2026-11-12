@@ -42,3 +42,6 @@ export * from './verify.js';
 export * from './evidence.js';
 export * from './gate-check.js';
 export * from './onboarding-probe.js';
+export * from './notifications.js';
+export * from './conversation.js';
+export * from './portal-verify.js';

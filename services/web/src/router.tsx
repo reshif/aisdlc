@@ -17,6 +17,7 @@ export type Route =
   | { name: 's0'; id: string }
   | { name: 'card'; id: string }
   | { name: 'item'; id: string }
+  | { name: 'pack'; id: string }
   | { name: 'inbox' }
   | { name: 'revision'; id: string }
   | { name: 'readiness'; id: string }
@@ -24,6 +25,9 @@ export type Route =
   | { name: 'access' }
   | { name: 'config' }
   | { name: 'configKey'; key: string }
+  | { name: 'ask' }
+  | { name: 'notifications' }
+  | { name: 'notificationPrefs' }
   | { name: 'notfound' };
 
 export function parseRoute(path: string): Route {
@@ -33,8 +37,13 @@ export function parseRoute(path: string): Route {
   if (p === '/inbox') return { name: 'inbox' };
   if (p === '/me/access') return { name: 'access' };
   if (p === '/config') return { name: 'config' };
+  if (p === '/ask') return { name: 'ask' };
+  if (p === '/me/notifications') return { name: 'notifications' };
+  if (p === '/me/notifications/preferences') return { name: 'notificationPrefs' };
   const cfg = /^\/config\/([^/]+)$/.exec(p);
   if (cfg) return { name: 'configKey', key: decodeURIComponent(cfg[1] as string) };
+  const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
+  if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
   const sub = /^\/projects\/([^/]+)\/(readiness|ledger)$/.exec(p);
   if (sub) {
     return {

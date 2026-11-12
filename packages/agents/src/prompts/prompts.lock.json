@@ -46,6 +46,11 @@
       "sha256": "ad470f22d042e4b4b1e6a611e6f94a6842b64be2b013816f1128a972f0993ff6",
       "contract_version": "1.0.0"
     },
+    "assistant@1.0.0": {
+      "file": "assistant@1.0.0.md",
+      "sha256": "e9686d388c378026bee7564e178ace211920a40411a0916c1b460ec4c4e2d821",
+      "contract_version": "1.0.0"
+    },
     "coder@1.0.0": {
       "file": "coder@1.0.0.md",
       "sha256": "5251fad4bd108ef4ee0da7f87345176a842360f13d1ea3dd1379dcb3b51779c0",

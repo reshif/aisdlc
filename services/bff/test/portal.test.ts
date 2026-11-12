@@ -176,6 +176,15 @@ const CASES: RouteCase[] = [
     forwards: `POST /v1/items/${ITEM_ID}/plan`,
   },
   {
+    name: 'D5: the human-led work is done (M14.6)',
+    method: 'POST',
+    path: `/api/items/${ITEM_ID}/human-done`,
+    body: { key: 'd1' },
+    allowed: 'bob',
+    denied: 'alice',
+    forwards: `POST /v1/items/${ITEM_ID}/human-done`,
+  },
+  {
     name: 'the agent runs of an item',
     method: 'GET',
     path: `/api/agent-runs?item=${ITEM_ID}`,

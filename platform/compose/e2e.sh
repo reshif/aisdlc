@@ -27,6 +27,8 @@ export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-e2e}"
 # M12: the work driver runs the real planning port (S1 to S5); the gateway's local fake provider answers with
 # canned outputs and the knowledge token carries the `search` scope (see docker-compose.yml, core-worker).
 export CORE_WORKER_STAGE_PORTS="${CORE_WORKER_STAGE_PORTS:-agents}"
+# M14.6: S7 over the fakes, scripted to raise the exception gates the browser decides (Q1/SECT, X2, E2, E6).
+export CORE_WORKER_FAKE_VERIFY="${CORE_WORKER_FAKE_VERIFY:-exceptions}"
 export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
 dc() { docker compose --profile fake-github "$@"; }
 fail() { echo "e2e: FAIL: $*" >&2; exit 1; }
@@ -76,9 +78,18 @@ case ",$arts," in *,classification,*) ;; *) fail "no classification artefact: S1
 case ",$arts," in *,intent_block,*) ;; *) fail "no intent block artefact";; esac
 echo "== M12.5: the Ready decision made in the browser is one event in the item's stream, allowed by the PDP"
 ready=$(sql "SELECT count(*) FROM record.record_event WHERE type = 'item.ready_decided'" | tr -d '[:space:]')
-[ "$ready" = "1" ] || fail "expected one item.ready_decided event, found $ready"
+# M14.6: two items (the first decided Ready in the browser, the second through the same route by API)
+[ "$ready" = "2" ] || fail "expected two item.ready_decided events, found $ready"
 pdp=$(sql "SELECT count(*) FROM record.record_event WHERE type = 'pdp.decision' AND body ->> 'action' = 'item.ready' AND body ->> 'decision' = 'allow'" | tr -d '[:space:]')
 [ "$pdp" -ge 1 ] || fail "the PDP's allow of item.ready was not logged"
+echo "== M14.6: S7's exception gates decided in the browser, D5 allowed by the PDP"
+d5=$(sql "SELECT count(*) FROM record.record_event WHERE type = 'pdp.decision' AND body ->> 'action' = 'item.human_done' AND body ->> 'decision' = 'allow'" | tr -d '[:space:]')
+[ "$d5" -ge 3 ] || fail "expected three D5 allows of item.human_done, found $d5"
+for g in SECT:reject X2:approve E2:approve E6:reject; do
+  n=$(sql "SELECT count(*) FROM record.record_event WHERE type = 'item.gate_decided' AND body::text LIKE '%\"gate\": \"${g%%:*}\"%' AND body::text LIKE '%${g#*:}%'" | tr -d '[:space:]')
+  [ "$n" -ge 1 ] || fail "no ${g%%:*} decided ${g#*:} in the record"
+  echo "  ${g%%:*}: ${g#*:} ($n)"
+done
 echo "== the fake GitHub's request log after the whole onboarding"
 log=$(dc logs --no-log-prefix --no-color fake-github 2>&1 | grep -E '^fake-github (api|git) ' || true)
 api=$(printf '%s\n' "$log" | grep '^fake-github api ' | sed -E 's/^fake-github api \{"method":"([A-Z]+)","path":"([^"]*)".*"status":([0-9]+)\}$/\1 \2 \3/')

@@ -29,4 +29,5 @@ export {
 export { registerGatewayConfig } from './gateway.js';
 export { onboardingImageFrom, registerSandboxConfig } from './sandbox.js';
 export { registerGateCheckConfig } from './gate-check.js';
+export { registerNotificationsConfig } from './notifications.js';
 export { findSecrets, registerIntegrationConfig } from './integrations.js';

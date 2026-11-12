@@ -37,7 +37,8 @@ psql -v ON_ERROR_STOP=1 \
   -v pw_gateway="$(cat /run/secrets/pg-pass-gateway)" \
   -v pw_sandbox_controller="$(cat /run/secrets/pg-pass-sandbox-controller)" \
   -v pw_verify="$(cat /run/secrets/pg-pass-verify)" \
-  -v pw_gate_check="$(cat /run/secrets/pg-pass-gate-check)" <<'SQL'
+  -v pw_gate_check="$(cat /run/secrets/pg-pass-gate-check)" \
+  -v pw_notifier="$(cat /run/secrets/pg-pass-notifier)" <<'SQL'
 SELECT 'CREATE ROLE aisdlc_app NOLOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_app') \gexec
 
@@ -74,6 +75,16 @@ SELECT 'CREATE ROLE gate_check LOGIN'
 SELECT format('ALTER ROLE gate_check PASSWORD %L', :'pw_gate_check') \gexec
 GRANT aisdlc_gatecheck TO gate_check;
 
+-- The notifier's group role (its grants are the notifier migration's: its own tables and record streams, read-only the
+-- gate, card and kill events it notifies about, identity's read model and the channel rows' config view) and its
+-- login role (M18).
+SELECT 'CREATE ROLE aisdlc_notifier NOLOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_notifier') \gexec
+SELECT 'CREATE ROLE notifier LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'notifier') \gexec
+SELECT format('ALTER ROLE notifier PASSWORD %L', :'pw_notifier') \gexec
+GRANT aisdlc_notifier TO notifier;
+
 SELECT format('CREATE ROLE %I LOGIN', r)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS r
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r) \gexec
@@ -99,5 +110,6 @@ GRANT CONNECT ON DATABASE aisdlc TO gateway;
 GRANT CONNECT ON DATABASE aisdlc TO sandbox_controller;
 GRANT CONNECT ON DATABASE aisdlc TO verify;
 GRANT CONNECT ON DATABASE aisdlc TO gate_check;
+GRANT CONNECT ON DATABASE aisdlc TO notifier;
 SQL
 echo "db-init: roles and databases are in place"

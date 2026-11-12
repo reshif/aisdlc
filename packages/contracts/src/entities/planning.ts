@@ -393,8 +393,14 @@ export const GateCardDecideRequest = z.strictObject({
   decision: VoteDecision,
   /** Required for a rejection and for a request for changes. */
   reason: z.string().min(1).max(1000).optional(),
+  /** A gate that needs a step-up (G5, M4, one opened with it) carries the proof bound to its `step_up.bound_hash`. */
   votes: z
-    .array(z.strictObject({ nonce: z.string().min(1) }))
+    .array(
+      z.strictObject({
+        nonce: z.string().min(1),
+        step_up: z.strictObject({ proof: z.string().min(1).max(8192) }).optional(),
+      }),
+    )
     .min(1)
     .max(10),
 });

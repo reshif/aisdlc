@@ -13,7 +13,8 @@ import type {
 // can reach them (FL FIX 15; M11.4 planted-instruction test). Core's work driver mints with it.
 
 export interface AgentKeyScope {
-  readonly kind: 'unit' | 'job';
+  /** `session`: the assistant's per-ask key (M18). */
+  readonly kind: 'unit' | 'job' | 'session';
   readonly ref: string;
 }
 
@@ -22,8 +23,9 @@ export interface AgentKeyContext {
   readonly group: string;
   readonly project_id: ProjectId;
   readonly lane?: Lane;
-  readonly item_id: string;
-  readonly step: StepId;
+  /** Where ET1 is attributed. The assistant's key (M18) is minted for no item and no step. */
+  readonly item_id?: string;
+  readonly step?: StepId;
   /** Set for a Unit's key (S6). */
   readonly unit_id?: string;
   readonly now: Date;
@@ -49,8 +51,8 @@ export function agentKeyRequest(
       tools: [...contract.tools],
       budget_group: c.group,
       expires_at: new Date(c.now.getTime() + contract.budget.ttl_seconds * 1000).toISOString(),
-      item_id: c.item_id,
-      step: c.step,
+      ...(c.item_id === undefined ? {} : { item_id: c.item_id }),
+      ...(c.step === undefined ? {} : { step: c.step }),
       ...(c.unit_id === undefined ? {} : { unit_id: c.unit_id }),
     },
   };
