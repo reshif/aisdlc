@@ -7,7 +7,7 @@ import { startFakeCore, type FakeCore } from './portal-fixtures.js';
 
 // PLAN M19: the bff's Govern › Audit routes. The person is always the session's (`on_behalf_of` is added here, a body
 // that names one is refused), the PDP decides here before the audit service is asked (audit.read on the scope, the
-// fleet for holds and erasures; config.decide for the factory admins' acts), and the signed bytes are re-hashed to
+// fleet for holds and erasures; identity.admin for the factory admins' acts), and the signed bytes are re-hashed to
 // their object key before a byte is sent. The audit service's own side is services/audit/test.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

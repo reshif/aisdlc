@@ -14,7 +14,8 @@ export const waitingText = (waiting: string | null): string => {
             plan: 'Waiting for a person to write the plan (the agent plan was refused twice).',
             schedule: 'Waiting for a person to schedule the work.',
             merge: 'Waiting for a person to merge the change.',
-            human_led: 'A developer has the work.',
+            human_led:
+              'A developer has the work (human-led). They say below when it is done, or hand it back.',
           } as Record<string, string>
         )[detail] ?? `Waiting for a person (${detail}).`
       );
@@ -29,7 +30,11 @@ export const waitingText = (waiting: string | null): string => {
     case 'stuck':
       return `Stopped and needs a person to look (${detail}).`;
     case 'handoff':
-      return 'Handed to a person to decide what happens next.';
+      return detail === 'e4'
+        ? 'Handed to the owner of record: E4 is open on its card (see below).'
+        : detail === 'e3'
+          ? 'Handed off: an envelope extension is waiting for its decision.'
+          : 'Handed off: the owner of record approved E4 and records what happens next (see below).';
     default:
       return `Waiting (${waiting}).`;
   }

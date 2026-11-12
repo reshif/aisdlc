@@ -11,7 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createCoreApp, type CoreScope } from '../src/index.js';
 import { FLOOR_PROJECTION, floorProjection, shortKey } from '../src/floor.js';
-import { startCoreStack, type CoreStack } from '../src/testing.js';
+import { publishSettings, setAdmins, startCoreStack, type CoreStack } from '../src/testing.js';
 import {
   approvers,
   driverOver,
@@ -173,6 +173,32 @@ describe('the floor read model', () => {
       mine: true,
       waits_on_me: false,
     });
+  });
+});
+
+describe("P2-10: the gates the project's profile has off", () => {
+  it('none while the project has no published settings; the ones no lane has under a published profile', async () => {
+    const f = FloorView.parse((await get(`/v1/floor/${p.project}?on_behalf_of=ada`)).json);
+    expect(f.gates_off).toEqual([]);
+    setAdmins(s, other.project, ['ada']);
+    await publishSettings(
+      s,
+      other.project,
+      {
+        gating_profile: {
+          gates: { g0g1: 'on', g2: 'off', g3d: 'off', g3_g3s: 'off', g5: 'off', g6: 'off' },
+          schedule: 'auto',
+          tier_floor_applied: false,
+        },
+      },
+      'ada',
+    );
+    const o = FloorView.parse((await get(`/v1/floor/${other.project}?on_behalf_of=ada`)).json);
+    const keys = o.plan.gates.map((g) => g.key);
+    expect(o.gates_off.length).toBeGreaterThan(0);
+    expect(o.gates_off.every((k) => keys.includes(k))).toBe(true);
+    expect(o.gates_off).not.toContain('G0+G1');
+    expect(o.gates_off).toContain('G6');
   });
 });
 

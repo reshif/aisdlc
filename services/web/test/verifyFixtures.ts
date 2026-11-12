@@ -47,6 +47,7 @@ export const itemView = (over: Record<string, unknown> = {}) => ({
   catalogue_ref: { version: '1.0.0', hash: 'a'.repeat(64) },
   injection_suspected: false,
   dedupe_links: [],
+  profile_gates: null,
   may: { ready: false, answer: false, observe: false, plan: false },
   ...over,
 });
@@ -330,6 +331,7 @@ export const gateContext = (gate: string, over: Record<string, unknown> = {}) =>
         }
       : null,
   onboarding_pack: null,
+  handoff: null,
   subject: null,
   data_class: 'D1',
   principal_names: { alice: 'Alice Admin', bob: 'Bob Builder', carol: 'Carol Customer' },

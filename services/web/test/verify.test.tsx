@@ -197,6 +197,7 @@ describe('the gate screens S7 raises', () => {
     ['X3', 'New dependency', 'Approve the dependency'],
     ['E2', 'Constitution exception', 'Approve the exception'],
     ['X2', 'Protected-path change', 'Approve'],
+    ['E4', 'Handoff to the owner of record', 'Take the handoff'],
   ])(
     '%s: shows what it binds and decides with a reason bound into the decision',
     async (gate, title, approve) => {
@@ -362,6 +363,28 @@ describe('the gate screens S7 raises', () => {
     expect(pkg).toHaveTextContent('libphonenumber-js');
     expect(pkg).toHaveTextContent(/Licence\s*\[unknown\]/);
     expect(pkg).toHaveTextContent(/no advisory database/);
+  });
+
+  it('E4 (P1-4): shows the handoff, its pack by hash and the choices the flow allowed', async () => {
+    const handoff = {
+      handoff_id: '55555555-6666-4777-8888-999999999999',
+      n: 1,
+      code: 'D2',
+      trigger: 'ET3',
+      origin_phase: 'S7',
+      origin_step: '7.6',
+      pack: { pack_id: 'handoff-pack:x', content_sha256: 'e'.repeat(64) },
+      valid_choices: ['resume', 'takeover', 'abandon'],
+      status: 'open',
+      choice: null,
+    };
+    mockApi(gateRoutes('E4', gateCard('E4'), gateContext('E4', { handoff })));
+    renderAt(`/cards/${CARD}`);
+    const h = await screen.findByTestId('handoff');
+    expect(h).toHaveTextContent('D2 (#1)');
+    expect(h).toHaveTextContent('S7 at 7.6');
+    expect(h).toHaveTextContent('handoff-pack:x');
+    expect(within(h).getByRole('list', { name: 'Choices' })).toHaveTextContent('takeover');
   });
 
   it('E2: shows the constitution report as text', async () => {

@@ -7,7 +7,7 @@ import { callJson, type CallResult } from '@aisdlc/service-kit';
  * scope and which it checks against the PDP again.
  */
 export interface CoreClient {
-  call(method: 'GET' | 'POST', path: string, body?: unknown): Promise<CallResult>;
+  call(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<CallResult>;
 }
 
 export class HttpCoreClient implements CoreClient {
@@ -19,7 +19,7 @@ export class HttpCoreClient implements CoreClient {
     },
   ) {}
 
-  call(method: 'GET' | 'POST', path: string, body?: unknown): Promise<CallResult> {
+  call(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<CallResult> {
     return callJson({
       baseUrl: this.o.baseUrl,
       token: this.o.token,

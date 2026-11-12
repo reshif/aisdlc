@@ -33,18 +33,17 @@ import type { CoreClient } from './core-client.js';
 //   GET  /api/audit/exports/:id               one export                                       (audit.read on its scope)
 //   GET  /api/audit/exports/:id/signed        the signed bytes for `aisdlc verify-export`, re-hashed to their key here
 //   GET  /api/audit/holds                     legal holds                                      (audit.read, fleet)
-//   POST /api/audit/holds                     place one {scope, matter_ref, reason}           (config.decide, fleet)
+//   POST /api/audit/holds                     place one {scope, matter_ref, reason}          (identity.admin, fleet)
 //   POST /api/audit/holds/:id/release         release one {reason}: never by the person who placed it
 //   GET  /api/audit/erasures                  erasure requests                                 (audit.read, fleet)
-//   POST /api/audit/erasures                  request one {subject, reason}                   (config.decide, fleet)
+//   POST /api/audit/erasures                  request one {subject, reason}                  (identity.admin, fleet)
 //   POST /api/audit/erasures/:id/approve      the legal approval {matter_ref, reason}: never the requester
 //   POST /api/audit/erasures/:id/reject       {reason}
 //   GET  /api/audit/retention                 the retention classes in force and the last sweeps (audit.read, fleet)
 //
 // The person is ALWAYS the session's (`on_behalf_of` is added here, never taken from the body). The PDP decides here
-// first and again in the audit service. Erasure and legal hold need the proposed `identity.admin`, which the action
-// catalogue does not have yet; they are decided under `config.decide` on the fleet (`AUDIT_ACTION.govern`, factory
-// admins only). Without the audit service these routes answer 503 and nothing else in the portal is affected.
+// first and again in the audit service. Erasure and legal hold are `identity.admin` on the fleet (`AUDIT_ACTION.govern`,
+// factory admins only; PLAN §7a, 2026-11-12). Without the audit service these routes answer 503 and nothing else in the portal is affected.
 
 export interface AuditRouteDeps {
   readonly app: FastifyInstance;

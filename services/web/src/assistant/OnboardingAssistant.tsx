@@ -1,4 +1,4 @@
-import { pdpResource } from '@aisdlc/contracts';
+import { ASSISTANT_ACTIONS, pdpResource } from '@aisdlc/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCan } from '../access';
 import { api } from '../api';
@@ -30,8 +30,11 @@ export function OnboardingAssistant({
   csrf: string;
   who: string;
 }) {
-  const can = useCan('project.view', pdpResource.project(projectId));
-  const allowed = can.state === 'allow';
+  // PLAN §7a: seeing the project AND using the assistant (`ASSISTANT_ACTIONS`); a hint, the bff and core ask again
+  const view = useCan(ASSISTANT_ACTIONS[0], pdpResource.project(projectId));
+  const use = useCan(ASSISTANT_ACTIONS[1], pdpResource.project(projectId));
+  const can = view.state !== 'allow' ? view : use;
+  const allowed = view.state === 'allow' && use.state === 'allow';
   const qc = useQueryClient();
   const threads = useQuery({
     queryKey: ['assistant', 'threads', { s0: s0Id }],
@@ -70,7 +73,7 @@ export function OnboardingAssistant({
         {can.state === 'pending' ? <p className="asst-fine">Checking your access…</p> : null}
         {can.state === 'deny' ? (
           <EmptyState title="Not available">
-            The assistant answers only people who can see this onboarding.
+            The assistant answers only people who can see this onboarding and may use the assistant.
           </EmptyState>
         ) : null}
         {allowed ? (

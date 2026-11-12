@@ -20,8 +20,8 @@ import { Card, EmptyState, KeyValue, Pill, Table, type Column, type PillTone } f
 // Govern › Audit (PLAN M19; design reference: the prototype's `audit` view): signed exports for auditors, erasure of
 // the payloads kept off the hash chain, legal holds and retention, over the audit service through the bff. The
 // buttons are hints from the PDP (`Guarded`); every write is decided again by the bff and by the audit service.
-// Erasure and holds need `identity.admin`, which the action catalogue does not have yet: they are guarded by
-// `config.decide` on the fleet (`AUDIT_ACTION.govern`), the action the server decides them under.
+// Erasure and holds are guarded by `identity.admin` on the fleet (`AUDIT_ACTION.govern`), the action the server decides
+// them under.
 
 const FLEET = pdpResource.fleet();
 const GOVERN = AUDIT_ACTION.govern;

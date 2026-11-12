@@ -30,7 +30,7 @@ import {
 // Quality (prototype `agents`, `evals`, `models`, `integrations`). The agent registry is code
 // (packages/agents): it changes by a reviewed pull request that passes the eval gate, never here, so
 // there is no on/off switch. Models and routes are configuration: they change through the one
-// configuration pattern (ConfigConsole), linked from here. Every read is `audit.read` on the fleet.
+// configuration pattern (ConfigConsole), linked from here. Every read is `quality.read` on the fleet.
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 

@@ -29,6 +29,7 @@ describe('the gates of a work item (P1-2)', () => {
     catalogue_ref: { version: '1.0.0', hash: 'a'.repeat(64) },
     injection_suspected: false,
     dedupe_links: [],
+    profile_gates: null,
     may: { ready: false, answer: false, observe: false, plan: false },
   });
   const gate = (g: string, over: Record<string, unknown>) => ({

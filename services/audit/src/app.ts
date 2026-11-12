@@ -45,7 +45,7 @@ import {
  * What a caller may do (docs/specs/audit-api.md): `read` the exports, holds, erasures and retention; `export` write a
  * signed export; `govern` place and release holds, request, approve and reject erasures. The bff is the only caller
  * and holds all three; every request names the signed-in person (`on_behalf_of`) and the PDP decides about them HERE
- * too (`audit.read` on the scope; `config.decide` on the fleet for erasure and holds, see `AUDIT_ACTION`).
+ * too (`audit.read` on the scope; `identity.admin` on the fleet for erasure and holds, see `AUDIT_ACTION`).
  */
 export type AuditScopeName = 'read' | 'export' | 'govern';
 

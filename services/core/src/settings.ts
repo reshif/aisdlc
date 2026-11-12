@@ -342,7 +342,13 @@ const mapConfigError = (e: { code: string; message: string }): CoreError =>
  */
 export async function proposeProjectSettings(
   deps: ConfigDeps,
-  input: { project: ProjectId; change: SettingsChange; proposed_by: PrincipalId },
+  input: {
+    project: ProjectId;
+    change: SettingsChange;
+    proposed_by: PrincipalId;
+    /** P1-5: the head the draft was made against; another head is refused (`stale_parent`). Absent: the head now. */
+    parent_rev_hash?: string | null;
+  },
 ): Promise<Result<Written<ProposeResult>, CoreError>> {
   const state = await getProjectState(deps.pool, input.project);
   if (!state) return err(coreError('not_found', `unknown project ${input.project}`));
@@ -396,6 +402,7 @@ export async function proposeProjectSettings(
     scope: { kind: 'project', ref: input.project },
     doc: full,
     proposed_by: input.proposed_by,
+    ...(input.parent_rev_hash !== undefined ? { parent_rev_hash: input.parent_rev_hash } : {}),
   });
   return r.ok ? ok(r.value) : err(mapConfigError(r.error));
 }

@@ -16,7 +16,14 @@ import { ACTION_IDS, FLEET, RESOURCES, applicable, lane, proj, rig } from './hel
 // written out per role below (not derived from the generator), so a change to what a role may do
 // shows up here as a deliberate edit.
 
-const VIEWS: ActionId[] = ['project.view', 'floor.read', 'item.view_floor', 'gate.view'];
+/** PLAN §7a (2026-11-12): `assistant.use` is a V1 read, like seeing the project. */
+const VIEWS: ActionId[] = [
+  'project.view',
+  'floor.read',
+  'item.view_floor',
+  'gate.view',
+  'assistant.use',
+];
 /** M15.5: the close-out record is a V2 read. */
 const V2: ActionId[] = [...VIEWS, 'closeout.read'];
 
@@ -46,6 +53,11 @@ const EXPECTED: Record<
       'control.apply',
       'control.lift',
       'banner.publish',
+      // PLAN §7a (2026-11-12): bindings on the project, Operate and Quality of the project, stopping its sessions
+      'access.manage',
+      'ops.read',
+      'quality.read',
+      'session.stop',
     ],
     decides: (g) => GATE_POLICIES[g as keyof typeof GATE_POLICIES].slot === 'admin',
     cards: true,
@@ -84,13 +96,14 @@ const EXPECTED: Record<
     cards: true,
   },
   'project.security_approver': {
-    actions: V2,
+    // PLAN §7a: security sees Operate and may stop a session on its project
+    actions: [...V2, 'ops.read', 'session.stop'],
     decides: (g) => g === 'Q1' || g === 'SECT',
     cards: true,
   },
   'project.onboarding_signer': { actions: V2, decides: (g) => g === 'M4', cards: true },
   'project.kill_holder': {
-    actions: [...V2, 'kill.request', 'kill.release'],
+    actions: [...V2, 'kill.request', 'kill.release', 'session.stop'],
     decides: () => false,
   },
   'project.viewer': { actions: VIEWS, decides: () => false },
@@ -111,12 +124,22 @@ const EXPECTED: Record<
       'control.apply',
       'control.lift',
       'banner.publish',
+      // PLAN §7a (2026-11-12): the six portal actions are all the factory admin's
+      'identity.admin',
+      'access.manage',
+      'ops.read',
+      'session.stop',
+      'quality.read',
     ],
     decides: () => false,
   },
   // Fleet-bound: onboarding anywhere, and V1 reads. It decides no gate and no card.
   'factory.onboarder': { actions: [...VIEWS, 'project.onboard'], decides: () => false },
-  'factory.auditor': { actions: [...V2, 'audit.read', 'access.explain'], decides: () => false },
+  'factory.auditor': {
+    // PLAN §7a: the auditor reads Operate and Quality too, and changes nothing
+    actions: [...V2, 'audit.read', 'access.explain', 'ops.read', 'quality.read'],
+    decides: () => false,
+  },
 };
 
 const bindAt = (r: RoleDef): Scope => (r.scope_kinds.includes('fleet') ? FLEET : proj('p1'));

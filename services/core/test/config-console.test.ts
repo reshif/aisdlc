@@ -3,6 +3,10 @@ import {
   ConfigKeyView,
   ConfigProposeResult,
   DEFAULT_SANDBOX_CAPS,
+  PROJECT_CONFIG_KEYS,
+  PROJECT_WIP_LIMIT_KEY,
+  ProjectConfigKeyView,
+  ProjectLayerKeyValues,
   SANDBOX_CAPS_KEY,
   SANDBOX_EXEC_ALLOWED_REPOS_KEY,
 } from '@aisdlc/contracts';
@@ -15,8 +19,15 @@ import { ServiceAuth, listen } from '@aisdlc/service-kit';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createCoreApp, type CoreScope } from '../src/index.js';
-import { decideGate, setAdmins, startCoreStack, type CoreStack } from '../src/testing.js';
+import { createCoreApp, requestOnboarding, type CoreScope } from '../src/index.js';
+import {
+  decideGate,
+  pid,
+  request,
+  setAdmins,
+  startCoreStack,
+  type CoreStack,
+} from '../src/testing.js';
 
 // The configuration console's core routes on two real factory keys, `sandbox.caps` and
 // `sandbox.exec_allowed_repos`: a proposal is an ordinary revision with an M1 gate, and nothing the
@@ -34,7 +45,7 @@ const TOKENS = {
   reader: 'reader-at-core-'.padEnd(32, 'x'),
 };
 const CALLERS: Record<string, readonly CoreScope[]> = {
-  bff: ['read', 'onboard', 'portal'],
+  bff: ['read', 'onboard', 'portal', 'settings'],
   reader: ['read'],
 };
 
@@ -66,7 +77,12 @@ afterAll(async () => {
   await s?.stop();
 });
 
-async function call(token: string | null, method: 'GET' | 'POST', path: string, body?: unknown) {
+async function call(
+  token: string | null,
+  method: 'GET' | 'POST' | 'PUT',
+  path: string,
+  body?: unknown,
+) {
   const res = await fetch(new URL(path, url), {
     method,
     headers: {
@@ -199,5 +215,73 @@ describe('the configuration console in core', () => {
       value: { total: 6, coding: 2 },
       changes_key: false,
     });
+  });
+});
+
+describe("the project layer (P1-5): a project's settings after onboarding", () => {
+  const P = 'cfg-proj';
+  const put = (who: string, body: Record<string, unknown>, token = TOKENS.bff) =>
+    call(token, 'PUT', `/v1/projects/${P}/settings`, { ...body, on_behalf_of: who });
+  const pview = async (key: string) => {
+    const r = await call(TOKENS.reader, 'GET', `/v1/projects/${P}/config/keys/${key}`);
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    return ProjectConfigKeyView.parse(r.json);
+  };
+  beforeAll(async () => {
+    const r = await requestOnboarding(s.deps, request({ project_id: pid(P), repo: `acme/${P}` }));
+    if (!r.ok) throw new Error(r.error.message);
+    // the project M1 is decided by the project's own admin slot
+    setAdmins(s, P, ['carol']);
+  });
+
+  it('lists the project keys only, each with its JSON Schema', async () => {
+    const r = await call(TOKENS.reader, 'GET', `/v1/projects/${P}/config/keys`);
+    expect(r.status).toBe(200);
+    const keys = z
+      .array(ConfigKeySummary)
+      .parse(r.json)
+      .map((k) => k.key);
+    expect([...keys].sort()).toEqual([...ProjectLayerKeyValues].sort());
+    expect(
+      (await call(TOKENS.reader, 'GET', `/v1/projects/${P}/config/keys/${SANDBOX_CAPS_KEY}`))
+        .status,
+    ).toBe(404);
+    expect(
+      (await call(TOKENS.reader, 'GET', `/v1/projects/nope-x/config/keys/${PROJECT_WIP_LIMIT_KEY}`))
+        .status,
+    ).toBe(404);
+  });
+
+  it('a proposal is an M1 at the project admin slot, against the head it was drafted on; published, it is in force', async () => {
+    const v0 = await pview(PROJECT_WIP_LIMIT_KEY);
+    expect(v0.effective.source).not.toBe('revision');
+    expect(v0.head_rev_hash).toBeNull();
+    expect(v0).toMatchObject({ project_id: P, tier: null });
+    // scope settings and the PDP's project.settings.edit (bob holds nothing)
+    expect(
+      (await put('alice', { wip_limit: 3, parent_rev_hash: null }, TOKENS.reader)).status,
+    ).toBe(403);
+    expect((await put('bob', { wip_limit: 3, parent_rev_hash: null })).status).toBe(403);
+    // a head other than the one in force is refused
+    expect((await put('alice', { wip_limit: 3, parent_rev_hash: 'f'.repeat(64) })).status).toBe(
+      409,
+    );
+    const p = await put('alice', { wip_limit: 3, parent_rev_hash: null });
+    expect(p.status, JSON.stringify(p.json)).toBe(202);
+    const v1 = await pview(PROJECT_WIP_LIMIT_KEY);
+    expect(v1.pending).toHaveLength(1);
+    expect(v1.pending[0]?.revision).toMatchObject({ value: 3, changes_key: true });
+    expect(v1.pending[0]?.deciders).toMatchObject({ slot: 'admin', holders: ['carol'] });
+    // nothing is in force until the M1 is decided and published
+    expect(v1.effective.value).toEqual(v0.effective.value);
+    expect((await decideGate(s, p.json.gate_instance_id, 'carol', 'approve')).ok).toBe(true);
+    expect((await configPublish(s.config, { rev_hash: p.json.rev_hash })).ok).toBe(true);
+    const v2 = await pview(PROJECT_WIP_LIMIT_KEY);
+    expect(v2.effective).toMatchObject({ value: 3, source: 'revision', rev_hash: p.json.rev_hash });
+    expect(v2.head_rev_hash).toBe(p.json.rev_hash);
+    expect(v2.history[0]).toMatchObject({ state: 'current', changes_key: true });
+    // another key of the same layer reads the same head, and says this revision did not change it
+    const rm = await pview(PROJECT_CONFIG_KEYS.role_map);
+    expect(rm.head_rev_hash).toBe(p.json.rev_hash);
   });
 });

@@ -31,6 +31,7 @@ const view = (over: Record<string, unknown> = {}, may: Record<string, boolean> =
   catalogue_ref: { version: '1.0.0', hash: 'a'.repeat(64) },
   injection_suspected: false,
   dedupe_links: [],
+  profile_gates: null,
   may: { ready: false, answer: false, observe: false, plan: false, ...may },
   ...over,
 });
@@ -52,6 +53,55 @@ const question = (over: Record<string, unknown> = {}) => ({
 });
 const result = (it = view()) => ({ item: it, duplicate: false });
 const posts = (m: ReturnType<typeof mockApi>) => m.calls.filter((c) => c.method === 'POST');
+
+describe('the gates of an item (P2-10)', () => {
+  it('draws only the gates its pinned profile has: not reached, raised by a step, and the others off', async () => {
+    mockApi({
+      'GET /api/me': { json: me() },
+      [`GET ${PATH}`]: {
+        json: view({
+          phase: 'S2',
+          gates: [
+            {
+              gate: 'G0',
+              gate_instance_id: 'g-0',
+              status: 'decided',
+              outcome: 'approve',
+              card_id: null,
+              ledger_entry_id: null,
+            },
+            {
+              gate: 'E1',
+              gate_instance_id: 'g-e1',
+              status: 'pending',
+              outcome: null,
+              card_id: null,
+              ledger_entry_id: null,
+            },
+          ],
+          profile_gates: { on: ['G0', 'G1', 'G4'], off: ['G2', 'G3d'] },
+        }),
+      },
+    });
+    renderAt(`/items/${ITEM}`);
+    const route = await screen.findByTestId('route-gates');
+    expect(route.querySelector('[data-gate="G0"]')).toBeNull();
+    expect(route.querySelector('[data-gate="G4"]')).toHaveTextContent('not reached yet');
+    expect(route.querySelector('[data-gate="E1"]')).toHaveTextContent('raised by a step');
+    expect(route.querySelector('[data-gate="G2"]')).toHaveTextContent('off for this project');
+    expect(route.querySelector('[data-gate="G3d"]')).toHaveAttribute('data-off', 'true');
+    expect(route.querySelector('[data-gate="G5"]')).toBeNull();
+  });
+
+  it('says the gates are unknown when the pinned catalogue cannot be read', async () => {
+    mockApi({
+      'GET /api/me': { json: me() },
+      [`GET ${PATH}`]: { json: view() },
+    });
+    renderAt(`/items/${ITEM}`);
+    expect(await screen.findByTestId('route-gates-unknown')).toHaveTextContent('unknown');
+  });
+});
 
 describe('the work item page', () => {
   it('says where the item is and what it waits for, and shows no action to someone who may do none', async () => {

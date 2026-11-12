@@ -127,6 +127,7 @@ const gateContext = () => ({
   dependencies: [],
   constitution: null,
   onboarding_pack: null,
+  handoff: null,
   subject: null,
   data_class: 'D2',
 });
