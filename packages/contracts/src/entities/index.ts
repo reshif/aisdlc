@@ -45,3 +45,5 @@ export * from './onboarding-probe.js';
 export * from './notifications.js';
 export * from './conversation.js';
 export * from './portal-verify.js';
+export * from './onboarding-spikes.js';
+export * from './onboarding-pack.js';

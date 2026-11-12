@@ -51,7 +51,17 @@ export const probeStream = (s0Id: string): string => `probe:${s0Id}`;
 export const PROBE_EVENT = {
   granted: 'probe.granted',
   recorded: 'probe.recorded',
+  /** A person holding card 2's slot asked for the probe again (it ran nothing): the loop runs it at once. */
+  retry_requested: 'probe.retry_requested',
 } as const;
+
+export const ProbeRetryRequestedPayload = z.strictObject({
+  s0_id: S0RecordId,
+  card_id: z.string().uuid(),
+  requested_by: z.string().min(1).max(120),
+  requested_at: z.string().datetime(),
+});
+export type ProbeRetryRequestedPayload = z.infer<typeof ProbeRetryRequestedPayload>;
 
 /** `probe-<32 hex>`: the probe's id, also the grant id and (cut) the session id. */
 export const ProbeId = z.string().regex(/^probe-[0-9a-f]{32}$/);

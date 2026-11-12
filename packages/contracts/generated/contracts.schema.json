@@ -41536,6 +41536,292 @@
       "format": "date-time",
       "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
     },
+    "IsolationRun": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "setting_sources": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "ignored_harness": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "directives_in_control": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "effects_observed": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "acted": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "directive_id": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "stopped_by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "ET10",
+                      "X1",
+                      "X3"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "directive_id",
+              "stopped_by"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "session_outcome": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        }
+      },
+      "required": [
+        "run",
+        "setting_sources",
+        "ignored_harness",
+        "directives_in_control",
+        "effects_observed",
+        "acted",
+        "session_outcome"
+      ],
+      "additionalProperties": false
+    },
+    "IsolationStop": {
+      "type": "string",
+      "enum": [
+        "ET10",
+        "X1",
+        "X3"
+      ]
+    },
+    "IsolationTestReport": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "aisdlc-isolation-test/1"
+        },
+        "worker_image": {
+          "type": "string",
+          "pattern": "^(?:[a-z0-9][a-z0-9._/-]{0,200}@)?sha256:[0-9a-f]{64}$"
+        },
+        "runner_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plantings": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "directive_id": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]{1,40}$"
+              },
+              "site": {
+                "type": "string",
+                "enum": [
+                  "agents_md",
+                  "claude_md",
+                  "claude_settings_hook",
+                  "mcp_json",
+                  "readme",
+                  "code_comment",
+                  "test_name",
+                  "issue_text"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "push_main",
+                  "exfiltrate_env",
+                  "read_secret",
+                  "skip_tests",
+                  "write_protected",
+                  "run_hook"
+                ]
+              },
+              "text_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "directive_id",
+              "site",
+              "path",
+              "action",
+              "text_sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "runs": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "run": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "setting_sources": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 60
+                }
+              },
+              "ignored_harness": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              },
+              "directives_in_control": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 40
+                }
+              },
+              "effects_observed": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 120
+                }
+              },
+              "acted": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "directive_id": {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    "stopped_by": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ET10",
+                            "X1",
+                            "X3"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "directive_id",
+                    "stopped_by"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "session_outcome": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "required": [
+              "run",
+              "setting_sources",
+              "ignored_harness",
+              "directives_in_control",
+              "effects_observed",
+              "acted",
+              "session_outcome"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ran_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "schema",
+        "worker_image",
+        "runner_sha256",
+        "plantings",
+        "runs",
+        "ran_at"
+      ],
+      "additionalProperties": false
+    },
     "IssueLinkState": {
       "type": "string",
       "enum": [
@@ -52559,6 +52845,68 @@
       ],
       "additionalProperties": false
     },
+    "LightTestsConfig": {
+      "type": "object",
+      "properties": {
+        "worker_image": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:[a-z0-9][a-z0-9._/-]{0,200}@)?sha256:[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "isolation_min_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "lint_max_false_positive_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "lint_min_planted_catch_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "lint_policy_rules": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "L-TIER",
+              "L-AUTONOMY",
+              "L-LANE",
+              "L-GATE",
+              "L-BUDGET",
+              "L-GRANT",
+              "L-ADDRESS",
+              "L-DIRECTIVE",
+              "L-SECRET",
+              "L-URL",
+              "L-PIPE-SH",
+              "L-PROSE",
+              "L-FMT-LINES",
+              "L-FMT-FRONTMATTER"
+            ]
+          }
+        }
+      },
+      "required": [
+        "worker_image",
+        "isolation_min_runs",
+        "lint_max_false_positive_rate",
+        "lint_min_planted_catch_rate",
+        "lint_policy_rules"
+      ],
+      "additionalProperties": false
+    },
     "LinkLinkedPayload": {
       "type": "object",
       "properties": {
@@ -52617,6 +52965,13 @@
         "reason"
       ],
       "additionalProperties": false
+    },
+    "LintCorpusSource": {
+      "type": "string",
+      "enum": [
+        "fixture",
+        "download"
+      ]
     },
     "LintFindingFact": {
       "type": "object",
@@ -52707,6 +53062,155 @@
         "rule",
         "severity",
         "path"
+      ],
+      "additionalProperties": false
+    },
+    "LintPrecisionReport": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "aisdlc-lint-precision/1"
+        },
+        "lint_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "scan_rules_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "corpus": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "enum": [
+                "fixture",
+                "download"
+              ]
+            },
+            "corpus_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "benign": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "planted": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "source",
+            "corpus_sha256",
+            "benign",
+            "planted",
+            "note"
+          ],
+          "additionalProperties": false
+        },
+        "benign_flagged": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "L-TIER",
+                    "L-AUTONOMY",
+                    "L-LANE",
+                    "L-GATE",
+                    "L-BUDGET",
+                    "L-GRANT",
+                    "L-ADDRESS",
+                    "L-DIRECTIVE",
+                    "L-SECRET",
+                    "L-URL",
+                    "L-PIPE-SH",
+                    "L-PROSE",
+                    "L-FMT-LINES",
+                    "L-FMT-FRONTMATTER"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "file",
+              "rules"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "planted_missed": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "expected": {
+                "type": "string",
+                "enum": [
+                  "L-TIER",
+                  "L-AUTONOMY",
+                  "L-LANE",
+                  "L-GATE",
+                  "L-BUDGET",
+                  "L-GRANT",
+                  "L-ADDRESS",
+                  "L-DIRECTIVE",
+                  "L-SECRET",
+                  "L-URL",
+                  "L-PIPE-SH",
+                  "L-PROSE",
+                  "L-FMT-LINES",
+                  "L-FMT-FRONTMATTER"
+                ]
+              }
+            },
+            "required": [
+              "file",
+              "expected"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ran_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "schema",
+        "lint_revision",
+        "scan_rules_version",
+        "corpus",
+        "benign_flagged",
+        "planted_missed",
+        "ran_at"
       ],
       "additionalProperties": false
     },
@@ -57226,6 +57730,353 @@
         "banner.publish"
       ]
     },
+    "PackFile": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "affirmed_instructions",
+            "claims",
+            "unknowns",
+            "intent",
+            "manifest"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "protected_rule": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 40
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "source",
+        "sha256",
+        "bytes",
+        "protected_rule"
+      ],
+      "additionalProperties": false
+    },
+    "PackFileSource": {
+      "type": "string",
+      "enum": [
+        "affirmed_instructions",
+        "claims",
+        "unknowns",
+        "intent",
+        "manifest"
+      ]
+    },
+    "PackProjectionState": {
+      "type": "string",
+      "enum": [
+        "waiting_for_c2",
+        "x2_pending",
+        "x2_rejected",
+        "x2_approved",
+        "pushed",
+        "refused"
+      ]
+    },
+    "PackProjectionView": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "waiting_for_c2",
+            "x2_pending",
+            "x2_rejected",
+            "x2_approved",
+            "pushed",
+            "refused"
+          ]
+        },
+        "patch_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "affirmed_instructions",
+                  "claims",
+                  "unknowns",
+                  "intent",
+                  "manifest"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "protected_rule": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "source",
+              "sha256",
+              "bytes",
+              "protected_rule"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "x2_card_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pr_number": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "head_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 40
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "s0_id",
+        "state",
+        "patch_hash",
+        "files",
+        "x2_card_id",
+        "pr_number",
+        "head_sha",
+        "refusal"
+      ],
+      "additionalProperties": false
+    },
+    "PackRenderedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "c2_card_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "c2_payload_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "renderer": {
+          "type": "string",
+          "const": "onboarding-pack/1"
+        },
+        "files": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "affirmed_instructions",
+                  "claims",
+                  "unknowns",
+                  "intent",
+                  "manifest"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "protected_rule": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "source",
+              "sha256",
+              "bytes",
+              "protected_rule"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "patch_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rendered_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "project_id",
+        "repo",
+        "base_sha",
+        "c2_card_id",
+        "c2_payload_hash",
+        "renderer",
+        "files",
+        "patch_hash",
+        "rendered_at"
+      ],
+      "additionalProperties": false
+    },
+    "PackX2OpenedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "patch_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "card_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "s0_id",
+        "patch_hash",
+        "card_id",
+        "gate_instance_id"
+      ],
+      "additionalProperties": false
+    },
     "PatchFile": {
       "oneOf": [
         {
@@ -57842,6 +58693,80 @@
         "envelope"
       ],
       "additionalProperties": false
+    },
+    "PlantedAction": {
+      "type": "string",
+      "enum": [
+        "push_main",
+        "exfiltrate_env",
+        "read_secret",
+        "skip_tests",
+        "write_protected",
+        "run_hook"
+      ]
+    },
+    "PlantedDirective": {
+      "type": "object",
+      "properties": {
+        "directive_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$"
+        },
+        "site": {
+          "type": "string",
+          "enum": [
+            "agents_md",
+            "claude_md",
+            "claude_settings_hook",
+            "mcp_json",
+            "readme",
+            "code_comment",
+            "test_name",
+            "issue_text"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "push_main",
+            "exfiltrate_env",
+            "read_secret",
+            "skip_tests",
+            "write_protected",
+            "run_hook"
+          ]
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "directive_id",
+        "site",
+        "path",
+        "action",
+        "text_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "PlantingSite": {
+      "type": "string",
+      "enum": [
+        "agents_md",
+        "claude_md",
+        "claude_settings_hook",
+        "mcp_json",
+        "readme",
+        "code_comment",
+        "test_name",
+        "issue_text"
+      ]
     },
     "PolicyBundle": {
       "type": "object",
@@ -61834,6 +62759,37 @@
         "out_scan",
         "egress",
         "recorded_at"
+      ],
+      "additionalProperties": false
+    },
+    "ProbeRetryRequestedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "card_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "requested_by": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "requested_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "card_id",
+        "requested_by",
+        "requested_at"
       ],
       "additionalProperties": false
     },
@@ -83321,6 +84277,933 @@
         "index",
         "edge",
         "kind"
+      ],
+      "additionalProperties": false
+    },
+    "SpikeKind": {
+      "type": "string",
+      "enum": [
+        "sp-std-1",
+        "sp-std-3"
+      ]
+    },
+    "SpikeRecordRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "sp-std-1"
+            },
+            "report": {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": "string",
+                  "const": "aisdlc-isolation-test/1"
+                },
+                "worker_image": {
+                  "type": "string",
+                  "pattern": "^(?:[a-z0-9][a-z0-9._/-]{0,200}@)?sha256:[0-9a-f]{64}$"
+                },
+                "runner_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "plantings": {
+                  "minItems": 1,
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "directive_id": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]{1,40}$"
+                      },
+                      "site": {
+                        "type": "string",
+                        "enum": [
+                          "agents_md",
+                          "claude_md",
+                          "claude_settings_hook",
+                          "mcp_json",
+                          "readme",
+                          "code_comment",
+                          "test_name",
+                          "issue_text"
+                        ]
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "push_main",
+                          "exfiltrate_env",
+                          "read_secret",
+                          "skip_tests",
+                          "write_protected",
+                          "run_hook"
+                        ]
+                      },
+                      "text_sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "required": [
+                      "directive_id",
+                      "site",
+                      "path",
+                      "action",
+                      "text_sha256"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "runs": {
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "run": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "setting_sources": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 60
+                        }
+                      },
+                      "ignored_harness": {
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 300
+                        }
+                      },
+                      "directives_in_control": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 40
+                        }
+                      },
+                      "effects_observed": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 120
+                        }
+                      },
+                      "acted": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "directive_id": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "stopped_by": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ET10",
+                                    "X1",
+                                    "X3"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "directive_id",
+                            "stopped_by"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "session_outcome": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      }
+                    },
+                    "required": [
+                      "run",
+                      "setting_sources",
+                      "ignored_harness",
+                      "directives_in_control",
+                      "effects_observed",
+                      "acted",
+                      "session_outcome"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "ran_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "schema",
+                "worker_image",
+                "runner_sha256",
+                "plantings",
+                "runs",
+                "ran_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "kind",
+            "report"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "sp-std-3"
+            },
+            "report": {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": "string",
+                  "const": "aisdlc-lint-precision/1"
+                },
+                "lint_revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "scan_rules_version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "corpus": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "fixture",
+                        "download"
+                      ]
+                    },
+                    "corpus_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "benign": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "planted": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "note": {
+                      "type": "string",
+                      "maxLength": 300
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "corpus_sha256",
+                    "benign",
+                    "planted",
+                    "note"
+                  ],
+                  "additionalProperties": false
+                },
+                "benign_flagged": {
+                  "maxItems": 1000,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "file": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "rules": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "L-TIER",
+                            "L-AUTONOMY",
+                            "L-LANE",
+                            "L-GATE",
+                            "L-BUDGET",
+                            "L-GRANT",
+                            "L-ADDRESS",
+                            "L-DIRECTIVE",
+                            "L-SECRET",
+                            "L-URL",
+                            "L-PIPE-SH",
+                            "L-PROSE",
+                            "L-FMT-LINES",
+                            "L-FMT-FRONTMATTER"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "file",
+                      "rules"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "planted_missed": {
+                  "maxItems": 1000,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "file": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "expected": {
+                        "type": "string",
+                        "enum": [
+                          "L-TIER",
+                          "L-AUTONOMY",
+                          "L-LANE",
+                          "L-GATE",
+                          "L-BUDGET",
+                          "L-GRANT",
+                          "L-ADDRESS",
+                          "L-DIRECTIVE",
+                          "L-SECRET",
+                          "L-URL",
+                          "L-PIPE-SH",
+                          "L-PROSE",
+                          "L-FMT-LINES",
+                          "L-FMT-FRONTMATTER"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "file",
+                      "expected"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "ran_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "schema",
+                "lint_revision",
+                "scan_rules_version",
+                "corpus",
+                "benign_flagged",
+                "planted_missed",
+                "ran_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "kind",
+            "report"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SpikeRecordedPayload": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "sp-std-1"
+            },
+            "report": {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": "string",
+                  "const": "aisdlc-isolation-test/1"
+                },
+                "worker_image": {
+                  "type": "string",
+                  "pattern": "^(?:[a-z0-9][a-z0-9._/-]{0,200}@)?sha256:[0-9a-f]{64}$"
+                },
+                "runner_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "plantings": {
+                  "minItems": 1,
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "directive_id": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]{1,40}$"
+                      },
+                      "site": {
+                        "type": "string",
+                        "enum": [
+                          "agents_md",
+                          "claude_md",
+                          "claude_settings_hook",
+                          "mcp_json",
+                          "readme",
+                          "code_comment",
+                          "test_name",
+                          "issue_text"
+                        ]
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "push_main",
+                          "exfiltrate_env",
+                          "read_secret",
+                          "skip_tests",
+                          "write_protected",
+                          "run_hook"
+                        ]
+                      },
+                      "text_sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "required": [
+                      "directive_id",
+                      "site",
+                      "path",
+                      "action",
+                      "text_sha256"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "runs": {
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "run": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "setting_sources": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 60
+                        }
+                      },
+                      "ignored_harness": {
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 300
+                        }
+                      },
+                      "directives_in_control": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 40
+                        }
+                      },
+                      "effects_observed": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 120
+                        }
+                      },
+                      "acted": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "directive_id": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "stopped_by": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ET10",
+                                    "X1",
+                                    "X3"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "directive_id",
+                            "stopped_by"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "session_outcome": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      }
+                    },
+                    "required": [
+                      "run",
+                      "setting_sources",
+                      "ignored_harness",
+                      "directives_in_control",
+                      "effects_observed",
+                      "acted",
+                      "session_outcome"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "ran_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "schema",
+                "worker_image",
+                "runner_sha256",
+                "plantings",
+                "runs",
+                "ran_at"
+              ],
+              "additionalProperties": false
+            },
+            "report_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "thresholds": {
+              "type": "object",
+              "properties": {
+                "isolation_min_runs": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "isolation_min_runs"
+              ],
+              "additionalProperties": false
+            },
+            "verdict": {
+              "type": "object",
+              "properties": {
+                "passed": {
+                  "type": "boolean"
+                },
+                "reasons": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "figures": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "passed",
+                "reasons",
+                "figures"
+              ],
+              "additionalProperties": false
+            },
+            "recorded_by": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "kind",
+            "report",
+            "report_hash",
+            "thresholds",
+            "verdict",
+            "recorded_by"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "sp-std-3"
+            },
+            "report": {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": "string",
+                  "const": "aisdlc-lint-precision/1"
+                },
+                "lint_revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "scan_rules_version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "corpus": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "fixture",
+                        "download"
+                      ]
+                    },
+                    "corpus_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "benign": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "planted": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "note": {
+                      "type": "string",
+                      "maxLength": 300
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "corpus_sha256",
+                    "benign",
+                    "planted",
+                    "note"
+                  ],
+                  "additionalProperties": false
+                },
+                "benign_flagged": {
+                  "maxItems": 1000,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "file": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "rules": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "L-TIER",
+                            "L-AUTONOMY",
+                            "L-LANE",
+                            "L-GATE",
+                            "L-BUDGET",
+                            "L-GRANT",
+                            "L-ADDRESS",
+                            "L-DIRECTIVE",
+                            "L-SECRET",
+                            "L-URL",
+                            "L-PIPE-SH",
+                            "L-PROSE",
+                            "L-FMT-LINES",
+                            "L-FMT-FRONTMATTER"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "file",
+                      "rules"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "planted_missed": {
+                  "maxItems": 1000,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "file": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "expected": {
+                        "type": "string",
+                        "enum": [
+                          "L-TIER",
+                          "L-AUTONOMY",
+                          "L-LANE",
+                          "L-GATE",
+                          "L-BUDGET",
+                          "L-GRANT",
+                          "L-ADDRESS",
+                          "L-DIRECTIVE",
+                          "L-SECRET",
+                          "L-URL",
+                          "L-PIPE-SH",
+                          "L-PROSE",
+                          "L-FMT-LINES",
+                          "L-FMT-FRONTMATTER"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "file",
+                      "expected"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "ran_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "schema",
+                "lint_revision",
+                "scan_rules_version",
+                "corpus",
+                "benign_flagged",
+                "planted_missed",
+                "ran_at"
+              ],
+              "additionalProperties": false
+            },
+            "report_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "thresholds": {
+              "type": "object",
+              "properties": {
+                "lint_max_false_positive_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "lint_min_planted_catch_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "lint_policy_rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "L-TIER",
+                      "L-AUTONOMY",
+                      "L-LANE",
+                      "L-GATE",
+                      "L-BUDGET",
+                      "L-GRANT",
+                      "L-ADDRESS",
+                      "L-DIRECTIVE",
+                      "L-SECRET",
+                      "L-URL",
+                      "L-PIPE-SH",
+                      "L-PROSE",
+                      "L-FMT-LINES",
+                      "L-FMT-FRONTMATTER"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "lint_max_false_positive_rate",
+                "lint_min_planted_catch_rate",
+                "lint_policy_rules"
+              ],
+              "additionalProperties": false
+            },
+            "verdict": {
+              "type": "object",
+              "properties": {
+                "passed": {
+                  "type": "boolean"
+                },
+                "reasons": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "figures": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "passed",
+                "reasons",
+                "figures"
+              ],
+              "additionalProperties": false
+            },
+            "recorded_by": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "kind",
+            "report",
+            "report_hash",
+            "thresholds",
+            "verdict",
+            "recorded_by"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SpikeVerdict": {
+      "type": "object",
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "figures": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "passed",
+        "reasons",
+        "figures"
       ],
       "additionalProperties": false
     },
