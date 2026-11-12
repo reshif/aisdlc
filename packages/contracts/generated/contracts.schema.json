@@ -105449,6 +105449,20 @@
             "reject",
             "request_changes"
           ]
+        },
+        "step_up": {
+          "type": "object",
+          "properties": {
+            "proof": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "proof"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
