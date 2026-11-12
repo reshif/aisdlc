@@ -21483,6 +21483,229 @@
       ],
       "additionalProperties": false
     },
+    "DeliveryErrorCode": {
+      "type": "string",
+      "enum": [
+        "channel_unknown",
+        "channel_disabled",
+        "config_unreadable",
+        "secret_unavailable",
+        "egress_refused",
+        "no_address",
+        "content_refused",
+        "unreachable",
+        "timeout",
+        "rejected",
+        "rate_limited",
+        "server_error"
+      ]
+    },
+    "DeliveryFailedPayload": {
+      "type": "object",
+      "properties": {
+        "delivery_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "notification_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "channel_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,39}$"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "error_code": {
+          "type": "string",
+          "enum": [
+            "channel_unknown",
+            "channel_disabled",
+            "config_unreadable",
+            "secret_unavailable",
+            "egress_refused",
+            "no_address",
+            "content_refused",
+            "unreachable",
+            "timeout",
+            "rejected",
+            "rate_limited",
+            "server_error"
+          ]
+        },
+        "retry_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "delivery_id",
+        "notification_id",
+        "channel_id",
+        "attempt",
+        "error_code",
+        "retry_at",
+        "failed_at"
+      ],
+      "additionalProperties": false
+    },
+    "DeliveryStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "delivered",
+        "given_up"
+      ]
+    },
+    "DeliverySucceededPayload": {
+      "type": "object",
+      "properties": {
+        "delivery_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "notification_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "channel_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,39}$"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "rendered_class": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1"
+          ]
+        },
+        "delivered_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "delivery_id",
+        "notification_id",
+        "channel_id",
+        "attempt",
+        "rendered_class",
+        "delivered_at"
+      ],
+      "additionalProperties": false
+    },
+    "DeliveryView": {
+      "type": "object",
+      "properties": {
+        "delivery_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "channel_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,39}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "delivered",
+            "given_up"
+          ]
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "last_error": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "channel_unknown",
+                "channel_disabled",
+                "config_unreadable",
+                "secret_unavailable",
+                "egress_refused",
+                "no_address",
+                "content_refused",
+                "unreachable",
+                "timeout",
+                "rejected",
+                "rate_limited",
+                "server_error"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next_attempt_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "delivered_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "delivery_id",
+        "channel_id",
+        "status",
+        "attempts",
+        "last_error",
+        "next_attempt_at",
+        "delivered_at"
+      ],
+      "additionalProperties": false
+    },
     "DetectedTierCriterion": {
       "type": "string",
       "enum": [
@@ -23056,6 +23279,96 @@
         "n8_hold",
         "l8"
       ]
+    },
+    "EmailSmtpChannel": {
+      "type": "object",
+      "properties": {
+        "channel_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,39}$"
+        },
+        "display_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "data_class_max": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1"
+          ]
+        },
+        "default_on": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string",
+          "const": "email_smtp"
+        },
+        "host": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "tls": {
+          "type": "string",
+          "enum": [
+            "implicit",
+            "starttls",
+            "none"
+          ]
+        },
+        "from": {
+          "type": "string",
+          "maxLength": 200,
+          "format": "email",
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "username_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "password_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "channel_id",
+        "display_name",
+        "enabled",
+        "data_class_max",
+        "default_on",
+        "kind",
+        "host",
+        "port",
+        "tls",
+        "from",
+        "username_ref",
+        "password_ref"
+      ],
+      "additionalProperties": false
     },
     "EntryChannel": {
       "type": "string",
@@ -27673,6 +27986,10 @@
         "content"
       ],
       "additionalProperties": false
+    },
+    "FileSecretRef": {
+      "type": "string",
+      "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
     },
     "FindingCounts": {
       "type": "object",
@@ -46996,6 +47313,1484 @@
       ],
       "additionalProperties": false
     },
+    "NotificationChannelChoice": {
+      "type": "object",
+      "properties": {
+        "channel_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,39}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "slack_webhook",
+            "email_smtp"
+          ]
+        },
+        "display_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+        },
+        "default_on": {
+          "type": "boolean"
+        },
+        "data_class_max": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1"
+          ]
+        }
+      },
+      "required": [
+        "channel_id",
+        "kind",
+        "display_name",
+        "default_on",
+        "data_class_max"
+      ],
+      "additionalProperties": false
+    },
+    "NotificationChannelId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,39}$"
+    },
+    "NotificationChannelKind": {
+      "type": "string",
+      "enum": [
+        "slack_webhook",
+        "email_smtp"
+      ]
+    },
+    "NotificationChannelName": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+    },
+    "NotificationChannelRow": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "channel_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,39}$"
+            },
+            "display_name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "data_class_max": {
+              "type": "string",
+              "enum": [
+                "D0",
+                "D1"
+              ]
+            },
+            "default_on": {
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "const": "slack_webhook"
+            },
+            "webhook_ref": {
+              "type": "string",
+              "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+            }
+          },
+          "required": [
+            "channel_id",
+            "display_name",
+            "enabled",
+            "data_class_max",
+            "default_on",
+            "kind",
+            "webhook_ref"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "channel_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,39}$"
+            },
+            "display_name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "data_class_max": {
+              "type": "string",
+              "enum": [
+                "D0",
+                "D1"
+              ]
+            },
+            "default_on": {
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "const": "email_smtp"
+            },
+            "host": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "tls": {
+              "type": "string",
+              "enum": [
+                "implicit",
+                "starttls",
+                "none"
+              ]
+            },
+            "from": {
+              "type": "string",
+              "maxLength": 200,
+              "format": "email",
+              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "username_ref": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "password_ref": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "channel_id",
+            "display_name",
+            "enabled",
+            "data_class_max",
+            "default_on",
+            "kind",
+            "host",
+            "port",
+            "tls",
+            "from",
+            "username_ref",
+            "password_ref"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "NotificationChannels": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "channel_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,39}$"
+              },
+              "display_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "data_class_max": {
+                "type": "string",
+                "enum": [
+                  "D0",
+                  "D1"
+                ]
+              },
+              "default_on": {
+                "type": "boolean"
+              },
+              "kind": {
+                "type": "string",
+                "const": "slack_webhook"
+              },
+              "webhook_ref": {
+                "type": "string",
+                "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+              }
+            },
+            "required": [
+              "channel_id",
+              "display_name",
+              "enabled",
+              "data_class_max",
+              "default_on",
+              "kind",
+              "webhook_ref"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "channel_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,39}$"
+              },
+              "display_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "data_class_max": {
+                "type": "string",
+                "enum": [
+                  "D0",
+                  "D1"
+                ]
+              },
+              "default_on": {
+                "type": "boolean"
+              },
+              "kind": {
+                "type": "string",
+                "const": "email_smtp"
+              },
+              "host": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "tls": {
+                "type": "string",
+                "enum": [
+                  "implicit",
+                  "starttls",
+                  "none"
+                ]
+              },
+              "from": {
+                "type": "string",
+                "maxLength": 200,
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "username_ref": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "password_ref": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "channel_id",
+              "display_name",
+              "enabled",
+              "data_class_max",
+              "default_on",
+              "kind",
+              "host",
+              "port",
+              "tls",
+              "from",
+              "username_ref",
+              "password_ref"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "NotificationContent": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "gate_waiting",
+            "sla_escalated",
+            "quarantine",
+            "handoff",
+            "kill_engaged",
+            "kill_released"
+          ]
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gate_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "G0",
+                "G1",
+                "G1f",
+                "G2",
+                "G3",
+                "G3d",
+                "G3s",
+                "G3o",
+                "G4",
+                "G5",
+                "G6",
+                "X1",
+                "X2",
+                "X3",
+                "X4",
+                "E1",
+                "E2",
+                "E3",
+                "E4",
+                "E5",
+                "E6",
+                "M1",
+                "M2",
+                "M3",
+                "M4",
+                "M5",
+                "M6",
+                "Q1",
+                "SECT"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gate_instance_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "card_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kill_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "due_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "link_path": {
+          "type": "string",
+          "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+        }
+      },
+      "required": [
+        "kind",
+        "project_id",
+        "gate_id",
+        "gate_instance_id",
+        "card_id",
+        "kill_id",
+        "due_at",
+        "link_path"
+      ],
+      "additionalProperties": false
+    },
+    "NotificationDataClass": {
+      "type": "string",
+      "enum": [
+        "D0",
+        "D1"
+      ]
+    },
+    "NotificationHost": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$"
+    },
+    "NotificationKind": {
+      "type": "string",
+      "enum": [
+        "gate_waiting",
+        "sla_escalated",
+        "quarantine",
+        "handoff",
+        "kill_engaged",
+        "kill_released"
+      ]
+    },
+    "NotificationList": {
+      "type": "object",
+      "properties": {
+        "notifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "notification_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "content": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "gate_waiting",
+                      "sla_escalated",
+                      "quarantine",
+                      "handoff",
+                      "kill_engaged",
+                      "kill_released"
+                    ]
+                  },
+                  "project_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gate_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gate_instance_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "card_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "kill_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "due_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "link_path": {
+                    "type": "string",
+                    "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "project_id",
+                  "gate_id",
+                  "gate_instance_id",
+                  "card_id",
+                  "kill_id",
+                  "due_at",
+                  "link_path"
+                ],
+                "additionalProperties": false
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "slot_holder",
+                  "escalated_backup",
+                  "project_admin",
+                  "factory_admin"
+                ]
+              },
+              "raised_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "deliveries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "delivery_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "channel_id": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{1,39}$"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "delivered",
+                        "given_up"
+                      ]
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "last_error": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "channel_unknown",
+                            "channel_disabled",
+                            "config_unreadable",
+                            "secret_unavailable",
+                            "egress_refused",
+                            "no_address",
+                            "content_refused",
+                            "unreachable",
+                            "timeout",
+                            "rejected",
+                            "rate_limited",
+                            "server_error"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "next_attempt_at": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "delivered_at": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "channel_id",
+                    "status",
+                    "attempts",
+                    "last_error",
+                    "next_attempt_at",
+                    "delivered_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "notification_id",
+              "content",
+              "reason",
+              "raised_at",
+              "deliveries"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "notifications"
+      ],
+      "additionalProperties": false
+    },
+    "NotificationPreferences": {
+      "type": "object",
+      "properties": {
+        "channels": {
+          "anyOf": [
+            {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,39}$"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "muted_kinds": {
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "gate_waiting",
+              "sla_escalated",
+              "quarantine",
+              "handoff",
+              "kill_engaged",
+              "kill_released"
+            ]
+          }
+        },
+        "slack_member_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[UW][A-Z0-9]{2,20}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "channels",
+        "muted_kinds",
+        "slack_member_id"
+      ],
+      "additionalProperties": false
+    },
+    "NotificationPreferencesView": {
+      "type": "object",
+      "properties": {
+        "principal_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "channels": {
+              "anyOf": [
+                {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{1,39}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "muted_kinds": {
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "gate_waiting",
+                  "sla_escalated",
+                  "quarantine",
+                  "handoff",
+                  "kill_engaged",
+                  "kill_released"
+                ]
+              }
+            },
+            "slack_member_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[UW][A-Z0-9]{2,20}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "channels",
+            "muted_kinds",
+            "slack_member_id"
+          ],
+          "additionalProperties": false
+        },
+        "set_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "channel_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,39}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "slack_webhook",
+                  "email_smtp"
+                ]
+              },
+              "display_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+              },
+              "default_on": {
+                "type": "boolean"
+              },
+              "data_class_max": {
+                "type": "string",
+                "enum": [
+                  "D0",
+                  "D1"
+                ]
+              }
+            },
+            "required": [
+              "channel_id",
+              "kind",
+              "display_name",
+              "default_on",
+              "data_class_max"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "principal_id",
+        "preferences",
+        "set_at",
+        "channels"
+      ],
+      "additionalProperties": false
+    },
+    "NotificationRaisedPayload": {
+      "type": "object",
+      "properties": {
+        "notification_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "principal_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "gate_waiting",
+                "sla_escalated",
+                "quarantine",
+                "handoff",
+                "kill_engaged",
+                "kill_released"
+              ]
+            },
+            "project_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gate_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "G0",
+                    "G1",
+                    "G1f",
+                    "G2",
+                    "G3",
+                    "G3d",
+                    "G3s",
+                    "G3o",
+                    "G4",
+                    "G5",
+                    "G6",
+                    "X1",
+                    "X2",
+                    "X3",
+                    "X4",
+                    "E1",
+                    "E2",
+                    "E3",
+                    "E4",
+                    "E5",
+                    "E6",
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "Q1",
+                    "SECT"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gate_instance_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "card_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kill_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "due_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "link_path": {
+              "type": "string",
+              "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+            }
+          },
+          "required": [
+            "kind",
+            "project_id",
+            "gate_id",
+            "gate_instance_id",
+            "card_id",
+            "kill_id",
+            "due_at",
+            "link_path"
+          ],
+          "additionalProperties": false
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "slot_holder",
+            "escalated_backup",
+            "project_admin",
+            "factory_admin"
+          ]
+        },
+        "slot": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "admin",
+                "requesters",
+                "intent",
+                "design",
+                "g4",
+                "g5",
+                "x",
+                "sec",
+                "m4",
+                "kill"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data_class": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2",
+            "D3"
+          ]
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "stream": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "stream_seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "global_seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "required": [
+            "stream",
+            "stream_seq",
+            "global_seq",
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "deliveries": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "delivery_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "channel_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,39}$"
+              }
+            },
+            "required": [
+              "delivery_id",
+              "channel_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "raised_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "notification_id",
+        "principal_id",
+        "content",
+        "reason",
+        "slot",
+        "data_class",
+        "source",
+        "deliveries",
+        "raised_at"
+      ],
+      "additionalProperties": false
+    },
+    "NotificationReason": {
+      "type": "string",
+      "enum": [
+        "slot_holder",
+        "escalated_backup",
+        "project_admin",
+        "factory_admin"
+      ]
+    },
+    "NotificationSource": {
+      "type": "object",
+      "properties": {
+        "stream": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "stream_seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "global_seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      },
+      "required": [
+        "stream",
+        "stream_seq",
+        "global_seq",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "NotificationView": {
+      "type": "object",
+      "properties": {
+        "notification_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "gate_waiting",
+                "sla_escalated",
+                "quarantine",
+                "handoff",
+                "kill_engaged",
+                "kill_released"
+              ]
+            },
+            "project_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gate_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "G0",
+                    "G1",
+                    "G1f",
+                    "G2",
+                    "G3",
+                    "G3d",
+                    "G3s",
+                    "G3o",
+                    "G4",
+                    "G5",
+                    "G6",
+                    "X1",
+                    "X2",
+                    "X3",
+                    "X4",
+                    "E1",
+                    "E2",
+                    "E3",
+                    "E4",
+                    "E5",
+                    "E6",
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "Q1",
+                    "SECT"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gate_instance_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "card_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kill_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "due_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "link_path": {
+              "type": "string",
+              "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+            }
+          },
+          "required": [
+            "kind",
+            "project_id",
+            "gate_id",
+            "gate_instance_id",
+            "card_id",
+            "kill_id",
+            "due_at",
+            "link_path"
+          ],
+          "additionalProperties": false
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "slot_holder",
+            "escalated_backup",
+            "project_admin",
+            "factory_admin"
+          ]
+        },
+        "raised_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "deliveries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "delivery_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "channel_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,39}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "delivered",
+                  "given_up"
+                ]
+              },
+              "attempts": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "last_error": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "channel_unknown",
+                      "channel_disabled",
+                      "config_unreadable",
+                      "secret_unavailable",
+                      "egress_refused",
+                      "no_address",
+                      "content_refused",
+                      "unreachable",
+                      "timeout",
+                      "rejected",
+                      "rate_limited",
+                      "server_error"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "next_attempt_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delivered_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "delivery_id",
+              "channel_id",
+              "status",
+              "attempts",
+              "last_error",
+              "next_attempt_at",
+              "delivered_at"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "notification_id",
+        "content",
+        "reason",
+        "raised_at",
+        "deliveries"
+      ],
+      "additionalProperties": false
+    },
+    "NotifierEventType": {
+      "type": "string",
+      "enum": [
+        "notifier.notification_raised",
+        "notifier.delivery_succeeded",
+        "notifier.delivery_failed",
+        "notifier.preferences_set"
+      ]
+    },
     "ObservedReason": {
       "type": "string",
       "enum": [
@@ -49730,6 +51525,10 @@
       ],
       "additionalProperties": false
     },
+    "PortalPath": {
+      "type": "string",
+      "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+    },
     "PortalS0Revision": {
       "type": "object",
       "properties": {
@@ -50797,6 +52596,85 @@
         "amber",
         "green"
       ]
+    },
+    "PreferencesSetPayload": {
+      "type": "object",
+      "properties": {
+        "principal_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "channels": {
+              "anyOf": [
+                {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{1,39}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "muted_kinds": {
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "gate_waiting",
+                  "sla_escalated",
+                  "quarantine",
+                  "handoff",
+                  "kill_engaged",
+                  "kill_released"
+                ]
+              }
+            },
+            "slack_member_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[UW][A-Z0-9]{2,20}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "channels",
+            "muted_kinds",
+            "slack_member_id"
+          ],
+          "additionalProperties": false
+        },
+        "set_by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "set_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "principal_id",
+        "preferences",
+        "set_by",
+        "set_at"
+      ],
+      "additionalProperties": false
     },
     "PresenceFact": {
       "type": "object",
@@ -69770,6 +71648,67 @@
       ],
       "additionalProperties": false
     },
+    "SetPreferencesRequest": {
+      "type": "object",
+      "properties": {
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "channels": {
+              "anyOf": [
+                {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{1,39}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "muted_kinds": {
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "gate_waiting",
+                  "sla_escalated",
+                  "quarantine",
+                  "handoff",
+                  "kill_engaged",
+                  "kill_released"
+                ]
+              }
+            },
+            "slack_member_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[UW][A-Z0-9]{2,20}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "channels",
+            "muted_kinds",
+            "slack_member_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "preferences"
+      ],
+      "additionalProperties": false
+    },
     "SettingsRevisionView": {
       "type": "object",
       "properties": {
@@ -71019,6 +72958,62 @@
       "enum": [
         "solo",
         "team"
+      ]
+    },
+    "SlackMemberId": {
+      "type": "string",
+      "pattern": "^[UW][A-Z0-9]{2,20}$"
+    },
+    "SlackWebhookChannel": {
+      "type": "object",
+      "properties": {
+        "channel_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,39}$"
+        },
+        "display_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._#()'-]{0,79}$"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "data_class_max": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1"
+          ]
+        },
+        "default_on": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string",
+          "const": "slack_webhook"
+        },
+        "webhook_ref": {
+          "type": "string",
+          "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+        }
+      },
+      "required": [
+        "channel_id",
+        "display_name",
+        "enabled",
+        "data_class_max",
+        "default_on",
+        "kind",
+        "webhook_ref"
+      ],
+      "additionalProperties": false
+    },
+    "SmtpTls": {
+      "type": "string",
+      "enum": [
+        "implicit",
+        "starttls",
+        "none"
       ]
     },
     "SnapshotRef": {
