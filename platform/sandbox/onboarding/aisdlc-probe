@@ -1,0 +1,71 @@
+#!/usr/local/bin/python3 -I
+# aisdlc-probe: the onboarding probe's step runner (PLAN M16; OB §3.2 LF3). A trusted command of the onboarding image,
+# run by `aisdlc-run` inside a K-exec session. Not a security boundary: the container is.
+#
+#   aisdlc-probe <n> <setup argv: n words> <test argv...>
+#
+# Runs the repo's own setup (when n > 0) and then its test, each as argv (no shell), from the repo copy in /work/repo.
+# A failed setup skips the test. Each step's output goes to a log under /work (the bigger scratch), and the last
+# 64 KiB of it to /out/aisdlc-probe/<step>.log; exit codes and durations go to /out/aisdlc-probe/result.json. pytest
+# is asked for a JUnit report in /out/aisdlc-probe/junit.xml (PYTEST_ADDOPTS) so the factory can count the tests.
+# Everything in /out is the repo code's word too (it runs in the same container): the factory treats it as untrusted.
+import json
+import os
+import subprocess
+import sys
+import time
+
+OUT = '/out/aisdlc-probe'
+LOGS = '/work/.aisdlc-probe'
+TAIL = 64 * 1024
+
+
+def run_step(name, argv):
+    log = os.path.join(LOGS, name + '.log')
+    t0 = time.monotonic()
+    with open(log, 'wb') as f:
+        try:
+            code = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT).returncode
+        except OSError as e:
+            f.write(('aisdlc-probe: %s did not start: %s\n' % (argv[0], e.strerror)).encode())
+            code = 127
+    ms = int((time.monotonic() - t0) * 1000)
+    size = os.path.getsize(log)
+    with open(log, 'rb') as f:
+        if size > TAIL:
+            f.seek(size - TAIL)
+        tail = f.read()
+    with open(os.path.join(OUT, name + '.log'), 'wb') as o:
+        o.write(tail)
+    return {'exit_code': code, 'duration_ms': ms}
+
+
+def main(args):
+    if not args or not args[0].isdigit():
+        print('aisdlc-probe: usage: aisdlc-probe <n> <setup argv...> <test argv...>', file=sys.stderr)
+        return 2
+    n = int(args[0])
+    setup, test = args[1 : 1 + n], args[1 + n :]
+    if len(setup) != n or not test:
+        print('aisdlc-probe: no test command', file=sys.stderr)
+        return 2
+    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(LOGS, exist_ok=True)
+    os.environ['PYTEST_ADDOPTS'] = (
+        os.environ.get('PYTEST_ADDOPTS', '') + ' --junitxml=' + os.path.join(OUT, 'junit.xml')
+    ).strip()
+    result = {'schema': 'aisdlc-probe/1', 'setup': None, 'test': None}
+    ok = True
+    if setup:
+        result['setup'] = run_step('setup', setup)
+        ok = result['setup']['exit_code'] == 0
+    if ok:
+        result['test'] = run_step('test', test)
+        ok = result['test']['exit_code'] == 0
+    with open(os.path.join(OUT, 'result.json'), 'w') as f:
+        json.dump(result, f)
+    return 0 if ok else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
