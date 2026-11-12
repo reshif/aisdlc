@@ -151,7 +151,11 @@ beforeEach(() => {
 });
 
 const browsers = new Map<string, Browser>();
-async function get(who: string, path: string, headers: Record<string, string> = {}) {
+async function get(
+  who: 'alice' | 'carol' | 'dora' | 'root',
+  path: string,
+  headers: Record<string, string> = {},
+) {
   let b = browsers.get(who);
   if (!b) {
     b = (await signIn(s, who)).browser;
