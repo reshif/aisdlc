@@ -102,6 +102,21 @@ export const GateOpenedPayload = z.strictObject({
 });
 export type GateOpenedPayload = z.infer<typeof GateOpenedPayload>;
 
+/**
+ * The step-up every vote on a gate needs (RC-SEC-4). The policy's (G5, M4), the opener's (a sensitive
+ * G4, D37), and ALWAYS where the gate needs two or more distinct people (X1, X2, E2 and any gate whose
+ * quorum is two-person): two approvals then mean two people who each re-authenticated, each with a proof
+ * core verifies itself (signed by the bff's step-up key, bound to the gate, single use), not two names a
+ * caller sent. Read from the frozen payload at decide time, so it also covers a gate opened before this
+ * rule.
+ */
+export const stepUpOf = (
+  p: Pick<GateOpenedPayload, 'step_up' | 'quorum'>,
+): { required: boolean; bound_hash: GateOpenedPayload['step_up']['bound_hash'] } => ({
+  required: p.step_up.required || p.quorum.required >= 2,
+  bound_hash: p.step_up.bound_hash,
+});
+
 /** Markers written in the same transaction as a ledger decision. They never carry the decision. */
 export const GateVoteMarker = z.strictObject({
   ledger_entry_id: LedgerEntryId,

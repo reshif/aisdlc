@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api } from '../api';
+import { api, type PreparedRevision } from '../api';
+import { StepUpBox, useStepUp } from '../cards/StepUp';
 import { ErrorNote } from '../components/Notice';
 import { Read, ShortHash } from '../components/Read';
 import { Link } from '../router';
@@ -28,7 +29,9 @@ export function FactoryRevisionPage({
     queryKey: ['factory-revision', gate],
     queryFn: () => api.factoryRevision(gate),
   });
-  const [prep, setPrep] = useState<{ nonce: string; evidence_hash: string } | null>(null);
+  const [prep, setPrep] = useState<PreparedRevision | null>(null);
+  const needsProof = prep?.step_up?.required === true;
+  const stepUp = useStepUp(needsProof ? (prep?.step_up?.bound_hash ?? null) : null, csrf);
   const read = useMutation({
     mutationFn: async () => {
       const p = await api.prepareFactoryRevision(gate, csrf);
@@ -44,10 +47,19 @@ export function FactoryRevisionPage({
   const decide = useMutation({
     mutationFn: (decision: 'approve' | 'reject') => {
       if (!prep) throw new Error('read the changes first');
-      return api.decideFactoryRevision(gate, { nonce: prep.nonce, decision }, csrf);
+      return api.decideFactoryRevision(
+        gate,
+        {
+          nonce: prep.nonce,
+          decision,
+          ...(needsProof && stepUp.proof ? { step_up: { proof: stepUp.proof } } : {}),
+        },
+        csrf,
+      );
     },
     onSuccess: () => {
       setPrep(null);
+      stepUp.clear();
       void qc.invalidateQueries({ queryKey: ['factory-revision', gate] });
       void qc.invalidateQueries({ queryKey: ['config-key'] });
     },
@@ -127,10 +139,13 @@ export function FactoryRevisionPage({
                 </>
               ) : (
                 <div className="pg-inline">
+                  {needsProof ? (
+                    <StepUpBox s={stepUp} boundHash={prep.step_up?.bound_hash ?? null} />
+                  ) : null}
                   <button
                     type="button"
                     className="ui-btn ui-btn-primary"
-                    disabled={decide.isPending}
+                    disabled={decide.isPending || (needsProof && !stepUp.proof)}
                     onClick={() => decide.mutate('approve')}
                   >
                     Approve
@@ -138,7 +153,7 @@ export function FactoryRevisionPage({
                   <button
                     type="button"
                     className="ui-btn"
-                    disabled={decide.isPending}
+                    disabled={decide.isPending || (needsProof && !stepUp.proof)}
                     onClick={() => decide.mutate('reject')}
                   >
                     Reject
@@ -147,6 +162,7 @@ export function FactoryRevisionPage({
               )}
               {read.isError ? <ErrorNote error={read.error} /> : null}
               {decide.isError ? <ErrorNote error={decide.error} /> : null}
+              {stepUp.error ? <ErrorNote error={stepUp.error} /> : null}
               {decide.isSuccess ? <p role="status">Your decision is on the ledger.</p> : null}
             </Card>
           ) : (

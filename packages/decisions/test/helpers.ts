@@ -165,11 +165,20 @@ export async function decideAs(
   gate: string,
   principal: string,
   decision: string,
-  opts: { stepUp?: string | null; skipEvidence?: boolean; deps?: DecisionDeps } = {},
+  opts: {
+    stepUp?: string | null;
+    /** The person stepped up: a proof for the gate's bound hash and this principal (RC-SEC-4). */
+    steppedUp?: boolean;
+    skipEvidence?: boolean;
+    deps?: DecisionDeps;
+  } = {},
 ) {
   const deps = opts.deps ?? s.deps;
   const p = await prepare(deps, { gate_instance_id: gate, principal: pr(principal) });
   if (!p.ok) return p;
+  const proof = opts.steppedUp
+    ? s.stepUp.issue(p.value.step_up.bound_hash, principal)
+    : opts.stepUp;
   if (!opts.skipEvidence) {
     const v = await recordEvidenceViewed(deps, {
       nonce: p.value.nonce,
@@ -180,9 +189,12 @@ export async function decideAs(
   return decide(deps, {
     nonce: p.value.nonce,
     decision,
-    ...(opts.stepUp ? { step_up: { proof: opts.stepUp } } : {}),
+    ...(proof ? { step_up: { proof } } : {}),
   });
 }
+
+/** `decideAs` options for a person who stepped up: what every vote on a two-person gate needs. */
+export const STEPPED_UP = { steppedUp: true } as const;
 
 export async function ledgerCount(s: Stack): Promise<number> {
   const q = await s.record.pool.query<{ n: string }>(
