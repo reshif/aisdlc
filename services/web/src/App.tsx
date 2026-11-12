@@ -25,6 +25,7 @@ import { LearnPage } from './pages/LearnPage';
 import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
 import { BoardPage, ItemsPage } from './pages/ItemsPage';
 import { FloorPage } from './floor/FloorPage';
+import { FleetPage } from './floor/FleetPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
 import {
   ControlsPage,
@@ -160,6 +161,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <ProjectListPage canOnboard={mayOnboard} />;
     case 'floor':
       return <FloorPage me={me} />;
+    case 'fleet':
+      return <FleetPage />;
     case 'items':
       return <ItemsPage />;
     case 'board':

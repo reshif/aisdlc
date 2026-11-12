@@ -636,3 +636,160 @@
   align-items: center;
   margin-right: 12px;
 }
+
+/* M19: score chips, flagged gates, the kill banner */
+.fl-score {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--agent-line);
+  color: var(--agent-fg);
+  background: var(--agent-bg);
+  white-space: nowrap;
+}
+.fl-score-low {
+  border-color: var(--bad-line);
+  color: var(--bad-fg);
+  background: var(--bad-bg);
+  font-weight: 700;
+}
+.fl-flag,
+.fl-lg-flag {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bad);
+  color: var(--bg);
+  font-weight: 700;
+  font-size: 12px;
+  font-style: normal;
+}
+.fl-flag {
+  position: absolute;
+  left: 10px;
+  top: -26px;
+  pointer-events: none;
+}
+.fl-gate-flag .fl-dia {
+  background: var(--bad);
+}
+.fl-kill {
+  border-width: 2px;
+}
+
+/* M19: the fleet (the prototype's fx- rows) */
+.fx-legend {
+  margin: 12px 0;
+}
+.fx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.fx-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 1fr minmax(160px, 240px);
+  gap: 16px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.fx-name h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.fx-tags,
+.fx-rooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.fx-belt {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+}
+.fx-st {
+  display: grid;
+  justify-items: center;
+  min-width: 38px;
+  padding: 4px 2px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.fx-st.fx-on {
+  border-color: var(--human);
+  color: var(--fg);
+}
+.fx-st.fx-bad {
+  border-color: var(--bad);
+  box-shadow: inset 0 0 0 1px var(--bad);
+}
+.fx-n {
+  min-height: 1.2em;
+  font-size: 14px;
+}
+.fx-g {
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  border: 1px solid var(--line-2);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+}
+.fx-g.fx-on {
+  background: var(--gate);
+  border-color: var(--gate);
+  color: var(--bg);
+}
+.fx-g b {
+  transform: rotate(-45deg);
+}
+.fx-lanes {
+  display: flex;
+  gap: 3px;
+  margin-top: 6px;
+}
+.fx-lanes i {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+}
+.fx-side {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  font-size: 12px;
+}
+.fx-hidden {
+  color: var(--fg-2);
+  font-style: italic;
+}
+.fx-restricted {
+  opacity: 0.85;
+}
+@media (max-width: 760px) {
+  .fx-row {
+    grid-template-columns: 1fr;
+  }
+  .fx-side {
+    justify-items: start;
+  }
+}

@@ -1,10 +1,12 @@
 import {
   STEPS,
   StepIdValues,
+  feasibilityFlagged,
   type ActorKind,
   type FloorItem,
   type FloorMove,
   type FloorRoom,
+  type FloorScoreChip,
   type FloorStage,
   type FloorView,
 } from '@aisdlc/contracts';
@@ -240,6 +242,7 @@ export function FloorPlanView(p: FloorPlanProps) {
                   />
                   <span className="ui-mono">{id}</span>
                   <span className="fl-sp" />
+                  <ScoreChip chips={view.scores.filter((c) => c.stage === id)} />
                   <span className="fl-acts">
                     {actorsOf(id).map((a) => (
                       <ActorGlyph key={a} actor={a} />
@@ -308,11 +311,14 @@ export function FloorPlanView(p: FloorPlanProps) {
               ...new Set(waiting.flatMap((i) => i.waiting_gates.flatMap((w) => w.deciders ?? []))),
             ];
             const unknown = waiting.some((i) => i.waiting_gates.some((w) => w.deciders === null));
+            const flagged = waiting.flatMap((i) =>
+              i.waiting_gates.filter((w) => feasibilityFlagged(w.feasibility)),
+            );
             const onRoute = route?.has(g.key) ?? false;
             return (
               <div
                 key={g.key}
-                className={`fl-gate fl-gate-${s.shape}${onRoute ? ' fl-onroute' : ''}`}
+                className={`fl-gate fl-gate-${s.shape}${onRoute ? ' fl-onroute' : ''}${flagged.length > 0 ? ' fl-gate-flag' : ''}`}
                 style={{ left: s.x, top: s.y }}
                 data-gate={g.key}
               >
@@ -320,9 +326,18 @@ export function FloorPlanView(p: FloorPlanProps) {
                 <button
                   type="button"
                   className="fl-dia"
-                  aria-label={`Gate ${g.key}: ${waiting.length} waiting${who.length ? `, decided by ${who.join(', ')}` : ''}. Open the gate`}
+                  aria-label={`Gate ${g.key}: ${waiting.length} waiting${who.length ? `, decided by ${who.join(', ')}` : ''}${flagged.length > 0 ? `, ${flagged.length} cannot be decided as things stand` : ''}. Open the gate`}
                   onClick={() => p.onOpen({ kind: 'gate', key: g.key })}
                 />
+                {flagged.length > 0 ? (
+                  <span
+                    className="fl-flag"
+                    aria-hidden="true"
+                    title="No eligible decider, or the quorum cannot be met"
+                  >
+                    !
+                  </span>
+                ) : null}
                 <span className="fl-who ui-mono" aria-hidden="true">
                   {who.map(initials).join(' ')}
                   {unknown ? ' ?' : ''}
@@ -419,5 +434,30 @@ export function FloorPlanView(p: FloorPlanProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The score chip of a station (DM §5.3 floor overlay; the prototype's `fl-score`): the agent with the lowest score
+ * there, its eval pass rate (or production acceptance) as `.NN`, marked low under the line in force. Agents with no
+ * score yet draw no chip (the station drawer lists them as unknown).
+ */
+export function ScoreChip({ chips }: { chips: readonly FloorScoreChip[] }) {
+  const scored = chips
+    .map((c) => ({ c, v: c.pass_rate ?? c.accept_rate }))
+    .filter((x): x is { c: FloorScoreChip; v: number } => x.v !== null)
+    .sort((a, b) => Number(b.c.low) - Number(a.c.low) || a.v - b.v);
+  const w = scored[0];
+  if (!w) return null;
+  const text = w.v >= 1 ? '1.0' : w.v.toFixed(2).slice(1);
+  return (
+    <span
+      className={`fl-score${w.c.low ? ' fl-score-low' : ''}`}
+      data-score={w.c.agent_id}
+      title={`${w.c.agent_id}${w.c.name ? ` ${w.c.name}` : ''}: ${w.c.pass_rate !== null ? 'eval pass rate' : 'acceptance'} ${w.v.toFixed(2)} (${w.c.status}${w.c.low ? ', low' : ''}; ${w.c.eval_signals} eval trials, ${w.c.production_signals} production runs)`}
+    >
+      {w.c.agent_id} {text}
+      {w.c.low ? <span className="ui-sr"> low score</span> : null}
+    </span>
   );
 }

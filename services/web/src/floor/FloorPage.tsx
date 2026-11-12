@@ -3,7 +3,10 @@ import {
   GATES,
   STEPS,
   StepIdValues,
+  feasibilityFlagged,
   type FloorItem,
+  type FloorKill,
+  type FloorWaitingGate,
   type FloorStage,
   type FloorView,
   type GateId,
@@ -31,7 +34,7 @@ import {
 } from '../ui';
 import { FLOOR_ROOM_TEXT, FLOOR_STAGE_TEXT, FLOOR_STATUS_TEXT } from '../vocab';
 import { countByStatus, initials, inPod } from './geometry';
-import { FloorPlanView, type FloorTarget } from './FloorPlanView';
+import { FloorPlanView, ScoreChip, type FloorTarget } from './FloorPlanView';
 import './floor.css';
 
 // The floor (PLAN M19; design reference docs/design/portal-prototype/src/floor.js): a project's items on belts,
@@ -204,6 +207,7 @@ function FloorScreen(p: {
     <>
       {head}
       <div className="fl-banners">
+        <KillBanner kill={view.kill} name={p.name} />
         {behind ? (
           <div className="notice notice-attention fl-banner" role="status">
             <p>
@@ -348,6 +352,30 @@ function FloorScreen(p: {
           <ActorGlyph actor="A" /> agent · <ActorGlyph actor="D" /> deterministic ·{' '}
           <ActorGlyph actor="H" /> person
         </li>
+        <li>
+          <i className="fl-lg-flag" aria-hidden="true">
+            !
+          </i>
+          A gate nobody eligible can decide (or whose quorum cannot be met)
+        </li>
+        <li>
+          <span className="fl-score">A7 .90</span> the lowest agent score at a station;{' '}
+          <span className="fl-score fl-score-low">.62</span> below {view.liveness.low_score}
+        </li>
+        <li className="muted">
+          Stuck: in a session and silent for more than {view.liveness.silence_minutes} min
+          {Object.keys(view.liveness.by_stage).length > 0
+            ? ` (${Object.entries(view.liveness.by_stage)
+                .map(([k, v]) => `${k} ${v} min`)
+                .join(', ')})`
+            : ''}
+          {view.liveness.source === 'config'
+            ? ' (factory.floor)'
+            : view.liveness.source === 'unreadable'
+              ? ' (factory.floor is unreadable: the defaults are used)'
+              : ' (default)'}
+          .
+        </li>
         <li className="muted">
           Stations and gates come from catalogue {view.plan.catalogue.version}; each item follows
           the route of its own pinned catalogue.
@@ -407,6 +435,85 @@ function FloorScreen(p: {
 
       <FloorDrawer view={view} target={open} onClose={() => setOpen(null)} onOpen={setOpen} />
     </>
+  );
+}
+
+/** The kill banner (AR9): a kill covering the project, or a kill switch that could not be asked, which reads killed. */
+export function KillBanner({ kill, name }: { kill: FloorKill; name: string }) {
+  if (!kill.killed) return null;
+  return (
+    <div className="notice notice-bad fl-banner fl-kill" role="alert">
+      <p>
+        {kill.state === 'killed' ? (
+          <>
+            <b>Kill active on {name}.</b> Agent work is stopped and admission is closed; items stay
+            where they are until two people release it.
+            {kill.kill_ids.length > 0 ? ` Kill ${kill.kill_ids.join(', ')}.` : ''}
+          </>
+        ) : (
+          <>
+            <b>Kill switch unreachable: treated as killed.</b> No agent work is admitted until it
+            answers ({kill.message ?? 'no answer'}).
+          </>
+        )}{' '}
+        <Link to="/kill">Kill switch</Link>
+      </p>
+    </div>
+  );
+}
+
+const minutes = (s: number) => `${Math.floor(s / 60)} min`;
+
+function activityText(it: FloorItem): string {
+  const a = it.activity;
+  if (!a) return 'not in a session';
+  const last = a.last_at
+    ? `last activity ${a.last_at.slice(11, 19)} UTC (${a.source ?? 'unknown'})`
+    : 'no activity since it entered';
+  return `${last}; silent ${minutes(a.silent_for_s)} of ${minutes(a.stuck_after_s)}${a.silent ? ': stuck' : ''}`;
+}
+
+function FeasibilityNote({ g }: { g: FloorWaitingGate }) {
+  if (!feasibilityFlagged(g.feasibility)) return null;
+  return (
+    <>
+      {' '}
+      <Pill tone="bad">
+        {g.feasibility === 'unknown' ? 'feasibility unknown' : 'cannot be decided'}
+      </Pill>{' '}
+      <span className="muted">{g.feasibility_reason ?? ''}</span>
+    </>
+  );
+}
+
+function AgentsAt({ chips }: { chips: FloorView['scores'] }) {
+  if (chips.length === 0) return null;
+  return (
+    <Card title="Agents at this station">
+      <ul className="fl-list">
+        {chips.map((c) => (
+          <li key={c.agent_id} className="fl-li">
+            <ActorGlyph actor="A" /> <b className="ui-mono">{c.agent_id}</b>
+            <span className="fl-li-t">
+              {c.name ?? ''}{' '}
+              <span className="muted ui-mono">
+                {c.score_id === null
+                  ? 'no score for the current prompt yet'
+                  : `${c.provider}/${c.model} · ${c.eval_signals} eval trials, ${c.production_signals} production runs`}
+              </span>
+            </span>
+            {c.score_id === null ? (
+              <Pill tone="mute">unknown</Pill>
+            ) : (
+              <>
+                <ScoreChip chips={[c]} />
+                <Pill tone={c.low ? 'bad' : c.status === 'pass' ? 'ok' : 'warn'}>{c.status}</Pill>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
@@ -605,6 +712,7 @@ function FloorDrawer({
             ],
             ['Waits for', it.waiting ?? '—'],
             ['Holds', it.holds.length > 0 ? it.holds.map((h) => h.reason).join(', ') : 'none'],
+            ['Session', activityText(it)],
             [
               'Requested by',
               it.requester ?? (
@@ -628,6 +736,7 @@ function FloorDrawer({
                       : g.deciders.length === 0
                         ? 'nobody holds the slot: it cannot be decided'
                         : `decided by ${g.deciders.join(', ')} (${g.slot} slot)`}
+                    <FeasibilityNote g={g} />
                   </span>
                 </li>
               ))}
@@ -672,6 +781,7 @@ function FloorDrawer({
         <Card title="Items">
           <ItemList items={items} onOpen={onOpen} />
         </Card>
+        <AgentsAt chips={view.scores.filter((c) => c.stage === s)} />
         <Card title="Steps">
           <ol className="fl-steps">
             {steps.map((id) => (
@@ -709,6 +819,23 @@ function FloorDrawer({
             ],
           ]}
         />
+        {items.some((i) => i.waiting_gates.some((w) => feasibilityFlagged(w.feasibility))) ? (
+          <div className="notice notice-bad" role="status">
+            <p>
+              <b>Cannot be decided as things stand:</b>{' '}
+              {[
+                ...new Set(
+                  items.flatMap((i) =>
+                    i.waiting_gates
+                      .filter((w) => feasibilityFlagged(w.feasibility))
+                      .map((w) => `${w.gate}: ${w.feasibility_reason ?? w.feasibility}`),
+                  ),
+                ),
+              ].join('; ')}
+              . A person must be given the role (or the quorum changed); expiry never approves.
+            </p>
+          </div>
+        ) : null}
         <Card title={`Waiting here · ${items.length}`}>
           <ItemList items={items} onOpen={onOpen} />
           {items.length > 0 ? (

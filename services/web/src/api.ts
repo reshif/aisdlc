@@ -34,6 +34,7 @@ import type {
   ProjectSummary,
   S0Overview,
   EvidencePackView,
+  FleetView,
   FloorView,
   GateCardContext,
   GateCheckRunsView,
@@ -332,6 +333,8 @@ export const api = {
   /** M19: a project's floor, cut to the person; polled with the last ETag. */
   floor: (project: string, etag: string | null) =>
     conditional<FloorView>(`/api/floor/${encodeURIComponent(project)}`, etag),
+  /** M19: every project the person may see as one row (a confidential one without a role there collapsed). */
+  fleet: () => request<FleetView>('GET', '/api/fleet'),
   /** The person's bindings, view level and data class per project (hints only; the server decides). */
   myAccess: () => request<MyAccessView>('GET', '/api/me/access'),
   /** A batch of PDP capability probes; a POST because it carries a body, so it sends the CSRF token. */
