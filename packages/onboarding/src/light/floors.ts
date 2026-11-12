@@ -35,6 +35,8 @@ export interface LightFloorInputs {
   readonly harness_inventoried: boolean | null;
   /** The live planted-instruction isolation test (SP-STD-1) passed for the worker image in use. */
   readonly isolation_test_passed: boolean | null;
+  /** Why the isolation test is unknown (no worker image named, none recorded for it): `isolation_test_not_run` by default. */
+  readonly isolation_unknown_reason?: string;
   /** Card 2 approved: its instruction affirmations (AGENTS.md at least) under the step-up. */
   readonly instructions_affirmed: boolean | null;
   /** Card 2 approved: the share of claims affirmed or unknown (0..1), and the intent and practices attested. */
@@ -117,7 +119,7 @@ export function evaluateLightFloors(i: LightFloorInputs): LightFloorReport {
           : i.harness_inventoried === null
             ? unknown('harness_inventory_unknown')
             : i.isolation_test_passed === null
-              ? unknown('isolation_test_not_run')
+              ? unknown(i.isolation_unknown_reason ?? 'isolation_test_not_run')
               : met(),
     LF5: bool(i.instructions_affirmed, 'instructions_not_affirmed'),
     LF6:
