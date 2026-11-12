@@ -8,6 +8,10 @@ import {
   GateCardDecideRequest,
   GateCardEvidenceRequest,
   GateCardView,
+  ConfigKeySummary,
+  ConfigKeyView,
+  ConfigProposeRequest,
+  ConfigProposeResult,
   CoreInboxItem,
   EvalRunsView,
   EvalSummaryView,
@@ -84,6 +88,10 @@ import type { CoreClient } from './core-client.js';
 //   POST /api/revisions/:gate/prepare|evidence|decide|publish                         (gate.decide on the M1 gate)
 //   GET  /api/projects/:id/prr            the project's readiness records             (project.view)
 //   GET  /api/projects/:id/ledger         the ledger entries of the project           (audit.read)
+//   GET  /api/config/keys                 the registered config keys, with may_propose (audit.read or
+//                                         config.propose on the fleet)
+//   GET  /api/config/keys/:key            one key: effective value and lineage, pending, history (same)
+//   POST /api/config/keys/:key/proposals  propose a value: a revision with its M1 gate   (config.propose)
 //
 // `may_decide` is the PDP's yes AND the person holding the slot core says decides (a card 5 also
 // needs the `m4` slot): the button is shown only when both hold; deciding asks core again.
@@ -117,6 +125,7 @@ export const PortalObserveBody = z.discriminatedUnion('edge', [
   ItemObserveRequest.options[1].omit({ on_behalf_of: true }),
 ]);
 export const PortalPlanBody = ItemPlanRequest.omit({ on_behalf_of: true });
+export const PortalConfigProposeBody = ConfigProposeRequest.omit({ on_behalf_of: true });
 const EmptyBody = z.strictObject({});
 
 export function registerPortalRoutes(d: PortalDeps): void {
@@ -331,6 +340,69 @@ export function registerPortalRoutes(d: PortalDeps): void {
   app.post('/api/items/:id/plan', (req, reply) =>
     itemMove(req, reply, PortalPlanBody, 'plan', 'item.plan'),
   );
+
+  // ------------------------------------------------------------ configuration console
+
+  /** Reading the factory's configuration: an auditor or anyone who may propose a change. */
+  async function configReader(req: FastifyRequest, reply: FastifyReply) {
+    const c = core(reply);
+    if (!c) return null;
+    const who = d.principalOf(req);
+    const propose = await allowed(who, 'config.propose', pdpResource.fleet());
+    if (!propose && !(await allowed(who, 'audit.read', pdpResource.fleet()))) {
+      deny(reply, 'audit.read');
+      return null;
+    }
+    return { c, who, propose };
+  }
+  const configKey = (req: FastifyRequest, reply: FastifyReply): string | null => {
+    const k = (req.params as { key?: string }).key;
+    if (typeof k === 'string' && /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(k)) return k;
+    sendError(reply, 400, 'invalid_input', 'bad config key');
+    return null;
+  };
+
+  app.get('/api/config/keys', async (req, reply) => {
+    const r = await configReader(req, reply);
+    if (!r) return;
+    const got = upstream(reply, await r.c.call('GET', '/v1/config/keys'), (v) =>
+      z.array(ConfigKeySummary).parse(v),
+    );
+    return got ? { keys: got.value, may_propose: r.propose } : undefined;
+  });
+
+  app.get('/api/config/keys/:key', async (req, reply) => {
+    const r = await configReader(req, reply);
+    const key = r ? configKey(req, reply) : null;
+    if (!r || !key) return;
+    const got = upstream(reply, await r.c.call('GET', `/v1/config/keys/${key}`), (v) =>
+      ConfigKeyView.parse(v),
+    );
+    if (!got) return;
+    const ids = new Set<string>();
+    for (const h of got.value.history) ids.add(h.proposed_by);
+    for (const p of got.value.pending) for (const h of p.deciders.holders) ids.add(h);
+    return { ...got.value, may_propose: r.propose, principal_names: await names([...ids]) };
+  });
+
+  app.post('/api/config/keys/:key/proposals', async (req, reply) => {
+    const c = core(reply);
+    const key = c ? configKey(req, reply) : null;
+    if (!c || !key) return;
+    const body = PortalConfigProposeBody.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    const who = d.principalOf(req);
+    if (!(await allowed(who, 'config.propose', pdpResource.fleet()))) {
+      return deny(reply, 'config.propose');
+    }
+    const r = await c.call('POST', `/v1/config/keys/${key}/proposals`, {
+      ...body.data,
+      on_behalf_of: who,
+    });
+    const got = upstream(reply, r, (v) => ConfigProposeResult.parse(v));
+    if (!got) return;
+    return reply.code(201).send(got.value);
+  });
 
   // ------------------------------------------------------------ agent runs (M11.2)
 
