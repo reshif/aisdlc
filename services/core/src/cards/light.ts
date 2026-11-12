@@ -26,8 +26,8 @@ import { coreError, type CoreError } from '../errors.js';
 import { inCoreTx } from '../journal.js';
 import { openS0 } from '../s0.js';
 import { SLOT_OF_CARD, decisionsFor, type CardDeps } from './model.js';
+import { lf4Of } from './floors.js';
 import { latestProbe } from './probe.js';
-import type pg from 'pg';
 import type { LoadedS0, OnboardingCard } from './read.js';
 
 // Card 2, the Light step 0.2 (PLAN M16; OB §4, §6.2 row 0.2; DEC-11 refined, DEC-12(a)): the I/O
@@ -158,26 +158,35 @@ export async function ensureLightProposal(
 
 export interface C2Ctx extends C2Context {
   readonly occurrence: number;
+  /** LF4 (M16): the harness inventory and the isolation test for the worker image in use; shown, not decided here. */
+  readonly lf4: {
+    readonly state: 'met' | 'unmet' | 'unknown';
+    readonly reasons: readonly string[];
+  };
   /** How many edits the raising has had (part of the evidence: an edit changes it). */
   readonly edits: number;
 }
 
 /** Card 2's context: the recorded proposal, the current reviews, and the probe recorded at its census head (M16). */
 export async function loadC2Context(
-  pool: pg.Pool,
+  deps: Pick<CardDeps, 'pool' | 'knowledge' | 'lightTests'>,
   loaded: LoadedS0,
   card: OnboardingCard,
 ): Promise<Result<C2Ctx, CoreError>> {
   const proposal = lightProposalOf(loaded, card.occurrence);
   if (!proposal) return err(coreError('conflict', 'card 2 has no recorded proposal'));
-  const probe = await latestProbe(pool, loaded.s0.record.s0_id, {
+  const probe = await latestProbe(deps.pool, loaded.s0.record.s0_id, {
     census_hash: proposal.census_hash,
     baseline_sha: proposal.baseline_sha,
   });
+  const lf4 = loaded.s0.census
+    ? await lf4Of(deps, loaded.s0.census.job_id)
+    : { state: 'unknown' as const, reasons: ['census_not_ready'] };
   return c2Context(
     loaded,
     card,
     probe === null ? null : { result: probe.result, result_hash: probe.result_hash },
+    lf4,
   );
 }
 
@@ -185,6 +194,7 @@ export function c2Context(
   loaded: LoadedS0,
   card: OnboardingCard,
   probe: C2Context['probe'] = null,
+  lf4: C2Ctx['lf4'] = { state: 'unknown', reasons: ['isolation_test_not_run'] },
 ): Result<C2Ctx, CoreError> {
   const proposal = lightProposalOf(loaded, card.occurrence);
   if (!proposal) return err(coreError('conflict', 'card 2 has no recorded proposal'));
@@ -199,6 +209,7 @@ export function c2Context(
     probe,
     occurrence: card.occurrence,
     edits,
+    lf4,
   });
 }
 
@@ -260,6 +271,7 @@ export function probeViewOf(c: C2Ctx): Record<string, unknown> {
   const r = c.probe?.result ?? null;
   return {
     lf3: lf3Of(r, head),
+    lf4: c.lf4,
     lf8:
       r === null
         ? { state: 'unknown', reasons: ['egress_not_declared'] }

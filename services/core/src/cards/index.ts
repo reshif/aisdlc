@@ -13,3 +13,5 @@ export * from './links.js';
 export { cardsLoop, type CardsLoopOptions } from './loop.js';
 export * from './probe.js';
 export * from './floors.js';
+export * from './spikes.js';
+export * from './pack.js';

@@ -2,6 +2,7 @@ import {
   gatePolicy,
   type CardKind,
   type InstructionTemplate,
+  type LightTestsConfig,
   type OnboardingStepId,
   type RoleSlot,
 } from '@aisdlc/contracts';
@@ -84,6 +85,8 @@ export interface CardDeps {
    * default. `null`: the published value does not read, and card 2 cannot open (fail closed).
    */
   readonly instructionTemplate?: () => InstructionTemplate | null;
+  /** `onboarding.light_tests` (M16: the worker image LF4 is about). Absent: the defaults (LF4 unknown). */
+  readonly lightTests?: () => LightTestsConfig | null;
 }
 
 /** The decision kernel's dependencies for one S0 record's card operations (bootstrap-aware when on). */

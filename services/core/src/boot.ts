@@ -23,6 +23,7 @@ import { CensusGrounding } from './planning/grounding.js';
 import { coreConfigFromEnv } from './config.js';
 import { s0SettingsFrom } from './driver.js';
 import { instructionTemplateFrom } from './cards/light.js';
+import { lightTestsFrom } from './cards/spikes.js';
 import { migrateCore } from './migrations.js';
 import { DbProjectSettings, maintenanceFrom, registerCoreConfig } from './settings.js';
 
@@ -130,6 +131,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
             }),
             settings: s0SettingsFrom(reader),
             instructionTemplate: instructionTemplateFrom(reader),
+            lightTests: lightTestsFrom(reader),
             maintenance: maintenanceFrom(reader),
           })
         : undefined;

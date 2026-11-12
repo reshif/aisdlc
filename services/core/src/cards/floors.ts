@@ -1,5 +1,7 @@
 import {
   ControlsAttestation,
+  DEFAULT_LIGHT_TESTS,
+  type LightTestsConfig,
   S0_EVENT,
   S0ControlsRecordedPayload,
   type LightFloorReport,
@@ -10,12 +12,14 @@ import type pg from 'pg';
 import type { KnowledgePort } from '../clients.js';
 import { coreError, type CoreError } from '../errors.js';
 import { latestProbe } from './probe.js';
+import { isolationForLf4 } from './spikes.js';
 import { approvedPayload, loadS0, s0Cards } from './read.js';
 
 // The Light floors of an S0 record (PLAN M16; OB §3.2 LF1 to LF8), from what the record, knowledge and the decided
 // cards say now. Each input that cannot be read, or that is not there yet, is `null` and its floor is unknown (unmet
-// for every decision). LF4's live planted-instruction isolation test (SP-STD-1) is a later M16 task: until it is
-// recorded, LF4 reads unknown and Light cannot be signed on the floors alone.
+// for every decision). LF4's live planted-instruction isolation test (SP-STD-1) is the latest one recorded for the
+// worker image `onboarding.light_tests` names (`isolationForLf4`): none named, none recorded for it, or a failed one
+// is not met.
 
 const BLOCKING = ['B1', 'B2', 'B5'] as const;
 
@@ -23,6 +27,8 @@ export async function lightFloorsOf(
   d: {
     readonly pool: pg.Pool;
     readonly knowledge: Pick<KnowledgePort, 'census' | 'detectorFacts' | 'openFindings'>;
+    /** `onboarding.light_tests` in force; absent: the defaults (no worker image named: LF4 unknown). */
+    readonly lightTests?: () => LightTestsConfig | null;
   },
   s0Id: string,
 ): Promise<Result<LightFloorReport, CoreError>> {
@@ -70,13 +76,8 @@ export async function lightFloorsOf(
           .find((p) => p?.success && p.data.report.report_hash === reportRow.report_hash)
       : undefined;
 
-  // LF4: the census's harness inventory
-  const facts = await d.knowledge.detectorFacts(s0.census.job_id);
-  // the inventory detector reports every kind (present or absent): no such fact at all means it did not run
-  const inventoried =
-    facts.ok && facts.value !== null && facts.value.some((f) => f.kind === 'instruction_file')
-      ? true
-      : null;
+  // LF4: the census's harness inventory and the isolation test for the worker image in use
+  const lf4 = await lf4Inputs(d, s0.census.job_id);
 
   // LF5, LF6: card 2 as decided
   const c2 = approvedPayload(cards, 'C2');
@@ -91,8 +92,9 @@ export async function lightFloorsOf(
       controls_attested: c4 ? attestation?.success === true : null,
       head,
       probe: probe?.result ?? null,
-      harness_inventoried: inventoried,
-      isolation_test_passed: null,
+      harness_inventoried: lf4.harness_inventoried,
+      isolation_test_passed: lf4.isolation_test_passed,
+      isolation_unknown_reason: lf4.isolation_unknown_reason,
       instructions_affirmed: c2
         ? c2.payload.some((p) => p.kind === 'instruction_affirmation' && p.path === 'AGENTS.md')
         : null,
@@ -109,4 +111,56 @@ export async function lightFloorsOf(
       apply_on_merge_known: attestation?.success ? attestation.data.operations_md === true : null,
     }),
   );
+}
+
+/** LF4's two inputs: the census's harness inventory, and SP-STD-1 for the worker image in use. */
+export async function lf4Inputs(
+  d: {
+    readonly pool: pg.Pool;
+    readonly knowledge: Pick<KnowledgePort, 'detectorFacts'>;
+    readonly lightTests?: () => LightTestsConfig | null;
+  },
+  censusJobId: string,
+): Promise<{
+  harness_inventoried: boolean | null;
+  isolation_test_passed: boolean | null;
+  isolation_unknown_reason: string;
+}> {
+  const facts = await d.knowledge.detectorFacts(censusJobId);
+  // the inventory detector reports every kind (present or absent): no such fact at all means it did not run
+  const harness_inventoried =
+    facts.ok && facts.value !== null && facts.value.some((f) => f.kind === 'instruction_file')
+      ? true
+      : null;
+  const iso = await isolationForLf4(d.pool, d.lightTests ? d.lightTests() : DEFAULT_LIGHT_TESTS);
+  return {
+    harness_inventoried,
+    isolation_test_passed: iso.passed,
+    isolation_unknown_reason: iso.reason,
+  };
+}
+
+/** LF4 alone (card 2 shows it beside LF3 and LF8). */
+export async function lf4Of(
+  d: Parameters<typeof lf4Inputs>[0],
+  censusJobId: string,
+): Promise<{ state: 'met' | 'unmet' | 'unknown'; reasons: string[] }> {
+  const i = await lf4Inputs(d, censusJobId);
+  const report = evaluateLightFloors({
+    blocking_findings: null,
+    scan_complete: null,
+    controls_blocking_open: null,
+    controls_attested: null,
+    head: { census_hash: '0'.repeat(64), baseline_sha: '0'.repeat(40) },
+    probe: null,
+    instructions_affirmed: null,
+    claims_share: null,
+    intent_attested: null,
+    practices_attested: null,
+    operations_attested: null,
+    apply_on_merge_known: null,
+    ...i,
+  });
+  const f = report.floors.find((x) => x.floor === 'LF4');
+  return f ? { state: f.state, reasons: [...f.reasons] } : { state: 'unknown', reasons: [] };
 }

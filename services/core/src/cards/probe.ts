@@ -6,6 +6,7 @@ import {
   PROBE_NOT_RUN,
   ProbeGrantedPayload,
   ProbeRecordedPayload,
+  ProbeRetryRequestedPayload,
   probeStream,
   type OnboardingSandboxImage,
   type ProbeOutcome,
@@ -33,6 +34,8 @@ import { GitBundleFiles, type BundleReads } from '@aisdlc/build';
 import type { RepoFilesPort } from '../build/source.js';
 import type { KnowledgePort } from '../clients.js';
 import { activeS0Ids } from '../queries.js';
+import { readCardState } from '@aisdlc/decisions';
+import { decisionsFor, SLOT_OF_CARD, type CardDeps } from './model.js';
 import { loadS0 } from './read.js';
 
 // The onboarding probe, the I/O half (PLAN M16; OB §3.2 LF3, §5.6; ADR-0003 §7 K-exec; DEC-17 refined, DEC-18).
@@ -240,7 +243,9 @@ export async function runOnboardingProbe(
   if (prior) {
     const ranNothing = PROBE_NOT_RUN.includes(prior.result.outcome);
     const age = now.getTime() - Date.parse(prior.result.recorded_at);
-    if (!ranNothing || (!o.retry && age < PROBE_RETRY_NOT_RUN_MS)) return ok(prior);
+    const asked =
+      o.retry === true || (await retryRequestedSince(d.pool, s0Id, prior.result.probe_id));
+    if (!ranNothing || (!asked && age < PROBE_RETRY_NOT_RUN_MS)) return ok(prior);
   }
   const attempts = await d.pool.query<{ n: string }>(
     'SELECT count(*)::text AS n FROM core.onboarding_probe WHERE s0_id = $1 AND census_hash = $2',
@@ -372,6 +377,75 @@ export async function runOnboardingProbe(
   }
   // 6. the result
   return record(d, s0Id, project, resultOfRun(ended, plan, run.value));
+}
+
+// ---------------------------------------------------------------- a person asks again (card 2)
+
+/** Is there a retry request on the record after the probe `probeId` was recorded? */
+async function retryRequestedSince(
+  db: Pick<pg.Pool, 'query'>,
+  s0Id: string,
+  probeId: string,
+): Promise<boolean> {
+  const q = await db.query(
+    `SELECT 1 FROM record.record_event r
+      WHERE r.stream = $1 AND r.type = $2
+        AND r.global_seq > (SELECT event_gseq FROM core.onboarding_probe WHERE probe_id = $3)
+      LIMIT 1`,
+    [probeStream(s0Id), PROBE_EVENT.retry_requested, probeId],
+  );
+  return (q.rowCount ?? 0) > 0;
+}
+
+/**
+ * Card 2: a person who holds the card's slot asks for the probe again. Only while card 2 is open, and only when the
+ * probe recorded for the proposal's census head ran nothing (the image, the allow-list, B1 or the sandbox was the
+ * reason): a probe that RAN is final for its head (OB §3.2 LF3 "one run"), and asking again does not change that.
+ * The request is recorded (`probe.retry_requested`); the `onboarding_probe` loop runs the probe on its next tick.
+ */
+export async function requestProbeRetry(
+  deps: CardDeps,
+  input: { card_id: string; principal: string },
+): Promise<Result<{ requested: true; probe_id: string | null }, CoreError>> {
+  const state = await readCardState(deps.pool, input.card_id);
+  if (!state || state.open.subject_kind !== 's0_record' || state.open.label !== 'C2') {
+    return err(coreError('not_found', 'no such card 2'));
+  }
+  if (state.status !== 'open') return err(coreError('conflict', 'card 2 is not open'));
+  const s0Id = state.open.subject_id;
+  const holders = await decisionsFor(deps, s0Id).eligibility.holders(
+    state.open.project_id as never,
+    SLOT_OF_CARD.C2,
+  );
+  if (!holders.ok) return err(coreError('unavailable', holders.error.message));
+  if (!holders.value.includes(input.principal as never)) {
+    return err(
+      coreError('forbidden', `${input.principal} does not hold the slot that decides card 2`),
+    );
+  }
+  const loaded = await loadS0(deps.pool, s0Id);
+  if (!loaded?.s0.census) return err(coreError('conflict', 'the census is not ready'));
+  const latest = await latestProbe(deps.pool, s0Id);
+  const prior = latest?.result.census_hash === loaded.s0.census.census_hash ? latest : null;
+  if (prior && !PROBE_NOT_RUN.includes(prior.result.outcome)) {
+    return err(
+      coreError(
+        'conflict',
+        `the probe ran (${prior.result.outcome}): one run is final for its census head (LF3)`,
+      ),
+    );
+  }
+  const payload = ProbeRetryRequestedPayload.parse({
+    s0_id: s0Id,
+    card_id: input.card_id,
+    requested_by: input.principal,
+    requested_at: clockOf(deps).now().toISOString(),
+  });
+  const w = await inCoreTx(deps, async (j, tx) => {
+    await lockKeys(tx, [`probe:${s0Id}`]);
+    return j.emit(probeStream(s0Id), PROBE_EVENT.retry_requested, payload, input.principal);
+  });
+  return w.ok ? ok({ requested: true, probe_id: prior?.result.probe_id ?? null }) : w;
 }
 
 // ---------------------------------------------------------------- the loop

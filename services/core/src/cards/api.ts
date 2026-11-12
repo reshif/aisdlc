@@ -114,7 +114,7 @@ async function contextOf(
       return c.ok ? ok({ ctx: { kind: 'C1', c: c.value }, view: c1View(c.value, loaded.s0) }) : c;
     }
     case 'C2': {
-      const c = await loadC2Context(deps.pool, loaded, card);
+      const c = await loadC2Context(deps, loaded, card);
       return c.ok ? ok({ ctx: { kind: 'C2', c: c.value }, view: c2View(c.value, loaded.s0) }) : c;
     }
     case 'C4': {

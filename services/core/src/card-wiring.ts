@@ -6,7 +6,7 @@ import { DbPrincipalLinks } from './cards/links.js';
 import type { CardDeps } from './cards/model.js';
 import type { KnowledgePort } from './clients.js';
 import type { S0Settings } from './driver.js';
-import type { InstructionTemplate } from '@aisdlc/contracts';
+import type { InstructionTemplate, LightTestsConfig } from '@aisdlc/contracts';
 import { DbProjectSettings } from './settings.js';
 import type pg from 'pg';
 
@@ -35,6 +35,8 @@ export interface CardWiring {
   readonly settings?: () => S0Settings;
   /** Card 2's factory template (`instructionTemplateFrom`); absent: the default. */
   readonly instructionTemplate?: () => InstructionTemplate | null;
+  /** `onboarding.light_tests` (`lightTestsFrom`, M16): the worker image LF4 is about; absent: the defaults. */
+  readonly lightTests?: () => LightTestsConfig | null;
   /** MM-2 (`maintenanceFrom`): decisions are refused and the timers frozen while it is on. */
   readonly maintenance?: () => boolean;
 }
@@ -59,6 +61,7 @@ export function cardDepsFrom(w: CardWiring): CardDeps {
     bootstrap: true,
     ...(w.settings ? { settings: w.settings } : {}),
     ...(w.instructionTemplate ? { instructionTemplate: w.instructionTemplate } : {}),
+    ...(w.lightTests ? { lightTests: w.lightTests } : {}),
   };
 }
 

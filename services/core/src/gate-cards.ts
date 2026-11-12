@@ -39,7 +39,14 @@ export interface ItemCardHead {
 /** The project, item and gates of a work-item card; `null` for anything that is not one. */
 export async function itemCardHead(pool: pg.Pool, cardId: string): Promise<ItemCardHead | null> {
   const o = await readCardOpened(pool, cardId);
-  if (!o || o.open.subject_kind !== 'item') return null;
+  // a work item's card, or the X2 card of an S0 record's onboarding pack (M16 R2b: the record's UUID is the subject)
+  if (!o) return null;
+  if (
+    o.open.subject_kind !== 'item' &&
+    !(o.open.subject_kind === 's0_record' && o.open.label === 'X2')
+  ) {
+    return null;
+  }
   const gates: Array<{ gate_instance_id: string; gate: GateId }> = [];
   for (const t of o.open.targets) {
     if (t.target !== 'gate') continue;

@@ -36,6 +36,8 @@ import {
   instructionTemplateFrom,
   probeFilesOf,
   probeLoop,
+  packLoop,
+  lightTestsFrom,
   workDriverLoop,
   workSettingsFrom,
 } from '@aisdlc/core/worker';
@@ -514,6 +516,7 @@ export async function bootCoreWorker(
               source,
               settings: s0SettingsFrom(rd),
               instructionTemplate: instructionTemplateFrom(rd),
+              lightTests: lightTestsFrom(rd),
               maintenance: maintenanceFrom(rd),
             }),
             {
@@ -523,6 +526,44 @@ export async function bootCoreWorker(
                 if (changed > 0) log(`cards: ${id}: ${changed} change(s)`);
               },
             },
+          ),
+        );
+      }
+      if (cfg.knowledge && ledger) {
+        // M16 R2b: the affirmed pack's git projection. After card 2 is applied the pack is rendered from the record and
+        // recorded first, X2 opens on the S0 record bound to its patch hash, and only once X2 is approved in the ledger
+        // is the Push Broker asked for a draft PR (with CORE_WORKER_PUSH_BROKER=1; otherwise it waits at x2_approved)
+        supervisor.add(
+          packLoop(
+            {
+              cards: cardDepsFrom({
+                pool,
+                readPool,
+                registry,
+                ledger,
+                eligibility: identityEligibility(readPool, registry),
+                stepUp: new RefusingStepUp(),
+                knowledge: new HttpKnowledge({
+                  baseUrl: cfg.knowledge.url,
+                  token: cfg.knowledge.token,
+                }),
+                source,
+                settings: s0SettingsFrom(rd),
+                instructionTemplate: instructionTemplateFrom(rd),
+                lightTests: lightTestsFrom(rd),
+                maintenance: maintenanceFrom(rd),
+              }),
+              push: { pool, ledger },
+              ...(cfg.pushBroker
+                ? {
+                    broker: new HttpCodeHostPush({
+                      baseUrl: cfg.codehostUrl,
+                      token: cfg.codehostToken,
+                    }),
+                  }
+                : {}),
+            },
+            { intervalMs: cfg.cardsIntervalMs * 2, startDelayMs: 6_000 },
           ),
         );
       }

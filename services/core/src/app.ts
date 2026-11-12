@@ -20,6 +20,9 @@ import {
   BannerTarget,
   C2InstructionEditRequest,
   CardRecheckRequest,
+  DEFAULT_LIGHT_TESTS,
+  SpikeKind,
+  SpikeRecordRequest,
   ControlKind,
   ControlScope,
   AgentId,
@@ -132,6 +135,10 @@ import {
   syncCards,
   type CardDeps,
   editOnboardingInstructions,
+  latestSpike,
+  lightFloorsOf,
+  recordSpike,
+  requestProbeRetry,
 } from './cards/index.js';
 
 /**
@@ -1430,6 +1437,54 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       recheckControls(c, { card_id: id, principal: b.on_behalf_of }),
     ),
   );
+
+  /**
+   * Card 2: a person who holds card 2's slot asks for the onboarding probe again (M16). Recorded first; the
+   * `onboarding_probe` loop runs it at once instead of after the hour (a probe that ran is final for its census head).
+   */
+  app.post('/v1/cards/:cardId/probe/retry', (req, reply) =>
+    cardAction(req, reply, CardRecheckRequest, (c, id, b) =>
+      requestProbeRetry(c, { card_id: id, principal: b.on_behalf_of }),
+    ),
+  );
+
+  /** LF1 to LF8 of an S0 record as they stand (M16): unknown is unmet. */
+  app.get('/v1/s0/:id/light-floors', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const cards = cardsOr(reply);
+    const id = uuidParam(req, reply, 'id');
+    if (!cards || !id) return;
+    const r = await lightFloorsOf(cards, id);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  // ------------------------------------------------------------ the Light spikes (M16: SP-STD-1, SP-STD-3)
+
+  /** An operator records a spike report; core computes the verdict against `onboarding.light_tests`. */
+  app.post('/v1/onboarding/spikes', async (req, reply) => {
+    if (!allowed(req, 'ops')) return sendError(reply, 403, 'forbidden', 'scope ops is needed');
+    const b = parse(SpikeRecordRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const r = await recordSpike(
+      { ...deps, lightTests: o.cards?.lightTests ?? (() => DEFAULT_LIGHT_TESTS) },
+      b.value,
+      'ops',
+    );
+    if (!r.ok) return fail(reply, r.error);
+    reply.code(201);
+    return r.value;
+  });
+
+  /** The latest recorded spike of a kind (`?image=` for SP-STD-1 of one worker image). */
+  app.get('/v1/onboarding/spikes/:kind', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const k = SpikeKind.safeParse(params(req)['kind']);
+    if (!k.success) return fail(reply, coreError('invalid_input', 'unknown spike kind'));
+    const image = (req.query as Record<string, string | undefined>)['image'];
+    const r = await latestSpike(o.pool, k.data, image);
+    if (!r) return fail(reply, coreError('not_found', 'no such spike is recorded'));
+    return r;
+  });
 
   // ------------------------------------------------------------ inbox, settings revisions (M8.3)
 
