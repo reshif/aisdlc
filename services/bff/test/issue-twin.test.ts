@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { bindProject, grantRole } from '@aisdlc/identity/testing';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { HttpCoreClient } from '../src/core-client.js';
-import type { Browser} from '../src/testing.js';
+import type { Browser } from '../src/testing.js';
 import { signIn, startBffStack, type BffStack } from '../src/testing.js';
 import { CORE_TOKEN } from './portal-fixtures.js';
 
