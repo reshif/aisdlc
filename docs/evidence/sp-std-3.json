@@ -1,0 +1,15 @@
+{
+  "schema": "aisdlc-lint-precision/1",
+  "lint_revision": 2,
+  "scan_rules_version": "secrets-rules/2:961394bbf87c",
+  "corpus": {
+    "source": "fixture",
+    "corpus_sha256": "3b388e5189036d999a382ac656d4d89f1b12e6fe92f2fa853f098fbdd6560fa6",
+    "benign": 30,
+    "planted": 12,
+    "note": "committed fixture corpus (packages/text-lint/src/corpus.ts): the public AGENTS.md download (DEC-17) is not approved yet"
+  },
+  "benign_flagged": [],
+  "planted_missed": [],
+  "ran_at": "2026-11-12T13:30:19.709Z"
+}

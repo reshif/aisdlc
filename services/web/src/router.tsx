@@ -22,6 +22,7 @@ export type Route =
   | { name: 'revision'; id: string }
   | { name: 'readiness'; id: string }
   | { name: 'ledger'; id: string }
+  | { name: 'issues'; id: string }
   | { name: 'access' }
   | { name: 'config' }
   | { name: 'configKey'; key: string }
@@ -81,10 +82,10 @@ export function parseRoute(path: string): Route {
   if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
   const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
   if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
-  const sub = /^\/projects\/([^/]+)\/(readiness|ledger)$/.exec(p);
+  const sub = /^\/projects\/([^/]+)\/(readiness|ledger|issues)$/.exec(p);
   if (sub) {
     return {
-      name: sub[2] === 'ledger' ? 'ledger' : 'readiness',
+      name: sub[2] === 'ledger' ? 'ledger' : sub[2] === 'issues' ? 'issues' : 'readiness',
       id: decodeURIComponent(sub[1] as string),
     };
   }

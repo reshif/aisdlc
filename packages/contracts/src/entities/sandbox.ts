@@ -254,6 +254,19 @@ export const EXEC_NOT_ALLOWED = 'exec_not_allowed';
 /** Classes that run repo code, or whose session carries a repo's text into a model (B1 blocks them while a secret finding is open; K is exempt, fix #5). */
 export const B1_BLOCKED_CLASSES: readonly SandboxClass[] = ['P', 'W', 'O', 'V', 'K-exec'];
 
+// ---- the image a session runs (M16: the onboarding probe's dedicated image, DEC-17 refined)
+
+/**
+ * An image named by its digest and nothing else: `sha256:<64 hex>` (a local image id) or `name@sha256:<64 hex>`
+ * (a registry digest). A tag can move; a digest cannot, so an image change is always a new value (a reviewed
+ * config change, M1).
+ */
+export const SANDBOX_IMAGE_REF = /^(?:[a-z0-9][a-z0-9._/-]{0,200}@)?sha256:[0-9a-f]{64}$/;
+export const SandboxImageRef = z.string().regex(SANDBOX_IMAGE_REF, 'an image reference by digest');
+export type SandboxImageRef = z.infer<typeof SandboxImageRef>;
+/** Classes whose session runs a dedicated image named in the spec (by digest), never the host's default image. */
+export const IMAGE_PINNED_CLASSES: readonly SandboxClass[] = ['K-exec'];
+
 // ---- the sandbox-controller (PLAN M14.2; ADR-0003 §6, §7): placement, the caps, and its HTTP vocabulary
 
 /** Why a session was refused or failed before it ran (the `SandboxPort`'s error codes, and the controller's on the wire). */
@@ -349,6 +362,7 @@ export type SandboxRepoFileWire = z.infer<typeof SandboxRepoFileWire>;
 
 export const SandboxSpecWire = z.strictObject({
   repo_full_name: z.string().min(1).max(256).optional(),
+  image: SandboxImageRef.optional(),
   session_id: z.string().min(1).max(64),
   class: SandboxClass,
   command: z.array(z.string()).min(1).max(64),

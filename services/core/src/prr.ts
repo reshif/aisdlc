@@ -315,6 +315,8 @@ const controlsOf = (c4: PrrC4): Result<ProjectReadinessRecord['controls'], PrrBu
 export function closeOwnerCardGaps(
   census: CensusRecord,
   f: {
+    /** Card 2 was decided: instruction text affirmed (RS-AI-4), claims (RS-KN-4), intent (RS-KN-5). */
+    light_affirmed?: boolean;
     owner_confirmed: boolean;
     tier_signed: boolean;
     app_scoped: boolean;
@@ -325,6 +327,9 @@ export function closeOwnerCardGaps(
   const satisfied: Readonly<Record<string, boolean>> = {
     'RS-ID-1': f.app_scoped && census.repo.default_branch !== null,
     'RS-ID-2': f.owner_confirmed,
+    'RS-AI-4': f.light_affirmed === true,
+    'RS-KN-4': f.light_affirmed === true,
+    'RS-KN-5': f.light_affirmed === true,
     'RS-ID-3': f.tier_signed,
     'RS-ID-4':
       census.repo.visibility !== null &&

@@ -3,6 +3,7 @@ import {
   AgentRunsView,
   AgentScoresView,
   AgentStats,
+  C2InstructionEditRequest,
   CardDecideRequest,
   CardEvidenceRequest,
   GateCardDecideRequest,
@@ -94,7 +95,7 @@ import type { Levels } from './levels.js';
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
 //   GET  /api/cards/:id/artefacts         a work-item gate card's artefacts, rendered (project.view)
-//   POST /api/cards/:id/prepare|evidence|decide|recheck                               (card.decide)
+//   POST /api/cards/:id/prepare|evidence|decide|recheck|probe/retry                   (card.decide)
 //   GET  /api/cards/:id/gate              a work-item gate card as something to decide  (project.view)
 //   POST /api/cards/:id/gate/prepare|evidence|decide      deciding G0/G1, G1f, G2, G3d, G3 ...  (card.decide;
 //                                         core asks gate.decide for every gate of the card)
@@ -137,6 +138,8 @@ export const PortalOnboardBody = OnboardRequest.omit({ on_behalf_of: true });
 export const PortalAskBody = SubmitRequestBody.omit({ on_behalf_of: true, channel: true });
 export const PortalEvidenceBody = CardEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalDecideBody = CardDecideRequest.omit({ on_behalf_of: true });
+/** Card 2 (M16): a person edits a file's proposed instruction text. */
+export const PortalInstructionEditBody = C2InstructionEditRequest.omit({ on_behalf_of: true });
 export const PortalGateEvidenceBody = GateCardEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalGateDecideBody = GateCardDecideRequest.omit({ on_behalf_of: true });
 export const PortalRevisionEvidenceBody = RevisionEvidenceRequest.omit({ on_behalf_of: true });
@@ -936,7 +939,7 @@ export function registerPortalRoutes(d: PortalDeps): void {
     req: FastifyRequest,
     reply: FastifyReply,
     schema: S,
-    verb: 'prepare' | 'evidence' | 'decide' | 'recheck',
+    verb: 'prepare' | 'evidence' | 'decide' | 'recheck' | 'instructions' | 'probe/retry',
   ) {
     const c = core(reply);
     const id = idParam(req, reply);
@@ -964,6 +967,13 @@ export function registerPortalRoutes(d: PortalDeps): void {
     cardMove(req, reply, PortalDecideBody, 'decide'),
   );
   app.post('/api/cards/:id/recheck', (req, reply) => cardMove(req, reply, EmptyBody, 'recheck'));
+  app.post('/api/cards/:id/instructions', (req, reply) =>
+    cardMove(req, reply, PortalInstructionEditBody, 'instructions'),
+  );
+  /** Card 2 (M16): a slot holder asks for the onboarding probe again (it ran nothing); core records it first. */
+  app.post('/api/cards/:id/probe/retry', (req, reply) =>
+    cardMove(req, reply, EmptyBody, 'probe/retry'),
+  );
 
   // ------------------------------------------------------------ inbox (M8.3)
 

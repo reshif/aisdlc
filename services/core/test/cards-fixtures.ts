@@ -107,7 +107,12 @@ export interface HostOptions {
   readonly unpinnedStatuses?: boolean;
   readonly scope?: 'selected' | 'all';
   readonly codeowners?: string | null;
+  /** Files at the golden census `a` baseline (`BASELINE_A`): what card 2 reads AGENTS.md and CLAUDE.md from. */
+  readonly atBaseline?: ReadonlyArray<{ path: string; content: string }>;
 }
+
+/** The baseline commit of the golden census `a`: the head the census read. */
+export const BASELINE_A = '4076d2d9fe2dd372af063d2a3343797285c1cdab';
 
 /** The seed of a repo with its rules, files and collaborators. */
 export function hostSeed(repo: string, o: HostOptions = {}): CodeHostSeed {
@@ -163,6 +168,7 @@ export function hostSeed(repo: string, o: HostOptions = {}): CodeHostSeed {
             },
           ]),
       { repo, sha: SHA, path: 'AGENTS.md', content: '# agents\n' },
+      ...(o.atBaseline ?? []).map((f) => ({ repo, sha: BASELINE_A, ...f })),
     ],
     rules: [{ repo, branch: 'main', rules: good }],
     collaborators: [

@@ -1,4 +1,7 @@
 import {
+  ONBOARDING_PACK_EPOCH,
+  ONBOARDING_PACK_LANE,
+  ONBOARDING_PACK_UNIT,
   MERGE_EVENT,
   MergeReconciledPayload,
   PUSH_EVENT,
@@ -79,7 +82,7 @@ export async function x2BoundToPatch(
 ): Promise<boolean> {
   const q = await db.query<{ gate_instance_id: string }>(
     `SELECT DISTINCT gate_instance_id FROM ledger.ledger_entry
-      WHERE entry_type = 'decision' AND gate_id = 'X2' AND subject_kind = 'item'
+      WHERE entry_type = 'decision' AND gate_id = 'X2' AND subject_kind IN ('item', 's0_record')
         AND subject_id = $1 AND decision = 'approve' AND gate_instance_id IS NOT NULL`,
     [itemId],
   );
@@ -87,14 +90,18 @@ export async function x2BoundToPatch(
     const g = await readGateState(db, row.gate_instance_id);
     if (!g || g.status !== 'decided' || g.outcome !== 'approve') continue;
     if (g.open.payload.subject_id !== itemId || g.open.payload.gate_id !== 'X2') continue;
-    const facts = g.open.payload.facts as { artefacts?: unknown };
+    const facts = g.open.payload.facts as { artefacts?: unknown; kind?: unknown };
+    // an item's X2 binds its 6.6 patch; an S0 record's binds its onboarding pack (rendered at 0.2, M16 R2b)
+    const s0 = g.open.payload.subject_kind === 's0_record';
+    if (s0 && facts.kind !== 'onboarding_pack') continue;
+    const step = s0 ? '0.2' : '6.6';
     const arts = Array.isArray(facts.artefacts) ? facts.artefacts : [];
     if (
       arts.some(
         (a) =>
           typeof a === 'object' &&
           a !== null &&
-          (a as { step?: unknown }).step === '6.6' &&
+          (a as { step?: unknown }).step === step &&
           (a as { sha256?: unknown }).sha256 === patchHash,
       )
     ) {
@@ -102,6 +109,23 @@ export async function x2BoundToPatch(
     }
   }
   return false;
+}
+
+/**
+ * The "lease" of an S0 record's onboarding pack (M16 R2b): an S0 record has no Unit and no lease; the pack is written
+ * under epoch 1 while a rendered pack is on the record (`core.onboarding_pack`). What may be written is still decided
+ * by X2: the broker asks `x2Bound` for exactly the patch, and nothing else is covered.
+ */
+export async function packLeaseFacts(
+  db: Pick<pg.Pool, 'query'>,
+  s0Id: string,
+): Promise<PushLeaseFacts> {
+  const q = await db.query('SELECT 1 FROM core.onboarding_pack WHERE s0_id = $1 LIMIT 1', [s0Id]);
+  return PushLeaseFacts.parse({
+    held: (q.rowCount ?? 0) > 0,
+    epoch: (q.rowCount ?? 0) > 0 ? ONBOARDING_PACK_EPOCH : 0,
+    lane: ONBOARDING_PACK_LANE,
+  });
 }
 
 export class CorePushGuards implements PushGuardsPort {
@@ -120,6 +144,8 @@ export class CorePushGuards implements PushGuardsPort {
 
   async lease(item_id: string, unit_key: string) {
     try {
+      if (unit_key === ONBOARDING_PACK_UNIT)
+        return readOk(await packLeaseFacts(this.pool, item_id));
       return readOk(await unitLeaseFacts(this.pool, item_id, unit_key, () => this.lane(item_id)));
     } catch {
       return readUnknown('server_error', 'the lease could not be read');
@@ -430,66 +456,11 @@ export class CorePush implements PushPort {
   }
 
   private recordIntent(p: PushIntendedPayload): Promise<Result<void, CoreError>> {
-    return inCoreLedgerTx(this.d, async (j, tx) => {
-      await lockKeys(tx, [pushLockKey(p.item_id)]);
-      const w = await j.emitAll(pushStream(p.item_id), [
-        {
-          type: PUSH_EVENT.intended,
-          body: p as unknown as Record<string, unknown>,
-          actor: PUSH_ACTOR,
-          idempotency_key: `push:intent:${p.command_key}`,
-        },
-      ]);
-      return w.ok ? ok({ value: undefined, pending: [] as PendingConfirm[] }) : w;
-    });
+    return recordPushIntent(this.d, p);
   }
 
-  /** The receipt: a record event, its fold, and the ledger entry, in one transaction (the ledger entry last). */
   private recordReceipt(r: PushReceipt): Promise<Result<void, CoreError>> {
-    return inCoreLedgerTx(this.d, async (j, tx) => {
-      await lockKeys(tx, [pushLockKey(r.item_id)]);
-      // the ledger lock before the first record append, the entry last (AGENTS.md lock order)
-      await lockLedger(tx);
-      const pending: PendingConfirm[] = [];
-      const caught = await importUnconfirmed(tx, this.d.ledger);
-      if (!caught.ok) return err(coreError('unavailable', caught.error.message));
-      pending.push(...caught.value.pending);
-      const w = await j.emitAll(pushStream(r.item_id), [
-        {
-          type: PUSH_EVENT.receipt_recorded,
-          body: r as unknown as Record<string, unknown>,
-          actor: PUSH_ACTOR,
-          idempotency_key: `push:receipt:${r.receipt_id}`,
-        },
-      ]);
-      if (!w.ok) return w;
-      if (w.value.duplicate) return ok({ value: undefined, pending });
-      const ev = w.value.events[0];
-      await applyPushEvent(tx, {
-        type: PUSH_EVENT.receipt_recorded,
-        payload: r,
-        global_seq: Number(ev?.global_seq ?? 0),
-      });
-      const draft: LedgerEntryDraft = {
-        entry_id: deterministicId<'LedgerEntry'>(`push.receipt:${r.receipt_id}`),
-        entry_type: PUSH_LEDGER_ENTRY_TYPE,
-        gate_instance_id: null,
-        gate_id: null,
-        subject_kind: 'item',
-        subject_id: r.item_id,
-        subject_hash: r.patch_hash as never,
-        decision: null,
-        actor: null,
-        sod_waiver: false,
-        policy_bundle_version: DEFAULT_POLICY_BUNDLE_VERSION,
-        body: { kind: 'push_receipt', ...r } as never,
-        created_at: r.at as never,
-      };
-      const l = await appendLedgerEntryTx(tx, this.d.ledger, draft);
-      if (!l.ok) return err(coreError('unavailable', l.error.message));
-      pending.push(...l.value.pending);
-      return ok({ value: undefined, pending });
-    });
+    return recordPushReceipt(this.d, r, 'item');
   }
 
   /** The Unit is Pushed, with the head: through Building if the session had not been recorded, and again through it on a re-push. */
@@ -523,4 +494,76 @@ export class CorePush implements PushPort {
     }
     await step('Pushed', 'pushed', { head_sha, pr_ref: `pr:${pr_number}` });
   }
+}
+
+// ---------------------------------------------------------------- recording (shared with the onboarding pack, M16)
+
+export function recordPushIntent(
+  d: CorePushDeps,
+  p: PushIntendedPayload,
+): Promise<Result<void, CoreError>> {
+  return inCoreLedgerTx(d, async (j, tx) => {
+    await lockKeys(tx, [pushLockKey(p.item_id)]);
+    const w = await j.emitAll(pushStream(p.item_id), [
+      {
+        type: PUSH_EVENT.intended,
+        body: p as unknown as Record<string, unknown>,
+        actor: PUSH_ACTOR,
+        idempotency_key: `push:intent:${p.command_key}`,
+      },
+    ]);
+    return w.ok ? ok({ value: undefined, pending: [] as PendingConfirm[] }) : w;
+  });
+}
+
+/** The receipt: a record event, its fold, and the ledger entry, in one transaction (the ledger entry last). */
+export function recordPushReceipt(
+  d: CorePushDeps,
+  r: PushReceipt,
+  subjectKind: 'item' | 's0_record',
+): Promise<Result<void, CoreError>> {
+  return inCoreLedgerTx(d, async (j, tx) => {
+    await lockKeys(tx, [pushLockKey(r.item_id)]);
+    // the ledger lock before the first record append, the entry last (AGENTS.md lock order)
+    await lockLedger(tx);
+    const pending: PendingConfirm[] = [];
+    const caught = await importUnconfirmed(tx, d.ledger);
+    if (!caught.ok) return err(coreError('unavailable', caught.error.message));
+    pending.push(...caught.value.pending);
+    const w = await j.emitAll(pushStream(r.item_id), [
+      {
+        type: PUSH_EVENT.receipt_recorded,
+        body: r as unknown as Record<string, unknown>,
+        actor: PUSH_ACTOR,
+        idempotency_key: `push:receipt:${r.receipt_id}`,
+      },
+    ]);
+    if (!w.ok) return w;
+    if (w.value.duplicate) return ok({ value: undefined, pending });
+    const ev = w.value.events[0];
+    await applyPushEvent(tx, {
+      type: PUSH_EVENT.receipt_recorded,
+      payload: r,
+      global_seq: Number(ev?.global_seq ?? 0),
+    });
+    const draft: LedgerEntryDraft = {
+      entry_id: deterministicId<'LedgerEntry'>(`push.receipt:${r.receipt_id}`),
+      entry_type: PUSH_LEDGER_ENTRY_TYPE,
+      gate_instance_id: null,
+      gate_id: null,
+      subject_kind: subjectKind,
+      subject_id: r.item_id,
+      subject_hash: r.patch_hash as never,
+      decision: null,
+      actor: null,
+      sod_waiver: false,
+      policy_bundle_version: DEFAULT_POLICY_BUNDLE_VERSION,
+      body: { kind: 'push_receipt', ...r } as never,
+      created_at: r.at as never,
+    };
+    const l = await appendLedgerEntryTx(tx, d.ledger, draft);
+    if (!l.ok) return err(coreError('unavailable', l.error.message));
+    pending.push(...l.value.pending);
+    return ok({ value: undefined, pending });
+  });
 }

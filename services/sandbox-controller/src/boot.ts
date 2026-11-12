@@ -1,5 +1,10 @@
-import { ConfigReader, ConfigRegistry, registerSandboxConfig } from '@aisdlc/config';
-import { RunnerHostId } from '@aisdlc/contracts';
+import {
+  ConfigReader,
+  ConfigRegistry,
+  onboardingImageFrom,
+  registerSandboxConfig,
+} from '@aisdlc/config';
+import { RunnerHostId, SANDBOX_IMAGE_REF } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import type { SandboxPort } from '@aisdlc/ports';
 import { DockerSandboxDriver } from '@aisdlc/sandbox-driver';
@@ -48,6 +53,20 @@ const dirEnv = (env: Env, name: string): string => {
   return v;
 };
 
+/** `SANDBOX_CONTROLLER_PROBE_IMAGES`: the digest references this host's driver may run besides its default image. */
+function probeImagesEnv(env: Env): string[] {
+  const list = (env['SANDBOX_CONTROLLER_PROBE_IMAGES'] ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
+  for (const i of list) {
+    if (!SANDBOX_IMAGE_REF.test(i)) {
+      throw new ServiceConfigError('SANDBOX_CONTROLLER_PROBE_IMAGES holds digest references only');
+    }
+  }
+  return list;
+}
+
 /** The driver of this host: the `DockerSandboxDriver` in front of the coding proxy (this process holds its token). */
 function driverFromEnv(env: Env): SandboxPort {
   const u = new URL(httpUrlEnv(env, 'SANDBOX_CONTROLLER_PROXY_URL'));
@@ -58,6 +77,7 @@ function driverFromEnv(env: Env): SandboxPort {
       token: resolveSecretRef(requiredEnv(env, 'SANDBOX_CONTROLLER_PROXY_TOKEN_REF'), { env }),
     },
     image: env['SANDBOX_CONTROLLER_IMAGE'] || 'aisdlc/sandbox-agent:local',
+    images: probeImagesEnv(env),
     scratch: (() => {
       const d = dirEnv(env, 'SANDBOX_CONTROLLER_SCRATCH');
       return { local: d, host: d };
@@ -83,6 +103,8 @@ function driverFromEnv(env: Env): SandboxPort {
  *   SANDBOX_CONTROLLER_SCRATCH        repo copies: a plain absolute directory, the same path for the daemon
  *   SANDBOX_CONTROLLER_MIRROR, SANDBOX_CONTROLLER_GATEWAY   the peers' container names
  *   SANDBOX_CONTROLLER_IMAGE          the session image (default aisdlc/sandbox-agent:local)
+ *   SANDBOX_CONTROLLER_PROBE_IMAGES   M16: digest references the driver may also run (the onboarding probe image); a
+ *                                     K-exec session must ALSO name the image `onboarding.sandbox_image` approves
  *   SANDBOX_CONTROLLER_BODY_LIMIT_MB  the largest session request (default 64)
  *   SANDBOX_CONTROLLER_CAPS_RELOAD_MS how often the caps are read again (default 5000); `POST /v1/admin/reload` too
  *   SANDBOX_CONTROLLER_HOST (127.0.0.1), SANDBOX_CONTROLLER_PORT (8430)
@@ -113,7 +135,8 @@ export async function bootSandboxController(
   try {
     const have = await pool.query<Record<string, string | null>>(
       `SELECT to_regclass('config.genuine_publish')::text AS config,
-              to_regclass('core.admission_grant')::text AS core`,
+              to_regclass('core.admission_grant')::text AS core,
+              to_regclass('core.probe_grant')::text AS probe`,
     );
     const missing = Object.entries(have.rows[0] ?? {})
       .filter(([, v]) => v == null)
@@ -138,6 +161,7 @@ export async function bootSandboxController(
     });
     await reader.start();
     const caps = new ConfigCaps(reader, host.data, onError);
+    const r0 = reader;
     timer = setInterval(() => void caps.reload(), reloadMs);
     timer.unref();
     const controller = new SandboxController({
@@ -145,6 +169,8 @@ export async function bootSandboxController(
       caps,
       grants: new RecordGrants(pool),
       hostId: host.data,
+      // M16: the image M1 approved, from the same reader; a failed last reload reads as none (fail closed)
+      probeImage: () => (caps.isStale ? null : (onboardingImageFrom(r0.current())?.image ?? null)),
     });
     const app = createControllerApp({
       controller,

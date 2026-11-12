@@ -1,4 +1,9 @@
-import { ConfigReader, ConfigRegistry, registerGatewayConfig } from '@aisdlc/config';
+import {
+  ConfigReader,
+  ConfigRegistry,
+  onboardingImageFrom,
+  registerGatewayConfig,
+} from '@aisdlc/config';
 import {
   AdmissionCapacity,
   DbPrincipalLinks,
@@ -24,6 +29,8 @@ import {
   gatewayTriggersLoop,
   killObserverLoop,
   mergeReviewLoop,
+  issueTwinLoop,
+  CensusGapRecheck,
   auditSampleLoop,
   learnLoop,
   closeOutStagePorts,
@@ -35,9 +42,15 @@ import {
   s0DriverLoop,
   maintenanceFrom,
   s0SettingsFrom,
+  instructionTemplateFrom,
+  probeFilesOf,
+  probeLoop,
+  packLoop,
+  lightTestsFrom,
   workDriverLoop,
   workSettingsFrom,
 } from '@aisdlc/core/worker';
+import { AppKey, GitHubIssueTracker } from '@aisdlc/codehost';
 import { createPool } from '@aisdlc/db';
 import {
   HttpBundleSource,
@@ -434,6 +447,45 @@ export async function bootCoreWorker(
         ),
       );
     }
+    if (cfg.tracker && cfg.knowledge) {
+      // M16: the GitHub issue twin, through its OWN App (issues:write, metadata:read): files the approved batches
+      // and polls their twins; the re-check is knowledge's census at exactly the head the poll recorded.
+      const t = cfg.tracker;
+      supervisor.add(
+        issueTwinLoop(
+          {
+            pool,
+            tracker: new GitHubIssueTracker({
+              baseUrl: t.apiUrl,
+              appId: t.appId,
+              installationId: t.installationId,
+              appKey: AppKey.fromRef(t.appKeyRef),
+              login: t.login,
+              plainHttpHosts: t.plainHttpHosts,
+              log: (line) => log(`issue_twin: ${line}`),
+            }),
+            recheck: new CensusGapRecheck({
+              pool,
+              knowledge: new HttpKnowledge({
+                baseUrl: cfg.knowledge.url,
+                token: cfg.knowledge.token,
+              }),
+            }),
+          },
+          {
+            intervalMs: cfg.issueTwinIntervalMs,
+            startDelayMs: 4_000,
+            onReport: (r) => {
+              if (r.filed + r.reconciled + r.verified + r.unverified + r.lost > 0) {
+                log(
+                  `issue_twin: filed ${r.filed}, reconciled ${r.reconciled}, verified ${r.verified}, unverified ${r.unverified}, lost ${r.lost}`,
+                );
+              }
+            },
+          },
+        ),
+      );
+    }
     if (ledger) {
       // M14.5: the X4 review of every merge gate-check recorded without aisdlc/gate passing (a bypass by a listed
       // person, or an unauthorised merge). gate-check has no route to core: it records, this loop opens the cards.
@@ -501,8 +553,34 @@ export async function bootCoreWorker(
           ),
         );
       }
+      if (cfg.knowledge && cfg.sandboxController) {
+        // M16: the onboarding probe (LF3) of every record waiting at card 2, in a K-exec session through the
+        // sandbox-controller only (it starts nothing without the probe grant core records first, and runs only the
+        // image `onboarding.sandbox_image` approves); DEC-18's allow-list and B1 are checked before anything runs
+        const sc = cfg.sandboxController;
+        supervisor.add(
+          probeLoop(
+            {
+              pool,
+              knowledge: new HttpKnowledge({
+                baseUrl: cfg.knowledge.url,
+                token: cfg.knowledge.token,
+              }),
+              probe: {
+                sandbox: new HttpSandbox({ baseUrl: sc.url, token: sc.token }),
+                files: probeFilesOf(
+                  new HttpBundleSource({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken }),
+                ),
+                image: () => onboardingImageFrom(rd.current()),
+                execAllowedRepos: execAllowedReposFrom(rd),
+              },
+            },
+            { intervalMs: cfg.cardsIntervalMs * 3, startDelayMs: 5_000 },
+          ),
+        );
+      }
       if (cfg.knowledge && ledger) {
-        // Cards 1, 4, 5 and the security card (PLAN M7.3): opened, applied and withdrawn as the S0
+        // Cards 1, 2 (M16), 4, 5 and the security card (PLAN M7.3): opened, applied and withdrawn as the S0
         // records move. The scoped bootstrap grant is the card layer's (`bootstrap: true`).
         supervisor.add(
           cardsLoop(
@@ -519,6 +597,8 @@ export async function bootCoreWorker(
               }),
               source,
               settings: s0SettingsFrom(rd),
+              instructionTemplate: instructionTemplateFrom(rd),
+              lightTests: lightTestsFrom(rd),
               maintenance: maintenanceFrom(rd),
             }),
             {
@@ -528,6 +608,44 @@ export async function bootCoreWorker(
                 if (changed > 0) log(`cards: ${id}: ${changed} change(s)`);
               },
             },
+          ),
+        );
+      }
+      if (cfg.knowledge && ledger) {
+        // M16 R2b: the affirmed pack's git projection. After card 2 is applied the pack is rendered from the record and
+        // recorded first, X2 opens on the S0 record bound to its patch hash, and only once X2 is approved in the ledger
+        // is the Push Broker asked for a draft PR (with CORE_WORKER_PUSH_BROKER=1; otherwise it waits at x2_approved)
+        supervisor.add(
+          packLoop(
+            {
+              cards: cardDepsFrom({
+                pool,
+                readPool,
+                registry,
+                ledger,
+                eligibility: identityEligibility(readPool, registry),
+                stepUp: new RefusingStepUp(),
+                knowledge: new HttpKnowledge({
+                  baseUrl: cfg.knowledge.url,
+                  token: cfg.knowledge.token,
+                }),
+                source,
+                settings: s0SettingsFrom(rd),
+                instructionTemplate: instructionTemplateFrom(rd),
+                lightTests: lightTestsFrom(rd),
+                maintenance: maintenanceFrom(rd),
+              }),
+              push: { pool, ledger },
+              ...(cfg.pushBroker
+                ? {
+                    broker: new HttpCodeHostPush({
+                      baseUrl: cfg.codehostUrl,
+                      token: cfg.codehostToken,
+                    }),
+                  }
+                : {}),
+            },
+            { intervalMs: cfg.cardsIntervalMs * 2, startDelayMs: 6_000 },
           ),
         );
       }

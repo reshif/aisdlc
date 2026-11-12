@@ -180,3 +180,50 @@ describe('core-worker config: the scripted S7 of the compose e2e (M14.6)', () =>
     );
   });
 });
+
+describe('core-worker config: the issue twin’s own App (PLAN M16)', () => {
+  const PLAIN: Record<string, string> = {
+    CORE_WORKER_DATABASE_URL: 'postgres://127.0.0.1:5432/db',
+    CORE_WORKER_CODEHOST_URL: 'http://127.0.0.1:1',
+    CORE_WORKER_CODEHOST_TOKEN_REF: 'env:T',
+    T: 'x'.repeat(32),
+    CORE_WORKER_KNOWLEDGE_URL: 'http://127.0.0.1:2',
+    CORE_WORKER_KNOWLEDGE_TOKEN_REF: 'env:T',
+  };
+  const TRACKER = {
+    CORE_WORKER_TRACKER_APP_ID: '777001',
+    CORE_WORKER_TRACKER_INSTALLATION_ID: '33',
+    CORE_WORKER_TRACKER_APP_KEY_REF: 'file:/run/secrets/tracker.pem',
+    CORE_WORKER_TRACKER_LOGIN: 'aisdlc-tracker[bot]',
+  };
+
+  it('off unless its App is named; on, it reads its own credential reference and login', () => {
+    expect(coreWorkerConfigFromEnv(PLAIN).tracker).toBeNull();
+    const cfg = coreWorkerConfigFromEnv({
+      ...PLAIN,
+      ...TRACKER,
+      CORE_WORKER_TRACKER_PLAIN_HTTP_HOSTS: 'codehost',
+    });
+    expect(cfg.tracker).toEqual({
+      apiUrl: 'https://api.github.com',
+      appId: '777001',
+      installationId: 33,
+      appKeyRef: 'file:/run/secrets/tracker.pem',
+      login: 'aisdlc-tracker[bot]',
+      plainHttpHosts: ['codehost'],
+    });
+    expect(cfg.issueTwinIntervalMs).toBe(600_000);
+  });
+
+  it('a key that is not a file reference, a missing installation and no knowledge are refused', () => {
+    expect(() =>
+      coreWorkerConfigFromEnv({ ...PLAIN, ...TRACKER, CORE_WORKER_TRACKER_APP_KEY_REF: 'env:K' }),
+    ).toThrow(/file: reference/);
+    const noInst: Record<string, string> = { ...PLAIN, ...TRACKER };
+    delete noInst['CORE_WORKER_TRACKER_INSTALLATION_ID'];
+    expect(() => coreWorkerConfigFromEnv(noInst)).toThrow(/CORE_WORKER_TRACKER_INSTALLATION_ID/);
+    const noKnowledge: Record<string, string> = { ...PLAIN, ...TRACKER };
+    delete noKnowledge['CORE_WORKER_KNOWLEDGE_URL'];
+    expect(() => coreWorkerConfigFromEnv(noKnowledge)).toThrow(/CORE_WORKER_KNOWLEDGE_URL/);
+  });
+});

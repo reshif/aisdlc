@@ -7,7 +7,8 @@ import { join, resolve, sep } from 'node:path';
 // The package mirror (PLAN M13.2; RV §2: "the ONLY egress a sandbox gets besides the gateway"). A tiny read-only
 // HTTP server over one fixed directory: GET and HEAD, nothing else. No upstream fetch (it cannot reach the
 // internet: it sits on internal networks only), no write, no listing outside `/index.json`, no symlink followed.
-// The fixture set is empty for now; real wheels and npm tarballs are DEC-17.
+// The fixture set is empty for now; real wheels and npm tarballs are DEC-17. A PEP 503 project page (`/simple/<name>/`)
+// is served from the fixture `simple/<name>/index.html`, so `pip install` with the sandbox's PIP_INDEX_URL works.
 
 export interface MirrorOptions {
   /** The directory served. Read at request time, never written. */
@@ -60,7 +61,10 @@ export function createMirror(opts: MirrorOptions): http.Server {
       }
       const url = req.url ?? '/';
       const q = url.indexOf('?');
-      const path = q === -1 ? url : url.slice(0, q);
+      const asked = q === -1 ? url : url.slice(0, q);
+      // PEP 503 (M16): a project page `/simple/<name>/` is the file `simple/<name>/index.html` when one is there. A
+      // directory is still never listed: no index.html, no page.
+      const path = asked !== '/' && asked.endsWith('/') ? `${asked}index.html` : asked;
       if (path === '/healthz') return reply(200, 'ok\n');
       if (path === '/index.json') {
         const names = (await walk(root)).sort();

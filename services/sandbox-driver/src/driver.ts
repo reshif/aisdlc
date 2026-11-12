@@ -56,6 +56,11 @@ export interface DriverConfig {
   readonly endpoint: Endpoint;
   /** The sandbox image (it must exist: a pull is never allowed). */
   readonly image: string;
+  /**
+   * Further images a session may name (`SandboxSpec.image`, by digest): the onboarding probe's (M16). A spec that
+   * names any other image is refused before anything is made; the socket proxy keeps its own list.
+   */
+  readonly images?: readonly string[];
   readonly scratch: ScratchRoot;
   /** Container names of the peers a session network may attach, by role. A class that needs a peer not named here does not run. */
   readonly peers: Partial<Record<SandboxPeer, string>>;
@@ -91,6 +96,9 @@ export class DockerSandboxDriver implements SandboxPort {
       this.cfg.trustedCommands === undefined ? {} : { trustedCommands: this.cfg.trustedCommands };
     const pre = preflightSpec(spec, opts);
     if (!pre.ok) return pre;
+    if (spec.image !== undefined && !(this.cfg.images ?? []).includes(spec.image)) {
+      return err(sandboxError('refused', 'the image named is not one this host may run'));
+    }
     const release = this.gate.tryAcquire(spec.class);
     if (release === null) return err(sandboxError('busy', 'at most 1 coding session runs at once'));
     try {
@@ -220,7 +228,7 @@ export class DockerSandboxDriver implements SandboxPort {
         `rw,${exec ? 'exec' : 'noexec'},nosuid,nodev,size=${bytes},uid=${SANDBOX_UID},gid=${SANDBOX_GID},mode=${mode}`;
       const logMb = Math.min(128, Math.ceil((limits.out_bytes * 1.4 + 6 * MIB) / MIB));
       const body = {
-        Image: this.cfg.image,
+        Image: spec.image ?? this.cfg.image,
         Entrypoint: ['/usr/local/bin/aisdlc-run'],
         Cmd: [...spec.command],
         Env: env,

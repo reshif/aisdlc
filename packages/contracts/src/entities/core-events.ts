@@ -28,6 +28,7 @@ import { OnboardingStatus } from '../states/onboarding.js';
 import { ReadinessActor, ReadinessStatus } from '../states/readiness.js';
 import { Lane } from '../values.js';
 import { ControlsReport } from './onboarding-cards.js';
+import { InstructionPath, InstructionReview, LightProposal } from './onboarding-light.js';
 import {
   GatingProfile,
   Project,
@@ -109,12 +110,16 @@ export const S0_EVENT = {
   signoff_ready: 's0.signoff_ready',
   /** Card 4's re-check read the code host again. */
   controls_checked: 's0.controls_checked',
-  /** The bootstrap decider (PLAN M7.4): the requester is the provisional admin of cards 1, 4 and 5. */
+  /** The bootstrap decider (PLAN M7.4): the requester is the provisional admin of cards 1, 2, 4 and 5. */
   bootstrap_granted: 's0.bootstrap_granted',
   /** The controls report card 4 was decided on, in full: the PRR's `controls` are read from it. */
   controls_recorded: 's0.controls_recorded',
   /** A PRR was built and proposed for the sign-off (PLAN M7.4, M7.5); its hash is the M4 subject. */
   prr_proposed: 's0.prr_proposed',
+  /** Card 2's proposal, recorded before the card opens and secret-scanned before it is stored (M16). */
+  light_proposed: 's0.light_proposed',
+  /** A person edited the proposed instruction text on card 2 (secret-scanned before it is stored). */
+  instruction_edited: 's0.instruction_edited',
 } as const;
 
 /** The events of a PRR stream (`prr:<project>:<repo_id>`). */
@@ -408,13 +413,15 @@ export type S0ControlsCheckedPayload = z.infer<typeof S0ControlsCheckedPayload>;
 // ---------------------------------------------------------------- Bootstrap, PRR and work events
 
 /** The cards the bootstrap decider covers (PLAN M7.4). The security card, M4 and every other gate are not among them. */
-export const BOOTSTRAP_CARDS = ['C1', 'C4', 'C5'] as const;
+// User decision 2026-11-12 (PLAN §7a): card 2 joins the grant, for the grantee's own onboarding only.
+// A grant keeps the cards it was recorded with: one recorded before that decision covers C1, C4, C5.
+export const BOOTSTRAP_CARDS = ['C1', 'C2', 'C4', 'C5'] as const;
 export const BootstrapCard = z.enum(BOOTSTRAP_CARDS);
 
 /**
  * User decision 2026-11-08: on a project's first onboarding (no published role map, no other live
  * bootstrap) the requester, who passed `project.onboard`, is the provisional admin of this S0
- * record's cards 1, 4 and 5. It ends when card 4's revision is published, or when the record ends.
+ * record's cards 1, 2, 4 and 5 (the `cards` it was recorded with). It ends when card 4's revision is published, or when the record ends.
  * `ledger_entry_id` is the ledger entry that states the grant.
  */
 export const S0BootstrapGrantedPayload = z.strictObject({
@@ -439,6 +446,32 @@ export const S0ControlsRecordedPayload = z.strictObject({
   collaborators_read: z.enum(['ok', 'unknown', 'unreadable']),
 });
 export type S0ControlsRecordedPayload = z.infer<typeof S0ControlsRecordedPayload>;
+
+/**
+ * Card 2's proposal (M16), recorded on the S0 stream BEFORE the card opens: the record copy is what
+ * the card binds to and what agents later receive (DEC-12(a) record-first). `occurrence` is which
+ * raising of card 2 it belongs to.
+ */
+export const S0LightProposedPayload = z.strictObject({
+  occurrence: z.number().int().min(1),
+  proposal: LightProposal,
+});
+export type S0LightProposedPayload = z.infer<typeof S0LightProposedPayload>;
+
+/**
+ * A person edited one file's proposed text on card 2. The review is the factory template's over the
+ * edited text; a text with a secret is refused before anything is stored, so `review.proposed.text`
+ * is never a secret. An edit changes what the card shows, so any decision prepared before it is refused.
+ */
+export const S0InstructionEditedPayload = z.strictObject({
+  occurrence: z.number().int().min(1),
+  proposal_hash: Sha256Hex,
+  path: InstructionPath,
+  /** The text hash the edit replaced. */
+  replaces: Sha256Hex.nullable(),
+  review: InstructionReview,
+});
+export type S0InstructionEditedPayload = z.infer<typeof S0InstructionEditedPayload>;
 
 export const S0PrrProposedPayload = z.strictObject({
   /** Which raising of card 5 this PRR belongs to (the n-th `s0.card_required` for C5). */

@@ -108,6 +108,22 @@ export interface CoreWorkerConfig {
     readonly accessKeyRef: string;
     readonly secretKeyRef: string;
   } | null;
+  /**
+   * M16: the GitHub issue twin's own credential (OB §6.5 "new `tracker` role, issues:write + metadata:read"): its App
+   * id, installation, key reference and the login it writes as, never the codehost's App (the Push Broker's) or
+   * gate-check's. With it (and knowledge, for the re-check) the `issue_twin` loop files approved batches and polls
+   * their twins. `null`: the loop does not run and approved twins stay `pending`.
+   */
+  readonly tracker: {
+    readonly apiUrl: string;
+    readonly appId: string;
+    readonly installationId: number;
+    /** A `file:` reference to the tracker App's private key (read by the adapter, never held here). */
+    readonly appKeyRef: string;
+    readonly login: string;
+    readonly plainHttpHosts: readonly string[];
+  } | null;
+  readonly issueTwinIntervalMs: number;
   readonly workDriverIntervalMs: number;
   /**
    * M15.4 9.5: one in how many mode-E merges the audit sample draws (`CORE_WORKER_AUDIT_SAMPLE_ONE_IN`, default 1: every
@@ -207,6 +223,11 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   CORE_WORKER_HEAD_INTERVAL_MS (600000), CORE_WORKER_INSTALLATION_INTERVAL_MS (600000),
  *   CORE_WORKER_RULES_IN_FLIGHT_INTERVAL_MS (3600000), CORE_WORKER_RULES_IDLE_INTERVAL_MS (86400000),
  *   CORE_WORKER_RULES_TICK_MS (300000), CORE_WORKER_OUTBOX_WATCH_INTERVAL_MS (30000)
+ *   CORE_WORKER_TRACKER_APP_ID, CORE_WORKER_TRACKER_INSTALLATION_ID, CORE_WORKER_TRACKER_APP_KEY_REF (`file:`),
+ *                                   CORE_WORKER_TRACKER_LOGIN (`<slug>[bot]`), CORE_WORKER_TRACKER_API_URL (default
+ *                                   https://api.github.com), CORE_WORKER_TRACKER_PLAIN_HTTP_HOSTS (comma-separated, a fake
+ *                                   GitHub only): (M16) the issue twin's OWN App, `issues:write` + `metadata:read`; with it
+ *                                   and knowledge the `issue_twin` loop runs every CORE_WORKER_ISSUE_TWIN_INTERVAL_MS (600000)
  *   CORE_WORKER_HOST / _PORT        the health and metrics endpoint, default 127.0.0.1:8360
  */
 export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
@@ -374,6 +395,38 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     }
   }
   const fakeVerify: 'default' | 'exceptions' = fv;
+  const trackerApp = env['CORE_WORKER_TRACKER_APP_ID'];
+  let tracker: CoreWorkerConfig['tracker'] = null;
+  if (trackerApp !== undefined && trackerApp !== '') {
+    if (!/^[1-9][0-9]*$/.test(trackerApp)) {
+      throw new ServiceConfigError('CORE_WORKER_TRACKER_APP_ID must be a positive integer');
+    }
+    const keyRef = requiredEnv(env, 'CORE_WORKER_TRACKER_APP_KEY_REF');
+    if (!keyRef.startsWith('file:')) {
+      throw new ServiceConfigError('CORE_WORKER_TRACKER_APP_KEY_REF must be a file: reference');
+    }
+    if (knowledge === null) {
+      throw new ServiceConfigError(
+        'CORE_WORKER_TRACKER_APP_ID runs the issue twin, whose re-check needs CORE_WORKER_KNOWLEDGE_URL',
+      );
+    }
+    tracker = {
+      apiUrl: env['CORE_WORKER_TRACKER_API_URL'] || 'https://api.github.com',
+      appId: trackerApp,
+      installationId: intEnv(
+        env,
+        'CORE_WORKER_TRACKER_INSTALLATION_ID',
+        Number(requiredEnv(env, 'CORE_WORKER_TRACKER_INSTALLATION_ID')),
+        1,
+      ),
+      appKeyRef: keyRef,
+      login: requiredEnv(env, 'CORE_WORKER_TRACKER_LOGIN'),
+      plainHttpHosts: (env['CORE_WORKER_TRACKER_PLAIN_HTTP_HOSTS'] ?? '')
+        .split(',')
+        .map((h) => h.trim())
+        .filter((h) => h !== ''),
+    };
+  }
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
@@ -392,6 +445,8 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     releaseViaGateRelay,
     fakeVerify,
     objectStore,
+    tracker,
+    issueTwinIntervalMs: intEnv(env, 'CORE_WORKER_ISSUE_TWIN_INTERVAL_MS', 600_000, 100),
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
       .split(',')
       .map((m) => m.trim())

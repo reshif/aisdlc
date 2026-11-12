@@ -10,6 +10,8 @@ import {
   type ConfigDeps,
 } from '@aisdlc/config';
 import {
+  ONBOARDING_PROBE_UNIT,
+  PROBE_GRANT_TTL_S,
   PrincipalId,
   ProjectId,
   SANDBOX_CAPS_KEY,
@@ -37,7 +39,7 @@ import { bootSandboxController } from '../src/boot.js';
 import { RecordGrants } from '../src/grants.js';
 
 // M14.2 on a real Postgres with the WHOLE migrate plan applied: the controller boots as its own least-privilege role
-// (`aisdlc_sandbox_controller`: the effective-config view and `core.admission_grant`, nothing else), reads the caps
+// (`aisdlc_sandbox_controller`: the effective-config view, `core.admission_grant` and `core.probe_grant`, nothing else), reads the caps
 // `sandbox.caps` that an M1 decision published (a reload takes the new caps; an unpublished revision is never in force),
 // and checks every session's grant against the row core recorded.
 
@@ -161,7 +163,7 @@ async function recordGrant(g: SandboxGrantRef, status: 'active' | 'waiting' | 'r
 }
 
 describe('the controller database role', () => {
-  it('reads the effective-config view and core.admission_grant, and no other table or view', async () => {
+  it('reads the effective-config view, core.admission_grant and core.probe_grant, and no other table or view', async () => {
     const tables = (
       await db.pool.query<{ s: string; t: string }>(
         `SELECT table_schema AS s, table_name AS t FROM information_schema.tables
@@ -170,7 +172,7 @@ describe('the controller database role', () => {
     ).rows.map((r) => `${r.s}.${r.t}`);
     expect(tables).toContain('core.work_item');
     expect(tables).toContain('ledger.ledger_entry');
-    const allowed = new Set(['config.genuine_publish', 'core.admission_grant']);
+    const allowed = new Set(['config.genuine_publish', 'core.admission_grant', 'core.probe_grant']);
     const readable: string[] = [];
     for (const t of tables) {
       if (allowed.has(t)) continue;
@@ -189,20 +191,72 @@ describe('the controller database role', () => {
     ).rejects.toMatchObject({ code: '42501' });
   });
 
+  it('RecordGrants: a probe grant starts K-exec only, while granted and young, for its S0 record', async () => {
+    const s0 = '01930000-0000-7000-8000-0000000000bb';
+    const probe = {
+      grant_id: `probe-${'a'.repeat(32)}`,
+      item_id: s0,
+      unit_id: ONBOARDING_PROBE_UNIT,
+      lease_epoch: 1,
+    };
+    const g = new RecordGrants(rolePool);
+    const put = (status: 'granted' | 'recorded', age_s: number) =>
+      db.pool.query(
+        `INSERT INTO core.onboarding_probe (probe_id, s0_id, project_id, repo, census_hash, baseline_sha, image,
+                                            status, outcome, result, result_hash, granted_at, event_gseq)
+         VALUES ($1, $2, 'acme', 'acme/app', $3, $4, NULL, $5, $6, $7, $8, now() - make_interval(secs => $9), 1)
+         ON CONFLICT (probe_id) DO UPDATE SET status = EXCLUDED.status, outcome = EXCLUDED.outcome,
+           result = EXCLUDED.result, result_hash = EXCLUDED.result_hash, granted_at = EXCLUDED.granted_at`,
+        [
+          probe.grant_id,
+          s0,
+          'c'.repeat(64),
+          'd'.repeat(40),
+          status,
+          status === 'recorded' ? 'passed' : null,
+          status === 'recorded' ? '{}' : null,
+          status === 'recorded' ? 'e'.repeat(64) : null,
+          age_s,
+        ],
+      );
+    expect(await g.check(probe, 'K-exec')).toEqual({ ok: true, value: 'not_active' });
+    await put('granted', 5);
+    expect(await g.check(probe, 'K-exec')).toEqual({ ok: true, value: 'active' });
+    // never another class, another record, or another epoch
+    for (const cls of ['W', 'O', 'K', 'P', 'V'] as const) {
+      expect(await g.check(probe, cls)).toEqual({ ok: true, value: 'not_active' });
+    }
+    expect(
+      await g.check({ ...probe, item_id: '01930000-0000-7000-8000-0000000000cc' }, 'K-exec'),
+    ).toEqual({ ok: true, value: 'not_active' });
+    expect(await g.check({ ...probe, lease_epoch: 2 }, 'K-exec')).toEqual({
+      ok: true,
+      value: 'not_active',
+    });
+    // a lapsed grant, and a recorded probe, start nothing
+    await put('granted', PROBE_GRANT_TTL_S + 60);
+    expect(await g.check(probe, 'K-exec')).toEqual({ ok: true, value: 'not_active' });
+    await put('recorded', 5);
+    expect(await g.check(probe, 'K-exec')).toEqual({ ok: true, value: 'not_active' });
+  });
+
   it('RecordGrants: active at the named item, Unit and epoch only', async () => {
     const g = new RecordGrants(rolePool);
-    expect(await g.check(GRANT)).toEqual({ ok: true, value: 'not_active' });
+    expect(await g.check(GRANT, 'W')).toEqual({ ok: true, value: 'not_active' });
     await recordGrant(GRANT, 'active');
-    expect(await g.check(GRANT)).toEqual({ ok: true, value: 'active' });
-    expect(await g.check({ ...GRANT, lease_epoch: 1 })).toEqual({ ok: true, value: 'not_active' });
-    expect(await g.check({ ...GRANT, unit_id: 'unit-x' })).toEqual({
+    expect(await g.check(GRANT, 'W')).toEqual({ ok: true, value: 'active' });
+    expect(await g.check({ ...GRANT, lease_epoch: 1 }, 'W')).toEqual({
+      ok: true,
+      value: 'not_active',
+    });
+    expect(await g.check({ ...GRANT, unit_id: 'unit-x' }, 'W')).toEqual({
       ok: true,
       value: 'not_active',
     });
     await recordGrant(GRANT, 'waiting');
-    expect(await g.check(GRANT)).toEqual({ ok: true, value: 'not_active' });
+    expect(await g.check(GRANT, 'W')).toEqual({ ok: true, value: 'not_active' });
     const broken = createPool(roleUrl(db.url, role, 'wrong-password'), 1);
-    expect((await new RecordGrants(broken).check(GRANT)).ok).toBe(false);
+    expect((await new RecordGrants(broken).check(GRANT, 'W')).ok).toBe(false);
     await broken.end();
   });
 });

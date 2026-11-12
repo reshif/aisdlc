@@ -29,7 +29,8 @@ import { readPrrState } from './prr-store.js';
 import { recordSignedIn } from './s0.js';
 import { fanOutHeld, type FanOutReport } from './work.js';
 import { c5Base } from './cards/views.js';
-import { loadS0, s0Cards, type LoadedS0 } from './cards/read.js';
+import { approvedPayload, loadS0, s0Cards, type LoadedS0 } from './cards/read.js';
+import { affirmedFromC2 } from '@aisdlc/onboarding';
 import type { Clock } from '@aisdlc/kernel';
 import type pg from 'pg';
 
@@ -93,14 +94,16 @@ export async function recordControlsSeen(
 async function entryMeta(
   pool: pg.Pool,
   entryId: string | null,
-): Promise<{ actor: PrincipalId; at: Date } | null> {
+): Promise<{ actor: PrincipalId; at: Date; sod_waiver: boolean } | null> {
   if (entryId === null) return null;
-  const q = await pool.query<{ actor: string | null; created_at: Date }>(
-    'SELECT actor, created_at FROM ledger.ledger_entry WHERE entry_id = $1',
+  const q = await pool.query<{ actor: string | null; created_at: Date; sod_waiver: boolean }>(
+    'SELECT actor, created_at, sod_waiver FROM ledger.ledger_entry WHERE entry_id = $1',
     [entryId],
   );
   const r = q.rows[0];
-  return r?.actor ? { actor: r.actor as PrincipalId, at: r.created_at } : null;
+  return r?.actor
+    ? { actor: r.actor as PrincipalId, at: r.created_at, sod_waiver: r.sod_waiver }
+    : null;
 }
 
 // ---------------------------------------------------------------- proposing the PRR
@@ -216,6 +219,22 @@ export async function ensurePrrProposed(
   });
   if (!signer.ok) return err(coreError('refused', signer.error.message));
 
+  // ---- card 2 (Light): what was affirmed goes into the record (OB §3.2 `affirmed`)
+  let affirmed: ProjectReadinessRecord['affirmed'] | undefined;
+  if (s0.steps.get('0.2')?.state === 'done') {
+    const c2 = approvedPayload(cards, 'C2');
+    const c2Entry = await entryMeta(deps.pool, c2?.card.state.steps[0]?.ledger_entry_id ?? null);
+    if (!c2 || !c2Entry) {
+      return err(coreError('conflict', 'step 0.2 is done but card 2 carries no ledgered decision'));
+    }
+    const a = affirmedFromC2(c2.payload, {
+      decided_by: c2Entry.actor,
+      sod_waiver: c2Entry.sod_waiver,
+    });
+    if (!a.ok) return err(coreError('conflict', a.error.message));
+    affirmed = a.value;
+  }
+
   return inCoreTx<ProjectReadinessRecord>(deps, async (j, tx) => {
     await lockKeys(tx, [`project:${project}`, `repo:${s0.repo.toLowerCase()}`, `s0:${s0Id}`]);
     const cur = await j.s0(s0Id);
@@ -236,6 +255,7 @@ export async function ensurePrrProposed(
       version,
       supersedes: governingPrr(state)?.prr.record_hash ?? null,
       census: closeOwnerCardGaps(census, {
+        light_affirmed: affirmed !== undefined,
         owner_confirmed: c1.payload.some((p) => p.kind === 'owner_confirmation'),
         tier_signed: tierRow.kind === 'tier_decision',
         plan_attested: attestedPlan,
@@ -277,6 +297,7 @@ export async function ensurePrrProposed(
       },
       security,
       signer: signer.value,
+      ...(affirmed ? { affirmed } : {}),
     });
     if (!built.ok) {
       return err(coreError('refused', `${built.error.code}: ${built.error.message}`, built.error));

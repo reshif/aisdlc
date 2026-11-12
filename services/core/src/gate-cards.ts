@@ -33,18 +33,22 @@ import { coreError, type CoreError } from './errors.js';
 
 export interface ItemCardHead {
   readonly project_id: string;
-  /** `null` for a project's META card (9.4 Learn, M15.5): its subject is a proposal, not an item. */
+  /** `null` for a project's META card (9.4 Learn, M15.5) and an S0 record's X2 card (M16): not an item. */
   readonly item_id: string | null;
-  readonly subject_kind: 'item' | 'learn';
+  readonly subject_kind: 'item' | 'learn' | 's0_record';
   readonly gates: ReadonlyArray<{ gate_instance_id: string; gate: GateId }>;
 }
 
 /** The project, item and gates of a work-item card; `null` for anything that is not one. */
 export async function itemCardHead(pool: pg.Pool, cardId: string): Promise<ItemCardHead | null> {
   const o = await readCardOpened(pool, cardId);
-  // M15.5: a 9.4 META card (subject `learn`) is decided the same way, on its project
-  if (!o || (o.open.subject_kind !== 'item' && o.open.subject_kind !== 'learn')) return null;
+  // a work item's card; a 9.4 META card (subject `learn`, M15.5) on its project; or the X2 card of an S0 record's
+  // onboarding pack (M16 R2b: the record's UUID is the subject), each decided the same way
+  if (!o) return null;
   const kind = o.open.subject_kind;
+  if (kind !== 'item' && kind !== 'learn' && !(kind === 's0_record' && o.open.label === 'X2')) {
+    return null;
+  }
   const gates: Array<{ gate_instance_id: string; gate: GateId }> = [];
   for (const t of o.open.targets) {
     if (t.target !== 'gate') continue;

@@ -160,3 +160,15 @@ describe('FakeSandbox', () => {
     expect(!r.ok && r.error.code).toBe('unavailable');
   });
 });
+
+describe('the image of a session (M16)', () => {
+  it('an image is named by digest only; a tag is refused before anything runs', () => {
+    const hex = 'a'.repeat(64);
+    expect(preflightSpec(spec({ image: `sha256:${hex}` })).ok).toBe(true);
+    expect(preflightSpec(spec({ image: `aisdlc/sandbox-onboarding@sha256:${hex}` })).ok).toBe(true);
+    for (const bad of ['aisdlc/sandbox-onboarding:local', `sha256:${hex.slice(1)}`, 'ubuntu']) {
+      const r = preflightSpec(spec({ image: bad }));
+      expect(r.ok ? null : r.error.code).toBe('invalid_spec');
+    }
+  });
+});

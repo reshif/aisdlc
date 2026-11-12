@@ -71,11 +71,15 @@ export interface Rig {
 
 type Made = { tmp?: string; base?: string; containers: string[]; proxy?: DockerProxy };
 
-export async function startRig(opts: {
+export interface RigOptions {
   canaries: string[];
   gatewayKey: string;
   policy?: Partial<PolicyConfig>;
-}): Promise<Rig> {
+  /** Writes the package mirror's fixture set (M16: the probe test's wheel and its PEP 503 page). */
+  fixtures?: (dir: string) => void;
+}
+
+export async function startRig(opts: RigOptions): Promise<Rig> {
   const made: Made = { containers: [] };
   try {
     return await startRigInner(opts, made);
@@ -89,10 +93,7 @@ export async function startRig(opts: {
   }
 }
 
-async function startRigInner(
-  opts: { canaries: string[]; gatewayKey: string; policy?: Partial<PolicyConfig> },
-  made: Made,
-): Promise<Rig> {
+async function startRigInner(opts: RigOptions, made: Made): Promise<Rig> {
   ensureImage();
   const tmp = mkdtempSync(join(tmpdir(), 'aisdlc-sbx-'));
   made.tmp = tmp;
@@ -135,6 +136,7 @@ async function startRigInner(
   chmodSync(join(mirrorDir, 'main.js'), 0o644);
   const fixtures = join(tmp, 'fixtures');
   mkdirSync(fixtures);
+  opts.fixtures?.(fixtures);
   chmodSync(fixtures, 0o755);
   const mirror = `aisdlc-test-mirror-${suffix}`;
   const gateway = `aisdlc-test-gateway-${suffix}`;

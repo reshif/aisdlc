@@ -122,6 +122,7 @@ async function withFindings(n: number): Promise<{ c: Scn; ids: string[] }> {
     securitySummary: (r) => c.knowledge.securitySummary(r),
     openFindings: (r) => http.openFindings(r),
     setFindingState: (f, req) => http.setFindingState(f, req),
+    detectorFacts: (j) => c.knowledge.detectorFacts(j),
   };
   return { c: { ...c, deps: { ...c.deps, knowledge: hybrid } }, ids };
 }

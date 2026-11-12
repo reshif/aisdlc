@@ -16,6 +16,8 @@ import { foldS0, isTerminal } from './fold.js';
 export interface LiveBootstrap {
   readonly s0_id: string;
   readonly grantee: PrincipalId;
+  /** The cards the grant was recorded with (a grant never widens after it is recorded). */
+  readonly cards: readonly string[];
 }
 
 const projectLineage = (project: string) =>
@@ -55,7 +57,7 @@ export async function liveBootstrap(
     const s0 = foldS0(await stream(db, `s0:${g.data.s0_id}`));
     if (!s0 || isTerminal(s0.record.status)) continue;
     if (await hasPublishedSettings(db, project)) return null;
-    return { s0_id: g.data.s0_id, grantee: g.data.grantee };
+    return { s0_id: g.data.s0_id, grantee: g.data.grantee, cards: g.data.cards };
   }
   return null;
 }

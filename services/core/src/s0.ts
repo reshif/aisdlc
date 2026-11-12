@@ -256,7 +256,7 @@ export async function requestOnboarding(
 
     // The bootstrap decider (PLAN M7.4): the project's first onboarding, with no published role
     // map and no other live grant (an older request of this repo that this one supersedes does not
-    // count), makes the requester the provisional admin of this record's cards 1, 4 and 5. It
+    // count), makes the requester the provisional admin of this record's cards 1, 2, 4 and 5. It
     // needs the ledger: the grant is stated there, or it is not made. The ledger lock is taken
     // here, before the first record append, and the entry is written last (AGENTS.md lock order).
     const pending: PendingConfirm[] = [];
