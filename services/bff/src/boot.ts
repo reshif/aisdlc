@@ -64,6 +64,9 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                            optional: the sandbox-controller's slots for the portal's Sandboxes screen (scope read)
  *   BFF_AUDIT_URL, BFF_AUDIT_TOKEN_REF   the audit service (M19, scopes read, export, govern): Govern › Audit;
  *                                     optional (without it those routes answer 503)
+ *   BFF_KILLSWITCH_URL, BFF_KILLSWITCH_TOKEN_REF
+ *                            the kill switch and the bff's token there (scopes act, read; RC-UI-1): the portal's kill
+ *                            and release, each act with the person's own step-up proof; both or neither (else 503)
  *   BFF_GATE_CHECK_URL, BFF_GATE_CHECK_TOKEN_REF
  *                            gate-check's read API and the bff's token there (scope read; M14.6: the item page's
  *                            run status); both or neither (without them that status reads `unknown`)
@@ -128,6 +131,22 @@ export async function bootBff(env: Env): Promise<RunningService> {
     ? new HttpCoreClient({
         baseUrl: httpUrlEnv(env, 'BFF_NOTIFIER_URL'),
         token: resolveSecretRef(requiredEnv(env, 'BFF_NOTIFIER_TOKEN_REF'), { env }),
+      })
+    : undefined;
+  const ksUrl = env['BFF_KILLSWITCH_URL'];
+  const hasKs = ksUrl !== undefined && ksUrl !== '';
+  if (
+    hasKs !==
+    (env['BFF_KILLSWITCH_TOKEN_REF'] !== undefined && env['BFF_KILLSWITCH_TOKEN_REF'] !== '')
+  ) {
+    throw new ServiceConfigError(
+      'BFF_KILLSWITCH_URL and BFF_KILLSWITCH_TOKEN_REF are set together or not at all',
+    );
+  }
+  const killswitch = hasKs
+    ? new HttpCoreClient({
+        baseUrl: httpUrlEnv(env, 'BFF_KILLSWITCH_URL'),
+        token: resolveSecretRef(requiredEnv(env, 'BFF_KILLSWITCH_TOKEN_REF'), { env }),
       })
     : undefined;
   const gcUrl = env['BFF_GATE_CHECK_URL'];
@@ -232,6 +251,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
       stepUpMode,
       ...(core ? { core } : {}),
       ...(notifier ? { notifier } : {}),
+      ...(killswitch ? { killswitch } : {}),
       ...(gateCheck ? { gateCheck } : {}),
       ...(audit ? { audit } : {}),
       ...(sandboxController ? { sandboxController } : {}),
