@@ -5,6 +5,7 @@ import {
   proposeRevision,
   readLineage,
   registerAdmissionConfig,
+  registerAuditConfig,
   registerGateCheckConfig,
   registerGovernanceConfig,
   registerReleaseConfig,
@@ -88,6 +89,8 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   registerReleaseConfig(registry);
   // M18: the notifier's channel rows are the notifier's to read; core's revisions must validate them
   registerNotificationsConfig(registry);
+  // M19: the audit service's retention classes are the audit service's to read; core's revisions must validate them
+  registerAuditConfig(registry);
   // M15.5: who decides a factory M1, 9.4 Learn's thresholds, and a project's WIP limit and default envelope
   registerGovernanceConfig(registry);
   registerAdmissionConfig(registry);

@@ -128,6 +128,7 @@ import {
 import type { AssistantDeps } from './conversation/assistant.js';
 import { registerAssistantRoutes } from './conversation/routes.js';
 import { registerIssueTwinRoutes } from './issue-twin/routes.js';
+import { registerErasableRoutes } from './conversation/erasable.js';
 import { registerGovernanceRoutes } from './governance-routes.js';
 import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
@@ -161,7 +162,8 @@ import {
  * tiles and events are `portal`), `evals` (M11.3: the eval tooling posts each finished run; reads of the
  * history are `work`, decided by the PDP for the human like the agent stats), `push_guard` (M13.6: the codehost's Push
  * Broker asks whether a Unit's lease is held at an epoch and whether an approved X2 is bound to a patch hash: core's own
- * word, read from the lease and the ledger).
+ * word, read from the lease and the ledger), `erasure` (M19: the audit service lists the payloads kept off the hash chain
+ * and erases one it has the `erasure.execute` entry for; no other caller has a reason to hold it).
  */
 export type CoreScope =
   | 'read'
@@ -173,7 +175,8 @@ export type CoreScope =
   | 'ops'
   | 'integrations'
   | 'evals'
-  | 'push_guard';
+  | 'push_guard'
+  | 'erasure';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -1726,6 +1729,10 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     allowed: (req, scope) => allowed(req, scope),
     guard,
   });
+
+  // ------------------------------------------------------------ the erasable payloads (M19, the audit service)
+
+  registerErasableRoutes({ app, deps, allowed: (req) => allowed(req, 'erasure') });
 
   // ------------------------------------------------------------ the assistant (M18)
 

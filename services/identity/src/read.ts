@@ -35,4 +35,4 @@ export {
 } from './explain.js';
 export { accessSyncLagSeconds, accessSyncStatus, type AccessSyncStatus } from './access-sync.js';
 export { IdentityError, IDENTITY_STATUS, type IdentityErrorCode } from './errors.js';
-export { IdentityPdpEntities } from './pdp-entities.js';
+export { IdentityPdpEntities, identityReadModelCurrent } from './pdp-entities.js';
