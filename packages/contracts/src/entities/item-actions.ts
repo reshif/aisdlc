@@ -1,10 +1,19 @@
 import { z } from 'zod';
-import { GateId } from '../flow.js';
+import { AbandonCause, GateId } from '../flow.js';
 import { Lane, Level } from '../values.js';
 import { LaneEligibility } from './core-events.js';
-import { PrincipalId, WorkItemId, WorkRequestId } from './ids.js';
+import { IsoDateTime, PrincipalId, ProjectId, WorkItemId, WorkRequestId } from './ids.js';
 import { RoleSlot } from './projects.js';
-import { InjectionReport, ItemView, SubmitRequestBody, TaintedText } from './work-lifecycle.js';
+import {
+  Handoff,
+  HandoffChoice,
+  HandoffUuid,
+  HumanWorkReference,
+  InjectionReport,
+  ItemView,
+  SubmitRequestBody,
+  TaintedText,
+} from './work-lifecycle.js';
 
 // The portal's actions on a work item during planning (PLAN M12.5): the Ready decision (1.6), the answers to
 // S1's clarification questions, the observed signals during G3d (B4 "the design reveals a gap in the spec",
@@ -73,8 +82,94 @@ export type ItemPlanRequest = z.infer<typeof ItemPlanRequest>;
  * D5 (M14.6): the developer says the human-led work of an L8 item is done; the item goes on to 7.1. `key` is the
  * retry key of this one signal (a second round of human-led work, after SECT confirmed, is a new key).
  */
-export const ItemHumanDoneRequest = z.strictObject({ on_behalf_of: PrincipalId, key: Key });
+export const ItemHumanDoneRequest = z.strictObject({
+  on_behalf_of: PrincipalId,
+  key: Key,
+  /** The pull request or commit that holds the work (P1-4): recorded with the signal, as data. */
+  reference: HumanWorkReference.optional(),
+});
 export type ItemHumanDoneRequest = z.infer<typeof ItemHumanDoneRequest>;
+
+/**
+ * D4: the developer who took the item over hands it back, once. `plan_changed` sends it through G3 again; otherwise
+ * it resumes at the lane's D4 re-entry (6.4) in a new envelope.
+ */
+export const ItemHandBackRequest = z.strictObject({
+  on_behalf_of: PrincipalId,
+  plan_changed: z.boolean(),
+  key: Key,
+});
+export type ItemHandBackRequest = z.infer<typeof ItemHandBackRequest>;
+
+/**
+ * E4: the owner of record's choice, once E4 itself is decided approve in the ledger by the same person. `extend`
+ * names the percent (at most the catalogue's limit); `abandon` may name a cause code.
+ */
+export const ItemHandoffChooseRequest = z.strictObject({
+  on_behalf_of: PrincipalId,
+  handoff_id: HandoffUuid,
+  choice: HandoffChoice,
+  extension_percent: z.number().positive().max(1000).optional(),
+  cause: AbandonCause.optional(),
+});
+export type ItemHandoffChooseRequest = z.infer<typeof ItemHandoffChooseRequest>;
+
+/**
+ * An item's handoff as the owner of record and the developer see it (P1-4): the handoff (the open one, else the
+ * newest), its E4 gate with the card that decides it, the choices the flow allows now, and, while a developer has the
+ * work (L8), how many hand-backs (D4) are left and the D5 signals so far. Core: `GET /v1/items/:id/handoff`.
+ */
+export const ItemHandoffView = z.strictObject({
+  item_id: WorkItemId,
+  project_id: ProjectId,
+  lane: Lane.nullable(),
+  phase: z.string().min(1),
+  waiting: z.string().nullable(),
+  handoff: Handoff.nullable(),
+  e4: z
+    .strictObject({
+      gate_instance_id: z.string().min(1),
+      card_id: z.string().min(1).nullable(),
+      status: z.enum(['pending', 'decided']),
+      outcome: z.string().nullable(),
+      /** Who approved it in the ledger: only they may record the choice. */
+      approvers: z.array(PrincipalId),
+    })
+    .nullable(),
+  /** The choices the flow allows now (empty until E4 is approved, and once one is chosen). */
+  choices: z.array(HandoffChoice),
+  /** `extend`: the most one extension may add, in percent (the pinned catalogue's; `null`: none allowed). */
+  extension_max_percent: z.number().positive().nullable(),
+  /** A developer has the work (L8): `null` otherwise. */
+  human_led: z
+    .strictObject({
+      /** The item came to L8 by an E4 takeover (only then is there a lane to hand back to). */
+      taken_over: z.boolean(),
+      lane_before: Lane.nullable(),
+      hand_backs_left: z.number().int().min(0),
+    })
+    .nullable(),
+  /** The D5 signals recorded on the item, newest first. */
+  done: z.array(
+    z.strictObject({
+      by: PrincipalId,
+      at: IsoDateTime,
+      reference: HumanWorkReference.nullable(),
+    }),
+  ),
+});
+export type ItemHandoffView = z.infer<typeof ItemHandoffView>;
+
+/** The handoff view with what the signed-in person may do now (the PDP's yes AND where the item is). */
+export const PortalItemHandoffView = ItemHandoffView.extend({
+  may: z.strictObject({
+    decide_e4: z.boolean(),
+    choose: z.boolean(),
+    hand_back: z.boolean(),
+    human_done: z.boolean(),
+  }),
+});
+export type PortalItemHandoffView = z.infer<typeof PortalItemHandoffView>;
 
 /** What an action answers: the item as it stands, and whether the same signal had been recorded already. */
 export const ItemActionResult = z.strictObject({

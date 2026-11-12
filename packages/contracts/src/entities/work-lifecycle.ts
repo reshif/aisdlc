@@ -7,6 +7,7 @@ import { CatalogueRef } from './config.js';
 import { LintRuleId } from './detectors.js';
 import { PrrGatingProfile } from './readiness.js';
 import {
+  AreaId,
   CardId,
   IsoDateTime,
   PrincipalId,
@@ -284,6 +285,16 @@ export const Handoff = z.strictObject({
   chosen_at: IsoDateTime.nullable(),
 });
 export type Handoff = z.infer<typeof Handoff>;
+
+/**
+ * D5 (L8): where the developer's work is, as a reference the factory can check against the code host: a pull
+ * request by number, or a commit by its full SHA. Data, never instructions; never free text.
+ */
+export const HumanWorkReference = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('pr'), number: z.number().int().min(1).max(1_000_000_000) }),
+  z.strictObject({ kind: z.literal('commit'), sha: GitSha }),
+]);
+export type HumanWorkReference = z.infer<typeof HumanWorkReference>;
 
 // ---------------------------------------------------------------- Assumption (one shape)
 
@@ -729,6 +740,8 @@ export const ItemCreatedPayload = z.strictObject({
   prr: z.strictObject({ version: z.number().int().min(1), record_hash: Sha256Hex }),
   /** The lane the request asked for, or 1.3 proposes. Nothing is bound until G0 (FIX 7). */
   proposed_lane: Lane,
+  /** M17 (DEC-25): the area the request named; 1.4 asks its lanes. Absent: the repo as a whole. */
+  area: AreaId.optional(),
   intake: ItemIntake,
   origin: SpawnOrigin.nullable(),
 });
@@ -812,6 +825,8 @@ export const ItemEventPayloads = {
      */
     outputs: z.partialRecord(StepId, Sha256Hex).optional(),
     base_sha: GitSha.optional(),
+    /** D5 (L8): the pull request or commit the developer names as the work (absent: not named). */
+    reference: HumanWorkReference.optional(),
   }),
   [ITEM_EVENT.gates_opened]: z.strictObject({
     ...Answers,
@@ -945,6 +960,11 @@ export const SubmitRequestBody = z.strictObject({
   repo: RepoFullName,
   /** The lane asked for or proposed (1.3 may change it; G0 binds it). */
   lane: Lane,
+  /**
+   * M17 (DEC-25): the area of the repo the work is in, as its system map names it; an area the governing record does
+   * not hold is refused. Absent: the repo as a whole, which runs only what its lowest area may.
+   */
+  area: AreaId.optional(),
   /** N1 portal Ask and N3 API are open (`OPEN_INTAKE_CHANNELS`). */
   channel: EntryChannel,
   text: z.string().min(1).max(100_000),
@@ -993,5 +1013,11 @@ export const ItemView = z.strictObject({
   /** B27: the request text was flagged (the card says which rules). */
   injection_suspected: z.boolean(),
   dedupe_links: z.array(WorkItemId),
+  /**
+   * P2-10: the human gates of the item's route under the catalogue and gating profile it pinned (`on`, catalogue
+   * order), and the gates its lane could have that the profile has off (`off`: off for this project when the item was
+   * pinned). Conditional gates (raised by a step) are in neither. `null`: the pinned catalogue cannot be read.
+   */
+  profile_gates: z.strictObject({ on: z.array(GateId), off: z.array(GateId) }).nullable(),
 });
 export type ItemView = z.infer<typeof ItemView>;

@@ -26,6 +26,7 @@ export const CONTROLLER_STATUS: Readonly<Record<SandboxErrorCode, number>> = {
   invalid_spec: 400,
   exec_not_allowed: 403,
   b1_blocked: 403,
+  image_unverified: 403,
   refused: 403,
   busy: 409,
   unavailable: 503,

@@ -42,7 +42,7 @@ import {
 import { appendEvents } from '@aisdlc/record';
 import type pg from 'pg';
 import { z } from 'zod';
-import { StreamRedactor, redactRequest, redactValue } from './redact.js';
+import { StreamRedactor, redactRequest, redactResponseContent, redactValue } from './redact.js';
 import { resolveRoute, type AdapterSource, type ConfigSource } from './routes.js';
 import {
   abandonStale,
@@ -582,6 +582,9 @@ export class GatewayService {
         ),
       );
     }
+    // The answer is redacted with the same ruleset as the request and the streamed path (RC-SEC-12).
+    const answer = redactResponseContent(out.content);
+    ctx.response_redactions = answer.redactions;
     const settled = await this.settle(ctx, reserved, route.model, usage, {
       outcome: 'ok',
       refusal: null,
@@ -593,7 +596,7 @@ export class GatewayService {
       type: 'message',
       role: 'assistant',
       model: route.model.model_id,
-      content: out.content,
+      content: answer.content,
       stop_reason: out.stop_reason,
       stop_sequence: null,
       usage: out.usage,

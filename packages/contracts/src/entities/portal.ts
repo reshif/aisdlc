@@ -48,7 +48,8 @@ export type CardDeciders = z.infer<typeof CardDeciders>;
  * gate that publishes card 4's settings; `work_gate` (M19): a gate a work item waits at (from the floor's read model;
  * decided on the item's page); M16 after onboarding (OB §8): `drift_reaffirm` (instruction or pack text drifted:
  * re-affirm it), `prr_restore` (the record is suspended for drift: restore it once the re-check passes), `prr_resign`
- * (the record expired: re-sign it as a new version). For these three `id` is the repo.
+ * (the record expired: re-sign it as a new version), `reonboard` (M17: knowledge defects proposed re-onboarding an area:
+ * accept it, a new S0 from 0.1, or decline it). For these four `id` is the repo.
  */
 export const InboxItemKind = z.enum([
   'onboarding_card',
@@ -57,6 +58,9 @@ export const InboxItemKind = z.enum([
   'drift_reaffirm',
   'prr_restore',
   'prr_resign',
+  /** M16 part 3 (OB §8): a security event holds the repo's agent work (installation widened, new history secret). */
+  'drift_security',
+  'reonboard',
   // P1-6: a role-binding grant or revoke (or an access request) waiting for its M1; `id` is the grant's id
   'access_grant',
 ]);
@@ -160,6 +164,8 @@ export const RevisionDecideRequest = z.strictObject({
   on_behalf_of: PrincipalId,
   nonce: z.string().min(1),
   decision: VoteDecision,
+  /** The voter's step-up proof, where the M1 gate needs one (two people: RC-SEC-4). */
+  step_up: z.strictObject({ proof: z.string().min(1).max(8192) }).optional(),
 });
 export const RevisionPrepareRequest = z.strictObject({ on_behalf_of: PrincipalId });
 export type RevisionDecideRequest = z.infer<typeof RevisionDecideRequest>;

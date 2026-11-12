@@ -205,6 +205,7 @@ export function registerAccessRoutes(r: AccessRouteDeps): void {
         principal: b.on_behalf_of,
         nonce: b.nonce,
         decision: b.decision,
+        step_up: b.step_up,
       }),
     ),
   );

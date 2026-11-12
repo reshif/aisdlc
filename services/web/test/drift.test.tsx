@@ -46,6 +46,22 @@ const repo = (o: Record<string, unknown> = {}) => ({
   suspension: { at: '2026-11-12T10:00:00.000Z', findings: [] },
   restore: { ready: true, why_not: null, bypass: { logins: ['carol'], list_hash: HASH } },
   level_up: ['full'],
+  security: null,
+  krl: {
+    signed: 2,
+    current: 1,
+    effective_signed: 'A1',
+    effective_now: 'A0',
+    lowered: [
+      {
+        area: '*',
+        path: 'AGENTS.md',
+        at: '2026-11-12T10:00:00.000Z',
+        ledger_entry_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe45',
+      },
+    ],
+  },
+  reonboarding: [],
   history: [
     {
       at: '2026-11-12T10:00:00.000Z',
@@ -60,7 +76,7 @@ const repo = (o: Record<string, unknown> = {}) => ({
 const view = (r = repo()) => ({
   project_id: 'acme',
   repos: [r],
-  may: { restore: true, reaffirm: true, recheck: true, request_version: true },
+  may: { restore: true, reaffirm: true, recheck: true, request_version: true, reonboard: true },
 });
 
 const allow =
@@ -102,6 +118,11 @@ describe('the drift page', () => {
     );
     expect(screen.getByTestId('prr-status')).toHaveAttribute('data-status', 'suspended');
     expect(screen.getByTestId('file-state-AGENTS.md')).toHaveAttribute('data-state', 'drift');
+    // OB §4.2: the drifted AGENTS.md lowered KRL by one, and the autonomy with it, until it is re-affirmed
+    const krl = screen.getByTestId('krl');
+    expect(krl).toHaveAttribute('data-krl', '1');
+    expect(krl).toHaveTextContent(/KRL 1 \(signed 2\)/);
+    expect(krl).toHaveTextContent(/autonomy A0 \(signed A1\)/);
     const findings = screen.getByRole('table', { name: 'What drifted in acme/web' });
     expect(within(findings).getByText('suspends the record')).toBeInTheDocument();
     expect(within(findings).getByRole('link', { name: 'Open the re-affirm card' })).toHaveAttribute(
@@ -149,6 +170,66 @@ describe('the drift page', () => {
       ),
     );
     expect(screen.getByText('Nobody: an unchecked merge here is unauthorised')).toBeInTheDocument();
+  });
+
+  it('a security event (OB §8): the work is held; the security card confirms the installation shown by its hash', async () => {
+    const user = userEvent.setup();
+    const IHASH = 'e'.repeat(64);
+    const m = mockApi({
+      'GET /api/me': { json: me() },
+      'POST /api/me/decisions': allow('project.settings.edit', 'config.propose'),
+      [`GET ${PATH}`]: {
+        json: view(
+          repo({
+            prr: { ...repo().prr, status: 'active' },
+            findings: [
+              {
+                kind: 'installation',
+                effect: 'security',
+                subject: '4242',
+                reasons: ['selection_widened'],
+                expected: SHA_A,
+                observed: IHASH,
+              },
+            ],
+            security: {
+              held: true,
+              installation: {
+                observed: {
+                  installation_id: 4242,
+                  repository_selection: 'all',
+                  permissions: { contents: 'read', metadata: 'read' },
+                },
+                hash: IHASH,
+                widened: true,
+              },
+              new_findings: 1,
+            },
+          }),
+        ),
+      },
+      [`POST ${PATH}/security/confirm`]: {
+        status: 201,
+        json: { installation_hash: IHASH, ledger_entry_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77' },
+      },
+    });
+    renderAt('/projects/acme/drift');
+    const card = await screen.findByTestId('drift-security');
+    expect(card).toHaveTextContent(/Agent work is held/);
+    expect(card).toHaveTextContent(/Repositories\s*all/);
+    expect(screen.getByTestId('drift-security-secrets')).toHaveTextContent(/1 open secret finding/);
+    const findings = screen.getByRole('table', { name: 'What drifted in acme/web' });
+    expect(within(findings).getByText('holds agent work')).toBeInTheDocument();
+    const btn = await within(card).findByRole('button', { name: 'Confirm the installation' });
+    await waitFor(() => expect(btn).toBeEnabled());
+    await user.click(btn);
+    await waitFor(() =>
+      expect(m.calls.some((c) => c.path === `${PATH}/security/confirm`)).toBe(true),
+    );
+    expect(m.calls.find((c) => c.path === `${PATH}/security/confirm`)?.body).toEqual({
+      repo: 'acme/web',
+      installation_hash: IHASH,
+    });
   });
 
   it('an expired record offers the re-sign at its level, not a restore', async () => {
@@ -319,6 +400,59 @@ describe('the inbox lists the after-onboarding items and the pack X2', () => {
     expect(screen.getByRole('link', { name: 'X2: the onboarding pack PR' })).toHaveAttribute(
       'href',
       '/cards/01a1bc26-f0e5-719a-a52b-a88a4b6cbe99',
+    );
+  });
+
+  it('a re-onboarding proposal is a card: accept needs a reason and sends the decision (M17)', async () => {
+    const user = userEvent.setup();
+    const proposal = {
+      proposal_id: 'd'.repeat(64),
+      repo: 'acme/web',
+      project_id: 'acme',
+      area: 'packages/money',
+      trigger: 'knowledge_defects',
+      count: 3,
+      threshold: 3,
+      window_days: 30,
+      defect_ids: ['e'.repeat(64)],
+      prr_version: 1,
+      proposed_at: '2026-11-12T10:00:00.000Z',
+      status: 'proposed',
+      decision: null,
+    };
+    const m = mockApi({
+      'GET /api/me': { json: me() },
+      'POST /api/me/decisions': allow('project.settings.edit'),
+      [`GET ${PATH}`]: { json: view(repo({ reonboarding: [proposal] })) },
+      'POST /api/projects/acme/reonboarding/decide': {
+        status: 201,
+        json: {
+          proposal_id: 'd'.repeat(64),
+          decision: 'accept',
+          status: 'accepted',
+          new_s0_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe66',
+          ledger_entry_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77',
+          duplicate: false,
+        },
+      },
+    });
+    renderAt('/projects/acme/drift');
+    const card = await screen.findByTestId('reonboard-open');
+    expect(card).toHaveTextContent(/3 knowledge defects in area packages\/money/);
+    const accept = await within(card).findByRole('button', { name: 'Accept: re-onboard' });
+    await waitFor(() => expect(accept).toBeDisabled());
+    await user.type(within(card).getByLabelText('Reason for the decision'), 'docs drifted');
+    await waitFor(() => expect(accept).toBeEnabled());
+    await user.click(accept);
+    await waitFor(() =>
+      expect(
+        m.calls.find((c) => c.path === '/api/projects/acme/reonboarding/decide')?.body,
+      ).toEqual({
+        repo: 'acme/web',
+        proposal_id: 'd'.repeat(64),
+        decision: 'accept',
+        reason: 'docs drifted',
+      }),
     );
   });
 });

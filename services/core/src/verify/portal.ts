@@ -1,4 +1,5 @@
 import {
+  HandoffChoice,
   G4_REVIEW_FACT,
   G5_FACTS_KEY,
   G6_ACCEPTANCE_FACT,
@@ -9,6 +10,7 @@ import {
   VERIFY_STEPS,
   VerifyCheckRecordedPayload,
   repairClassOf,
+  stepUpOf,
   verifyResultHash,
   verifyStream,
   type EvidencePackContents,
@@ -31,6 +33,7 @@ import type { ItemState } from '@aisdlc/work';
 import type pg from 'pg';
 import { z } from 'zod';
 import { listPushReceipts } from '../build/push.js';
+import { packGateContext } from '../cards/pack.js';
 import { coreError, type CoreError } from '../errors.js';
 import { artefactByHash } from '../planning/store.js';
 import { listUnits } from '../planning/units.js';
@@ -66,7 +69,7 @@ export async function recordedResults(pool: pg.Pool, itemId: string): Promise<Re
 }
 
 /** The card that carries each gate instance of an item (from its `gates_opened` events). */
-async function cardsOfGates(pool: pg.Pool, itemId: string): Promise<Map<string, string>> {
+export async function cardsOfGates(pool: pg.Pool, itemId: string): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   for (const e of await readItemEvents(pool, itemId)) {
     if (e.type !== ITEM_EVENT.gates_opened) continue;
@@ -365,6 +368,17 @@ const Facts = z.looseObject({
       pack_sha256: z.string().nullable(),
     })
     .optional(),
+  // E4 (and E3/E5 of a handoff): interpret.ts `openHandoff` puts the handoff and the choices open then in the facts
+  handoff: z
+    .looseObject({
+      handoff_id: z.string(),
+      code: z.string().optional(),
+      trigger: z.string().optional(),
+      origin_phase: z.string().optional(),
+      pack: z.looseObject({ pack_id: z.string(), content_sha256: z.string() }).optional(),
+    })
+    .optional(),
+  valid_choices: z.array(z.string()).optional(),
 });
 
 const VERIFY_STEP_SET = new Set<string>(VERIFY_STEPS);
@@ -375,6 +389,7 @@ export async function gateCardContext(
   cardId: string,
 ): Promise<Result<GateCardContext, CoreError>> {
   const opened = await readCardOpened(pool, cardId);
+  if (opened?.open.subject_kind === 's0_record') return s0GateContext(pool, cardId);
   if (!opened || opened.open.subject_kind !== 'item') {
     return err(coreError('not_found', `${cardId} is not a work item card`));
   }
@@ -401,6 +416,7 @@ export async function gateCardContext(
   if (f.quarantine?.pack_sha256) {
     binds.push({ label: 'quarantine evidence', value: f.quarantine.pack_sha256 });
   }
+  if (f.handoff?.pack) binds.push({ label: 'Handoff Pack', value: f.handoff.pack.content_sha256 });
   // what core adds to the engine's subject (G4's review, G5's binding, G6's acceptance, an X1's or G3o's report)
   const raw = (p.facts ?? {}) as Record<string, unknown>;
   for (const [key, label] of [
@@ -475,10 +491,33 @@ export async function gateCardContext(
     constitution = { sha256: report.sha256, intact: a !== null, markdown: a?.markdown ?? null };
   }
 
+  // E4, E3, E5: the handoff the gate is about, as the item holds it (the facts name it by its one id)
+  const h = f.handoff
+    ? item.state.handoffs.find((x) => x.handoff_id === f.handoff?.handoff_id)
+    : undefined;
+  const handoff: GateCardContext['handoff'] = h
+    ? {
+        handoff_id: h.handoff_id,
+        n: h.n,
+        code: h.code,
+        trigger: h.trigger,
+        origin_phase: h.origin_phase,
+        origin_step: h.origin_step,
+        pack: h.pack,
+        valid_choices: HandoffChoice.array()
+          .catch([])
+          .parse(f.valid_choices ?? []),
+        status: h.status,
+        choice: h.choice,
+      }
+    : null;
+
   return ok({
     card_id: cardId,
     project_id: opened.open.project_id as never,
+    subject_kind: 'item',
     item_id: itemId as never,
+    s0_id: null,
     gate: p.gate_id,
     gate_instance_id: g.gate_instance_id,
     station: station || p.gate_id,
@@ -494,7 +533,7 @@ export async function gateCardContext(
     })),
     subject_hash: p.subject_hash,
     binds,
-    step_up: p.step_up,
+    step_up: stepUpOf(p),
     check,
     head_sha: head,
     quarantine: f.quarantine
@@ -509,6 +548,8 @@ export async function gateCardContext(
     patch,
     dependencies,
     constitution,
+    onboarding_pack: null,
+    handoff,
     subject: await gateSubjectOf({
       pool,
       item: item.state,
@@ -517,6 +558,73 @@ export async function gateCardContext(
       step,
       facts: p.facts,
     }),
+    data_class: 'D2',
+  });
+}
+
+/**
+ * The X2 of an S0 record's onboarding pack (M16): what its subject hash binds is the pack's patch hash, and the pack
+ * itself is read from the record (`packGateContext`). Any other S0 card is not a gate card here (404).
+ */
+async function s0GateContext(
+  pool: pg.Pool,
+  cardId: string,
+): Promise<Result<GateCardContext, CoreError>> {
+  const state = await readCardState(pool, cardId);
+  const g = state?.gates[0];
+  if (!state || !g || g.state.open.payload.gate_id !== 'X2') {
+    return err(coreError('not_found', `${cardId} is not an onboarding pack's X2 card`));
+  }
+  const pack = await packGateContext(pool, cardId);
+  if (!pack.ok) return pack;
+  if (pack.value === null) {
+    return err(coreError('not_found', `${cardId} is not an onboarding pack's X2 card`));
+  }
+  const k = pack.value;
+  const p: GateOpenedPayload = g.state.open.payload;
+  const step = k.kind === 'light' ? '0.2' : '0.3';
+  const binds: Array<{ label: string; value: string }> = [
+    { label: 'S0 record', value: k.s0_id },
+    { label: 'station', value: 'X2' },
+    { label: `${step} onboarding pack (patch)`, value: k.patch_hash },
+    {
+      label: `card ${k.deciding_card.card === 'C2' ? 2 : 3} payload`,
+      value: k.deciding_card.payload_hash,
+    },
+    { label: 'base commit', value: k.base_sha },
+    { label: 'branch', value: k.branch },
+  ];
+  return ok({
+    card_id: cardId,
+    project_id: state.open.project_id as never,
+    subject_kind: 's0_record',
+    item_id: null,
+    s0_id: k.s0_id,
+    gate: p.gate_id,
+    gate_instance_id: g.gate_instance_id,
+    station: 'X2',
+    step: step as StepId,
+    requester: p.requester,
+    quorum_required: p.quorum.required,
+    decisions: g.state.decisions.map((d) => ({
+      ledger_seq: d.ledger_seq,
+      actor: d.actor,
+      decision: d.decision,
+      at: d.created_at,
+      sod_waiver: d.sod_waiver,
+    })),
+    subject_hash: p.subject_hash,
+    binds,
+    step_up: p.step_up,
+    check: null,
+    head_sha: null,
+    quarantine: null,
+    patch: { patch_hash: k.patch_hash, source: 'bound_artefact', bound: k.bound },
+    dependencies: [],
+    constitution: null,
+    onboarding_pack: k,
+    subject: null,
+    handoff: null,
     data_class: 'D2',
   });
 }

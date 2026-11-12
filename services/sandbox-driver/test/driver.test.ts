@@ -3,7 +3,14 @@ import { join } from 'node:path';
 import type { SandboxSpec } from '@aisdlc/ports';
 import { makeCanary } from '@aisdlc/secrets-rules';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { dockerAvailable, hostPidCount, startRig, type Rig } from './harness.js';
+import {
+  IMAGE,
+  docker as dockerCli,
+  dockerAvailable,
+  hostPidCount,
+  startRig,
+  type Rig,
+} from './harness.js';
 
 const docker = dockerAvailable();
 if (!docker.ok) console.warn(`sandbox-driver Docker tests SKIPPED: ${docker.why}`);
@@ -63,6 +70,26 @@ describe.skipIf(!docker.ok)(
       ]);
       expect(run.peers).toEqual([]);
       expect(run.cleanup_errors).toEqual([]);
+      expect(rig.leftovers()).toEqual(none);
+    });
+
+    it('M16 part 3 (LF4): a class pinned to an image id runs only a container the daemon made from it', async () => {
+      const id = dockerCli('image', 'inspect', '--format', '{{.Id}}', IMAGE).trim();
+      expect(id).toMatch(/^sha256:[0-9a-f]{64}$/);
+      const k = (sid: string) =>
+        spec({ session_id: sid, class: 'K', command: ['node', '-e', 'console.log(1)'] });
+      const wrong = rig.driver({
+        trustedCommands: ['node'],
+        expectImageId: (cls) => (cls === 'K' ? `sha256:${'0'.repeat(64)}` : undefined),
+      });
+      const r = await wrong.run(k('k-img-0001'));
+      expect(r.ok ? null : r.error.code).toBe('image_unverified');
+      expect(rig.leftovers()).toEqual(none);
+      // an empty id (the host names none) refuses too: fail closed
+      const unnamed = rig.driver({ trustedCommands: ['node'], expectImageId: () => '' });
+      expect((await unnamed.run(k('k-img-0002'))).ok).toBe(false);
+      const right = rig.driver({ trustedCommands: ['node'], expectImageId: () => id });
+      expect(must(await right.run(k('k-img-0003'))).exit_code).toBe(0);
       expect(rig.leftovers()).toEqual(none);
     });
 

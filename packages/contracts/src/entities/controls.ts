@@ -1,3 +1,4 @@
+import { canonicalJson, sha256Hex } from '@aisdlc/kernel';
 import { z } from 'zod';
 import { FLEET_REF, Lane, Scope, type Scope as ScopeType } from '../values.js';
 import { IsoDateTime, JsonObject, PrincipalId, Sha256Hex } from './ids.js';
@@ -157,6 +158,24 @@ export const KillDelegationGrant = z.strictObject({
   revoked_by: PrincipalId.nullable(),
 });
 export type KillDelegationGrant = z.infer<typeof KillDelegationGrant>;
+
+/**
+ * What a person does at the kill switch (RC-SEC-3). Every such call carries a step-up proof (the bff's
+ * `su1.` proof, `step-up.ts`) for exactly this act: the proof's `bound_hash` is `killActHash(act)` and
+ * its principal is who acts. The kill switch takes the actor from the verified proof, never from the
+ * caller's word, so one service token cannot act as two people. The fields are hashed exactly as the
+ * request body carries them.
+ */
+export type KillAct =
+  | { readonly action: 'kill.request'; readonly scope: unknown; readonly reason: string }
+  | { readonly action: 'kill.release'; readonly kill_id: string }
+  | { readonly action: 'kill.delegate'; readonly delegate: string; readonly scope: unknown }
+  | { readonly action: 'kill.revoke'; readonly delegation_id: string };
+/** Domain separation: a kill-act hash can never equal a gate's subject hash or another proof's binding. */
+export const KILL_ACT_DOMAIN = 'aisdlc/kill-act/1';
+export const killActHash = (act: KillAct): string =>
+  // the scope is whatever JSON the body carried (`unknown` until the kill switch parses it)
+  sha256Hex(canonicalJson({ domain: KILL_ACT_DOMAIN, ...act } as never));
 
 /** The record event core makes of a kill-switch event it read (`kill.observed`, stream `kill:observed`). */
 export const KILL_OBSERVED_EVENT = 'kill.observed';

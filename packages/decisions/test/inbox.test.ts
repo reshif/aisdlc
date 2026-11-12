@@ -326,11 +326,24 @@ describe('opening and deciding a card', () => {
       gates: [g('X1')],
     });
     if (!a.ok) throw new Error('open');
-    const one = await decideAs(s.deps, a.value.card_id, 'ann', 'approve');
+    // two people, each stepped up (RC-SEC-4): the gate says so, and a bare vote is refused
+    const proofs = (who: string) => (p: PreparedCard) =>
+      Object.fromEntries(
+        p.gates.map((x) => [x.gate_instance_id, s.stepUp.issue(x.step_up.bound_hash, who)]),
+      );
+    const bare = await decideAs(s.deps, a.value.card_id, 'ann', 'approve');
+    expect(!bare.ok && bare.error.code).toBe('step_up_required');
+    const one = await decideAs(s.deps, a.value.card_id, 'ann', 'approve', {
+      stepUp: proofs('ann'),
+    });
     expect(one.ok && one.value.status).toBe('open');
-    const dup = await decideAs(s.deps, a.value.card_id, 'ann', 'approve');
+    const dup = await decideAs(s.deps, a.value.card_id, 'ann', 'approve', {
+      stepUp: proofs('ann'),
+    });
     expect(dup.ok).toBe(false);
-    const two = await decideAs(s.deps, a.value.card_id, 'bob', 'approve');
+    const two = await decideAs(s.deps, a.value.card_id, 'bob', 'approve', {
+      stepUp: proofs('bob'),
+    });
     expect(two.ok && two.value.status).toBe('decided');
   });
 

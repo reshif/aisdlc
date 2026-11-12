@@ -174,7 +174,13 @@ the verdict it would give a scope; `smoke.sh` uses it.
 Stopping never waits for the KMS: a kill (any scope) takes effect at once even if kms-local is unreachable. It is journaled as an unsigned `pending_signature` entry (still hash-chained), and a backfill loop appends a signed `kill.signature_attested` entry that names it when the KMS is back; core-worker records the pending kill as `kill.observed` immediately and ledgers it when the attestation is observed. A release, a delegation and a holder sync widen rights, so they still need the signature (and a release the two-person rule) and are refused while the KMS is down.
 
 The operator token (`tok-operator-killswitch`, scopes `act`, `read`) is how a person reaches the kill
-switch when core is down; the BFF does not carry kill routes yet.
+switch when core is down; the BFF does not carry kill routes yet. The token says which process calls,
+never who acts (RC-SEC-3, `docs/specs/killswitch-api.md`): every kill, release approval, delegation and
+revocation carries the acting person's step-up proof for exactly that act (`killActHash`), which the
+kill switch verifies itself with the bff's public step-up key and consumes once. A person gets one from
+the bff (`POST /api/step-up` with the act's hash, sign in again, `GET /api/step-up/:id`); `smoke.sh`
+stands in for alice's and bob's sign-ins with `kill-proof.mjs`, run inside the bff container. One token
+and one person's proofs are one person: a two-person release needs two people's proofs.
 
 ## Secrets are files
 

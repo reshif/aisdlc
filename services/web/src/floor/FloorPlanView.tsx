@@ -117,6 +117,7 @@ export function FloorPlanView(p: FloorPlanProps) {
   const scale = p.fit && width > 0 ? Math.min(1.2, width / PLAN_W) : 1;
 
   const spots = useMemo(() => gateSpots(view.plan.gates), [view.plan.gates]);
+  const offGates = useMemo(() => new Set(view.gates_off ?? []), [view.gates_off]);
   const pods = useMemo(() => podBoxes(p.pods.count), [p.pods.count]);
   const chips = useMemo(() => layoutChips(view.items, spots, pods), [view.items, spots, pods]);
   const route = focus ? new Set(focus.route) : null;
@@ -315,18 +316,22 @@ export function FloorPlanView(p: FloorPlanProps) {
               i.waiting_gates.filter((w) => feasibilityFlagged(w.feasibility)),
             );
             const onRoute = route?.has(g.key) ?? false;
+            // P2-10: a gate the project's profile has off is drawn faint, unless an item (pinned before) waits there
+            const off = offGates.has(g.key);
             return (
               <div
                 key={g.key}
-                className={`fl-gate fl-gate-${s.shape}${onRoute ? ' fl-onroute' : ''}${flagged.length > 0 ? ' fl-gate-flag' : ''}`}
+                className={`fl-gate fl-gate-${s.shape}${onRoute ? ' fl-onroute' : ''}${flagged.length > 0 ? ' fl-gate-flag' : ''}${off ? ' fl-gate-off' : ''}`}
                 style={{ left: s.x, top: s.y }}
                 data-gate={g.key}
+                data-off={off ? 'true' : undefined}
+                title={off ? `${g.key}: off for this project` : undefined}
               >
                 <span className="fl-glbl ui-mono">{g.key}</span>
                 <button
                   type="button"
                   className="fl-dia"
-                  aria-label={`Gate ${g.key}: ${waiting.length} waiting${who.length ? `, decided by ${who.join(', ')}` : ''}${flagged.length > 0 ? `, ${flagged.length} cannot be decided as things stand` : ''}. Open the gate`}
+                  aria-label={`Gate ${g.key}${off ? ' (off for this project)' : ''}: ${waiting.length} waiting${who.length ? `, decided by ${who.join(', ')}` : ''}${flagged.length > 0 ? `, ${flagged.length} cannot be decided as things stand` : ''}. Open the gate`}
                   onClick={() => p.onOpen({ kind: 'gate', key: g.key })}
                 />
                 {flagged.length > 0 ? (

@@ -5,7 +5,11 @@ import {
   DriftEvaluatedPayload,
   DriftReaffirmedPayload,
   DriftRestoredPayload,
+  DriftSecurityConfirmedPayload,
+  DriftSecurityRaisedPayload,
   DriftSuspendedPayload,
+  InstallationObservation,
+  OpenFindingsValue,
   DriftVersionRequestedPayload,
   INBOUND_FACT_EVENT,
   InboundFactPayload,
@@ -35,6 +39,9 @@ export interface DriftStream {
   readonly restores: ReadonlyArray<DriftRestoredPayload>;
   readonly reaffirmations: ReadonlyArray<DriftReaffirmedPayload>;
   readonly versions: ReadonlyArray<DriftVersionRequestedPayload & { at: string }>;
+  /** OB §8 security events, and the installations the security slot confirmed. */
+  readonly security_raised: ReadonlyArray<DriftSecurityRaisedPayload & { at: string }>;
+  readonly security_confirmed: ReadonlyArray<DriftSecurityConfirmedPayload>;
 }
 
 export function foldDrift(events: readonly RecordEvent[]): DriftStream {
@@ -43,6 +50,8 @@ export function foldDrift(events: readonly RecordEvent[]): DriftStream {
   const restores: DriftRestoredPayload[] = [];
   const reaffirmations: DriftReaffirmedPayload[] = [];
   const versions: Array<DriftVersionRequestedPayload & { at: string }> = [];
+  const security_raised: Array<DriftSecurityRaisedPayload & { at: string }> = [];
+  const security_confirmed: DriftSecurityConfirmedPayload[] = [];
   for (const e of events) {
     switch (e.type) {
       case DRIFT_EVENT.evaluated: {
@@ -62,9 +71,27 @@ export function foldDrift(events: readonly RecordEvent[]): DriftStream {
       case DRIFT_EVENT.version_requested:
         versions.push({ ...DriftVersionRequestedPayload.parse(e.payload), at: e.occurred_at });
         break;
+      case DRIFT_EVENT.security_raised:
+        security_raised.push({
+          ...DriftSecurityRaisedPayload.parse(e.payload),
+          at: e.occurred_at,
+        });
+        break;
+      case DRIFT_EVENT.security_confirmed:
+        security_confirmed.push(DriftSecurityConfirmedPayload.parse(e.payload));
+        break;
     }
   }
-  return { events, evaluated, suspensions, restores, reaffirmations, versions };
+  return {
+    events,
+    evaluated,
+    suspensions,
+    restores,
+    reaffirmations,
+    versions,
+    security_raised,
+    security_confirmed,
+  };
 }
 
 async function streamOf(db: Executor, name: string): Promise<RecordEvent[]> {
@@ -84,7 +111,7 @@ export interface DriftFact<T> {
 /** Every recorded fact of one kind for a repo, oldest first (a fact that no longer parses is skipped). */
 async function factsOf<T>(
   db: Executor,
-  kind: 'affirmed_files' | 'effective_rules',
+  kind: 'affirmed_files' | 'effective_rules' | 'installation' | 'open_findings',
   repo: string,
   parse: (v: unknown) => T | null,
 ): Promise<DriftFact<T>[]> {
@@ -122,6 +149,23 @@ export interface LoadedDrift {
   readonly files: DriftFact<AffirmedFilesValue> | null;
   readonly files_history: readonly DriftFact<AffirmedFilesValue>[];
   readonly rules: DriftFact<BranchRules> | null;
+  /** The newest `installation` fact's installation (`null`: none recorded, or the repo is no longer reached). */
+  readonly installation: DriftFact<InstallationObservation> | null;
+  /** Every `open_findings` fact, oldest first. */
+  readonly open_findings: readonly DriftFact<OpenFindingsValue>[];
+}
+
+/** The installation of an `installation` fact (`{installation, repo}`), or `null` when it does not parse. */
+function installationOf(v: unknown): InstallationObservation | null {
+  const i = (v as { installation?: unknown } | null)?.installation as
+    | { installation_id?: unknown; repository_selection?: unknown; permissions?: unknown }
+    | undefined;
+  const p = InstallationObservation.safeParse({
+    installation_id: i?.installation_id,
+    repository_selection: i?.repository_selection,
+    permissions: i?.permissions,
+  });
+  return p.success ? p.data : null;
 }
 
 /** Everything the fold needs for one repo; `null` for a repo core never registered. */
@@ -132,6 +176,8 @@ export async function loadDrift(db: Executor, repo: string): Promise<LoadedDrift
   const pack = g.governing ? await packFilesOf(db, g.governing.s0_id) : [];
   const files = await factsOf(db, 'affirmed_files', g.repo_ref, parseWith(AffirmedFilesValue));
   const rules = await factsOf(db, 'effective_rules', g.repo_ref, parseWith(BranchRules));
+  const installs = await factsOf(db, 'installation', g.repo_ref, installationOf);
+  const open = await factsOf(db, 'open_findings', g.repo_ref, parseWith(OpenFindingsValue));
   return {
     repo_ref: g.repo_ref,
     project_id: g.project_id,
@@ -141,6 +187,8 @@ export async function loadDrift(db: Executor, repo: string): Promise<LoadedDrift
     files: files.at(-1) ?? null,
     files_history: files,
     rules: rules.at(-1) ?? null,
+    installation: installs.at(-1) ?? null,
+    open_findings: open,
   };
 }
 
@@ -174,5 +222,16 @@ export function inputsOf(l: LoadedDrift): DriftInputs | null {
     files_history: l.files_history.map((f) => f.value),
     files: l.files?.value ?? null,
     rules: l.rules?.value ?? null,
+    // OB §8: the installation the record saw at 0.4, or the newest the security slot confirmed for this version
+    installation_base:
+      [...l.drift.security_confirmed].reverse().find((c) => c.prr_version === g.version)
+        ?.installation ?? g.prr.controls.app_installation,
+    installation: l.installation?.value ?? null,
+    // the findings the record knew of: none when it signed with no open finding, else those of the first poll
+    findings_base:
+      g.prr.security_summary.history_scan.open === 0
+        ? []
+        : (l.open_findings[0]?.value.finding_ids ?? null),
+    open_findings: l.open_findings.at(-1)?.value.finding_ids ?? null,
   };
 }

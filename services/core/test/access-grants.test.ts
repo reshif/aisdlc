@@ -1,6 +1,6 @@
 import { readFactoryM1Policy } from '@aisdlc/config';
 import { AccessGrantView, AccessProposeResult } from '@aisdlc/contracts';
-import { readGateState } from '@aisdlc/decisions';
+import { readGateState, type FakeStepUp } from '@aisdlc/decisions';
 import { IdentityPdpEntities, freshReadModel, queryGrants } from '@aisdlc/identity/read';
 import {
   bindProject,
@@ -19,7 +19,10 @@ import {
   coreInbox,
   createCoreApp,
   identityFleetRoleHolders,
+  decideAccess,
+  prepareAccess,
   proposeAccess,
+  recordAccessEvidence,
   type CoreScope,
 } from '../src/index.js';
 import { pr, setAdmins, startCoreStack, type CoreStack } from '../src/testing.js';
@@ -353,5 +356,62 @@ describe('access requests', () => {
       },
     );
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('two people decide: each vote needs a step-up (RC-SEC-4)', () => {
+  it('under a factory M1 of two approvers, a vote without a verified step-up is refused; with one it counts', async () => {
+    // root, rita and vic are factory admins by now; the policy asks for two approvers
+    const two = {
+      ...s.config,
+      eligibility: new FactoryM1Eligibility(s.elig, {
+        policy: async () => ({
+          state: 'ok' as const,
+          value: { role: 'factory.admin', approvers: 2 } as never,
+        }),
+        holders: identityFleetRoleHolders(s.record.pool, s.clock),
+      }),
+    };
+    const d = {
+      pool: s.record.pool,
+      decisions: two,
+      writer: new HttpAccessGrants({ baseUrl: identity.url, token: TOKENS.core }),
+    };
+    const p = await proposeAccess(d, {
+      by: pr('root'),
+      change: grant('dora', 'factory.onboarder', FLEET) as never,
+      reason: 'onboards repos',
+      origin: 'admin',
+    });
+    if (!p.ok) throw new Error(JSON.stringify(p.error));
+    expect(p.value.deciders).toEqual(['rita', 'vic']);
+    const vote = async (who: string, withProof: boolean) => {
+      const prep = await prepareAccess(d, { grant_id: p.value.grant_id, principal: pr(who) });
+      if (!prep.ok) throw new Error(JSON.stringify(prep.error));
+      expect(prep.value.step_up.required).toBe(true);
+      const ev = await recordAccessEvidence(d, {
+        grant_id: p.value.grant_id,
+        principal: pr(who),
+        nonce: prep.value.nonce,
+        evidence_hash: prep.value.evidence_hash,
+      });
+      expect(ev.ok).toBe(true);
+      const proof = (s.config.stepUp as FakeStepUp).issue(prep.value.step_up.bound_hash, who);
+      return decideAccess(d, {
+        grant_id: p.value.grant_id,
+        principal: pr(who),
+        nonce: prep.value.nonce,
+        decision: 'approve',
+        ...(withProof ? { step_up: { proof } } : {}),
+      });
+    };
+    const bare = await vote('rita', false);
+    expect(bare.ok).toBe(false);
+    if (!bare.ok) expect(bare.error.message).toMatch(/step_up_required/);
+    const first = await vote('rita', true);
+    expect(first.ok && first.value.status).toBe('pending');
+    const second = await vote('vic', true);
+    expect(second.ok && second.value).toMatchObject({ status: 'applied', applied: true });
+    expect(await rolesOf('dora')).toContain('factory.onboarder@fleet:*');
   });
 });

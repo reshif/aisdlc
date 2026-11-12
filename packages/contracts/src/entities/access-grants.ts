@@ -223,6 +223,15 @@ export const AccessProposeResult = z.strictObject({
 });
 export type AccessProposeResult = z.infer<typeof AccessProposeResult>;
 
+/** `POST .../prepare`: the nonce, what it binds, and the step-up the vote needs (two people: RC-SEC-4). */
+export const AccessPrepared = z.strictObject({
+  nonce: z.string().min(1),
+  expires_at: IsoDateTime,
+  evidence_hash: Sha256Hex,
+  step_up: z.strictObject({ required: z.boolean(), bound_hash: Sha256Hex }),
+});
+export type AccessPrepared = z.infer<typeof AccessPrepared>;
+
 export const AccessDecideResult = z.strictObject({
   outcome: LedgerDecision.nullable(),
   status: AccessGrantStatus,

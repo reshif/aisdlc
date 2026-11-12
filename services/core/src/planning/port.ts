@@ -38,6 +38,7 @@ import { readOpened } from '@aisdlc/decisions';
 import { limitValue, type ItemState } from '@aisdlc/work';
 import type pg from 'pg';
 import { z } from 'zod';
+import { affirmedInstructionsOf } from '../drift/affirmed.js';
 import { inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
 import { recordKnowledgeDefects } from '../knowledge-defects.js';
 import { readItem } from '../work-items.js';
@@ -349,12 +350,21 @@ export class AgentPlanningPort implements PlanningPort {
     const shape = inputSchemaFor(def.agent_id).safeParse(input);
     if (!shape.success) return ok({ outcome: 'failed', code: 'input_not_allowed' });
 
+    // level 3 (DEC-11(a), OB §4.1 item 6): the repo's affirmed instruction text as fenced Guidance, from the RECORD
+    // (card 2's text or a later re-affirmation, hash-bound), never the repo's file (M16 part 3)
+    let instructions: Awaited<ReturnType<typeof affirmedInstructionsOf>>;
+    try {
+      instructions = await affirmedInstructionsOf(d.pool, s.repo);
+    } catch {
+      return portError('the affirmed instruction text could not be read');
+    }
     const built = buildContext({
       agent_id: def.agent_id,
       purpose: 'item',
       merged_sha: grounding.merged_sha,
       policy: [...grounding.policy, { text: spec.task }],
       intent: await acceptedIntentOf(d.pool, req.item_id, s),
+      ...(instructions.length > 0 ? { instructions } : {}),
       ...(grounding.claims ? { claims: grounding.claims } : {}),
       ...(grounding.pack_docs ? { pack_docs: grounding.pack_docs } : {}),
       ...(grounding.repo_text ? { repo_text: grounding.repo_text } : {}),

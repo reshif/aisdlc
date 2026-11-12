@@ -230,7 +230,7 @@ export function MergeReviewMain({
               ['S7 steps', <StepsLine key="s" steps={u.steps} />],
             ]}
           />
-          <PackFacts pack={u.pack} item={c.item_id} />
+          <PackFacts pack={u.pack} item={c.item_id ?? ''} />
           {u.pack !== null && u.pack.head_sha !== u.head_sha ? (
             <p className="notice notice-bad" role="alert">
               The pack is for another head: G4 binds the pack of exactly the head.
@@ -299,7 +299,7 @@ export function ReleaseMain({ c, s }: { c: GateContextWire; s: ReleaseSubject })
         ) : null}
       </Card>
       <Card title="Release evidence" testId="release-evidence">
-        <PackFacts pack={s.pack} item={c.item_id} />
+        <PackFacts pack={s.pack} item={c.item_id ?? ''} />
         <KeyValue rows={[['S7 steps of the head', <StepsLine key="s" steps={s.steps} />]]} />
       </Card>
       <Card

@@ -232,6 +232,43 @@ describe('deciding a proposal', () => {
     });
   });
 
+  it('a two-person vote asks for a step-up first and sends the proof with the vote', async () => {
+    const user = userEvent.setup();
+    const { calls } = mockApi({
+      'GET /api/me': { json: fleetAdmin() },
+      [`GET /api/access/grants/${GRANT}`]: { json: grantView({ quorum: 2 }) },
+      [`POST /api/access/grants/${GRANT}/prepare`]: {
+        json: {
+          nonce: 'n1',
+          expires_at: '2026-11-08T11:00:00.000Z',
+          evidence_hash: SHA,
+          step_up: { required: true, bound_hash: SHA },
+        },
+      },
+      [`POST /api/access/grants/${GRANT}/evidence`]: { json: { evidence_viewed: true } },
+      'POST /api/step-up': { json: { status: 'ready', method: 'dev', proof: 'p-1' } },
+      [`POST /api/access/grants/${GRANT}/decide`]: {
+        json: { outcome: null, status: 'pending', applied: false, apply_error: null },
+      },
+    });
+    renderAt(`/access/grants/${GRANT}`);
+    const box = await screen.findByTestId('grant-decide');
+    await user.click(within(box).getByRole('button', { name: 'I have read the change' }));
+    const approve = await within(box).findByRole('button', { name: 'Approve' });
+    expect(approve).toBeDisabled();
+    expect(within(box).getByTestId('stepup')).toBeInTheDocument();
+    await user.click(within(box).getByRole('button', { name: 'Confirm my identity' }));
+    await waitFor(() => expect(approve).toBeEnabled());
+    await user.click(approve);
+    await waitFor(() =>
+      expect(calls.find((c) => c.path.endsWith('/decide'))?.body).toEqual({
+        nonce: 'n1',
+        decision: 'approve',
+        step_up: { proof: 'p-1' },
+      }),
+    );
+  });
+
   it('a proposal someone else decides shows no decision buttons', async () => {
     mockApi({
       'GET /api/me': { json: me([]) },

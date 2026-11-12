@@ -132,6 +132,12 @@ export function ProjectDetailPage({ id }: { id: string }) {
       )}
 
       <h2>Settings</h2>
+      <p>
+        <Link to={`/projects/${project.project_id}/settings`}>
+          This project&rsquo;s gates, who decides them, release and limits
+        </Link>{' '}
+        <span className="muted">(each change is an M1 decided by the project&rsquo;s admins)</span>
+      </p>
       <AreaLevelSettings project={project.project_id} />
 
       <h2>Onboarding records</h2>

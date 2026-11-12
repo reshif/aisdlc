@@ -4,6 +4,7 @@ import type { GithubPermissions } from './codehost.js';
 import { RepoFullName } from './codehost.js';
 import { GateInstanceId, GitSha, IsoDateTime, ProjectId, Sha256Hex, WorkItemId } from './ids.js';
 import type { PrrGatingProfile } from './readiness.js';
+import { ServiceEnv, ServiceName } from './service-env.js';
 
 // gate-relay (PLAN M15.3; ADR-0003 §1 Integration plane "gate-relay: G5 release, deploy markers, RELHOLD"; FL S8b "gate-
 // relay binds/consumes G5, records merged SHA -> evidence SHA", B16, B26/RELHOLD; DM `DeployMarker`). One vocabulary for
@@ -45,7 +46,15 @@ export type ReleaseEnvironment = z.infer<typeof ReleaseEnvironment>;
  */
 export const ReleaseSetting = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('off') }),
-  z.strictObject({ mode: z.literal('target'), environment: ReleaseEnvironment }),
+  z.strictObject({
+    mode: z.literal('target'),
+    environment: ReleaseEnvironment,
+    /**
+     * M17: the service released, one of card 3's ServiceEnvs (needed only when several declared services deploy to
+     * the target environment). Absent: the one service that does.
+     */
+    service: ServiceName.optional(),
+  }),
 ]);
 export type ReleaseSetting = z.infer<typeof ReleaseSetting>;
 
@@ -88,6 +97,10 @@ export const ReleaseUnboundReason = z.enum([
   'no_pull_request',
   'pack_head_not_pr_head',
   'no_release_target',
+  /** M17: the project declared ServiceEnvs at Full and the target is not exactly one of them. */
+  'target_not_attested',
+  /** M17 (FF2): an L5 release needs staging separation attested and a staging ServiceEnv of the service. */
+  'staging_separation_not_attested',
 ]);
 export type ReleaseUnboundReason = z.infer<typeof ReleaseUnboundReason>;
 
@@ -107,7 +120,19 @@ export const ReleaseBinding = z.discriminatedUnion('status', [
     merged_sha: GitSha,
     pack_sha256: Sha256Hex,
     pack_head_sha: GitSha,
+    /** The environment this G5 deploys to (the GitHub environment name). */
     environment: ReleaseEnvironment,
+    /**
+     * M17 (DM §3.2 ServiceEnv): the (service, environment) G5 binds to, one of the project's attested environments
+     * (card 3's ledgered `service_envs`, bound into the readiness record at M4). Absent for a project that declared
+     * none (below Full): its target is the release setting's environment, as before.
+     */
+    service_env: ServiceEnv.optional(),
+    /**
+     * M17: the project's release target when this G5 deploys elsewhere: an L5 change goes to its service's staging
+     * environment first, and only once that release is healthy does a re-requested G5 bind production.
+     */
+    target_environment: ReleaseEnvironment.optional(),
   }),
   z.strictObject({
     status: z.literal('unbound'),
@@ -118,6 +143,29 @@ export const ReleaseBinding = z.discriminatedUnion('status', [
   }),
 ]);
 export type ReleaseBinding = z.infer<typeof ReleaseBinding>;
+
+type BoundRelease = Extract<ReleaseBinding, { status: 'bound' }>;
+
+/** M17: a G5 that releases an L5 change to its service's staging environment before the target (production). */
+export const isStagingFirst = (b: BoundRelease): boolean =>
+  b.target_environment !== undefined && b.environment !== b.target_environment;
+
+/**
+ * Whether a bound G5 still deploys what the project's release setting says now (gate-relay checks it again before it
+ * deploys): the same target environment (and service, when the setting names one), and either the target itself or,
+ * for an L5 staging-first release, exactly the service's staging environment. Anything else is a changed target.
+ */
+export function releaseTargetHolds(b: BoundRelease, setting: ReleaseSetting | null): boolean {
+  if (setting?.mode !== 'target') return false;
+  const target = b.target_environment ?? b.environment;
+  if (setting.environment !== target) return false;
+  if (b.service_env && setting.service !== undefined && setting.service !== b.service_env.service)
+    return false;
+  if (!isStagingFirst(b)) {
+    return b.service_env === undefined || b.service_env.environment === b.environment;
+  }
+  return b.service_env?.environment === 'staging' && b.environment === 'staging';
+}
 
 /** The facts key a G5 card carries its binding under, beside the engine's facts. */
 export const G5_FACTS_KEY = 'release';

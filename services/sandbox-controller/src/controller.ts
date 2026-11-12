@@ -43,9 +43,33 @@ export interface ControllerDeps {
    * K-exec session must name exactly this image; `null` or absent (none approved, or unreadable): no K-exec runs.
    */
   readonly probeImage?: () => string | null;
+  /**
+   * M16 part 3 (LF4): the W check. `lf4` is `onboarding.light_tests.worker_image` now (`null`: none named or
+   * unreadable); `host` is the image id this host's driver runs W sessions on (`null`: not named by digest). A W
+   * session starts only when both are named and are the same image; otherwise it is refused `image_unverified` with
+   * the reason (the coding port records it on the item). Absent: no check (a test controller only; boot always sets it).
+   */
+  readonly workerImage?: { readonly lf4: () => string | null; readonly host: string | null };
   readonly now?: () => Date;
   /** M19: told when a session takes its slot (the heartbeat reporter beats it at once). Never awaited, never fails a run. */
   readonly onStart?: (s: RunningSession) => void;
+}
+
+/** The digest of an image reference (`name@sha256:...` or `sha256:...`), or the reference itself. */
+export const digestOf = (ref: string): string => ref.slice(ref.lastIndexOf('@') + 1);
+
+/** Why the W image of this host is not LF4's, or `null` when it is (pure; the controller calls it per session). */
+export function workerImageWhyNot(lf4: string | null, host: string | null): string | null {
+  if (lf4 === null) {
+    return 'onboarding.light_tests names no worker_image (LF4 is unknown): no W session runs';
+  }
+  if (host === null) {
+    return "this host's W image is not named by digest (SANDBOX_CONTROLLER_WORKER_IMAGE_ID): no W session runs";
+  }
+  if (digestOf(lf4) !== digestOf(host)) {
+    return `this host runs W image ${digestOf(host).slice(0, 19)}, not ${digestOf(lf4).slice(0, 19)} that LF4 (SP-STD-1) was recorded for: no W session runs`;
+  }
+  return null;
 }
 
 /** A session this host is running, with the grant it runs under (what a heartbeat names). */
@@ -160,6 +184,16 @@ export class SandboxController {
       }
     } else if (spec.image !== undefined) {
       return err(sandboxError('refused', `a ${spec.class} session runs the host's image`));
+    }
+    if (spec.class === 'W' && this.d.workerImage) {
+      let lf4: string | null;
+      try {
+        lf4 = this.d.workerImage.lf4();
+      } catch {
+        lf4 = null;
+      }
+      const why = workerImageWhyNot(lf4, this.d.workerImage.host);
+      if (why !== null) return err(sandboxError('image_unverified', why));
     }
     const grant = spec.grant;
     if (grant === undefined) {

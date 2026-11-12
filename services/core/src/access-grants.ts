@@ -472,6 +472,8 @@ export async function prepareAccess(
         nonce: p.value.nonce,
         expires_at: p.value.expires_at,
         evidence_hash: p.value.evidence_hash,
+        // a vote that needs two people needs each to step up (RC-SEC-4, `stepUpOf`)
+        step_up: p.value.step_up,
       })
     : err(decisionRefusal(p.error));
 }
@@ -504,14 +506,24 @@ export async function recordAccessEvidence(
 
 export async function decideAccess(
   d: AccessDeps,
-  o: { grant_id: string; principal: PrincipalId; nonce: string; decision: string },
+  o: {
+    grant_id: string;
+    principal: PrincipalId;
+    nonce: string;
+    decision: string;
+    step_up?: { proof: string } | undefined;
+  },
 ): Promise<Result<AccessDecideResult, CoreError>> {
   const l = await grantGate(d, o.grant_id);
   if (!l.ok) return l;
   if (!(await nonceIsFor(d, o.nonce, l.value.proposed.gate_instance_id, o.principal))) {
     return err(coreError('refused', 'that nonce is not yours for this grant'));
   }
-  const r = await decide(d.decisions, { nonce: o.nonce, decision: o.decision });
+  const r = await decide(d.decisions, {
+    nonce: o.nonce,
+    decision: o.decision,
+    ...(o.step_up ? { step_up: o.step_up } : {}),
+  });
   if (!r.ok) return err(decisionRefusal(r.error));
   const after = r.value.after;
   let applied = false;

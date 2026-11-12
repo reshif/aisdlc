@@ -32,6 +32,7 @@ const view = (over: Record<string, unknown> = {}) => ({
   catalogue_ref: { version: '1.3.0', hash: SHA_A },
   injection_suspected: false,
   dedupe_links: [],
+  profile_gates: null,
   may: { ready: false, answer: false, observe: false, plan: false },
   ...over,
 });

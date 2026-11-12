@@ -8,7 +8,11 @@ import {
   type ConfigKeySummary,
   type ConfigLineage,
   type ConfigPending,
+  ProjectConfigKeyView,
+  ProjectLayerKey,
+  ProjectLayerKeyValues,
   type PrincipalId,
+  type Tier,
 } from '@aisdlc/contracts';
 import {
   listRevisions,
@@ -59,13 +63,15 @@ export function listConfigKeys(deps: ConfigDeps): ConfigKeySummary[] {
 
 const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 
-export async function configKeyView(
+/** The key's rows of one lineage, its published head, and the pending proposals with their M1 deciders. */
+async function lineageRows(
   deps: ConfigDeps,
-  key: string,
-): Promise<Result<ConfigKeyView, CoreError>> {
-  const def = deps.registry.get(key);
-  if (!def) return err(coreError('not_found', `no config key ${key}`));
-  const revs = await listRevisions(deps, FACTORY);
+  def: ConfigKeyDef,
+  lineage: ConfigLineage,
+  decidersProject: string,
+) {
+  const key = def.key;
+  const revs = await listRevisions(deps, lineage);
   const byHash = new Map(revs.map((r) => [r.rev_hash, r]));
   const valueIn = (r: (typeof revs)[number]) =>
     key in r.content ? { value: r.content[key], set: true } : { value: def.default, set: false };
@@ -90,15 +96,35 @@ export async function configKeyView(
   });
 
   const current = rows.find((r) => r.state === 'current') ?? null;
+  const pending: ConfigPending[] = [];
+  const deciders = CardDeciders.parse(
+    await decidersFrom(deps.eligibility, decidersProject as never, 'admin'),
+  );
+  for (const r of rows.filter((x) => x.state === 'proposed')) {
+    const gate = r.gate_instance_id ? await readGateState(deps.pool, r.gate_instance_id) : null;
+    pending.push({ revision: r, gate_status: gate?.status ?? null, deciders });
+  }
+  return { rows, current, pending };
+}
+
+const fromRevision = (r: ConfigKeyRevision, source: 'revision' | 'factory') => ({
+  value: r.value,
+  source,
+  rev_hash: r.rev_hash,
+  gate_instance_id: r.gate_instance_id,
+  ledger_entry_id: r.ledger_entry_id,
+  published_at: r.published_at,
+});
+
+export async function configKeyView(
+  deps: ConfigDeps,
+  key: string,
+): Promise<Result<ConfigKeyView, CoreError>> {
+  const def = deps.registry.get(key);
+  if (!def) return err(coreError('not_found', `no config key ${key}`));
+  const { rows, current, pending } = await lineageRows(deps, def, FACTORY, FACTORY_PROJECT_ID);
   const effective = current?.set
-    ? {
-        value: current.value,
-        source: 'revision' as const,
-        rev_hash: current.rev_hash,
-        gate_instance_id: current.gate_instance_id,
-        ledger_entry_id: current.ledger_entry_id,
-        published_at: current.published_at,
-      }
+    ? fromRevision(current, 'revision')
     : {
         value: def.default,
         source: 'default' as const,
@@ -108,15 +134,6 @@ export async function configKeyView(
         published_at: current?.published_at ?? null,
       };
 
-  const pending: ConfigPending[] = [];
-  const deciders = CardDeciders.parse(
-    await decidersFrom(deps.eligibility, FACTORY_PROJECT_ID, 'admin'),
-  );
-  for (const r of rows.filter((x) => x.state === 'proposed')) {
-    const gate = r.gate_instance_id ? await readGateState(deps.pool, r.gate_instance_id) : null;
-    pending.push({ revision: r, gate_status: gate?.status ?? null, deciders });
-  }
-
   return ok(
     ConfigKeyView.parse({
       key: keySummary(def),
@@ -125,6 +142,61 @@ export async function configKeyView(
       head_rev_hash: current?.rev_hash ?? null,
       pending,
       history: [...rows].reverse(),
+    }),
+  );
+}
+
+/** The keys of a project's own layer that the registry knows (P1-5). */
+export function listProjectConfigKeys(deps: ConfigDeps): ConfigKeySummary[] {
+  return ProjectLayerKeyValues.map((k) => deps.registry.get(k))
+    .filter((d): d is ConfigKeyDef => d !== undefined && d.overridable)
+    .map(keySummary);
+}
+
+/**
+ * One key of a project's layer (P1-5): the value in force for the project, the project's own lineage (its head is
+ * what a proposal names as its parent), the pending proposals with who decides their M1 (the project's admin slot),
+ * and the tier and deploys the floors are checked against. The value in force is the project's published revision,
+ * else the factory layer's, else the registered default: the reader's order.
+ */
+export async function projectConfigKeyView(
+  deps: ConfigDeps,
+  project: string,
+  key: string,
+  ctx: { tier: Tier | null; deploys: boolean | null },
+): Promise<Result<ProjectConfigKeyView, CoreError>> {
+  const def = deps.registry.get(key);
+  if (!def || !ProjectLayerKey.safeParse(key).success || !def.overridable) {
+    return err(coreError('not_found', `no project config key ${key}`));
+  }
+  const lineage: ConfigLineage = { layer: 'project', scope: { kind: 'project', ref: project } };
+  const { rows, current, pending } = await lineageRows(deps, def, lineage, project);
+  let effective;
+  if (current?.set) effective = fromRevision(current, 'revision');
+  else {
+    const factory = (await lineageRows(deps, def, FACTORY, FACTORY_PROJECT_ID)).current;
+    effective = factory?.set
+      ? fromRevision(factory, 'factory')
+      : {
+          value: def.default,
+          source: 'default' as const,
+          rev_hash: null,
+          gate_instance_id: null,
+          ledger_entry_id: null,
+          published_at: null,
+        };
+  }
+  return ok(
+    ProjectConfigKeyView.parse({
+      key: keySummary(def),
+      default: def.default,
+      effective,
+      head_rev_hash: current?.rev_hash ?? null,
+      pending,
+      history: [...rows].reverse(),
+      project_id: project,
+      tier: ctx.tier,
+      deploys: ctx.deploys,
     }),
   );
 }

@@ -82,7 +82,12 @@ function route(method: string, path: string): { status: number; json: unknown } 
   if (p === `/v1/access/grants/${GRANT}/prepare`)
     return {
       status: 200,
-      json: { nonce: 'n', expires_at: '2026-11-09T11:00:00.000Z', evidence_hash: SHA },
+      json: {
+        nonce: 'n',
+        expires_at: '2026-11-09T11:00:00.000Z',
+        evidence_hash: SHA,
+        step_up: { required: false, bound_hash: SHA },
+      },
     };
   if (p === `/v1/access/grants/${GRANT}/decide`)
     return {

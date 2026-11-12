@@ -1,8 +1,8 @@
 import { pdpResource, type ConfigKeyRevision, type ConfigRevisionState } from '@aisdlc/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ComponentType } from 'react';
 import { Guarded } from '../access';
-import { api } from '../api';
+import { api, type ConfigKeyWire } from '../api';
 import { ErrorNote, Loading, PageError } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
@@ -66,12 +66,46 @@ function secretRefPaths(v: unknown, path = ''): string[] {
   return [];
 }
 
-export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: string }) {
+/**
+ * Which layer the console reads and proposes on: the factory's (one document for the fleet; `config.propose`), or one
+ * project's (P1-5: `project.settings.edit`, an M1 at the project's admin slot).
+ */
+export type ConfigLayer =
+  { readonly kind: 'factory' } | { readonly kind: 'project'; readonly project: string };
+const FACTORY_LAYER: ConfigLayer = { kind: 'factory' };
+
+/** A key's own draft editor (the role map as slot by people, the gating profile as toggles); the JSON form stays. */
+export interface DraftEditorProps {
+  readonly value: unknown;
+  readonly onChange: (v: unknown) => void;
+  /** The project's tier and deploys (project layer), for the floors. */
+  readonly tier: string | null;
+  readonly deploys: boolean | null;
+}
+
+export function ConfigConsole({
+  configKey,
+  csrf,
+  layer = FACTORY_LAYER,
+  editor: Editor,
+  problemsOf,
+}: {
+  configKey: string;
+  csrf: string;
+  layer?: ConfigLayer;
+  /** A form made for this key; the generated form is still offered under it. */
+  editor?: ComponentType<DraftEditorProps>;
+  /** Rules the schema cannot see (the tier floors), the same functions the server runs. */
+  problemsOf?: (draft: unknown, ctx: { tier: string | null; deploys: boolean | null }) => string[];
+}) {
   const qc = useQueryClient();
   const toast = useToast();
+  const project = layer.kind === 'project' ? layer.project : null;
+  const queryKey = project === null ? ['config', configKey] : ['config', project, configKey];
   const q = useQuery({
-    queryKey: ['config', configKey],
-    queryFn: () => api.configKey(configKey),
+    queryKey,
+    queryFn: (): Promise<ConfigKeyWire> =>
+      project === null ? api.configKey(configKey) : api.projectConfigKey(project, configKey),
     refetchInterval: 15_000,
   });
   const [draft, setDraft] = useState<unknown>(undefined);
@@ -86,12 +120,21 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
   }
 
   const propose = useMutation({
-    mutationFn: () => api.proposeConfig(configKey, { value: draft, parent_rev_hash: head }, csrf),
+    mutationFn: () =>
+      project === null
+        ? api.proposeConfig(configKey, { value: draft, parent_rev_hash: head }, csrf)
+        : api.proposeProjectConfig(
+            project,
+            configKey,
+            { value: draft, parent_rev_hash: head },
+            csrf,
+          ),
     onSuccess: (r) => {
       toast(`Proposed. The M1 gate ${short(r.gate_instance_id)} decides it; nothing changed yet.`);
-      void qc.invalidateQueries({ queryKey: ['config', configKey] });
+      void qc.invalidateQueries({ queryKey });
     },
   });
+  const [asJson, setAsJson] = useState(false);
 
   if (q.isPending) return <Loading what={`the configuration of ${configKey}`} />;
   if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
@@ -99,8 +142,18 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
   const names = v.principal_names;
   const who = (id: string) => names[id] ?? id;
   const schema = v.key.json_schema as JsonSchema;
-  const problems = draft === undefined ? [] : validateAgainst(schema, draft);
+  const ctx = { tier: v.tier ?? null, deploys: v.deploys ?? null };
+  const problems =
+    draft === undefined
+      ? []
+      : [...validateAgainst(schema, draft), ...(problemsOf ? problemsOf(draft, ctx) : [])];
   const changes = draft === undefined ? [] : diffValues(base, draft);
+  const layerWords =
+    project === null ? 'the factory configuration' : `the configuration of project ${project}`;
+  const proposeAction = project === null ? 'config.propose' : 'project.settings.edit';
+  const proposeOn = project === null ? pdpResource.fleet() : pdpResource.project(project);
+  const decideLink = (gate: string) =>
+    project === null ? `/config/revisions/${gate}` : `/revisions/${gate}`;
 
   return (
     <div className="cfg" data-config-key={configKey}>
@@ -113,7 +166,11 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
               'Source',
               v.effective.source === 'default'
                 ? 'the registered default (no published revision sets it)'
-                : 'a published revision',
+                : v.effective.source === 'factory'
+                  ? 'the factory layer (this project does not set it)'
+                  : project === null
+                    ? 'a published revision'
+                    : 'a published revision of this project',
             ],
             ['Revision', <code key="r">{short(v.effective.rev_hash)}</code>],
             ['M1 gate', <code key="g">{short(v.effective.gate_instance_id)}</code>],
@@ -129,11 +186,7 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
       <Card
         title="Draft a change"
         footer={
-          <Guarded
-            action="config.propose"
-            resource={pdpResource.fleet()}
-            label="Propose this change"
-          >
+          <Guarded action={proposeAction} resource={proposeOn} label="Propose this change">
             <button
               type="button"
               className="ui-btn ui-btn-primary"
@@ -148,8 +201,9 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
         }
       >
         <p className="muted">
-          {v.key.description}. A proposal is a new revision of the factory configuration with an M1
-          gate; the value changes only once that gate is decided approve.
+          {v.key.description}. A proposal is a new revision of {layerWords} with an M1 gate
+          {project === null ? '' : ` (decided by the project's admin slot)`}; the value changes only
+          once that gate is decided approve.
         </p>
         {draft === undefined ? null : (
           <form
@@ -158,7 +212,23 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
               e.preventDefault();
             }}
           >
-            <SchemaField schema={schema} value={draft} onChange={setDraft} label={configKey} />
+            {Editor && !asJson ? (
+              // keyed by the head: a new head resets the editor's own text with the draft
+              <Editor key={draftFor ?? ''} value={draft} onChange={setDraft} {...ctx} />
+            ) : (
+              <SchemaField schema={schema} value={draft} onChange={setDraft} label={configKey} />
+            )}
+            {Editor ? (
+              <p>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-sm"
+                  onClick={() => setAsJson((x) => !x)}
+                >
+                  {asJson ? 'Back to the form' : 'Edit every field (generated form)'}
+                </button>
+              </p>
+            ) : null}
           </form>
         )}
         {problems.length > 0 ? (
@@ -215,17 +285,18 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
                 {shortTime(p.revision.proposed_at)}.{' '}
                 {p.revision.changes_key
                   ? 'It changes this key.'
-                  : 'It changes another key of the factory configuration, not this one.'}
+                  : `It changes another key of ${layerWords}, not this one.`}
                 <div>
-                  M1 gate <code>{short(p.revision.gate_instance_id)}</code>, decided by the
-                  factory&rsquo;s <strong>{p.deciders.slot}</strong> slot:{' '}
+                  M1 gate <code>{short(p.revision.gate_instance_id)}</code>, decided by the{' '}
+                  {project === null ? 'factory' : 'project'}&rsquo;s{' '}
+                  <strong>{p.deciders.slot}</strong> slot:{' '}
                   {p.deciders.holders.length === 0
                     ? 'nobody holds it yet, so nobody can decide it.'
                     : p.deciders.holders.map(who).join(', ')}
                 </div>
                 {p.revision.gate_instance_id ? (
                   <div>
-                    <Link to={`/config/revisions/${p.revision.gate_instance_id}`}>
+                    <Link to={decideLink(p.revision.gate_instance_id)}>
                       Open the revision to decide it
                     </Link>
                   </div>
@@ -244,7 +315,7 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
 
       <Card title="History" flush>
         <Table<ConfigKeyRevision>
-          caption={`Revisions of the factory configuration, newest first`}
+          caption={`Revisions of ${layerWords}, newest first`}
           captionHidden
           rows={v.history}
           rowKey={(r) => r.rev_hash}

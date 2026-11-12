@@ -2,6 +2,7 @@ import type { AccessChange } from '@aisdlc/contracts';
 import {
   AccessBindingList,
   AccessDecideResult,
+  AccessPrepared,
   AccessGrantList,
   AccessGrantView,
   AccessProposeResult,
@@ -10,7 +11,6 @@ import {
   FACTORY_PROJECT_ID,
   RevisionDecideRequest,
   RevisionEvidenceRequest,
-  RevisionPrepared,
   accessResourceOf,
   parseScopeKey,
   pdpResource,
@@ -140,7 +140,7 @@ export function registerAccessGrantPortalRoutes(g: AccessGrantPortalDeps): void 
     decide: RevisionDecideRequest.omit({ on_behalf_of: true }),
   } as const;
   const parsers = {
-    prepare: (v: unknown) => RevisionPrepared.parse(v),
+    prepare: (v: unknown) => AccessPrepared.parse(v),
     evidence: (v: unknown) => z.strictObject({ evidence_viewed: z.literal(true) }).parse(v),
     decide: (v: unknown) => AccessDecideResult.parse(v),
   } as const;

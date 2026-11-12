@@ -13,7 +13,8 @@ import {
 } from '@aisdlc/contracts';
 import { useState, type FormEvent } from 'react';
 import { Guarded } from '../access';
-import { api, type AccessGrantWire, type Me } from '../api';
+import { api, type AccessGrantWire, type Me, type PreparedRevision } from '../api';
+import { StepUpBox, useStepUp } from '../cards/StepUp';
 import { ErrorNote } from '../components/Notice';
 import { Read, ShortHash } from '../components/Read';
 import { shortTime } from '../format';
@@ -402,7 +403,10 @@ export function AccessRequestsPage({ me }: { me: Me }) {
 export function AccessGrantPage({ id, csrf }: { id: string; csrf: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['access-grant', id], queryFn: () => api.accessGrant(id) });
-  const [prep, setPrep] = useState<{ nonce: string; evidence_hash: string } | null>(null);
+  const [prep, setPrep] = useState<PreparedRevision | null>(null);
+  // a vote that needs two people needs each to step up (RC-SEC-4): the proof is bound to the gate's hash
+  const needsProof = prep?.step_up?.required === true;
+  const stepUp = useStepUp(needsProof ? (prep?.step_up?.bound_hash ?? null) : null, csrf);
   const read = useMutation({
     mutationFn: async () => {
       const p = await api.prepareAccess(id, csrf);
@@ -414,10 +418,19 @@ export function AccessGrantPage({ id, csrf }: { id: string; csrf: string }) {
   const decide = useMutation({
     mutationFn: (decision: 'approve' | 'reject') => {
       if (!prep) throw new Error('read the change first');
-      return api.decideAccess(id, { nonce: prep.nonce, decision }, csrf);
+      return api.decideAccess(
+        id,
+        {
+          nonce: prep.nonce,
+          decision,
+          ...(needsProof && stepUp.proof ? { step_up: { proof: stepUp.proof } } : {}),
+        },
+        csrf,
+      );
     },
     onSuccess: () => {
       setPrep(null);
+      stepUp.clear();
       void qc.invalidateQueries({ queryKey: ['access-grant', id] });
       void qc.invalidateQueries({ queryKey: ['access-grants'] });
       void qc.invalidateQueries({ queryKey: ['access'] });
@@ -473,10 +486,13 @@ export function AccessGrantPage({ id, csrf }: { id: string; csrf: string }) {
                 </button>
               ) : (
                 <div className="pg-inline">
+                  {needsProof ? (
+                    <StepUpBox s={stepUp} boundHash={prep.step_up?.bound_hash ?? null} />
+                  ) : null}
                   <button
                     type="button"
                     className="ui-btn ui-btn-primary"
-                    disabled={decide.isPending}
+                    disabled={decide.isPending || (needsProof && !stepUp.proof)}
                     onClick={() => decide.mutate('approve')}
                   >
                     Approve
@@ -484,7 +500,7 @@ export function AccessGrantPage({ id, csrf }: { id: string; csrf: string }) {
                   <button
                     type="button"
                     className="ui-btn"
-                    disabled={decide.isPending}
+                    disabled={decide.isPending || (needsProof && !stepUp.proof)}
                     onClick={() => decide.mutate('reject')}
                   >
                     Reject
@@ -493,6 +509,7 @@ export function AccessGrantPage({ id, csrf }: { id: string; csrf: string }) {
               )}
               {read.isError ? <ErrorNote error={read.error} /> : null}
               {decide.isError ? <ErrorNote error={decide.error} /> : null}
+              {stepUp.error ? <ErrorNote error={stepUp.error} /> : null}
               {decide.isSuccess ? (
                 <p role="status">
                   Your decision is on the ledger

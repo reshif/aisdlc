@@ -73,6 +73,15 @@ export const HumanWaitGate = z.enum(HUMAN_WAIT_GATES);
 export type HumanWaitGate = z.infer<typeof HumanWaitGate>;
 
 /**
+ * Why a session waits for a person (HUMAN-WAIT): a pending gate of `HUMAN_WAIT_GATES` (`gate`), or a hold on the
+ * repo the item runs on (M16 part 3, OB §8): its readiness record suspended for drift (`prr_suspended`), or a
+ * security event no person has confirmed yet (`security_hold`). The effects are the same: the lease and the coding
+ * slot are released, the snapshot is kept, the envelope clock pauses; the decision (or the restore) re-admits.
+ */
+export const HumanWaitCause = z.enum(['gate', 'prr_suspended', 'security_hold']);
+export type HumanWaitCause = z.infer<typeof HumanWaitCause>;
+
+/**
  * The approver slot an admission reserves (H1): that the deciders downstream of the Unit exist in the role
  * map: the G4 slot (principals, or the code owners on the host) and the X-gate slot. Counts, never names.
  */
@@ -140,8 +149,13 @@ export type UnitGrantReleasedPayload = z.infer<typeof UnitGrantReleasedPayload>;
 export const UnitWaitEnteredPayload = z.strictObject({
   grant_id: z.string().min(1),
   ...Ids,
-  gate: HumanWaitGate,
-  gate_instance_id: z.string().min(1),
+  /** Absent: `gate` (every wait recorded before M16 part 3). */
+  cause: HumanWaitCause.optional(),
+  /** The pending gate of a `gate` wait; `null` for a hold. */
+  gate: HumanWaitGate.nullable(),
+  gate_instance_id: z.string().min(1).nullable(),
+  /** A hold's reference on the record: the event that suspended the record, or the security event's ledger entry. */
+  hold_ref: z.string().min(1).max(200).optional(),
   /** The epoch the released lease had. */
   lease_epoch: z.number().int().min(1),
   snapshot_ref: SnapshotRef,

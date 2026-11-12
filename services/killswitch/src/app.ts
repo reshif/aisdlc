@@ -1,15 +1,18 @@
-import { KillQuery, PrincipalId } from '@aisdlc/contracts';
+import { KillQuery, PrincipalId, type KillAct } from '@aisdlc/contracts';
 import type { ServiceAuth } from '@aisdlc/service-kit';
 import { newApp, sendError } from '@aisdlc/service-kit';
 import type { Result } from '@aisdlc/kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { KILLSWITCH_STATUS, killswitchError, type KillswitchError } from './errors.js';
+import type { PersonVerifier } from './person.js';
 import type { KillService } from './service.js';
 
 /**
- * What a caller may do. `act`: ask for a kill, a release approval or a delegation on behalf of a signed-in
- * human (the portal's BFF; the PDP decides about that human, with the kill switch's own facts). `read`:
+ * What a caller may do. `act`: carry a person's kill, release approval or delegation to the kill switch.
+ * The scope lets a process carry an act; it never lets it choose who acts: each act needs that person's
+ * step-up proof for exactly this act (RC-SEC-3), and the PDP then decides about the proof's principal,
+ * with the kill switch's own facts. `read`:
  * the status enforcement points ask, the journal core observes, the lists. `sync`: push who holds what
  * for a project (core-worker). A caller with no entry may do nothing.
  */
@@ -17,11 +20,15 @@ export type KillswitchScope = 'act' | 'read' | 'sync';
 
 export interface KillswitchAppOptions {
   service: KillService;
+  /** Verifies the person behind every act (RC-SEC-3). */
+  persons: PersonVerifier;
   auth: ServiceAuth;
   callers: Record<string, readonly KillswitchScope[]>;
 }
 
-const Who = { on_behalf_of: PrincipalId };
+// The person who acts is the principal of the step-up proof (`PersonVerifier`), never a name in the body:
+// a body with `on_behalf_of` is refused as malformed.
+const Who = { step_up: z.strictObject({ proof: z.string().min(1).max(4096) }) };
 const KillBody = z.strictObject({ ...Who, scope: z.unknown(), reason: z.string().min(1).max(500) });
 const ReleaseBody = z.strictObject({ ...Who });
 const DelegateBody = z.strictObject({ ...Who, delegate: z.string().min(1), scope: z.unknown() });
@@ -137,31 +144,54 @@ export function createKillswitchApp(o: KillswitchAppOptions): FastifyInstance {
 
   // ------------------------------------------------------------ what a human does
 
+  /** The person behind an act: the verified proof's principal, or a refusal already sent. */
+  const person = async (
+    reply: FastifyReply,
+    proof: string,
+    act: KillAct,
+  ): Promise<PrincipalId | null> => {
+    const who = await o.persons.authenticate(proof, act);
+    if (who.ok) return who.value;
+    fail(reply, who.error);
+    return null;
+  };
+
   app.post('/v1/kills', async (req, reply) => {
     if (!needs(req, reply, 'act')) return;
     const b = body(req, reply, KillBody);
     if (!b) return;
-    return run(
-      reply,
-      o.service.requestKill(b.on_behalf_of, { scope: b.scope, reason: b.reason }),
-      201,
-    );
+    const who = await person(reply, b.step_up.proof, {
+      action: 'kill.request',
+      scope: b.scope,
+      reason: b.reason,
+    });
+    if (!who) return;
+    return run(reply, o.service.requestKill(who, { scope: b.scope, reason: b.reason }), 201);
   });
 
   app.post('/v1/kills/:id/release', async (req, reply) => {
     if (!needs(req, reply, 'act')) return;
     const b = body(req, reply, ReleaseBody);
     if (!b) return;
-    return run(reply, o.service.approveRelease(b.on_behalf_of, params(req)['id'] as string));
+    const kill_id = params(req)['id'] as string;
+    const who = await person(reply, b.step_up.proof, { action: 'kill.release', kill_id });
+    if (!who) return;
+    return run(reply, o.service.approveRelease(who, kill_id));
   });
 
   app.post('/v1/delegations', async (req, reply) => {
     if (!needs(req, reply, 'act')) return;
     const b = body(req, reply, DelegateBody);
     if (!b) return;
+    const who = await person(reply, b.step_up.proof, {
+      action: 'kill.delegate',
+      delegate: b.delegate,
+      scope: b.scope,
+    });
+    if (!who) return;
     return run(
       reply,
-      o.service.grantDelegation(b.on_behalf_of, { delegate: b.delegate, scope: b.scope }),
+      o.service.grantDelegation(who, { delegate: b.delegate, scope: b.scope }),
       201,
     );
   });
@@ -170,7 +200,10 @@ export function createKillswitchApp(o: KillswitchAppOptions): FastifyInstance {
     if (!needs(req, reply, 'act')) return;
     const b = body(req, reply, ReleaseBody);
     if (!b) return;
-    return run(reply, o.service.revokeDelegation(b.on_behalf_of, params(req)['id'] as string));
+    const delegation_id = params(req)['id'] as string;
+    const who = await person(reply, b.step_up.proof, { action: 'kill.revoke', delegation_id });
+    if (!who) return;
+    return run(reply, o.service.revokeDelegation(who, delegation_id));
   });
 
   // ------------------------------------------------------------ what core-worker pushes
