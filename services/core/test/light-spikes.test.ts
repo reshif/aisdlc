@@ -20,6 +20,7 @@ import { fixtureLintCorpus, measureLintPrecision } from '@aisdlc/text-lint';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CorePushGuards,
+  coreInbox,
   createCoreApp,
   latestSpike,
   lightFloorsOf,
@@ -489,6 +490,11 @@ describe('R2b: the affirmed pack, record-first, through X2 and the Push Broker',
       expect(x2?.open).toMatchObject({ subject_kind: 's0_record', subject_id: c.s0, label: 'X2' });
       const gate = x2?.gates[0]?.state.open.payload;
       expect(gate).toMatchObject({ gate_id: 'X2', subject_hash: v.value.patch_hash });
+      // the X2 card is listed in the inbox (M16), for the X slot, linking to the gate-card routes by its card id
+      const inbox = await coreInbox({ cards: deps.cards, clock: s.clock });
+      expect(inbox.filter((i) => i.id === v.value.x2_card_id)).toEqual([
+        expect.objectContaining({ kind: 'onboarding_card', label: 'X2', s0_id: c.s0, slot: 'x' }),
+      ]);
       // idempotent: the same pack, the same X2
       const again = await projectPack(deps, c.s0);
       expect(again.ok && again.value.x2_card_id).toBe(v.value.x2_card_id);
