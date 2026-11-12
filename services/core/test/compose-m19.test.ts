@@ -76,6 +76,21 @@ describe('M19 health targets', () => {
   });
 });
 
+/** M19 (build/m19c): the services that export over a network of their own to the collector. */
+const OWN_NETWORK = [
+  'audit',
+  'gate-check',
+  'gate-relay',
+  'gateway',
+  'killswitch',
+  'kms-local',
+  'notary',
+  'notifier',
+  'sandbox-controller',
+  'verify',
+  'witness',
+];
+
 describe('M19 the OpenTelemetry collector', () => {
   const c = svc('otel-collector');
   it('is pinned by digest, hardened, under its own profile, publishes nothing and nothing depends on it', () => {
@@ -93,7 +108,14 @@ describe('M19 the OpenTelemetry collector', () => {
   });
 
   it('is on internal telemetry networks only, which open no path the services did not have', () => {
-    expect(netsOf(c).sort()).toEqual(['telemetry', 'telemetry-bff']);
+    expect(netsOf(c).sort()).toEqual(
+      ['telemetry', 'telemetry-bff', ...OWN_NETWORK.map((s) => `telemetry-${s}`)].sort(),
+    );
+    // M19: a service that shares no network with the collector gets its own: it and the collector, nobody else
+    for (const s of OWN_NETWORK) {
+      expect(compose.networks[`telemetry-${s}`]?.internal, s).toBe(true);
+      expect(members(`telemetry-${s}`), s).toEqual([s, 'otel-collector'].sort());
+    }
     expect(compose.networks['telemetry']?.internal).toBe(true);
     expect(compose.networks['telemetry-bff']?.internal).toBe(true);
     const app = new Set(members('app'));
@@ -104,7 +126,7 @@ describe('M19 the OpenTelemetry collector', () => {
   });
 
   it('every service that joins a telemetry network has the export switch, off by default', () => {
-    for (const net of ['telemetry', 'telemetry-bff']) {
+    for (const net of ['telemetry', 'telemetry-bff', ...OWN_NETWORK.map((s) => `telemetry-${s}`)]) {
       for (const m of members(net).filter((x) => x !== 'otel-collector')) {
         expect(svc(m).environment?.['OTEL_EXPORTER_OTLP_ENDPOINT'], m).toBe(
           '${OTEL_EXPORTER_OTLP_ENDPOINT:-}',

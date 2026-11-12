@@ -145,7 +145,7 @@ export interface CoreWorkerConfig {
   readonly outboxWatchIntervalMs: number;
   /** M19: the services whose `/healthz` the `health_snapshot` loop reads (name -> base URL and path). */
   readonly healthTargets: Readonly<
-    Record<string, { readonly url: string; readonly path?: string }>
+    Record<string, { readonly url: string; readonly path?: string; readonly profile?: boolean }>
   >;
   readonly healthIntervalMs: number;
 }
@@ -160,11 +160,13 @@ const HealthTargets = z.record(
         .string()
         .regex(/^\/[A-Za-z0-9/_.-]*$/)
         .optional(),
+      /** M19: a compose-profile service: not answering reads `unknown` (it may not be deployed), never `down` or ok. */
+      profile: z.boolean().optional(),
     }),
   ]),
 );
 
-/** `CORE_WORKER_HEALTH_TARGETS`: JSON `{name: url | {url, path}}`; each URL plain http(s). */
+/** `CORE_WORKER_HEALTH_TARGETS`: JSON `{name: url | {url, path, profile}}`; each URL plain http(s). */
 function healthTargetsEnv(env: Env): CoreWorkerConfig['healthTargets'] {
   const raw = env['CORE_WORKER_HEALTH_TARGETS'];
   if (raw === undefined || raw === '') return {};
@@ -180,7 +182,7 @@ function healthTargetsEnv(env: Env): CoreWorkerConfig['healthTargets'] {
       'CORE_WORKER_HEALTH_TARGETS is {name: url | {url, path}} with names [a-z0-9-]',
     );
   }
-  const out: Record<string, { url: string; path?: string }> = {};
+  const out: Record<string, { url: string; path?: string; profile?: boolean }> = {};
   for (const [name, t] of Object.entries(p.data)) {
     const url = typeof t === 'string' ? t : t.url;
     let u: URL;
@@ -192,7 +194,14 @@ function healthTargetsEnv(env: Env): CoreWorkerConfig['healthTargets'] {
     if (u.protocol !== 'http:' && u.protocol !== 'https:') {
       throw new ServiceConfigError(`CORE_WORKER_HEALTH_TARGETS.${name} must be http(s)`);
     }
-    out[name] = typeof t === 'string' || t.path === undefined ? { url } : { url, path: t.path };
+    out[name] =
+      typeof t === 'string'
+        ? { url }
+        : {
+            url,
+            ...(t.path === undefined ? {} : { path: t.path }),
+            ...(t.profile === true ? { profile: true } : {}),
+          };
   }
   return out;
 }

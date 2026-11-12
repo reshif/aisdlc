@@ -14,10 +14,11 @@ import { NotBuilt, Read } from '../components/Read';
 import { shortTime } from '../format';
 import { Link } from '../router';
 import { Card, EmptyState, PageHead, Pill, Table, type Column } from '../ui';
+import { BindingsPanel, GrantPanel } from './AccessPages';
 
-// Admin (prototype `people`, `teams`, `roles`, `access-requests`, `access-explain`). Read-only here:
-// bindings change through the role map (card 4, an M1 revision) and the identity service, never from a
-// table cell. People and teams read the directory (`audit.read` on the fleet); the role catalogue is
+// Admin (prototype `people`, `teams`, `roles`, `access-requests`, `access-explain`). A project's slot bindings
+// change through its role map (card 4, an M1 revision); the roles beyond it are granted and revoked on People
+// (P1-6, `AccessPages.tsx`), each a proposal an M1 decides. People and teams read the directory (`audit.read` on the fleet); the role catalogue is
 // contracts data everyone may read; "who can do what" asks the PDP for each holder (`access.explain`).
 
 const PEOPLE_COLS: ReadonlyArray<Column<PrincipalSummary>> = [
@@ -31,40 +32,51 @@ const PEOPLE_COLS: ReadonlyArray<Column<PrincipalSummary>> = [
   },
 ];
 
-export function PeoplePage() {
-  const q = useQuery({ queryKey: ['directory'], queryFn: api.directory });
+export function PeoplePage({ me }: { me: Me }) {
+  // the directory is `audit.read` on the fleet; a project admin who manages access there grants without it
+  const reads = me.actions.fleet.includes('audit.read');
+  const q = useQuery({ queryKey: ['directory'], queryFn: api.directory, enabled: reads });
   return (
     <>
       <PageHead
         eyebrow="Admin"
         title="People"
-        sub="Everyone the directory knows, from the identity journal. Who holds which role on a project is on Who can do what; bindings change through the role map and its M1 gate."
+        sub="Everyone the directory knows, from the identity journal, and the roles granted beyond a project's role map. A grant or a revoke is decided by an M1 at the scope's admin slot, never by its proposer; the role map's slots change in Project settings."
         actions={
           <Link to="/access-explain" className="ui-btn">
             Who can do what
           </Link>
         }
       />
-      <Read q={q} what="the directory">
-        {(v) => (
-          <Card title={`${v.principals.length} active principals`} flush>
-            <Table
-              caption="People"
-              captionHidden
-              columns={PEOPLE_COLS}
-              rows={v.principals}
-              rowKey={(p) => p.principal_id}
-              empty={
-                <EmptyState title="Nobody yet">The directory has no active principal.</EmptyState>
-              }
-            />
-          </Card>
-        )}
-      </Read>
+      {reads ? (
+        <Read q={q} what="the directory">
+          {(v) => (
+            <>
+              <Card title={`${v.principals.length} active principals`} flush>
+                <Table
+                  caption="People"
+                  captionHidden
+                  columns={PEOPLE_COLS}
+                  rows={v.principals}
+                  rowKey={(p) => p.principal_id}
+                  empty={
+                    <EmptyState title="Nobody yet">
+                      The directory has no active principal.
+                    </EmptyState>
+                  }
+                />
+              </Card>
+              <GrantPanel me={me} principals={v.principals} teams={v.teams} />
+            </>
+          )}
+        </Read>
+      ) : (
+        <GrantPanel me={me} principals={null} teams={null} />
+      )}
+      <BindingsPanel me={me} />
       <NotBuilt title="Suspend, erase, legal hold" milestone="M19">
         Erasure and legal hold are on Govern › Audit under <code>identity.admin</code>; suspending a
-        person and the sign-in settings have no backend route yet, and role bindings change through
-        the role map (<code>access.manage</code> has no route either). The portal reads only here.
+        person and the sign-in settings have no backend route yet.
       </NotBuilt>
     </>
   );
@@ -175,24 +187,6 @@ export function RolesPage() {
           rowKey={(r) => r.role_id}
         />
       </Card>
-    </>
-  );
-}
-
-export function AccessRequestsPage() {
-  return (
-    <>
-      <PageHead
-        eyebrow="Admin"
-        title="Access requests"
-        sub="Asking for a role, and the decision on it by whoever administers the project."
-      />
-      <NotBuilt title="Access requests" milestone="no milestone yet">
-        There is no access-request API yet: nothing records a request or its decision, so this page
-        has nothing true to show. Until it exists, <Link to="/me/access">My access</Link> names the
-        roles that would grant an action and who to ask; the project administrator changes the role
-        map (card 4, M1).
-      </NotBuilt>
     </>
   );
 }

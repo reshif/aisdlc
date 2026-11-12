@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { ServiceConfigError } from './auth.js';
@@ -103,6 +104,45 @@ export function parentOf(header: unknown): { traceId: string; spanId: string } |
   const m = TRACEPARENT.exec(header.trim());
   if (!m || m[1] === ZERO_TRACE || m[2] === ZERO_SPAN) return null;
   return { traceId: m[1] as string, spanId: m[2] as string };
+}
+
+/**
+ * M19: the trace the code running now belongs to: the server span of the request it serves (set by `instrumentApp`),
+ * or, where the service exports nothing, the caller's own span (`carryTrace`), so the trace stays one across a hop
+ * that is not exported. Outside a request (a loop's tick) there is none.
+ */
+export interface TraceContext {
+  readonly traceId: string;
+  readonly spanId: string;
+}
+const currentTrace = new AsyncLocalStorage<TraceContext>();
+
+/** The trace context of the request being served, if any. */
+export const traceContext = (): TraceContext | undefined => currentTrace.getStore();
+
+/**
+ * The W3C `traceparent` header an outbound call carries (sampled), or none outside a request. `callJson` adds it; a
+ * client of its own (`node:http`, a raw `fetch`) spreads `traceHeaders()` into its headers. Content-free: two ids.
+ */
+export function traceHeaders(): Record<string, string> {
+  const c = currentTrace.getStore();
+  return c ? { traceparent: `00-${c.traceId}-${c.spanId}-01` } : {};
+}
+
+/** Runs `fn` inside `ctx` (tests, and a loop that starts a trace of its own). */
+export const withTrace = <T>(ctx: TraceContext, fn: () => T): T => currentTrace.run(ctx, fn);
+
+/**
+ * For a service that exports no telemetry: each request runs in its caller's trace context (from `traceparent`), so
+ * its own outbound calls carry the caller's trace on. Nothing is recorded.
+ */
+export function carryTrace(app: FastifyInstance): void {
+  app.addHook('onRequest', (req, _reply, done) => {
+    // an app that `instrumentApp` already put in its own server span's context keeps it
+    const parent = currentTrace.getStore() ? null : parentOf(req.headers.traceparent);
+    if (parent) currentTrace.run(parent, done);
+    else done();
+  });
 }
 
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
@@ -300,10 +340,15 @@ const hex = (bytes: number): string => randomBytes(bytes).toString('hex');
 export function instrumentApp(app: FastifyInstance, exporter: OtlpExporter): void {
   const started = new WeakMap<
     object,
-    { at: bigint; parent: { traceId: string; spanId: string } | null }
+    { at: bigint; parent: TraceContext | null; self: TraceContext }
   >();
-  app.addHook('onRequest', async (req) => {
-    started.set(req, { at: process.hrtime.bigint(), parent: parentOf(req.headers.traceparent) });
+  // the server span's ids are made when the request arrives, so every outbound call the handler makes (`callJson`,
+  // `traceHeaders()`) names this span as its parent; the rest of the request runs inside that context
+  app.addHook('onRequest', (req, _reply, done) => {
+    const parent = parentOf(req.headers.traceparent);
+    const self = { traceId: parent?.traceId ?? hex(16), spanId: hex(8) };
+    started.set(req, { at: process.hrtime.bigint(), parent, self });
+    currentTrace.run(self, done);
   });
   app.addHook('onResponse', async (req, reply) => {
     const s = started.get(req);
@@ -311,8 +356,8 @@ export function instrumentApp(app: FastifyInstance, exporter: OtlpExporter): voi
     // an unmatched path is one route ("not found"), so a scan of random paths cannot grow the metrics
     const route = req.routeOptions.url ?? '<unmatched>';
     exporter.record({
-      traceId: s.parent?.traceId ?? hex(16),
-      spanId: hex(8),
+      traceId: s.self.traceId,
+      spanId: s.self.spanId,
       parentSpanId: s.parent?.spanId ?? null,
       method: req.method,
       route,

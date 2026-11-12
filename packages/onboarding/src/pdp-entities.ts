@@ -48,7 +48,11 @@ const projectOf = (r: PdpResource): string | null => (r.type === 'Project' ? r.i
 export class BootstrapPdpEntities implements PdpEntityPort {
   constructor(
     private readonly base: PdpEntityPort,
-    private readonly o: { readonly db: Executor },
+    private readonly o: {
+      readonly db: Executor;
+      /** The live grant of a project (default `liveBootstrap`; a batch view memoises it). */
+      readonly live?: (db: Executor, project: string) => ReturnType<typeof liveBootstrap>;
+    },
   ) {}
 
   async principalFacts(
@@ -64,7 +68,7 @@ export class BootstrapPdpEntities implements PdpEntityPort {
     if (project === null) return base;
     let binding: PdpBindingFact | null = null;
     try {
-      const grant = await liveBootstrap(this.o.db, project);
+      const grant = await (this.o.live ?? liveBootstrap)(this.o.db, project);
       if (
         grant !== null &&
         grant.grantee === principal &&
@@ -82,6 +86,19 @@ export class BootstrapPdpEntities implements PdpEntityPort {
     }
     if (binding === null) return base;
     return ok({ ...base.value, bindings: [...base.value.bindings, binding] });
+  }
+
+  /** One batch (M19): the base's own batch view, and the live bootstrap grant of each project read once. */
+  batch(): PdpEntityPort {
+    const grants = new Map<string, ReturnType<typeof liveBootstrap>>();
+    return new BootstrapPdpEntities(this.base.batch?.() ?? this.base, {
+      db: this.o.db,
+      live: (db, project) => {
+        let g = grants.get(project);
+        if (!g) grants.set(project, (g = (this.o.live ?? liveBootstrap)(db, project)));
+        return g;
+      },
+    });
   }
 
   /** Is this request one of the few the grant covers, on the record that holds it? */

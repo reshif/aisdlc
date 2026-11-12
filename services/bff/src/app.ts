@@ -92,6 +92,12 @@ export interface BffAppOptions {
   readonly notifier?: CoreClient;
   /** The audit service (M19), for `/api/audit/*`; without it they answer 503. */
   readonly audit?: CoreClient;
+  /**
+   * M19: the profile services only the bff reaches (the notifier), by name -> base URL: `GET /healthz/peer/:name`
+   * relays the peer's liveness answer (status and loop states only) for core-worker's health tiles, so their tiles are
+   * read through the service that can reach them instead of a new path. Unreachable: 502 (core-worker reads unknown).
+   */
+  readonly healthPeers?: Readonly<Record<string, string>>;
   /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
   readonly gateCheck?: CoreClient;
   /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it the Sandboxes screen says so. */
@@ -173,6 +179,41 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
   };
 
   app.get('/healthz', async () => ({ ok: true }));
+
+  app.get('/healthz/peer/:name', async (req, reply) => {
+    const name = (req.params as { name: string }).name;
+    const base = Object.hasOwn(o.healthPeers ?? {}, name) ? o.healthPeers?.[name] : undefined;
+    if (base === undefined) return sendError(reply, 404, 'not_found', 'no such peer');
+    let res: Response;
+    try {
+      res = await fetch(new URL('/healthz', base), { signal: AbortSignal.timeout(3_000) });
+    } catch {
+      return sendError(reply, 502, 'unreachable', `${name} did not answer`);
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(await res.text());
+    } catch {
+      body = null;
+    }
+    // what is passed on: the status and each loop's name, state and failure count; nothing else of the answer
+    const b = body as { status?: unknown; loops?: unknown } | null;
+    const loops = Array.isArray(b?.loops)
+      ? (b.loops as Array<Record<string, unknown>>)
+          .filter((l) => typeof l?.['name'] === 'string' && typeof l['state'] === 'string')
+          .slice(0, 50)
+          .map((l) => ({
+            name: String(l['name']).slice(0, 64),
+            state: String(l['state']).slice(0, 16),
+            consecutive_failures:
+              typeof l['consecutive_failures'] === 'number' ? l['consecutive_failures'] : 0,
+          }))
+      : undefined;
+    return reply.code(res.ok ? 200 : 503).send({
+      status: res.ok && b?.status !== 'unhealthy' ? 'ok' : 'unhealthy',
+      ...(loops ? { loops, alerts: [] } : {}),
+    });
+  });
 
   // ------------------------------------------------------------ the principal of a sign-in
 

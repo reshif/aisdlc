@@ -30,7 +30,7 @@ export AISDLC_SUBNET_PREFIX="${AISDLC_SUBNET_PREFIX:-10.236}"
 # its own published ports (the portal and the dev IdP), so it runs beside a stack on the default 8340 and 8390
 export AISDLC_BFF_PORT="${AISDLC_BFF_PORT:-8640}" AISDLC_OIDC_PORT="${AISDLC_OIDC_PORT:-8690}"
 TAG="${E2E_PR_TAG:-e2e-pr}"
-export AISDLC_IMAGE="${AISDLC_IMAGE:-aisdlc/factory:$TAG}"
+export AISDLC_FACTORY_IMAGE="${AISDLC_FACTORY_IMAGE:-aisdlc/factory:$TAG}"
 export SANDBOX_IMAGE="${SANDBOX_IMAGE:-aisdlc/sandbox:$TAG}"
 export SANDBOX_AGENT_IMAGE="${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:$TAG}"
 ONBOARDING_TAG="${ONBOARDING_TAG:-aisdlc/sandbox-onboarding:$TAG}"
@@ -99,7 +99,7 @@ done
 
 echo "== images ($TAG)"
 if [ "${E2E_SKIP_BUILD:-0}" = 1 ]; then
-  for i in "$AISDLC_IMAGE" "$SANDBOX_IMAGE" "$SANDBOX_AGENT_IMAGE" "$ONBOARDING_TAG"; do
+  for i in "$AISDLC_FACTORY_IMAGE" "$SANDBOX_IMAGE" "$SANDBOX_AGENT_IMAGE" "$ONBOARDING_TAG"; do
     docker image inspect "$i" >/dev/null 2>&1 || fail "E2E_SKIP_BUILD=1 but the image $i does not exist"
   done
 else

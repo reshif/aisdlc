@@ -2,6 +2,7 @@ import {
   SANDBOX_GID,
   SANDBOX_LABEL,
   SANDBOX_NAME_PREFIX,
+  SANDBOX_OWNER,
   SANDBOX_PEER_ALIAS,
   SANDBOX_PROFILES,
   SANDBOX_SESSION_ID,
@@ -40,7 +41,16 @@ export interface PolicyConfig {
   readonly archivePut: readonly string[];
   /** Cap on an archive upload. */
   readonly maxArchiveBytes: number;
+  /**
+   * M19: this proxy instance's name (`DOCKER_PROXY_OWNER`, default `local`). It labels everything it creates with it
+   * (`SANDBOX_LABEL.owner`), and it lists, inspects, stops and removes only what carries it: one runner host's sweep
+   * after a crash never reaches another host's sandboxes on the same daemon.
+   */
+  readonly owner?: string;
 }
+
+/** The owner a proxy labels with and answers for. */
+export const ownerOf = (cfg: PolicyConfig): string => cfg.owner ?? 'local';
 
 export type Decision<T = unknown> =
   | { readonly allow: true; readonly value: T }
@@ -65,7 +75,10 @@ export type RouteKind =
   | 'network_create'
   | 'network_connect'
   | 'network_disconnect'
-  | 'network_delete';
+  | 'network_delete'
+  /** M19: this proxy's own sandboxes (the filter is the proxy's, never the client's): the sweep after a crash. */
+  | 'container_list'
+  | 'network_list';
 
 export interface Route {
   readonly kind: RouteKind;
@@ -124,6 +137,8 @@ export function route(method: string, rawUrl: string): Decision<Route> {
   if (method === 'GET' || method === 'HEAD') {
     if (path === '/_ping') return only('ping', null, []);
   }
+  if (method === 'GET' && path === '/containers/json') return only('container_list', null, ['all']);
+  if (method === 'GET' && path === '/networks') return only('network_list', null, []);
   if (seg[1] === 'containers') {
     if (method === 'POST' && seg.length === 3 && seg[2] === 'create') {
       return only('container_create', null, ['name']);
@@ -530,6 +545,7 @@ export function validateCreate(
       [SANDBOX_LABEL.sandbox]: '1',
       [SANDBOX_LABEL.session]: session,
       [SANDBOX_LABEL.class]: cls.data,
+      [SANDBOX_LABEL.owner]: ownerOf(cfg),
     },
     ...(st !== undefined ? { StopTimeout: st } : {}),
     AttachStdin: false,
@@ -610,7 +626,11 @@ export function validateNetworkCreate(
       Attachable: false,
       EnableIPv6: false,
       CheckDuplicate: true,
-      Labels: { [SANDBOX_LABEL.sandbox]: '1', [SANDBOX_LABEL.session]: session },
+      Labels: {
+        [SANDBOX_LABEL.sandbox]: '1',
+        [SANDBOX_LABEL.session]: session,
+        [SANDBOX_LABEL.owner]: ownerOf(cfg),
+      },
     }),
   });
 }
@@ -678,6 +698,22 @@ export function peerLabelOk(labels: unknown, peer: SandboxPeer): boolean {
 export function isSandboxLabelled(labels: unknown): boolean {
   return isObj(labels) && labels[SANDBOX_LABEL.sandbox] === '1';
 }
+
+/** M19: the sandbox label AND this proxy's owner label (what a proxy may touch). */
+export function isOwnedBy(labels: unknown, owner: string): boolean {
+  return isSandboxLabelled(labels) && isObj(labels) && labels[SANDBOX_LABEL.owner] === owner;
+}
+
+/** M19: `all` on a list is `true`, `1` or absent; the filter is never the client's. */
+export function validateList(q: ReadonlyMap<string, string>): Decision {
+  const all = q.get('all');
+  return all === undefined || all === 'true' || all === '1'
+    ? allow(undefined)
+    : deny('all must be true');
+}
+
+/** M19: a valid owner name, or a configuration error. */
+export const validOwner = (o: string): boolean => SANDBOX_OWNER.test(o);
 
 // ---------------------------------------------------------------------------------------------- the rest
 

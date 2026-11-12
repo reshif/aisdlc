@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { readdirSync } from 'node:fs';
 import {
   SANDBOX_GATEWAY_KEY_ENV,
   SANDBOX_GATEWAY_URL_ENV,
@@ -6,6 +7,7 @@ import {
   SANDBOX_LABEL,
   SANDBOX_NAME_PREFIX,
   SANDBOX_PEER_ALIAS,
+  SANDBOX_SESSION_ID,
   SANDBOX_UID,
   SECRET_ENV_NAME,
   SANDBOX_WRAPPER_ENV,
@@ -80,6 +82,14 @@ export interface DriverConfig {
 const MIB = 1024 * 1024;
 const MAX_TEXT_LOG = 1_000_000;
 
+/** What a sweep removed (session ids), and what it could not. */
+export interface SweepReport {
+  readonly containers: readonly string[];
+  readonly networks: readonly string[];
+  readonly scratch: readonly string[];
+  readonly errors: readonly string[];
+}
+
 export class DockerSandboxDriver implements SandboxPort {
   private readonly api: DockerApi;
   private readonly gate = new CodingGate();
@@ -95,6 +105,96 @@ export class DockerSandboxDriver implements SandboxPort {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * M19 (the runner-killed drill): removes every sandbox of this proxy's owner whose session is not in `keep`, with
+   * its session network and its scratch directory. A sandbox-controller that dies mid-session leaves its container
+   * running (the daemon does not know the controller died) and the proxy counts it against the caps; the next
+   * controller sweeps at boot with nothing to keep (it forgot every session, and each of them was the dead one's) and
+   * then periodically with the sessions it runs. The proxy lists only its owner's sandboxes, so another runner host's
+   * on the same daemon is never touched. Never throws: what would not go is in `errors`.
+   */
+  async sweep(keep: ReadonlySet<string> = new Set()): Promise<SweepReport> {
+    const out = {
+      containers: [] as string[],
+      networks: [] as string[],
+      scratch: [] as string[],
+      errors: [] as string[],
+    };
+    const sessionOf = (
+      row: { session?: unknown; name?: unknown },
+      prefix: string,
+    ): string | null => {
+      const s =
+        typeof row.session === 'string'
+          ? row.session
+          : typeof row.name === 'string' && row.name.startsWith(prefix)
+            ? row.name.slice(prefix.length)
+            : null;
+      return s !== null && SANDBOX_SESSION_ID.test(s) ? s : null;
+    };
+    try {
+      const c = await this.api.json<Array<{ name?: string; session?: string }>>(
+        'GET',
+        '/containers/json?all=true',
+      );
+      if (c.status !== 200 || !Array.isArray(c.json))
+        out.errors.push(`list containers: ${c.status}`);
+      for (const row of Array.isArray(c.json) ? c.json : []) {
+        const id = sessionOf(row, SANDBOX_NAME_PREFIX);
+        if (id === null || keep.has(id)) continue;
+        const r = await this.api
+          .request('DELETE', `/containers/${SANDBOX_NAME_PREFIX}${id}?force=true&v=true`, {
+            timeoutMs: 30_000,
+          })
+          .catch(() => ({ status: 0 }));
+        if (r.status === 204 || r.status === 404) out.containers.push(id);
+        else out.errors.push(`container ${id}: ${r.status}`);
+      }
+      const n = await this.api.json<Array<{ name?: string; session?: string }>>('GET', '/networks');
+      // the cvw proxy has no networks (403): nothing to sweep there
+      if (n.status !== 200 && n.status !== 403) out.errors.push(`list networks: ${n.status}`);
+      for (const row of n.status === 200 && Array.isArray(n.json) ? n.json : []) {
+        const id = sessionOf(row, `${SANDBOX_NAME_PREFIX}net-`);
+        if (id === null || keep.has(id)) continue;
+        const net = `${SANDBOX_NAME_PREFIX}net-${id}`;
+        for (const peer of Object.values(this.cfg.peers)) {
+          if (peer === undefined) continue;
+          // not attached is fine: only the delete below says whether the network went
+          await this.api
+            .request('POST', `/networks/${net}/disconnect`, {
+              body: { Container: peer, Force: true },
+              timeoutMs: 15_000,
+            })
+            .catch(() => undefined);
+        }
+        const r = await this.api
+          .request('DELETE', `/networks/${net}`, { timeoutMs: 15_000 })
+          .catch(() => ({ status: 0 }));
+        if (r.status === 204 || r.status === 404) out.networks.push(id);
+        else out.errors.push(`network ${id}: ${r.status}`);
+      }
+    } catch (e) {
+      out.errors.push(`proxy: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    let dirs: string[] = [];
+    try {
+      dirs = readdirSync(this.cfg.scratch.local);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT')
+        out.errors.push(`scratch: ${(e as NodeJS.ErrnoException).code ?? 'unreadable'}`);
+    }
+    for (const d of dirs) {
+      if (!SANDBOX_SESSION_ID.test(d) || keep.has(d)) continue;
+      try {
+        removeScratch(this.cfg.scratch, d);
+        out.scratch.push(d);
+      } catch (e) {
+        out.errors.push(`scratch ${d}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return out;
   }
 
   async run(spec: SandboxSpec): Promise<Result<SandboxRun, SandboxError>> {
