@@ -289,7 +289,7 @@ export async function readCloseOut(db: Executor, itemId: string): Promise<CloseO
 export async function rebuildCloseOut(d: CoreDeps, itemId: string): Promise<number> {
   const q = await d.pool.query<{ type: string; body: unknown; global_seq: string }>(
     `SELECT type, body, global_seq::text AS global_seq FROM record.record_event
-      WHERE stream = $1 ORDER BY global_seq`,
+      WHERE stream = $1 ORDER BY record_event.global_seq`,
     [closeoutStream(itemId)],
   );
   const w = await inCoreTx(d, async (_j, tx) => {

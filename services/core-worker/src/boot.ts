@@ -25,6 +25,7 @@ import {
   killObserverLoop,
   mergeReviewLoop,
   auditSampleLoop,
+  learnLoop,
   closeOutStagePorts,
   mergeReconcileLoop,
   DbWatchedPulls,
@@ -450,6 +451,9 @@ export async function bootCoreWorker(
       supervisor.add(
         auditSampleLoop({ pool, sampleOneIn: cfg.auditSampleOneIn }, { startDelayMs: 5_000 }),
       );
+      // M15.5 9.4 Learn: close-out evidence into META proposals (M1, M2, M3, M5, M6), each a card the project admins
+      // decide; only a decided M5 (read from the ledger) promotes autonomy or lifts B19
+      supervisor.add(learnLoop({ pool, decisions }, { startDelayMs: 6_000 }));
       if (cfg.pushBroker) {
         // M15.2 8.2: a person merges an agent PR on the host. The poll records what the host says of every agent PR
         // of an item in flight (record first, the Push Broker's read-only `pr_status`); the reconcile then completes

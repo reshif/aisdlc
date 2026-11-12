@@ -4,7 +4,9 @@ import {
   AuditConsideredPayload,
   AuditResultRecordedPayload,
   CatalogueRef,
+  MODE_E_LIFTED_EVENT,
   MODE_E_SUSPENDED_LEDGER_ENTRY_TYPE,
+  ModeELiftedPayload,
   ModeESuspendedPayload,
   auditStream,
   type AuditOutcome,
@@ -25,7 +27,14 @@ import type { LoopSpec } from '@aisdlc/loops';
 import type { Executor, Tx } from '@aisdlc/record';
 import { limitValue, modeESuspension } from '@aisdlc/work';
 import { coreError, type CoreError } from '../errors.js';
-import { clockOf, inCoreLedgerTx, inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
+import {
+  clockOf,
+  inCoreLedgerTx,
+  inCoreTx,
+  lockKeys,
+  type CoreDeps,
+  type Journal,
+} from '../journal.js';
 import { requestSpawn } from '../work-signals.js';
 import { CLOSEOUT_ACTOR } from './record.js';
 
@@ -43,7 +52,10 @@ import { CLOSEOUT_ACTOR } from './record.js';
 //            `modeESuspension`, the one reader of B19's `miss_rate` and `min_sample`) whether the project's misses over
 //            its audits trip B19; the first trip records `audit.mode_e_suspended` and a ledger entry in the same
 //            transaction (the ledger lock first, the entry last). From then on G4 opens in mode C with
-//            `mode_e_suspended` (`readModeESuspension`, an input of `decideReviewMode`). Lifting it is 9.4's (M15.5).
+//            `mode_e_suspended` (`readModeESuspension`, an input of `decideReviewMode`).
+//   lift     (M15.5) only a decided M5 lifts it (9.4 Learn, `closeout/learn.ts`): `audit.mode_e_lifted` ends the
+//            suspension and starts a new audit window (`core.mode_e_window`: the epoch and the record position after
+//            which audits count), so B19 is judged again on fresh evidence only.
 //
 // Every table is a fold of the `audit:<project>` stream (`rebuildAudits`).
 
@@ -91,6 +103,14 @@ async function applyAuditEvent(
         WHERE item_id = $1 AND outcome IS NULL`,
       [p.item_id, p.outcome, p.by, e.global_seq],
     );
+  } else if (e.type === MODE_E_LIFTED_EVENT) {
+    const p = ModeELiftedPayload.parse(e.payload);
+    await tx.query('DELETE FROM core.mode_e_suspension WHERE project_id = $1', [p.project_id]);
+    await tx.query(
+      `INSERT INTO core.mode_e_window (project_id, epoch, since_gseq) VALUES ($1, 1, $2)
+       ON CONFLICT (project_id) DO UPDATE SET epoch = core.mode_e_window.epoch + 1, since_gseq = EXCLUDED.since_gseq`,
+      [p.project_id, e.global_seq],
+    );
   } else if (e.type === AUDIT_EVENT.mode_e_suspended) {
     const p = ModeESuspendedPayload.parse(e.payload);
     await tx.query(
@@ -105,13 +125,14 @@ async function applyAuditEvent(
 export async function rebuildAudits(d: CoreDeps, projectId: string): Promise<number> {
   const q = await d.pool.query<{ type: string; body: unknown; global_seq: string }>(
     `SELECT type, body, global_seq::text AS global_seq FROM record.record_event
-      WHERE stream = $1 ORDER BY global_seq`,
+      WHERE stream = $1 ORDER BY record_event.global_seq`,
     [auditStream(projectId)],
   );
   const w = await inCoreTx(d, async (_j, tx) => {
     await lockKeys(tx, [auditLockKey(projectId)]);
     await tx.query('DELETE FROM core.audit_sample WHERE project_id = $1', [projectId]);
     await tx.query('DELETE FROM core.mode_e_suspension WHERE project_id = $1', [projectId]);
+    await tx.query('DELETE FROM core.mode_e_window WHERE project_id = $1', [projectId]);
     for (const e of q.rows) {
       await applyAuditEvent(tx, {
         type: e.type,
@@ -146,6 +167,57 @@ export async function listAuditSamples(db: Executor, projectId: string): Promise
     [projectId],
   );
   return q.rows.map((r) => ({ ...r, catalogue: CatalogueRef.parse(r.catalogue) }));
+}
+
+/** The project's audit window: the lifts so far (`epoch`) and the record position after which audits count. */
+export async function readAuditWindow(
+  db: Executor,
+  projectId: string,
+): Promise<{ epoch: number; since_gseq: number }> {
+  const q = await db.query<{ epoch: number; since_gseq: string }>(
+    'SELECT epoch, since_gseq::text AS since_gseq FROM core.mode_e_window WHERE project_id = $1',
+    [projectId],
+  );
+  const r = q.rows[0];
+  return r ? { epoch: r.epoch, since_gseq: Number(r.since_gseq) } : { epoch: 0, since_gseq: 0 };
+}
+
+/** The suspension in force with its record position (what a lift binds), or `null`. */
+export async function readSuspensionRow(
+  db: Executor,
+  projectId: string,
+): Promise<{ gseq: number; sampled: number; missed: number } | null> {
+  const q = await db.query<{ event_gseq: string; sampled: number; missed: number }>(
+    'SELECT event_gseq::text AS event_gseq, sampled, missed FROM core.mode_e_suspension WHERE project_id = $1',
+    [projectId],
+  );
+  const r = q.rows[0];
+  return r ? { gseq: Number(r.event_gseq), sampled: r.sampled, missed: r.missed } : null;
+}
+
+/** Records a decided M5's lift (9.4) on the audit stream, in the caller's transaction (which holds the audit lock). */
+export async function emitModeELifted(
+  j: Journal,
+  tx: Tx,
+  p: ModeELiftedPayload,
+): Promise<Result<{ duplicate: boolean }, CoreError>> {
+  const e = await j.emitAll(auditStream(p.project_id), [
+    {
+      type: MODE_E_LIFTED_EVENT,
+      body: p as unknown as Record<string, unknown>,
+      actor: CLOSEOUT_ACTOR,
+      idempotency_key: `audit:lifted:${p.project_id}:${p.suspension_gseq}`,
+    },
+  ]);
+  if (!e.ok) return e;
+  if (!e.value.duplicate) {
+    await applyAuditEvent(tx, {
+      type: MODE_E_LIFTED_EVENT,
+      payload: p,
+      global_seq: Number(e.value.events[0]?.global_seq ?? 0),
+    });
+  }
+  return ok({ duplicate: e.value.duplicate });
 }
 
 /** B19 for a project: the suspension recorded, or `null` (mode E is not suspended). */
@@ -306,10 +378,12 @@ export async function recordAuditResult(
     const caught = await importUnconfirmed(tx, d.ledger);
     if (!caught.ok) return err(coreError('unavailable', caught.error.message));
     pending.push(...caught.value.pending);
+    // M15.5: only the audits of the current window count (a decided M5 lift starts a new one)
+    const win = await readAuditWindow(tx, project);
     const counts = await tx.query<{ sampled: string; missed: string }>(
       `SELECT count(*)::text AS sampled, count(*) FILTER (WHERE outcome = 'gate_miss')::text AS missed
-         FROM core.audit_sample WHERE project_id = $1 AND outcome IS NOT NULL`,
-      [project],
+         FROM core.audit_sample WHERE project_id = $1 AND outcome IS NOT NULL AND result_gseq > $2`,
+      [project, win.since_gseq],
     );
     const sampled = Number(counts.rows[0]?.sampled ?? 0) + 1;
     const missed = Number(counts.rows[0]?.missed ?? 0) + (r.outcome === 'gate_miss' ? 1 : 0);
@@ -363,7 +437,10 @@ export async function recordAuditResult(
         type: AUDIT_EVENT.mode_e_suspended,
         body: sus as unknown as Record<string, unknown>,
         actor: CLOSEOUT_ACTOR,
-        idempotency_key: `audit:suspended:${project}`,
+        idempotency_key:
+          win.epoch === 0
+            ? `audit:suspended:${project}`
+            : `audit:suspended:${project}:${win.epoch}`,
       },
     ]);
     if (!s.ok) return s;
@@ -373,7 +450,11 @@ export async function recordAuditResult(
       global_seq: Number(s.value.events[0]?.global_seq ?? 0),
     });
     const draft: LedgerEntryDraft = {
-      entry_id: deterministicId<'LedgerEntry'>(`audit.mode_e_suspended:${project}`),
+      entry_id: deterministicId<'LedgerEntry'>(
+        win.epoch === 0
+          ? `audit.mode_e_suspended:${project}`
+          : `audit.mode_e_suspended:${project}:${win.epoch}`,
+      ),
       entry_type: MODE_E_SUSPENDED_LEDGER_ENTRY_TYPE,
       gate_instance_id: null,
       gate_id: null,

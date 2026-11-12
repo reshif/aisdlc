@@ -11,6 +11,8 @@ import {
   ItemHumanDoneRequest,
   ItemReadyRequest,
   ItemReleaseRequest,
+  ProjectDefaultEnvelope,
+  ProjectWipLimit,
   CardDecideRequest,
   GateCardDecideRequest,
   GateCardEvidenceRequest,
@@ -120,6 +122,7 @@ import {
 } from './portal-reads.js';
 import type { AssistantDeps } from './conversation/assistant.js';
 import { registerAssistantRoutes } from './conversation/routes.js';
+import { registerGovernanceRoutes } from './governance-routes.js';
 import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
   cardDetail,
@@ -1181,6 +1184,9 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         kill_delegations: z.array(KillDelegation).optional(),
         // M15.3: the release choice, off or a deploy target (null: not chosen)
         release: ReleaseSetting.nullable().optional(),
+        // M15.5: the project's admission limits (ADR-0003 §6)
+        wip_limit: ProjectWipLimit.optional(),
+        default_envelope: ProjectDefaultEnvelope.optional(),
         on_behalf_of: PrincipalId,
       }),
       req.body,
@@ -1624,6 +1630,17 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     } catch {
       return fail(reply, coreError('unavailable', 'the ledger entries could not be read'));
     }
+  });
+
+  // ------------------------------------------------------------ M15.5: B14, B17, 9.3, 9.5, 9.4 and the factory M1
+
+  registerGovernanceRoutes({
+    app,
+    pool: o.pool,
+    deps,
+    config: o.config ?? o.cards?.config,
+    allowed: (req, scope) => allowed(req, scope),
+    guard,
   });
 
   // ------------------------------------------------------------ the assistant (M18)
