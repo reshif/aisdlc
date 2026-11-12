@@ -65,13 +65,27 @@ export class GitBundleFiles {
     private readonly o: { git?: string } = {},
   ) {}
 
+  /**
+   * The tree of `sha`: from the default branch's bundle when `sha` is its head (the base commit), otherwise from the
+   * bundle of every branch (S7 reads a Unit head on `agent/<item>/<unit>`, which the default branch does not hold; the
+   * host answers `head_moved` for it there). A commit in neither is `not_found`.
+   */
   async files(repo: string, sha: string): Promise<Result<RepoFile[], BuildSourceError>> {
     if (!/^[0-9a-f]{40}$/.test(sha)) return err(buildSourceError('invalid', 'not a commit sha'));
-    const r = await this.reads.bundle({
+    const first = await this.fromBundle(sha, {
       repo,
       base_sha: sha,
       refs: 'default_only',
     } as BundleRequest);
+    if (first.ok || first.error.code === 'invalid') return first;
+    return this.fromBundle(sha, { repo, refs: 'all' } as BundleRequest);
+  }
+
+  private async fromBundle(
+    sha: string,
+    req: BundleRequest,
+  ): Promise<Result<RepoFile[], BuildSourceError>> {
+    const r = await this.reads.bundle(req);
     if (r.state !== 'ok')
       return err(buildSourceError('unavailable', 'the code host gave no bundle'));
     const bundle = (r as { value: { stream: Readable; dispose(): void } }).value;
