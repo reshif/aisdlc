@@ -613,6 +613,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         scope: ControlScope,
         params: z.record(z.string(), z.unknown()).optional(),
         expires_at: IsoDateTime.nullable().optional(),
+        step_up: z.strictObject({ proof: z.string().min(1).max(8192) }).optional(),
       }),
       req.body,
     );
@@ -621,7 +622,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (!res)
       return fail(reply, coreError('invalid_input', 'no control is enforced on that scope'));
     if (!(await guard(reply, b.value.on_behalf_of, 'control.apply', res))) return;
-    const r = await applyControl(deps, {
+    const stepUp = (o.config ?? o.cards?.decisions)?.stepUp;
+    const r = await applyControl(stepUp ? { ...deps, stepUp } : deps, {
       preview_id: b.value.preview_id,
       nonce: b.value.nonce,
       kind: b.value.kind,
@@ -629,6 +631,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       actor: b.value.on_behalf_of,
       ...(b.value.params ? { params: b.value.params } : {}),
       ...(b.value.expires_at !== undefined ? { expires_at: b.value.expires_at } : {}),
+      ...(b.value.step_up ? { step_up: b.value.step_up } : {}),
     });
     return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
   });

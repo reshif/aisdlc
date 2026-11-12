@@ -50,6 +50,7 @@ import {
   workDriverLoop,
   workSettingsFrom,
   healthSnapshotLoop,
+  opsBackfillLoop,
 } from '@aisdlc/core/worker';
 import { AppKey, GitHubIssueTracker } from '@aisdlc/codehost';
 import { createPool } from '@aisdlc/db';
@@ -214,6 +215,11 @@ export async function bootCoreWorker(
           { intervalMs: cfg.healthIntervalMs, startDelayMs: 2_500 },
         ),
       );
+    }
+    if (ledger && wantsCore) {
+      // M19 (the Notary-down drill): ops actions executed while the Notary was down are ledgered on recovery, marked
+      // backfilled, each with the step-up it consumed.
+      supervisor.add(opsBackfillLoop({ pool, ledger }, { startDelayMs: 5_000 }));
     }
     if (ledger && cfg.witness) {
       // PLAN M8.0b: the reconciler finishes what a crashed writer left (rows the Notary signed and the

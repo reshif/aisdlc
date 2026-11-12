@@ -89,6 +89,8 @@ const ApplyBody = z.strictObject({
   scope: ControlScope,
   params: z.record(z.string(), z.unknown()).optional(),
   expires_at: z.iso.datetime().nullable().optional(),
+  /** M19 (StepUpUse): a step-up proof bound to the preview's blast radius hash; core verifies and records it. */
+  step_up: z.strictObject({ proof: z.string().min(1).max(8192) }).optional(),
 });
 const LiftBody = z.strictObject({ reason: z.string().min(1).max(500) });
 

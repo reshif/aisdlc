@@ -21,14 +21,17 @@ import {
   type OpsVerb,
   type PrincipalId,
   type RecordEvent,
+  type Sha256Hex,
+  type StepUpUse,
 } from '@aisdlc/contracts';
-import { DEFAULT_POLICY_BUNDLE_VERSION } from '@aisdlc/decisions';
+import { DEFAULT_POLICY_BUNDLE_VERSION, type StepUpPort } from '@aisdlc/decisions';
 import {
   deterministicId,
   err,
   hashCanonical,
   newId,
   ok,
+  sha256Hex,
   type Clock,
   type Result,
 } from '@aisdlc/kernel';
@@ -40,6 +43,7 @@ import {
 } from '@aisdlc/ledger';
 import { EVENT_COLUMNS, toRecordEvent, type EventRow, type Executor } from '@aisdlc/record';
 import type { CapacityPort } from '@aisdlc/ports';
+import type { LoopSpec } from '@aisdlc/loops';
 import type { Lane } from '@aisdlc/contracts';
 import { randomBytes } from 'node:crypto';
 import type pg from 'pg';
@@ -234,7 +238,16 @@ export interface ApplyControlInput {
   readonly params?: unknown;
   readonly expires_at?: string | null;
   readonly origin_kind?: 'operator' | 'security' | 'automation';
+  /**
+   * M19 (StepUpUse): a step-up proof bound to the preview's blast radius hash. When given it is verified and consumed,
+   * recorded with the action and carried into its ledger entry (also by the backfill after a Notary outage). A proof
+   * that does not verify refuses the action; a proof with no verifier configured refuses it too (fail closed).
+   */
+  readonly step_up?: { readonly proof: string };
 }
+
+/** The step-up verifier an apply may use (the decision kernel's `StepUpPort`). */
+export type ApplyControlDeps = CoreDeps & { readonly stepUp?: StepUpPort | undefined };
 
 export interface OpsResult {
   readonly action: OpsAction;
@@ -248,7 +261,7 @@ export interface OpsResult {
  * ledgers the action. If the ledger cannot be written the control is IN FORCE and the action `pending`.
  */
 export async function applyControl(
-  deps: CoreDeps,
+  deps: ApplyControlDeps,
   i: ApplyControlInput,
 ): Promise<Result<OpsResult, CoreError>> {
   const scope = ControlScope.safeParse(i.scope);
@@ -297,6 +310,25 @@ export async function applyControl(
         ),
       );
     }
+    let stepUp: StepUpUse | null = null;
+    if (i.step_up) {
+      if (!deps.stepUp) {
+        return err(coreError('unavailable', 'no step-up verifier is configured: refused'));
+      }
+      const v = await deps.stepUp.verify(
+        i.step_up.proof,
+        preview.blast_radius_hash as Sha256Hex,
+        i.actor,
+      );
+      if (!v.ok) return err(coreError('refused', `step_up_invalid: ${v.error.message}`));
+      stepUp = {
+        principal: i.actor,
+        bound_hash: preview.blast_radius_hash,
+        proof_sha256: sha256Hex(i.step_up.proof),
+        used_for: { kind: 'ops_action', id: action_id },
+        used_at: now.toISOString(),
+      };
+    }
     const consumed = await j.emit(
       opsPreviewStream(i.preview_id),
       CONTROL_EVENT.preview_consumed,
@@ -315,6 +347,7 @@ export async function applyControl(
       ledger_entry_id: null,
       backfilled: false,
       created_at: now.toISOString(),
+      ...(stepUp ? { step_up: stepUp } : {}),
     });
     const a = await j.emit(opsActionStream(action_id), CONTROL_EVENT.action, action, i.actor);
     if (!a.ok) return a;
@@ -566,6 +599,8 @@ export async function ledgerOpsAction(
         scope: action.scope,
         backfilled,
         executed_at: action.created_at,
+        // M19: the step-up the action consumed, ledgered with it (also when the backfill writes the entry)
+        ...(action.step_up ? { step_up: action.step_up } : {}),
         ...extra,
       } as never,
       created_at: clockOf(deps).now().toISOString(),
@@ -705,6 +740,29 @@ export function clampedCapacity(
         if (clamp !== null) wanted = Math.max(0, Math.min(wanted, clamp.room));
       }
       return base.take(reason, scope, wanted);
+    },
+  };
+}
+
+/**
+ * M19 (the Notary-down drill): core-worker's `ops_backfill` loop. After a Notary outage every action executed and
+ * left `pending` is ledgered, marked `backfilled`, with the step-up it consumed. A failed one is a failed tick (the
+ * supervisor's backoff and health show it); it is retried on the next.
+ */
+export function opsBackfillLoop(
+  deps: LedgeredDeps,
+  o: { intervalMs?: number; startDelayMs?: number } = {},
+): LoopSpec {
+  const intervalMs = o.intervalMs ?? 60_000;
+  return {
+    name: 'ops_backfill',
+    intervalMs,
+    ...(o.startDelayMs === undefined ? {} : { startDelayMs: o.startDelayMs }),
+    retry: { baseMs: Math.min(5_000, intervalMs), maxMs: Math.max(intervalMs, 60_000) },
+    async tick() {
+      const r = await backfillOpsLedger(deps);
+      if (r.failed > 0) throw new Error(`${r.failed} ops action(s) could not be ledgered yet`);
+      return { ok: r.ledgered, failed: 0 };
     },
   };
 }

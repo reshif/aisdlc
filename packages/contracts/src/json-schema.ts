@@ -996,6 +996,7 @@ export const SCHEMAS = {
   ExplainHolder: entities.ExplainHolder,
   AccessExplainView: entities.AccessExplainView,
   ItemCloseOutView: entities.ItemCloseOutView,
+  StepUpUse: entities.StepUpUse,
   HealthDomain: entities.HealthDomain,
   HealthTileId: entities.HealthTileId,
   HealthDetailCode: entities.HealthDetailCode,

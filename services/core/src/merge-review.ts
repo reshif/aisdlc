@@ -193,6 +193,13 @@ export async function openMergeX4Once(
   m: MergeX4,
 ): Promise<Result<{ opened: boolean }, CoreError>> {
   const c = await decisions.pool.connect();
+  // M19 (failover drill): a lock connection the server drops while held is an error to its next query, never an
+  // uncaught exception; it is destroyed on release (the server freed the session lock with it).
+  let lost: Error | undefined;
+  const onLost = (e: Error): void => {
+    lost = e;
+  };
+  c.on('error', onLost);
   const key = `aisdlc.core:x4-merge:${m.repo.toLowerCase()}#${m.pr_number}`;
   try {
     await c.query('SELECT pg_advisory_lock(hashtext($1))', [key]);
@@ -227,10 +234,16 @@ export async function openMergeX4Once(
       }
       return ok({ opened: cards.value.some((x) => x.opened) });
     } finally {
-      await c.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
+      if (lost === undefined) {
+        // an unlock that fails destroys the connection on release, which frees the session lock
+        await c.query('SELECT pg_advisory_unlock(hashtext($1))', [key]).catch((e: unknown) => {
+          lost = e instanceof Error ? e : new Error('unlock failed');
+        });
+      }
     }
   } finally {
-    c.release();
+    c.off('error', onLost);
+    c.release(lost);
   }
 }
 

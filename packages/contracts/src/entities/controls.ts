@@ -226,6 +226,21 @@ export const OpsLedgerState = z.enum(['none', 'pending', 'ledgered']);
 export type OpsLedgerState = z.infer<typeof OpsLedgerState>;
 
 /** DM `OpsAction`: executed first, ledgered after (backfilled when the Notary was down). */
+/**
+ * DM `StepUpUse` (PLAN M19): a step-up proof consumed by an operator's action. Recorded with the action (record
+ * first, FD-D8: executed, then ledgered) and carried into its ledger entry, so a step-up used while the Notary was
+ * down is ledgered by the backfill with the action it authorised. The proof itself is never kept, only its hash.
+ */
+export const StepUpUse = z.strictObject({
+  principal: PrincipalId,
+  /** What the proof was bound to: the action's preview (its blast radius hash). */
+  bound_hash: Sha256Hex,
+  proof_sha256: Sha256Hex,
+  used_for: z.strictObject({ kind: z.literal('ops_action'), id: z.uuid() }),
+  used_at: IsoDateTime,
+});
+export type StepUpUse = z.infer<typeof StepUpUse>;
+
 export const OpsAction = z.strictObject({
   action_id: z.uuid(),
   verb: OpsVerb,
@@ -237,6 +252,8 @@ export const OpsAction = z.strictObject({
   ledger_entry_id: z.uuid().nullable(),
   backfilled: z.boolean(),
   created_at: IsoDateTime,
+  /** M19: the step-up this action consumed, if it was given one (absent on actions recorded before M19). */
+  step_up: StepUpUse.nullable().optional(),
 });
 export type OpsAction = z.infer<typeof OpsAction>;
 
