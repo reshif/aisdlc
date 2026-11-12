@@ -901,7 +901,7 @@ services:
       CORE_WORKER_SANDBOX_CONTROLLER_URL: ${CORE_WORKER_SANDBOX_CONTROLLER_URL:-}
       CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF: file:/run/secrets/tok-core-worker-sandbox-controller
       # the S6 session store (a volume of its own) and the coder's model id at the gateway (local: the fake)
-      CORE_WORKER_SESSION_STORE: /var/lib/aisdlc/sessions
+      CORE_WORKER_SESSION_STORE: /work/sessions
       CORE_WORKER_CODER_MODEL: ${CORE_WORKER_CODER_MODEL:-fake-model}
       # M13.6: 6.6 through the Push Broker (profile `push-broker`): its own codehost in push mode, its own App. Off unless
       # the run sets CORE_WORKER_PUSH_BROKER=1 (with the sandbox-controller); e2e-pr.sh does
@@ -952,7 +952,7 @@ services:
         object-store-secret-key,
       ]
     volumes:
-      - core-worker-sessions:/var/lib/aisdlc/sessions
+      - core-worker-sessions:/work
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8360']
       interval: 10s
@@ -1298,7 +1298,9 @@ services:
       start_period: 3s
     secrets: [tok-cvw-docker-cvw]
     networks: [docker-cvw]
-    mem_limit: 64m
+    # 128m: the healthcheck is a second node process in the same cgroup; at 64m the kernel OOM-killed the proxy (or
+    # its probe) and it restarted with nothing logged (readiness-challenge §12)
+    mem_limit: 128m
 
   # The wider instance, for the coding worker: the same list plus the per-session internal networks and the
   # attach of the gateway and the mirror to them. Still no exec, no build, no pull, no volume, one coding
@@ -1329,7 +1331,7 @@ services:
       start_period: 3s
     secrets: [tok-sandbox-controller-docker-coding, tok-smoke-docker-coding]
     networks: [docker-coding]
-    mem_limit: 64m
+    mem_limit: 128m
 
   # The sandbox-controller (M14.2; ADR-0003 §6 "Placement", §7 caps): the one client of the coding proxy. It owns the
   # sandbox driver, the class ceilings and the two caps of this runner host (`sandbox.caps`, M1-gated config: a total,
