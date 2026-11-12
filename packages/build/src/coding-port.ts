@@ -133,7 +133,8 @@ interface TestRun {
   readonly canary: boolean;
 }
 
-const failingNames = (text: string, exit: number | null): string[] => {
+/** The failing test names a TAP or node:test run printed (or `exit N` when it named none). Also S7's (M14.3). */
+export const failingNames = (text: string, exit: number | null): string[] => {
   const names = new Set<string>();
   for (const m of text.matchAll(/^\s*not ok \d+ - (.+?)\s*(?:#.*)?$/gm)) names.add(m[1] as string);
   for (const m of text.matchAll(/^\s*✖ (.+?)(?: \(\d[\d.]*m?s\))?$/gm)) names.add(m[1] as string);

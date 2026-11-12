@@ -81,6 +81,11 @@ export interface CoreWorkerConfig {
    * asked for the Unit's patch (this worker's codehost token needs the scope `push`). Off: 6.6 stays over the stage-port fake.
    */
   readonly pushBroker: boolean;
+  /**
+   * M14.3: S7 7.1 to 7.5 through the verify service (`CORE_WORKER_VERIFY_URL`, this worker's token there with the
+   * scopes `run` and `read`), and the 7.6 guard in front of the stage-port fake. Needs `stagePorts: 'agents'`.
+   */
+  readonly verify: { readonly url: string; readonly token: string } | null;
   readonly workDriverIntervalMs: number;
   readonly killHoldersIntervalMs: number;
   readonly killObserverIntervalMs: number;
@@ -153,6 +158,9 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   as a commit on agent/<item>/<unit> and a Draft PR; needs the sandbox. Default off
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
  *                                   deployment routes everything to `fake-model`); default none
+ *   CORE_WORKER_VERIFY_URL, CORE_WORKER_VERIFY_TOKEN_REF   (M14.3) the verify service (scopes `run`, `read`): S7's
+ *                                   7.1 to 7.5 run there and 7.6 is guarded (every step passed for the head). Needs
+ *                                   CORE_WORKER_STAGE_PORTS=agents; without it S7 stays over the stage-port fakes
  *   CORE_WORKER_STAGE_PORTS (none | fake | agents; default none): `fake` runs the `work_driver` loop over the
  *                                   deterministic stage-port fakes (needs the Notary); `agents` (M12) runs S2 and S3 with real agents
  *                                   (the planning port calls the gateway's `/v1/messages` under each run's own key; it also needs
@@ -279,6 +287,19 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_PUSH_BROKER=1 needs the sandbox (6.6 pushes what 6.1 to 6.5 built)',
     );
   }
+  const verifyUrl = env['CORE_WORKER_VERIFY_URL'];
+  const verify =
+    verifyUrl === undefined || verifyUrl === ''
+      ? null
+      : {
+          url: httpUrlEnv(env, 'CORE_WORKER_VERIFY_URL'),
+          token: resolveSecretRef(requiredEnv(env, 'CORE_WORKER_VERIFY_TOKEN_REF'), { env }),
+        };
+  if (verify !== null && stagePorts !== 'agents') {
+    throw new ServiceConfigError(
+      'CORE_WORKER_VERIFY_URL runs S7 with the verify service, which needs CORE_WORKER_STAGE_PORTS=agents',
+    );
+  }
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
@@ -293,6 +314,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     sandbox,
     sandboxController,
     pushBroker,
+    verify,
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
       .split(',')
       .map((m) => m.trim())

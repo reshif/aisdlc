@@ -29,3 +29,4 @@ export * from './http-bundle.js';
 export * from './object-store.js';
 export * from './object-store-s3.js';
 export * from './s3-sigv4.js';
+export * from './gateway-messages.js';

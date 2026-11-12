@@ -16,6 +16,9 @@
 #   role sandbox_controller -> database aisdlc   NOT the owner either (M14.2): a login role in the group role
 #                                      `aisdlc_sandbox_controller`, which the config and core migrations grant
 #                                      SELECT on the effective-config view and on `core.admission_grant`, nothing else.
+#   role verify -> database aisdlc     NOT the owner (M14.3): a login role in the group role `aisdlc_verify`, which the
+#                                      verify migration grants its own table (SELECT, INSERT) and its own `verify:`
+#                                      record streams (SELECT, INSERT), nothing else.
 #
 # Each role owns only its database and nobody else may connect to it, so a compromised record
 # service cannot read the Notary's or the Witness's state. Same server for all three: a declared
@@ -32,7 +35,8 @@ psql -v ON_ERROR_STOP=1 \
   -v pw_witness="$(cat /run/secrets/pg-pass-witness)" \
   -v pw_killswitch="$(cat /run/secrets/pg-pass-killswitch)" \
   -v pw_gateway="$(cat /run/secrets/pg-pass-gateway)" \
-  -v pw_sandbox_controller="$(cat /run/secrets/pg-pass-sandbox-controller)" <<'SQL'
+  -v pw_sandbox_controller="$(cat /run/secrets/pg-pass-sandbox-controller)" \
+  -v pw_verify="$(cat /run/secrets/pg-pass-verify)" <<'SQL'
 SELECT 'CREATE ROLE aisdlc_app NOLOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_app') \gexec
 
@@ -51,6 +55,14 @@ SELECT 'CREATE ROLE sandbox_controller LOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sandbox_controller') \gexec
 SELECT format('ALTER ROLE sandbox_controller PASSWORD %L', :'pw_sandbox_controller') \gexec
 GRANT aisdlc_sandbox_controller TO sandbox_controller;
+
+-- The verify service's group role (its grants are the verify migration's) and its login role.
+SELECT 'CREATE ROLE aisdlc_verify NOLOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_verify') \gexec
+SELECT 'CREATE ROLE verify LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'verify') \gexec
+SELECT format('ALTER ROLE verify PASSWORD %L', :'pw_verify') \gexec
+GRANT aisdlc_verify TO verify;
 
 SELECT format('CREATE ROLE %I LOGIN', r)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS r
@@ -75,5 +87,6 @@ SELECT format('GRANT CONNECT ON DATABASE %1$I TO %1$I', d)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS d \gexec
 GRANT CONNECT ON DATABASE aisdlc TO gateway;
 GRANT CONNECT ON DATABASE aisdlc TO sandbox_controller;
+GRANT CONNECT ON DATABASE aisdlc TO verify;
 SQL
 echo "db-init: roles and databases are in place"

@@ -13,6 +13,7 @@ import {
   agentStagePorts,
   CorePush,
   buildStagePorts,
+  verifyStagePorts,
   execAllowedReposFrom,
   cardDepsFrom,
   cardsLoop,
@@ -32,6 +33,7 @@ import {
 import { createPool } from '@aisdlc/db';
 import { HttpBundleSource, HttpCodeHostPush, HttpSandbox, type SandboxPort } from '@aisdlc/ports';
 import { DockerSandboxDriver } from '@aisdlc/sandbox-driver';
+import { HttpVerify } from '@aisdlc/verify';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
 import {
@@ -309,7 +311,24 @@ export async function bootCoreWorker(
                 : {}),
             })
           : null;
-      const stagePorts = built ? built.stagePorts : agentPorts;
+      const beforeVerify = built ? built.stagePorts : agentPorts;
+      // M14.3: S7 7.1 to 7.5 through the verify service (its kits through the sandbox-controller), the 7.6 guard here
+      const stagePorts =
+        cfg.verify && cfg.knowledge
+          ? verifyStagePorts({
+              pool,
+              base: beforeVerify,
+              client: new HttpVerify({ baseUrl: cfg.verify.url, token: cfg.verify.token }),
+              keys: vault,
+              constitution: constitutionFrom(rd),
+              execAllowedRepos: execAllowedReposFrom(rd),
+              knowledge: new HttpKnowledge({
+                baseUrl: cfg.knowledge.url,
+                token: cfg.knowledge.token,
+              }),
+              ...(built ? { store: built.store } : {}),
+            })
+          : beforeVerify;
       // M13.1: 6.0 admission (a lease epoch, an approver slot, capacity, the envelope reserved in the gateway)
       // and the capacity port behind it, which frees the held items only when their next admission can succeed
       const admissionBase = cfg.gateway

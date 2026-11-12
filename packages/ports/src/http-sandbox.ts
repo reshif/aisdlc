@@ -202,13 +202,13 @@ export class FakeSandboxSlots implements SandboxSlotsPort {
 
 // ---------------------------------------------------------------------------------------------- the adapter
 
-interface RawAnswer {
+export interface RawAnswer {
   readonly status: number;
   readonly text: string;
 }
 
-/** One POST with a deadline over the whole call (undici's fetch would cut a long session at its 300 s header timeout). */
-function postLong(
+/** One POST with a deadline over the whole call (undici's fetch would cut a long session at its 300 s header timeout). Also the verify client's (M14.3: a check runs every kit of its step). */
+export function postLong(
   url: URL,
   token: string,
   body: string,

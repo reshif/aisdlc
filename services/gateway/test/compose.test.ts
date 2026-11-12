@@ -82,10 +82,11 @@ describe('the vendor key in the compose stack', () => {
       .map(([n]) => n);
     expect(onData.sort()).toEqual(['gateway', 'postgres']);
     // nobody else is on its egress; on its API network only the work driver's process (core-worker mints each
-    // agent run's key and the planning port calls /v1/messages with it, M11 and M12), nobody else
+    // agent run's key and the planning port calls /v1/messages with it, M11 and M12) and the verify service (M14.3: the
+    // A5 reviewer of 7.3 and 7.5 calls /v1/messages with the run's key, lent for the call), nobody else
     for (const [name, svc] of others) {
       expect(names(svc), `${name} is on the gateway's egress`).not.toContain('gateway-egress');
-      if (name !== 'core-worker') {
+      if (name !== 'core-worker' && name !== 'verify') {
         expect(names(svc), `${name} is on the gateway's API network`).not.toContain('gateway-api');
       }
     }

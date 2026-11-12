@@ -11,6 +11,7 @@ import * as decisions from '@aisdlc/decisions';
 import { createTestDatabase, type TestDatabase } from '@aisdlc/db/testing';
 import * as directory from '@aisdlc/directory';
 import * as gateway from '@aisdlc/gateway';
+import * as verify from '@aisdlc/verify-service';
 // Not the package root: nothing outside services/identity imports its writer (single-writer test).
 import * as identity from '@aisdlc/identity/migrations';
 import * as integrations from '@aisdlc/integrations';
@@ -41,6 +42,7 @@ const OWNERS = [
   ['core', core],
   ['integrations', integrations],
   ['gateway', gateway],
+  ['verify', verify],
   ['notary', notary],
   ['witness', witness],
   ['killswitch', killswitch],
@@ -114,6 +116,7 @@ describe('the plan', () => {
       'core',
       'integrations',
       'gateway',
+      'verify',
     ]);
   });
 

@@ -683,6 +683,21 @@ export const SCHEMAS = {
   IntegrationEvent: entities.IntegrationEvent,
   IntegrationRegistryView: entities.IntegrationRegistryView,
   ReservationAbandonedPayload: entities.ReservationAbandonedPayload,
+  VerifyStep: entities.VerifyStep,
+  VerifyCheckId: entities.VerifyCheckId,
+  CheckVerdict: entities.CheckVerdict,
+  FindingSeverity: entities.FindingSeverity,
+  FindingKind: entities.FindingKind,
+  VerifyFinding: entities.VerifyFinding,
+  VerifyKitRun: entities.VerifyKitRun,
+  VerifyRaise: entities.VerifyRaise,
+  MutationScore: entities.MutationScore,
+  VerifyCheckResult: entities.VerifyCheckResult,
+  VerifyOracle: entities.VerifyOracle,
+  VerifyArtefact: entities.VerifyArtefact,
+  VerifyRunRequest: entities.VerifyRunRequest,
+  VerifyRunResponse: entities.VerifyRunResponse,
+  VerifyCheckRecordedPayload: entities.VerifyCheckRecordedPayload,
 } as const satisfies Record<string, z.ZodType>;
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
