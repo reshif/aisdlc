@@ -339,6 +339,12 @@ export const FloorView = z.strictObject({
   /** The silence thresholds and the score line in force. */
   liveness: FloorLiveness,
   freshness: FloorFreshness,
+  /**
+   * P2-10: the plan's gate nodes (keys) that no lane has under the project's current gating profile: drawn as "off for
+   * this project" (an item pinned before keeps its own route). Empty when the profile cannot be read: unknown never
+   * hides a gate.
+   */
+  gates_off: z.array(z.string().min(1)).default([]),
   /** The cut the reader got (the bff sets it; core answers at V3/D2 for the service). */
   view_level: ViewLevel,
   data_class: DataClass,

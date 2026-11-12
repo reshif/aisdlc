@@ -3,6 +3,10 @@ import { ConfigRevisionState } from './config.js';
 import { GateInstanceId, IsoDateTime, LedgerEntryId, PrincipalId, Sha256Hex } from './ids.js';
 import { CardDeciders } from './portal.js';
 import { GateStatus } from '../states/gate-instance.js';
+import { Tier } from '../values.js';
+import { PROJECT_CONFIG_KEYS } from './core-events.js';
+import { RELEASE_CONFIG_KEY } from './gate-relay.js';
+import { PROJECT_DEFAULT_ENVELOPE_KEY, PROJECT_WIP_LIMIT_KEY } from './learn.js';
 
 // The configuration console (portal-coverage §6, the config pattern every config screen uses): one
 // registered key of the FACTORY layer, read from its lineage (`@aisdlc/config`), and a proposal of a
@@ -62,8 +66,11 @@ export const ConfigKeyView = z.strictObject({
   default: z.unknown(),
   effective: z.strictObject({
     value: z.unknown(),
-    /** `default`: no published revision sets the key. */
-    source: z.enum(['default', 'revision']),
+    /**
+     * `default`: no published revision sets the key. `revision`: the published revision of the layer shown sets it.
+     * `factory` (a project-layer view only): the project sets nothing, so the factory layer's published value holds.
+     */
+    source: z.enum(['default', 'revision', 'factory']),
     rev_hash: Sha256Hex.nullable(),
     gate_instance_id: GateInstanceId.nullable(),
     ledger_entry_id: LedgerEntryId.nullable(),
@@ -93,3 +100,44 @@ export const ConfigProposeResult = z.strictObject({
   superseded: z.array(z.string()),
 });
 export type ConfigProposeResult = z.infer<typeof ConfigProposeResult>;
+
+// ---------------------------------------------------------------- the project layer (P1-5)
+//
+//   core  GET  /v1/projects/:id/config/keys          ConfigKeySummary[]     (scope read)
+//         GET  /v1/projects/:id/config/keys/:key     ProjectConfigKeyView   (scope read)
+//         PUT  /v1/projects/:id/settings             the proposal (the field below, `parent_rev_hash`; PDP
+//                                                    project.settings.edit), an M1 at the project's admin slot
+//   bff   GET  /api/projects/:id/config/keys[/:key]  (PDP project.view; `may_propose`: project.settings.edit)
+//         POST /api/projects/:id/config/keys/:key/proposals  ConfigProposeRequest without on_behalf_of
+
+/**
+ * The keys of a project's own layer, and the field of `PUT /v1/projects/:id/settings` each is proposed through.
+ * The one list: a screen or route names a project key only through it.
+ */
+export const PROJECT_LAYER_KEYS = {
+  [PROJECT_CONFIG_KEYS.gating_profile]: 'gating_profile',
+  [PROJECT_CONFIG_KEYS.role_map]: 'role_map',
+  [PROJECT_CONFIG_KEYS.two_person]: 'two_person',
+  [RELEASE_CONFIG_KEY]: 'release',
+  [PROJECT_WIP_LIMIT_KEY]: 'wip_limit',
+  [PROJECT_DEFAULT_ENVELOPE_KEY]: 'default_envelope',
+  [PROJECT_CONFIG_KEYS.kill_delegations]: 'kill_delegations',
+} as const;
+export type ProjectLayerKey = keyof typeof PROJECT_LAYER_KEYS;
+export const ProjectLayerKeyValues = Object.keys(PROJECT_LAYER_KEYS) as ProjectLayerKey[];
+export const ProjectLayerKey = z.enum(
+  ProjectLayerKeyValues as [ProjectLayerKey, ...ProjectLayerKey[]],
+);
+
+/**
+ * One key of a project's layer: the value in force for the project (project, else factory, else default), the
+ * project lineage's head, pending proposals with who decides their M1 (the project's admin slot), the history, and
+ * the tier and deploys the floors are checked against (`projectSettingsTierViolations`, as the server does).
+ */
+export const ProjectConfigKeyView = ConfigKeyView.extend({
+  project_id: z.string().min(1),
+  /** The signed tier, else the attested floor; `null`: none yet (no floor to check). */
+  tier: Tier.nullable(),
+  deploys: z.boolean().nullable(),
+});
+export type ProjectConfigKeyView = z.infer<typeof ProjectConfigKeyView>;

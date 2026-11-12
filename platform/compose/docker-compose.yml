@@ -752,7 +752,7 @@ services:
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal"]},
-        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops","settings"]},
         "sandbox-controller":{"token_ref":"file:/run/secrets/tok-sandbox-controller-core","scopes":["activity"]},
         "audit":{"token_ref":"file:/run/secrets/tok-audit-core","scopes":["erasure"]}}
       CORE_NOTARY_URL: http://notary:8310

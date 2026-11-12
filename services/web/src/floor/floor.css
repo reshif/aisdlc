@@ -678,6 +678,17 @@
 .fl-gate-flag .fl-dia {
   background: var(--bad);
 }
+/* P2-10: a gate the project's gating profile has off */
+.fl-gate-off {
+  opacity: 0.45;
+}
+.fl-gate-off .fl-dia {
+  background: transparent;
+  border-style: dashed;
+}
+.fl-gate-off .fl-glbl::after {
+  content: ' off';
+}
 .fl-kill {
   border-width: 2px;
 }

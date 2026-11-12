@@ -1,4 +1,4 @@
-import type { PortalItemView } from '@aisdlc/contracts';
+import type { GateId, PortalItemView } from '@aisdlc/contracts';
 import { Link } from '../router';
 import { Card, GateTag, Pill, Table, type Column, type PillTone } from '../ui';
 
@@ -64,6 +64,46 @@ export function ItemGates({ item }: { item: PortalItemView }) {
         rowKey={(g) => g.gate_instance_id}
         empty={<p className="muted">No gate has opened for this item yet.</p>}
       />
+      <RouteGates item={item} />
     </Card>
+  );
+}
+
+/**
+ * P2-10: the gates of the item's route as its pinned profile has them: the ones not reached yet, the ones a step
+ * raised, and the ones its lane could have that the project has off ("off for this project"). Never the catalogue's
+ * full list.
+ */
+function RouteGates({ item }: { item: PortalItemView }) {
+  const pg = item.profile_gates ?? null;
+  if (pg === null) {
+    return (
+      <p className="muted" data-testid="route-gates-unknown">
+        Which gates its pinned profile has is unknown: its pinned catalogue cannot be read.
+      </p>
+    );
+  }
+  const opened = new Set<GateId>(item.gates.map((g) => g.gate));
+  const ahead = pg.on.filter((g) => !opened.has(g));
+  const raised = [...opened].filter((g) => !pg.on.includes(g));
+  if (ahead.length + raised.length + pg.off.length === 0) return null;
+  return (
+    <ul className="plain" aria-label="Gates of its route" data-testid="route-gates">
+      {ahead.map((g) => (
+        <li key={g} data-gate={g}>
+          <GateTag gate={g} showTitle /> <Pill tone="mute">not reached yet</Pill>
+        </li>
+      ))}
+      {raised.map((g) => (
+        <li key={g} data-gate={g}>
+          <GateTag gate={g} showTitle /> <span className="muted">raised by a step</span>
+        </li>
+      ))}
+      {pg.off.map((g) => (
+        <li key={g} data-gate={g} data-off="true" className="muted">
+          <GateTag gate={g} showTitle /> <Pill tone="mute">off for this project</Pill>
+        </li>
+      ))}
+    </ul>
   );
 }
