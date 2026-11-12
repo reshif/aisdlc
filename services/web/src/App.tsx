@@ -182,7 +182,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'fleetLedger':
       return <FleetLedgerPage me={me} />;
     case 'audit':
-      return <AuditPage />;
+      return <AuditPage csrf={csrf} />;
     case 'catalogue':
       return <CataloguePage />;
     case 'people':

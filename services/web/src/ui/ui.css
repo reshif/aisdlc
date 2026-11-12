@@ -100,6 +100,12 @@
   border-color: var(--gate);
   color: var(--gate-ink);
 }
+/* a destructive act (erasure): the prototype's `btn danger` */
+.ui-btn-danger {
+  background: var(--bad-bg);
+  border-color: var(--bad-line);
+  color: var(--bad-fg);
+}
 .ui-btn-ghost {
   background: transparent;
   border-color: transparent;
