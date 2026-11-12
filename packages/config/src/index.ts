@@ -35,9 +35,11 @@ export { findSecrets, registerIntegrationConfig } from './integrations.js';
 export {
   readAdmissionSettings,
   readFactoryM1Policy,
+  readFloorConfig,
   readLearnConfig,
   readSandboxCaps,
   registerAdmissionConfig,
+  registerFloorConfig,
   registerGovernanceConfig,
   type SettingRead,
 } from './learn.js';
