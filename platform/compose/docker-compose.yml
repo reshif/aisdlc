@@ -9,8 +9,9 @@
 #
 # Ports: every service has its own (postgres 5432, kms-local 8300, notary 8310, witness 8320,
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
-# killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, notifier 8460, fake GitHub 8353 api /
-# 8354 git / 8355 gate-check's door). Only the bff and dev-oidc are published, on 127.0.0.1.
+# killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, notifier 8460,
+# gate-relay 8470, fake GitHub 8353 api / 8354 git / 8355 gate-check's door / 8356 gate-relay's door). Only the bff and
+# dev-oidc are published, on 127.0.0.1.
 
 x-factory:
   &factory # The one image, built by `migrate` below; every service picks its bundle with `command`.
@@ -141,6 +142,15 @@ networks:
   gatecheck-github:
     internal: true
   gatecheck-egress: {}
+  # gate-relay (M15.3, profile `gate-relay`): the same shape as gate-check's, its own: `data-gaterelay` to Postgres (its
+  # role: its own tables and record streams, read-only the ledger, the release setting's config view, the packs' and
+  # gate-check's merges' read models), `gaterelay-egress` to GitHub (its App is neither the codehost's nor
+  # gate-check's), `gaterelay-github` where the fake GitHub answers it on its own port (8356).
+  data-gaterelay:
+    internal: true
+  gaterelay-github:
+    internal: true
+  gaterelay-egress: {}
   # The notifier (M18, ADR-0003 §1 Integration plane, profile `notifier`): `data-notifier` is its own way to Postgres
   # (its role: its own tables and `notifier:` record streams, read-only the gate, card and kill events it notifies
   # about, identity's read model and the channel rows' config view); `notifier-api` is the bff's way to it (its only
@@ -185,6 +195,12 @@ secrets:
   gate-check-app.pub.pem: { file: ./secrets/gate-check-app.pub.pem }
   tok-gate-check-kms: { file: ./secrets/tok-gate-check-kms }
   tok-operator-gate-check: { file: ./secrets/tok-operator-gate-check }
+  pg-pass-gate-relay: { file: ./secrets/pg-pass-gate-relay }
+  db-url-gate-relay: { file: ./secrets/db-url-gate-relay }
+  gate-relay-app.pem: { file: ./secrets/gate-relay-app.pem }
+  gate-relay-app.pub.pem: { file: ./secrets/gate-relay-app.pub.pem }
+  tok-gate-relay-kms: { file: ./secrets/tok-gate-relay-kms }
+  tok-operator-gate-relay: { file: ./secrets/tok-operator-gate-relay }
   tok-bff-gate-check: { file: ./secrets/tok-bff-gate-check }
   tok-bff-sandbox-controller: { file: ./secrets/tok-bff-sandbox-controller }
   pg-pass-notifier: { file: ./secrets/pg-pass-notifier }
@@ -267,6 +283,7 @@ services:
         data-sandbox-controller,
         data-verify,
         data-gatecheck,
+        data-gaterelay,
         data-notifier,
       ]
     mem_limit: 512m
@@ -297,6 +314,7 @@ services:
         pg-pass-sandbox-controller,
         pg-pass-verify,
         pg-pass-gate-check,
+        pg-pass-gate-relay,
         pg-pass-notifier,
       ]
     depends_on:
@@ -356,7 +374,8 @@ services:
         "core":{"token_ref":"file:/run/secrets/tok-core-kms","keys":[]},
         "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-kms","keys":[]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-kms","keys":[]},
-        "gate-check":{"token_ref":"file:/run/secrets/tok-gate-check-kms","keys":[]}}
+        "gate-check":{"token_ref":"file:/run/secrets/tok-gate-check-kms","keys":[]},
+        "gate-relay":{"token_ref":"file:/run/secrets/tok-gate-relay-kms","keys":[]}}
     volumes:
       - kms-state:/kms
     secrets:
@@ -370,6 +389,7 @@ services:
         tok-core-worker-kms,
         tok-identity-kms,
         tok-gate-check-kms,
+        tok-gate-relay-kms,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8300']
@@ -839,7 +859,7 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [app, egress, verify-codehost, gatecheck-github]
+    networks: [app, egress, verify-codehost, gatecheck-github, gaterelay-github]
     mem_limit: 192m
 
   # Boundary: repo content (untrusted) vs credentials. Analyses bundles it gets from the codehost;
@@ -1199,6 +1219,55 @@ services:
       ]
     mem_limit: 192m
 
+  # gate-relay (M15.3; ADR-0003 §1 Integration plane, AR9 gate plane): G5 release. An approved G5 whose card binds the
+  # merged commit to the Evidence Pack's head is consumed exactly once into a deployment of that commit, through its
+  # OWN GitHub App (`deployments: write`, metadata read; the key is in no other container). It checks the binding
+  # again itself (gate-check's record of the gated merge, the pack verified with the Notary's public key: a public-key
+  # read from kms-local, it may use no key) and rolls an unhealthy release back (B16). It never merges or writes a
+  # status. It has no route to core: it reads the record database as its own role; nothing of core's API is on its
+  # networks.
+  gate-relay:
+    <<: *factory
+    profiles: [gate-relay]
+    command: ['node', '--enable-source-maps', '/app/services/gate-relay/dist/main.js']
+    environment:
+      GATE_RELAY_DATABASE_URL: file:/run/secrets/db-url-gate-relay
+      GATE_RELAY_CALLERS: >-
+        {"operator":{"token_ref":"file:/run/secrets/tok-operator-gate-relay","scopes":["read"]}}
+      GATE_RELAY_APP_ID: ${GATE_RELAY_APP_ID:-765432}
+      GATE_RELAY_INSTALLATION_ID: ${GATE_RELAY_INSTALLATION_ID:-3}
+      GATE_RELAY_APP_KEY_REF: file:/run/secrets/gate-relay-app.pem
+      GATE_RELAY_GITHUB_API_URL: ${GATE_RELAY_GITHUB_API_URL:-https://api.github.com}
+      GATE_RELAY_GITHUB_PLAIN_HTTP_HOSTS: '["codehost"]'
+      GATE_RELAY_OBJECT_STORE_URL: http://object-store:9000
+      GATE_RELAY_OBJECT_STORE_ACCESS_KEY_REF: file:/run/secrets/object-store-access-key
+      GATE_RELAY_OBJECT_STORE_SECRET_KEY_REF: file:/run/secrets/object-store-secret-key
+      KMS_URL: http://kms-local:8300
+      KMS_TOKEN_REF: file:/run/secrets/tok-gate-relay-kms
+      GATE_RELAY_HOST: 0.0.0.0
+      GATE_RELAY_PORT: '8470'
+    secrets:
+      [
+        db-url-gate-relay,
+        gate-relay-app.pem,
+        tok-gate-relay-kms,
+        tok-operator-gate-relay,
+        object-store-access-key,
+        object-store-secret-key,
+      ]
+    healthcheck:
+      test: ['CMD', 'node', '/app/healthcheck.mjs', '8470']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      kms-local: { condition: service_healthy }
+      object-store: { condition: service_healthy }
+    networks: [data-gaterelay, kms-clients, objectstore-api, gaterelay-github, gaterelay-egress]
+    mem_limit: 192m
+
   # The notifier (M18; ADR-0003 §1 Integration plane): Slack (incoming webhook) and email (SMTP) delivery of what waits
   # for a person (a gate on their slot, B21, a quarantine, a handoff, a kill), read from the record as its own
   # least-privilege role. The portal inbox stays the authoritative channel: the notifier decides nothing, and a channel
@@ -1346,7 +1415,12 @@ services:
       FAKE_GITHUB_CHECKS_INSTALLATION_ID: ${GATE_CHECK_INSTALLATION_ID:-2}
       FAKE_GITHUB_CHECKS_APP_PUBLIC_KEY_FILE: /run/secrets/gate-check-app.pub.pem
       FAKE_GITHUB_GATE_CHECK_PORT: '8355'
-    secrets: [github-app.pub.pem, gate-check-app.pub.pem]
+      # gate-relay's own App on the same fake host (M15.3): its key, its installation, its door on 0.0.0.0:8356
+      FAKE_GITHUB_DEPLOY_APP_ID: ${GATE_RELAY_APP_ID:-765432}
+      FAKE_GITHUB_DEPLOY_INSTALLATION_ID: ${GATE_RELAY_INSTALLATION_ID:-3}
+      FAKE_GITHUB_DEPLOY_APP_PUBLIC_KEY_FILE: /run/secrets/gate-relay-app.pub.pem
+      FAKE_GITHUB_GATE_RELAY_PORT: '8356'
+    secrets: [github-app.pub.pem, gate-check-app.pub.pem, gate-relay-app.pub.pem]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8353']
       interval: 5s

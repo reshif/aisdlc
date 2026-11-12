@@ -3,6 +3,7 @@ import {
   InstallationInfo,
   InstallationRepo,
   RepoFullName,
+  mergeabilityOf,
   type BranchRules,
   type BundleRequest,
   type CodeHostNotOk,
@@ -89,7 +90,12 @@ const PullJson = z.looseObject({
   merged: z.boolean().optional(),
   html_url: z.string().optional(),
   head: z.looseObject({ ref: z.string(), sha: z.string() }),
-  base: z.looseObject({ ref: z.string() }),
+  base: z.looseObject({ ref: z.string(), sha: z.string().nullable().optional() }),
+  // M15.2: read by `pr_status` only (8.2's reconcile); absent is unknown, never "fine"
+  mergeable_state: z.string().nullable().optional(),
+  merge_commit_sha: z.string().nullable().optional(),
+  merged_at: z.string().nullable().optional(),
+  merged_by: z.looseObject({ login: z.string() }).nullable().optional(),
 });
 
 const CodeownersErrors = z.looseObject({
@@ -601,12 +607,22 @@ export class GitHubRestCodeHost implements CodeHostPort {
     if (!p.success || !GitSha.safeParse(p.data.head.sha).success) {
       return readUnknown('malformed', 'the pull request has an unexpected shape');
     }
+    const merged = p.data.merged ?? false;
+    const sha = (v: string | null | undefined): string | null =>
+      v !== null && v !== undefined && GitSha.safeParse(v).success ? v : null;
     return readOk({
       number: p.data.number,
       state: p.data.state,
-      merged: p.data.merged ?? false,
+      merged,
       head_sha: p.data.head.sha,
       draft: p.data.draft ?? false,
+      base_ref: p.data.base.ref,
+      base_sha: sha(p.data.base.sha),
+      mergeable: merged ? 'unknown' : mergeabilityOf(p.data.mergeable_state),
+      // GitHub names a test merge commit on an open PR: only a merged PR's is a merge
+      merge_commit_sha: merged ? sha(p.data.merge_commit_sha) : null,
+      merged_at: merged ? (p.data.merged_at ?? null) : null,
+      merged_by: merged ? (p.data.merged_by?.login ?? null) : null,
       // the broker's own tokens cannot read check runs: say so, never an empty list that looks like "no failures"
       checks_read: false,
       checks: [],

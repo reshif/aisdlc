@@ -54,6 +54,10 @@
         "dir": "../../services/gate-check/migrations"
       },
       {
+        "scope": "gaterelay",
+        "dir": "../../services/gate-relay/migrations"
+      },
+      {
         "scope": "notifier",
         "dir": "../../services/notifier/migrations"
       }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ReleaseSetting } from './gate-relay.js';
 import { hashCanonical } from '@aisdlc/kernel';
 import { GateId } from '../flow.js';
 import { LedgerDecision } from '../states/gate-instance.js';
@@ -233,6 +234,8 @@ export const CardPayloadItem = z.discriminatedUnion('kind', [
     two_person: TwoPerson,
     gating_profile: GatingProfile,
     kill_delegations: z.array(KillDelegation),
+    /** M15.5: card 4's release choice (`project.release`); absent: card 4 did not ask (keep the one in force). */
+    release: ReleaseSetting.nullable().optional(),
   }),
   /** Card 5: the hashes the sign-off covers (OB §6.2 row 0.5), and the PRR M4 binds to. */
   z.strictObject({

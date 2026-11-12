@@ -34,6 +34,10 @@ export * from './planning/index.js';
 export * from './admission/index.js';
 export * from './build/index.js';
 export * from './verify/index.js';
+export * from './review/index.js';
+export * from './closeout/index.js';
+export { DbPrincipalLinks } from './cards/links.js';
+export { releaseStagePorts, GateRelayReleasePort } from './release/port.js';
 export {
   MERGE_REVIEW_OBSERVER,
   mergeReviewLoop,

@@ -88,6 +88,12 @@ export interface CoreWorkerConfig {
    */
   readonly verify: { readonly url: string; readonly token: string } | null;
   /**
+   * M15.3: S8b follows gate-relay's record (`CORE_WORKER_RELEASE=gate-relay`): a release is done only when gate-relay
+   * deployed the approved G5 and the deployment is healthy; refused or rolled back is RELHOLD (B16 adds the NEW linked
+   * rollback item). Off: S8b stays over the stage-port fake. Needs a stage-port mode other than `none`.
+   */
+  readonly releaseViaGateRelay: boolean;
+  /**
    * M14.6: `exceptions` scripts the S7 fakes to raise the exception gates one after another (`scriptVerifyExceptions`:
    * Q1, X2, E2 on the first item to reach S7, E6 on the second) for the compose e2e. Only with FACTORY_ENV=local, the
    * stage-port fakes and no verify service.
@@ -103,6 +109,11 @@ export interface CoreWorkerConfig {
     readonly secretKeyRef: string;
   } | null;
   readonly workDriverIntervalMs: number;
+  /**
+   * M15.4 9.5: one in how many mode-E merges the audit sample draws (`CORE_WORKER_AUDIT_SAMPLE_ONE_IN`, default 1: every
+   * one, until a catalogue release names a rate; more audit, never less).
+   */
+  readonly auditSampleOneIn: number;
   readonly killHoldersIntervalMs: number;
   readonly killObserverIntervalMs: number;
   /** How often the gateway's ET1 events become item triggers (M10.3). */
@@ -174,6 +185,8 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   as a commit on agent/<item>/<unit> and a Draft PR; needs the sandbox. Default off
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
  *                                   deployment routes everything to `fake-model`); default none
+ *   CORE_WORKER_RELEASE             `gate-relay` (M15.3): S8b reads gate-relay's record of the approved G5's deployment
+ *                                   (healthy: released; refused or rolled back: RELHOLD, B16's NEW item); default the fake
  *   CORE_WORKER_VERIFY_URL, CORE_WORKER_VERIFY_TOKEN_REF   (M14.3) the verify service (scopes `run`, `read`): S7's
  *                                   7.1 to 7.5 run there and 7.6 signs and stores the Evidence Pack (M14.4). Needs
  *                                   CORE_WORKER_STAGE_PORTS=agents, the Notary (scope `evidence`) and the object store;
@@ -322,6 +335,14 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_VERIFY_URL runs S7 with the verify service, which needs CORE_WORKER_STAGE_PORTS=agents',
     );
   }
+  const releaseMode = env['CORE_WORKER_RELEASE'] ?? '';
+  if (releaseMode !== '' && releaseMode !== 'gate-relay') {
+    throw new ServiceConfigError('CORE_WORKER_RELEASE is `gate-relay` or unset');
+  }
+  const releaseViaGateRelay = releaseMode === 'gate-relay';
+  if (releaseViaGateRelay && stagePorts === 'none') {
+    throw new ServiceConfigError('CORE_WORKER_RELEASE=gate-relay needs CORE_WORKER_STAGE_PORTS');
+  }
   const objUrl = env['CORE_WORKER_OBJECT_STORE_URL'];
   const objectStore =
     objUrl === undefined || objUrl === ''
@@ -368,6 +389,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     sandboxController,
     pushBroker,
     verify,
+    releaseViaGateRelay,
     fakeVerify,
     objectStore,
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
@@ -375,6 +397,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       .map((m) => m.trim())
       .filter((m) => m !== ''),
     workDriverIntervalMs: intEnv(env, 'CORE_WORKER_WORK_DRIVER_INTERVAL_MS', 5_000, 100),
+    auditSampleOneIn: intEnv(env, 'CORE_WORKER_AUDIT_SAMPLE_ONE_IN', 1, 1),
     killHoldersIntervalMs: intEnv(env, 'CORE_WORKER_KILL_HOLDERS_INTERVAL_MS', 10_000, 100),
     killObserverIntervalMs: intEnv(env, 'CORE_WORKER_KILL_OBSERVER_INTERVAL_MS', 5_000, 100),
     gatewayTriggersIntervalMs: intEnv(env, 'CORE_WORKER_GATEWAY_TRIGGERS_INTERVAL_MS', 2_000, 100),

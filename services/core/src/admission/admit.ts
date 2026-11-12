@@ -10,7 +10,9 @@ import {
   type Unit,
   type UnitState,
   canTransitionUnit,
+  type UnitEnvelope,
 } from '@aisdlc/contracts';
+import { readAdmissionSettings, readSandboxCaps } from '@aisdlc/config';
 import { err, hashCanonical, ok, type Result } from '@aisdlc/kernel';
 import {
   freeCodingSlots,
@@ -23,7 +25,7 @@ import type { ItemState } from '@aisdlc/work';
 import type pg from 'pg';
 import { coreError, type CoreError } from '../errors.js';
 import { inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
-import { CODING_SESSION_CAP, budgetEnvelope } from '../planning/plan.js';
+import { budgetEnvelope } from '../planning/plan.js';
 import { listUnits, planUnits } from '../planning/units.js';
 import { emitUnitEvent } from './events.js';
 import { unitLockKey } from './fold.js';
@@ -52,8 +54,13 @@ export interface AdmissionDeps extends CoreDeps {
   readonly settings: ProjectSettingsPort;
   readonly envelope: EnvelopePort;
   readonly snapshots: WaitSnapshotPort;
-  /** Grants that may hold a coding slot at once. Default: the factory's cap (one coding session). */
+  /**
+   * Grants that may hold a coding slot at once. Default (M15.5): the coding cap of `sandbox.caps` for `runnerHost`, the
+   * very value that host's sandbox-controller enforces (unreadable: the defaults, never higher).
+   */
   readonly sessionCap?: number;
+  /** The runner host whose caps H2 follows (`SANDBOX_CONTROLLER_HOST_ID`; default `local`). */
+  readonly runnerHost?: string;
   /**
    * M14.2: the sandbox-controller's slots (ADR-0003 §6: H2 is asked of it). Read IN ADDITION to the grant count: the
    * free coding sessions are the lower of the two. An error is "cannot tell": no slot is free and the item waits.
@@ -90,8 +97,47 @@ const DEPENDENCY_DONE: readonly UnitState[] = [
 ];
 
 export const grantIdOf = (unitId: string, epoch: number): string => `${unitId}@${epoch}`;
-export const sessionCapOf = (d: { sessionCap?: number }): number =>
-  d.sessionCap ?? CODING_SESSION_CAP;
+/** The runner host a sandbox-controller names itself by default. */
+export const DEFAULT_RUNNER_HOST = 'local';
+
+/**
+ * H2's cap (M15.5, portal-config §5 gap 10): the deployment's override, else the published `sandbox.caps` coding cap of
+ * the runner host (`readSandboxCaps`: the controller's own reader, so core never admits more than the controller
+ * places; anything unreadable is the defaults).
+ */
+export async function sessionCapOf(d: {
+  readonly pool: pg.Pool;
+  readonly sessionCap?: number;
+  readonly runnerHost?: string;
+}): Promise<number> {
+  if (d.sessionCap !== undefined) return d.sessionCap;
+  return (await readSandboxCaps(d.pool, d.runnerHost ?? DEFAULT_RUNNER_HOST)).coding;
+}
+
+/** The project's admission limits (ADR-0003 §6), or why they cannot be read (unknown is unmet: the item waits). */
+async function projectLimits(
+  pool: pg.Pool,
+  projectId: string,
+): Promise<Result<{ wip_limit: number | null; default_envelope: UnitEnvelope | null }, string>> {
+  try {
+    const r = await readAdmissionSettings(pool, projectId);
+    return r.state === 'ok' ? ok(r.value) : err("the project's admission limits are unreadable");
+  } catch (e) {
+    return err(`the project's admission limits: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+const PROJECT_ACTIVE_SQL = `SELECT count(*)::text AS n FROM core.admission_grant
+  WHERE project_id = $1 AND status = 'active'`;
+
+/** A Unit's envelope under the project's default envelope: never more than it (each bound separately). */
+export const capEnvelope = (u: UnitEnvelope, cap: UnitEnvelope | null): UnitEnvelope =>
+  cap === null
+    ? u
+    : {
+        max_tokens: Math.min(u.max_tokens, cap.max_tokens),
+        max_cost_micro_usd: Math.min(u.max_cost_micro_usd, cap.max_cost_micro_usd),
+      };
 
 /**
  * The coding sessions the sandbox-controller can start now (H2's second half), or `Infinity` where no controller is
@@ -150,8 +196,12 @@ async function ensureUnits(d: CoreDeps, s: ItemState): Promise<Result<Unit[], Co
     units: [{ unit_key: 'main', size: 'medium' }],
     base_sha: '',
   });
-  const envelope = envelopes.get('main');
-  if (!envelope) return err(coreError('unavailable', 'no envelope for the implicit Unit'));
+  const derived = envelopes.get('main');
+  if (!derived) return err(coreError('unavailable', 'no envelope for the implicit Unit'));
+  // M15.5: an item with no plan takes the project's default envelope when the project has one
+  const limits = await projectLimits(d.pool, s.project_id);
+  if (!limits.ok) return err(coreError('unavailable', limits.error));
+  const envelope = limits.value.default_envelope ?? derived;
   const planned = await planUnits(d, {
     item_id: s.item_id,
     project_id: s.project_id,
@@ -222,19 +272,30 @@ export async function admitCandidate(
     const slot = await approverSlot(d, s.project_id);
     if (!slot.ok) return held('H1', slot.error);
     // H2: capacity (a first look; the write below checks it again under the lock)
-    const cap = sessionCapOf(d);
+    const cap = await sessionCapOf(d);
     if ((await activeGrantCount(d.pool)) >= cap) {
       return held('H2', `${cap} coding session(s) already hold a slot`);
     }
     if ((await controllerCodingFree(d)) <= 0) {
       return held('H2', 'the sandbox-controller has no free coding slot (or did not answer)');
     }
+    // M15.5: the project's WIP limit and default envelope (ADR-0003 §6), unreadable is unmet
+    const limits = await projectLimits(d.pool, s.project_id);
+    if (!limits.ok) return held('WIP', limits.error);
+    const wip = limits.value.wip_limit;
+    if (wip !== null) {
+      const n = await d.pool.query<{ n: string }>(PROJECT_ACTIVE_SQL, [s.project_id]);
+      if (Number(n.rows[0]?.n ?? 0) >= wip) {
+        return held('WIP', `the project's WIP limit (${wip}) is reached`);
+      }
+    }
+    const envelopeIn = capEnvelope(u.envelope, limits.value.default_envelope);
     // H3: the envelope, reserved in the gateway for this Unit (idempotent)
     const group_id = `unit-envelope:${u.unit_id}`;
     const r = await d.envelope.reserve({
       group_id,
-      max_tokens: u.envelope.max_tokens,
-      max_cost_micro_usd: u.envelope.max_cost_micro_usd,
+      max_tokens: envelopeIn.max_tokens,
+      max_cost_micro_usd: envelopeIn.max_cost_micro_usd,
     });
     if (!r.ok) return held('H3', `the envelope could not be reserved: ${r.error.code}`);
 
@@ -250,6 +311,16 @@ export async function admitCandidate(
           reason: 'H2',
           why: 'capacity was taken meanwhile',
         });
+      }
+      if (wip !== null) {
+        const p = await tx.query<{ n: string }>(PROJECT_ACTIVE_SQL, [s.project_id]);
+        if (Number(p.rows[0]?.n ?? 0) >= wip) {
+          return ok<Admission>({
+            admitted: false,
+            reason: 'WIP',
+            why: `the project's WIP limit (${wip}) was reached meanwhile`,
+          });
+        }
       }
       const cur = await tx.query<{ epoch: number; status: string; holder_kind: string }>(
         'SELECT epoch, status, holder_kind FROM core.lease WHERE unit_id = $1 FOR UPDATE',
@@ -286,8 +357,8 @@ export async function admitCandidate(
         slot: slot.value,
         envelope: {
           ref: group_id,
-          max_tokens: u.envelope.max_tokens,
-          max_cost_micro_usd: u.envelope.max_cost_micro_usd,
+          max_tokens: envelopeIn.max_tokens,
+          max_cost_micro_usd: envelopeIn.max_cost_micro_usd,
         },
         command_key,
         resumes,

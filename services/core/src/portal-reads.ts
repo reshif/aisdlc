@@ -3,6 +3,8 @@ import {
   LedgerAuditView,
   PROJECT_CONFIG_KEYS,
   ProjectSettingsDoc,
+  RELEASE_CONFIG_KEY,
+  ReleaseSetting,
   S0_EVENT,
   SettingsRevisionView,
   s0Stream,
@@ -85,7 +87,15 @@ export async function settingsRevision(
   const lineage = await readLineage(deps.pool, lineageOf(p.project_id));
   const rev = lineage.proposed.get(p.subject_hash);
   if (!rev) return err(coreError('not_found', 'the revision this gate decides is gone'));
-  const doc = ProjectSettingsDoc.safeParse(rev.doc);
+  // the settings part of the project layer (M15.3, M15.5: the release choice and the admission limits ride in the
+  // same document)
+  const settingKeys = new Set<string>(Object.values(PROJECT_CONFIG_KEYS));
+  const whole = rev.doc as Record<string, unknown>;
+  const settingsPart = Object.fromEntries(
+    Object.entries(whole).filter(([k]) => settingKeys.has(k)),
+  );
+  const release = ReleaseSetting.nullable().safeParse(whole[RELEASE_CONFIG_KEY] ?? null);
+  const doc = ProjectSettingsDoc.safeParse(settingsPart);
   if (!doc.success)
     return err(coreError('conflict', 'the proposed revision is not a settings document'));
   const d = doc.data;
@@ -105,6 +115,7 @@ export async function settingsRevision(
         gating_profile: d[PROJECT_CONFIG_KEYS.gating_profile],
         kill_delegations: d[PROJECT_CONFIG_KEYS.kill_delegations],
       },
+      release: release.success ? release.data : null,
       evidence_hash: p.evidence_pack_hash ?? p.subject_hash,
       deciders: await decidersFrom(deps.config.eligibility, p.project_id, 'admin'),
     }),

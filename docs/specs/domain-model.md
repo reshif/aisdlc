@@ -947,6 +947,7 @@ erDiagram
 | Session | PARTIAL | read model `SessionActivityView` (`frontdoor_observe/models.py:71`); no `unit_id`; sandbox class not stored; session start/stop events `session.*` (`projector.py:20`) |
 | SessionEvent, Heartbeat | BUILT | record events and `ActivityHeartbeat` (`models.py:112`, non-chain) |
 | Proposal | PARTIAL | record events `proposal.accepted` / `proposal.rejected`; contract `proposal.v1.schema.json`; no table |
+| Proposal, kind `learn` (M15.5) | BUILT | 9.4 Learn: `LearnProposalBody` (contracts `learn.ts`; sub-kinds `config_review` M1, `variance` M2, `catalogue_review` M3, `autonomy_promotion` and `mode_e_lift` M5, `approver_grant` M6), id = sha256 of the canonical body; `learn.proposed` / `learn.settled` on `learn:<project>`, folded into `core.learn_proposal`; status is the META gate's ledger outcome (an agent run's `accepted`/`rejected` stays for the planning kinds) |
 | Artefact | PARTIAL | derived from `proposal.accepted` events (`artefacts.schema.json`); body store outside core; `StageResult.artefact_ref` (`workflow/wf/types.py`) |
 | SandboxClass | BUILT | `sandbox/classes.py:26,38` |
 | ModelCall | PARTIAL | gateway `VKey` + `Group` (`gateway/core.py:185,213`); metering event `meter.call.v1`; no persisted call row in core |

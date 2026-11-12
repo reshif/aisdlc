@@ -1,3 +1,5 @@
+import { readSandboxCaps } from '@aisdlc/config';
+import { DEFAULT_RUNNER_HOST } from '../admission/admit.js';
 import {
   OFFERABLE_TOOLS,
   buildContext,
@@ -683,7 +685,11 @@ export class AgentPlanningPort implements PlanningPort {
         step === '5.1' ? null : await latestArtefact(this.d.pool, req.item_id, 'unit_split');
       const stamp = (split?.content as { base_sha?: unknown } | undefined)?.base_sha;
       const base_sha = typeof stamp === 'string' ? stamp : merged;
-      if (step === '5.6') return { ...boundCapacity(out, split?.content), base_sha };
+      if (step === '5.6') {
+        // M15.5: bounded by the published coding cap (the one H2 and the sandbox-controller follow)
+        const cap = (await readSandboxCaps(this.d.pool, DEFAULT_RUNNER_HOST)).coding;
+        return { ...boundCapacity(out, split?.content, cap), base_sha };
+      }
       return { ...out, base_sha };
     }
     return out;
