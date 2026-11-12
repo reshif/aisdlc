@@ -31,6 +31,12 @@ import { err, ok, type Result } from '@aisdlc/kernel';
 export interface PolicyContext {
   readonly tier: Tier | null;
   readonly two_person: TwoPerson;
+  /**
+   * M15.5 (PLAN §7a "Factory-wide M1"): the factory layer's M1 rule, from `factory.m1_policy`. When set, an M1 is
+   * decided by `approvers` distinct holders who are not the requester (the proposer), with no waiver of any kind.
+   * Only the factory pseudo-project's eligibility sets it.
+   */
+  readonly factory_m1?: { readonly approvers: number };
 }
 
 /** T2 is by tier, or by the settings document having locked two-person on. Unknown tier is not T2. */
@@ -85,6 +91,17 @@ export function planQuorum(
   const barred = policy.own_request === 'blocked' ? barredOf(requester, authors) : [];
   const requesterHolds = holders.some((h) => barred.includes(h));
   const others = holders.filter((h) => !barred.includes(h));
+
+  // The factory M1 (M15.5): never the proposer, no waiver, the policy's number of distinct approvers.
+  if (key === 'M1' && ctx.factory_m1 !== undefined) {
+    const n = Math.max(1, Math.trunc(ctx.factory_m1.approvers));
+    if (others.length < n) {
+      return infeasible(
+        `the factory M1 needs ${n} approver(s) other than the proposer, and allows no waiver`,
+      );
+    }
+    return ok({ slot, required: n, basis: n >= 2 ? 'two_person' : 'single', waiver: false });
+  }
 
   // The sole holder is the requester: only the single-holder waiver lets them decide.
   if (requesterHolds && others.length === 0) {
