@@ -22,6 +22,8 @@ export type Route =
   | { name: 'readiness'; id: string }
   | { name: 'ledger'; id: string }
   | { name: 'access' }
+  | { name: 'config' }
+  | { name: 'configKey'; key: string }
   | { name: 'notfound' };
 
 export function parseRoute(path: string): Route {
@@ -30,6 +32,9 @@ export function parseRoute(path: string): Route {
   if (p === '/onboard') return { name: 'onboard' };
   if (p === '/inbox') return { name: 'inbox' };
   if (p === '/me/access') return { name: 'access' };
+  if (p === '/config') return { name: 'config' };
+  const cfg = /^\/config\/([^/]+)$/.exec(p);
+  if (cfg) return { name: 'configKey', key: decodeURIComponent(cfg[1] as string) };
   const sub = /^\/projects\/([^/]+)\/(readiness|ledger)$/.exec(p);
   if (sub) {
     return {

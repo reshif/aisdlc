@@ -618,3 +618,36 @@ textarea {
 .prr {
   margin-bottom: 1.5rem;
 }
+
+/* the configuration console (src/config) */
+.cfg-group {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem 0.75rem;
+  margin: 0 0 0.75rem;
+}
+.cfg-group legend {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  padding: 0 0.25rem;
+}
+.cfg-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+.cfg-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.cfg-optional {
+  margin: 0.25rem 0;
+}
+.cfg-json,
+.cfg-value {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  width: 100%;
+}

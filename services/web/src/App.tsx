@@ -13,6 +13,7 @@ import { OnboardPage } from './pages/Onboard';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectListPage } from './pages/ProjectList';
 import { S0Page } from './pages/S0Page';
+import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
 import { MyAccessPage } from './pages/MyAccessPage';
 import { Link, NavContext, useRoute, type Route } from './router';
 import { Shell } from './shell/Shell';
@@ -125,6 +126,10 @@ function Page({ route, me }: { route: Route; me: Me }) {
       );
     case 'access':
       return <MyAccessPage />;
+    case 'config':
+      return <ConfigListPage />;
+    case 'configKey':
+      return <ConfigKeyPage configKey={route.key} csrf={me.csrf_token} />;
     case 'notfound':
       return <ErrorState status={404} action={<Link to="/">Back to projects</Link>} />;
   }

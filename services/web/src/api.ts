@@ -1,5 +1,8 @@
 import type {
   ActionId,
+  ConfigKeySummary,
+  ConfigKeyView,
+  ConfigProposeResult,
   DecisionBatchView,
   DecisionQuery,
   MyAccessView,
@@ -48,6 +51,12 @@ export interface Me {
     readonly projects: ReadonlyArray<{ project_id: string; actions: readonly ActionId[] }>;
   };
 }
+
+/** `GET /api/config/keys/:key`: core's view plus what only the bff knows for this person. */
+export type ConfigKeyWire = ConfigKeyView & {
+  readonly may_propose: boolean;
+  readonly principal_names: Readonly<Record<string, string>>;
+};
 
 export type OnboardInput = Omit<OnboardRequest, 'on_behalf_of'>;
 export interface OnboardResult {
@@ -235,6 +244,21 @@ export const api = {
   /** A batch of PDP capability probes; a POST because it carries a body, so it sends the CSRF token. */
   decisions: (queries: readonly DecisionQuery[], csrf: string) =>
     request<DecisionBatchView>('POST', '/api/me/decisions', { queries }, csrf),
+  configKeys: () =>
+    request<{ keys: ConfigKeySummary[]; may_propose: boolean }>('GET', '/api/config/keys'),
+  configKey: (key: string) =>
+    request<ConfigKeyWire>('GET', `/api/config/keys/${encodeURIComponent(key)}`),
+  proposeConfig: (
+    key: string,
+    b: { value: unknown; parent_rev_hash: string | null },
+    csrf: string,
+  ) =>
+    request<ConfigProposeResult>(
+      'POST',
+      `/api/config/keys/${encodeURIComponent(key)}/proposals`,
+      b,
+      csrf,
+    ),
   logout: (csrf: string) => request<{ ok: true }>('POST', '/api/logout', {}, csrf),
   projects: () => request<ProjectSummary[]>('GET', '/api/projects'),
   project: (id: string) => request<ProjectDetail>('GET', `/api/projects/${encodeURIComponent(id)}`),

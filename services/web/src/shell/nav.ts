@@ -23,7 +23,9 @@ export type NavGroup = (typeof NAV_GROUPS)[number];
 export type NavGuard =
   | { readonly kind: 'signed_in' }
   /** The PDP allows the action on the fleet (from `/api/me`'s `actions.fleet`). */
-  | { readonly kind: 'fleet_action'; readonly action: ActionId };
+  | { readonly kind: 'fleet_action'; readonly action: ActionId }
+  /** The PDP allows any of these actions on the fleet. */
+  | { readonly kind: 'fleet_any'; readonly actions: readonly ActionId[] };
 
 export interface NavEntry {
   readonly group: NavGroup;
@@ -61,10 +63,21 @@ export const NAV: readonly NavEntry[] = [
     guard: { kind: 'fleet_action', action: 'project.onboard' },
     current: (r) => r.name === 'onboard',
   },
+  {
+    group: 'Govern',
+    to: '/config',
+    label: 'Configuration',
+    guard: { kind: 'fleet_any', actions: ['config.propose', 'audit.read'] },
+    current: (r) => r.name === 'config' || r.name === 'configKey',
+  },
 ];
 
 export const guardPasses = (g: NavGuard, me: Me): boolean =>
-  g.kind === 'signed_in' ? true : me.actions.fleet.includes(g.action);
+  g.kind === 'signed_in'
+    ? true
+    : g.kind === 'fleet_action'
+      ? me.actions.fleet.includes(g.action)
+      : g.actions.some((a) => me.actions.fleet.includes(a));
 
 /** The groups and entries this person may open, in prototype order; empty groups dropped. */
 export function navFor(me: Me): ReadonlyArray<{ group: NavGroup; entries: readonly NavEntry[] }> {
