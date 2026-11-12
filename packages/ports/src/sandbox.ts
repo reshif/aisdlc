@@ -1,6 +1,7 @@
 import {
   CODING_CLASSES,
   CODING_SESSION_CAP,
+  SANDBOX_IMAGE_REF,
   SANDBOX_PROFILES,
   SANDBOX_SESSION_ID,
   sandboxEnvViolations,
@@ -55,6 +56,12 @@ export interface SandboxSpec {
    * guarded sandbox (`GuardedSandbox`) refuses a session of a class the allow-list or B1 applies to without it.
    */
   readonly repo_full_name?: string;
+  /**
+   * The image, by digest only (`SANDBOX_IMAGE_REF`). Absent: the host's default image. The driver runs only an image
+   * it was configured to allow (and the socket proxy only one on its list); the sandbox-controller requires the
+   * published onboarding image for a K-exec session (M16, DEC-17 refined).
+   */
+  readonly image?: string;
   /** Names the container, the network and the scratch directory: `[a-z0-9-]`, 6 to 48 characters. */
   readonly session_id: string;
   readonly class: SandboxClass;
@@ -204,6 +211,9 @@ export function preflightSpec(
   if (profile === undefined) return bad(`unknown sandbox class ${String(spec.class)}`);
   const limits = effectiveLimits(profile, spec.limits);
   if (!limits.ok) return limits;
+  if (spec.image !== undefined && !SANDBOX_IMAGE_REF.test(spec.image)) {
+    return bad('image must be named by digest (sha256:<64 hex> or name@sha256:<64 hex>)');
+  }
 
   if (spec.gateway_key !== undefined) {
     if (!profile.key) return bad(`class ${spec.class} gets no gateway key`);
