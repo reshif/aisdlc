@@ -24,6 +24,7 @@ Paused by the user after M13 (to resume: read this section, then start M14).
 - **Next:** M14 (S7 verify, signed Evidence Pack, gate-check), then M15 (S8/S9), M16 (Light onboarding — first real agent lanes L1–L3), M17, M18, M19 (floor, audit), M20 (dogfood).
 - **How the build runs:** one task per agent, each reviewed; `npm run check` must exit 0 with `DATABASE_URL` pointing at the local CI-style cluster on 127.0.0.1:55433 (user and password `postgres`) (start that password Postgres from `/var/tmp/aisdlc-cipg` or the db test helper), then `timeout 600 npm run build`, `npm ci --dry-run`, and `npm run smoke:compose` (in a sandbox without apt, build the image from `aisdlc-sandbox-node-git:local` and run with `SMOKE_SKIP_BUILD=1`). PR per milestone; merge after GitHub CI is green (user authorised).
 - **Open follow-ups to carry:** M7.7 single-flight S0 driver; M8.0b non-local genesis; M9.7 kill signing timeout, portal kill/control screens, L0/L7 eligibility (decided 2026-11-11: L0 from Light, L7 from Census; needs a catalogue version); M10.6 response redaction for non-streamed calls, per-model prices to confirm before real spend, install-absent semantics; M13 follow-ups: Handoff Pack as an artefact type, self-heal for a crash between push and receipt, B15 rebase path, codehost push in registry mode, compose wiring of real coding sessions.
+- **Architecture:** ADR-0003 is the target (18 services, 22 containers locally, sandboxes on separate hosts); PLAN §5 lists what each milestone adds.
 - **Portal:** the full portal is designed as a prototype (`docs/design/portal-prototype/`); what it covers and what is missing is in `docs/design/portal-coverage.md`; M21 lifts `services/web` to it after M20, and each milestone from M14 builds its own screens on the way. Six decisions it exposed are in coverage §5.
 - **User actions pending:** live Census on their machine (`docs/runbooks/m8.5-live-census.md`); pin the real eval-store key (`aisdlc-evals pin`) before first eval; `issues:write` on the App at M16; share `floor.html` before M19 if available.
 
@@ -315,18 +316,31 @@ From M14 on, each milestone also builds the portal screens for what it adds (the
 
 Done when coverage §3 and §4 are empty or dropped by the user, §5 is decided, and the persona e2e is green in CI.
 
-## 5. Target local-prod topology (after M15)
+## 5. Target architecture (ADR-0003)
 
-| Group | Containers |
+[ADR-0003](adr/0003-target-architecture.md) is the target, and the build follows it exactly. It replaces the 25-container list of revision 2:
+- seven planes and 18 services, each with its reason to stand alone;
+- sandboxes on separate runner hosts (microVMs in production);
+- an object store for large content;
+- scheduling ownership: core decides admission, the sandbox-controller only places sessions, people set the limits;
+- two caps per runner host: a total (default 4) and coding sessions (default 1).
+
+| | Local | Production (one copy each) |
+|---|---|---|
+| Containers you run | 22: the 18 services + Postgres, MinIO, kms-local, dev-oidc | 19: the 18 services + an OpenTelemetry collector; Postgres, the object store, KMS and the IdP are managed |
+| Sandboxes | up to 4 at once | runner hosts that scale with the queue |
+
+What each milestone adds to reach it:
+
+| Milestone | Adds |
 |---|---|
-| Data | postgres (record, read models, config, queue), plus separate databases on the same server for notary, witness, kms-local, killswitch, gate-check, gate-relay |
-| Edge and identity | web, bff, oidc (dev IdP), identity |
-| Core | core, core-worker |
-| Trust plane | kms-local, notary, witness, killswitch, sandbox-origin, audit-exporter, audit-backend |
-| Code and gate plane | codehost, gate-check, gate-relay, cvw, docker-proxy-cvw, docker-proxy-coding, package-mirror |
-| Agents and models | workflow, coding-worker, gateway, knowledge |
+| M14 | the ADR's first task (this section), the object store, verify, gate-check, the sandbox-controller split and the total cap |
+| M15 | gate-relay |
+| M18 | notifier |
+| M19 | audit, the collector, the outage drills, a load test |
+| M19 or M20 | the microVM runner driver |
 
-That is 25 containers, against RV §8.2's 26: no temporal, postgres-temporal or temporal-ui (D-T), no minio until audit exports exist, one extra socket proxy. core-worker exposes one aggregated `/healthz` (503 while any loop is down or an access-sync alert is active), the access-sync lag metric, loop-prefixed logs, and per-loop supervision so a poison row in one loop cannot stall the others (RV §3.1).
+core-worker keeps one aggregated `/healthz` (503 while any loop is down or an access-sync alert is active), the access-sync lag metric, loop-prefixed logs and per-loop supervision (RV §3.1).
 
 ## 6. How the build runs
 
