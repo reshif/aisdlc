@@ -15,8 +15,13 @@
 ARG PYTHON_IMAGE=python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d
 ARG NODE_IMAGE=node:22.23.4-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d
 FROM ${NODE_IMAGE} AS node
+FROM ${PYTHON_IMAGE} AS python
 
-FROM ${PYTHON_IMAGE}
+# The python base's files, without its configuration: its environment carries build-time names (GPG_KEY, the
+# source sha) that a sandbox must not hold (the driver refuses a credential-shaped name in a container's env).
+FROM scratch
+COPY --from=python / /
+ENV PATH=/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
