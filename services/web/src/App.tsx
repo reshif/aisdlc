@@ -21,6 +21,7 @@ import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
 import { MyAccessPage } from './pages/MyAccessPage';
 import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsPage';
 import { AskPage } from './assistant/AskPage';
+import { AskForWorkPage } from './pages/AskForWorkPage';
 import { HomePage } from './pages/HomePage';
 import { CloseoutPage } from './pages/CloseoutPage';
 import { LearnPage } from './pages/LearnPage';
@@ -254,6 +255,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <ConfigKeyPage configKey={route.key} csrf={me.csrf_token} />;
     case 'ask':
       return <AskPage csrf={me.csrf_token} who={me.principal.display_name} />;
+    case 'askForWork':
+      return <AskForWorkPage key={route.project ?? ''} project={route.project} csrf={csrf} />;
     case 'notifications':
       return <NotificationsPage />;
     case 'notificationPrefs':

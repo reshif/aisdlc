@@ -18,6 +18,8 @@ import type {
   ItemPlanRequest,
   ItemPlanResult,
   PortalItemView,
+  PortalAskRequest,
+  PortalRequestReceipt,
   CardDeciders,
   LedgerAuditView,
   OnboardRequest,
@@ -482,6 +484,9 @@ export const api = {
       {},
       csrf,
     ),
+  /** P1-1 Ask for work: one request (portal channel N1), answered with intake's receipt. */
+  askForWork: (b: PortalAskRequest, csrf: string) =>
+    request<PortalRequestReceipt>('POST', '/api/requests', b, csrf),
   item: (id: string) => request<PortalItemView>('GET', `/api/items/${encodeURIComponent(id)}`),
   itemVerify: (id: string, head?: string) =>
     request<ItemVerifyView>(
