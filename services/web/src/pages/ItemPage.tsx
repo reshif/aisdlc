@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
-import { Callout, ErrorNote, Loading } from '../components/Notice';
+import { Callout, PageError, Loading } from '../components/Notice';
 import { describeError } from '../format';
 import { PlanForm } from '../items/PlanForm';
 import { newKey, waitingText } from '../items/waiting';
@@ -22,7 +22,7 @@ export function ItemPage({ id, csrf }: { id: string; csrf: string }) {
     refetchInterval: 5_000,
   });
   if (q.isPending) return <Loading what="the work item" />;
-  if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
+  if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const it = q.data;
   const lane = it.lane ?? it.proposed_lane;
   return (

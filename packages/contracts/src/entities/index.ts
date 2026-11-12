@@ -30,6 +30,8 @@ export * from './knowledge.js';
 export * from './census.js';
 export * from './core-events.js';
 export * from './portal.js';
+export * from './portal-access.js';
+export * from './config-console.js';
 export * from './gateway.js';
 export * from './integrations.js';
 export * from './sandbox.js';

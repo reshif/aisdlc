@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import type { PortalInboxItem } from '@aisdlc/contracts';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
-import { ErrorNote, Loading } from '../components/Notice';
+import { PageError, Loading } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
+import { PageHead } from '../ui';
 
 const CARD_TITLE = {
   C1: 'Card 1: confirm the census',
@@ -70,11 +71,15 @@ function Item({ i }: { i: PortalInboxItem }) {
 export function InboxPage() {
   const q = useQuery({ queryKey: ['inbox'], queryFn: () => api.inbox(), refetchInterval: 15_000 });
   if (q.isPending) return <Loading what="your inbox" />;
-  if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
+  if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const { decide, view } = q.data;
   return (
     <>
-      <h1>Inbox</h1>
+      <PageHead
+        eyebrow="Decide"
+        title="Inbox"
+        sub="The open cards you may decide, with when an answer is due, then the ones you can only see."
+      />
       <h2>
         Waiting for you {decide.length > 0 ? <span className="count">{decide.length}</span> : null}
       </h2>

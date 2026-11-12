@@ -34,6 +34,7 @@ import {
   RevisionDecideRequest,
   RevisionEvidenceRequest,
   RevisionPrepareRequest,
+  ConfigProposeRequest,
   RoleMap,
   SubmitRequestBody,
   RepoFullName,
@@ -105,6 +106,7 @@ import {
   revisionOfS0,
   settingsRevision,
 } from './portal-reads.js';
+import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
   cardDetail,
   cardHeader,
@@ -1368,6 +1370,56 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   app.post('/v1/revisions/:gate/publish', (req, reply) =>
     revisionAction(req, reply, RevisionPrepareRequest, (d, gate) => publishRevision(d, gate)),
   );
+
+  // ------------------------------------------------------------ configuration console (portal)
+
+  // Factory-layer keys of this registry: read (scope read; the bff asks the PDP for the person) and
+  // propose (scope portal; the PDP's config.propose on the fleet for the person). A proposal is an
+  // ordinary revision with its M1 gate; nothing here publishes.
+  const keyParam = (req: FastifyRequest): string | null => {
+    const k = params(req)['key'];
+    return typeof k === 'string' && /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(k) ? k : null;
+  };
+
+  app.get('/v1/config/keys', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    if (!config) return;
+    return listConfigKeys(config);
+  });
+
+  app.get('/v1/config/keys/:key', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    const key = keyParam(req);
+    if (!config) return;
+    if (!key) return fail(reply, coreError('invalid_input', 'bad config key'));
+    try {
+      const r = await configKeyView(config, key);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the configuration could not be read'));
+    }
+  });
+
+  app.post('/v1/config/keys/:key/proposals', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    const config = configOr(reply);
+    const key = keyParam(req);
+    if (!config) return;
+    if (!key) return fail(reply, coreError('invalid_input', 'bad config key'));
+    const b = parse(ConfigProposeRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    if (!(await guard(reply, b.value.on_behalf_of, 'config.propose', pdpResource.fleet()))) return;
+    const r = await proposeConfigKey(config, {
+      key,
+      value: b.value.value,
+      principal: b.value.on_behalf_of,
+      parent_rev_hash: b.value.parent_rev_hash,
+    });
+    return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
 
   // ------------------------------------------------------------ readiness record and ledger (M8.4)
 

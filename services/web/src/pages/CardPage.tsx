@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { CardKind } from '@aisdlc/contracts';
 import { ApiError, api } from '../api';
 import { Badge } from '../components/Badge';
-import { ErrorNote, Loading } from '../components/Notice';
+import { PageError, Loading } from '../components/Notice';
 import { C1Form } from '../cards/C1Form';
 import { C4Form } from '../cards/C4Form';
 import { C5Panel } from '../cards/C5Panel';
@@ -47,7 +47,7 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
   if (q.isError && q.error instanceof ApiError && q.error.status === 404) {
     return <GateArtefacts id={id} csrf={csrf} />;
   }
-  if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
+  if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const card = q.data;
   const { summary } = card;
   const decidable = card.may_decide && summary.status === 'open' && summary.actionable;
