@@ -69,6 +69,8 @@ export async function seedActivePrr(
     version?: number;
     /** Overrides of the record's autonomy (M15.1: G4's mode reads it); the record hash follows. */
     autonomy?: Partial<ProjectReadinessRecord['autonomy']>;
+    /** M17: what a decided card 3 put in the record (`affirmed.full`, ServiceEnvs); the record hash follows. */
+    affirmedFull?: NonNullable<ProjectReadinessRecord['affirmed']['full']>;
   } = {},
 ): Promise<Seeded> {
   n += 1;
@@ -103,8 +105,12 @@ export async function seedActivePrr(
       over: { project_id: project, version, deploys: project_deploys },
     }),
   );
-  const changed = o.autonomy ? { ...made, autonomy: { ...made.autonomy, ...o.autonomy } } : made;
-  const prr = o.autonomy ? { ...changed, record_hash: prrRecordHash(changed) } : made;
+  const withAut = o.autonomy ? { ...made, autonomy: { ...made.autonomy, ...o.autonomy } } : made;
+  const changed = o.affirmedFull
+    ? { ...withAut, affirmed: { ...withAut.affirmed, full: o.affirmedFull } }
+    : withAut;
+  const prr =
+    o.autonomy || o.affirmedFull ? { ...changed, record_hash: prrRecordHash(changed) } : made;
   const stream = prrStream(project, repoIdOf(repo));
   const w = await inCoreTx(deps, async (j, tx) => {
     await lockKeys(tx, [`project:${project}`, `repo:${repo.toLowerCase()}`]);

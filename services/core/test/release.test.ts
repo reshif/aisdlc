@@ -7,8 +7,11 @@ import {
   ITEM_EVENT,
   deployMarkerHash,
   deployMarkerId,
+  ff2Of,
   g5SubjectHash,
   gateRelayStream,
+  releaseTargetHolds,
+  serviceEnvId,
   type DeployMarker,
   type ReleaseBinding,
 } from '@aisdlc/contracts';
@@ -69,13 +72,13 @@ async function project(release: { mode: 'off' } | { mode: 'target'; environment:
   await runProjection(s.record.pool, configProjection);
   return seeded;
 }
-async function newItem(seeded: { project: string; repo: string }) {
+async function newItem(seeded: { project: string; repo: string }, lane: 'L4' | 'L5' = 'L4') {
   n += 1;
   const r = ok(
     await submitRequest(s.deps, {
       project_id: pid(seeded.project),
       repo: seeded.repo,
-      lane: 'L4',
+      lane,
       requester: pr('alice'),
       channel: 'N1',
       text: `release test request ${n}`,
@@ -350,5 +353,205 @@ describe('not released is RELHOLD; a rollback is B16’s NEW linked item; a re-r
     expect(held?.state.waiting).toMatchObject({ kind: 'release_held' });
     expect(held?.state.spawns[0]).toMatchObject({ edge: 'B16', kind: 'rollback', lane: 'L0' });
     expect(held?.state.rework.by_edge['B16']).toBe(1);
+  });
+});
+
+describe('G5 bound to a ServiceEnv (M17, DM §3.2; FF2)', () => {
+  /** What card 3 put in the record: the declared ServiceEnvs and FF2. */
+  const full = (
+    project: string,
+    services: Array<[string, Array<'development' | 'staging' | 'production'>]>,
+    separation: 'yes' | 'no' = 'yes',
+  ) => {
+    const envs = services
+      .flatMap(([service, es]) =>
+        es.map((environment) => ({
+          service_env_id: serviceEnvId(project, service, environment),
+          service,
+          environment,
+        })),
+      )
+      .sort((a, b) => (a.service_env_id < b.service_env_id ? -1 : 1));
+    const ff2 = ff2Of({
+      services: services.map(([service, environments]) => ({ service, environments })),
+      staging_separation: separation,
+    }).state;
+    return {
+      baseline_hash: sha256Hex('baseline'),
+      graph_hash: sha256Hex('graph'),
+      map_hash: sha256Hex('map'),
+      areas: ['.'],
+      intent: { answers_hash: sha256Hex('intent'), attested_by: pr('alice') },
+      seeds: { total: 1, intended: 1, observed: 0, seeds_hash: sha256Hex('seeds') },
+      exam: {
+        questions: 0,
+        correct: 0,
+        incorrect: 0,
+        unsure: 0,
+        score_pct: null,
+        exam_hash: sha256Hex('exam'),
+      },
+      golden: { accepted: 0, golden_hash: sha256Hex('golden') },
+      oracle_lock_hash: sha256Hex('lock'),
+      service_envs: {
+        envs,
+        staging_separation: separation,
+        ff2,
+        envs_hash: sha256Hex(JSON.stringify(envs)),
+      },
+    } as never;
+  };
+  let k = 0;
+  async function declared(
+    services: Array<[string, Array<'development' | 'staging' | 'production'>]>,
+    release: { mode: 'target'; environment: string; service?: string },
+    separation: 'yes' | 'no' = 'yes',
+  ) {
+    k += 1;
+    const project = `senv-${k}`;
+    const seeded = await seedActivePrr(s, {
+      project,
+      repo: `acme/senv-${k}`,
+      level: 'full',
+      gating: GATING_ON,
+      autonomy: { lanes_eligible: ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8'] },
+      affirmedFull: full(project, services, separation),
+    });
+    approvers(s, seeded.project, ['bob']);
+    await publishSettings(s, seeded.project, { release }, 'bob', 'alice');
+    await runProjection(s.record.pool, configProjection);
+    return seeded;
+  }
+  const bindingOf = (p: { project: string; repo: string }, id: string, lane: 'L4' | 'L5') =>
+    releaseBindingOf(s.record.pool, { item_id: id, project_id: p.project, repo: p.repo, lane });
+
+  it('names the attested ServiceEnv of the target; a target that is not exactly one of them binds nothing', async () => {
+    const p = await declared([['api', ['staging', 'production']]], {
+      mode: 'target',
+      environment: 'production',
+    });
+    const id = await newItem(p);
+    const d = driver();
+    await toMerged(d, id, p.repo);
+    expect(await bindingOf(p, id, 'L4')).toMatchObject({
+      status: 'bound',
+      environment: 'production',
+      service_env: {
+        service_env_id: `senv:${p.project}:api:production`,
+        service: 'api',
+        environment: 'production',
+      },
+    });
+    expect((await bindingOf(p, id, 'L4')) as object).not.toHaveProperty('target_environment');
+
+    // a target the project never attested
+    const qa = await declared([['api', ['staging', 'production']]], {
+      mode: 'target',
+      environment: 'qa',
+    });
+    const q = await newItem(qa);
+    await toMerged(d, q, qa.repo);
+    expect(await bindingOf(qa, q, 'L4')).toMatchObject({
+      status: 'unbound',
+      reason: 'target_not_attested',
+    });
+
+    // two services deploy to production: the setting must name one
+    const two = await declared(
+      [
+        ['api', ['staging', 'production']],
+        ['web', ['production']],
+      ],
+      { mode: 'target', environment: 'production' },
+    );
+    const t = await newItem(two);
+    await toMerged(d, t, two.repo);
+    expect(await bindingOf(two, t, 'L4')).toMatchObject({ reason: 'target_not_attested' });
+    const named = await declared(
+      [
+        ['api', ['staging', 'production']],
+        ['web', ['production']],
+      ],
+      { mode: 'target', environment: 'production', service: 'web' },
+    );
+    const w = await newItem(named);
+    await toMerged(d, w, named.repo);
+    expect(await bindingOf(named, w, 'L4')).toMatchObject({
+      status: 'bound',
+      service_env: { service: 'web', environment: 'production' },
+    });
+  });
+
+  it('L5 needs staging separation; a project that declared nothing binds no L5 release', async () => {
+    const no = await declared(
+      [['api', ['staging', 'production']]],
+      { mode: 'target', environment: 'production' },
+      'no',
+    );
+    const id = await newItem(no);
+    const d = driver();
+    await toMerged(d, id, no.repo);
+    expect(await bindingOf(no, id, 'L5')).toMatchObject({
+      status: 'unbound',
+      reason: 'staging_separation_not_attested',
+    });
+    // L4 is not L5: the attested target binds
+    expect(await bindingOf(no, id, 'L4')).toMatchObject({ status: 'bound' });
+    const plain = await project({ mode: 'target', environment: 'production' });
+    const pid_ = await newItem(plain);
+    await toMerged(d, pid_, plain.repo);
+    expect(await bindingOf(plain, pid_, 'L5')).toMatchObject({
+      reason: 'staging_separation_not_attested',
+    });
+    expect(await bindingOf(plain, pid_, 'L4')).toMatchObject({
+      status: 'bound',
+      environment: 'production',
+    });
+  });
+
+  it('L5: staging before production. The first G5 releases to staging, RELHOLD, the re-requested G5 binds production', async () => {
+    const p = await declared([['api', ['staging', 'production']]], {
+      mode: 'target',
+      environment: 'production',
+    });
+    const id = await newItem(p, 'L5');
+    const d = driver();
+    await toMerged(d, id, p.repo);
+    await runItem(s, d, id, { stop: (st) => st.phase === 'S8b' });
+    const first = (await g5Of(id))?.[0];
+    const opened = await readOpened(s.record.pool, first?.gate_instance_id as string);
+    const b1 = opened?.payload.facts[G5_FACTS_KEY] as Extract<ReleaseBinding, { status: 'bound' }>;
+    expect(b1).toMatchObject({
+      status: 'bound',
+      environment: 'staging',
+      target_environment: 'production',
+      service_env: { service: 'api', environment: 'staging' },
+    });
+    // gate-relay releases it to staging, healthy: not released to the target yet (RELHOLD)
+    await relay(id, first?.gate_instance_id as string, b1, 'healthy');
+    s.clock.advance(1000);
+    const held = await runItem(s, d, id, { stop: (st) => st.waiting?.kind === 'release_held' });
+    expect(held?.state.waiting).toMatchObject({ kind: 'release_held' });
+    const failed = (await readItemEvents(s.record.pool, id)).filter(
+      (e) => (e.payload as { code?: string }).code === 'not_released:staging_released',
+    );
+    expect(failed.length).toBeGreaterThan(0);
+    // re-requested: the second G5 binds production, the staging release of this merged commit being healthy
+    ok(await reRequestRelease(s.deps, id, pr('bob'), 'senv-rr'));
+    await runItem(s, d, id, { stop: (st) => st.gates.filter((g) => g.gate === 'G5').length >= 2 });
+    const second = (await g5Of(id))?.[1];
+    const o2 = await readOpened(s.record.pool, second?.gate_instance_id as string);
+    const b2 = o2?.payload.facts[G5_FACTS_KEY] as Extract<ReleaseBinding, { status: 'bound' }>;
+    expect(b2).toMatchObject({
+      environment: 'production',
+      service_env: { service: 'api', environment: 'production' },
+    });
+    expect(b2).not.toHaveProperty('target_environment');
+    // gate-relay's own check: each binding holds against the setting; a staging binding of another target does not
+    const setting = { mode: 'target' as const, environment: 'production' };
+    expect(releaseTargetHolds(b1, setting)).toBe(true);
+    expect(releaseTargetHolds(b2, setting)).toBe(true);
+    expect(releaseTargetHolds(b1, { mode: 'target', environment: 'staging' })).toBe(false);
+    expect(releaseTargetHolds(b2, { ...setting, service: 'web' })).toBe(false);
   });
 });

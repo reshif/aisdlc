@@ -11788,6 +11788,10 @@
                       "minLength": 1,
                       "maxLength": 255,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                    },
+                    "service": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                     }
                   },
                   "required": [
@@ -13234,6 +13238,10 @@
                                 "minLength": 1,
                                 "maxLength": 255,
                                 "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                              },
+                              "service": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                               }
                             },
                             "required": [
@@ -15416,6 +15424,10 @@
                           "minLength": 1,
                           "maxLength": 255,
                           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "service": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                         }
                       },
                       "required": [
@@ -16726,6 +16738,10 @@
                                 "minLength": 1,
                                 "maxLength": 255,
                                 "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                              },
+                              "service": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                               }
                             },
                             "required": [
@@ -83232,6 +83248,10 @@
                               "minLength": 1,
                               "maxLength": 255,
                               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                            },
+                            "service": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                             }
                           },
                           "required": [
@@ -83731,6 +83751,10 @@
                       "minLength": 1,
                       "maxLength": 255,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                    },
+                    "service": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                     }
                   },
                   "required": [
@@ -103914,6 +103938,39 @@
               "minLength": 1,
               "maxLength": 255,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "service_env": {
+              "type": "object",
+              "properties": {
+                "service_env_id": {
+                  "type": "string",
+                  "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                },
+                "service": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                },
+                "environment": {
+                  "type": "string",
+                  "enum": [
+                    "development",
+                    "staging",
+                    "production"
+                  ]
+                }
+              },
+              "required": [
+                "service_env_id",
+                "service",
+                "environment"
+              ],
+              "additionalProperties": false
+            },
+            "target_environment": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
             }
           },
           "required": [
@@ -103958,7 +104015,9 @@
                 "no_passing_pack",
                 "no_pull_request",
                 "pack_head_not_pr_head",
-                "no_release_target"
+                "no_release_target",
+                "target_not_attested",
+                "staging_separation_not_attested"
               ]
             }
           },
@@ -104135,6 +104194,10 @@
               "minLength": 1,
               "maxLength": 255,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "service": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
             }
           },
           "required": [
@@ -104152,7 +104215,9 @@
         "no_passing_pack",
         "no_pull_request",
         "pack_head_not_pr_head",
-        "no_release_target"
+        "no_release_target",
+        "target_not_attested",
+        "staging_separation_not_attested"
       ]
     },
     "ReonboardDecideRequest": {
@@ -109925,6 +109990,10 @@
                               "minLength": 1,
                               "maxLength": 255,
                               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                            },
+                            "service": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                             }
                           },
                           "required": [
@@ -112909,6 +112978,10 @@
                       "minLength": 1,
                       "maxLength": 255,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                    },
+                    "service": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                     }
                   },
                   "required": [

@@ -1,6 +1,9 @@
 import { readReleaseSetting } from '@aisdlc/config';
 import {
+  G5_FACTS_KEY,
   NOT_RELEASED_CODE_PREFIX,
+  ReleaseBinding,
+  isStagingFirst,
   deployMarkerHash,
   foldReleaseStatus,
   gateRelayStream,
@@ -27,6 +30,8 @@ import { latestG5 } from './binding.js';
 //   no verdict yet (pending, queued, in progress)
 //   gate-relay refused the G5                            failed `not_released:<refusal>` (RELHOLD; re-request -> G5)
 //   the deployment is healthy                            completed, the output bound to the DeployMarker
+//   ... but it was an L5 change's staging release (M17)  failed `not_released:staging_released` (RELHOLD): staging
+//                                                        before production; the re-requested G5 binds production
 //   the deployment is unhealthy (gate-relay rolled back) B16: a NEW linked rollback item (L0), then failed
 //                                                        `not_released:rolled_back` (RELHOLD)
 //
@@ -81,8 +86,16 @@ export class GateRelayReleasePort implements ReleasePort {
         );
       case 'refused':
         return ok(notReleased(st.reason));
-      case 'healthy':
+      case 'healthy': {
+        // M17: an L5 change released to its service's staging environment is not released to the target yet
+        const b = ReleaseBinding.safeParse(
+          (g5.state.open.payload.facts as Record<string, unknown>)[G5_FACTS_KEY],
+        );
+        if (b.success && b.data.status === 'bound' && isStagingFirst(b.data)) {
+          return ok(notReleased('staging_released'));
+        }
         return ok({ outcome: 'completed', output_hash: deployMarkerHash(st.marker) as never });
+      }
       case 'unhealthy': {
         // B16: deploy unhealthy -> rollback (gate-relay made it) and a NEW linked L0 item that carries the fix
         const s = await requestSpawn(this.o.deps, req.item_id, {

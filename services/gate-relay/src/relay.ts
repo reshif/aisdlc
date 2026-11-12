@@ -7,6 +7,7 @@ import {
   deployMarkerId,
   g5SubjectHash,
   healthOf,
+  releaseTargetHolds,
   type DeployMarker,
   type DeploymentTag,
   type ReleaseRefusal,
@@ -112,12 +113,10 @@ export class GateRelay {
     const b = parsed.data;
     if (b.status === 'unbound') return refuse('unbound', b.reason);
 
+    // the project's target is still this one: the environment (and the service, M17), or for an L5 staging-first
+    // release exactly its service's staging environment
     const rel = await this.d.facts.release(b.project_id);
-    if (
-      rel.state !== 'ok' ||
-      rel.value?.mode !== 'target' ||
-      rel.value.environment !== b.environment
-    ) {
+    if (rel.state !== 'ok' || !releaseTargetHolds(b, rel.value)) {
       return refuse(
         'target_changed',
         rel.state === 'ok' ? (rel.value?.mode ?? 'not_chosen') : 'unreadable',
