@@ -23,6 +23,8 @@ import {
   gatewayTriggersLoop,
   killObserverLoop,
   mergeReviewLoop,
+  mergeReconcileLoop,
+  DbWatchedPulls,
   registerCoreConfig,
   constitutionFrom,
   roleMapSyncLoop,
@@ -46,6 +48,7 @@ import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
 import {
   LoopSupervisor,
+  agentPullsLoop,
   defaultBranchHeadLoop,
   effectiveRulesLoop,
   installationLoop,
@@ -419,20 +422,34 @@ export async function bootCoreWorker(
       // M14.5: the X4 review of every merge gate-check recorded without aisdlc/gate passing (a bypass by a listed
       // person, or an unauthorised merge). gate-check has no route to core: it records, this loop opens the cards.
       const rd = await ensureReader();
-      supervisor.add(
-        mergeReviewLoop(
-          {
-            decisions: {
-              pool,
-              ledger,
-              eligibility: identityEligibility(readPool, registry),
-              stepUp: new RefusingStepUp(),
-              maintenance: maintenanceFrom(rd),
-            },
-          },
-          { startDelayMs: 3_500 },
-        ),
-      );
+      const decisions = {
+        pool,
+        ledger,
+        eligibility: identityEligibility(readPool, registry),
+        stepUp: new RefusingStepUp(),
+        maintenance: maintenanceFrom(rd),
+      };
+      supervisor.add(mergeReviewLoop({ decisions }, { startDelayMs: 3_500 }));
+      if (cfg.pushBroker) {
+        // M15.2 8.2: a person merges an agent PR on the host. The poll records what the host says of every agent PR
+        // of an item in flight (record first, the Push Broker's read-only `pr_status`); the reconcile then completes
+        // S8 for exactly the approved head, opens X4 for any other merge, and takes B15a or B15b at 8.2.
+        supervisor
+          .add(
+            agentPullsLoop(
+              {
+                pool,
+                source: new HttpCodeHostPush({
+                  baseUrl: cfg.codehostUrl,
+                  token: cfg.codehostToken,
+                }),
+                watched: new DbWatchedPulls(pool),
+              },
+              { startDelayMs: 4_000 },
+            ),
+          )
+          .add(mergeReconcileLoop({ pool, decisions }, { startDelayMs: 4_500 }));
+      }
     }
     if (cfg.knowledge || cfg.identity) {
       const rd = await ensureReader();

@@ -1,12 +1,14 @@
 import {
   GATECHECK_EVENT,
+  GATE_EVENT,
   MergeObservedPayload,
+  mergeSubjectId,
   type MergeObservedPayload as Merge,
 } from '@aisdlc/contracts';
 import { openCards, type DecisionDeps } from '@aisdlc/decisions';
 import { err, hashCanonical, ok, type Result } from '@aisdlc/kernel';
 import type { LoopSpec } from '@aisdlc/loops';
-import { EVENT_COLUMNS, toRecordEvent, type EventRow } from '@aisdlc/record';
+import { EVENT_COLUMNS, toRecordEvent, type EventRow, type Executor } from '@aisdlc/record';
 import { coreError, type CoreError } from './errors.js';
 import { clockOf } from './journal.js';
 
@@ -64,6 +66,79 @@ export function x4FactsOf(p: Merge): Record<string, unknown> {
   };
 }
 
+/** What an X4 post-hoc review of one merge is opened with. */
+export interface MergeX4 {
+  readonly project_id: string;
+  readonly requester: string | null;
+  readonly repo: string;
+  readonly pr_number: number;
+  /** The merged head: with repo and PR it is the merge's id (`mergeSubjectId`), the gate's subject. */
+  readonly head_sha: string;
+  readonly merge_commit_sha: string | null;
+  readonly opened_by: string;
+  readonly subject_hash: string;
+  readonly facts: Record<string, unknown>;
+}
+
+/**
+ * The merge's X4 already opened, by gate-check's observer or by 8.2's reconcile (M15.2): an X4 on the same merge id
+ * (repo, PR, merged head), or one whose facts name the same repo, PR and merge commit. Whichever saw the merge first
+ * opened it; the other opens nothing.
+ */
+export async function mergeX4Exists(db: Executor, m: MergeX4): Promise<boolean> {
+  const q = await db.query(
+    `SELECT 1 FROM record.record_event
+      WHERE type = $1 AND seq = 1 AND body ->> 'gate_id' = 'X4' AND body ->> 'subject_kind' = 'merge'
+        AND (body ->> 'subject_id' = $2
+             OR ($4::text IS NOT NULL AND lower(body -> 'facts' ->> 'repo') = $3
+                 AND body -> 'facts' ->> 'pr_number' = $5 AND body -> 'facts' ->> 'merge_commit_sha' = $4))
+      LIMIT 1`,
+    [
+      GATE_EVENT.opened,
+      mergeSubjectId(m.repo, m.pr_number, m.head_sha),
+      m.repo.toLowerCase(),
+      m.merge_commit_sha,
+      String(m.pr_number),
+    ],
+  );
+  return q.rows.length > 0;
+}
+
+/**
+ * Opens one merge's X4 unless it is open already (`mergeX4Exists`). The check and the open run under one advisory lock
+ * per repo and PR, so the two observers never both open one.
+ */
+export async function openMergeX4Once(
+  decisions: DecisionDeps,
+  m: MergeX4,
+): Promise<Result<{ opened: boolean }, CoreError>> {
+  const c = await decisions.pool.connect();
+  const key = `aisdlc.core:x4-merge:${m.repo.toLowerCase()}#${m.pr_number}`;
+  try {
+    await c.query('SELECT pg_advisory_lock(hashtext($1))', [key]);
+    try {
+      if (await mergeX4Exists(c, m)) return ok({ opened: false });
+      const mergeId = mergeSubjectId(m.repo, m.pr_number, m.head_sha);
+      const cards = await openCards(decisions, {
+        project_id: m.project_id as never,
+        requester: m.requester as never,
+        subject_kind: 'merge',
+        subject_id: mergeId,
+        opened_by: m.opened_by,
+        gates: [{ gate_id: 'X4', subject_hash: m.subject_hash, facts: m.facts as never }],
+      });
+      if (!cards.ok) {
+        return err(coreError('unavailable', `X4 for ${mergeId}: ${cards.error.message}`));
+      }
+      return ok({ opened: cards.value.some((x) => x.opened) });
+    } finally {
+      await c.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
+    }
+  } finally {
+    c.release();
+  }
+}
+
 /** Reads the bypass and unauthorised merges after the cursor and opens each one's X4 review. */
 export async function observeBypassMerges(
   d: MergeReviewDeps,
@@ -85,24 +160,19 @@ export async function observeBypassMerges(
     if (!p.success) {
       return err(coreError('invalid_input', `${e.type} #${e.global_seq} is malformed`));
     }
-    const cards = await openCards(d.decisions, {
+    const cards = await openMergeX4Once(d.decisions, {
       project_id: p.data.project_id,
-      requester: (p.data.bypass_person?.principal_id ?? null) as never,
-      subject_kind: 'merge',
-      subject_id: p.data.merge_id,
+      requester: p.data.bypass_person?.principal_id ?? null,
+      repo: p.data.repo,
+      pr_number: p.data.pr_number,
+      head_sha: p.data.head_sha,
+      merge_commit_sha: p.data.merge_commit_sha,
       opened_by: 'system.gate-check',
-      gates: [
-        {
-          gate_id: 'X4',
-          subject_hash: hashCanonical(p.data as never),
-          facts: x4FactsOf(p.data) as never,
-        },
-      ],
+      subject_hash: hashCanonical(p.data as never),
+      facts: x4FactsOf(p.data),
     });
-    if (!cards.ok) {
-      return err(coreError('unavailable', `X4 for ${p.data.merge_id}: ${cards.error.message}`));
-    }
-    if (cards.value.some((c) => c.opened)) opened += 1;
+    if (!cards.ok) return cards;
+    if (cards.value.opened) opened += 1;
     await pool.query(
       `INSERT INTO core.observer_cursor (name, global_seq, updated_at) VALUES ($1, $2::bigint, $3)
        ON CONFLICT (name) DO UPDATE SET global_seq = greatest(core.observer_cursor.global_seq, excluded.global_seq),
