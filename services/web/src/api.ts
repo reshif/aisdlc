@@ -36,6 +36,8 @@ import type {
   RestoreResult,
   RepoDriftView,
   OnboardingVersionResult,
+  ReonboardDecideResult,
+  ReonboardDecision,
   BypassListShown,
   Level,
   OnboardingVersionReason,
@@ -578,6 +580,18 @@ export const api = {
     request<OnboardingVersionResult>(
       'POST',
       `/api/projects/${encodeURIComponent(project)}/onboarding-versions`,
+      b,
+      csrf,
+    ),
+  /** M17: accept (a new onboarding from 0.1) or decline a re-onboarding proposal. */
+  reonboardDecide: (
+    project: string,
+    b: { repo: string; proposal_id: string; decision: ReonboardDecision; reason: string },
+    csrf: string,
+  ) =>
+    request<ReonboardDecideResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/reonboarding/decide`,
       b,
       csrf,
     ),

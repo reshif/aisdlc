@@ -3,6 +3,7 @@ import { Level } from '../values.js';
 import { ReadinessStatus } from '../states/readiness.js';
 import { RepoFullName } from './codehost.js';
 import { LintSeverity } from './detectors.js';
+import { ReonboardProposalView } from './knowledge-defects.js';
 import {
   GitSha,
   IsoDateTime,
@@ -366,6 +367,8 @@ export const RepoDriftView = z.strictObject({
   }),
   /** Levels a level-up may ask for from the signed one (Full is M17's 0.3: the request runs as the spec says). */
   level_up: z.array(Level),
+  /** M17: the re-onboarding proposals knowledge defects raised (open first is the card; decided ones with the decision). */
+  reonboarding: z.array(ReonboardProposalView),
   history: z.array(DriftHistoryRow),
 });
 export type RepoDriftView = z.infer<typeof RepoDriftView>;
@@ -413,6 +416,8 @@ export const PortalProjectDriftView = ProjectDriftView.extend({
     recheck: z.boolean(),
     /** `project.onboard` (a level-up or a re-sign is an onboarding request). */
     request_version: z.boolean(),
+    /** `project.settings.edit` (accept or decline a re-onboarding proposal; core also requires the admin slot). */
+    reonboard: z.boolean(),
   }),
 });
 export type PortalProjectDriftView = z.infer<typeof PortalProjectDriftView>;

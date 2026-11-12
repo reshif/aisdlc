@@ -6,6 +6,7 @@ import {
   KnowledgeDefectRecordedPayload,
   REONBOARD_EVENT,
   REONBOARD_TRIGGERS_KEY,
+  ReonboardDecidedPayload,
   ReonboardProposalView,
   ReonboardProposedPayload,
   ReonboardTriggersConfig,
@@ -108,6 +109,14 @@ export async function applyKnowledgeDefectEvent(
         e.global_seq,
       ],
     );
+    return;
+  }
+  if (e.type === REONBOARD_EVENT.decided) {
+    const p = ReonboardDecidedPayload.parse(e.payload);
+    await tx.query(
+      `UPDATE core.reonboard_proposal SET status = $2, decision = $3 WHERE proposal_id = $1 AND status = 'proposed'`,
+      [p.proposal_id, p.decision === 'accept' ? 'accepted' : 'declined', JSON.stringify(p)],
+    );
   }
 }
 
@@ -140,13 +149,26 @@ export async function listReonboardProposals(
   db: Executor,
   repo: string,
 ): Promise<ReonboardProposalView[]> {
-  const q = await db.query<{ body: unknown; status: string }>(
-    'SELECT body, status FROM core.reonboard_proposal WHERE repo = $1 ORDER BY event_gseq',
+  const q = await db.query<{ body: unknown; status: string; decision: unknown }>(
+    'SELECT body, status, decision FROM core.reonboard_proposal WHERE repo = $1 ORDER BY event_gseq',
     [repo.toLowerCase()],
   );
   return q.rows.map((r) =>
-    ReonboardProposalView.parse({ ...(r.body as object), status: r.status }),
+    ReonboardProposalView.parse({
+      ...(r.body as object),
+      status: r.status,
+      decision: r.decision ?? null,
+    }),
   );
+}
+
+/** One proposal of a repo, or `null`. */
+export async function reonboardProposal(
+  db: Executor,
+  repo: string,
+  proposalId: string,
+): Promise<ReonboardProposalView | null> {
+  return (await listReonboardProposals(db, repo)).find((p) => p.proposal_id === proposalId) ?? null;
 }
 
 // ---------------------------------------------------------------- the step
