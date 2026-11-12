@@ -118,6 +118,7 @@ import {
 } from './portal-reads.js';
 import type { AssistantDeps } from './conversation/assistant.js';
 import { registerAssistantRoutes } from './conversation/routes.js';
+import { registerIssueTwinRoutes } from './issue-twin/routes.js';
 import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
   cardDetail,
@@ -1599,6 +1600,10 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return fail(reply, coreError('unavailable', 'the ledger entries could not be read'));
     }
   });
+
+  // ------------------------------------------------------------ the GitHub issue twin (M16)
+
+  registerIssueTwinRoutes({ app, deps, allowed: (req) => allowed(req, 'work'), guard });
 
   // ------------------------------------------------------------ the assistant (M18)
 

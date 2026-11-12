@@ -12,6 +12,7 @@ export * from './push.js';
 export * from './b4.js';
 export * from './fake-github.js';
 export * from './fake-issue-tracker.js';
+export * from './gap-recheck.js';
 export * from './issue-tracker.js';
 export * from './registered-repos.js';
 export * from './core-clients.js';
