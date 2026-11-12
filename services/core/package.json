@@ -22,7 +22,7 @@
     }
   },
   "scripts": {
-    "build": "node ../../scripts/bundle.mjs main aisdlc-seed && node ../../scripts/copy-prompts.mjs",
+    "build": "node ../../scripts/bundle.mjs main aisdlc-seed aisdlc-rebuild-check aisdlc-export-packs && node ../../scripts/copy-prompts.mjs",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc -p tsconfig.check.json"
   },
@@ -36,6 +36,7 @@
     "@aisdlc/contracts": "0.0.0",
     "@aisdlc/db": "0.0.0",
     "@aisdlc/decisions": "0.0.0",
+    "@aisdlc/directory": "0.0.0",
     "@aisdlc/identity": "0.0.0",
     "@aisdlc/integrations": "0.0.0",
     "@aisdlc/kernel": "0.0.0",
