@@ -1,6 +1,6 @@
 # Portal: what the prototype covers, what is missing, and how the real portal gets there
 
-Status: 2026-11-10. Owner of the plan: PLAN.md M21 (portal lift). This file is the checklist M21 closes.
+Status: 2026-11-12 (steps 1 and 2 of §6 done). Owner of the plan: PLAN.md M21 (portal lift). This file is the checklist M21 closes.
 
 The portal prototype lives in [`portal-prototype/`](portal-prototype/) (plain browser JS, example data, in memory). Build it with
 `node docs/design/portal-prototype/assemble.mjs <out.html>` and open the file; the published copy is the "AISDLC Portal" artifact.
@@ -117,15 +117,19 @@ The prototype shows today's spec or contract behaviour for each of these. The re
 
 Each milestone from M14 on builds the screens for what it adds, using the prototype as the reference. M21 then closes what remains. The work in order:
 
-1. **Foundation.**
-   - Move the prototype's tokens and components into `services/web` as a small component library: page head, card, stats, table, pills, chips, gate tags, actor glyphs, tabs, timeline, steps, drawer, modal, toast, locked button.
-   - The vocabulary comes from `packages/contracts`, never re-listed.
-2. **Access from the server.**
-   - A bff route `GET /api/me/access` returns the person's bindings, view levels and data classes per project, and a batch of PDP decisions for the actions the current screen shows (from `access.explain`).
-   - `A.act` becomes a `<Guarded action resource>` component.
-   - Every write is still decided by the PDP on the server. The client hint only hides or locks buttons, and never grants.
+1. **Foundation.** Done (2026-11-12, branch `feat/portal-foundation`).
+   - `services/web/src/ui`: the prototype's tokens as CSS custom properties (`tokens.css`, dark theme; a light theme is one more block) and the components: PageHead, Card, Stat/Stats, KeyValue, Table, Pill, Chip, GateTag, ActorGlyph, Tabs, Timeline, Steps, Drawer, Modal, Toast, LockedButton, EmptyState, ErrorState (403 with the reason; one 404 for invisible and missing).
+   - Gates, lanes, steps and actors come from `packages/contracts` (a `Record<Value, look>` per vocabulary, so a new value fails the build until it has a look).
+   - The shell (`src/shell`): top bar, navigation grouped Work, Decide, Projects, Operate, Quality, Govern, Admin (an entry the person cannot open is not listed; a group with nothing to open is not shown), My access, sign-out. Every existing screen (projects, project, onboarding, S0, cards, gate cards, items, inbox, settings revision, readiness, ledger) runs in it; Badge is a library Pill and page loads use ErrorState.
+   - The configuration pattern (`src/config/ConfigConsole`): for any key registered in core's config registry, the effective value with its revision, M1 gate and ledger entry; a draft form generated from the key's JSON Schema; the diff; Propose (an ordinary revision with its M1 gate, `config.propose`); the open proposals with who decides; the history. Secret references are shown and edited as references. Govern > Configuration lists the keys. Proven on `sandbox.caps` and `sandbox.exec_allowed_repos`.
+2. **Access from the server.** Done (same branch).
+   - `GET /api/me/access`: the person's bindings (in force or not, with the reason), and per project the highest view level and data class of the roles in force there and what the PDP allows on the project. Only projects the person holds a binding on are listed.
+   - `POST /api/me/decisions`: up to 50 `{action, resource}` pairs decided by the real PDP as capability probes (not logged). A pair on a project the person cannot view answers `not_visible`, exactly like a project that does not exist.
+   - `AccessProvider`, `useCan(action, resource)` (batched per render) and `<Guarded action resource>` (hide, or a LockedButton with the PDP's reason and "Request access" to My access, which names the roles that would grant it). A pending, failed or mismatched answer is a deny.
+   - Every write is still decided by the PDP on the server; a bff test shows a write the hint called allowed refused once the PDP says no.
+   - Still open: the per-project matrix asks only project-level actions (gate, item and card actions need a resource the screen has); access requests have no API yet (My access says whom to ask); bootstrap grants (`liveBootstrap`) are not listed as bindings; the portal cannot decide a factory-layer M1 yet (no slot covers a fleet change, §5 item 5), so the console shows who holds the factory admin slot and the gate id.
 3. **Sign-in.** OIDC with the real IdP (the dev IdP in local-prod), the session policy from config, step-up as today (`SignedStepUp`), sign-out, ending sessions.
-4. **Screens, ported in this order:**
+4. **Screens, ported in this order** (the shell is done with step 1; each screen below is still to port onto the library):
    1. home and inbox;
    2. the item page and the gate screens (all gates, §3);
    3. the floor: live through the M19 read models, routes generated from the catalogue, so DM gap 12 never appears;
