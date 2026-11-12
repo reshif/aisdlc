@@ -1,6 +1,8 @@
 import {
   C1DecisionContent,
   C2DecisionContent,
+  C3DecisionContent,
+  FULL_INTENT_QUESTIONS,
   C4DecisionContent,
   INTENT_QUESTIONS,
   PRACTICE_QUESTIONS,
@@ -329,15 +331,16 @@ export const c2View = (over: Record<string, unknown> = {}) => ({
 const SCHEMAS = {
   C1: C1DecisionContent,
   C2: C2DecisionContent,
+  C3: C3DecisionContent,
   C4: C4DecisionContent,
   C5: C5DecisionContent,
   SECR: SecrDecisionContent,
 } as const;
 
-const STEP = { C1: '0.1', C2: '0.2', C4: '0.4', C5: '0.5', SECR: '0.1' } as const;
+const STEP = { C1: '0.1', C2: '0.2', C3: '0.3', C4: '0.4', C5: '0.5', SECR: '0.1' } as const;
 
 export function detail(
-  kind: Exclude<CardKind, 'C3' | 'BATCH' | 'X2'>,
+  kind: Exclude<CardKind, 'BATCH' | 'X2'>,
   view: object,
   over: Partial<CardDetailWire> = {},
 ): CardDetailWire {
@@ -349,7 +352,7 @@ export function detail(
       card: kind,
       step: STEP[kind],
       status: 'open',
-      slot: 'admin',
+      slot: kind === 'C3' ? 'intent' : 'admin',
       opened_at: NOW,
       payload_hash: null,
       actionable: true,
@@ -384,4 +387,113 @@ export const decided = (entries: LedgerReceipt[] = [receipt()]) => ({
   decision: { entries, status: 'decided', payload_hash: 'p'.repeat(64) },
   applied: 'applied' as const,
   apply_error: null,
+});
+
+export const BASELINE_HASH = 'f3'.repeat(32);
+
+/** Card 3's view: two areas, a seed each, two exam questions, one golden candidate, three interview questions. */
+export const c3View = (over: Record<string, unknown> = {}) => ({
+  card: 'C3',
+  repo: 'reshif/asf-factory-testbed',
+  baseline: {
+    baseline_hash: BASELINE_HASH,
+    census_hash: 'c'.repeat(64),
+    baseline_sha: 'a'.repeat(40),
+    graph: {
+      graph_hash: 'g'.repeat(64),
+      files: 6,
+      edges: 3,
+      external_imports: 2,
+      skipped_index: 1,
+      truncated: false,
+    },
+  },
+  ff1: { state: 'met', reasons: [] },
+  system_map: {
+    graph_hash: 'g'.repeat(64),
+    map_hash: 'm'.repeat(64),
+    areas: [
+      {
+        area: '.',
+        manifest: 'package.json',
+        files: 3,
+        source_files: 1,
+        test_files: 1,
+        languages: ['typescript'],
+        depends_on: ['packages/money'],
+        used_by: [],
+      },
+      {
+        area: 'packages/money',
+        manifest: 'packages/money/package.json',
+        files: 3,
+        source_files: 1,
+        test_files: 1,
+        languages: ['typescript'],
+        depends_on: [],
+        used_by: ['.'],
+      },
+    ],
+    edges: [{ from: '.', to: 'packages/money', imports: 1 }],
+  },
+  seeds: [
+    {
+      seed_id: 'seed-0000000000000001',
+      area: '.',
+      path: 'specs/repository.md',
+      status: 'observed',
+      text: '# The repository (observed)\n',
+      text_sha256: '1'.repeat(64),
+      evidence: [{ path: 'src/server.ts', blob: 'a'.repeat(40), line: 1 }],
+    },
+    {
+      seed_id: 'seed-0000000000000002',
+      area: 'packages/money',
+      path: 'specs/packages-money.md',
+      status: 'observed',
+      text: '# packages/money (observed)\n',
+      text_sha256: '2'.repeat(64),
+      evidence: [{ path: 'packages/money/src/index.ts', blob: 'a'.repeat(40), line: 1 }],
+    },
+  ],
+  seeds_dropped: 0,
+  seed_verdicts: ['affirm', 'correct', 'keep_observed'],
+  exam: [
+    {
+      question_id: 'exam-01',
+      text: 'How are the tests of the repository run?',
+      answer: 'With `npm test`.',
+      evidence: [],
+    },
+    {
+      question_id: 'exam-02',
+      text: 'What does packages/money depend on inside the repository?',
+      answer: 'Nothing inside the repository.',
+      evidence: [],
+    },
+  ],
+  exam_grades: ['correct', 'incorrect', 'unsure'],
+  exclusion: {
+    rules: [],
+    excluded: [{ path: '.github/workflows/ci.yml', reason: 'protected_path' }],
+    excluded_count: 1,
+    not_indexed: 1,
+    manifest_hash: 'x'.repeat(64),
+  },
+  golden_candidates: [
+    {
+      candidate_id: 'gt-0000000000000001',
+      area: 'packages/money',
+      test: { path: 'packages/money/test/ledger.test.ts', blob: 'a'.repeat(40) },
+      subjects: [{ path: 'packages/money/src/index.ts', blob: 'a'.repeat(40) }],
+    },
+  ],
+  golden_verdicts: ['accept', 'reject'],
+  oracle_lock: {
+    tests: [{ path: 'packages/money/test/ledger.test.ts', blob: 'a'.repeat(40) }],
+    truncated: false,
+    lock_hash: 'o'.repeat(64),
+  },
+  intent_questions: FULL_INTENT_QUESTIONS.slice(0, 3),
+  ...over,
 });
