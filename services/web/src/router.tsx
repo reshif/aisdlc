@@ -36,6 +36,7 @@ export type Route =
 
 /** Screens with one fixed path (2026-11-12: home, lists, quality, operate, govern, admin). */
 export const STATIC_SCREENS = {
+  '/floor': 'floor',
   '/projects': 'projects',
   '/items': 'items',
   '/board': 'board',

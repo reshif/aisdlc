@@ -1,0 +1,638 @@
+/* The floor (M19), after docs/design/portal-prototype/src/floor.css. Tokens only (tokens.css). */
+
+.fl-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.fl-pick select {
+  background: var(--panel-2);
+  color: var(--fg);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 5px 8px;
+  max-width: 220px;
+}
+
+.fl-banners {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.fl-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.fl-banner p {
+  flex: 1 1 280px;
+  margin: 0;
+}
+.fl-wait {
+  display: block;
+  max-width: 460px;
+  background: var(--fg-2);
+  color: var(--bg);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 15px;
+  text-decoration: none;
+}
+.fl-wait:hover,
+.fl-wait:focus-visible {
+  background: var(--fg);
+}
+
+.fl-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.fl-sp {
+  flex: 1;
+}
+.fl-live {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  animation: fl-pulse 1.6s infinite;
+}
+.fl-live-stale {
+  background: var(--warn);
+  animation: none;
+}
+@keyframes fl-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.fl-lanes {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.fl-lanebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.fl-lanebtn i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.fl-lanebtn[aria-pressed='false'] {
+  opacity: 0.5;
+}
+.fl-lanebtn:hover,
+.fl-lanebtn:focus-visible {
+  border-color: var(--line-2);
+  color: var(--fg);
+}
+.fl-counts {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.fl-seg {
+  display: inline-flex;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.fl-seg button {
+  background: transparent;
+  border: 0;
+  color: var(--fg-2);
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.fl-seg button + button {
+  border-left: 1px solid var(--line-2);
+}
+.fl-seg button[aria-pressed='true'] {
+  background: var(--panel-3);
+  color: var(--fg);
+}
+
+/* the plan: it scales to fit, or scrolls inside its own box at 100% (never the page) */
+.fl-viewport {
+  position: relative;
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 100%;
+  min-width: 0;
+}
+.fl-viewport.fl-real {
+  overflow: auto;
+  max-height: 80vh;
+}
+.fl-scale {
+  position: relative;
+}
+.fl-plan {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1500px;
+  height: 1010px;
+  transform-origin: 0 0;
+}
+.fl-svg {
+  position: absolute;
+  inset: 0;
+}
+.fl-dots line {
+  stroke: var(--faint);
+  stroke-width: 2;
+  stroke-dasharray: 1.5 6;
+  stroke-linecap: round;
+}
+.fl-tracklbl {
+  font: 12.5px var(--mono);
+  fill: var(--faint);
+}
+.fl-belt {
+  fill: none;
+  stroke: var(--belt);
+  stroke-width: 18;
+  stroke-linejoin: round;
+}
+.fl-belt-thin {
+  stroke-width: 14;
+}
+.fl-belt-run {
+  fill: none;
+  stroke: var(--belt-2);
+  stroke-width: 3;
+  stroke-dasharray: 7 14;
+  stroke-linejoin: round;
+  animation: fl-run 1.4s linear infinite;
+}
+@keyframes fl-run {
+  to {
+    stroke-dashoffset: -21;
+  }
+}
+.fl-back {
+  fill: none;
+  stroke: var(--back);
+  stroke-width: 3.2;
+  stroke-dasharray: 12 7;
+}
+.fl-back.fl-old {
+  opacity: 0.4;
+}
+.fl-ah {
+  fill: var(--back);
+}
+
+.fl-st,
+.fl-room {
+  position: absolute;
+  border-radius: 9px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    border-color 0.2s;
+}
+.fl-st {
+  background: var(--panel);
+  border: 1.5px solid var(--line-2);
+}
+.fl-st:hover,
+.fl-room:hover {
+  border-color: var(--muted);
+}
+.fl-st:focus-visible,
+.fl-room:focus-visible,
+.fl-dia:focus-visible,
+.fl-chip:focus-visible {
+  outline: 2px solid var(--gate);
+  outline-offset: 3px;
+}
+.fl-sthd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.fl-led {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--line-2);
+}
+.fl-led.fl-on {
+  background: var(--human);
+}
+.fl-led.fl-bad {
+  background: var(--bad);
+}
+.fl-acts {
+  display: flex;
+  gap: 4px;
+}
+.fl-stname {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 24px;
+  color: var(--fg);
+  margin-top: 6px;
+}
+.fl-s6 {
+  border-color: var(--agent-line);
+}
+.fl-pod {
+  position: absolute;
+  border: 1.5px dashed var(--line-2);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.fl-pod.fl-busy {
+  border: 1.5px solid var(--agent);
+  background: var(--agent-bg);
+}
+.fl-pod.fl-unknown {
+  border-style: dotted;
+  opacity: 0.7;
+}
+.fl-podlbl {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.fl-pod.fl-busy .fl-podlbl {
+  color: var(--agent-fg);
+}
+
+.fl-room {
+  border: 1.5px dashed var(--line-2);
+}
+.fl-room-quar {
+  border-color: var(--bad-line);
+}
+.fl-room-desk {
+  border-color: var(--info-line);
+}
+.fl-rt {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 21px;
+  color: var(--fg);
+  line-height: 1.1;
+}
+.fl-rs {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.fl-gate {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.fl-dia {
+  position: absolute;
+  left: -15px;
+  top: -15px;
+  width: 30px;
+  height: 30px;
+  background: var(--gate);
+  transform: rotate(45deg);
+  border-radius: 3px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 0 0 3px var(--sunk);
+}
+.fl-dia:hover {
+  transform: rotate(45deg) scale(1.15);
+}
+.fl-glbl {
+  position: absolute;
+  left: -50px;
+  width: 100px;
+  top: -60px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--fg-2);
+}
+.fl-who {
+  position: absolute;
+  left: -50px;
+  width: 100px;
+  top: -42px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--gate);
+  letter-spacing: 0.06em;
+}
+.fl-gate-below .fl-glbl {
+  left: -72px;
+  width: 40px;
+  top: -12px;
+  text-align: right;
+}
+.fl-gate-below .fl-who {
+  left: -72px;
+  width: 40px;
+  top: 6px;
+  text-align: right;
+}
+
+.fl-tags {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.fl-tag {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: var(--sunk);
+  border: 2px solid var(--muted);
+  color: var(--fg);
+  border-radius: 14px;
+  padding: 2px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+  z-index: 2;
+}
+.fl-tag-short {
+  font-family: var(--mono);
+}
+.fl-tag-back {
+  border-color: var(--back);
+}
+.fl-tag-back.fl-old {
+  border-color: var(--back-line);
+  color: var(--back-fg);
+}
+.fl-notags .fl-tag,
+.fl-notags .fl-back {
+  display: none;
+}
+
+.fl-chips {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.fl-chip {
+  position: absolute;
+  pointer-events: auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+.fl-chip b {
+  font-size: 15px;
+  min-width: 42px;
+  padding: 3px 8px;
+  text-align: center;
+}
+.fl-chip u {
+  display: block;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--belt-2);
+}
+.fl-chip.fl-dim {
+  opacity: 0.18;
+}
+.fl-chip.fl-mine b {
+  box-shadow: 0 0 0 2.5px var(--gate);
+}
+.fl-chip.fl-hold b {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 0 4px,
+    transparent 4px 9px
+  );
+}
+.fl-chip.fl-stuck b {
+  box-shadow: 0 0 0 3px var(--bad);
+}
+.fl-chip.fl-focus b {
+  box-shadow: 0 0 0 2px var(--fg);
+}
+.fl-routing .fl-st:not(.fl-onroute) {
+  opacity: 0.3;
+}
+.fl-routing .fl-room {
+  opacity: 0.35;
+}
+.fl-routing .fl-gate:not(.fl-onroute) .fl-dia {
+  opacity: 0.25;
+}
+.fl-routing .fl-chip:not(.fl-focus) {
+  opacity: 0.3;
+}
+
+/* stale: the plan is greyed and says so; it never looks fresh */
+.fl-stale .fl-plan {
+  filter: grayscale(0.85);
+}
+.fl-stale .fl-belt-run {
+  animation: none;
+}
+.fl-stale::after {
+  content: 'STALE';
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  font: 600 13px var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: 6px;
+  padding: 2px 8px;
+  z-index: 5;
+}
+
+.fl-tip {
+  position: absolute;
+  z-index: 20;
+  width: 300px;
+  background: var(--panel-3);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  font-size: 13px;
+}
+.fl-tip-t {
+  font-weight: 500;
+}
+
+.fl-legend {
+  list-style: none;
+  display: flex;
+  gap: 8px 22px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  margin: 14px 2px 18px;
+  padding: 0;
+  font-size: 13px;
+}
+.fl-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.fl-legend i {
+  display: inline-block;
+  width: 22px;
+  height: 0;
+  border-top: 5px solid var(--belt);
+}
+.fl-legend .fl-lg-dot {
+  border-top: 3px dotted var(--muted);
+}
+.fl-legend .fl-lg-back {
+  border-top: 3px dashed var(--back);
+}
+.fl-legend .fl-lg-mine {
+  width: 12px;
+  height: 12px;
+  border: 2.5px solid var(--gate);
+  border-radius: 3px;
+}
+
+.fl-below {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+}
+.fl-pad {
+  padding: 12px 16px;
+}
+.fl-log {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  max-height: 330px;
+  overflow: auto;
+}
+.fl-log li {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+.fl-log li:last-child {
+  border-bottom: 0;
+}
+.fl-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--info-fg);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.fl-flow {
+  width: 100%;
+  margin-top: 12px;
+}
+.fl-flow-f {
+  fill: var(--hand);
+  opacity: 0.7;
+}
+.fl-flow-b {
+  fill: var(--back);
+}
+.fl-flow-t {
+  font: 9px var(--mono);
+  fill: var(--faint);
+}
+.fl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.fl-li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.fl-li:last-child {
+  border-bottom: 0;
+}
+.fl-li-t {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fl-route {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.fl-route li + li::before {
+  content: '→';
+  color: var(--faint);
+  margin-right: 10px;
+}
+.fl-route-now {
+  color: var(--gate);
+  font-weight: 600;
+}
+.fl-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.fl-steps li {
+  padding: 3px 0;
+}
+.fl-gtitle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-right: 12px;
+}

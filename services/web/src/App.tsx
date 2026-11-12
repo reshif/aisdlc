@@ -23,6 +23,7 @@ import { CloseoutPage } from './pages/CloseoutPage';
 import { LearnPage } from './pages/LearnPage';
 import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
 import { BoardPage, ItemsPage } from './pages/ItemsPage';
+import { FloorPage } from './floor/FloorPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
 import {
   ControlsPage,
@@ -156,6 +157,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <HomePage me={me} />;
     case 'projects':
       return <ProjectListPage canOnboard={mayOnboard} />;
+    case 'floor':
+      return <FloorPage me={me} />;
     case 'items':
       return <ItemsPage />;
     case 'board':
