@@ -1,3 +1,4 @@
+import type { OracleDeviation as ContractsOracleDeviation } from '@aisdlc/contracts';
 import { sha256 } from './store.js';
 import type { ApprovedOracle, OracleFile } from './source.js';
 
@@ -13,20 +14,9 @@ import type { ApprovedOracle, OracleFile } from './source.js';
 const MARKER =
   /^[ \t]*(?:\/\/|#|--|\/\*)\s*aisdlc-oracle\s+id=([A-Za-z0-9_.:-]{1,64})\s+spec=([0-9a-f]{64})/m;
 
-export type OracleDeviationKind =
-  | 'oracle_missing'
-  | 'oracle_unbound'
-  | 'spec_mismatch'
-  | 'no_marker'
-  | 'duplicate_oracle'
-  | 'oracle_not_red'
-  | 'repro_missing';
-
-export interface OracleDeviation {
-  readonly kind: OracleDeviationKind;
-  readonly oracle_id: string | null;
-  readonly path: string | null;
-}
+/** The kinds and the shape are the contracts' (the record carries them on the G3o's `stage_gate_needed`). */
+export type { OracleDeviationKind } from '@aisdlc/contracts';
+export type OracleDeviation = Readonly<ContractsOracleDeviation>;
 
 export interface BoundOracle {
   readonly path: string;

@@ -64,6 +64,11 @@ export const SessionTripwire = z.strictObject({
   class: z.enum(['quarantine', 'gate_x1', 'gate_x3', 'gate_e6', 'relane_r1', 'scope']),
   detail: z.string().max(300),
   path: z.string().max(300).optional(),
+  /**
+   * P1-8: the Bash command line that raised it (an X1 or X3 stop), at most 500 characters. The agent's own text:
+   * data, never instructions; the factory masks secrets in it before it reaches the record (`GateNeededDetail`).
+   */
+  command: z.string().max(500).optional(),
 });
 export type SessionTripwire = z.infer<typeof SessionTripwire>;
 
