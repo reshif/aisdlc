@@ -30,6 +30,7 @@ import {
 } from './sessions.js';
 import { registerAccessRoutes } from './access.js';
 import { registerPortalRoutes } from './portal.js';
+import { levelsOn } from './levels.js';
 import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
 import { registerWebFiles } from './static.js';
 import type { StepUpIssuer } from './stepup/issuer.js';
@@ -78,6 +79,8 @@ export interface BffAppOptions {
   readonly clock?: Clock;
   /** Core, for the portal's `/api/*` routes; without it they answer 503 (after the session and CSRF checks). */
   readonly core?: CoreClient;
+  /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
+  readonly gateCheck?: CoreClient;
   /** The built web bundle (`index.html` and `assets/`) to serve; without it the bff serves only its API. */
   readonly webDir?: string;
   /** Overrides of `DEFAULT_RATE_LIMITS`. */
@@ -520,6 +523,8 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     core: o.core,
+    ...(o.gateCheck ? { gateCheck: o.gateCheck } : {}),
+    levelsOf: (principal, project) => levelsOn(o.pool, principal, project, clock.now()),
     principalOf: (req) => ctx(req).session.principal_id,
     namesOf: async (ids) => {
       const out: Record<string, string> = {};

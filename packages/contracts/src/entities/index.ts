@@ -44,3 +44,4 @@ export * from './review.js';
 export * from './merge.js';
 export * from './gate-relay.js';
 export * from './closeout.js';
+export * from './portal-verify.js';

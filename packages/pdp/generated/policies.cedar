@@ -160,6 +160,9 @@ when { resource.slot == "design" };
 @id("role/project.design_approver/gate.view")
 permit (principal in Role::"project.design_approver", action == Action::"gate.view", resource);
 
+@id("role/project.design_approver/item.human_done")
+permit (principal in Role::"project.design_approver", action == Action::"item.human_done", resource);
+
 @id("role/project.design_approver/item.observe")
 permit (principal in Role::"project.design_approver", action == Action::"item.observe", resource);
 

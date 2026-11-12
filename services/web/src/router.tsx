@@ -17,6 +17,7 @@ export type Route =
   | { name: 's0'; id: string }
   | { name: 'card'; id: string }
   | { name: 'item'; id: string }
+  | { name: 'pack'; id: string }
   | { name: 'inbox' }
   | { name: 'revision'; id: string }
   | { name: 'readiness'; id: string }
@@ -35,6 +36,8 @@ export function parseRoute(path: string): Route {
   if (p === '/config') return { name: 'config' };
   const cfg = /^\/config\/([^/]+)$/.exec(p);
   if (cfg) return { name: 'configKey', key: decodeURIComponent(cfg[1] as string) };
+  const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
+  if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
   const sub = /^\/projects\/([^/]+)\/(readiness|ledger)$/.exec(p);
   if (sub) {
     return {

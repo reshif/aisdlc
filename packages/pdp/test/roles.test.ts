@@ -57,7 +57,7 @@ const EXPECTED: Record<
   },
   'project.design_approver': {
     // M12.5: the observed signals during G3d and the human-written plan are the design slot's
-    actions: [...VIEWS, 'item.observe', 'item.plan'],
+    actions: [...VIEWS, 'item.observe', 'item.plan', 'item.human_done'],
     decides: (g) => ['G3', 'G3d', 'G3s', 'G3o'].includes(g),
     cards: true,
   },

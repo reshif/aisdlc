@@ -150,3 +150,47 @@ export class FakeStagePorts implements StagePorts {
     return this;
   }
 }
+
+/**
+ * (M14.6) A scripted S7 for the compose e2e (core-worker `CORE_WORKER_FAKE_VERIFY=exceptions`): the S7 exception gates
+ * on the fakes, so a person can decide each in the portal. Items are numbered in the order they first reach S7.
+ * The first item: its first 7.2 hits ET10 (Q1, then SECT), its first 7.4 raises X2, its first 7.5 raises E2. The second
+ * item: its first 7.2 raises E6. Only calls that did work are counted (a redelivery is answered from memory); every
+ * other call is the default. X3 is not here: it is raised only at 6.4, which a human-led (L8) route never runs. In
+ * memory, like the fakes: a restart starts the numbering again.
+ */
+export function scriptVerifyExceptions(ports: FakeStagePorts): FakeStagePorts {
+  const order = new Map<string, number>();
+  const seen = new Map<string, number>();
+  ports.verify.script((req) => {
+    if (!req.step.startsWith('7.')) return undefined;
+    if (!order.has(req.item_id)) order.set(req.item_id, order.size + 1);
+    const item = order.get(req.item_id);
+    if (req.step !== '7.2' && req.step !== '7.4' && req.step !== '7.5') return undefined;
+    const k = `${req.item_id}|${req.step}`;
+    const n = (seen.get(k) ?? 0) + 1;
+    seen.set(k, n);
+    if (n !== 1) return undefined;
+    const evidence = hash('scripted-verify', req.item_id, req.step);
+    if (item === 1 && req.step === '7.2')
+      return {
+        outcome: 'trigger',
+        trigger: 'ET10',
+        reason_code: 'locked_test_edit',
+        output_hash: evidence,
+      };
+    if (item === 1 && req.step === '7.4')
+      return { outcome: 'gate_needed', gate: 'X2', reason_code: 'protected_path' };
+    if (item === 1 && req.step === '7.5')
+      return {
+        outcome: 'gate_needed',
+        gate: 'E2',
+        reason_code: 'constitution_violation',
+        output_hash: evidence,
+      };
+    if (item === 2 && req.step === '7.2')
+      return { outcome: 'gate_needed', gate: 'E6', reason_code: 'locked_test_must_change' };
+    return undefined;
+  });
+  return ports;
+}

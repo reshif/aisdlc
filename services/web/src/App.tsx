@@ -6,6 +6,7 @@ import { ErrorNote, Loading } from './components/Notice';
 import { CardPage } from './pages/CardPage';
 import { InboxPage } from './pages/InboxPage';
 import { ItemPage } from './pages/ItemPage';
+import { PackPage } from './pages/PackPage';
 import { LedgerPage } from './pages/LedgerPage';
 import { PrrPage } from './pages/PrrPage';
 import { RevisionPage } from './pages/RevisionPage';
@@ -109,6 +110,8 @@ function Page({ route, me }: { route: Route; me: Me }) {
       return <CardPage id={route.id} csrf={me.csrf_token} me={me.principal.principal_id} />;
     case 'item':
       return <ItemPage id={route.id} csrf={me.csrf_token} />;
+    case 'pack':
+      return <PackPage id={route.id} />;
     case 'inbox':
       return <InboxPage />;
     case 'revision':

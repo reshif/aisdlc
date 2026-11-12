@@ -158,3 +158,25 @@ describe('core-worker config: real coding sessions (M13.3, M13.4)', () => {
     ).toThrow(/plain absolute/);
   });
 });
+
+describe('core-worker config: the scripted S7 of the compose e2e (M14.6)', () => {
+  const ENV = {
+    ...BASE,
+    CORE_WORKER_GATEWAY_URL: 'http://127.0.0.1:5',
+    CORE_WORKER_GATEWAY_TOKEN_REF: 'env:T',
+  };
+  it('defaults to the plain fakes', () => {
+    expect(coreWorkerConfigFromEnv(ENV).fakeVerify).toBe('default');
+  });
+  it('`exceptions` only with FACTORY_ENV=local, the stage ports and no verify service', () => {
+    const on = { ...ENV, CORE_WORKER_FAKE_VERIFY: 'exceptions' };
+    expect(() => coreWorkerConfigFromEnv(on)).toThrow(/FACTORY_ENV=local/);
+    expect(coreWorkerConfigFromEnv({ ...on, FACTORY_ENV: 'local' }).fakeVerify).toBe('exceptions');
+    const rest: Record<string, string> = { ...on, FACTORY_ENV: 'local' };
+    delete rest['CORE_WORKER_STAGE_PORTS'];
+    expect(() => coreWorkerConfigFromEnv(rest)).toThrow(/needs CORE_WORKER_STAGE_PORTS/);
+    expect(() => coreWorkerConfigFromEnv({ ...ENV, CORE_WORKER_FAKE_VERIFY: 'yes' })).toThrow(
+      /`default` or `exceptions`/,
+    );
+  });
+});

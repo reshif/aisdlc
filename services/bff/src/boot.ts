@@ -57,6 +57,9 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   BFF_CORE_URL, BFF_CORE_TOKEN_REF
  *                            core's API and the bff's service token there (scopes read, onboard, portal);
  *                            both or neither (without them the portal's /api routes answer 503)
+ *   BFF_GATE_CHECK_URL, BFF_GATE_CHECK_TOKEN_REF
+ *                            gate-check's read API and the bff's token there (scope read; M14.6: the item page's
+ *                            run status); both or neither (without them that status reads `unknown`)
  *   BFF_WEB_DIR              the built web bundle to serve (contains index.html); unset: API only
  *   BFF_HOST / BFF_PORT      default 127.0.0.1:8340
  * All configuration is read, and every secret resolved, before the database is touched.
@@ -102,6 +105,22 @@ export async function bootBff(env: Env): Promise<RunningService> {
     ? new HttpCoreClient({
         baseUrl: httpUrlEnv(env, 'BFF_CORE_URL'),
         token: resolveSecretRef(requiredEnv(env, 'BFF_CORE_TOKEN_REF'), { env }),
+      })
+    : undefined;
+  const gcUrl = env['BFF_GATE_CHECK_URL'];
+  const hasGateCheck = gcUrl !== undefined && gcUrl !== '';
+  if (
+    hasGateCheck !==
+    (env['BFF_GATE_CHECK_TOKEN_REF'] !== undefined && env['BFF_GATE_CHECK_TOKEN_REF'] !== '')
+  ) {
+    throw new ServiceConfigError(
+      'BFF_GATE_CHECK_URL and BFF_GATE_CHECK_TOKEN_REF are set together or not at all',
+    );
+  }
+  const gateCheck = hasGateCheck
+    ? new HttpCoreClient({
+        baseUrl: httpUrlEnv(env, 'BFF_GATE_CHECK_URL'),
+        token: resolveSecretRef(requiredEnv(env, 'BFF_GATE_CHECK_TOKEN_REF'), { env }),
       })
     : undefined;
   const webDir = env['BFF_WEB_DIR'] === '' ? undefined : env['BFF_WEB_DIR'];
@@ -157,6 +176,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
       absoluteSeconds,
       stepUpMode,
       ...(core ? { core } : {}),
+      ...(gateCheck ? { gateCheck } : {}),
       ...(webDir ? { webDir } : {}),
     });
     const url = await listen(app, listenOpts);

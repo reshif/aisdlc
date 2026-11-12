@@ -7,6 +7,7 @@ import { C1Form } from '../cards/C1Form';
 import { C4Form } from '../cards/C4Form';
 import { C5Panel } from '../cards/C5Panel';
 import { GateArtefacts } from '../cards/GateArtefacts';
+import { EXCEPTION_GATES, ExceptionGate } from '../cards/ExceptionGate';
 import { SecrForm } from '../cards/SecrForm';
 import { shortTime } from '../format';
 import { Link } from '../router';
@@ -45,7 +46,7 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
   if (q.isPending) return <Loading what="the card" />;
   // not an onboarding card: a work-item gate card (G1f, G2) shows the artefacts it decides
   if (q.isError && q.error instanceof ApiError && q.error.status === 404) {
-    return <GateArtefacts id={id} csrf={csrf} />;
+    return <WorkGateCard id={id} csrf={csrf} me={me} />;
   }
   if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const card = q.data;
@@ -73,5 +74,27 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
         ) : null}
       </fieldset>
     </>
+  );
+}
+
+/**
+ * A work-item gate card: an exception or quarantine gate (Q1 through SECT, E6, X2, X3, E2; M14.6) on its own screen,
+ * any other (G0 and G1, G1f, G2, G3d, G3, E1) on the artefacts it decides.
+ */
+function WorkGateCard({ id, csrf, me }: { id: string; csrf: string; me: string }) {
+  const q = useQuery({
+    queryKey: ['gate-card', id],
+    queryFn: () => api.gateCard(id),
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  });
+  if (q.isPending) return <Loading what="the card" />;
+  // the artefacts screen reads (and explains) its own refusals; its decision part says why it cannot decide
+  if (q.isError) return <GateArtefacts id={id} csrf={csrf} />;
+  const exception = q.data.gates.some((g) => EXCEPTION_GATES.includes(g.gate as never));
+  return exception ? (
+    <ExceptionGate id={id} csrf={csrf} me={me} card={q.data} />
+  ) : (
+    <GateArtefacts id={id} csrf={csrf} />
   );
 }

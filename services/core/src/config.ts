@@ -49,6 +49,12 @@ export interface CoreConfig {
     readonly knowledge: { readonly url: string; readonly token: string };
     readonly codehost: { readonly url: string; readonly token: string };
   } | null;
+  /** M14.6: the object store of the Evidence Packs, read back for the portal's pack viewer (credentials as references). */
+  readonly objectStore: {
+    readonly endpoint: string;
+    readonly accessKeyRef: string;
+    readonly secretKeyRef: string;
+  } | null;
 }
 
 /**
@@ -66,6 +72,9 @@ export interface CoreConfig {
  *                            together with the ledger they switch the onboarding cards on (prepare, view,
  *                            decide); with neither, the card routes answer `unavailable`. One without the
  *                            other, or either without the ledger, is a configuration error
+ *   CORE_OBJECT_STORE_URL, CORE_OBJECT_STORE_ACCESS_KEY_REF, CORE_OBJECT_STORE_SECRET_KEY_REF   (M14.6) the
+ *                            S3-compatible store of the signed Evidence Packs: the portal's pack viewer reads them
+ *                            back (and checks them); without it the viewer shows the record's facts only
  * Every secret is an `env:NAME` or `file:PATH` reference.
  */
 export function coreConfigFromEnv(env: Env): CoreConfig {
@@ -104,6 +113,14 @@ export function coreConfigFromEnv(env: Env): CoreConfig {
             notaryToken: resolveSecretRef(requiredEnv(env, 'CORE_NOTARY_TOKEN_REF'), { env }),
           },
     cards: knowledge !== null && codehost !== null ? { knowledge, codehost } : null,
+    objectStore:
+      env['CORE_OBJECT_STORE_URL'] === undefined || env['CORE_OBJECT_STORE_URL'] === ''
+        ? null
+        : {
+            endpoint: httpUrlEnv(env, 'CORE_OBJECT_STORE_URL'),
+            accessKeyRef: requiredEnv(env, 'CORE_OBJECT_STORE_ACCESS_KEY_REF'),
+            secretKeyRef: requiredEnv(env, 'CORE_OBJECT_STORE_SECRET_KEY_REF'),
+          },
   };
 }
 
