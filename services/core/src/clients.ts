@@ -1,5 +1,6 @@
 import {
   CensusLatest,
+  CodeGraph,
   Fact,
   FindingCounts,
   FindingMachine,
@@ -119,6 +120,12 @@ export interface KnowledgePort {
    * are then unknown, never "none").
    */
   detectorFacts(jobId: string): Promise<Result<Fact[] | null, RemoteError>>;
+  /**
+   * The code graph of the repo's indexed head at `sha` (card 3's Full baseline, M17): paths, areas,
+   * identifiers and imports, never content. `null` when the repo has no index; an index at another commit
+   * is an error (`refused`, stale): never a graph of another head.
+   */
+  codeGraph(repo: string, sha: string): Promise<Result<CodeGraph | null, RemoteError>>;
 }
 
 const JobShape = z.looseObject({
@@ -196,6 +203,24 @@ export class HttpKnowledge implements KnowledgePort {
     }
     if (p.data.state !== 'done') return err(remoteError('refused', 'the job is not done'));
     return ok(p.data.result?.detectors?.facts ?? null);
+  }
+
+  async codeGraph(repo: string, sha: string) {
+    const r = await call(
+      this.o,
+      'GET',
+      `/v1/repos/${repo}/codegraph?sha=${encodeURIComponent(sha)}`,
+    );
+    if (!r.reached) return err(remoteError('unreachable', 'knowledge did not answer'));
+    if (r.status === 404) return ok(null);
+    if (r.status === 409)
+      return err(remoteError('refused', 'stale_index: the index is at another commit'));
+    if (r.status !== 200) return err(failFor(r.status, 'knowledge'));
+    const p = CodeGraph.safeParse(r.json);
+    if (!p.success || p.data.commit_sha !== sha) {
+      return err(remoteError('invalid', 'knowledge answered with an unexpected shape'));
+    }
+    return ok(p.data);
   }
 
   async latestCensus(repo: string) {
@@ -364,6 +389,21 @@ export class FakeKnowledge implements KnowledgePort {
   async detectorFacts(jobId: string) {
     if (this.down) return err(remoteError('unreachable', 'knowledge is down'));
     return ok(this.factsByJob.get(jobId) ?? this.defaultFacts);
+  }
+
+  /** Code graphs by repo (lower-case): the head they are at is the graph's own `commit_sha`. */
+  private readonly graphs = new Map<string, CodeGraph>();
+  setCodeGraph(repo: string, graph: CodeGraph): void {
+    this.graphs.set(repo.toLowerCase(), graph);
+  }
+
+  async codeGraph(repo: string, sha: string) {
+    if (this.down) return err(remoteError('unreachable', 'knowledge is down'));
+    const g = this.graphs.get(repo.toLowerCase());
+    if (!g) return ok(null);
+    if (g.commit_sha !== sha)
+      return err(remoteError('refused', 'stale_index: the index is at another commit'));
+    return ok(g);
   }
 
   async latestCensus(repo: string) {

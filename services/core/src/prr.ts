@@ -317,6 +317,8 @@ export function closeOwnerCardGaps(
   f: {
     /** Card 2 was decided: instruction text affirmed (RS-AI-4), claims (RS-KN-4), intent (RS-KN-5). */
     light_affirmed?: boolean;
+    /** Card 3 was decided (M17): the full codekb, the system map and the seeds exist (RS-KN-7, FF1). */
+    full_baseline?: boolean;
     owner_confirmed: boolean;
     tier_signed: boolean;
     app_scoped: boolean;
@@ -330,6 +332,7 @@ export function closeOwnerCardGaps(
     'RS-AI-4': f.light_affirmed === true,
     'RS-KN-4': f.light_affirmed === true,
     'RS-KN-5': f.light_affirmed === true,
+    'RS-KN-7': f.full_baseline === true,
     'RS-ID-3': f.tier_signed,
     'RS-ID-4':
       census.repo.visibility !== null &&

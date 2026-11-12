@@ -30,7 +30,7 @@ import { recordSignedIn } from './s0.js';
 import { fanOutHeld, type FanOutReport } from './work.js';
 import { c5Base } from './cards/views.js';
 import { approvedPayload, loadS0, s0Cards, type LoadedS0 } from './cards/read.js';
-import { affirmedFromC2 } from '@aisdlc/onboarding';
+import { affirmedFromC2, affirmedFullFrom } from '@aisdlc/onboarding';
 import type { Clock } from '@aisdlc/kernel';
 import type pg from 'pg';
 
@@ -235,6 +235,23 @@ export async function ensurePrrProposed(
     affirmed = a.value;
   }
 
+  // ---- card 3 (Full, M17): the baseline, interview, exam, seeds and golden tasks, by hash and count
+  if (s0.steps.get('0.3')?.state === 'done') {
+    const c3 = approvedPayload(cards, 'C3');
+    const c3Entry = await entryMeta(deps.pool, c3?.card.state.steps[0]?.ledger_entry_id ?? null);
+    if (!c3 || !c3Entry || !affirmed) {
+      return err(
+        coreError(
+          'conflict',
+          'step 0.3 is done but card 3 (or card 2) carries no ledgered decision',
+        ),
+      );
+    }
+    const f = affirmedFullFrom(c3.payload, { decided_by: c3Entry.actor });
+    if (!f.ok) return err(coreError('conflict', f.error.message));
+    affirmed = { ...affirmed, full: f.value };
+  }
+
   return inCoreTx<ProjectReadinessRecord>(deps, async (j, tx) => {
     await lockKeys(tx, [`project:${project}`, `repo:${s0.repo.toLowerCase()}`, `s0:${s0Id}`]);
     const cur = await j.s0(s0Id);
@@ -256,6 +273,7 @@ export async function ensurePrrProposed(
       supersedes: governingPrr(state)?.prr.record_hash ?? null,
       census: closeOwnerCardGaps(census, {
         light_affirmed: affirmed !== undefined,
+        full_baseline: affirmed?.full !== undefined,
         owner_confirmed: c1.payload.some((p) => p.kind === 'owner_confirmation'),
         tier_signed: tierRow.kind === 'tier_decision',
         plan_attested: attestedPlan,
