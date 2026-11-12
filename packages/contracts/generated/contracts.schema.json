@@ -29762,6 +29762,7 @@
             "drift_reaffirm",
             "prr_restore",
             "prr_resign",
+            "drift_security",
             "reonboard"
           ]
         },
@@ -33441,7 +33442,8 @@
       "type": "string",
       "enum": [
         "reaffirm",
-        "suspend"
+        "suspend",
+        "security"
       ]
     },
     "DriftEvaluatedPayload": {
@@ -33505,14 +33507,17 @@
                   "pack_file",
                   "codeowners",
                   "protect_main",
-                  "required_check"
+                  "required_check",
+                  "installation",
+                  "history_secret"
                 ]
               },
               "effect": {
                 "type": "string",
                 "enum": [
                   "reaffirm",
-                  "suspend"
+                  "suspend",
+                  "security"
                 ]
               },
               "subject": {
@@ -33597,14 +33602,17 @@
             "pack_file",
             "codeowners",
             "protect_main",
-            "required_check"
+            "required_check",
+            "installation",
+            "history_secret"
           ]
         },
         "effect": {
           "type": "string",
           "enum": [
             "reaffirm",
-            "suspend"
+            "suspend",
+            "security"
           ]
         },
         "subject": {
@@ -33667,7 +33675,9 @@
         "pack_file",
         "codeowners",
         "protect_main",
-        "required_check"
+        "required_check",
+        "installation",
+        "history_secret"
       ]
     },
     "DriftHistoryRow": {
@@ -33687,7 +33697,10 @@
             "reaffirmed",
             "version_requested",
             "expired",
-            "activated"
+            "activated",
+            "krl_lowered",
+            "security_raised",
+            "security_confirmed"
           ]
         },
         "summary": {
@@ -33722,6 +33735,94 @@
         "type",
         "summary",
         "by",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DriftKrlLoweredPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "expected": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "krl_signed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "krl_from": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "krl_to": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "area",
+        "path",
+        "expected",
+        "observed",
+        "krl_signed",
+        "krl_from",
+        "krl_to",
         "ledger_entry_id"
       ],
       "additionalProperties": false
@@ -34049,6 +34150,231 @@
       ],
       "additionalProperties": false
     },
+    "DriftSecurityConfirmedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "installation": {
+          "type": "object",
+          "properties": {
+            "installation_id": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "repository_selection": {
+              "type": "string",
+              "enum": [
+                "all",
+                "selected"
+              ]
+            },
+            "permissions": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write",
+                  "admin"
+                ]
+              }
+            }
+          },
+          "required": [
+            "installation_id",
+            "repository_selection",
+            "permissions"
+          ],
+          "additionalProperties": false
+        },
+        "installation_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "by",
+        "at",
+        "installation",
+        "installation_hash",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DriftSecurityRaisedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "findings": {
+          "minItems": 1,
+          "maxItems": 80,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instruction_text",
+                  "pack_file",
+                  "codeowners",
+                  "protect_main",
+                  "required_check",
+                  "installation",
+                  "history_secret"
+                ]
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "reaffirm",
+                  "suspend",
+                  "security"
+                ]
+              },
+              "subject": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reasons": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "expected": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "observed": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "effect",
+              "subject",
+              "reasons",
+              "expected",
+              "observed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "findings_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "findings",
+        "findings_hash",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
     "DriftSuspendedPayload": {
       "type": "object",
       "properties": {
@@ -34100,14 +34426,17 @@
                   "pack_file",
                   "codeowners",
                   "protect_main",
-                  "required_check"
+                  "required_check",
+                  "installation",
+                  "history_secret"
                 ]
               },
               "effect": {
                 "type": "string",
                 "enum": [
                   "reaffirm",
-                  "suspend"
+                  "suspend",
+                  "security"
                 ]
               },
               "subject": {
@@ -48447,9 +48776,34 @@
           "maxLength": 128,
           "pattern": "^[a-z0-9][a-z0-9_-]*$"
         },
-        "item_id": {
+        "subject_kind": {
           "type": "string",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "enum": [
+            "item",
+            "s0_record"
+          ]
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "s0_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "gate": {
           "type": "string",
@@ -49290,6 +49644,302 @@
                 "sha256",
                 "intact",
                 "markdown"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "onboarding_pack": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "light",
+                    "full"
+                  ]
+                },
+                "s0_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "repo": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                },
+                "base_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "branch": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "patch_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "bound": {
+                  "type": "boolean"
+                },
+                "intact": {
+                  "type": "boolean"
+                },
+                "deciding_card": {
+                  "type": "object",
+                  "properties": {
+                    "card": {
+                      "type": "string",
+                      "enum": [
+                        "C2",
+                        "C3"
+                      ]
+                    },
+                    "card_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "payload_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "card",
+                    "card_id",
+                    "payload_hash"
+                  ],
+                  "additionalProperties": false
+                },
+                "files": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "affirmed_instructions",
+                          "claims",
+                          "unknowns",
+                          "intent",
+                          "manifest",
+                          "oracle_lock",
+                          "seed",
+                          "codeowners"
+                        ]
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "protected_rule": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 40
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "source",
+                      "sha256",
+                      "bytes",
+                      "protected_rule"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "codeowners": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "rendered",
+                            "repo_has_codeowners",
+                            "role_map_unpublished",
+                            "no_owner_mapped"
+                          ]
+                        },
+                        "rendered": {
+                          "type": "boolean"
+                        },
+                        "owners": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "principal_id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "login": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 39
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "enum": [
+                                  "mapped",
+                                  "no_linked_login"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "principal_id",
+                              "login",
+                              "reason"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "outcome",
+                        "rendered",
+                        "owners"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "oracle_lock": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "lock_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "tests": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        },
+                        "file_sha256": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "lock_hash",
+                        "tests",
+                        "truncated",
+                        "file_sha256"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "seeds": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "seed_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "text_sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "required": [
+                      "seed_id",
+                      "area",
+                      "path",
+                      "text_sha256"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "kind",
+                "s0_id",
+                "repo",
+                "base_sha",
+                "branch",
+                "patch_hash",
+                "bound",
+                "intact",
+                "deciding_card",
+                "files",
+                "codeowners",
+                "oracle_lock",
+                "seeds"
               ],
               "additionalProperties": false
             },
@@ -51523,7 +52173,9 @@
       "required": [
         "card_id",
         "project_id",
+        "subject_kind",
         "item_id",
+        "s0_id",
         "gate",
         "gate_instance_id",
         "station",
@@ -51540,6 +52192,7 @@
         "patch",
         "dependencies",
         "constitution",
+        "onboarding_pack",
         "handoff",
         "subject",
         "data_class"
@@ -56997,6 +57650,14 @@
       ],
       "additionalProperties": false
     },
+    "HumanWaitCause": {
+      "type": "string",
+      "enum": [
+        "gate",
+        "prr_suspended",
+        "security_hold"
+      ]
+    },
     "HumanWaitGate": {
       "type": "string",
       "enum": [
@@ -57127,7 +57788,8 @@
         "installation",
         "effective_rules",
         "agent_pulls",
-        "affirmed_files"
+        "affirmed_files",
+        "open_findings"
       ]
     },
     "InboundFactPayload": {
@@ -57150,7 +57812,8 @@
             "installation",
             "effective_rules",
             "agent_pulls",
-            "affirmed_files"
+            "affirmed_files",
+            "open_findings"
           ]
         },
         "value": {
@@ -57676,6 +58339,7 @@
         "drift_reaffirm",
         "prr_restore",
         "prr_resign",
+        "drift_security",
         "reonboard"
       ]
     },
@@ -57806,6 +58470,44 @@
         "repository_selection",
         "permissions",
         "suspended"
+      ],
+      "additionalProperties": false
+    },
+    "InstallationObservation": {
+      "type": "object",
+      "properties": {
+        "installation_id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "repository_selection": {
+          "type": "string",
+          "enum": [
+            "all",
+            "selected"
+          ]
+        },
+        "permissions": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "admin"
+            ]
+          }
+        }
+      },
+      "required": [
+        "installation_id",
+        "repository_selection",
+        "permissions"
       ],
       "additionalProperties": false
     },
@@ -86054,6 +86756,24 @@
       ],
       "additionalProperties": false
     },
+    "OpenFindingsValue": {
+      "type": "object",
+      "properties": {
+        "finding_ids": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "required": [
+        "finding_ids"
+      ],
+      "additionalProperties": false
+    },
     "OpsAction": {
       "type": "object",
       "properties": {
@@ -88389,6 +89109,7 @@
                   "drift_reaffirm",
                   "prr_restore",
                   "prr_resign",
+                  "drift_security",
                   "reonboard"
                 ]
               },
@@ -88617,6 +89338,7 @@
                   "drift_reaffirm",
                   "prr_restore",
                   "prr_resign",
+                  "drift_security",
                   "reonboard"
                 ]
               },
@@ -88850,6 +89572,7 @@
             "drift_reaffirm",
             "prr_restore",
             "prr_resign",
+            "drift_security",
             "reonboard"
           ]
         },
@@ -91003,14 +91726,17 @@
                         "pack_file",
                         "codeowners",
                         "protect_main",
-                        "required_check"
+                        "required_check",
+                        "installation",
+                        "history_secret"
                       ]
                     },
                     "effect": {
                       "type": "string",
                       "enum": [
                         "reaffirm",
-                        "suspend"
+                        "suspend",
+                        "security"
                       ]
                     },
                     "subject": {
@@ -91132,14 +91858,17 @@
                                 "pack_file",
                                 "codeowners",
                                 "protect_main",
-                                "required_check"
+                                "required_check",
+                                "installation",
+                                "history_secret"
                               ]
                             },
                             "effect": {
                               "type": "string",
                               "enum": [
                                 "reaffirm",
-                                "suspend"
+                                "suspend",
+                                "security"
                               ]
                             },
                             "subject": {
@@ -91266,6 +91995,177 @@
                     "full"
                   ]
                 }
+              },
+              "security": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "held": {
+                        "type": "boolean"
+                      },
+                      "installation": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "observed": {
+                                "type": "object",
+                                "properties": {
+                                  "installation_id": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "repository_selection": {
+                                    "type": "string",
+                                    "enum": [
+                                      "all",
+                                      "selected"
+                                    ]
+                                  },
+                                  "permissions": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "additionalProperties": {
+                                      "type": "string",
+                                      "enum": [
+                                        "read",
+                                        "write",
+                                        "admin"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "installation_id",
+                                  "repository_selection",
+                                  "permissions"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "hash": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "widened": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "observed",
+                              "hash",
+                              "widened"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "new_findings": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "held",
+                      "installation",
+                      "new_findings"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "krl": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "signed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "current": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "effective_signed": {
+                        "type": "string",
+                        "enum": [
+                          "A0",
+                          "A1",
+                          "A2",
+                          "A3"
+                        ]
+                      },
+                      "effective_now": {
+                        "type": "string",
+                        "enum": [
+                          "A0",
+                          "A1",
+                          "A2",
+                          "A3"
+                        ]
+                      },
+                      "lowered": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "area": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "path": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "ledger_entry_id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "required": [
+                            "area",
+                            "path",
+                            "at",
+                            "ledger_entry_id"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "signed",
+                      "current",
+                      "effective_signed",
+                      "effective_now",
+                      "lowered"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "reonboarding": {
                 "type": "array",
@@ -91488,7 +92388,10 @@
                         "reaffirmed",
                         "version_requested",
                         "expired",
-                        "activated"
+                        "activated",
+                        "krl_lowered",
+                        "security_raised",
+                        "security_confirmed"
                       ]
                     },
                     "summary": {
@@ -91540,6 +92443,8 @@
               "suspension",
               "restore",
               "level_up",
+              "security",
+              "krl",
               "reonboarding",
               "history"
             ],
@@ -96314,14 +97219,17 @@
                         "pack_file",
                         "codeowners",
                         "protect_main",
-                        "required_check"
+                        "required_check",
+                        "installation",
+                        "history_secret"
                       ]
                     },
                     "effect": {
                       "type": "string",
                       "enum": [
                         "reaffirm",
-                        "suspend"
+                        "suspend",
+                        "security"
                       ]
                     },
                     "subject": {
@@ -96443,14 +97351,17 @@
                                 "pack_file",
                                 "codeowners",
                                 "protect_main",
-                                "required_check"
+                                "required_check",
+                                "installation",
+                                "history_secret"
                               ]
                             },
                             "effect": {
                               "type": "string",
                               "enum": [
                                 "reaffirm",
-                                "suspend"
+                                "suspend",
+                                "security"
                               ]
                             },
                             "subject": {
@@ -96577,6 +97488,177 @@
                     "full"
                   ]
                 }
+              },
+              "security": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "held": {
+                        "type": "boolean"
+                      },
+                      "installation": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "observed": {
+                                "type": "object",
+                                "properties": {
+                                  "installation_id": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "repository_selection": {
+                                    "type": "string",
+                                    "enum": [
+                                      "all",
+                                      "selected"
+                                    ]
+                                  },
+                                  "permissions": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "additionalProperties": {
+                                      "type": "string",
+                                      "enum": [
+                                        "read",
+                                        "write",
+                                        "admin"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "installation_id",
+                                  "repository_selection",
+                                  "permissions"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "hash": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "widened": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "observed",
+                              "hash",
+                              "widened"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "new_findings": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "held",
+                      "installation",
+                      "new_findings"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "krl": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "signed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "current": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "effective_signed": {
+                        "type": "string",
+                        "enum": [
+                          "A0",
+                          "A1",
+                          "A2",
+                          "A3"
+                        ]
+                      },
+                      "effective_now": {
+                        "type": "string",
+                        "enum": [
+                          "A0",
+                          "A1",
+                          "A2",
+                          "A3"
+                        ]
+                      },
+                      "lowered": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "area": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "path": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "ledger_entry_id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "required": [
+                            "area",
+                            "path",
+                            "at",
+                            "ledger_entry_id"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "signed",
+                      "current",
+                      "effective_signed",
+                      "effective_now",
+                      "lowered"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "reonboarding": {
                 "type": "array",
@@ -96799,7 +97881,10 @@
                         "reaffirmed",
                         "version_requested",
                         "expired",
-                        "activated"
+                        "activated",
+                        "krl_lowered",
+                        "security_raised",
+                        "security_confirmed"
                       ]
                     },
                     "summary": {
@@ -96851,6 +97936,8 @@
               "suspension",
               "restore",
               "level_up",
+              "security",
+              "krl",
               "reonboarding",
               "history"
             ],
@@ -115429,14 +116516,17 @@
                   "pack_file",
                   "codeowners",
                   "protect_main",
-                  "required_check"
+                  "required_check",
+                  "installation",
+                  "history_secret"
                 ]
               },
               "effect": {
                 "type": "string",
                 "enum": [
                   "reaffirm",
-                  "suspend"
+                  "suspend",
+                  "security"
                 ]
               },
               "subject": {
@@ -115558,14 +116648,17 @@
                           "pack_file",
                           "codeowners",
                           "protect_main",
-                          "required_check"
+                          "required_check",
+                          "installation",
+                          "history_secret"
                         ]
                       },
                       "effect": {
                         "type": "string",
                         "enum": [
                           "reaffirm",
-                          "suspend"
+                          "suspend",
+                          "security"
                         ]
                       },
                       "subject": {
@@ -115692,6 +116785,177 @@
               "full"
             ]
           }
+        },
+        "security": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "held": {
+                  "type": "boolean"
+                },
+                "installation": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "observed": {
+                          "type": "object",
+                          "properties": {
+                            "installation_id": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "repository_selection": {
+                              "type": "string",
+                              "enum": [
+                                "all",
+                                "selected"
+                              ]
+                            },
+                            "permissions": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "additionalProperties": {
+                                "type": "string",
+                                "enum": [
+                                  "read",
+                                  "write",
+                                  "admin"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "installation_id",
+                            "repository_selection",
+                            "permissions"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "widened": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "observed",
+                        "hash",
+                        "widened"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "new_findings": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "held",
+                "installation",
+                "new_findings"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "krl": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "signed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4
+                },
+                "current": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4
+                },
+                "effective_signed": {
+                  "type": "string",
+                  "enum": [
+                    "A0",
+                    "A1",
+                    "A2",
+                    "A3"
+                  ]
+                },
+                "effective_now": {
+                  "type": "string",
+                  "enum": [
+                    "A0",
+                    "A1",
+                    "A2",
+                    "A3"
+                  ]
+                },
+                "lowered": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "ledger_entry_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "path",
+                      "at",
+                      "ledger_entry_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "signed",
+                "current",
+                "effective_signed",
+                "effective_now",
+                "lowered"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "reonboarding": {
           "type": "array",
@@ -115914,7 +117178,10 @@
                   "reaffirmed",
                   "version_requested",
                   "expired",
-                  "activated"
+                  "activated",
+                  "krl_lowered",
+                  "security_raised",
+                  "security_confirmed"
                 ]
               },
               "summary": {
@@ -115966,6 +117233,8 @@
         "suspension",
         "restore",
         "level_up",
+        "security",
+        "krl",
         "reonboarding",
         "history"
       ],
@@ -119839,6 +121108,295 @@
       ],
       "additionalProperties": false
     },
+    "S0PackGateContext": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "light",
+            "full"
+          ]
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "patch_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bound": {
+          "type": "boolean"
+        },
+        "intact": {
+          "type": "boolean"
+        },
+        "deciding_card": {
+          "type": "object",
+          "properties": {
+            "card": {
+              "type": "string",
+              "enum": [
+                "C2",
+                "C3"
+              ]
+            },
+            "card_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "payload_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "card",
+            "card_id",
+            "payload_hash"
+          ],
+          "additionalProperties": false
+        },
+        "files": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "affirmed_instructions",
+                  "claims",
+                  "unknowns",
+                  "intent",
+                  "manifest",
+                  "oracle_lock",
+                  "seed",
+                  "codeowners"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "protected_rule": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "source",
+              "sha256",
+              "bytes",
+              "protected_rule"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "codeowners": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "rendered",
+                    "repo_has_codeowners",
+                    "role_map_unpublished",
+                    "no_owner_mapped"
+                  ]
+                },
+                "rendered": {
+                  "type": "boolean"
+                },
+                "owners": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "principal_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "login": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 39
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "mapped",
+                          "no_linked_login"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "principal_id",
+                      "login",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "outcome",
+                "rendered",
+                "owners"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "oracle_lock": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "lock_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "tests": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "file_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "lock_hash",
+                "tests",
+                "truncated",
+                "file_sha256"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seeds": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seed_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "text_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "seed_id",
+              "area",
+              "path",
+              "text_sha256"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "s0_id",
+        "repo",
+        "base_sha",
+        "branch",
+        "patch_hash",
+        "bound",
+        "intact",
+        "deciding_card",
+        "files",
+        "codeowners",
+        "oracle_lock",
+        "seeds"
+      ],
+      "additionalProperties": false
+    },
     "S0PrrProposedPayload": {
       "type": "object",
       "properties": {
@@ -121368,7 +122926,8 @@
         "busy",
         "unavailable",
         "refused",
-        "driver_failure"
+        "driver_failure",
+        "image_unverified"
       ]
     },
     "SandboxExecAllowedRepos": {
@@ -122526,6 +124085,49 @@
     "SecretRef": {
       "type": "string",
       "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+    },
+    "SecurityConfirmRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "installation_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "repo",
+        "installation_hash",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "SecurityConfirmResult": {
+      "type": "object",
+      "properties": {
+        "installation_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "installation_hash",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
     },
     "SecurityFinding": {
       "type": "object",
@@ -131692,18 +133294,45 @@
           "type": "string",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         },
-        "gate": {
+        "cause": {
           "type": "string",
           "enum": [
-            "G3o",
-            "X1",
-            "X3",
-            "E6"
+            "gate",
+            "prr_suspended",
+            "security_hold"
+          ]
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "G3o",
+                "X1",
+                "X3",
+                "E6"
+              ]
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "gate_instance_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hold_ref": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 200
         },
         "lease_epoch": {
           "type": "integer",

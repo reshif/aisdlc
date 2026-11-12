@@ -630,6 +630,17 @@ export const api = {
       b,
       csrf,
     ),
+  driftSecurityConfirm: (
+    project: string,
+    b: { repo: string; installation_hash: string },
+    csrf: string,
+  ) =>
+    request<{ installation_hash: string; ledger_entry_id: string }>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/drift/security/confirm`,
+      b,
+      csrf,
+    ),
   driftReaffirm: (
     project: string,
     b: { repo: string; path: string; text_sha256: string; step_up: { proof: string } },

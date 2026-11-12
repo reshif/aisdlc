@@ -1252,6 +1252,10 @@ services:
       SANDBOX_CONTROLLER_PROXY_URL: http://docker-proxy-coding:2375
       SANDBOX_CONTROLLER_PROXY_TOKEN_REF: file:/run/secrets/tok-sandbox-controller-docker-coding
       SANDBOX_CONTROLLER_IMAGE: ${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
+      # M16 part 3 (LF4): the image id (sha256:...) of that W image (`docker image inspect --format '{{.Id}}'`). A W
+      # session starts only when it is the M1-approved `onboarding.light_tests.worker_image` (the image SP-STD-1 was
+      # recorded for) and the daemon made the container from it; empty: no W session runs
+      SANDBOX_CONTROLLER_WORKER_IMAGE_ID: ${SANDBOX_AGENT_IMAGE_ID:-}
       # M16: the onboarding probe image (a digest) the driver may run; a K-exec session must ALSO name the image the
       # M1-approved config `onboarding.sandbox_image` names, under a probe grant core recorded (`core.probe_grant`)
       SANDBOX_CONTROLLER_PROBE_IMAGES: ${SANDBOX_ONBOARDING_IMAGE:-}

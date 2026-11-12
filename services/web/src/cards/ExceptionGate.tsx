@@ -66,7 +66,28 @@ interface Copy {
   readonly decisions?: readonly Decision[];
 }
 
-const item = (c: GateContextWire) => <code>{c.item_id.slice(0, 8)}</code>;
+const item = (c: GateContextWire) => <code>{(c.item_id ?? c.s0_id ?? '').slice(0, 8)}</code>;
+
+/** X2 on an S0 record's onboarding pack (M16): the pack the factory rendered from the record, not a Unit's diff. */
+const S0_X2: Copy = {
+  shown: 'X2',
+  eyebrow: 'X2 · action gate · onboarding pack',
+  title: 'Onboarding pack: protected paths',
+  sub: 'The factory rendered the affirmed pack from the record (AGENTS.md, CLAUDE.md, .factory/**). It touches protected paths, so X2 decides it; the patch hash binds exactly these files. The factory opens a draft PR and never merges.',
+  sentence: (c) => (
+    <>
+      May the {c.onboarding_pack?.kind === 'full' ? 'Full' : 'Light'} onboarding pack of record{' '}
+      {item(c)} be opened as a draft PR?
+    </>
+  ),
+  readWhat: 'the rendered files and their hashes',
+  labels: { approve: 'Approve', request_changes: 'Request changes', reject: 'Reject' },
+  after:
+    'Approved in the ledger: the Push Broker opens a draft PR with exactly this patch. Rejected: nothing is pushed; a new card decision renders a new pack.',
+};
+
+const recordLink = (c: GateContextWire) =>
+  c.item_id ? `/items/${c.item_id}` : `/s0/${c.s0_id ?? ''}`;
 
 const COPY: Readonly<Partial<Record<GateId, Copy>>> = {
   SECT: {
@@ -347,12 +368,12 @@ export function ExceptionGateBody({
   card: GateCardWire;
   c: GateContextWire;
 }) {
-  const copy = COPY[c.gate === 'Q1' ? 'SECT' : c.gate];
+  const copy = c.onboarding_pack ? S0_X2 : COPY[c.gate === 'Q1' ? 'SECT' : c.gate];
   if (!copy) return <p className="muted">The portal does not show this kind of gate yet.</p>;
   const name = (p: string) => c.principal_names[p] ?? card.principal_names[p] ?? p;
   const crumbs = [
     { label: 'Inbox', to: '/inbox' },
-    { label: 'Work item', to: `/items/${c.item_id}` },
+    { label: c.item_id ? 'Work item' : 'Onboarding record', to: recordLink(c) },
     { label: copy.shown },
   ];
   return (
@@ -364,8 +385,8 @@ export function ExceptionGateBody({
         title={copy.title}
         sub={copy.sub}
         actions={
-          <Link className="ui-btn ui-btn-sm" to={`/items/${c.item_id}`}>
-            Open item
+          <Link className="ui-btn ui-btn-sm" to={recordLink(c)}>
+            {c.item_id ? 'Open item' : 'Open record'}
           </Link>
         }
       />
@@ -405,9 +426,9 @@ export function ExceptionGateBody({
             <KeyValue
               rows={[
                 [
-                  'Work item',
-                  <Link key="i" to={`/items/${c.item_id}`}>
-                    {c.item_id}
+                  c.item_id ? 'Work item' : 'Onboarding record',
+                  <Link key="i" to={recordLink(c)}>
+                    {c.item_id ?? c.s0_id}
                   </Link>,
                 ],
                 ['Station', <code key="s">{c.station}</code>],
@@ -492,6 +513,7 @@ function GateMain({ c, name }: { c: GateContextWire; name: (p: string) => string
         </>
       );
     case 'X2':
+      if (c.onboarding_pack) return <OnboardingPack k={c.onboarding_pack} />;
       return (
         <>
           <Card title="The protected-path patch" testId="patch">
@@ -651,6 +673,133 @@ function GateMain({ c, name }: { c: GateContextWire; name: (p: string) => string
     default:
       return checkCard;
   }
+}
+
+/** What an onboarding pack's X2 binds: the files by hash, the patch, CODEOWNERS, and for Full the lock and seeds. */
+function OnboardingPack({ k }: { k: NonNullable<GateContextWire['onboarding_pack']> }) {
+  return (
+    <>
+      <Card title="The onboarding pack" testId="onboarding-pack">
+        {!k.intact || !k.bound ? (
+          <p className="s7-banner s7-banner-bad" role="alert">
+            <b>Do not decide.</b>{' '}
+            {!k.intact
+              ? 'The files the gate opened with are not the recorded render.'
+              : 'The subject hash is not this patch hash.'}
+          </p>
+        ) : null}
+        <KeyValue
+          rows={[
+            [
+              'Patch hash',
+              <code key="p" className="s7-wrap" data-testid="patch-hash">
+                {k.patch_hash}
+              </code>,
+            ],
+            ['Bound', k.bound ? 'yes: the subject hash is this patch hash' : 'NO'],
+            ['Matches the record', k.intact ? 'yes: every file as rendered' : 'NO'],
+            ['Repository', <code key="r">{k.repo}</code>],
+            ['Base commit', <code key="b">{k.base_sha.slice(0, 12)}</code>],
+            ['Branch', <code key="br">{k.branch}</code>],
+            [
+              k.deciding_card.card === 'C2' ? 'Card 2 payload' : 'Card 3 payload',
+              <code key="c" title={k.deciding_card.payload_hash}>
+                {short(k.deciding_card.payload_hash, 16)}
+              </code>,
+            ],
+          ]}
+        />
+        <table className="ui-table" data-testid="pack-files">
+          <caption className="ui-eyebrow">Rendered files ({k.files.length})</caption>
+          <thead>
+            <tr>
+              <th scope="col">Path</th>
+              <th scope="col">From</th>
+              <th scope="col">sha256</th>
+              <th scope="col">Protected</th>
+            </tr>
+          </thead>
+          <tbody>
+            {k.files.map((f) => (
+              <tr key={f.path}>
+                <td>
+                  <code>{f.path}</code>
+                </td>
+                <td>{f.source.replace('_', ' ')}</td>
+                <td>
+                  <code title={f.sha256}>{short(f.sha256, 16)}</code>
+                </td>
+                <td>{f.protected_rule ?? 'no'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      {k.codeowners ? (
+        <Card title="CODEOWNERS" testId="pack-codeowners">
+          <p>
+            {k.codeowners.rendered
+              ? 'The pack writes .github/CODEOWNERS with the logins below.'
+              : `Not in the pack: ${k.codeowners.outcome.replaceAll('_', ' ')}.`}
+          </p>
+          {k.codeowners.owners.length > 0 ? (
+            <KeyValue
+              label="Who the admin slot resolves to"
+              rows={k.codeowners.owners.map((o) => [
+                <code key="p">{o.principal_id}</code>,
+                o.login ? <code key="l">@{o.login}</code> : 'left out: no linked login',
+              ])}
+            />
+          ) : null}
+        </Card>
+      ) : null}
+      {k.kind === 'full' ? (
+        <Card title="Oracle lock and seeds" testId="pack-full">
+          {k.oracle_lock ? (
+            <KeyValue
+              rows={[
+                ['Lock file', <code key="p">{k.oracle_lock.path}</code>],
+                [
+                  'Lock hash',
+                  <code key="h" title={k.oracle_lock.lock_hash}>
+                    {short(k.oracle_lock.lock_hash, 16)}
+                  </code>,
+                ],
+                [
+                  'Tests locked',
+                  `${k.oracle_lock.tests}${k.oracle_lock.truncated ? ' (truncated)' : ''}`,
+                ],
+                [
+                  'File sha256',
+                  k.oracle_lock.file_sha256 ? (
+                    <code key="f">{short(k.oracle_lock.file_sha256, 16)}</code>
+                  ) : (
+                    '[not in the pack]'
+                  ),
+                ],
+              ]}
+            />
+          ) : (
+            <p className="muted">[unknown]: card 3&rsquo;s baseline is not on the record.</p>
+          )}
+          {k.seeds.length > 0 ? (
+            <KeyValue
+              label="Seeds card 3 made intended"
+              rows={k.seeds.map((x) => [
+                <code key="a">{x.area}</code>,
+                <span key="s">
+                  <code>{x.path}</code>{' '}
+                  <code title={x.text_sha256}>{short(x.text_sha256, 12)}</code>
+                </span>,
+              ])}
+            />
+          ) : (
+            <p className="muted">No seed was made intended.</p>
+          )}
+        </Card>
+      ) : null}
+    </>
+  );
 }
 
 /** X1: the operation the session was stopped before, its command and its target (P1-8). */

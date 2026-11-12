@@ -7,6 +7,7 @@ import {
 } from '@aisdlc/contracts';
 import { ok } from '@aisdlc/kernel';
 import type { ItemState } from '@aisdlc/work';
+import { itemWorkHold, type AgentWorkHold } from '../drift/hold.js';
 import { inCoreTx, lockKeys } from '../journal.js';
 import { readItem, readItemEvents } from '../work-items.js';
 import type { AdmissionDeps } from './admit.js';
@@ -25,6 +26,8 @@ import { currentLease, listGrants } from './read.js';
 //     Unit are not dropped here: the lease is the human's from that epoch, and a write at the old epoch is stale;
 //   - HUMAN-WAIT: a pending G3o, X1, X3 or E6 while the item is in S6 releases the lease and the slot, keeps a
 //     snapshot reference, and pauses the envelope clock; the next S6 command re-admits it (`ensureAdmitted`).
+//     M16 part 3 (OB §8): a hold on the item's repo does the same (its readiness record suspended for drift:
+//     `agentWorkHold`); no re-admission happens while it lasts, and the restore lets the next S6 command re-admit.
 
 export interface UnitSyncReport {
   readonly grants_released: number;
@@ -122,12 +125,16 @@ export async function syncUnits(
       }
     }
 
-    // ---- HUMAN-WAIT
+    // ---- HUMAN-WAIT (a pending gate, or a hold on the repo: OB §8)
     if (s.underlying === 'S6' && live?.status === 'active' && s.terminal === null) {
       const pending = s.gates.find(
         (g) => g.status === 'pending' && (HUMAN_WAIT_GATES as readonly string[]).includes(g.gate),
       );
       if (pending) r.waits_entered += await enterWait(d, s, live, pending);
+      else {
+        const hold = await itemWorkHold(d.pool, s);
+        if (hold) r.waits_entered += await enterWait(d, s, live, hold);
+      }
     }
   }
   return r;
@@ -173,14 +180,18 @@ async function enterWait(
   d: AdmissionDeps,
   s: ItemState,
   grant: { grant_id: string; unit_id: string; lease_epoch: number },
-  gate: { gate: string; gate_instance_id: string },
+  on: { gate: string; gate_instance_id: string } | AgentWorkHold,
 ): Promise<number> {
+  const hold = 'cause' in on ? on : null;
+  const gate = hold === null ? (on as { gate: string; gate_instance_id: string }) : null;
+  // the wait's key: the gate instance, or the hold's record reference
+  const key = gate ? gate.gate_instance_id : `hold:${hold?.ref ?? ''}`;
   const snap = await d.snapshots.keep({
     unit_id: grant.unit_id,
     item_id: s.item_id,
     lease_epoch: grant.lease_epoch,
-    gate: gate.gate as HumanWaitGate,
-    gate_instance_id: gate.gate_instance_id,
+    gate: gate ? (gate.gate as HumanWaitGate) : null,
+    gate_instance_id: key,
   });
   // no snapshot, no wait: the session keeps its lease and slot until one can be kept (fail closed)
   if (!snap.ok) return 0;
@@ -195,12 +206,14 @@ async function enterWait(
         grant_id: grant.grant_id,
         unit_id: grant.unit_id,
         item_id: s.item_id as never,
-        gate: gate.gate as HumanWaitGate,
-        gate_instance_id: gate.gate_instance_id,
+        ...(hold ? { cause: hold.cause, hold_ref: hold.ref } : {}),
+        gate: gate ? (gate.gate as HumanWaitGate) : null,
+        gate_instance_id: gate ? gate.gate_instance_id : null,
         lease_epoch: grant.lease_epoch,
         snapshot_ref: snap.value.snapshot_ref,
       },
-      `wait:${gate.gate_instance_id}`,
+      // one wait per grant and gate (or hold): the same suspension never waits a grant twice
+      gate ? `wait:${gate.gate_instance_id}` : `wait:${key}:${grant.grant_id}`,
     );
     return e.ok ? ok(e.value.duplicate ? 0 : 1) : e;
   });

@@ -15,9 +15,14 @@ import type { FakeStepUp } from '@aisdlc/decisions';
 import { sha256Hex } from '@aisdlc/kernel';
 import { FakeGitHub, emptySeed, gitBlobSha, type CodeHostSeed } from '@aisdlc/ports';
 import { rawRules } from '@aisdlc/ports/testing';
+import { recordObservation } from '@aisdlc/loops';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  agentWorkHold,
+  autonomyNow,
   checkDrift,
+  confirmSecurity,
+  pollOpenFindings,
   coreInbox,
   expireRecord,
   inCoreTx,
@@ -108,7 +113,7 @@ interface World {
 }
 
 /** A Light repo with an ACTIVE readiness record whose AGENTS.md section was affirmed (drafted from `ORIGINAL`). */
-async function world(): Promise<World> {
+async function world(o: { pillarLevel?: number } = {}): Promise<World> {
   n += 1;
   const project = `dr-${n}`;
   const repo = `acme/dr-${n}`;
@@ -120,8 +125,17 @@ async function world(): Promise<World> {
     ),
   );
   const made = built(inputs({ tier: 'T1', level: 'light', over: { project_id: project } }));
+  const lv = o.pillarLevel;
   const withText = {
     ...made,
+    ...(lv === undefined
+      ? {}
+      : {
+          pillars: made.pillars.map((p) => ({ ...p, level: lv })),
+          composite: lv,
+          // green posture, RL2 -> A1 (on probation): the autonomy a lowered KRL can tighten
+          autonomy: { ...made.autonomy, readiness_cap: 'A1', posture_cap: null, effective: 'A1' },
+        }),
     affirmed: {
       ...made.affirmed,
       instructions: [
@@ -202,6 +216,13 @@ const poll = async (w: World) => {
   return okv(await checkDrift(w.d, w.repo));
 };
 const bypassShown = (logins: string[]) => ({ logins, list_hash: bypassListHash(logins) });
+/** The autonomy in force now (`autonomyNow`), as a Result for `okv`. */
+const reaffirmGuard = async (w: World) => {
+  const a = await autonomyNow(s.record.pool, w.repo);
+  return a
+    ? ({ ok: true, value: a } as const)
+    : ({ ok: false, error: { message: 'no record' } } as const);
+};
 const ATTEST = { bypass_matches_list: true, bypass_has_no_app: true } as const;
 
 describe('the files poll and the fold: record-first, deterministic', () => {
@@ -279,6 +300,274 @@ describe('the files poll and the fold: record-first, deterministic', () => {
       reasons: ['file_deleted'],
       observed: null,
     });
+  });
+});
+
+describe('KRL −1 on instruction drift (OB §4.2): recorded, ledgered, lifted only by re-affirming', () => {
+  it('a drifted AGENTS.md lowers KRL and the autonomy in force; once per path; a revert lifts nothing; the re-affirmation does', async () => {
+    const w = await world({ pillarLevel: 2 });
+    w.push({ sha: H2, files: { 'AGENTS.md': AFFIRMED, '.github/CODEOWNERS': CODEOWNERS } });
+    expect((await poll(w))?.krl_lowered).toBe(0);
+    const signed = okv(await reaffirmGuard(w));
+    expect(signed).toMatchObject({ signed: 2, current: 2, effective_now: signed.effective_signed });
+    expect(signed.effective_signed).toBe('A1');
+
+    const EDITED = `${AFFIRMED}\n## Notes\n\nUse pnpm.\n`;
+    w.push({ sha: H3, files: { 'AGENTS.md': EDITED, '.github/CODEOWNERS': CODEOWNERS } });
+    const c = await poll(w);
+    expect(c).toMatchObject({ krl_lowered: 1, suspended: false });
+    // recorded first, then ledgered (mechanical): the area, the path, both hashes and the levels
+    const ev = await q<{ body: Record<string, unknown> }>(
+      'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2',
+      [driftStream(w.repo), DRIFT_EVENT.krl_lowered],
+    );
+    expect(ev.map((e) => e.body)).toEqual([
+      expect.objectContaining({
+        area: '*',
+        path: 'AGENTS.md',
+        expected: sha256Hex(AFFIRMED),
+        observed: sha256Hex(EDITED),
+        krl_signed: 2,
+        krl_from: 2,
+        krl_to: 1,
+      }),
+    ]);
+    const led = await q<{ entry_type: string; subject_kind: string; actor: string }>(
+      'SELECT entry_type, subject_kind, actor FROM ledger.ledger_entry WHERE entry_id = $1',
+      [ev[0]?.body['ledger_entry_id']],
+    );
+    expect(led).toEqual([
+      { entry_type: 'prr.krl_lowered', subject_kind: 's0_record', actor: 'system.drift' },
+    ]);
+    // tighten only: the record as signed is unchanged; the autonomy in force is the lowered composite's cap
+    expect(await statusOf(w)).toBe('active');
+    expect(okv(await reaffirmGuard(w))).toMatchObject({
+      signed: 2,
+      current: 1,
+      effective_signed: 'A1',
+      effective_now: 'A0',
+    });
+    // the same drift lowers nothing twice
+    w.push({ sha: H4, files: { 'AGENTS.md': `${EDITED}x\n`, '.github/CODEOWNERS': CODEOWNERS } });
+    expect((await poll(w))?.krl_lowered).toBe(0);
+
+    // the file goes back to the affirmed bytes: the finding clears, the penalty does not (loosening needs a person)
+    const H5 = '5'.repeat(40);
+    w.push({ sha: H5, files: { 'AGENTS.md': AFFIRMED, '.github/CODEOWNERS': CODEOWNERS } });
+    expect((await poll(w))?.findings).toEqual([]);
+    expect(okv(await reaffirmGuard(w)).current).toBe(1);
+    const v = await projectDriftView(s.record.pool, pid(w.project), {
+      clock: s.clock,
+      bypass: w.d.bypass,
+    });
+    expect(v.repos[0]?.krl).toMatchObject({
+      signed: 2,
+      current: 1,
+      effective_now: 'A0',
+      lowered: [expect.objectContaining({ path: 'AGENTS.md', area: '*' })],
+    });
+    expect(v.repos[0]?.history.map((h) => h.type)).toContain('krl_lowered');
+    // the re-affirm card stays offered while the penalty is open
+    const inbox = await coreInbox({
+      cards: { pool: s.record.pool, decisions: s.config } as never,
+      clock: s.clock,
+    });
+    expect(inbox.filter((i) => i.id === w.repo).map((i) => i.kind)).toEqual(['drift_reaffirm']);
+
+    // the path the spec names: a person re-affirms it with the step-up; KRL is back as signed
+    const stepUp = s.config.stepUp as FakeStepUp;
+    okv(
+      await reaffirmInstruction(w.d, pid(w.project), {
+        repo: w.repo as never,
+        path: 'AGENTS.md',
+        text_sha256: sha256Hex(AFFIRMED) as never,
+        step_up: { proof: stepUp.issue(sha256Hex(AFFIRMED), 'alice') },
+        on_behalf_of: pr('alice'),
+      }),
+    );
+    expect(okv(await reaffirmGuard(w))).toMatchObject({ current: 2, effective_now: 'A1' });
+    expect((await poll(w))?.krl_lowered).toBe(0);
+    const after = await coreInbox({
+      cards: { pool: s.record.pool, decisions: s.config } as never,
+      clock: s.clock,
+    });
+    expect(after.filter((i) => i.id === w.repo)).toEqual([]);
+  });
+});
+
+describe('OB §8 security events: a widened installation and a new history secret', () => {
+  const installationFact = (w: World, inst: Record<string, unknown>) =>
+    recordObservation(
+      s.record.pool,
+      {
+        kind: 'installation',
+        repo: w.repo as never,
+        project_id: w.project as never,
+        value: {
+          installation: { account_login: 'acme', suspended: false, ...inst },
+          repo: { default_branch: 'main', private: true, archived: false },
+        },
+        poll_interval_ms: 600_000,
+      },
+      s.clock,
+    );
+
+  it('a wider installation is a security event: recorded and ledgered, agent work held, no new reads; the security slot confirms it', async () => {
+    const w = await world();
+    w.push({ sha: H2, files: { 'AGENTS.md': AFFIRMED, '.github/CODEOWNERS': CODEOWNERS } });
+    await poll(w);
+    const g = (await loadDrift(s.record.pool, w.repo))?.governing;
+    const base = g?.prr.controls.app_installation;
+    if (!base) throw new Error('no installation on the record');
+    // the installation as the record saw it: nothing
+    await installationFact(w, base);
+    expect(okv(await checkDrift(w.d, w.repo))).toMatchObject({ security_raised: false });
+    expect(await agentWorkHold(s.record.pool, w.repo)).toBeNull();
+
+    // widened: every repository, and a write permission the record never saw
+    const wide = {
+      ...base,
+      repository_selection: 'all',
+      permissions: { ...base.permissions, administration: 'write' },
+    };
+    await installationFact(w, wide);
+    const c = okv(await checkDrift(w.d, w.repo));
+    expect(c).toMatchObject({ security_raised: true, suspended: false });
+    expect(c?.findings.filter((f) => f.effect === 'security')).toEqual([
+      expect.objectContaining({
+        kind: 'installation',
+        reasons: expect.arrayContaining(['permission_added:administration']),
+      }),
+    ]);
+    const ev = await q<{ body: { ledger_entry_id: string; findings: unknown[] } }>(
+      'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2',
+      [driftStream(w.repo), DRIFT_EVENT.security_raised],
+    );
+    expect(ev).toHaveLength(1);
+    const led = await q<{ entry_type: string }>(
+      'SELECT entry_type FROM ledger.ledger_entry WHERE entry_id = $1',
+      [ev[0]?.body.ledger_entry_id],
+    );
+    expect(led).toEqual([{ entry_type: 'prr.security_event' }]);
+    // the same event is not recorded twice
+    expect(okv(await checkDrift(w.d, w.repo))).toMatchObject({ security_raised: false });
+    // agent work is held (HUMAN-WAIT for a session in flight, no admission); the record is not suspended
+    expect(await agentWorkHold(s.record.pool, w.repo)).toEqual({
+      cause: 'security_hold',
+      ref: ev[0]?.body.ledger_entry_id,
+      why: expect.stringContaining('installation'),
+    });
+    expect(await statusOf(w)).toBe('active');
+    // no new reads of the repo's files until it is confirmed
+    w.push({ sha: H3, files: { 'AGENTS.md': `${AFFIRMED}x\n`, '.github/CODEOWNERS': CODEOWNERS } });
+    okv(await recheckRepo(w.d, w.repo));
+    const facts = await q('SELECT 1 FROM record.record_event WHERE stream = $1', [
+      inboundFactStream('affirmed_files', w.repo),
+    ]);
+    expect(facts).toHaveLength(1);
+    // the inbox has the security card; the view shows what a confirmation would accept
+    const inbox = await coreInbox({
+      cards: { pool: s.record.pool, decisions: s.config } as never,
+      clock: s.clock,
+    });
+    expect(inbox.filter((i) => i.id === w.repo).map((i) => i.kind)).toEqual(['drift_security']);
+    const v = await projectDriftView(s.record.pool, pid(w.project), {
+      clock: s.clock,
+      bypass: w.d.bypass,
+    });
+    const shown = v.repos[0]?.security;
+    expect(shown).toMatchObject({ held: true, new_findings: 0, installation: { widened: true } });
+
+    // the security slot confirms it, against the exact installation shown; the admin slot alone cannot
+    const req = (who: string, hash = shown?.installation?.hash ?? '') => ({
+      repo: w.repo as never,
+      installation_hash: hash as never,
+      on_behalf_of: pr(who),
+    });
+    expect(await confirmSecurity(w.d, pid(w.project), req('alice'))).toMatchObject({
+      ok: false,
+      error: { code: 'refused' },
+    });
+    setSlots(s, w.project, { admin: ['alice'], m4: ['alice'], sec: ['bob'] });
+    expect(
+      await confirmSecurity(w.d, pid(w.project), req('bob', sha256Hex('stale'))),
+    ).toMatchObject({ ok: false, error: { code: 'conflict' } });
+    const ok1 = okv(await confirmSecurity(w.d, pid(w.project), req('bob')));
+    const led2 = await q<{ entry_type: string; actor: string }>(
+      'SELECT entry_type, actor FROM ledger.ledger_entry WHERE entry_id = $1',
+      [ok1.ledger_entry_id],
+    );
+    expect(led2).toEqual([{ entry_type: 'prr.security_confirmed', actor: 'bob' }]);
+    // the confirmed installation is the new baseline: the hold lifts and the files are read again
+    expect(okv(await checkDrift(w.d, w.repo))?.findings.some((f) => f.effect === 'security')).toBe(
+      false,
+    );
+    expect(await agentWorkHold(s.record.pool, w.repo)).toBeNull();
+    okv(await recheckRepo(w.d, w.repo));
+    expect(
+      await q('SELECT 1 FROM record.record_event WHERE stream = $1', [
+        inboundFactStream('affirmed_files', w.repo),
+      ]),
+    ).toHaveLength(2);
+  });
+
+  it('a new open secret finding holds agent work (B1) while knowledge reports it open; recorded and ledgered', async () => {
+    const w = await world();
+    const open: { ids: string[]; down: boolean } = { ids: [], down: false };
+    const d = {
+      ...w.d,
+      findings: {
+        openFindings: async () =>
+          open.down
+            ? ({ ok: false, error: { code: 'unreachable', message: 'down' } } as never)
+            : ({ ok: true, value: open.ids.map((finding_id) => ({ finding_id })) } as never),
+      },
+    };
+    const g = (await loadDrift(s.record.pool, w.repo))?.governing;
+    expect(g?.prr.security_summary.history_scan.open).toBe(0);
+    expect(okv(await pollOpenFindings(d, w.repo))).toBe('recorded');
+    expect(okv(await checkDrift(d, w.repo))).toMatchObject({ security_raised: false });
+
+    // knowledge's scan finds a secret the record did not know of
+    open.ids = ['finding-1'];
+    expect(okv(await pollOpenFindings(d, w.repo))).toBe('recorded');
+    const c = okv(await checkDrift(d, w.repo));
+    expect(c?.security_raised).toBe(true);
+    expect(c?.findings.filter((f) => f.effect === 'security')).toEqual([
+      {
+        kind: 'history_secret',
+        effect: 'security',
+        subject: 'finding-1',
+        reasons: ['new_open_finding'],
+        expected: null,
+        observed: null,
+      },
+    ]);
+    expect(await agentWorkHold(s.record.pool, w.repo)).toMatchObject({ cause: 'security_hold' });
+    const v = await projectDriftView(s.record.pool, pid(w.project), {
+      clock: s.clock,
+      bypass: w.d.bypass,
+    });
+    expect(v.repos[0]?.security).toMatchObject({ held: true, new_findings: 1 });
+    // there is nothing to confirm here: the finding is resolved on its security card (knowledge's state)
+    setSlots(s, w.project, { admin: ['alice'], m4: ['alice'], sec: ['bob'] });
+    expect(
+      await confirmSecurity(d, pid(w.project), {
+        repo: w.repo as never,
+        installation_hash: sha256Hex('x') as never,
+        on_behalf_of: pr('bob'),
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'conflict' } });
+    // a findings read that fails records nothing (the last recorded fact still holds the work)
+    open.down = true;
+    expect((await pollOpenFindings(d, w.repo)).ok).toBe(false);
+    expect(await agentWorkHold(s.record.pool, w.repo)).toMatchObject({ cause: 'security_hold' });
+    // resolved (knowledge reports it no longer open): the hold lifts on the next poll
+    open.down = false;
+    open.ids = [];
+    okv(await pollOpenFindings(d, w.repo));
+    expect(okv(await checkDrift(d, w.repo))?.findings).toEqual([]);
+    expect(await agentWorkHold(s.record.pool, w.repo)).toBeNull();
   });
 });
 

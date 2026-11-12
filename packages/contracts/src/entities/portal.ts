@@ -58,6 +58,8 @@ export const InboxItemKind = z.enum([
   'drift_reaffirm',
   'prr_restore',
   'prr_resign',
+  /** M16 part 3 (OB §8): a security event holds the repo's agent work (installation widened, new history secret). */
+  'drift_security',
   'reonboard',
 ]);
 export type InboxItemKind = z.infer<typeof InboxItemKind>;

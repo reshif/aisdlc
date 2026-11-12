@@ -287,7 +287,9 @@ const STATION: Record<string, string> = {
 export const gateContext = (gate: string, over: Record<string, unknown> = {}) => ({
   card_id: CARD,
   project_id: 'testbed',
+  subject_kind: 'item',
   item_id: ITEM,
+  s0_id: null,
   gate,
   gate_instance_id: `g-${gate}`,
   station: STATION[gate] ?? gate,
@@ -328,6 +330,7 @@ export const gateContext = (gate: string, over: Record<string, unknown> = {}) =>
           markdown: '# Constitution check\n\nC-EGRESS: violation',
         }
       : null,
+  onboarding_pack: null,
   handoff: null,
   subject: null,
   data_class: 'D1',
