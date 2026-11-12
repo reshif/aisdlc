@@ -30,4 +30,5 @@ export { registerGatewayConfig } from './gateway.js';
 export { registerSandboxConfig } from './sandbox.js';
 export { registerGateCheckConfig } from './gate-check.js';
 export { readReleaseSetting, registerReleaseConfig, type ReleaseRead } from './gate-relay.js';
+export { registerNotificationsConfig } from './notifications.js';
 export { findSecrets, registerIntegrationConfig } from './integrations.js';

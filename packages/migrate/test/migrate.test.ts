@@ -14,6 +14,8 @@ import * as gateway from '@aisdlc/gateway';
 // The migrations entry only: the package root boots a service.
 import * as gatecheck from '@aisdlc/gate-check/migrations';
 import * as gaterelay from '@aisdlc/gate-relay/migrations';
+// The migrations entry only: the package root boots a service.
+import * as notifier from '@aisdlc/notifier/migrations';
 import * as verify from '@aisdlc/verify-service';
 // Not the package root: nothing outside services/identity imports its writer (single-writer test).
 import * as identity from '@aisdlc/identity/migrations';
@@ -48,6 +50,7 @@ const OWNERS = [
   ['verify', verify],
   ['gatecheck', gatecheck],
   ['gaterelay', gaterelay],
+  ['notifier', notifier],
   ['notary', notary],
   ['witness', witness],
   ['killswitch', killswitch],
@@ -124,6 +127,7 @@ describe('the plan', () => {
       'verify',
       'gatecheck',
       'gaterelay',
+      'notifier',
     ]);
   });
 

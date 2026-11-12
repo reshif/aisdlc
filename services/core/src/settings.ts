@@ -5,6 +5,7 @@ import {
   readLineage,
   registerGateCheckConfig,
   registerReleaseConfig,
+  registerNotificationsConfig,
   registerSandboxConfig,
   type ConfigDeps,
   type ConfigRegistry,
@@ -71,6 +72,8 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   registerGateCheckConfig(registry);
   // M15.3: a project's release choice (off or a deploy target), part of its project layer like its other settings
   registerReleaseConfig(registry);
+  // M18: the notifier's channel rows are the notifier's to read; core's revisions must validate them
+  registerNotificationsConfig(registry);
   return registry
     .setting({
       key: PROJECT_CONFIG_KEYS.role_map,

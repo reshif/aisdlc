@@ -39,6 +39,7 @@
     "@aisdlc/knowledge": "0.0.0",
     "@aisdlc/ledger": "0.0.0",
     "@aisdlc/notary": "0.0.0",
+    "@aisdlc/notifier": "0.0.0",
     "@aisdlc/record": "0.0.0",
     "@aisdlc/verify-service": "0.0.0",
     "@aisdlc/witness": "0.0.0"

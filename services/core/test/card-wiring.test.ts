@@ -71,4 +71,22 @@ describe('core configuration of the cards', () => {
       coreConfigFromEnv({ ...base, ...ledger, ...cards, CORE_KNOWLEDGE_TOKEN_REF: '' }),
     ).toThrow(/CORE_KNOWLEDGE_TOKEN_REF is required/);
   });
+
+  it('switches the assistant on with the gateway, and only beside knowledge (M18)', () => {
+    const gw = { CORE_GATEWAY_URL: 'http://gateway:8390', CORE_GATEWAY_TOKEN_REF: 'env:N' };
+    expect(coreConfigFromEnv({ ...base, ...ledger, ...cards }).assistant).toBeNull();
+    expect(
+      coreConfigFromEnv({
+        ...base,
+        ...ledger,
+        ...cards,
+        ...gw,
+        CORE_ASSISTANT_EXTRA_MODELS: 'fake-model, bad model',
+      }).assistant,
+    ).toEqual({
+      gateway: { url: 'http://gateway:8390', token: 'd'.repeat(32) },
+      extraModels: ['fake-model'],
+    });
+    expect(() => coreConfigFromEnv({ ...base, ...gw })).toThrow(/the assistant needs knowledge/);
+  });
 });

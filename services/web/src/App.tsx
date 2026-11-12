@@ -16,6 +16,8 @@ import { ProjectListPage } from './pages/ProjectList';
 import { S0Page } from './pages/S0Page';
 import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
 import { MyAccessPage } from './pages/MyAccessPage';
+import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsPage';
+import { AskPage } from './assistant/AskPage';
 import { Link, NavContext, useRoute, type Route } from './router';
 import { Shell } from './shell/Shell';
 import { ErrorState, PageHead, ToastProvider } from './ui';
@@ -105,7 +107,7 @@ function Page({ route, me }: { route: Route; me: Me }) {
     case 'project':
       return <ProjectDetailPage id={route.id} />;
     case 's0':
-      return <S0Page id={route.id} />;
+      return <S0Page id={route.id} csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'card':
       return <CardPage id={route.id} csrf={me.csrf_token} me={me.principal.principal_id} />;
     case 'item':
@@ -133,6 +135,12 @@ function Page({ route, me }: { route: Route; me: Me }) {
       return <ConfigListPage />;
     case 'configKey':
       return <ConfigKeyPage configKey={route.key} csrf={me.csrf_token} />;
+    case 'ask':
+      return <AskPage csrf={me.csrf_token} who={me.principal.display_name} />;
+    case 'notifications':
+      return <NotificationsPage />;
+    case 'notificationPrefs':
+      return <NotificationPrefsPage csrf={me.csrf_token} />;
     case 'notfound':
       return <ErrorState status={404} action={<Link to="/">Back to projects</Link>} />;
   }

@@ -51,7 +51,7 @@ describe('gate-relay in the compose stack', () => {
     expect(gr.read_only).toBe(true);
     expect(gr.cap_drop).toEqual(['ALL']);
     expect(gr.security_opt).toContain('no-new-privileges:true');
-    expect(gr.healthcheck?.test).toContain('8460');
+    expect(gr.healthcheck?.test).toContain('8470');
     expect(netsOf(gr).sort()).toEqual(
       [
         'data-gaterelay',

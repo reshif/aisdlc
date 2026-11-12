@@ -1,5 +1,12 @@
 import type {
   ActionId,
+  AskResult,
+  AssistantBudgetView,
+  NotificationList,
+  NotificationPreferences,
+  NotificationPreferencesView,
+  ThreadList,
+  ThreadView,
   ConfigKeySummary,
   ConfigKeyView,
   ConfigProposeResult,
@@ -208,8 +215,19 @@ export type PortalObserve =
   | Omit<Extract<ItemObserveRequest, { edge: 'R2' }>, 'on_behalf_of'>;
 export type PortalPlan = Omit<ItemPlanRequest, 'on_behalf_of'>;
 
+/** What the browser sends to the assistant: never a person or a data class (the bff adds them from the session). */
+export type AskInput =
+  | {
+      /** `ThreadSubjectRequest`'s two shapes, with plain ids as the browser holds them. */
+      readonly subject:
+        | { readonly kind: 's0'; readonly s0_id: string }
+        | { readonly kind: 'project'; readonly project_id: string };
+      readonly text: string;
+    }
+  | { readonly thread_id: string; readonly text: string };
+
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PUT',
   path: string,
   body?: unknown,
   csrf?: string,
@@ -391,6 +409,40 @@ export const api = {
     request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
+  // ------------------------------------------------------------ the assistant (M18)
+  ask: (input: AskInput, csrf: string) =>
+    request<AskResult>('POST', '/api/assistant/ask', input, csrf),
+  threads: (f: { s0?: string; project?: string }) => {
+    const qs = new URLSearchParams();
+    if (f.s0) qs.set('s0', f.s0);
+    if (f.project) qs.set('project', f.project);
+    const q = qs.toString();
+    return request<ThreadList>('GET', `/api/assistant/threads${q ? `?${q}` : ''}`);
+  },
+  thread: (id: string) =>
+    request<ThreadView>('GET', `/api/assistant/threads/${encodeURIComponent(id)}`),
+  assistantBudget: () => request<AssistantBudgetView>('GET', '/api/assistant/budget'),
+  /**
+   * A proposal button of kind `call`: the bff route it names, under the person's own session (the PDP decides there).
+   * Only a path under `/api/` is ever called; the button never carries a body.
+   */
+  callProposal: (path: string, csrf: string) => {
+    if (!/^\/api\/[A-Za-z0-9/_-]+$/.test(path)) {
+      return Promise.reject(new ApiError(400, 'invalid_route', 'Not a route the portal calls.'));
+    }
+    return request<unknown>('POST', path, {}, csrf);
+  },
+  // ------------------------------------------------------------ notifications (M18)
+  notifications: () => request<NotificationList>('GET', '/api/me/notifications'),
+  notificationPrefs: () =>
+    request<NotificationPreferencesView>('GET', '/api/me/notifications/preferences'),
+  setNotificationPrefs: (preferences: NotificationPreferences, csrf: string) =>
+    request<NotificationPreferencesView>(
+      'PUT',
+      '/api/me/notifications/preferences',
+      { preferences },
+      csrf,
+    ),
   ledger: (project: string, s0?: string) =>
     request<LedgerAuditView>(
       'GET',

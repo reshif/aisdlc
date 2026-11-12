@@ -101,7 +101,7 @@ function hostFromEnv(env: Env): GateRelayHostPort {
  *                                    the signed Evidence Packs (read only)
  *   GATE_RELAY_NOTARY_KEY_REF        file: a pinned public JWK of the Notary; else KMS_URL and KMS_TOKEN_REF
  *   GATE_RELAY_CONSUME_INTERVAL_MS (15000), GATE_RELAY_HEALTH_INTERVAL_MS (30000)
- *   GATE_RELAY_HOST (127.0.0.1), GATE_RELAY_PORT (8460)
+ *   GATE_RELAY_HOST (127.0.0.1), GATE_RELAY_PORT (8470)
  *
  * `deps` replaces the ports (tests).
  */
@@ -117,7 +117,7 @@ export async function bootGateRelay(
   const dbUrl = databaseUrl(env, 'GATE_RELAY_DATABASE_URL');
   const callers = jsonEnv(env, 'GATE_RELAY_CALLERS', Callers);
   const auth = loadServiceAuth(callers, { env });
-  const listenOpts = listenConfig(env, 'GATE_RELAY', 8460);
+  const listenOpts = listenConfig(env, 'GATE_RELAY', 8470);
   const host = deps.host ?? hostFromEnv(env);
   const packs =
     deps.packs ??

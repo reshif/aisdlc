@@ -8,10 +8,11 @@ function kindsOf(id: AgentId): string[] {
     agentDefinition(id).contract.output_schema_id as keyof typeof OUTPUT_SCHEMAS
   ] as unknown as {
     options?: Array<{ shape: { kind: { value: string } } }>;
-    shape?: { kind: { value: string } };
+    shape?: { kind: { value?: string; options?: string[] } };
   };
   if (schema.options) return schema.options.map((o) => o.shape.kind.value);
-  return [schema.shape?.kind.value as string];
+  // one object whose `kind` is an enum (the assistant's answer or refusal)
+  return schema.shape?.kind.options ?? [schema.shape?.kind.value as string];
 }
 
 describe('validateOutput (PLAN M11.1: every agent output validates against its OutputSchema)', () => {

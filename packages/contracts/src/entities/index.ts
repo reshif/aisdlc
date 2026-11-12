@@ -44,4 +44,6 @@ export * from './review.js';
 export * from './merge.js';
 export * from './gate-relay.js';
 export * from './closeout.js';
+export * from './notifications.js';
+export * from './conversation.js';
 export * from './portal-verify.js';
