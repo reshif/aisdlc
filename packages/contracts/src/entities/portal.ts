@@ -58,6 +58,8 @@ export const InboxItemKind = z.enum([
   'drift_reaffirm',
   'prr_restore',
   'prr_resign',
+  /** M16 part 3 (OB §8): a security event holds the repo's agent work (installation widened, new history secret). */
+  'drift_security',
   'reonboard',
 ]);
 export type InboxItemKind = z.infer<typeof InboxItemKind>;
@@ -160,6 +162,8 @@ export const RevisionDecideRequest = z.strictObject({
   on_behalf_of: PrincipalId,
   nonce: z.string().min(1),
   decision: VoteDecision,
+  /** The voter's step-up proof, where the M1 gate needs one (two people: RC-SEC-4). */
+  step_up: z.strictObject({ proof: z.string().min(1).max(8192) }).optional(),
 });
 export const RevisionPrepareRequest = z.strictObject({ on_behalf_of: PrincipalId });
 export type RevisionDecideRequest = z.infer<typeof RevisionDecideRequest>;

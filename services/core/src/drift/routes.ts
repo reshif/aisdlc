@@ -6,6 +6,7 @@ import {
   ReonboardDecideRequest,
   RepoFullName,
   RestoreRequest,
+  SecurityConfirmRequest,
   MERGE_BYPASS_CONFIG_KEY,
   MergeBypassConfig,
   pdpResource,
@@ -22,6 +23,7 @@ import { CORE_STATUS, coreError, type CoreError } from '../errors.js';
 import type { CoreDeps } from '../journal.js';
 import { getProject } from '../queries.js';
 import {
+  confirmSecurity,
   decideReonboarding,
   reaffirmInstruction,
   requestVersion,
@@ -39,6 +41,8 @@ import { projectDriftView, reaffirmView, repoDriftView } from './view.js';
 //   POST /v1/projects/:id/drift/recheck      {repo, on_behalf_of}      poll now (recorded), fold     (config.propose)
 //   POST /v1/projects/:id/drift/restore      RestoreRequest            DEC-21(b) one-click restore   (project.settings.edit)
 //   POST /v1/projects/:id/drift/reaffirm     ReaffirmRequest           re-affirm with step-up        (project.settings.edit)
+//   POST /v1/projects/:id/drift/security/confirm SecurityConfirmRequest OB §8 security card: the
+//                                                                        widened installation, by the security slot (project.settings.edit)
 //   POST /v1/projects/:id/onboarding-versions OnboardingVersionRequest level-up or re-sign          (project.onboard)
 //   POST /v1/projects/:id/reonboarding/decide ReonboardDecideRequest  accept or decline a re-onboarding
 //                                                                      proposal (M17, OB §8)           (project.settings.edit)
@@ -223,6 +227,24 @@ export function registerDriftRoutes(r: DriftRouteDeps): void {
     const d = actionDeps(reply);
     if (!d) return;
     const out = await reaffirmInstruction(d, id, b);
+    return out.ok ? reply.code(201).send(out.value) : fail(reply, out.error);
+  });
+
+  app.post('/v1/projects/:id/drift/security/confirm', async (req, reply) => {
+    const id = await project(req, reply);
+    if (!id) return;
+    const b = await body(
+      req,
+      reply,
+      SecurityConfirmRequest,
+      'project.settings.edit',
+      pdpResource.project(id),
+      id,
+    );
+    if (!b) return;
+    const d = actionDeps(reply);
+    if (!d) return;
+    const out = await confirmSecurity(d, id, b);
     return out.ok ? reply.code(201).send(out.value) : fail(reply, out.error);
   });
 

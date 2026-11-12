@@ -16,6 +16,8 @@ import {
   PrincipalId,
   ProjectId,
   SANDBOX_CAPS_KEY,
+  ONBOARDING_LIGHT_TESTS_KEY,
+  DEFAULT_LIGHT_TESTS,
   type RoleSlot,
   type SandboxGrantRef,
 } from '@aisdlc/contracts';
@@ -121,11 +123,21 @@ afterAll(async () => {
 });
 
 /** Proposes `sandbox.caps`, decides its M1 gate (approve or not) and publishes an approved one; core's reader folds. */
-async function publishCaps(value: unknown, approve = true): Promise<void> {
+/** The W image the booted controller's host runs, and the one `onboarding.light_tests` names (LF4). */
+const W_IMAGE = `sha256:${'d'.repeat(64)}`;
+
+async function publishCaps(
+  value: unknown,
+  approve = true,
+  worker: string | null = W_IMAGE,
+): Promise<void> {
   const p = await proposeRevision(deps, {
     layer: 'factory',
     proposed_by: pr('dev'),
-    doc: { [SANDBOX_CAPS_KEY]: value },
+    doc: {
+      [SANDBOX_CAPS_KEY]: value,
+      [ONBOARDING_LIGHT_TESTS_KEY]: { ...DEFAULT_LIGHT_TESTS, worker_image: worker },
+    },
   });
   if (!p.ok) throw new Error(p.error.message);
   if (approve) {
@@ -303,6 +315,7 @@ describe('the booted controller: caps from M1-gated config, grants from the reco
         }),
         SBC_TOKEN: token,
         SANDBOX_CONTROLLER_HOST_ID: 'runner-a',
+        SANDBOX_CONTROLLER_WORKER_IMAGE_ID: W_IMAGE,
         SANDBOX_CONTROLLER_PORT: '0',
         SANDBOX_CONTROLLER_CAPS_RELOAD_MS: '600000',
       },
@@ -341,6 +354,22 @@ describe('the booted controller: caps from M1-gated config, grants from the reco
     await publishCaps({ total: 1, coding: 1 }, false);
     await reload();
     expect((await slots()).caps).toEqual({ total: 3, coding: 1 });
+  });
+
+  it('M16 part 3: W starts only while onboarding.light_tests names the image this host runs (LF4); else image_unverified', async () => {
+    await recordGrant(GRANT, 'active');
+    await publishCaps({ total: 3, coding: 1 }, true, `sha256:${'e'.repeat(64)}`);
+    await reload();
+    const other = await client.run(w('rec-w-lf4-1'));
+    expect(other).toMatchObject({ ok: false, error: { code: 'image_unverified' } });
+    await publishCaps({ total: 3, coding: 1 }, true, null);
+    await reload();
+    const none = await client.run(w('rec-w-lf4-2'));
+    expect(none).toMatchObject({ ok: false, error: { code: 'image_unverified' } });
+    expect(fake.runs.map((x) => x.session_id)).not.toContain('rec-w-lf4-2');
+    await publishCaps({ total: 3, coding: 1 });
+    await reload();
+    expect((await client.run(w('rec-w-lf4-3'))).ok).toBe(true);
   });
 
   it('a session whose grant is not active in the record is refused; the slot H2 reads is never taken', async () => {

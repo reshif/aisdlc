@@ -278,7 +278,7 @@ export function registerGovernanceRoutes(r: GovernanceRouteDeps): void {
   );
   app.post('/v1/config/revisions/:gate/decide', (req, reply) =>
     factoryAction(req, reply, RevisionDecideRequest, (d, _g, b) =>
-      decideRevision(d, { nonce: b.nonce, decision: b.decision }),
+      decideRevision(d, { nonce: b.nonce, decision: b.decision, step_up: b.step_up }),
     ),
   );
 }

@@ -1,6 +1,7 @@
 import { UNIT_EVENT } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import type { ItemState } from '@aisdlc/work';
+import { itemWorkHold } from '../drift/hold.js';
 import { coreError, type CoreError } from '../errors.js';
 import { inCoreTx, lockKeys } from '../journal.js';
 import { listUnits } from '../planning/units.js';
@@ -22,6 +23,13 @@ export async function ensureAdmitted(
   s: ItemState,
   commandKey: string,
 ): Promise<Result<Admission | { readonly admitted: true; readonly unit_id: null }, CoreError>> {
+  // M16 part 3 (OB §8): a hold on the repo (a suspended readiness record) admits nothing, not even a session that
+  // still holds its grant: HUMAN-WAIT applies (`syncUnits`) and the restore lets the next command re-admit
+  const hold = await itemWorkHold(d.pool, s);
+  if (hold) {
+    d.attempted?.(s.project_id);
+    return ok({ admitted: false, reason: 'WIP', why: hold.why });
+  }
   const grants = await listGrants(d.pool, s.item_id);
   const active = grants.find((g) => g.status === 'active');
   const leases = await listLeases(d.pool, s.item_id);

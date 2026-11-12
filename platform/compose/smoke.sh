@@ -294,17 +294,22 @@ step "the kill switch: kill a project, admission refused, observed and ledgered,
 # The operator token reaches the kill switch directly (the path a person has when core is down); alice
 # and bob are the factory admins it is configured with. core-worker's admission probe asks the kill switch
 # the way the work driver does before it dispatches a stage command.
-ksnode() { dc exec -T -e TOKEN="$(cat secrets/tok-operator-killswitch)" killswitch node -e "$1"; }
+ksnode() { dc exec -T -e TOKEN="$(cat secrets/tok-operator-killswitch)" -e P1="${P1:-}" -e P2="${P2:-}" -e P3="${P3:-}" killswitch node -e "$1"; }
+# RC-SEC-3: the token says which process calls, never who acts. Every act carries the acting person's
+# step-up proof for exactly that act; kproof stands in for that person's re-authentication at the bff
+# (it signs inside the bff container, the only caller of kms-local that may use the step-up key).
+kproof() { dc exec -T -e PRINCIPAL="$1" -e ACT="$2" bff node --input-type=module -e "$(cat kill-proof.mjs)"; }
 cwnode() { dc exec -T core-worker node -e "$1"; }
 admission() { # project -> prints "<http status> <json>"
   cwnode "fetch('http://127.0.0.1:8360/admission?project_id=$1&lane=L3').then(async r=>console.log(r.status, await r.text()))"
 }
 a0=$(admission testbed); echo "  before the kill: testbed $a0"
 case "$a0" in 200*) ;; *) fail "admission was not given before any kill: $a0" ;; esac
-kid=$(ksnode '
+P1=$(kproof alice '{"action":"kill.request","scope":{"kind":"project","ref":"testbed"},"reason":"smoke test"}') || fail "no step-up proof for the kill"
+kid=$(P1="$P1" ksnode '
 const h = { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" };
 const r = await fetch("http://127.0.0.1:8400/v1/kills", { method: "POST", headers: h,
-  body: JSON.stringify({ on_behalf_of: "alice", scope: { kind: "project", ref: "testbed" }, reason: "smoke test" }) });
+  body: JSON.stringify({ step_up: { proof: process.env.P1 }, scope: { kind: "project", ref: "testbed" }, reason: "smoke test" }) });
 const k = await r.json();
 if (r.status !== 201) { console.error(JSON.stringify(k)); process.exit(1); }
 console.log(k.kill_id);
@@ -314,14 +319,20 @@ a1=$(admission testbed); echo "  after the kill:  testbed $a1"
 case "$a1" in 423*killed*) ;; *) fail "admission was not refused for the killed project: $a1" ;; esac
 a2=$(admission other-project); echo "  another project: $a2"
 case "$a2" in 200*) ;; *) fail "a project with no kill was refused: $a2" ;; esac
-# a person who holds nothing cannot release it; two factory admins can
-ksnode '
+# a person who holds nothing cannot release it; one person cannot be both approvers; two factory admins can
+rel_act='{"action":"kill.release","kill_id":"'"$kid"'"}'
+P1=$(kproof mallory "$rel_act") && P2=$(kproof alice "$rel_act") && P3=$(kproof bob "$rel_act") || fail "no step-up proofs for the release"
+P1="$P1" P2="$P2" P3="$P3" ksnode '
 const h = { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" };
-const rel = async (who) => { const r = await fetch("http://127.0.0.1:8400/v1/kills/'"$kid"'/release", { method: "POST", headers: h, body: JSON.stringify({ on_behalf_of: who }) }); return [r.status, await r.json()]; };
-const [s0] = await rel("mallory");
+const rel = async (body) => { const r = await fetch("http://127.0.0.1:8400/v1/kills/'"$kid"'/release", { method: "POST", headers: h, body: JSON.stringify(body) }); return [r.status, await r.json()]; };
+const [s0] = await rel({ step_up: { proof: process.env.P1 } });
 if (s0 !== 403) { console.error("a stranger released it", s0); process.exit(1); }
-let [, k] = await rel("alice");
-if (k.state === "release_pending") [, k] = await rel("bob");
+const [sn] = await rel({ on_behalf_of: "bob" });
+if (sn !== 400) { console.error("a release in a name the caller sent was taken", sn); process.exit(1); }
+let [, k] = await rel({ step_up: { proof: process.env.P2 } });
+const [sr] = await rel({ step_up: { proof: process.env.P2 } });
+if (sr !== 401) { console.error("a replayed proof was taken", sr); process.exit(1); }
+if (k.state === "release_pending") [, k] = await rel({ step_up: { proof: process.env.P3 } });
 console.log(k.state, k.release_approvals.join("+"));
 if (k.state !== "released") process.exit(1);
 ' || fail "the release did not work"
@@ -348,7 +359,8 @@ step "the model gateway: a per-Unit key, a fake-provider call metered, D3 refuse
 psqlq() { local pw; pw="$(cat secrets/pg-superuser)"; dc exec -T -e PGPASSWORD="$pw" postgres psql -U postgres -d aisdlc -At -c "$1"; }
 # The operator token reaches the admin API from inside the gateway (the way a person does until the work
 # engine mints keys, M11). Keys are minted for a project, an item and a unit; the secret comes back once.
-gwnode() { dc exec -T -e TOKEN="$(cat secrets/tok-operator-gateway)" -e KTOKEN="$(cat secrets/tok-operator-killswitch)" gateway node -e "$1"; }
+gwnode() { dc exec -T -e TOKEN="$(cat secrets/tok-operator-gateway)" gateway node -e "$1"; }
+SMOKE_GW_OUT=$(mktemp)
 gwnode '
 const base = "http://127.0.0.1:8410";
 const h = { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" };
@@ -392,17 +404,37 @@ console.log(`  budget group smoke-g2 (60 tokens) stopped the key at call ${spent
 // the real kill switch is honoured
 const k3 = await mint({ group: "smoke-g3", unit: "smoke-u4", project: "smoke-gw-killed" });
 must((await call(k3, ask("before the kill")))[0] === 200, "pre-kill call");
-const kh = { authorization: `Bearer ${process.env.KTOKEN}`, "content-type": "application/json" };
-const [ks, kill] = await j(await fetch("http://killswitch:8400/v1/kills", { method: "POST", headers: kh, body: JSON.stringify({ on_behalf_of: "alice", scope: { kind: "project", ref: "smoke-gw-killed" }, reason: "gateway smoke" }) }));
-must(ks === 201, "kill " + ks);
-const [sk, rk] = await call(k3, ask("after the kill"));
-must(sk === 423 && rk.error.code === "killed", "a killed project was served: " + sk + JSON.stringify(rk));
-const rel = async (who) => (await j(await fetch(`http://killswitch:8400/v1/kills/${kill.kill_id}/release`, { method: "POST", headers: kh, body: JSON.stringify({ on_behalf_of: who }) })))[1];
-let k = await rel("alice"); if (k.state === "release_pending") k = await rel("bob");
-must(k.state === "released", "release " + k.state);
-must((await call(k3, ask("after the release")))[0] === 200, "a released project was refused");
-console.log(`  kill of project smoke-gw-killed: ${sk} ${rk.error.code}; after the release: 200`);
-' || fail "the gateway checks failed"
+// the kill and its release are acts of people (RC-SEC-3): the shell below brings their proofs
+console.log("K3=" + k3);
+' > "$SMOKE_GW_OUT" || fail "the gateway checks failed"
+grep -v '^K3=' "$SMOKE_GW_OUT" || true
+K3=$(sed -n 's/^K3=//p' "$SMOKE_GW_OUT"); rm -f "$SMOKE_GW_OUT"
+[ -n "$K3" ] || fail "the gateway checks gave no key for the kill check"
+gwcall() { # expected status, label: one call with the smoke-gw-killed key
+  dc exec -T -e K3="$K3" gateway node -e '
+const r = await fetch("http://127.0.0.1:8410/v1/messages", { method: "POST", headers: { "x-api-key": process.env.K3, "content-type": "application/json" },
+  body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 20, messages: [{ role: "user", content: "'"$2"'" }] }) });
+const b = await r.json();
+if (r.status !== '"$1"') { console.error("  FAIL: " + r.status + JSON.stringify(b)); process.exit(1); }
+console.log(r.status + (b.error ? " " + b.error.code : ""));'
+}
+gwkill='{"action":"kill.request","scope":{"kind":"project","ref":"smoke-gw-killed"},"reason":"gateway smoke"}'
+P1=$(kproof alice "$gwkill") || fail "no step-up proof for the gateway kill"
+gkid=$(P1="$P1" ksnode '
+const r = await fetch("http://127.0.0.1:8400/v1/kills", { method: "POST", headers: { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" },
+  body: JSON.stringify({ step_up: { proof: process.env.P1 }, scope: { kind: "project", ref: "smoke-gw-killed" }, reason: "gateway smoke" }) });
+const k = await r.json();
+if (r.status !== 201) { console.error(JSON.stringify(k)); process.exit(1); }
+console.log(k.kill_id);') || fail "the gateway kill was refused"
+killed=$(gwcall 423 "after the kill") || fail "a killed project was served"
+grel='{"action":"kill.release","kill_id":"'"$gkid"'"}'
+P2=$(kproof alice "$grel") && P3=$(kproof bob "$grel") || fail "no step-up proofs for the gateway release"
+P2="$P2" P3="$P3" ksnode '
+const rel = async (p) => (await fetch("http://127.0.0.1:8400/v1/kills/'"$gkid"'/release", { method: "POST", headers: { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ step_up: { proof: p } }) })).json();
+let k = await rel(process.env.P2); if (k.state === "release_pending") k = await rel(process.env.P3);
+if (k.state !== "released") { console.error("release " + JSON.stringify(k)); process.exit(1); }' || fail "the gateway release failed"
+gwcall 200 "after the release" >/dev/null || fail "a released project was refused"
+echo "  kill of project smoke-gw-killed: $killed; after the release: 200"
 okcalls=$(psqlq "SELECT count(*) FROM record.record_event WHERE type = 'gateway.model_call' AND body->>'outcome' = 'ok'")
 refused_calls=$(psqlq "SELECT count(*) FROM record.record_event WHERE type = 'gateway.model_call' AND body->>'outcome' = 'refused'")
 d3=$(psqlq "SELECT count(*) FROM record.record_event WHERE type = 'gateway.model_call' AND body->>'refusal' = 'd3_never_routed'")

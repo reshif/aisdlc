@@ -1,13 +1,18 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { KILL_EVENT, KILL_SIGNATURE_PENDING, type KillEvent } from '@aisdlc/contracts';
+import { KILL_EVENT, KILL_SIGNATURE_PENDING, killActHash, type KillEvent } from '@aisdlc/contracts';
 import { manualClock } from '@aisdlc/kernel';
 import { admitAgentWork, fakeKeyCustody } from '@aisdlc/ports';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HttpKillState } from '../src/client.js';
 import { verifyKillJournal, verifyKillJournalReport } from '../src/journal.js';
 import { KillService } from '../src/service.js';
-import { startTestKillswitch, type TestKillswitch } from '../src/testing.js';
+import { mintTestStepUpProof, startTestKillswitch, type TestKillswitch } from '../src/testing.js';
 
 // The kill switch on its own (PLAN M9.6, AR9): its own database, its own key, its own authority. Nothing
 // in this file starts core, the record or a work engine.
@@ -282,6 +287,103 @@ describe("release (KillReleaseApproval): the project's two-person setting, T2 al
   });
 });
 
+describe("who acts is a verified person, never the caller's word (RC-SEC-3)", () => {
+  const post = (path: string, body: unknown) =>
+    fetch(`${ks.url}${path}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ks.tokens['bff']}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it("one caller holding one person's proofs cannot be the second approver of a two-person release", async () => {
+    const p = await project({ admins: ['amy', 'abe'], two_person: true });
+    const raw = ks.clientFor('bff').raw;
+    const kill = ok(
+      await raw.kill(
+        await ks.prove('amy', { action: 'kill.request', scope: killOf(p.id), reason: 'incident' }),
+        killOf(p.id),
+        'incident',
+      ),
+    );
+    expect(kill.requested_by).toBe('amy');
+    const release = { action: 'kill.release', kill_id: kill.kill_id } as const;
+    ok(await raw.release(await ks.prove('amy', release), kill.kill_id));
+    // a second, fresh proof of the same person is the same person
+    expect(code(await raw.release(await ks.prove('amy', release), kill.kill_id))).toBe('conflict');
+    // naming the other approver in the body is not possible: the body has no such field
+    const named = await post(`/v1/kills/${kill.kill_id}/release`, {
+      on_behalf_of: 'abe',
+      step_up: { proof: await ks.prove('amy', release) },
+    });
+    expect(named.status).toBe(400);
+    // nor is a body without a person's proof
+    expect((await post(`/v1/kills/${kill.kill_id}/release`, { on_behalf_of: 'abe' })).status).toBe(
+      400,
+    );
+    expect(ok(await ks.service.status({ project_id: p.id })).killed).toBe(true);
+    // the second person's own proof releases it
+    const done = ok(await raw.release(await ks.prove('abe', release), kill.kill_id));
+    expect(done.state).toBe('released');
+    expect([...done.release_approvals].sort()).toEqual(['abe', 'amy']);
+  });
+
+  it('refuses a proof for another act, a replayed, a reconfirm, a forged and a malformed proof', async () => {
+    const p = await project({ admins: ['cat', 'cid'], two_person: true });
+    const raw = ks.clientFor('bff').raw;
+    const kill = ok(await ks.clientFor('bff').kill('cat', killOf(p.id), 'x'));
+    const other = ok(await ks.clientFor('bff').kill('root', killOf('elsewhere'), 'y'));
+    const release = { action: 'kill.release', kill_id: kill.kill_id } as const;
+    // bound to another kill
+    const wrong = await ks.prove('cid', { action: 'kill.release', kill_id: other.kill_id });
+    expect(code(await raw.release(wrong, kill.kill_id))).toBe('unauthenticated');
+    // bound to the kill request, not the release
+    const asKill = await ks.prove('cid', {
+      action: 'kill.request',
+      scope: killOf(p.id),
+      reason: 'x',
+    });
+    expect(code(await raw.release(asKill, kill.kill_id))).toBe('unauthenticated');
+    // DEC-11(c-ii) plain confirm is not a re-authentication
+    const weak = await ks.prove('cid', release, { method: 'reconfirm' });
+    expect(code(await raw.release(weak, kill.kill_id))).toBe('unauthenticated');
+    // signed by a key that is not the bff's
+    const forged = await mintTestStepUpProof(fakeKeyCustody({ seed: 'attacker' }), {
+      principal: 'cid',
+      bound_hash: killActHash(release),
+      now: clock.now(),
+    });
+    expect(code(await raw.release(forged, kill.kill_id))).toBe('unauthenticated');
+    expect(code(await raw.release('su1.not.a-proof', kill.kill_id))).toBe('unauthenticated');
+    // expired
+    const old = await ks.prove('cid', release);
+    clock.advance(10 * 60_000);
+    expect(code(await raw.release(old, kill.kill_id))).toBe('unauthenticated');
+    // a good proof is good once
+    const good = await ks.prove('cid', release);
+    ok(await raw.release(good, kill.kill_id));
+    const again = ok(await ks.clientFor('bff').kill('cat', killOf(p.id), 'again'));
+    expect(code(await raw.release(good, again.kill_id))).toBe('unauthenticated');
+    expect(
+      (await ks.database.pool.query('SELECT 1 FROM killswitch.person_proof')).rowCount,
+    ).toBeGreaterThan(0);
+  });
+
+  it("a kill and a delegation are acts too: in the proof's principal's name only", async () => {
+    const p = await project({ admins: ['dot'] });
+    const raw = ks.clientFor('bff').raw;
+    // a stranger's proof for the act is the stranger: the PDP denies them
+    const scope = killOf(p.id);
+    const stranger = await ks.prove('stranger', { action: 'kill.request', scope, reason: 'r' });
+    expect(code(await raw.kill(stranger, scope, 'r'))).toBe('forbidden');
+    // the proof binds the reason: the same proof with another reason is refused
+    const proof = await ks.prove('dot', { action: 'kill.request', scope, reason: 'r' });
+    expect(code(await raw.kill(proof, scope, 'other reason'))).toBe('unauthenticated');
+    const d = { action: 'kill.delegate', delegate: 'eve', scope } as const;
+    expect(code(await raw.delegate(await ks.prove('eve', d), 'eve', scope))).toBe('forbidden');
+    ok(await raw.delegate(await ks.prove('dot', d), 'eve', scope));
+  });
+});
+
 describe('status: what enforcement points read', () => {
   it('a kill covers exactly its scope; the fleet covers all; releasing ends it', async () => {
     const p = await project();
@@ -468,6 +570,89 @@ describe('the journal: its own signed, hash-chained history', () => {
   });
 });
 
+describe("the compose smoke's proof helper (platform/compose/kill-proof.mjs) mints what the kill switch accepts", () => {
+  let k3: TestKillswitch;
+  let kms: Server;
+  let kmsUrl = '';
+  const dir = mkdtempSync(join(tmpdir(), 'kill-proof-'));
+  beforeAll(async () => {
+    // real time: the helper stamps its proof with the wall clock
+    k3 = await startTestKillswitch({ custody, admins: ['alice', 'bob'] });
+    writeFileSync(join(dir, 'token'), 'tok\n');
+    // kms-local's sign route, over the same fake custody
+    kms = createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c: Buffer) => (raw += c.toString()));
+      req.on('end', () => {
+        void (async () => {
+          const ok =
+            req.method === 'POST' &&
+            req.url === '/v1/keys/dev%3Abff-stepup/sign' &&
+            req.headers.authorization === 'Bearer tok';
+          const sig = ok
+            ? await custody.sign(
+                'dev:bff-stepup',
+                new Uint8Array(
+                  Buffer.from((JSON.parse(raw) as { digest: string }).digest, 'base64url'),
+                ),
+              )
+            : null;
+          res.writeHead(sig?.ok ? 200 : 403, { 'content-type': 'application/json' });
+          res.end(
+            JSON.stringify(
+              sig?.ok
+                ? { signature: Buffer.from(sig.value).toString('base64url') }
+                : { error: { code: 'forbidden', message: 'no' } },
+            ),
+          );
+        })();
+      });
+    });
+    await new Promise<void>((r) => kms.listen(0, '127.0.0.1', r));
+    kmsUrl = `http://127.0.0.1:${(kms.address() as AddressInfo).port}`;
+  });
+  afterAll(async () => {
+    await new Promise<void>((r) => kms.close(() => r()));
+    await k3.stop();
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const helper = join(
+    import.meta.dirname,
+    '..',
+    '..',
+    '..',
+    'platform',
+    'compose',
+    'kill-proof.mjs',
+  );
+  // asynchronous: the fake kms-local above answers in this process
+  const mint = async (principal: string, act: object) =>
+    (
+      await promisify(execFile)(process.execPath, [helper], {
+        env: {
+          PATH: process.env['PATH'] ?? '',
+          PRINCIPAL: principal,
+          ACT: JSON.stringify(act),
+          KMS_URL: kmsUrl,
+          KMS_TOKEN_FILE: join(dir, 'token'),
+        },
+        encoding: 'utf8',
+      })
+    ).stdout.trim();
+
+  it("a kill and its two-person release, each with that person's proof", async () => {
+    const scope = { kind: 'fleet', ref: '*' };
+    const raw = k3.clientFor('bff').raw;
+    const act = { action: 'kill.request', scope, reason: 'smoke' } as const;
+    const k = ok(await raw.kill(await mint('alice', act), scope, 'smoke'));
+    const rel = { action: 'kill.release', kill_id: k.kill_id };
+    expect(ok(await raw.release(await mint('alice', rel), k.kill_id)).state).toBe(
+      'release_pending',
+    );
+    expect(ok(await raw.release(await mint('bob', rel), k.kill_id)).state).toBe('released');
+  });
+});
+
 describe('independence (AR9): no route to core, no dependency on the work engine, its own state', () => {
   const src = join(import.meta.dirname, '..', 'src');
   const files = readdirSync(src).filter((f) => f.endsWith('.ts'));
@@ -533,7 +718,13 @@ describe('stopping never waits for the KMS (tightening always applies); loosenin
   };
   let k2: TestKillswitch;
   beforeAll(async () => {
-    k2 = await startTestKillswitch({ custody: flaky, clock, admins: ['root', 'root2'] });
+    // the bff's key custody is not the kill switch's link: its step-up proofs still come
+    k2 = await startTestKillswitch({
+      custody: flaky,
+      stepUpSigner: custody,
+      clock,
+      admins: ['root', 'root2'],
+    });
   });
   afterAll(async () => {
     down = false;

@@ -4,6 +4,7 @@ import {
   DRIFT_LEDGER_ENTRY,
   DriftReaffirmedPayload,
   DriftRestoredPayload,
+  DriftSecurityConfirmedPayload,
   DriftVersionRequestedPayload,
   LevelValues,
   PRR_EVENT,
@@ -35,6 +36,8 @@ import {
   type RepoFullName,
   type RestoreRequest,
   type RestoreResult,
+  type SecurityConfirmRequest,
+  type SecurityConfirmResult,
 } from '@aisdlc/contracts';
 import {
   DEFAULT_POLICY_BUNDLE_VERSION,
@@ -66,7 +69,8 @@ import { applyKnowledgeDefectEvent, reonboardProposal } from '../knowledge-defec
 import { repoIdentity } from '../prr-store.js';
 import { requestOnboarding } from '../s0.js';
 import { checkDrift, recheckRepo, type DriftDeps } from './check.js';
-import { baselineOf, evaluateDrift } from './evaluate.js';
+import { baselineOf, evaluateDrift, installationHash } from './evaluate.js';
+import { openKrl } from './krl.js';
 import { baselineFor, inputsOf, loadDrift, type LoadedDrift } from './state.js';
 
 // What a person does after onboarding (PLAN M16; OB §4.1 item 4, §4.2, §8; DEC-21(b), DEC-10 refined, DEC-11 refined):
@@ -309,6 +313,116 @@ export async function restoreRecord(
   });
 }
 
+// ---------------------------------------------------------------- the security card (OB §8)
+
+/** The slot that confirms a widened installation: the security triage's (`sec`). */
+export const SECURITY_SLOT = gatePolicy('SECT').slot;
+
+/**
+ * OB §8 "Installation scope widened or new permissions": a holder of the project's security slot confirms the
+ * installation the newest poll saw (by the hash shown). One transaction: the ledger lock, `drift.security_confirmed`
+ * with the installation it accepts (later polls compare with it), the `prr.security_confirmed` ledger entry last. The
+ * hold lifts on the next fold. A history secret is not confirmed here: it is held while knowledge reports it open, and
+ * its state changes only on a ledgered security-card decision (B1, M7.4b).
+ */
+export async function confirmSecurity(
+  d: DriftActionDeps,
+  project: ProjectId,
+  req: SecurityConfirmRequest,
+): Promise<Result<SecurityConfirmResult, CoreError>> {
+  const r = await repoOf(d, project, req.repo);
+  if (!r.ok) return r;
+  const who = req.on_behalf_of;
+  const h = await decidersFrom(d.eligibility, project, SECURITY_SLOT);
+  if (h.error !== null)
+    return err(coreError('unavailable', `who holds the slot is unknown: ${h.error}`));
+  if (!h.holders.includes(who as never)) {
+    return err(
+      coreError('refused', `only a holder of the project's ${SECURITY_SLOT} slot may confirm this`),
+    );
+  }
+  const at = clockOf(d).now().toISOString();
+  return inCoreLedgerTx<SecurityConfirmResult>(d, async (j, tx) => {
+    await lockRepo(tx, project, r.value.repo_ref);
+    const l = await loadDrift(tx, r.value.repo_ref);
+    const g = l?.governing;
+    const inputs = l ? inputsOf(l) : null;
+    if (!l || !g || !inputs)
+      return err(coreError('conflict', 'no readiness record governs this repo'));
+    const now = l.installation?.value ?? null;
+    if (!now || !evaluateDrift(inputs).some((f) => f.kind === 'installation')) {
+      return err(
+        coreError(
+          'conflict',
+          'the installation is not wider than the record saw: nothing to confirm',
+        ),
+      );
+    }
+    const hash = installationHash(now);
+    if (hash !== req.installation_hash) {
+      return err(
+        coreError('conflict', 'the installation changed since it was shown: read it again'),
+      );
+    }
+    const started = await ledgerStart(tx, d.ledger);
+    if (!started.ok) return started;
+    const pending = started.value;
+    const entryId = deterministicId<'LedgerEntry'>(
+      `prr.security_confirmed:${g.prr.record_hash}:${g.version}:${hash}`,
+    );
+    const body = DriftSecurityConfirmedPayload.parse({
+      repo: l.repo_ref,
+      project_id: project,
+      s0_id: g.s0_id,
+      prr_version: g.version,
+      record_hash: g.prr.record_hash,
+      by: who,
+      at,
+      installation: now,
+      installation_hash: hash,
+      ledger_entry_id: entryId,
+    });
+    const w = await j.emitAll(driftStream(l.repo_ref), [
+      {
+        type: DRIFT_EVENT.security_confirmed,
+        body: body as unknown as Record<string, unknown>,
+        actor: who,
+        idempotency_key: `drift:security_confirmed:${entryId}`,
+      },
+    ]);
+    if (!w.ok) return w;
+    if (w.value.duplicate) {
+      return ok({
+        value: { installation_hash: hash as never, ledger_entry_id: entryId as never },
+        pending,
+      });
+    }
+    const { ledger_entry_id: _drop, ...rest } = body;
+    void _drop;
+    const draft: LedgerEntryDraft = {
+      entry_id: entryId,
+      entry_type: DRIFT_LEDGER_ENTRY.security_confirmed,
+      gate_instance_id: null,
+      gate_id: null,
+      subject_kind: 's0_record',
+      subject_id: g.s0_id as never,
+      subject_hash: hash as never,
+      decision: null,
+      actor: who,
+      sod_waiver: false,
+      policy_bundle_version: DEFAULT_POLICY_BUNDLE_VERSION,
+      body: { kind: 'prr_security_confirmed', ...rest } as never,
+      created_at: at as never,
+    };
+    const le = await appendLedgerEntryTx(tx, d.ledger, draft);
+    if (!le.ok) return err(coreError('unavailable', le.error.message));
+    return ok({
+      value: { installation_hash: hash as never, ledger_entry_id: entryId as never },
+      pending: [...pending, ...le.value.pending],
+    });
+  });
+}
+
 // ---------------------------------------------------------------- re-affirm (OB §4.2)
 
 /** The repo text at the recorded head for a drifted path, with what a re-affirmation would need to know about it. */
@@ -332,7 +446,10 @@ export async function readDriftedText(
   const inputs = inputsOf(l);
   if (!g || !inputs) return err(coreError('conflict', 'no readiness record governs this repo'));
   const finding = evaluateDrift(inputs).find((f) => f.effect === 'reaffirm' && f.subject === path);
-  if (!finding)
+  // OB §4.2: a KRL penalty is lifted only by re-affirming its path, so the card stays while one is open, even when
+  // the file went back to the affirmed bytes (re-affirming the same text is then what lifts it)
+  const penalty = openKrl(l.drift, g.version).find((p) => p.path === path);
+  if (!finding && !penalty)
     return err(coreError('conflict', `${path} has not drifted: there is nothing to re-affirm`));
   const head = l.files?.value.sha;
   if (!head) return err(coreError('conflict', 'no files poll is recorded yet'));
@@ -354,7 +471,8 @@ export async function readDriftedText(
     text,
     blob_sha: read.value?.blob_sha ?? null,
     sha256: sha,
-    expected: finding.expected ?? '',
+    expected:
+      finding?.expected ?? inputs.tracked.find((t) => t.path === path)?.expected_sha256 ?? '',
   });
 }
 

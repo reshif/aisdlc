@@ -3,13 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CodingSessionResult, StageOutcome } from '@aisdlc/contracts';
 import { readPrompt } from '@aisdlc/agents/files';
-import { ok } from '@aisdlc/kernel';
+import { err, ok } from '@aisdlc/kernel';
 import { makeCanary } from '@aisdlc/secrets-rules';
 import {
   FakeSandbox,
   FakeStagePort,
   GuardedSandbox,
   RunKeyVault,
+  sandboxError,
   type FakeSandboxOutcome,
   type SandboxSpec,
 } from '@aisdlc/ports';
@@ -21,6 +22,7 @@ import {
   SYNTH_REPO,
   SessionStore,
   StoreWaitSnapshots,
+  WORKER_IMAGE_UNVERIFIED,
   type HandoffPackRecord,
   sha256,
   stageRequest,
@@ -50,6 +52,8 @@ interface World {
   open: boolean;
   checkExit: number;
   wSpecs: SandboxSpec[];
+  /** The sandbox refuses W for its image (the controller's LF4 check). */
+  imageRefused: boolean;
 }
 
 interface AgentRun {
@@ -89,6 +93,7 @@ function build(): World {
     open: false,
     checkExit: 0,
     wSpecs: [],
+    imageRefused: false,
   };
   const calc = (spec: SandboxSpec): string => {
     const f = spec.repo.find((x) => x.path === 'src/calc.js');
@@ -154,8 +159,16 @@ function build(): World {
     execAllowedRepos: () => world.allowed,
     hasOpenSecretFinding: async () => ok(world.open),
   };
+  const lf4 = {
+    run: (spec: SandboxSpec) =>
+      world.imageRefused && spec.class === 'W'
+        ? Promise.resolve(
+            err(sandboxError('image_unverified', 'this host runs another W image than LF4')),
+          )
+        : world.sandbox.run(spec),
+  };
   world.port = new AgentCodingPort({
-    sandbox: new GuardedSandbox(world.sandbox, guard),
+    sandbox: new GuardedSandbox(lf4, guard),
     store,
     source,
     guard,
@@ -483,6 +496,20 @@ describe('6.4 outcomes', () => {
       edge: 'B6',
       reason_code: 'b1_secret_finding_open',
     });
+    expect(w.wSpecs).toHaveLength(0);
+  });
+  it('the sandbox refuses W for its image (LF4, M16 part 3): B6 with the reason, kept for the command, never a retry', async () => {
+    w.imageRefused = true;
+    const o = await run('6.4', { key: 'li1' });
+    expect(o).toMatchObject({
+      outcome: 'rework',
+      edge: 'B6',
+      reason_code: WORKER_IMAGE_UNVERIFIED,
+    });
+    expect(w.wSpecs).toHaveLength(0);
+    // the same command answers the same, without asking the sandbox again
+    w.imageRefused = false;
+    expect(await run('6.4', { key: 'li1' })).toEqual(o);
     expect(w.wSpecs).toHaveLength(0);
   });
   it('the task plan is walked in order, one session per task, and a fix round gets the failing tests as its prompt', async () => {

@@ -1,4 +1,5 @@
 import {
+  ORACLE_LOCK_PATH,
   ONBOARDING_PACK_EPOCH,
   ONBOARDING_PACK_LANE,
   PACK_EVENT,
@@ -17,8 +18,9 @@ import {
   type PatchSet,
   type ProjectId,
   type RepoFullName,
+  type S0PackGateContext,
 } from '@aisdlc/contracts';
-import { openCard, readGateState } from '@aisdlc/decisions';
+import { openCard, readCardState, readGateState } from '@aisdlc/decisions';
 import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import type { LoopContext, LoopSpec } from '@aisdlc/loops';
 import {
@@ -709,6 +711,115 @@ async function pushPack(
   const rec = await recordPushReceipt(d.push, receipt, 's0_record');
   if (!rec.ok) return rec;
   return ok(view(s0Id, kind, 'refused', row, { refusal: code.data }));
+}
+
+// ---------------------------------------------------------------- what X2 binds, for the portal
+
+interface X2Facts {
+  kind?: string;
+  repo?: string;
+  base_sha?: string;
+  branch?: string;
+  card_2?: { card_id?: string; payload_hash?: string };
+  card_3?: { card_id?: string; payload_hash?: string };
+  files?: Array<{ path?: string; sha256?: string }>;
+}
+
+/**
+ * What an S0 record's X2 card binds (M16, portal-coverage §3 "X2 on an S0 pack"), from the record alone: the pack row
+ * folded from `pack.rendered` for this card, the files the gate opened with checked against that render, the deciding
+ * card by its payload hash, the CODEOWNERS resolution (Light) and the oracle lock and intended seeds (Full, from card 3's
+ * recorded baseline and its decided payload). `null`: the card is no onboarding pack's X2.
+ */
+export async function packGateContext(
+  pool: pg.Pool,
+  cardId: string,
+): Promise<Result<S0PackGateContext | null, CoreError>> {
+  const q = await pool.query<PackRow & { s0_id: string; kind: PackKind }>(
+    `SELECT s0_id, kind, patch_hash, base_sha, repo, project_id, files, x2_card_id, x2_gate_instance_id
+       FROM core.onboarding_pack WHERE x2_card_id = $1 ORDER BY event_gseq DESC LIMIT 1`,
+    [cardId],
+  );
+  const row = q.rows[0];
+  if (!row) return ok(null);
+  const state = await readCardState(pool, cardId);
+  const gate = state?.gates[0]?.state.open.payload;
+  if (!state || !gate || gate.gate_id !== 'X2') return ok(null);
+  const facts = (gate.facts ?? {}) as X2Facts;
+  const kind: PackKind = row.kind === 'full' ? 'full' : 'light';
+  const deciding = kind === 'light' ? facts.card_2 : facts.card_3;
+  if (!deciding?.card_id || !deciding.payload_hash) {
+    return err(coreError('conflict', 'the X2 card names no deciding card'));
+  }
+  // the files X2 opened with, against the recorded render (path and sha256 of each, the same set)
+  const opened = new Map((facts.files ?? []).map((f) => [f.path, f.sha256]));
+  const intact =
+    opened.size === row.files.length && row.files.every((f) => opened.get(f.path) === f.sha256);
+
+  let codeowners: S0PackGateContext['codeowners'] = null;
+  if (kind === 'light') {
+    const c = await pool.query<{ body: unknown }>(
+      'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2 ORDER BY seq LIMIT 1',
+      [packStream(row.s0_id), PACK_EVENT.codeowners_resolved],
+    );
+    if (c.rows[0]) {
+      const p = PackCodeownersResolvedPayload.parse(c.rows[0].body);
+      codeowners = {
+        outcome: p.outcome,
+        rendered: row.files.some((f) => f.source === 'codeowners'),
+        owners: p.owners,
+      };
+    }
+  }
+
+  let oracle_lock: S0PackGateContext['oracle_lock'] = null;
+  const seeds: S0PackGateContext['seeds'] = [];
+  if (kind === 'full') {
+    const loaded = await loadS0(pool, row.s0_id);
+    const card = (await s0Cards(pool, row.s0_id)).find((c) => c.card_id === deciding.card_id);
+    const baseline = loaded && card ? fullBaselineOf(loaded, card.occurrence) : null;
+    if (baseline) {
+      const file = row.files.find((f) => f.source === 'oracle_lock');
+      oracle_lock = {
+        path: file?.path ?? ORACLE_LOCK_PATH,
+        lock_hash: baseline.oracle_lock.lock_hash,
+        tests: baseline.oracle_lock.tests.length,
+        truncated: baseline.oracle_lock.truncated,
+        file_sha256: (file?.sha256 ?? null) as never,
+      };
+      const byId = new Map(baseline.seeds.map((x) => [x.seed_id, x]));
+      for (const r of card?.state.payload?.payload ?? []) {
+        if (r.kind !== 'seed_verdict' || r.status !== 'intended') continue;
+        const seed = byId.get(r.seed_id);
+        if (!seed) continue;
+        seeds.push({
+          seed_id: seed.seed_id,
+          area: seed.area,
+          path: seed.path,
+          text_sha256: r.text_sha256 as never,
+        });
+      }
+    }
+  }
+  return ok({
+    kind,
+    s0_id: row.s0_id as never,
+    repo: row.repo as never,
+    base_sha: row.base_sha as never,
+    branch: facts.branch ?? unitBranchOf(row.s0_id, PACK_KINDS[kind].unit),
+    patch_hash: row.patch_hash as never,
+    bound: gate.subject_hash === row.patch_hash,
+    intact,
+    deciding_card: {
+      card: kind === 'light' ? 'C2' : 'C3',
+      card_id: deciding.card_id,
+      payload_hash: deciding.payload_hash as never,
+    },
+    files: row.files,
+    codeowners,
+    oracle_lock,
+    seeds,
+  });
 }
 
 // ---------------------------------------------------------------- the loop

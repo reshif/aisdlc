@@ -5,18 +5,9 @@ import {
   type StepUpMethod,
 } from '@aisdlc/contracts';
 import { PortError, type StepUpPort } from '@aisdlc/decisions';
-import {
-  err,
-  ok,
-  verifyEs256,
-  systemClock,
-  type Clock,
-  type Jwk,
-  type Result,
-} from '@aisdlc/kernel';
-import type { KeyCustodyPort } from '@aisdlc/ports';
+import { err, ok, systemClock, type Clock, type Jwk, type Result } from '@aisdlc/kernel';
+import { checkStepUpProof, type KeyCustodyPort } from '@aisdlc/ports';
 import type { ProofStore } from './store.js';
-import { decodeToken } from './token.js';
 
 // The real `StepUpPort` (PLAN M4.5). `verify(proof, boundHash, principal)` is `Ok` only when the
 // proof is one the bff signed, is for exactly this hash and principal, has not expired, uses an
@@ -61,24 +52,18 @@ export class SignedStepUp implements StepUpPort {
     principal: PrincipalId,
   ): Promise<Result<true, PortError>> {
     try {
-      const t = decodeToken(proof);
-      if (!t) return refuse('step-up proof is malformed');
       const key = await this.publicKey();
       if (!key) return refuse('step-up verification key is unavailable');
-      const good = await verifyEs256(key, new TextEncoder().encode(t.signingInput), t.signature);
-      if (!good) return refuse('step-up proof signature is invalid');
-
-      const c = t.claims;
       const now = (this.o.clock ?? systemClock).now();
-      if (Date.parse(c.expires_at) <= now.getTime()) return refuse('step-up proof has expired');
-      if (Date.parse(c.issued_at) > now.getTime() + (this.o.skewSeconds ?? 30) * 1000) {
-        return refuse('step-up proof is from the future');
-      }
-      if (!(this.o.allowedMethods ?? ['reauth']).includes(c.method)) {
-        return refuse(`step-up method ${c.method} is not accepted here`);
-      }
-      if (c.principal !== principal) return refuse('step-up proof is for another principal');
-      if (c.bound_hash !== boundHash) return refuse('step-up proof is bound to another hash');
+      const checked = await checkStepUpProof(proof, key, {
+        bound_hash: boundHash,
+        principal,
+        now,
+        allowedMethods: this.o.allowedMethods ?? ['reauth'],
+        skewSeconds: this.o.skewSeconds ?? 30,
+      });
+      if (!checked.ok) return refuse(checked.error);
+      const c = checked.value;
 
       const used = await this.o.store.consume(c.proof_id, now);
       if (used === 'consumed') return ok(true as const);

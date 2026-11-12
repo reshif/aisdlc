@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { Level } from '../values.js';
+import { Autonomy, Level } from '../values.js';
 import { ReadinessStatus } from '../states/readiness.js';
-import { RepoFullName } from './codehost.js';
+import { GithubPermissions, RepoFullName } from './codehost.js';
 import { LintSeverity } from './detectors.js';
 import { ReonboardProposalView } from './knowledge-defects.js';
 import {
@@ -48,6 +48,20 @@ export const DRIFT_EVENT = {
   reaffirmed: 'drift.reaffirmed',
   /** A person asked for a new onboarding version: a level-up, or the re-sign of an expired record. */
   version_requested: 'drift.version_requested',
+  /**
+   * OB §8 "Installation scope widened" and "New history secret": a security event (recorded AND ledgered). The repo's
+   * agent work is held (HUMAN-WAIT for a session in flight, no admission) while it lasts; for the installation, no new
+   * read of the repo's files by the drift poll either.
+   */
+  security_raised: 'drift.security_raised',
+  /** A holder of the security slot confirmed the widened installation: it becomes the baseline later polls compare with. */
+  security_confirmed: 'drift.security_confirmed',
+  /**
+   * OB §4.2, §8 "Instruction text drift": an affirmed instruction file drifted, so its area gets KRL −1 (recorded AND
+   * ledgered; mechanical, tighten-only). Lifted only by re-affirming that path (`drift.reaffirmed`, a person with
+   * the step-up) or by a new version and its M4; a revert of the file alone lifts nothing.
+   */
+  krl_lowered: 'drift.krl_lowered',
 } as const;
 export type DriftEventType = (typeof DRIFT_EVENT)[keyof typeof DRIFT_EVENT];
 
@@ -56,6 +70,9 @@ export const DRIFT_LEDGER_ENTRY = {
   suspended: 'prr.suspended',
   restored: 'prr.restored',
   reaffirmed: 'instructions.reaffirmed',
+  krl_lowered: 'prr.krl_lowered',
+  security_raised: 'prr.security_event',
+  security_confirmed: 'prr.security_confirmed',
 } as const;
 
 /** The cause codes the lifecycle writes on `prr.status_changed`. */
@@ -107,11 +124,19 @@ export const DriftFindingKind = z.enum([
   'protect_main',
   /** A required check the record observed is gone, or no longer pinned to the App it was. */
   'required_check',
+  /** OB §8: the App's installation is wider than the record (or the last confirmation) saw: selection or permissions. */
+  'installation',
+  /** OB §8: an open secret finding in the history that the record did not know of. */
+  'history_secret',
 ]);
 export type DriftFindingKind = z.infer<typeof DriftFindingKind>;
 
-/** What a finding does: `reaffirm` serves the last affirmed text and opens the card; `suspend` suspends the record. */
-export const DriftEffect = z.enum(['reaffirm', 'suspend']);
+/**
+ * What a finding does: `reaffirm` serves the last affirmed text and opens the card; `suspend` suspends the record;
+ * `security` (OB §8) is a security event: the repo's agent work is held until a person deals with it (the security
+ * slot confirms a widened installation; a history secret is held while knowledge reports it open, B1).
+ */
+export const DriftEffect = z.enum(['reaffirm', 'suspend', 'security']);
 export type DriftEffect = z.infer<typeof DriftEffect>;
 
 export const DriftFinding = z.strictObject({
@@ -215,6 +240,70 @@ export const DriftRestoredPayload = z.strictObject({
   ledger_entry_id: LedgerEntryId,
 });
 export type DriftRestoredPayload = z.infer<typeof DriftRestoredPayload>;
+
+/** The value of an `open_findings` fact: the ids of the repo's open secret findings (never a value or fingerprint). */
+export const OpenFindingsValue = z.strictObject({
+  finding_ids: z.array(z.string().min(1).max(100)).max(500),
+});
+export type OpenFindingsValue = z.infer<typeof OpenFindingsValue>;
+
+/** The installation as the record (or a confirmation) accepted it, and as a poll sees it. */
+export const InstallationObservation = z.strictObject({
+  installation_id: z.number().int().min(0),
+  repository_selection: z.enum(['all', 'selected']),
+  permissions: GithubPermissions,
+});
+export type InstallationObservation = z.infer<typeof InstallationObservation>;
+
+export const DriftSecurityRaisedPayload = z.strictObject({
+  ...RepoFacts,
+  /** The `security` findings of the event. */
+  findings: z.array(DriftFinding).min(1).max(80),
+  findings_hash: Sha256Hex,
+  ledger_entry_id: LedgerEntryId,
+});
+export type DriftSecurityRaisedPayload = z.infer<typeof DriftSecurityRaisedPayload>;
+
+export const DriftSecurityConfirmedPayload = z.strictObject({
+  ...RepoFacts,
+  by: PrincipalId,
+  at: IsoDateTime,
+  /** The installation accepted as the new baseline, and the hash the person was shown. */
+  installation: InstallationObservation,
+  installation_hash: Sha256Hex,
+  ledger_entry_id: LedgerEntryId,
+});
+export type DriftSecurityConfirmedPayload = z.infer<typeof DriftSecurityConfirmedPayload>;
+
+/** `POST /v1/projects/:id/drift/security/confirm`: the security slot confirms the installation it was shown. */
+export const SecurityConfirmRequest = z.strictObject({
+  repo: RepoFullName,
+  installation_hash: Sha256Hex,
+  on_behalf_of: PrincipalId,
+});
+export type SecurityConfirmRequest = z.infer<typeof SecurityConfirmRequest>;
+
+export const SecurityConfirmResult = z.strictObject({
+  installation_hash: Sha256Hex,
+  ledger_entry_id: LedgerEntryId,
+});
+export type SecurityConfirmResult = z.infer<typeof SecurityConfirmResult>;
+
+/** KRL −1 for the area of a drifted instruction file (OB §4.2). The levels are the repo's KRL before and after. */
+export const DriftKrlLoweredPayload = z.strictObject({
+  ...RepoFacts,
+  area: z.string().min(1).max(300),
+  path: z.string().min(1).max(300),
+  /** The affirmed text's sha256 and what the head shows (`null`: the file is gone). */
+  expected: Sha256Hex,
+  observed: Sha256Hex.nullable(),
+  /** The record's KRL pillar level as signed, and the repo's KRL before and after this event. */
+  krl_signed: z.number().int().min(0).max(4),
+  krl_from: z.number().int().min(0).max(4),
+  krl_to: z.number().int().min(0).max(4),
+  ledger_entry_id: LedgerEntryId,
+});
+export type DriftKrlLoweredPayload = z.infer<typeof DriftKrlLoweredPayload>;
 
 /** The largest instruction text a re-affirmation stores (the same bound as card 2's proposals). */
 export const REAFFIRM_TEXT_MAX = 65_536;
@@ -321,6 +410,9 @@ export const DriftHistoryRow = z.strictObject({
     'version_requested',
     'expired',
     'activated',
+    'krl_lowered',
+    'security_raised',
+    'security_confirmed',
   ]),
   summary: z.string().max(300),
   by: z.string().max(100).nullable(),
@@ -367,6 +459,39 @@ export const RepoDriftView = z.strictObject({
   }),
   /** Levels a level-up may ask for from the signed one (Full is M17's 0.3: the request runs as the spec says). */
   level_up: z.array(Level),
+  /**
+   * OB §8 security events: the agent work held (`held`), the installation a confirmation would accept (by hash), and
+   * whether the open findings are new. `null`: no record governs the repo.
+   */
+  security: z
+    .strictObject({
+      held: z.boolean(),
+      installation: z
+        .strictObject({ observed: InstallationObservation, hash: Sha256Hex, widened: z.boolean() })
+        .nullable(),
+      new_findings: z.number().int().min(0),
+    })
+    .nullable(),
+  /**
+   * KRL after drift (OB §4.2): the signed pillar level, the level now (−1 while an area has an open penalty) and the
+   * effective autonomy it gives (the readiness cap of the lowered composite; tighten-only). `null`: no record.
+   */
+  krl: z
+    .strictObject({
+      signed: z.number().int().min(0).max(4),
+      current: z.number().int().min(0).max(4),
+      effective_signed: Autonomy,
+      effective_now: Autonomy,
+      lowered: z.array(
+        z.strictObject({
+          area: z.string().min(1).max(300),
+          path: z.string().min(1).max(300),
+          at: IsoDateTime,
+          ledger_entry_id: LedgerEntryId,
+        }),
+      ),
+    })
+    .nullable(),
   /** M17: the re-onboarding proposals knowledge defects raised (open first is the card; decided ones with the decision). */
   reonboarding: z.array(ReonboardProposalView),
   history: z.array(DriftHistoryRow),

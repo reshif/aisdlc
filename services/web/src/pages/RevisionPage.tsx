@@ -7,10 +7,11 @@ import {
   type RoleSlot,
 } from '@aisdlc/contracts';
 import { useEffect, useState } from 'react';
-import { api, type RevisionDecision } from '../api';
+import { api, type PreparedRevision, type RevisionDecision } from '../api';
 import { Badge } from '../components/Badge';
 import { PageError, Loading } from '../components/Notice';
 import { Hash, nameOf, Section, DecidersLine } from '../cards/shared';
+import { StepUpBox, useStepUp } from '../cards/StepUp';
 import { explainDecideError, type DecideProblem } from '../lib/decideErrors';
 import { Link } from '../router';
 
@@ -32,12 +33,14 @@ export function RevisionPage({ gate, csrf }: { gate: string; csrf: string }) {
   });
   const rev = q.data;
   const enabled = rev?.may_decide === true && rev.status === 'pending';
-  const [prep, setPrep] = useState<{ nonce: string; evidence_hash: string } | null>(null);
+  const [prep, setPrep] = useState<PreparedRevision | null>(null);
   const [seen, setSeen] = useState(false);
   const [renew, setRenew] = useState(0);
   const [problem, setProblem] = useState<DecideProblem | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RevisionDecision | null>(null);
+  const needsProof = prep?.step_up?.required === true;
+  const stepUp = useStepUp(needsProof ? (prep?.step_up?.bound_hash ?? null) : null, csrf);
 
   useEffect(() => {
     if (!enabled || result) return;
@@ -92,7 +95,18 @@ export function RevisionPage({ gate, csrf }: { gate: string; csrf: string }) {
     setBusy(true);
     setProblem(null);
     try {
-      setResult(await api.decideRevision(gate, { nonce: prep.nonce, decision }, csrf));
+      setResult(
+        await api.decideRevision(
+          gate,
+          {
+            nonce: prep.nonce,
+            decision,
+            ...(needsProof && stepUp.proof ? { step_up: { proof: stepUp.proof } } : {}),
+          },
+          csrf,
+        ),
+      );
+      stepUp.clear();
       void qc.invalidateQueries({ queryKey: ['revision', gate] });
       void qc.invalidateQueries({ queryKey: ['inbox'] });
       void qc.invalidateQueries({ queryKey: ['s0'] });
@@ -100,6 +114,7 @@ export function RevisionPage({ gate, csrf }: { gate: string; csrf: string }) {
       const ex = explainDecideError(e);
       setProblem(ex);
       if (ex.kind === 'expired') setRenew((n) => n + 1);
+      if (ex.kind === 'step_up') stepUp.clear();
     } finally {
       setBusy(false);
     }
@@ -256,11 +271,19 @@ export function RevisionPage({ gate, csrf }: { gate: string; csrf: string }) {
                 Getting the decision form ready…
               </p>
             ) : null}
+            {needsProof ? (
+              <StepUpBox s={stepUp} boundHash={prep?.step_up?.bound_hash ?? null} />
+            ) : null}
+            {stepUp.error ? (
+              <div className="notice notice-bad" role="alert">
+                <p>{explainDecideError(stepUp.error).text}</p>
+              </div>
+            ) : null}
             <div className="actions">
               <button
                 type="button"
                 className="btn"
-                disabled={!seen || busy}
+                disabled={!seen || busy || (needsProof && !stepUp.proof)}
                 onClick={() => void decide('approve')}
               >
                 Approve and publish these settings
@@ -268,7 +291,7 @@ export function RevisionPage({ gate, csrf }: { gate: string; csrf: string }) {
               <button
                 type="button"
                 className="btn btn-danger"
-                disabled={!seen || busy}
+                disabled={!seen || busy || (needsProof && !stepUp.proof)}
                 onClick={() => void decide('reject')}
               >
                 Reject these settings
