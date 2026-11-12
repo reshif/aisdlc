@@ -3,6 +3,7 @@ import {
   type AbandonCause,
   type BackEdgeId,
   type HandoffChoice,
+  type HumanWorkReference,
   type PrincipalId,
   type SpawnEdge,
   type SpawnKind,
@@ -108,12 +109,18 @@ export const completeHumanWork = (
   key: string,
   /** B5 (M12.4): the plan artefacts the human stored, by step, and the commit they planned against. */
   plan?: { outputs: Record<string, string>; base_sha: string },
+  /** D5 (P1-4): the pull request or commit the developer names as the work. */
+  reference?: HumanWorkReference,
 ): Promise<Out> =>
   signal(
     deps,
     itemId,
     ITEM_EVENT.human_work_done,
-    { by, ...(plan ? { outputs: plan.outputs, base_sha: plan.base_sha } : {}) },
+    {
+      by,
+      ...(plan ? { outputs: plan.outputs, base_sha: plan.base_sha } : {}),
+      ...(reference ? { reference } : {}),
+    },
     by,
     `human_done:${key}`,
     true,

@@ -63,16 +63,15 @@ export const AUDIT_LEDGER_ENTRY_TYPES: readonly AuditLedgerEntryType[] =
   Object.values(AUDIT_LEDGER_ENTRY_TYPE);
 
 /**
- * The PDP actions the audit service asks (PLAN M19). `audit.read` is the catalogue's. Erasure and legal hold need the
- * proposed `identity.admin` (portal-coverage §5 item 6), which is NOT in `ACTION_CATALOGUE`: adding it is an M3
- * catalogue change for the user to decide. Until then they are decided under `config.decide` on the fleet, the nearest
- * existing action (factory admins only, a `decide` action whose allows are logged); the two-person rule is the audit
- * service's own (the approver is never the requester, the releaser never the placer).
+ * The PDP actions the audit service asks (PLAN M19). `audit.read` is the catalogue's. Erasure and legal hold are
+ * `identity.admin` on the fleet (PLAN §7a, 2026-11-12; until then they stood in under `config.decide`): factory admins
+ * only, a `config` action whose allows are logged. The two-person rule is the audit service's own (the approver is
+ * never the requester, the releaser never the placer).
  */
 export const AUDIT_ACTION = {
   read: 'audit.read',
   export: 'audit.read',
-  govern: 'config.decide',
+  govern: 'identity.admin',
 } as const;
 
 /** What an export covers: one project, or the whole factory. */

@@ -36,6 +36,7 @@ export type Route =
   | { name: 'notificationPrefs' }
   | { name: 'closeout'; id: string }
   | { name: 'learn'; id: string }
+  | { name: 'projectSettings'; id: string }
   | { name: 'factoryRevision'; id: string }
   | { name: StaticScreen }
   | { name: 'notfound' };
@@ -64,6 +65,8 @@ export const STATIC_SCREENS = {
   '/roles': 'roles',
   '/access-requests': 'accessRequests',
   '/access-explain': 'explain',
+  // PLAN §7a: guarded by `assistant.use` somewhere, so a direct link is the 403 page like the others
+  '/ask': 'ask',
 } as const;
 export type StaticScreen = (typeof STATIC_SCREENS)[keyof typeof STATIC_SCREENS];
 
@@ -76,7 +79,6 @@ export function parseRoute(path: string): Route {
   if (p === '/inbox') return { name: 'inbox' };
   if (p === '/me/access') return { name: 'access' };
   if (p === '/config') return { name: 'config' };
-  if (p === '/ask') return { name: 'ask' };
   if (p === '/ask-for-work') return { name: 'askForWork', project: null };
   const askFor = /^\/ask-for-work\/([^/]+)$/.exec(p);
   if (askFor) return { name: 'askForWork', project: decodeURIComponent(askFor[1] as string) };
@@ -86,6 +88,8 @@ export function parseRoute(path: string): Route {
   if (cfg) return { name: 'configKey', key: decodeURIComponent(cfg[1] as string) };
   const closeout = /^\/items\/([^/]+)\/closeout$/.exec(p);
   if (closeout) return { name: 'closeout', id: decodeURIComponent(closeout[1] as string) };
+  const settings = /^\/projects\/([^/]+)\/settings$/.exec(p);
+  if (settings) return { name: 'projectSettings', id: decodeURIComponent(settings[1] as string) };
   const learn = /^\/projects\/([^/]+)\/learn$/.exec(p);
   if (learn) return { name: 'learn', id: decodeURIComponent(learn[1] as string) };
   const frev = /^\/config\/revisions\/([^/]+)$/.exec(p);

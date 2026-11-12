@@ -43,18 +43,18 @@ import { higher } from './levels.js';
 //
 //   GET  /api/items[?project=]           the items the person may see, theirs marked   (item.view_floor per row,
 //                                        and project.view on its project here)
-//   GET  /api/agents                     the agent registry (code) with prompt hashes   (audit.read, fleet)
+//   GET  /api/agents                     the agent registry (code) with prompt hashes   (quality.read, fleet)
 //   GET  /api/catalogue                  every released catalogue and its pinned items  (signed in)
-//   GET  /api/admission                  H1-H3, WIP holds, grants, HUMAN-WAIT           (audit.read, fleet)
-//   GET  /api/slots                      the sandbox-controller's slots and caps        (audit.read, fleet; unreachable 502)
-//   GET  /api/controls                   active controls and banners, every scope       (audit.read, fleet)
+//   GET  /api/admission                  H1-H3, WIP holds, grants, HUMAN-WAIT           (ops.read, fleet)
+//   GET  /api/slots                      the sandbox-controller's slots and caps        (ops.read, fleet; unreachable 502)
+//   GET  /api/controls                   active controls and banners, every scope       (ops.read, fleet)
 //   POST /api/controls/preview           a preview with its nonce                        (control.apply on the scope)
 //   POST /api/controls                   apply the previewed control with that nonce     (control.apply on the scope)
 //   POST /api/controls/:id/lift          lift one                                        (control.lift on its scope)
-//   GET  /api/kills                      the kill switch's journal as core observed it   (audit.read, fleet)
+//   GET  /api/kills                      the kill switch's journal as core observed it   (ops.read, fleet)
 //   GET  /api/audit/decisions            the PDP decision log                            (audit.read, fleet)
-//   GET  /api/integrations               health tiles and the ledgered registry events   (audit.read, fleet)
-//   GET  /api/health                     M19: the service and loop tiles (HealthSnapshot) (audit.read, fleet)
+//   GET  /api/integrations               health tiles and the ledgered registry events   (quality.read or ops.read, fleet)
+//   GET  /api/health                     M19: the service and loop tiles (HealthSnapshot) (ops.read, fleet)
 //   GET  /api/degraded?projects=         M19: kill verdicts, the Notary, stale read models  (signed in; only the
 //                                        projects the person may view are asked about)
 //   GET  /api/directory                  principals and teams                            (audit.read, fleet)
@@ -143,16 +143,23 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     return null;
   };
   const as = (req: FastifyRequest) => encodeURIComponent(d.principalOf(req));
+  type FleetRead = Extract<ActionId, 'audit.read' | 'ops.read' | 'quality.read'>;
 
-  /** `audit.read` on the fleet here, then core with the person named. */
-  async function fleetAudit(req: FastifyRequest, reply: FastifyReply): Promise<CoreClient | null> {
+  /**
+   * One of `actions` on the fleet here (the first is the one a refusal names), then core with the person named:
+   * `audit.read` for the decision log, `ops.read` for Operate, `quality.read` for Quality (PLAN §7a).
+   */
+  async function fleetReader(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    ...actions: [FleetRead, ...FleetRead[]]
+  ): Promise<CoreClient | null> {
     const c = core(reply);
     if (!c) return null;
-    if (!(await allowed(d.principalOf(req), 'audit.read', pdpResource.fleet()))) {
-      deny(reply, 'audit.read');
-      return null;
-    }
-    return c;
+    for (const a of actions)
+      if (await allowed(d.principalOf(req), a, pdpResource.fleet())) return c;
+    deny(reply, actions[0]);
+    return null;
   }
 
   // ------------------------------------------------------------ items
@@ -189,7 +196,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   // ------------------------------------------------------------ quality and govern reads
 
   app.get('/api/agents', async (req, reply) => {
-    const c = await fleetAudit(req, reply);
+    const c = await fleetReader(req, reply, 'quality.read');
     if (!c) return;
     return upstream(reply, await c.call('GET', `/v1/agents?on_behalf_of=${as(req)}`), (v) =>
       AgentRegistryView.parse(v),
@@ -213,7 +220,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
       })
       .safeParse(req.query ?? {});
     if (!q.success) return sendError(reply, 400, 'invalid_input', 'bad query');
-    const c = await fleetAudit(req, reply);
+    const c = await fleetReader(req, reply, 'audit.read');
     if (!c) return;
     const qs = new URLSearchParams({ on_behalf_of: d.principalOf(req) });
     if (q.data.limit) qs.set('limit', String(q.data.limit));
@@ -223,8 +230,9 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     );
   });
 
+  // Quality's Integrations and Operate's Health read the same tiles
   app.get('/api/integrations', async (req, reply) => {
-    const c = await fleetAudit(req, reply);
+    const c = await fleetReader(req, reply, 'quality.read', 'ops.read');
     if (!c) return;
     const health = upstream(reply, await c.call('GET', '/v1/integrations/health'), (v) =>
       IntegrationHealthTiles.parse(v),
@@ -255,8 +263,9 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     return upstream(reply, await c.call('GET', `/v1/degraded?${qs}`), (v) => DegradedView.parse(v));
   });
 
+  // Operate › Health (PLAN §7a: ops.read)
   app.get('/api/health', async (req, reply) => {
-    const c = await fleetAudit(req, reply);
+    const c = await fleetReader(req, reply, 'ops.read');
     if (!c) return;
     return upstream(reply, await c.call('GET', '/v1/health'), (v) => HealthView.parse(v));
   });
@@ -264,7 +273,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   // ------------------------------------------------------------ operate
 
   app.get('/api/admission', async (req, reply) => {
-    const c = await fleetAudit(req, reply);
+    const c = await fleetReader(req, reply, 'ops.read');
     if (!c) return;
     return upstream(reply, await c.call('GET', `/v1/admission?on_behalf_of=${as(req)}`), (v) =>
       AdmissionView.parse(v),
@@ -272,8 +281,8 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   });
 
   app.get('/api/slots', async (req, reply) => {
-    if (!(await allowed(d.principalOf(req), 'audit.read', pdpResource.fleet()))) {
-      return deny(reply, 'audit.read');
+    if (!(await allowed(d.principalOf(req), 'ops.read', pdpResource.fleet()))) {
+      return deny(reply, 'ops.read');
     }
     if (!d.sandboxController) {
       return sendError(
@@ -300,7 +309,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   });
 
   app.get('/api/controls', async (req, reply) => {
-    const c = await fleetAudit(req, reply);
+    const c = await fleetReader(req, reply, 'ops.read');
     if (!c) return;
     return upstream(reply, await c.call('GET', `/v1/controls?on_behalf_of=${as(req)}`), (v) =>
       ControlsView.parse(v),
@@ -349,8 +358,8 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     const b = LiftBody.safeParse(req.body ?? {});
     if (!b.success) return sendError(reply, 400, 'invalid_input', b.error.message);
     const who = d.principalOf(req);
-    // the control's scope, from core's own list, read as this person (audit.read first)
-    if (!(await allowed(who, 'audit.read', pdpResource.fleet()))) return deny(reply, 'audit.read');
+    // the control's scope, from core's own list, read as this person (ops.read first)
+    if (!(await allowed(who, 'ops.read', pdpResource.fleet()))) return deny(reply, 'ops.read');
     const list = upstream(reply, await c.call('GET', `/v1/controls?on_behalf_of=${as(req)}`), (v) =>
       ControlsView.parse(v),
     );
@@ -367,7 +376,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   });
 
   app.get('/api/kills', async (req, reply) => {
-    const c = await fleetAudit(req, reply);
+    const c = await fleetReader(req, reply, 'ops.read');
     if (!c) return;
     return upstream(reply, await c.call('GET', `/v1/kills?on_behalf_of=${as(req)}`), (v) =>
       KillsView.parse(v),

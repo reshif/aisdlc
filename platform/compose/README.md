@@ -11,12 +11,12 @@ That builds one image, starts 12 long-running containers and 3 one-shot jobs, an
 service is healthy. The `fake-github` profile runs an in-repo stand-in for GitHub with a seeded
 testbed repository, so no credential is needed. When it is up:
 
-| What                                                              | Where                                                                                  |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| bff (the browser edge)                                            | <http://localhost:8340> (`/api/me`, `/auth/login`)                                     |
-| dev identity provider (the browser is redirected here to sign in) | <http://dev-oidc.localhost:8390>                                                       |
-| the people the seed knows                                         | `alice` (factory admin, GitHub login `reshif`) and `bob`, picked on the dev IdP's page |
-| everything else                                                   | inside the Docker networks only                                                        |
+| What                                                              | Where                                                                                                                                                                                      |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| bff (the browser edge)                                            | <http://localhost:8340> (`/api/me`, `/auth/login`)                                                                                                                                         |
+| dev identity provider (the browser is redirected here to sign in) | <http://dev-oidc.localhost:8390>                                                                                                                                                           |
+| the people the seed knows                                         | `alice` (factory admin, GitHub login `reshif`) and `bob`, then the eleven design personas (`lt`, `oh`, `rb`, `ar`, `pm`, `dn`, `ks`, `jm`, `mw`, `nf`, `tb`), picked on the dev IdP's page |
+| everything else                                                   | inside the Docker networks only                                                                                                                                                            |
 
 `npm run smoke:compose` (or `platform/compose/smoke.sh`) does all of this, proves the services talk
 and the boundaries hold, prints the fake GitHub's request log, and removes everything again.
@@ -201,6 +201,14 @@ pseudo-project and its step-up refuses everything, so a gate that needed a step-
 seed, not pass it. It is the local stub of "the first admin is provisioned with the cloud account"
 and is idempotent. This is a design decision for you to confirm (see the report).
 
+With `SEED_PERSONAS=1` (set here) it also binds the design personas' IdP groups
+(`services/bff/src/dev-oidc/personas.ts`, the groups and members in `config/idp-seed.json`): `lt` and `oh`
+factory admins, `nf` the factory auditor, `mw` the web team's onboarder, and the direct project viewers
+(`ar` on ledger, `pm` on web, `tb` a guest on payments whose binding expires after 90 days). Project slot
+roles (admin, intent, g4, ...) come only from a published role map, so a persona holds them once a project
+of that id (`payments`, `ledger`, `web`, `identity`, `mobile`) is onboarded with `personaRoleMap(id)`
+in card 4; `services/core/test/personas.test.ts` signs every persona in with those role maps.
+
 ## What the stack proves
 
 With the fake GitHub, `smoke.sh` has alice (the factory admin from the seed) ask core to onboard
@@ -224,7 +232,7 @@ token mint and `git-upload-pack` fetches, never a push.
    container that reaches out, and the only one that mounts the key.
 4. Allow-list and onboard the repo through core as before (the registered repos come from core).
 
-The dev IdP and the seed stay: the people who may sign in are still `alice` and `bob`. Set the
+The dev IdP and the seed stay: the people who may sign in are still `alice`, `bob` and the personas. Set the
 GitHub login of the person who owns the repo in `config/idp-seed.json` (alice's `logins`).
 
 The default image build installs `git` with apt only when the base image has none: `git=1:2.39.*`
