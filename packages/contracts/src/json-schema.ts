@@ -553,6 +553,7 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   NotificationChannelRow: entities.NotificationChannelRow,
   NotificationChannels: entities.NotificationChannels,
   NotificationKind: entities.NotificationKind,
+  NotificationReleaseFailure: entities.NotificationReleaseFailure,
   PortalPath: entities.PortalPath,
   NotificationContent: entities.NotificationContent,
   NotificationReason: entities.NotificationReason,
@@ -1134,6 +1135,10 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   ReadModelFreshness: entities.ReadModelFreshness,
   ProjectKillVerdict: entities.ProjectKillVerdict,
   DegradedView: entities.DegradedView,
+  OpsAlertKind: entities.OpsAlertKind,
+  OpsAlertSubject: entities.OpsAlertSubject,
+  OpsAlertRaisedPayload: entities.OpsAlertRaisedPayload,
+  OpsAlertClearedPayload: entities.OpsAlertClearedPayload,
   // M19: audit
   AuditScope: entities.AuditScope,
   AuditExportRequest: entities.AuditExportRequest,
