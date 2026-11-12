@@ -4,6 +4,8 @@
 #   drill.sh postgres [--hard]    Postgres goes away and comes back (restart; --hard: SIGKILL, then start)
 #   drill.sh notary               the Notary is stopped, then started again
 #   drill.sh killswitch           the kill switch is stopped, then started again
+#   drill.sh runner               a coding (W) session's container is killed mid-session, then the sandbox-controller
+#                                 itself is killed mid-session and started again (needs `--profile sandbox`)
 #
 # Each drill takes the stack as it is (`docker compose up -d --wait` first, in this directory, with the same
 # COMPOSE_PROJECT_NAME), breaks one thing, checks what must hold while it is broken, repairs it and checks the
@@ -147,12 +149,155 @@ drill_killswitch() {
   recovered "$before"
 }
 
+# ------------------------------------------------------------------ runner killed mid-session (M19)
+
+# The session the drill places, as core-worker's HttpSandbox would: from inside core-worker (its token for the
+# sandbox-controller, its network), under the drill item's active admission grant. Prints "<http status> <run status
+# or error code>" when the controller answers, "0 <message>" when it does not (the call was cut).
+place_session() {
+  dc exec -T core-worker node -e '
+    const fs = require("node:fs");
+    const [grant, sid, secs] = [JSON.parse(process.argv[1]), process.argv[2], Number(process.argv[3])];
+    const token = fs.readFileSync("/run/secrets/tok-core-worker-sandbox-controller", "utf8").trim();
+    const body = {
+      grant,
+      spec: {
+        session_id: sid,
+        class: "W",
+        command: secs > 0 ? ["sleep", String(secs)] : ["true"],
+        repo: [{ path: "README.md", encoding: "utf8", data: "the runner drill\n" }],
+        repo_full_name: "load-org/load-1",
+        gateway_key: "aisk_" + "0123456789abcdef".repeat(3),
+        limits: { time_s: 900 },
+      },
+    };
+    fetch("http://sandbox-controller:8430/v1/sessions", {
+      method: "POST",
+      headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(1_200_000),
+    })
+      .then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        console.log(r.status + " " + (j.status ?? j.error?.code ?? "?"));
+      })
+      .catch((e) => console.log("0 " + String(e.cause?.code ?? e.message).replace(/\s+/g, "_")));
+  ' "$1" "$2" "$3"
+}
+# "<used in all> <free W>" at the controller
+slots_used() {
+  dc exec -T core-worker node -e '
+    const t = require("node:fs").readFileSync("/run/secrets/tok-core-worker-sandbox-controller", "utf8").trim();
+    fetch("http://sandbox-controller:8430/v1/slots", { headers: { authorization: "Bearer " + t } })
+      .then((r) => r.json()).then((j) => console.log(j.used_total + " " + j.free.W))
+      .catch(() => console.log("? ?"));'
+}
+# "<containers> <networks> <scratch dirs>" a session left
+session_left() {
+  local sid="$1" scratch="$2" c n d=0
+  c=$(docker ps -aq --filter "name=^aisdlc-sbx-${sid}\$" | wc -l)
+  n=$(docker network ls -q --filter "name=^aisdlc-sbx-net-${sid}\$" | wc -l)
+  [ -e "$scratch/$sid" ] && d=1
+  echo "$c $n $d"
+}
+wait_running() {
+  local sid="$1" deadline=$((SECONDS + 90))
+  until [ "$(docker ps -q --filter "name=^aisdlc-sbx-${sid}\$" --filter status=running | wc -l)" = 1 ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "the W session $sid never ran"
+    sleep 1
+  done
+}
+json_field() { node -e 'let s="";process.stdin.on("data",(d)=>(s+=d)).on("end",()=>{const v=JSON.parse(s)[process.argv[1]];console.log(typeof v==="string"?v:JSON.stringify(v))})' "$1"; }
+grant_state() { psql_one "SELECT status || ' ' || lease_epoch FROM core.admission_grant WHERE grant_id = '$1'"; }
+lease_epoch() { psql_one "SELECT epoch FROM core.lease WHERE unit_id = '$1'"; }
+item_events() { psql_one "SELECT count(*) FROM record.record_event WHERE stream = 'item:$1'"; }
+loadjob() { COMPOSE_PROFILES="$COMPOSE_PROFILES,load" docker compose run --rm --no-deps -T load node /app/services/core/dist/aisdlc-load.js "$@"; }
+
+drill_runner() {
+  local before scratch line item grant gid unit epoch epoch0 ev0 sid out work slots0
+  # the sandbox plane is a profile: every compose call of this drill sees it
+  export COMPOSE_PROFILES="${COMPOSE_PROFILES:-sandbox,fake-github}"
+  [ -n "$(dc ps -q sandbox-controller 2>/dev/null)" ] || fail "the sandbox-controller is not running: start the stack with --profile sandbox"
+  scratch="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(dc ps -q sandbox-controller)" | sed -n 's/^SANDBOX_CONTROLLER_SCRATCH=//p')"
+  [ -d "$scratch" ] || fail "the scratch directory $scratch is not on this host"
+  work="$(mktemp -d "${TMPDIR:-/tmp}/aisdlc-drill.XXXXXX")"
+  say "the drill item: a load project (aisdlc-load seed), one item whose Unit holds an active grant (it waits at G4)"
+  loadjob seed >/dev/null 2>&1 || fail "aisdlc-load seed failed"
+  line="$(loadjob item 2>/dev/null | sed -n 's/^LOAD_ITEM //p')"
+  [ -n "$line" ] || fail "aisdlc-load item gave no item"
+  item="$(printf '%s' "$line" | json_field item_id)"
+  grant="$(printf '%s' "$line" | json_field grant)"
+  gid="$(printf '%s' "$grant" | json_field grant_id)"
+  unit="$(printf '%s' "$grant" | json_field unit_id)"
+  epoch="$(printf '%s' "$grant" | json_field lease_epoch)"
+  epoch0="$(lease_epoch "$unit")"
+  ev0="$(item_events "$item")"
+  slots0="$(slots_used)"
+  [ "${slots0%% *}" = 0 ] || fail "the runner host is not idle (slots used, free W: $slots0)"
+  say "item $item, grant $gid ($(grant_state "$gid")), lease epoch $epoch0, $ev0 item events; slots (used, free W): $slots0"
+  before="$(restarts)"
+
+  # 1. the session's container dies (the runner host kills it, the OOM killer, a crashed daemon shim)
+  sid="drill-w-$(date +%s)"
+  say "1. a W session ($sid, sleep 600) under the grant; its container is killed mid-session"
+  place_session "$grant" "$sid" 600 >"$work/one.out" &
+  wait_running "$sid"
+  say "   running; slots (used, free W): $(slots_used)"
+  docker kill "aisdlc-sbx-$sid" >/dev/null
+  wait
+  out="$(cat "$work/one.out")"
+  say "   the controller answered: $out (a void run: no outcome, never a pass)"
+  [ "$out" = "200 killed" ] || fail "a killed session answered '$out', not '200 killed'"
+  [ "$(slots_used)" = "$slots0" ] || fail "the slot was not freed: slots (used, free W) $(slots_used)"
+  [ "$(session_left "$sid" "$scratch")" = "0 0 0" ] ||
+    fail "the killed session left something behind (container network scratch: $(session_left "$sid" "$scratch"))"
+  say "   the slot is free and nothing of the session is left (container, network, repo copy)"
+
+  # 2. the controller itself dies mid-session: the session's container outlives it
+  sid="drill-w-$(($(date +%s) + 1))"
+  say "2. a W session ($sid) under the grant; the sandbox-controller is SIGKILLed mid-session"
+  place_session "$grant" "$sid" 600 >"$work/two.out" &
+  wait_running "$sid"
+  dc kill -s SIGKILL sandbox-controller >/dev/null 2>&1
+  wait
+  out="$(cat "$work/two.out")"
+  say "   core's call: $out (cut: the stage command is not answered and is delivered again, same key)"
+  case "$out" in 0\ *) ;; *) fail "the call to a killed controller answered '$out'" ;; esac
+  say "   left while it is down (container network scratch): $(session_left "$sid" "$scratch")"
+  [ "$(session_left "$sid" "$scratch" | cut -d' ' -f1)" = 1 ] || fail "the orphan was expected to outlive the controller"
+  dc start sandbox-controller >/dev/null 2>&1
+  local deadline=$((SECONDS + 120))
+  until [ "$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q sandbox-controller)")" = healthy ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "the sandbox-controller did not come back healthy"
+    sleep 2
+  done
+  say "   the controller is back: $(dc logs --no-log-prefix --since 3m sandbox-controller 2>&1 | grep 'sweep (boot)' | tail -1)"
+  [ "$(session_left "$sid" "$scratch")" = "0 0 0" ] ||
+    fail "the boot sweep left the dead session behind (container network scratch: $(session_left "$sid" "$scratch"))"
+  [ "$(slots_used)" = "$slots0" ] || fail "slots after the restart: $(slots_used)"
+  say "   its sweep removed the orphan's container, network and repo copy; slots (used, free W): $(slots_used)"
+
+  # 3. the recovery path: the Unit's grant and lease epoch are what they were, nothing was answered for the item,
+  #    and the next session under the same grant (the redelivered command's) starts and ends
+  [ "$(grant_state "$gid")" = "active $epoch" ] || fail "the grant is not active at epoch $epoch any more: $(grant_state "$gid")"
+  [ "$(lease_epoch "$unit")" = "$epoch0" ] || fail "the lease epoch moved: $epoch0 -> $(lease_epoch "$unit")"
+  [ "$(item_events "$item")" = "$ev0" ] || fail "the item's stream moved ($ev0 -> $(item_events "$item") events): something answered for it"
+  say "3. the grant is still $(grant_state "$gid"), the lease epoch still $epoch0, the item's stream unchanged ($ev0 events)"
+  out="$(place_session "$grant" "drill-w-again-$(date +%s)" 0)"
+  [ "$out" = "200 exited" ] || fail "the next session under the grant answered '$out'"
+  say "   the next session under the same grant runs to its end ($out): the redelivered command's session starts"
+  rm -rf "$work"
+  # the controller was killed on purpose: it is not in the restart count; every other container must be unchanged
+  recovered "$before"
+}
+
 case "${1:-}" in
   postgres) drill_postgres "${2:-}" ;;
   notary) drill_notary ;;
   killswitch) drill_killswitch ;;
+  runner) drill_runner ;;
   *)
-    echo "usage: drill.sh postgres [--hard] | notary | killswitch" >&2
+    echo "usage: drill.sh postgres [--hard] | notary | killswitch | runner" >&2
     exit 2
     ;;
 esac
