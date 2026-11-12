@@ -11,6 +11,7 @@ import {
   ProjectSummary,
   S0Overview,
   SettingsRevisionView,
+  SubmitRequestReceipt,
   type OnboardingStepId,
   type OnboardingStepState,
 } from '@aisdlc/contracts';
@@ -93,6 +94,47 @@ export function handoffViewFixture() {
     extension_max_percent: 50,
     human_led: null,
     done: [],
+  };
+}
+
+/** Core's receipt of a request (P1-1): routed to L8 by the repo's level, with who decides G0 and G1. */
+export function requestReceiptFixture() {
+  return {
+    request_id: ITEM_ID,
+    item_id: ITEM_ID,
+    state: 'routed_l8',
+    verdict: {
+      repo: 'acme/web',
+      lane: 'L3',
+      eligible: false,
+      route: 'l8',
+      reason: 'level_too_low',
+      prr: null,
+    },
+    duplicate: false,
+    dedupe_links: [],
+    injection: { suspected: false, rules: [], lines: [], text_sha256: 'b'.repeat(64) },
+    asked_lane: 'L3',
+    proposed_lane: 'L8',
+    lane_opens_at: 'light',
+    request_text: {
+      text: 'Add pagination to the orders list.',
+      taint: 'untrusted',
+      origin: 'request',
+      provenance: {
+        channel: 'N1',
+        source: null,
+        received_at: NOW,
+        submitted_by: 'alice',
+        raw_sha256: 'c'.repeat(64),
+        normalised_sha256: 'd'.repeat(64),
+      },
+      flags: [],
+    },
+    deciders: [
+      { gate: 'G0', slot: 'intent', holders: ['bob'], reason: null },
+      { gate: 'G1', slot: 'intent', holders: ['bob'], reason: null },
+    ],
   };
 }
 
@@ -350,7 +392,12 @@ export function revisionView(projectId: string, holders = ['alice']) {
 }
 
 export function inboxItems() {
-  const card = (projectId: string, holders: string[], over: object = {}) => ({
+  const card = (
+    projectId: string,
+    holders: string[],
+    over: { id?: string; label?: string } = {},
+  ) => ({
+    card_id: over.id ?? CARD_ID,
     kind: 'onboarding_card',
     id: CARD_ID,
     project_id: projectId,
@@ -385,6 +432,7 @@ export function inboxItems() {
       holders: ['alice'],
       item_id: null,
       gate: 'M1',
+      card_id: null,
       feasibility: 'feasible',
       feasibility_reason: null,
     },
@@ -419,6 +467,7 @@ ProjectDetail.parse({
 S0Overview.parse(s0Overview('acme'));
 OnboardingCardSummary.parse(cardSummary('acme'));
 inboxItems().forEach((i) => CoreInboxItem.parse(i));
+SubmitRequestReceipt.parse(requestReceiptFixture());
 SettingsRevisionView.parse(revisionView('acme'));
 const prrFixture = (id: string) => ({
   project_id: id,
@@ -480,7 +529,7 @@ export async function startFakeCore(): Promise<FakeCore> {
         return reply(201, { s0_id: S0_ID, duplicate: false });
       }
       if (method === 'POST' && path === '/v1/requests') {
-        return reply(201, { request_id: ITEM_ID, item_id: ITEM_ID, duplicate: false });
+        return reply(201, requestReceiptFixture());
       }
       if (method === 'GET' && path.startsWith(`/v1/items/${ITEM_ID}?on_behalf_of=`)) {
         return reply(200, itemViewFixture());

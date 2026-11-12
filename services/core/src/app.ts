@@ -111,6 +111,8 @@ import { agentStatsOf, listAgentRuns } from './agent-runs.js';
 import { CorePushGuards } from './build/push.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
+import { itemGateLinks } from './item-gates.js';
+import type { ItemState } from '@aisdlc/work';
 import {
   evidencePackView,
   gateCardContext,
@@ -118,7 +120,7 @@ import {
   signedPackBytes,
 } from './verify/portal.js';
 import type { ObjectStorePort } from '@aisdlc/ports';
-import { answerQuestion, decideReady, submitRequest } from './requests.js';
+import { answerQuestion, decideReady, requestReceipt, submitRequest } from './requests.js';
 import { observeRelane, reRequestRelease, requestRework } from './work-signals.js';
 import { submitHumanPlan } from './planning/human-plan.js';
 import { chooseHandoff, completeHumanWork, handBack } from './work-signals.js';
@@ -584,7 +586,12 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       ...(b.value.request_id ? { request_id: b.value.request_id } : {}),
     });
     if (!r.ok) return fail(reply, r.error);
-    return reply.code(r.value.duplicate ? 200 : 201).send(r.value);
+    const receipt = await requestReceipt(
+      r.value,
+      b.value.project_id,
+      (o.config ?? o.cards?.decisions)?.eligibility,
+    );
+    return reply.code(r.value.duplicate ? 200 : 201).send(receipt);
   });
 
   // ------------------------------------------------------------ the R3 circuit breaker (PLAN M9.5)
@@ -756,6 +763,14 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
   });
 
+  /** The card and ledger entry of each of the item's gates (P1-2), from the record. */
+  const gateLinksOf = (st: ItemState) =>
+    itemGateLinks(
+      o.pool,
+      st.item_id,
+      st.gates.map((g) => g.gate_instance_id),
+    );
+
   app.get('/v1/items/:id', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
     const id = params(req)['id'] as string;
@@ -780,7 +795,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     ) {
       return;
     }
-    return itemView(s);
+    return itemView(s, await gateLinksOf(s));
   });
 
   // ------------------------------------------------------------ the portal's actions on an item (PLAN M12.5)
@@ -826,7 +841,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   const maintenanceOn = async (): Promise<boolean> => (await o.config?.maintenance?.()) === true;
   const view = async (id: string) => {
     const again = await readItem(o.pool, id);
-    return again ? itemView(again.state) : null;
+    return again ? itemView(again.state, await gateLinksOf(again.state)) : null;
   };
 
   /** 1.6: the Ready decision. */

@@ -55,28 +55,42 @@ const result = (it = view()) => ({ item: it, duplicate: false });
 const posts = (m: ReturnType<typeof mockApi>) => m.calls.filter((c) => c.method === 'POST');
 
 describe('the gates of an item (P2-10)', () => {
-  it('draws only the gates its pinned profile has, with where each stands, and marks the others off', async () => {
+  it('draws only the gates its pinned profile has: not reached, raised by a step, and the others off', async () => {
     mockApi({
       'GET /api/me': { json: me() },
       [`GET ${PATH}`]: {
         json: view({
           phase: 'S2',
           gates: [
-            { gate: 'G0', gate_instance_id: 'g-0', status: 'decided', outcome: 'approve' },
-            { gate: 'E1', gate_instance_id: 'g-e1', status: 'pending', outcome: null },
+            {
+              gate: 'G0',
+              gate_instance_id: 'g-0',
+              status: 'decided',
+              outcome: 'approve',
+              card_id: null,
+              ledger_entry_id: null,
+            },
+            {
+              gate: 'E1',
+              gate_instance_id: 'g-e1',
+              status: 'pending',
+              outcome: null,
+              card_id: null,
+              ledger_entry_id: null,
+            },
           ],
           profile_gates: { on: ['G0', 'G1', 'G4'], off: ['G2', 'G3d'] },
         }),
       },
     });
     renderAt(`/items/${ITEM}`);
-    const gates = await screen.findByTestId('item-gates');
-    expect(gates.querySelector('[data-gate="G0"]')).toHaveTextContent('approve');
-    expect(gates.querySelector('[data-gate="G4"]')).toHaveTextContent('not reached');
-    expect(gates.querySelector('[data-gate="E1"]')).toHaveTextContent('raised by a step');
-    expect(gates.querySelector('[data-gate="G2"]')).toHaveTextContent('off for this project');
-    expect(gates.querySelector('[data-gate="G3d"]')).toHaveAttribute('data-off', 'true');
-    expect(gates.querySelector('[data-gate="G5"]')).toBeNull();
+    const route = await screen.findByTestId('route-gates');
+    expect(route.querySelector('[data-gate="G0"]')).toBeNull();
+    expect(route.querySelector('[data-gate="G4"]')).toHaveTextContent('not reached yet');
+    expect(route.querySelector('[data-gate="E1"]')).toHaveTextContent('raised by a step');
+    expect(route.querySelector('[data-gate="G2"]')).toHaveTextContent('off for this project');
+    expect(route.querySelector('[data-gate="G3d"]')).toHaveAttribute('data-off', 'true');
+    expect(route.querySelector('[data-gate="G5"]')).toBeNull();
   });
 
   it('says the gates are unknown when the pinned catalogue cannot be read', async () => {
@@ -85,7 +99,7 @@ describe('the gates of an item (P2-10)', () => {
       [`GET ${PATH}`]: { json: view() },
     });
     renderAt(`/items/${ITEM}`);
-    expect(await screen.findByTestId('item-gates')).toHaveTextContent('unknown');
+    expect(await screen.findByTestId('route-gates-unknown')).toHaveTextContent('unknown');
   });
 });
 
@@ -193,7 +207,16 @@ describe('the work item page', () => {
             lane: 'L4',
             phase: 'S4',
             waiting: 'gates:G3d',
-            gates: [{ gate: 'G3d', gate_instance_id: 'gi-1', status: 'pending', outcome: null }],
+            gates: [
+              {
+                gate: 'G3d',
+                gate_instance_id: 'gi-1',
+                status: 'pending',
+                outcome: null,
+                card_id: null,
+                ledger_entry_id: null,
+              },
+            ],
           },
           { observe: true },
         ),

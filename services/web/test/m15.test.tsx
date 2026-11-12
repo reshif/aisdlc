@@ -41,6 +41,8 @@ const gate = (g: string, status: string, outcome: string | null, n = 1) => ({
   gate_instance_id: `${g}-${n}`,
   status,
   outcome,
+  card_id: null,
+  ledger_entry_id: status === 'decided' ? `le-${g}-${n}` : null,
 });
 
 describe('the item page: release and review', () => {

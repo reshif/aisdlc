@@ -298,6 +298,7 @@ describe('the onboarding assistant (PLAN M18)', () => {
     expect(
       proposalButton(g, { action: 'ask_for_work', target: project, label: 'Ask' }),
     ).toMatchObject({
+      route: { method: 'GET', path: `/ask-for-work/${project}` },
       pdp_action: 'work.request',
     });
     expect(proposalButton(g, { action: 'open_s0', target: s0, label: 'S0' })?.route.path).toBe(

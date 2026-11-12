@@ -4,12 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useAccess } from '../access';
 import { VerifyTab } from '../items/VerifyTab';
-import { GateTag, Pill, Tabs, type TabDef } from '../ui';
-import type { GateId } from '@aisdlc/contracts';
+import { Tabs, type TabDef } from '../ui';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { Callout, PageError, Loading } from '../components/Notice';
 import { describeError } from '../format';
+import { ItemGates } from '../items/ItemGates';
 import { PlanForm } from '../items/PlanForm';
 import { HandoffPanel, showsHandoff } from '../items/HandoffPanel';
 import { newKey, waitingText } from '../items/waiting';
@@ -129,54 +129,6 @@ function ItemTabs({ item, children }: { item: Item; children: ReactNode }) {
 }
 
 type Item = Awaited<ReturnType<typeof api.item>>;
-
-/**
- * P2-10: the item's human gates as its pinned profile has them: the ones on its route with where each stands, the
- * ones its lane could have that the project has off ("off for this project"), and any a step raised. Never the
- * catalogue's full list.
- */
-function ItemGates({ item }: { item: Item }) {
-  const pg = item.profile_gates;
-  const latest = (g: GateId) => [...item.gates].reverse().find((x) => x.gate === g);
-  const status = (g: GateId) => {
-    const x = latest(g);
-    if (!x) return <Pill tone="mute">not reached</Pill>;
-    if (x.status === 'pending') return <Pill tone="warn">waiting</Pill>;
-    return <Pill tone={x.outcome === 'approve' ? 'ok' : 'bad'}>{x.outcome ?? 'decided'}</Pill>;
-  };
-  const raised = [...new Set(item.gates.map((x) => x.gate))].filter(
-    (g) => pg !== null && !pg.on.includes(g),
-  );
-  return (
-    <section aria-label="Gates" data-testid="item-gates">
-      <h2>Gates</h2>
-      {pg === null ? (
-        <p className="muted">
-          The gates of this item are unknown: its pinned catalogue cannot be read.
-        </p>
-      ) : (
-        <ul className="plain">
-          {pg.on.map((g) => (
-            <li key={g} data-gate={g}>
-              <GateTag gate={g} showTitle /> {status(g)}
-            </li>
-          ))}
-          {raised.map((g) => (
-            <li key={g} data-gate={g}>
-              <GateTag gate={g} showTitle /> {status(g)}{' '}
-              <span className="muted">raised by a step</span>
-            </li>
-          ))}
-          {pg.off.map((g) => (
-            <li key={g} data-gate={g} data-off="true" className="muted">
-              <GateTag gate={g} showTitle /> <Pill tone="mute">off for this project</Pill>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
 
 function Questions({ item, csrf }: { item: Item; csrf: string }) {
   if (item.questions.length === 0) return null;

@@ -5,6 +5,7 @@ import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { PageError, Loading } from '../components/Notice';
 import { shortTime } from '../format';
+import { AskForWorkButton } from '../items/AskForWorkButton';
 import { Link } from '../router';
 import { Card } from '../ui';
 import { STATUS_TEXT, levelTitle } from '../vocab';
@@ -67,6 +68,9 @@ export function ProjectDetailPage({ id }: { id: string }) {
         <Link to="/">Projects</Link>
       </p>
       <h1>{project.name}</h1>
+      <p className="actions">
+        <AskForWorkButton project={project.project_id} />
+      </p>
       {drift.data ? <DriftBanner project={project.project_id} repos={drift.data.repos} /> : null}
       <dl className="facts facts-wide">
         <div>
