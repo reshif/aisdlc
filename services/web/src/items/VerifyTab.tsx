@@ -38,6 +38,12 @@ const STATUS: Readonly<Record<VerifyStepView['status'], { text: string; tone: Pi
   not_run: { text: 'not run', tone: 'mute' },
 };
 
+/** A step's status as a pill (the gate cards show a head's five steps this way). */
+export function StepStatusPill({ status }: { status: VerifyStepView['status'] }) {
+  const st = STATUS[status];
+  return <Pill tone={st.tone}>{st.text}</Pill>;
+}
+
 export function StepVerdict({ s }: { s: VerifyStepView }) {
   const st = STATUS[s.status];
   return (

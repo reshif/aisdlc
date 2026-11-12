@@ -10,6 +10,7 @@ import {
   patchHashOf,
   patchSetOf,
   type CodingTask,
+  type IrreversibleOperationDetail,
   type PatchFile,
   type SandboxGrantRef,
   type StageOutcome,
@@ -37,6 +38,7 @@ import {
   type TripwirePolicy,
   type TreeManifest,
 } from '@aisdlc/tripwires';
+import { maskSecrets } from '@aisdlc/secrets-rules';
 import { testOneArgv } from './contract.js';
 import { bindOracles, checkOracleBinding, type OracleDeviation } from './oracles.js';
 import { buildHandoffPack } from './pack.js';
@@ -109,6 +111,30 @@ const OWN_TRIGGER_REFUSALS: readonly string[] = [
 ];
 
 const hex = (s: string, n: number): string => sha256(s).slice(0, n);
+
+/** Agent text bound for the record: secrets masked, one line, bounded; empty is `null`. */
+const masked = (t: string | null, n: number): string | null => {
+  if (t === null) return null;
+  const one = maskSecrets(t).text.replace(/\s+/g, ' ').trim().slice(0, n);
+  return one === '' ? null : one;
+};
+
+/** X1's detail (P1-8): the factory's words, the command line and the agent's note masked, the target path. */
+const irreversibleDetail = (o: {
+  source: 'tripwire' | 'agent_blocker';
+  what: string;
+  command: string | null;
+  target: string | null;
+  note: string | null;
+}): IrreversibleOperationDetail => ({
+  kind: 'irreversible_operation',
+  source: o.source,
+  what: o.what.slice(0, 300) || 'an irreversible operation',
+  command: masked(o.command, 500),
+  target: o.target === null || o.target === '' ? null : o.target.slice(0, 1024),
+  agent_note: masked(o.note, 500),
+});
+
 const done = (...parts: unknown[]): StageOutcome => ({
   outcome: 'completed',
   output_hash: sha256(canonicalJson(parts as never)),
@@ -468,6 +494,15 @@ export class AgentCodingPort implements CodingPort {
         gate: 'G3o',
         reason_code: 'oracle_deviation',
         output_hash: record,
+        // P1-8: the deviations go to the record with the gate, so the portal shows them against the approved specs
+        detail: {
+          kind: 'oracle_deviation',
+          deviations: deviations.slice(0, 100).map((x) => ({
+            kind: x.kind,
+            oracle_id: x.oracle_id,
+            path: x.path === null ? null : x.path.slice(0, 1024),
+          })),
+        },
       };
     }
     return done('oracles_red', s.item_id, s.locks);
@@ -1060,6 +1095,22 @@ export class AgentCodingPort implements CodingPort {
       if (worst?.class === 'gate_x1' || worst?.class === 'gate_x3') {
         s.pending_gate = worst.class === 'gate_x1' ? 'X1' : 'X3';
         store.save(s);
+        if (s.pending_gate === 'X1') {
+          // P1-8: what X1 decides goes to the record with it: the factory's words, the command (masked), the path
+          const command = worst === reported[0] ? (res.tripwire?.command ?? null) : null;
+          return {
+            outcome: 'gate_needed',
+            gate: 'X1',
+            reason_code: worst.kind,
+            detail: irreversibleDetail({
+              source: 'tripwire',
+              what: worst.detail,
+              command,
+              target: worst.path ?? null,
+              note: null,
+            }),
+          };
+        }
         return { outcome: 'gate_needed', gate: s.pending_gate, reason_code: worst.kind };
       }
       if (res.status === 'budget') return this.trigger(s, before, now, 'ET1', 'budget_exhausted');
@@ -1080,7 +1131,18 @@ export class AgentCodingPort implements CodingPort {
         if (reason === 'irreversible_operation') {
           s.pending_gate = 'X1';
           store.save(s);
-          return { outcome: 'gate_needed', gate: 'X1', reason_code: 'agent_blocked' };
+          return {
+            outcome: 'gate_needed',
+            gate: 'X1',
+            reason_code: 'agent_blocked',
+            detail: irreversibleDetail({
+              source: 'agent_blocker',
+              what: 'the agent says the task needs an irreversible operation',
+              command: null,
+              target: null,
+              note: out.blocker?.detail ?? null,
+            }),
+          };
         }
         if (reason === 'new_dependency') {
           s.pending_gate = 'X3';

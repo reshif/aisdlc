@@ -20,7 +20,7 @@ import {
   type CodingSessionResult,
   type SessionTripwire,
 } from '@aisdlc/contracts';
-import { scanText } from '@aisdlc/secrets-rules';
+import { maskSecrets, scanText } from '@aisdlc/secrets-rules';
 import {
   addedDependencies,
   classifyCommand,
@@ -184,6 +184,8 @@ function main(): void {
 
   const toolEvents: CodingSessionResult['tool_events'] = [];
   let stopped: Tripwire | null = null;
+  // P1-8: the command line of a Bash call that stopped the session (masked; the key never), for the X1 card
+  let stoppedCommand: string | null = null;
   let timedOut = false;
   const abort = new AbortController();
   const timer = setTimeout(() => {
@@ -264,6 +266,15 @@ function main(): void {
     });
     if (live && stopped === null) {
       stopped = worst;
+      if (tool === 'Bash' && worst.class !== 'quarantine') {
+        const cmd = cap(
+          scrub(maskSecrets(str('command')).text)
+            .replace(/\s+/g, ' ')
+            .trim(),
+          500,
+        );
+        stoppedCommand = cmd === '' ? null : cmd;
+      }
       // nothing after this tripwire is asked for: the result is written and the process ends, the harness with it
       setImmediate(() => finalize());
     }
@@ -364,7 +375,13 @@ function main(): void {
     const result: CodingSessionResult = {
       schema: 'coding-session/1',
       status,
-      tripwire: stopped === null ? null : (stopped as SessionTripwire),
+      tripwire:
+        stopped === null
+          ? null
+          : ({
+              ...stopped,
+              ...(stoppedCommand !== null ? { command: stoppedCommand } : {}),
+            } as SessionTripwire),
       final_text: cap(scrub(finalText), 60_000),
       turns,
       usage,

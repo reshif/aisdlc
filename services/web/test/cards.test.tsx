@@ -1148,8 +1148,8 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
           gates: [
             {
               gate_instance_id: GATE_A,
-              gate: 'G5',
-              slot: 'g5',
+              gate: 'G3',
+              slot: 'design',
               status: 'pending',
               outcome: null,
               step_up_required: true,

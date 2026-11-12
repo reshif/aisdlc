@@ -16,6 +16,7 @@ import { FakeGitHub, emptySeed, readUnreadable } from '@aisdlc/ports';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   FakePrincipalLinks,
+  gateCardContext,
   inCoreTx,
   lockKeys,
   readG4Standing,
@@ -32,6 +33,7 @@ import { pid, pr, startCoreStack, type CoreStack } from '../src/testing.js';
 import {
   GATING_OFF,
   approvers,
+  cardOfGate,
   decideGate,
   driverOver,
   loadReports,
@@ -457,5 +459,66 @@ describe('fail closed', () => {
     const st = await readG4Standing(s.record.pool, w.itemId);
     expect(st).toMatchObject({ state: 'head_moved', heads: { main: H2 } });
     expect(st.review?.units[0]?.head_sha).toBe(H1);
+  });
+});
+
+describe('the G4 card in the portal (P1-3): what the gate context says it decides', () => {
+  it('the review, the PR link, the pack of exactly the head, the diff by path flagged, step-up, B13 rounds left', async () => {
+    const w = await world();
+    const pack = await pushed(w, H1, ['src/app.js', 'db/migrations/0002_orders.sql', 'AGENTS.md']);
+    await runItem(s, w.d, w.itemId, { stop: g4Open });
+    const g = await pendingG4(w.itemId);
+    const ctx = ok(await gateCardContext(s.record.pool, await cardOfGate(s, w.itemId, g.id)));
+    expect(ctx).toMatchObject({ gate: 'G4', gate_instance_id: g.id, step: null });
+    expect(ctx.step_up).toEqual({ required: true, bound_hash: g.payload.subject_hash });
+    // the review core added to the engine's subject is one of the things the hash binds
+    expect(ctx.binds).toContainEqual({ label: 'G4 review', value: hashCanonical(g.review) });
+    const sub = ctx.subject;
+    if (sub?.kind !== 'merge_review') throw new Error(`not a merge review: ${sub?.kind}`);
+    expect(sub.review).toEqual(g.review);
+    expect(sub.review).toMatchObject({ mode: 'C', step_up: true });
+    expect(sub.standing).toBe('pending');
+    const [u] = sub.units;
+    expect(u).toMatchObject({
+      unit_key: 'main',
+      head_sha: H1,
+      pack_sha256: pack,
+      pr: { repo: w.repo, number: 7, state: 'open', url: `https://github.com/${w.repo}/pull/7` },
+      pack: { pack_sha256: pack, head_sha: H1, passing: true },
+      paths_truncated: false,
+    });
+    expect(u?.paths).toEqual([
+      { path: 'AGENTS.md', sensitive: true, protected: true },
+      { path: 'db/migrations/0002_orders.sql', sensitive: true, protected: false },
+      { path: 'src/app.js', sensitive: false, protected: false },
+    ]);
+    // no S7 result is in the record for this head: every step is not run (unknown, never a pass)
+    expect(u?.steps.map((x) => x.status)).toEqual(Array(5).fill('not_run'));
+    // B13 under the pinned catalogue: ET7, two rounds, then D3
+    expect(sub.b13).toEqual({ used: 0, limit: 2, left: 2, exhausted_to: 'D3' });
+    ok(await decideGate(s, g.id, 'olga', 'request_changes'));
+    await pushed(w, H2, ['src/app.js']);
+    await runItem(s, w.d, w.itemId, { stop: g4Open });
+    const g2 = await pendingG4(w.itemId);
+    const next = ok(await gateCardContext(s.record.pool, await cardOfGate(s, w.itemId, g2.id)));
+    if (next.subject?.kind !== 'merge_review') throw new Error('not a merge review');
+    expect(next.subject.b13).toMatchObject({ used: 1, left: 1 });
+    expect(next.step_up.required).toBe(false);
+    // the first card says its G4 ended with changes requested
+    const first = ok(await gateCardContext(s.record.pool, await cardOfGate(s, w.itemId, g.id)));
+    expect(first.subject?.kind === 'merge_review' && first.subject.standing).toBe(
+      'changes_requested',
+    );
+  });
+
+  it('paths not in the record are unknown on the card, never an empty diff', async () => {
+    const w = await world();
+    await pushed(w, H1, null);
+    await runItem(s, w.d, w.itemId, { stop: g4Open });
+    const g = await pendingG4(w.itemId);
+    const ctx = ok(await gateCardContext(s.record.pool, await cardOfGate(s, w.itemId, g.id)));
+    if (ctx.subject?.kind !== 'merge_review') throw new Error('not a merge review');
+    expect(ctx.subject.units[0]?.paths).toBeNull();
+    expect(ctx.subject.review.reasons).toContain('paths_unknown');
   });
 });
