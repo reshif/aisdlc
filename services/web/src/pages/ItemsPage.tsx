@@ -219,7 +219,8 @@ function Board({ rows }: { rows: readonly ItemListRow[] }) {
   return (
     <>
       <Filters {...filters} />
-      <div className="pg-board" role="list" aria-label="Board">
+      {/* focusable, so the board scrolls sideways from the keyboard too */}
+      <div className="pg-board" role="list" aria-label="Board" tabIndex={0}>
         {COLUMNS.map((c) => {
           const here = shown.filter((i) => columnOf(i) === c);
           return (
