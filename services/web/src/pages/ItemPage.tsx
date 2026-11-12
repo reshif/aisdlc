@@ -1,6 +1,9 @@
 import { LaneValues, type Lane } from '@aisdlc/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useAccess } from '../access';
+import { VerifyTab } from '../items/VerifyTab';
+import { Tabs, type TabDef } from '../ui';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { Callout, PageError, Loading } from '../components/Notice';
@@ -72,10 +75,46 @@ export function ItemPage({ id, csrf }: { id: string; csrf: string }) {
         </Callout>
       ) : null}
 
-      <Questions item={it} csrf={csrf} />
-      {it.may.ready ? <Ready id={id} csrf={csrf} /> : null}
-      {it.may.observe ? <Observe id={id} lane={lane} csrf={csrf} /> : null}
-      {it.may.plan ? <PlanForm id={id} csrf={csrf} /> : null}
+      <ItemTabs item={it}>
+        <Questions item={it} csrf={csrf} />
+        {it.may.ready ? <Ready id={id} csrf={csrf} /> : null}
+        {it.may.observe ? <Observe id={id} lane={lane} csrf={csrf} /> : null}
+        {it.may.plan ? <PlanForm id={id} csrf={csrf} /> : null}
+      </ItemTabs>
+    </>
+  );
+}
+
+const S7_ON = new Set(['S7', 'S8', 'S8b', 'S9', 'Quarantined']);
+
+/**
+ * The item's tabs (M14.6): what the person may do now, and Verify (S7's checks, the Evidence Pack, gate-check). Verify
+ * is content of the work: it is offered at view level V2 and above on the project (a hint; the bff refuses the read
+ * below V2 whatever this shows).
+ */
+function ItemTabs({ item, children }: { item: Item; children: ReactNode }) {
+  const access = useAccess();
+  const level = access.data?.projects.find((p) => p.project_id === item.project_id)?.view_level;
+  const fleet = access.data?.fleet.view_level ?? null;
+  const v2 = [level, fleet].some((l) => l === 'V2' || l === 'V3');
+  const inS7 = S7_ON.has(item.phase);
+  const [tab, setTab] = useState<string | null>(null);
+  const selected = tab ?? (v2 && inS7 ? 'verify' : 'now');
+  const tabs: TabDef[] = [
+    { id: 'now', label: 'Now' },
+    ...(v2 ? [{ id: 'verify', label: 'Verify' }] : []),
+  ];
+  return (
+    <>
+      {!v2 && access.isSuccess ? (
+        <p className="s7-faint" data-testid="verify-hidden">
+          S7 results and the Evidence Pack are content of the work: they need view level V2 on this
+          project. <Link to="/me/access">See my access</Link>
+        </p>
+      ) : null}
+      <Tabs label="Work item" tabs={tabs} selected={selected} onSelect={setTab}>
+        {selected === 'verify' && v2 ? <VerifyTab id={item.item_id} /> : children}
+      </Tabs>
     </>
   );
 }

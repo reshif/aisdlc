@@ -122,8 +122,9 @@ networks:
     internal: true
   verify-codehost:
     internal: true
-  # The object store's API (M14.1). core-worker is its one caller (M14.4: 7.6 stores the signed Evidence Packs in the
-  # write-once bucket); the store has no other network and no route out.
+  # The object store's API (M14.1). core-worker writes (M14.4: 7.6 stores the signed Evidence Packs in the
+  # write-once bucket), core reads them for the portal (M14.6), gate-check reads them (M14.5); the store has no
+  # other network and no route out.
   objectstore-api:
     internal: true
   # gate-check (M14.5, ADR-0003 §1 Integration plane, profile `gate-check`): `data-gatecheck` is its own way to Postgres
@@ -133,6 +134,9 @@ networks:
   # namespace, answers gate-check on its own port (8355; only the fake profile listens there). gate-check holds no
   # token of the codehost, so the codehost's API on the same network refuses it.
   data-gatecheck:
+    internal: true
+  # M14.6: how the bff reads gate-check's verdicts for the portal (scope read); nobody else is on it.
+  gatecheck-api:
     internal: true
   gatecheck-github:
     internal: true
@@ -181,6 +185,7 @@ secrets:
   gate-check-app.pub.pem: { file: ./secrets/gate-check-app.pub.pem }
   tok-gate-check-kms: { file: ./secrets/tok-gate-check-kms }
   tok-operator-gate-check: { file: ./secrets/tok-operator-gate-check }
+  tok-bff-gate-check: { file: ./secrets/tok-bff-gate-check }
   pg-pass-notifier: { file: ./secrets/pg-pass-notifier }
   db-url-notifier: { file: ./secrets/db-url-notifier }
   tok-bff-notifier: { file: ./secrets/tok-bff-notifier }
@@ -638,6 +643,10 @@ services:
       CORE_KNOWLEDGE_TOKEN_REF: file:/run/secrets/tok-core-knowledge
       CORE_CODEHOST_URL: http://codehost:8350
       CORE_CODEHOST_TOKEN_REF: file:/run/secrets/tok-core-codehost
+      # M14.6: the portal's Evidence Pack viewer reads the signed packs 7.6 stored (read only: core never writes there).
+      CORE_OBJECT_STORE_URL: http://object-store:9000
+      CORE_OBJECT_STORE_ACCESS_KEY_REF: file:/run/secrets/object-store-access-key
+      CORE_OBJECT_STORE_SECRET_KEY_REF: file:/run/secrets/object-store-secret-key
       CORE_HOST: 0.0.0.0
       CORE_PORT: '8380'
     secrets:
@@ -651,6 +660,8 @@ services:
         tok-core-kms,
         tok-core-knowledge,
         tok-core-codehost,
+        object-store-access-key,
+        object-store-secret-key,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8380']
@@ -663,7 +674,8 @@ services:
       seed: { condition: service_completed_successfully }
       notary: { condition: service_healthy }
       kms-local: { condition: service_healthy }
-    networks: [app, data-record, kms-clients, notary-api]
+      object-store: { condition: service_healthy }
+    networks: [app, data-record, kms-clients, notary-api, objectstore-api]
     mem_limit: 256m
 
   # The one process that hosts every loop (code-host polls, S0 driver, role-map sync, cards,
@@ -697,6 +709,9 @@ services:
       # run asks: e2e.sh sets `agents`; `fake` is the deterministic stage ports. The knowledge token above
       # carries the `search` scope (the KnowledgeSearch tool).
       CORE_WORKER_STAGE_PORTS: ${CORE_WORKER_STAGE_PORTS:-none}
+      # M14.6: `exceptions` scripts S7's fakes to raise Q1, X2, E2 and E6 for the e2e (FACTORY_ENV=local only)
+      CORE_WORKER_FAKE_VERIFY: ${CORE_WORKER_FAKE_VERIFY:-default}
+      FACTORY_ENV: local
       CORE_WORKER_GATEWAY_URL: http://gateway:8410
       CORE_WORKER_GATEWAY_TOKEN_REF: file:/run/secrets/tok-core-worker-gateway
       CORE_WORKER_AGENT_EXTRA_MODELS: fake-model
@@ -887,13 +902,25 @@ services:
       BFF_NOTIFIER_URL: http://notifier:8460
       BFF_NOTIFIER_TOKEN_REF: file:/run/secrets/tok-bff-notifier
       BFF_WEB_DIR: /app/services/web/dist
+      # M14.6: the S7 tab's gate-check runs (scope read). gate-check is in a profile: when it is not running the
+      # portal shows the runs as unknown, never as passing.
+      BFF_GATE_CHECK_URL: http://gate-check:8450
+      BFF_GATE_CHECK_TOKEN_REF: file:/run/secrets/tok-bff-gate-check
       # Plain http on localhost only; behind TLS this is true.
       BFF_COOKIE_SECURE: 'false'
       BFF_HOST: 0.0.0.0
       BFF_PORT: '8340'
     ports:
       - '127.0.0.1:8340:8340'
-    secrets: [db-url-aisdlc, bff-oidc-client-secret, tok-bff-kms, tok-bff-core, tok-bff-notifier]
+    secrets:
+      [
+        db-url-aisdlc,
+        bff-oidc-client-secret,
+        tok-bff-kms,
+        tok-bff-core,
+        tok-bff-gate-check,
+        tok-bff-notifier,
+      ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
       interval: 5s
@@ -906,7 +933,7 @@ services:
       kms-local: { condition: service_healthy }
       dev-oidc: { condition: service_healthy }
       core: { condition: service_healthy }
-    networks: [edge, data-record, kms-clients, notifier-api]
+    networks: [edge, data-record, kms-clients, gatecheck-api, notifier-api]
     mem_limit: 256m
 
   # The dev identity provider (FACTORY_ENV=local only: it refuses to start otherwise). The browser
@@ -1109,7 +1136,8 @@ services:
     environment:
       GATE_CHECK_DATABASE_URL: file:/run/secrets/db-url-gate-check
       GATE_CHECK_CALLERS: >-
-        {"operator":{"token_ref":"file:/run/secrets/tok-operator-gate-check","scopes":["read"]}}
+        {"operator":{"token_ref":"file:/run/secrets/tok-operator-gate-check","scopes":["read"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-gate-check","scopes":["read"]}}
       GATE_CHECK_APP_ID: ${GATE_CHECK_APP_ID:-654321}
       GATE_CHECK_INSTALLATION_ID: ${GATE_CHECK_INSTALLATION_ID:-2}
       GATE_CHECK_APP_KEY_REF: file:/run/secrets/gate-check-app.pem
@@ -1130,6 +1158,7 @@ services:
         gate-check-app.pem,
         tok-gate-check-kms,
         tok-operator-gate-check,
+        tok-bff-gate-check,
         object-store-access-key,
         object-store-secret-key,
       ]
@@ -1143,7 +1172,15 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
-    networks: [data-gatecheck, kms-clients, objectstore-api, gatecheck-github, gatecheck-egress]
+    networks:
+      [
+        data-gatecheck,
+        kms-clients,
+        objectstore-api,
+        gatecheck-github,
+        gatecheck-egress,
+        gatecheck-api,
+      ]
     mem_limit: 192m
 
   # The notifier (M18; ADR-0003 §1 Integration plane): Slack (incoming webhook) and email (SMTP) delivery of what waits

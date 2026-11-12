@@ -222,6 +222,16 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'slots', slots: ['design'] }],
     log_allow: true,
   },
+  // M14.6: D5 on a human-led (L8) item. The flow names no developer slot; the design slot, which also writes a plan
+  // by hand (B5), says the work is done. S7 then checks it and G4 decides it.
+  'item.human_done': {
+    action_id: 'item.human_done',
+    description: 'Say the human-led work of an L8 item is done (D5): S7 checks it next',
+    class: 'write',
+    resource_types: ['Item'],
+    grants: [{ kind: 'slots', slots: ['design'] }],
+    log_allow: true,
+  },
   'project.view': {
     action_id: 'project.view',
     description: 'See a project and its settings',

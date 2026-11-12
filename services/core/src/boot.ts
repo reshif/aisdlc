@@ -12,7 +12,7 @@ import { HttpNotary } from '@aisdlc/notary/client';
 import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
 import { BootstrapPdpEntities } from '@aisdlc/onboarding';
-import { HttpCodeHostReads } from '@aisdlc/ports';
+import { HttpCodeHostReads, S3ObjectStore } from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreApp } from './app.js';
 import { BootstrapEligibility } from './bootstrap.js';
@@ -151,6 +151,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(config ? { config } : {}),
       ...(cards ? { cards } : {}),
       ...(assistant ? { assistant } : {}),
+      ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
       // B5 (M12.5): a hand-written plan is made against the merged head knowledge's census names
       ...(cfg.cards
         ? {

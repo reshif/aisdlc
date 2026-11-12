@@ -361,3 +361,44 @@ describe('observed signals during G3d (B4, R2) and the human-written plan (B5)',
     void provider;
   });
 });
+
+describe('D5 over HTTP (M14.6): the human-led work of an L8 item is done', () => {
+  let item: string;
+  beforeAll(async () => {
+    const seeded = await seedActivePrr(s, { level: 'full', gating: GATING_OFF });
+    approvers(s, seeded.project, ['bob']);
+    await bindProject(s.id, seeded.project, { requesters: ['ria'], design: ['dee'] });
+    const sub = await submitRequest(s.deps, {
+      project_id: pid(seeded.project),
+      repo: seeded.repo,
+      lane: 'L8',
+      requester: pr('ria'),
+      channel: 'N1',
+      text: 'A human-led change.',
+    });
+    if (!sub.ok) throw new Error(sub.error.message);
+    item = sub.value.item_id as string;
+    await runItem(s, driverOver(s), item, {
+      approver: 'ria',
+      stop: (st) => st.waiting?.kind === 'human' && st.waiting.what === 'human_led',
+    });
+    expect((await state(item))?.waiting).toEqual({ kind: 'human', what: 'human_led' });
+  });
+
+  it('needs the work scope and the PDP (design slot); then it is one signal, a retry is a duplicate', async () => {
+    const path = `/v1/items/${item}/human-done`;
+    expect((await post(path, { on_behalf_of: 'dee', key: 'k1' }, TOKENS.reader)).status).toBe(403);
+    expect((await post(path, { on_behalf_of: 'ria', key: 'k1' })).status).toBe(403);
+    const r = await post(path, { on_behalf_of: 'dee', key: 'k1' });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(r.json.duplicate).toBe(false);
+    const again = await post(path, { on_behalf_of: 'dee', key: 'k1' });
+    expect(again.json.duplicate).toBe(true);
+    const evs = (await readItemEvents(s.record.pool, item)).filter(
+      (e) => e.type === ITEM_EVENT.human_work_done,
+    );
+    expect(evs).toHaveLength(1);
+    // a new key while the item is no longer waiting for the developer is a conflict
+    expect((await post(path, { on_behalf_of: 'dee', key: 'k2' })).status).toBe(409);
+  });
+});

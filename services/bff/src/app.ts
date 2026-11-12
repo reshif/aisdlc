@@ -32,6 +32,7 @@ import { registerAccessRoutes } from './access.js';
 import { registerAssistantRoutes } from './assistant.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerPortalRoutes } from './portal.js';
+import { levelsOn } from './levels.js';
 import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
 import { registerWebFiles } from './static.js';
 import type { StepUpIssuer } from './stepup/issuer.js';
@@ -83,6 +84,8 @@ export interface BffAppOptions {
   readonly core?: CoreClient;
   /** The notifier (M18), for `/api/me/notifications*`; without it they answer 503. Best effort: nothing else needs it. */
   readonly notifier?: CoreClient;
+  /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
+  readonly gateCheck?: CoreClient;
   /** The built web bundle (`index.html` and `assets/`) to serve; without it the bff serves only its API. */
   readonly webDir?: string;
   /** Overrides of `DEFAULT_RATE_LIMITS`. */
@@ -525,6 +528,8 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     core: o.core,
+    ...(o.gateCheck ? { gateCheck: o.gateCheck } : {}),
+    levelsOf: (principal, project) => levelsOn(o.pool, principal, project, clock.now()),
     principalOf: (req) => ctx(req).session.principal_id,
     namesOf: async (ids) => {
       const out: Record<string, string> = {};

@@ -30,6 +30,10 @@ import type {
   ProjectPrrView,
   ProjectSummary,
   S0Overview,
+  EvidencePackView,
+  GateCardContext,
+  GateCheckRunsView,
+  ItemVerifyView,
 } from '@aisdlc/contracts';
 import type { JsonSchema } from './lib/schema';
 
@@ -129,10 +133,17 @@ export interface GateCardWire {
   readonly deciders: { readonly slots: readonly string[]; readonly holders: readonly string[] };
   readonly decisions_allowed: readonly string[];
   readonly decision_reason: string | null;
-  /** The PDP's yes, the person holds the role, the card is open and no gate needs a step-up. */
+  /** The PDP's yes, the person holds the role and the card is open (a step-up gate asks for the proof first). */
   readonly may_decide: boolean;
+  /** Why not this person: the PDP's reasons first (`pdp_denied`), then `not_slot_holder`, `not_open`. */
+  readonly why_not?: { readonly code: string; readonly reasons: readonly string[] } | null;
   readonly principal_names: Readonly<Record<string, string>>;
 }
+
+/** `GET /api/cards/:id/gate/context`: what an exception or quarantine gate binds, with the names of its deciders. */
+export type GateContextWire = GateCardContext & {
+  readonly principal_names: Readonly<Record<string, string>>;
+};
 
 export interface GateCardPreparedWire {
   readonly card_id: string;
@@ -290,6 +301,8 @@ export const api = {
     request<GateArtefactsWire>('GET', `/api/cards/${encodeURIComponent(id)}/artefacts`),
   gateCard: (id: string) =>
     request<GateCardWire>('GET', `/api/cards/${encodeURIComponent(id)}/gate`),
+  gateContext: (id: string) =>
+    request<GateContextWire>('GET', `/api/cards/${encodeURIComponent(id)}/gate/context`),
   prepareGateCard: (id: string, csrf: string) =>
     request<GateCardPreparedWire>(
       'POST',
@@ -313,7 +326,7 @@ export const api = {
     b: {
       decision: 'approve' | 'request_changes' | 'reject';
       reason?: string;
-      votes: ReadonlyArray<{ nonce: string }>;
+      votes: ReadonlyArray<{ nonce: string; step_up?: { proof: string } }>;
     },
     csrf: string,
   ) =>
@@ -374,6 +387,18 @@ export const api = {
       csrf,
     ),
   item: (id: string) => request<PortalItemView>('GET', `/api/items/${encodeURIComponent(id)}`),
+  itemVerify: (id: string, head?: string) =>
+    request<ItemVerifyView>(
+      'GET',
+      `/api/items/${encodeURIComponent(id)}/verify${head ? `?head=${encodeURIComponent(head)}` : ''}`,
+    ),
+  itemEvidence: (id: string, pack?: string) =>
+    request<EvidencePackView>(
+      'GET',
+      `/api/items/${encodeURIComponent(id)}/evidence${pack ? `?pack=${encodeURIComponent(pack)}` : ''}`,
+    ),
+  itemGateCheck: (id: string) =>
+    request<GateCheckRunsView>('GET', `/api/items/${encodeURIComponent(id)}/gate-check`),
   itemReady: (id: string, csrf: string) =>
     request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/ready`, {}, csrf),
   itemAnswer: (id: string, b: { question_id: string; text: string }, csrf: string) =>
@@ -424,3 +449,7 @@ export const api = {
       `/api/projects/${encodeURIComponent(project)}/ledger${s0 ? `?s0=${encodeURIComponent(s0)}` : ''}`,
     ),
 };
+
+/** Where the browser downloads a pack's signed bytes (a plain GET with the session cookie). */
+export const signedPackHref = (item: string, pack: string): string =>
+  `/api/items/${encodeURIComponent(item)}/evidence/${encodeURIComponent(pack)}/signed`;

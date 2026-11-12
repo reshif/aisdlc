@@ -168,7 +168,11 @@ export async function decideGateCard(
   }
   const r = await decideCard(d, {
     card_id: o.card_id,
-    votes: o.votes.map((v) => ({ nonce: v.nonce, decision: o.decision })),
+    votes: o.votes.map((v) => ({
+      nonce: v.nonce,
+      decision: o.decision,
+      ...(v.step_up ? { step_up: { proof: v.step_up.proof } } : {}),
+    })),
     ...(reason === '' ? {} : { payload: [{ kind: 'decision_reason', text: reason }] }),
   });
   return r.ok ? ok(r.value) : err(decisionRefusal(r.error));
