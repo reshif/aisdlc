@@ -1,4 +1,11 @@
-import { S0_EVENT, S0FullProposedPayload, s0Stream, type FullBaseline } from '@aisdlc/contracts';
+import {
+  S0_EVENT,
+  S0FullProposedPayload,
+  ServiceEnvironment,
+  StagingSeparation,
+  s0Stream,
+  type FullBaseline,
+} from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import { buildFullBaseline, ff1Of, type C3Context } from '@aisdlc/onboarding';
 import { scanText } from '@aisdlc/secrets-rules';
@@ -95,7 +102,7 @@ export interface C3Ctx extends C3Context {
 export function c3Context(loaded: LoadedS0, card: OnboardingCard): Result<C3Ctx, CoreError> {
   const baseline = fullBaselineOf(loaded, card.occurrence);
   if (!baseline) return err(coreError('conflict', 'card 3 has no recorded baseline'));
-  return ok({ baseline, occurrence: card.occurrence });
+  return ok({ baseline, occurrence: card.occurrence, project_id: loaded.s0.record.project_id });
 }
 
 /**
@@ -124,6 +131,12 @@ export function c3View(c: C3Ctx, s0: LoadedS0['s0']): Record<string, unknown> {
     exclusion: b.exclusion,
     golden_candidates: b.golden_candidates,
     golden_verdicts: ['accept', 'reject'],
+    // FF2 (L5 only): the services and environments, and whether staging is separated from production
+    service_envs: {
+      environments: ServiceEnvironment.options,
+      staging_separation: StagingSeparation.options,
+      rule: 'L5 opens only when staging separation is attested yes and a service runs in both staging and production',
+    },
     oracle_lock: b.oracle_lock,
     intent_questions: b.intent_questions,
     rules: {

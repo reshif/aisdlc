@@ -1,5 +1,7 @@
 import {
   C3DecisionContent,
+  ff2Of,
+  serviceEnvId,
   type CardPayloadItem,
   type FullBaseline,
   type PrrAffirmedFull,
@@ -18,6 +20,8 @@ import { ff1Of, type FullRefusal } from './baseline.js';
 //   - every seed has a verdict, a correction only with `correct`; affirm and correct make it
 //     `intended`, `keep_observed` leaves it `observed` (FF1 holds either way);
 //   - every golden-task candidate is accepted or rejected;
+//   - FF2 (L5 only): the services declared once each, their ServiceEnvs and the staging-separation attestation;
+//     FF2 is met only for `yes` with a service in both staging and production (`ff2Of`); optional, unmet without;
 //   - nothing a person typed holds a secret or a blocking lint finding (a corrected seed reaches agents
 //     as data). Pure.
 
@@ -26,6 +30,8 @@ const refuse = (code: FullRefusal['code'], message: string): Result<never, FullR
 
 export interface C3Context {
   readonly baseline: FullBaseline;
+  /** The project the ServiceEnvs belong to (absent: the baseline's repository names them). */
+  readonly project_id?: string;
 }
 
 const hasSecret = (s: string): boolean => scanText(s).length > 0;
@@ -153,6 +159,33 @@ export function planC3(ctx: C3Context, content: unknown): Result<CardPayloadItem
     .map((c) => c.candidate_id)
     .filter((id) => !accepted.includes(id));
 
+  // ---- FF2 (L5 only): the services, their environments and the staging-separation attestation
+  const envRows: CardPayloadItem[] = [];
+  if (d.service_envs !== undefined) {
+    const decl = d.service_envs;
+    const names = decl.services.map((x) => x.service);
+    if (new Set(names).size !== names.length) {
+      return refuse('invalid_input', 'a service is declared twice');
+    }
+    const project = ctx.project_id ?? b.repo;
+    const envs = decl.services
+      .flatMap((x) =>
+        [...new Set(x.environments)].map((environment) => ({
+          service_env_id: serviceEnvId(project, x.service, environment),
+          service: x.service,
+          environment,
+        })),
+      )
+      .sort((a, z) => (a.service_env_id < z.service_env_id ? -1 : 1));
+    envRows.push({
+      kind: 'service_envs',
+      envs,
+      staging_separation: decl.staging_separation,
+      ff2: ff2Of(decl).state,
+      envs_hash: hashCanonical({ envs, staging_separation: decl.staging_separation }) as never,
+    });
+  }
+
   return ok([
     {
       kind: 'full_baseline',
@@ -195,6 +228,7 @@ export function planC3(ctx: C3Context, content: unknown): Result<CardPayloadItem
         candidates: b.golden_candidates.filter((c) => accepted.includes(c.candidate_id)),
       }) as never,
     },
+    ...envRows,
   ] as CardPayloadItem[]);
 }
 
@@ -208,6 +242,7 @@ export function affirmedFullFrom(
   const exam = payload.find((p) => p.kind === 'exam_score');
   const seeds = payload.find((p) => p.kind === 'seeds_summary');
   const golden = payload.find((p) => p.kind === 'golden_selection');
+  const envs = payload.find((p) => p.kind === 'service_envs');
   if (
     base?.kind !== 'full_baseline' ||
     intent?.kind !== 'intent_answers' ||
@@ -242,5 +277,15 @@ export function affirmedFullFrom(
     },
     golden: { accepted: golden.accepted.length, golden_hash: golden.golden_hash },
     oracle_lock_hash: base.oracle_lock_hash,
+    ...(envs?.kind === 'service_envs'
+      ? {
+          service_envs: {
+            envs: envs.envs,
+            staging_separation: envs.staging_separation,
+            ff2: envs.ff2,
+            envs_hash: envs.envs_hash,
+          },
+        }
+      : {}),
   });
 }

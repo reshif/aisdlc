@@ -447,7 +447,11 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
   }
   // Per area (DEC-25(a)): each area's floors can only lower it below the signed level; each area opens the lanes
   // of its own level, and the repo as a whole (a request that names no area) the lanes of the LOWEST area.
-  const ff2 = census.floors.find((f) => f.id === 'FF2')?.status === 'met';
+  // FF2 (L5 only): the census never evaluates it; card 3's ServiceEnv declaration does (`ff2Of`), and only a Full
+  // record carries one. Unknown is unmet.
+  const ff2 =
+    census.floors.find((f) => f.id === 'FF2')?.status === 'met' ||
+    i.affirmed?.full?.service_envs?.ff2 === 'met';
   const redLanes = AUTONOMY.posture[posture].census_lanes_only;
   const lanesAt = (level: Level): Lane[] =>
     eligibleLanes(

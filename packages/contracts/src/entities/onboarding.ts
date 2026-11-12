@@ -1,3 +1,4 @@
+import { Ff2State, ServiceEnv, StagingSeparation } from './service-env.js';
 import { z } from 'zod';
 import { ProbeId } from './onboarding-probe.js';
 import { ReleaseSetting } from './gate-relay.js';
@@ -290,6 +291,14 @@ export const CardPayloadItem = z.discriminatedUnion('kind', [
     intended: z.number().int().min(0),
     observed: z.number().int().min(0),
     seeds_hash: Sha256Hex,
+  }),
+  /** Card 3: the ServiceEnvs declared and the staging-separation attestation (FF2, L5 only). */
+  z.strictObject({
+    kind: z.literal('service_envs'),
+    envs: z.array(ServiceEnv),
+    staging_separation: StagingSeparation,
+    ff2: Ff2State,
+    envs_hash: Sha256Hex,
   }),
   /** Card 3: which golden-task candidates the person accepted (the rest are rejected). */
   z.strictObject({

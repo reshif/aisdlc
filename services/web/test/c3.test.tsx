@@ -131,4 +131,28 @@ describe('card 3', { timeout: 20_000 }, () => {
       golden: [{ candidate_id: 'gt-0000000000000001', verdict: 'accept' }],
     });
   });
+
+  it('FF2: a service in staging and production attested separate is sent with the decision and reads met', async () => {
+    const user = userEvent.setup();
+    const m = mockApi(routes({ [`POST /api/cards/${CARD_ID}/decide`]: { json: decided() } }));
+    renderAt(`/cards/${CARD_ID}`);
+    await ready();
+    await fillAll(user);
+    expect(screen.getByTestId('ff2-state')).toHaveTextContent('unmet');
+    await user.type(screen.getByLabelText('Service name'), 'api');
+    expect(screen.getByRole('button', { name: 'Affirm the Full baseline' })).toBeDisabled();
+    await user.click(screen.getByLabelText('staging'));
+    await user.click(screen.getByLabelText('production'));
+    await user.click(screen.getByLabelText('Yes: separate accounts, data and credentials'));
+    expect(screen.getByTestId('ff2-state')).toHaveTextContent('met');
+    await user.click(screen.getByRole('button', { name: 'Affirm the Full baseline' }));
+    await screen.findByTestId('receipt');
+    const body = m.calls.find((c) => c.path === `/api/cards/${CARD_ID}/decide`)?.body as {
+      content: Record<string, unknown>;
+    };
+    expect(body.content['service_envs']).toEqual({
+      services: [{ service: 'api', environments: ['staging', 'production'] }],
+      staging_separation: 'yes',
+    });
+  });
 });

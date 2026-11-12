@@ -1,3 +1,4 @@
+import { PrrServiceEnvs, ServiceEnvDeclaration } from './service-env.js';
 import { z } from 'zod';
 import { hashCanonical } from '@aisdlc/kernel';
 import { RepoFullName } from './codehost.js';
@@ -314,6 +315,8 @@ export const C3DecisionContent = z.strictObject({
   golden: z
     .array(z.strictObject({ candidate_id: z.string().min(1), verdict: GoldenVerdict }))
     .max(MAX_GOLDEN_CANDIDATES),
+  /** FF2 (L5 only): the services, their environments and the staging-separation attestation. Optional. */
+  service_envs: ServiceEnvDeclaration.optional(),
 });
 export type C3DecisionContent = z.infer<typeof C3DecisionContent>;
 
@@ -341,5 +344,7 @@ export const PrrAffirmedFull = z.strictObject({
   }),
   golden: z.strictObject({ accepted: z.number().int().min(0), golden_hash: Sha256Hex }),
   oracle_lock_hash: Sha256Hex,
+  /** FF2 and the ServiceEnvs card 3 declared (absent: none declared, FF2 unmet). */
+  service_envs: PrrServiceEnvs.optional(),
 });
 export type PrrAffirmedFull = z.infer<typeof PrrAffirmedFull>;

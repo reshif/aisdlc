@@ -10226,6 +10226,55 @@
             ],
             "additionalProperties": false
           }
+        },
+        "service_envs": {
+          "type": "object",
+          "properties": {
+            "services": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "service": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                  },
+                  "environments": {
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "development",
+                        "staging",
+                        "production"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "service",
+                  "environments"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "staging_separation": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "not_applicable"
+              ]
+            }
+          },
+          "required": [
+            "services",
+            "staging_separation"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -11354,6 +11403,72 @@
                   "intended",
                   "observed",
                   "seeds_hash"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "service_envs"
+                  },
+                  "envs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "service_env_id": {
+                          "type": "string",
+                          "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                        },
+                        "service": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": [
+                            "development",
+                            "staging",
+                            "production"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "service_env_id",
+                        "service",
+                        "environment"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "staging_separation": {
+                    "type": "string",
+                    "enum": [
+                      "yes",
+                      "no",
+                      "not_applicable"
+                    ]
+                  },
+                  "ff2": {
+                    "type": "string",
+                    "enum": [
+                      "met",
+                      "unmet"
+                    ]
+                  },
+                  "envs_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "envs",
+                  "staging_separation",
+                  "ff2",
+                  "envs_hash"
                 ],
                 "additionalProperties": false
               },
@@ -13478,6 +13593,72 @@
           "properties": {
             "kind": {
               "type": "string",
+              "const": "service_envs"
+            },
+            "envs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "service_env_id": {
+                    "type": "string",
+                    "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                  },
+                  "service": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                  },
+                  "environment": {
+                    "type": "string",
+                    "enum": [
+                      "development",
+                      "staging",
+                      "production"
+                    ]
+                  }
+                },
+                "required": [
+                  "service_env_id",
+                  "service",
+                  "environment"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "staging_separation": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "not_applicable"
+              ]
+            },
+            "ff2": {
+              "type": "string",
+              "enum": [
+                "met",
+                "unmet"
+              ]
+            },
+            "envs_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "kind",
+            "envs",
+            "staging_separation",
+            "ff2",
+            "envs_hash"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
               "const": "golden_selection"
             },
             "accepted": {
@@ -14714,6 +14895,72 @@
                   "intended",
                   "observed",
                   "seeds_hash"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "service_envs"
+                  },
+                  "envs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "service_env_id": {
+                          "type": "string",
+                          "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                        },
+                        "service": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": [
+                            "development",
+                            "staging",
+                            "production"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "service_env_id",
+                        "service",
+                        "environment"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "staging_separation": {
+                    "type": "string",
+                    "enum": [
+                      "yes",
+                      "no",
+                      "not_applicable"
+                    ]
+                  },
+                  "ff2": {
+                    "type": "string",
+                    "enum": [
+                      "met",
+                      "unmet"
+                    ]
+                  },
+                  "envs_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "envs",
+                  "staging_separation",
+                  "ff2",
+                  "envs_hash"
                 ],
                 "additionalProperties": false
               },
@@ -38131,6 +38378,13 @@
         "quorum"
       ],
       "additionalProperties": false
+    },
+    "Ff2State": {
+      "type": "string",
+      "enum": [
+        "met",
+        "unmet"
+      ]
     },
     "FileAtSha": {
       "type": "object",
@@ -79170,6 +79424,67 @@
                             "oracle_lock_hash": {
                               "type": "string",
                               "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "service_envs": {
+                              "type": "object",
+                              "properties": {
+                                "envs": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "service_env_id": {
+                                        "type": "string",
+                                        "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                                      },
+                                      "service": {
+                                        "type": "string",
+                                        "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                                      },
+                                      "environment": {
+                                        "type": "string",
+                                        "enum": [
+                                          "development",
+                                          "staging",
+                                          "production"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "service_env_id",
+                                      "service",
+                                      "environment"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "staging_separation": {
+                                  "type": "string",
+                                  "enum": [
+                                    "yes",
+                                    "no",
+                                    "not_applicable"
+                                  ]
+                                },
+                                "ff2": {
+                                  "type": "string",
+                                  "enum": [
+                                    "met",
+                                    "unmet"
+                                  ]
+                                },
+                                "envs_hash": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{64}$"
+                                }
+                              },
+                              "required": [
+                                "envs",
+                                "staging_separation",
+                                "ff2",
+                                "envs_hash"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "required": [
@@ -81126,6 +81441,67 @@
                                   "oracle_lock_hash": {
                                     "type": "string",
                                     "pattern": "^[0-9a-f]{64}$"
+                                  },
+                                  "service_envs": {
+                                    "type": "object",
+                                    "properties": {
+                                      "envs": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "service_env_id": {
+                                              "type": "string",
+                                              "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                                            },
+                                            "service": {
+                                              "type": "string",
+                                              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                                            },
+                                            "environment": {
+                                              "type": "string",
+                                              "enum": [
+                                                "development",
+                                                "staging",
+                                                "production"
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "service_env_id",
+                                            "service",
+                                            "environment"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "staging_separation": {
+                                        "type": "string",
+                                        "enum": [
+                                          "yes",
+                                          "no",
+                                          "not_applicable"
+                                        ]
+                                      },
+                                      "ff2": {
+                                        "type": "string",
+                                        "enum": [
+                                          "met",
+                                          "unmet"
+                                        ]
+                                      },
+                                      "envs_hash": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "envs",
+                                      "staging_separation",
+                                      "ff2",
+                                      "envs_hash"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "required": [
@@ -83019,6 +83395,67 @@
                 "oracle_lock_hash": {
                   "type": "string",
                   "pattern": "^[0-9a-f]{64}$"
+                },
+                "service_envs": {
+                  "type": "object",
+                  "properties": {
+                    "envs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "service_env_id": {
+                            "type": "string",
+                            "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                          },
+                          "service": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                          },
+                          "environment": {
+                            "type": "string",
+                            "enum": [
+                              "development",
+                              "staging",
+                              "production"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "service_env_id",
+                          "service",
+                          "environment"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "staging_separation": {
+                      "type": "string",
+                      "enum": [
+                        "yes",
+                        "no",
+                        "not_applicable"
+                      ]
+                    },
+                    "ff2": {
+                      "type": "string",
+                      "enum": [
+                        "met",
+                        "unmet"
+                      ]
+                    },
+                    "envs_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "envs",
+                    "staging_separation",
+                    "ff2",
+                    "envs_hash"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -85880,6 +86317,67 @@
             "oracle_lock_hash": {
               "type": "string",
               "pattern": "^[0-9a-f]{64}$"
+            },
+            "service_envs": {
+              "type": "object",
+              "properties": {
+                "envs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "service_env_id": {
+                        "type": "string",
+                        "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                      },
+                      "service": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                      },
+                      "environment": {
+                        "type": "string",
+                        "enum": [
+                          "development",
+                          "staging",
+                          "production"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "service_env_id",
+                      "service",
+                      "environment"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "staging_separation": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "not_applicable"
+                  ]
+                },
+                "ff2": {
+                  "type": "string",
+                  "enum": [
+                    "met",
+                    "unmet"
+                  ]
+                },
+                "envs_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "envs",
+                "staging_separation",
+                "ff2",
+                "envs_hash"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -86050,6 +86548,67 @@
         "oracle_lock_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "service_envs": {
+          "type": "object",
+          "properties": {
+            "envs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "service_env_id": {
+                    "type": "string",
+                    "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                  },
+                  "service": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                  },
+                  "environment": {
+                    "type": "string",
+                    "enum": [
+                      "development",
+                      "staging",
+                      "production"
+                    ]
+                  }
+                },
+                "required": [
+                  "service_env_id",
+                  "service",
+                  "environment"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "staging_separation": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "not_applicable"
+              ]
+            },
+            "ff2": {
+              "type": "string",
+              "enum": [
+                "met",
+                "unmet"
+              ]
+            },
+            "envs_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "envs",
+            "staging_separation",
+            "ff2",
+            "envs_hash"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -88289,6 +88848,67 @@
                     "oracle_lock_hash": {
                       "type": "string",
                       "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "service_envs": {
+                      "type": "object",
+                      "properties": {
+                        "envs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "service_env_id": {
+                                "type": "string",
+                                "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                              },
+                              "service": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                              },
+                              "environment": {
+                                "type": "string",
+                                "enum": [
+                                  "development",
+                                  "staging",
+                                  "production"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "service_env_id",
+                              "service",
+                              "environment"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "staging_separation": {
+                          "type": "string",
+                          "enum": [
+                            "yes",
+                            "no",
+                            "not_applicable"
+                          ]
+                        },
+                        "ff2": {
+                          "type": "string",
+                          "enum": [
+                            "met",
+                            "unmet"
+                          ]
+                        },
+                        "envs_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "envs",
+                        "staging_separation",
+                        "ff2",
+                        "envs_hash"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -89292,6 +89912,67 @@
       },
       "required": [
         "history_scan"
+      ],
+      "additionalProperties": false
+    },
+    "PrrServiceEnvs": {
+      "type": "object",
+      "properties": {
+        "envs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "service_env_id": {
+                "type": "string",
+                "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+              },
+              "service": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+              },
+              "environment": {
+                "type": "string",
+                "enum": [
+                  "development",
+                  "staging",
+                  "production"
+                ]
+              }
+            },
+            "required": [
+              "service_env_id",
+              "service",
+              "environment"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "staging_separation": {
+          "type": "string",
+          "enum": [
+            "yes",
+            "no",
+            "not_applicable"
+          ]
+        },
+        "ff2": {
+          "type": "string",
+          "enum": [
+            "met",
+            "unmet"
+          ]
+        },
+        "envs_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "envs",
+        "staging_separation",
+        "ff2",
+        "envs_hash"
       ],
       "additionalProperties": false
     },
@@ -90685,6 +91366,67 @@
                     "oracle_lock_hash": {
                       "type": "string",
                       "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "service_envs": {
+                      "type": "object",
+                      "properties": {
+                        "envs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "service_env_id": {
+                                "type": "string",
+                                "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                              },
+                              "service": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                              },
+                              "environment": {
+                                "type": "string",
+                                "enum": [
+                                  "development",
+                                  "staging",
+                                  "production"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "service_env_id",
+                              "service",
+                              "environment"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "staging_separation": {
+                          "type": "string",
+                          "enum": [
+                            "yes",
+                            "no",
+                            "not_applicable"
+                          ]
+                        },
+                        "ff2": {
+                          "type": "string",
+                          "enum": [
+                            "met",
+                            "unmet"
+                          ]
+                        },
+                        "envs_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "envs",
+                        "staging_separation",
+                        "ff2",
+                        "envs_hash"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -99712,6 +100454,94 @@
         "keep_observed"
       ]
     },
+    "ServiceEnv": {
+      "type": "object",
+      "properties": {
+        "service_env_id": {
+          "type": "string",
+          "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+        },
+        "service": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "environment": {
+          "type": "string",
+          "enum": [
+            "development",
+            "staging",
+            "production"
+          ]
+        }
+      },
+      "required": [
+        "service_env_id",
+        "service",
+        "environment"
+      ],
+      "additionalProperties": false
+    },
+    "ServiceEnvDeclaration": {
+      "type": "object",
+      "properties": {
+        "services": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "service": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+              },
+              "environments": {
+                "minItems": 1,
+                "maxItems": 3,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "development",
+                    "staging",
+                    "production"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "service",
+              "environments"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "staging_separation": {
+          "type": "string",
+          "enum": [
+            "yes",
+            "no",
+            "not_applicable"
+          ]
+        }
+      },
+      "required": [
+        "services",
+        "staging_separation"
+      ],
+      "additionalProperties": false
+    },
+    "ServiceEnvironment": {
+      "type": "string",
+      "enum": [
+        "development",
+        "staging",
+        "production"
+      ]
+    },
+    "ServiceName": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+    },
     "SessionChange": {
       "type": "object",
       "properties": {
@@ -103336,6 +104166,14 @@
         "catalogue_ref"
       ],
       "additionalProperties": false
+    },
+    "StagingSeparation": {
+      "type": "string",
+      "enum": [
+        "yes",
+        "no",
+        "not_applicable"
+      ]
     },
     "StartCensusIntakeRequest": {
       "type": "object",

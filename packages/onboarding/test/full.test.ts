@@ -1,6 +1,7 @@
 import {
   FULL_INTENT_QUESTIONS,
   FullBaseline,
+  ff2Of,
   fullBaselineHash,
   type FullBaseline as Baseline,
 } from '@aisdlc/contracts';
@@ -283,5 +284,73 @@ describe('card 3 (plan)', () => {
     const truncated = build({ truncated: true });
     if (!truncated.ok) throw new Error('no baseline');
     expect(no(c3Content(truncated.value), truncated.value).message).toMatch(/FF1/);
+  });
+});
+
+describe('FF2 and ServiceEnv (L5 only; OB 3.2, DM 3.2)', () => {
+  const decl = (staging_separation: string, envs: string[] = ['staging', 'production']) => ({
+    service_envs: {
+      services: [
+        { service: 'api', environments: envs },
+        { service: 'worker', environments: ['production'] },
+      ],
+      staging_separation,
+    },
+  });
+
+  it('declared and attested yes, with staging and production: FF2 met, a ServiceEnv per environment', () => {
+    const b = baseline();
+    const r = planC3({ baseline: b, project_id: 'acme' }, c3Content(b, decl('yes')));
+    if (!r.ok) throw new Error(r.error.message);
+    const row = r.value.find((x) => x.kind === 'service_envs');
+    expect(row).toMatchObject({ ff2: 'met', staging_separation: 'yes' });
+    expect(row?.kind === 'service_envs' && row.envs.map((e) => e.service_env_id)).toEqual([
+      'senv:acme:api:production',
+      'senv:acme:api:staging',
+      'senv:acme:worker:production',
+    ]);
+    const a = affirmedFullFrom(r.value, { decided_by: 'alice' });
+    expect(a.ok && a.value.service_envs).toMatchObject({ ff2: 'met' });
+  });
+
+  it('unknown is unmet: no, not applicable, no staging, or no declaration leaves FF2 unmet', () => {
+    const b = baseline();
+    for (const over of [decl('no'), decl('not_applicable'), decl('yes', ['production'])]) {
+      const r = planC3({ baseline: b, project_id: 'acme' }, c3Content(b, over));
+      if (!r.ok) throw new Error(r.error.message);
+      expect(r.value.find((x) => x.kind === 'service_envs')).toMatchObject({ ff2: 'unmet' });
+    }
+    const none = planC3({ baseline: b }, c3Content(b));
+    expect(none.ok && none.value.some((x) => x.kind === 'service_envs')).toBe(false);
+    const a = none.ok ? affirmedFullFrom(none.value, { decided_by: 'alice' }) : null;
+    expect(a?.ok && a.value.service_envs).toBeUndefined();
+    expect(ff2Of(null)).toMatchObject({ state: 'unmet' });
+  });
+
+  it('a service declared twice or a name that is not a service name is refused', () => {
+    const b = baseline();
+    const twice = planC3(
+      { baseline: b },
+      c3Content(b, {
+        service_envs: {
+          services: [
+            { service: 'api', environments: ['staging'] },
+            { service: 'api', environments: ['production'] },
+          ],
+          staging_separation: 'yes',
+        },
+      }),
+    );
+    expect(!twice.ok && twice.error.code).toBe('invalid_input');
+    const url = planC3(
+      { baseline: b },
+      c3Content(b, {
+        service_envs: {
+          services: [{ service: 'https://prod.example', environments: ['production'] }],
+          staging_separation: 'yes',
+        },
+      }),
+    );
+    expect(!url.ok && url.error.code).toBe('invalid_input');
   });
 });

@@ -19,6 +19,7 @@ import { makeCanary } from '@aisdlc/secrets-rules';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CorePushGuards,
+  laneEligibility,
   listReonboardProposals,
   rebuildKnowledgeDefects,
   recordKnowledgeDefects,
@@ -552,17 +553,59 @@ describe('knowledge defects as a re-onboarding trigger (M17, OB §8)', () => {
       detail: 'kept as data',
     }) as KnowledgeDefect;
 
-  async function signedFull(): Promise<Scn> {
+  async function signedFull(over: Record<string, unknown> = {}): Promise<Scn> {
     const c = await toFull();
     await sync(c);
     const card = await actionable(c, 'C3');
     const d = await detail(c, card.card_id);
-    ok(await decideAs(c, card.card_id, 'alice', 'approve', c3Content(d.view)));
+    ok(await decideAs(c, card.card_id, 'alice', 'approve', c3Content(d.view, over)));
     await h.throughC4(c, { attestations: ATTEST });
     const { card: c5 } = await h.toC5(c);
     ok(await decideAs(c, c5.card_id, 'alice', 'approve', {}));
     return c;
   }
+
+  it('FF2 with ServiceEnv: L5 opens only for a Full record whose card 3 attested staging separation', async () => {
+    const prrOf = async (c: Scn) =>
+      (
+        await s.record.pool.query<{ body: Json }>(
+          `SELECT body FROM record.record_event WHERE type = 'prr.proposed' AND body ->> 's0_id' = $1`,
+          [c.s0],
+        )
+      ).rows[0]?.body.prr;
+    const yes = await signedFull({
+      service_envs: {
+        services: [{ service: 'api', environments: ['staging', 'production'] }],
+        staging_separation: 'yes',
+      },
+    });
+    const p = await prrOf(yes);
+    expect(p.autonomy.lanes_eligible).toContain('L5');
+    expect(p.affirmed.full.service_envs).toMatchObject({
+      ff2: 'met',
+      staging_separation: 'yes',
+      envs: [
+        { service_env_id: `senv:${yes.project}:api:production`, environment: 'production' },
+        { service_env_id: `senv:${yes.project}:api:staging`, environment: 'staging' },
+      ],
+    });
+    const lane = await laneEligibility(s.record.pool, yes.repo, 'L5', s.clock);
+    expect(lane).toMatchObject({ eligible: true, route: 'normal' });
+
+    // attested no: FF2 unmet, L5 goes to L8 for the reason that says so
+    const no = await signedFull({
+      service_envs: {
+        services: [{ service: 'api', environments: ['staging', 'production'] }],
+        staging_separation: 'no',
+      },
+    });
+    expect((await prrOf(no)).autonomy.lanes_eligible).not.toContain('L5');
+    expect(await laneEligibility(s.record.pool, no.repo, 'L5', s.clock)).toMatchObject({
+      eligible: false,
+      route: 'l8',
+      reason: 'staging_separation_not_attested',
+    });
+  });
 
   it('the threshold is config, not a constant: one defect in 30 days trips it when the value says so', async () => {
     const c = await signedFull();

@@ -1,3 +1,9 @@
+import {
+  ServiceEnvironment,
+  StagingSeparation,
+  ff2Of,
+  type ServiceEnvDeclaration,
+} from '@aisdlc/contracts';
 import type {
   ExamGrade,
   ExamQuestion,
@@ -71,6 +77,11 @@ const EXCLUSION_TEXT = {
   generated_or_vendored: 'generated or vendored',
 } as const;
 const area = (a: string) => (a === '.' ? '. (repository root)' : a);
+const SEPARATION_TEXT = {
+  yes: 'Yes: separate accounts, data and credentials',
+  no: 'No',
+  not_applicable: 'Not applicable: there is no staging',
+} as const;
 
 interface Draft {
   seeds: Record<string, SeedVerdict | ''>;
@@ -141,6 +152,10 @@ export function C3Form({ card, csrf }: { card: CardDetailWire; csrf: string }) {
   const [grades, setGrades] = useState(draft.grades);
   const [golden, setGolden] = useState(draft.golden);
   const [intent, setIntent] = useState(draft.intent);
+  // FF2 (L5 only): one service and its environments, and whether staging is separated from production
+  const [service, setService] = useState('');
+  const [envs, setEnvs] = useState<ServiceEnvironment[]>([]);
+  const [separation, setSeparation] = useState<StagingSeparation | ''>('');
   useEffect(() => {
     try {
       sessionStorage.setItem(key, JSON.stringify({ seeds, corrections, grades, golden, intent }));
@@ -168,7 +183,25 @@ export function C3Form({ card, csrf }: { card: CardDetailWire; csrf: string }) {
     ...(v.golden_candidates.every((g) => (golden[g.candidate_id] ?? '') !== '')
       ? []
       : ['Accept or leave out every golden-task candidate.']),
+    ...(service.trim() !== '' && envs.length === 0
+      ? ['Pick the environments the service deploys to.']
+      : []),
+    ...(service.trim() !== '' && separation === ''
+      ? ['Say whether staging is separated from production.']
+      : []),
   ];
+  const serviceEnvs =
+    separation === ''
+      ? {}
+      : {
+          service_envs: {
+            services:
+              service.trim() === '' || envs.length === 0
+                ? []
+                : [{ service: service.trim().toLowerCase(), environments: envs }],
+            staging_separation: separation,
+          },
+        };
   const content = {
     baseline_hash: v.baseline.baseline_hash,
     intent_answers: v.intent_questions.map((q) => ({
@@ -191,7 +224,13 @@ export function C3Form({ card, csrf }: { card: CardDetailWire; csrf: string }) {
       candidate_id: g.candidate_id,
       verdict: golden[g.candidate_id] || 'reject',
     })),
+    ...serviceEnvs,
   };
+  const ff2 = ff2Of(
+    'service_envs' in serviceEnvs && serviceEnvs.service_envs
+      ? (serviceEnvs.service_envs as ServiceEnvDeclaration)
+      : null,
+  );
   const graded = Object.values(grades).filter((g) => g === 'correct' || g === 'incorrect').length;
   const right = Object.values(grades).filter((g) => g === 'correct').length;
 
@@ -387,7 +426,51 @@ export function C3Form({ card, csrf }: { card: CardDetailWire; csrf: string }) {
         <p>
           {v.oracle_lock.tests.length} test file(s){v.oracle_lock.truncated ? ' (and more)' : ''}{' '}
           would be locked as oracles. This is a proposal: it reaches the repository only through an
-          X2 decision.
+          X2 decision. Once you affirm, the lock and the seeds you made intended go to that X2 as a
+          draft pull request the factory never merges.
+        </p>
+      </Card>
+
+      <Card title="Staging separation (FF2, for L5 only)">
+        <p className="muted">
+          Optional. L5 opens only when staging is attested separate from production (accounts, data,
+          credentials) and a service runs in both. Without it, everything else at Full still opens.
+        </p>
+        <div className="field">
+          <label htmlFor="ff2-service">Service name</label>
+          <input
+            id="ff2-service"
+            maxLength={63}
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+          />
+        </div>
+        <fieldset className="options">
+          <legend>Environments it deploys to</legend>
+          {ServiceEnvironment.options.map((e) => (
+            <label key={e} className="radio">
+              <input
+                type="checkbox"
+                checked={envs.includes(e)}
+                onChange={() =>
+                  setEnvs(envs.includes(e) ? envs.filter((x) => x !== e) : [...envs, e])
+                }
+              />{' '}
+              {e}
+            </label>
+          ))}
+        </fieldset>
+        <Radios
+          name="ff2-separation"
+          legend="Is staging separated from production?"
+          options={StagingSeparation.options}
+          value={separation}
+          onChange={setSeparation}
+          labels={SEPARATION_TEXT}
+        />
+        <p data-testid="ff2-state">
+          FF2: <Pill tone={ff2.state === 'met' ? 'ok' : 'warn'}>{ff2.state}</Pill>{' '}
+          <span className="muted">{ff2.reasons.join('; ')}</span>
         </p>
       </Card>
 
