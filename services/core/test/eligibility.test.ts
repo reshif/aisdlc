@@ -183,6 +183,12 @@ describe('eligibility(repo, lane): the table (PLAN M7.6, DEC-8)', () => {
         },
         seeded_areas: ['.', 'docs'],
         graph_truncated: false,
+        // card 2: the root text covers every area; one affirmed claim about each (LF5, LF6 per area)
+        instruction_areas: ['.'],
+        claims: ['package.json', 'docs/a.md', 'lib/a.ts'].map((p) => ({
+          verdict: 'affirm' as const,
+          paths: [p],
+        })),
       },
     });
     expect(prr.level.by_area).toEqual({ '.': 'full', docs: 'census', lib: 'light' });

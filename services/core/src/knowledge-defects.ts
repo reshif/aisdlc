@@ -16,6 +16,7 @@ import {
   type KnowledgeDefectSource,
 } from '@aisdlc/contracts';
 import type { ConfigReader } from '@aisdlc/config';
+import { areaOfPath } from '@aisdlc/onboarding';
 import { hashCanonical, ok, type Result } from '@aisdlc/kernel';
 import type { Executor, Tx } from '@aisdlc/record';
 import type { CoreError } from './errors.js';
@@ -58,15 +59,8 @@ const repoPathOf = (d: KnowledgeDefect): string | null =>
     ? null
     : d.path;
 
-/** The area of `path`: the longest area that is a directory prefix of it, else `.`. */
-export function areaOfPath(path: string, areas: readonly string[]): string {
-  let best = CENSUS_AREA;
-  for (const a of areas) {
-    if (a === CENSUS_AREA) continue;
-    if ((path === a || path.startsWith(`${a}/`)) && a.length > best.length) best = a;
-  }
-  return best;
-}
+/** The area of `path` (the longest area that is a directory prefix of it, else `.`): `@aisdlc/onboarding`'s. */
+export { areaOfPath };
 
 // ---------------------------------------------------------------- read models
 

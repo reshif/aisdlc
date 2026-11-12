@@ -180,11 +180,13 @@ export const PrrPins = z.strictObject({
 });
 
 /**
- * The floors judged per area (DEC-25(a)): an area reaches Light only where it holds tests the factory can run
- * (LF3 in that area), and Full only where FF1 holds for it (the area is on the system map and has a spec seed).
- * The repo-wide floors (LF1-LF8, FF2) were judged for the whole repo before M4; these only lower an area.
+ * The floors judged per area (DEC-25(a); OB §3.2 "Light floors (LF), per area"): an area reaches Light only where it
+ * holds tests the factory can run (LF3 in that area), affirmed instruction text covers it (LF5) and at least 90% of
+ * the card 2 claims about it are affirmed or unknown (LF6; no claim about it is unknown), and Full only where FF1
+ * holds for it (the area is on the system map and has a spec seed). The repo-wide floors (LF1-LF8, FF2) were judged
+ * for the whole repo before M4; these only lower an area. Unknown is unmet.
  */
-export const AreaFloorId = z.enum(['LF3', 'FF1']);
+export const AreaFloorId = z.enum(['LF3', 'LF5', 'LF6', 'FF1']);
 export type AreaFloorId = z.infer<typeof AreaFloorId>;
 export const AreaFloorState = z.enum(['met', 'unmet', 'unknown']);
 export type AreaFloorState = z.infer<typeof AreaFloorState>;

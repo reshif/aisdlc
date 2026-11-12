@@ -71,6 +71,14 @@ const FACTS: Fact[] = [
     invocation: 'npm test',
     source: 'package.json#scripts',
   },
+  // a fact about packages/money, so card 2 holds a claim about that area too (LF6 per area, DEC-25)
+  {
+    kind: 'stack',
+    detector: 'stack',
+    evidence: [{ path: 'packages/money/package.json', blob: B('2'), line: 1 }],
+    category: 'manifest',
+    name: 'npm',
+  },
 ];
 
 const AGENTS_MD = '# app\n\n## Commands\n\n- test: `npm test`\n';
@@ -271,9 +279,11 @@ describe('card 3 (Full 0.3)', () => {
     expect(prr.autonomy.lanes_eligible).toEqual(expect.arrayContaining(['L4', 'L6']));
     // DEC-25: the levels per area of the system map, the table M4 binds to (in the record, so its hash)
     expect(prr.level.by_area).toEqual({ '.': 'full', 'packages/money': 'full' });
-    expect(prr.level.areas.map((a: Json) => [a.area, a.floors.map((f: Json) => f.state)])).toEqual([
-      ['.', ['met', 'met']],
-      ['packages/money', ['met', 'met']],
+    expect(
+      prr.level.areas.map((a: Json) => [a.area, a.floors.map((f: Json) => `${f.id}:${f.state}`)]),
+    ).toEqual([
+      ['.', ['LF3:met', 'LF5:met', 'LF6:met', 'FF1:met']],
+      ['packages/money', ['LF3:met', 'LF5:met', 'LF6:met', 'FF1:met']],
     ]);
     const kn7 = (prr.gaps as Json[]).filter((g) => g.criterion === 'RS-KN-7');
     expect(kn7.map((g) => g.status)).toEqual(['closed_verified']);
