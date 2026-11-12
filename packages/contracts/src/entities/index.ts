@@ -43,3 +43,4 @@ export * from './gate-check.js';
 export * from './notifications.js';
 export * from './conversation.js';
 export * from './portal-verify.js';
+export * from './portal-lists.js';

@@ -60,6 +60,8 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   BFF_NOTIFIER_URL, BFF_NOTIFIER_TOKEN_REF
  *                            the notifier's API and the bff's service token there (scope people); both or neither
  *                            (without them /api/me/notifications* answer 503; nothing else depends on it)
+ *   BFF_SANDBOX_CONTROLLER_URL, BFF_SANDBOX_CONTROLLER_TOKEN_REF
+ *                            optional: the sandbox-controller's slots for the portal's Sandboxes screen (scope read)
  *   BFF_GATE_CHECK_URL, BFF_GATE_CHECK_TOKEN_REF
  *                            gate-check's read API and the bff's token there (scope read; M14.6: the item page's
  *                            run status); both or neither (without them that status reads `unknown`)
@@ -142,6 +144,23 @@ export async function bootBff(env: Env): Promise<RunningService> {
         token: resolveSecretRef(requiredEnv(env, 'BFF_GATE_CHECK_TOKEN_REF'), { env }),
       })
     : undefined;
+  const scUrl = env['BFF_SANDBOX_CONTROLLER_URL'];
+  const hasSc = scUrl !== undefined && scUrl !== '';
+  if (
+    hasSc !==
+    (env['BFF_SANDBOX_CONTROLLER_TOKEN_REF'] !== undefined &&
+      env['BFF_SANDBOX_CONTROLLER_TOKEN_REF'] !== '')
+  ) {
+    throw new ServiceConfigError(
+      'BFF_SANDBOX_CONTROLLER_URL and BFF_SANDBOX_CONTROLLER_TOKEN_REF are set together or not at all',
+    );
+  }
+  const sandboxController = hasSc
+    ? new HttpCoreClient({
+        baseUrl: httpUrlEnv(env, 'BFF_SANDBOX_CONTROLLER_URL'),
+        token: resolveSecretRef(requiredEnv(env, 'BFF_SANDBOX_CONTROLLER_TOKEN_REF'), { env }),
+      })
+    : undefined;
   const webDir = env['BFF_WEB_DIR'] === '' ? undefined : env['BFF_WEB_DIR'];
   if (webDir !== undefined && !existsSync(join(webDir, 'index.html'))) {
     throw new ServiceConfigError(
@@ -197,6 +216,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
       ...(core ? { core } : {}),
       ...(notifier ? { notifier } : {}),
       ...(gateCheck ? { gateCheck } : {}),
+      ...(sandboxController ? { sandboxController } : {}),
       ...(webDir ? { webDir } : {}),
     });
     const url = await listen(app, listenOpts);

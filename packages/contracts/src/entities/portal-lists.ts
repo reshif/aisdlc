@@ -1,0 +1,208 @@
+import { z } from 'zod';
+import { GateId, HoldReason } from '../flow.js';
+import { DataClass, Lane, Scope, StageId, StepId } from '../values.js';
+import { WorkItemPhase } from '../states/work-item.js';
+import { AgentId, AgentTool, PromptRef } from './agent-definitions.js';
+import { PrincipalSummary, ViewLevel } from './access.js';
+import { CatalogueRef } from './config.js';
+import { AdmissionGrant } from './admission.js';
+import { Banner, KillEventKind, OpsControl } from './controls.js';
+import { Team } from './identity.js';
+import { IsoDateTime, PrincipalId, ProjectId, RoleId, Sha256Hex, WorkItemId } from './ids.js';
+import { IntegrationEvent, IntegrationHealthTiles } from './integrations.js';
+import { ActionId, PdpResource } from './policy.js';
+
+// The portal's list and read views (2026-11-12, the screens whose backends were on main). Each is the
+// thinnest read over what core or the bff already holds; every route is PDP-guarded like its neighbours.
+//
+//   core GET /v1/items              ItemListView        (item.view_floor per row)
+//   core GET /v1/agents             AgentRegistryView   (audit.read on the fleet)
+//   core GET /v1/catalogue          CatalogueView       (signed in: the catalogue is everyone's)
+//   core GET /v1/admission          AdmissionView       (audit.read on the fleet)
+//   core GET /v1/controls           ControlsView        (audit.read on the fleet)
+//   core GET /v1/kills              KillsView           (audit.read on the fleet)
+//   core GET /v1/audit/decisions    AuditDecisionsView  (audit.read on the fleet)
+//   bff  GET /api/integrations      IntegrationsView    (audit.read on the fleet)
+//   bff  GET /api/directory         DirectoryView       (audit.read on the fleet)
+//   bff  GET /api/projects/:id/explain  AccessExplainView (access.explain on the project)
+
+// ---------------------------------------------------------------- items
+
+/** One item of a list or board. Items carry no title: the request text stays on the item page (cut by data class). */
+export const ItemListRow = z.strictObject({
+  item_id: WorkItemId,
+  project_id: ProjectId,
+  repo: z.string().min(1),
+  lane: Lane.nullable(),
+  proposed_lane: Lane,
+  phase: WorkItemPhase,
+  /** The phase under the holds: what a held item resumes to (the board's column). */
+  underlying: WorkItemPhase,
+  terminal: z.string().nullable(),
+  holds: z.number().int().min(0),
+  in_flight: z.boolean(),
+  /** The person asking is the item's requester. */
+  mine: z.boolean(),
+  catalogue_version: z.string().min(1),
+  created_at: IsoDateTime,
+  updated_at: IsoDateTime,
+});
+export type ItemListRow = z.infer<typeof ItemListRow>;
+
+export const ItemListView = z.strictObject({ items: z.array(ItemListRow) });
+export type ItemListView = z.infer<typeof ItemListView>;
+
+// ---------------------------------------------------------------- agents (the registry is code)
+
+export const AgentRegistryRow = z.strictObject({
+  agent_id: AgentId,
+  name: z.string().nullable(),
+  role: z.string().nullable(),
+  note: z.string().nullable(),
+  steps: z.array(StepId),
+  specialist_steps: z.array(StepId),
+  contract_version: z.string().min(1),
+  output_schema_id: z.string().min(1),
+  tools: z.array(AgentTool),
+  data_class_max: DataClass,
+  models: z.array(z.string().min(1)),
+  prompt: PromptRef,
+});
+export type AgentRegistryRow = z.infer<typeof AgentRegistryRow>;
+
+export const AgentRegistryView = z.strictObject({
+  /** `aisdlc-prompts-lock/v1`: the lock the prompt hashes are read from. */
+  lock_format: z.string().min(1),
+  agents: z.array(AgentRegistryRow),
+});
+export type AgentRegistryView = z.infer<typeof AgentRegistryView>;
+
+// ---------------------------------------------------------------- catalogue (immutable releases)
+
+export const CatalogueLaneRow = z.strictObject({
+  lane: Lane,
+  label: z.string().nullable(),
+  enter_at: z.string().nullable(),
+  stages: z.array(StageId),
+  gates: z.array(z.strictObject({ gate: GateId, step: StepId, presence: z.string().min(1) })),
+});
+export type CatalogueLaneRow = z.infer<typeof CatalogueLaneRow>;
+
+export const CatalogueVersionRow = z.strictObject({
+  ref: CatalogueRef,
+  /** The version new items pin. */
+  current: z.boolean(),
+  /** Items (any state) pinned to exactly this release. */
+  pinned_items: z.number().int().min(0),
+  lanes: z.array(CatalogueLaneRow),
+});
+export type CatalogueVersionRow = z.infer<typeof CatalogueVersionRow>;
+
+export const CatalogueView = z.strictObject({ versions: z.array(CatalogueVersionRow) });
+export type CatalogueView = z.infer<typeof CatalogueView>;
+
+// ---------------------------------------------------------------- admission (scheduler)
+
+export const HeldItemRow = z.strictObject({
+  item_id: WorkItemId,
+  project_id: ProjectId,
+  lane: Lane.nullable(),
+  underlying: WorkItemPhase,
+  reasons: z.array(HoldReason),
+  since: IsoDateTime.nullable(),
+});
+export type HeldItemRow = z.infer<typeof HeldItemRow>;
+
+export const AdmissionView = z.strictObject({
+  as_of: IsoDateTime,
+  /** H2: coding sessions the factory allows at once (contracts `CODING_SESSION_CAP`). */
+  coding_session_cap: z.number().int().min(0),
+  /** Active grants whose lease is held: the coding sessions in a slot now. */
+  sessions_in_slot: z.number().int().min(0),
+  active: z.array(AdmissionGrant),
+  /** HUMAN-WAIT: slot and lease released, snapshot kept, envelope clock paused. */
+  waiting: z.array(AdmissionGrant),
+  held: z.array(HeldItemRow),
+});
+export type AdmissionView = z.infer<typeof AdmissionView>;
+
+// ---------------------------------------------------------------- controls and kills
+
+export const ControlsView = z.strictObject({
+  controls: z.array(OpsControl),
+  banners: z.array(Banner),
+});
+export type ControlsView = z.infer<typeof ControlsView>;
+
+/** One verified entry of the kill switch's journal, as core observed it (`kill.observed`). */
+export const KillJournalRow = z.strictObject({
+  ks_seq: z.number().int().min(1),
+  kind: KillEventKind,
+  subject: z.string().min(1),
+  actor: PrincipalId.nullable(),
+  entry_hash: Sha256Hex,
+  /** False while the kill switch's signature is pending (the KMS was away). */
+  signed: z.boolean(),
+  at: IsoDateTime,
+});
+export type KillJournalRow = z.infer<typeof KillJournalRow>;
+
+export const KillsView = z.strictObject({
+  /** The newest journal entry core has observed: the view is as fresh as this, never fresher. */
+  observed_head: z.number().int().min(0),
+  journal: z.array(KillJournalRow),
+});
+export type KillsView = z.infer<typeof KillsView>;
+
+// ---------------------------------------------------------------- audit (the PDP decision log)
+
+export const AuditDecisionRow = z.strictObject({
+  decision_id: z.string().min(1),
+  principal: PrincipalId,
+  action: z.string().min(1),
+  resource: PdpResource,
+  decision: z.enum(['allow', 'deny']),
+  reasons: z.array(z.string()),
+  bundle_version: z.string().nullable(),
+  at: IsoDateTime,
+  logged_because: z.enum(['deny', 'action', 'sampled']),
+});
+export type AuditDecisionRow = z.infer<typeof AuditDecisionRow>;
+
+export const AuditDecisionsView = z.strictObject({ decisions: z.array(AuditDecisionRow) });
+export type AuditDecisionsView = z.infer<typeof AuditDecisionsView>;
+
+// ---------------------------------------------------------------- integrations
+
+export const IntegrationsView = z.strictObject({
+  health: IntegrationHealthTiles,
+  events: z.array(IntegrationEvent),
+});
+export type IntegrationsView = z.infer<typeof IntegrationsView>;
+
+// ---------------------------------------------------------------- directory and explain
+
+export const DirectoryView = z.strictObject({
+  principals: z.array(PrincipalSummary),
+  teams: z.array(Team),
+});
+export type DirectoryView = z.infer<typeof DirectoryView>;
+
+/** Who holds a role on the project (a binding in force) and what the PDP allows them there. */
+export const ExplainHolder = z.strictObject({
+  principal_id: PrincipalId,
+  display_name: z.string().min(1),
+  roles: z.array(RoleId),
+  scopes: z.array(Scope),
+  view_level: ViewLevel.nullable(),
+  data_class: DataClass.nullable(),
+  actions: z.array(ActionId),
+});
+export type ExplainHolder = z.infer<typeof ExplainHolder>;
+
+export const AccessExplainView = z.strictObject({
+  project_id: ProjectId,
+  as_of: IsoDateTime,
+  holders: z.array(ExplainHolder),
+});
+export type AccessExplainView = z.infer<typeof AccessExplainView>;
