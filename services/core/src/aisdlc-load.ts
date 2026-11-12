@@ -30,7 +30,7 @@ import { registerCoreConfig } from './settings.js';
 //   LOAD_CORE_URL, LOAD_CORE_TOKEN_REF run: core's API with the bff's token (the person in `on_behalf_of`)
 //   LOAD_BFF_URL, LOAD_BFF_PUBLIC_URL, LOAD_OIDC_URL, LOAD_OIDC_PUBLIC_URL   run: the portal session (optional)
 //   LOAD_PROJECTS (4), LOAD_ITEMS (30 per project), LOAD_CODING_CAP (4), LOAD_CONCURRENCY (8),
-//   LOAD_DEADLINE_S (2400), LOAD_SAMPLE_MS (2000), LOAD_BURST (20), LOAD_REQUESTER (alice), LOAD_APPROVER (bob),
+//   LOAD_DEADLINE_S (2400), LOAD_SAMPLE_MS (2000), LOAD_BURST (5), LOAD_REQUESTER (alice), LOAD_APPROVER (bob),
 //   LOAD_REQUESTER_SUBJECT (the requester's dev IdP subject, for the portal session)
 
 /** The dev IdP's subject of the requester (platform/compose/config/idp-seed.json: principal `alice`). */
@@ -141,7 +141,7 @@ async function main(env: Env): Promise<number> {
           concurrency: int(env, 'LOAD_CONCURRENCY', 8, 1, 64),
           deadlineMs: int(env, 'LOAD_DEADLINE_S', 2400, 60, 86_400) * 1000,
           sampleMs: int(env, 'LOAD_SAMPLE_MS', 2000, 100, 60_000),
-          burst: int(env, 'LOAD_BURST', 20, 1, 1000),
+          burst: int(env, 'LOAD_BURST', 5, 1, 1000),
           log,
         },
       );

@@ -812,7 +812,7 @@ services:
       LOAD_CONCURRENCY: ${LOAD_CONCURRENCY:-8}
       LOAD_DEADLINE_S: ${LOAD_DEADLINE_S:-2400}
       LOAD_SAMPLE_MS: ${LOAD_SAMPLE_MS:-2000}
-      LOAD_BURST: ${LOAD_BURST:-20}
+      LOAD_BURST: ${LOAD_BURST:-5}
     secrets: [db-url-aisdlc, tok-core-notary, tok-core-kms, tok-bff-core]
     depends_on:
       core: { condition: service_healthy }

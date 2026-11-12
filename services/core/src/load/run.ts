@@ -254,7 +254,7 @@ async function actFor(
   for (const g of pending) {
     if (hold.has(g.gate)) continue;
     const card = cards.get(g.gate);
-    if (!card || decidedCards.has(`${card}:${g.gate}`)) continue;
+    if (!card || decidedCards.has(card)) continue;
     const by = g.gate === 'G6' ? st.requester : o.people.approver;
     const prep = await d.core.call('POST', `/v1/cards/${card}/gate/prepare`, { on_behalf_of: by });
     if (prep.status !== 200) {
@@ -277,7 +277,7 @@ async function actFor(
     });
     if (dec.status !== 200) errors.push(`${g.gate} decide ${dec.status}`);
     else {
-      decidedCards.add(`${card}:${g.gate}`);
+      decidedCards.add(card);
       acted = true;
     }
   }
@@ -455,7 +455,8 @@ export async function runLoad(d: RunDeps, o: RunOptions) {
     work_driver: {
       commands: cmds.length,
       latency_ms: timing(cmds),
-      retried: cmd.rows.filter((r) => r.attempts > 0).length,
+      // an attempt is counted when a row is claimed: more than one is a retry
+      retried: cmd.rows.filter((r) => r.attempts > 1).length,
       dead: dead.rows[0]?.n ?? 0,
     },
     admission: {

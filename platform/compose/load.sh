@@ -11,7 +11,7 @@
 #   4. the report: docs/evidence/load-m19.json (everything, with the machine it ran on) and load-m19.md (load-report.mjs)
 #   5. `down -v`, also on failure or Ctrl-C (LOAD_KEEP=1 leaves the stack up)
 #
-# LOAD_PROJECTS (4), LOAD_ITEMS (30 per project), LOAD_CODING_CAP (4), LOAD_CONCURRENCY (8), LOAD_BURST (20),
+# LOAD_PROJECTS (4), LOAD_ITEMS (30 per project), LOAD_CODING_CAP (4), LOAD_CONCURRENCY (8), LOAD_BURST (5),
 # WORK_DRIVER_INTERVAL_MS (1000: the driver's poll), LOAD_OUT (docs/evidence/load-m19), LOAD_SKIP_BUILD, LOAD_KEEP,
 # LOAD_BUNDLE (a built aisdlc-load.js to run instead of the image's).
 set -euo pipefail
