@@ -55,9 +55,10 @@ if [ "$FAKE" = 1 ]; then
 else
   export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-live}"
 fi
-# The profile is harmless on a real run (it starts nothing without the fake), and `down` must always
-# take the fake along if an earlier dry run left it.
-dc() { docker compose --profile fake-github "$@"; }
+# The fake profile only on a dry run: on a live run it would start the fake GitHub (and the live
+# check below would then refuse). `down` always takes it along, in case an earlier dry run left it.
+dc() { if [ "$FAKE" = 1 ]; then docker compose --profile fake-github "$@"; else docker compose "$@"; fi; }
+dc_all() { docker compose --profile fake-github "$@"; }
 
 T0=$SECONDS
 step() { printf '\n== [%4ss] %s\n' $((SECONDS - T0)) "$*"; }
@@ -71,10 +72,10 @@ problem() { echo "   PROBLEM: $*" >&2; PROBLEMS=$((PROBLEMS + 1)); }
 if [ "$MODE" = down ]; then
   step "stopping the stack (project $COMPOSE_PROJECT_NAME)"
   if [ "$PURGE" = 1 ]; then
-    dc down -v --remove-orphans
+    dc_all down -v --remove-orphans
     note "containers, networks AND volumes removed: the database (record, ledger, keys) is gone"
   else
-    dc down --remove-orphans
+    dc_all down --remove-orphans
     note "containers and networks removed; the volumes are kept (the ledger, the keys and the record survive)"
     note "to remove them too: ./live-census.sh --down --purge"
   fi
@@ -148,7 +149,7 @@ if [ "$MODE" != report ]; then
   dc up -d --wait --wait-timeout 300
   note "every service is healthy"
   if [ "$FAKE" = 0 ]; then
-    if dc ps --format '{{.Service}}' | grep -qx fake-github; then die "the fake-github container is running in a live run; run ./live-census.sh --down and start again"; fi
+    if dc_all ps --format '{{.Service}}' | grep -qx fake-github; then die "the fake-github container is running in a live run; run ./live-census.sh --down and start again"; fi
   fi
 fi
 
