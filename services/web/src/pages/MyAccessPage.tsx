@@ -12,6 +12,7 @@ import {
 } from '@aisdlc/contracts';
 import { reasonText, rolesThatGrant, useAccess, useCan } from '../access';
 import { Loading, PageError } from '../components/Notice';
+import { shortTime } from '../format';
 import { Link } from '../router';
 import { Card, EmptyState, GateTag, PageHead, Pill, Stat, Stats, Table } from '../ui';
 
@@ -182,7 +183,11 @@ export function MyAccessPage() {
                 </>
               ),
             },
-            { key: 'expiry', header: 'Ends', render: (b) => b.expiry ?? 'no end date' },
+            {
+              key: 'expiry',
+              header: 'Ends',
+              render: (b) => (b.expiry ? shortTime(b.expiry) : 'no end date'),
+            },
             {
               key: 'state',
               header: 'State',

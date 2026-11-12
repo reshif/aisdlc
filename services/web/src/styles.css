@@ -651,3 +651,30 @@ textarea {
   font-size: 12.5px;
   width: 100%;
 }
+
+/* the top bar on a phone: the account link moves to the rail's foot */
+@media (max-width: 520px) {
+  .top-inner {
+    gap: 8px;
+    padding: 0 10px;
+  }
+  .brand {
+    font-size: 17px;
+  }
+  .who {
+    gap: 0.5rem;
+  }
+  .who a {
+    display: none;
+  }
+  .who .btn {
+    min-height: 36px;
+    padding: 0.25rem 0.6rem;
+  }
+}
+.rail-foot a {
+  display: inline;
+  padding: 0;
+  font-size: inherit;
+  color: var(--accent);
+}

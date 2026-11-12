@@ -32,7 +32,7 @@ export function Table<T>({
   const cls = (c: Column<T>) => (c.align === 'right' ? 'ui-r' : undefined);
   return (
     <div className="ui-tbl-wrap">
-      <table className="ui-tbl table">
+      <table className="ui-tbl">
         <caption className={captionHidden ? 'ui-sr' : undefined}>{caption}</caption>
         <thead>
           <tr>

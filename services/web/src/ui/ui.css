@@ -220,6 +220,8 @@
 
 /* ---------- table ---------- */
 .ui-tbl-wrap {
+  /* positioned, so a visually hidden caption stays inside the scroll box */
+  position: relative;
   overflow-x: auto;
   min-width: 0;
 }
@@ -234,7 +236,7 @@
   color: var(--muted);
   font-size: 12.5px;
 }
-.ui-tbl th {
+.ui-tbl thead th {
   text-align: left;
   font-weight: 500;
   font-size: 11.5px;
@@ -245,12 +247,20 @@
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
+.ui-tbl tbody th {
+  text-align: left;
+  font-weight: 500;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
 .ui-tbl td {
   padding: 9px 12px;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
-.ui-tbl tr:last-child td {
+.ui-tbl tr:last-child td,
+.ui-tbl tr:last-child th {
   border-bottom: 0;
 }
 .ui-tbl tbody tr:hover td {

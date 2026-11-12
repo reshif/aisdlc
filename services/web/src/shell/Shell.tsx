@@ -116,7 +116,8 @@ function Rail({ me, route }: { me: Me; route: Route }) {
         );
       })}
       <div className="rail-foot">
-        Every screen and button follows the policy. What you cannot open is not listed.
+        Every screen and button follows the policy. What you cannot open is not listed.{' '}
+        <Link to="/me/access">What can I do?</Link>
       </div>
     </>
   );
