@@ -6,11 +6,14 @@ AISDLC is a software factory: it takes work through a governed lifecycle (stages
 
 ```
 npm ci                 # install from the lockfile
-npm run check          # typecheck + lint + format:check + test (must pass before every commit)
-npm run typecheck      # tsc --noEmit in every workspace
-npm run lint           # ESLint flat config, typescript-eslint
-npm run format         # Prettier write (format:check to verify)
-npm test               # Vitest (all projects); starts a throwaway Postgres unless DATABASE_URL is set
+npm run check          # workspace deps, then typecheck + lint + format:check side by side, then test (must pass before every commit)
+npm run check:changed  # the same over what changed vs origin/main (or `-- <base>`): typecheck and Vitest only for the changed workspaces and their dependents (+ secrets-rules, evals; any change outside packages/ services/ runs all); a fast first pass, not a substitute for `check`
+npm run typecheck      # tsc --noEmit: workspaces with the same tsconfig.check.json as ONE program, in parallel, incremental (node_modules/.cache/tsc); scripts/typecheck.mjs says why it is exact. `-- @aisdlc/x` for some
+npm run typecheck:workspaces # the same check one program per workspace, one after the other (slow; for comparison)
+npm run lint           # ESLint flat config, typescript-eslint (cached: node_modules/.cache/eslint)
+npm run format         # Prettier write (format:check to verify; both cached)
+npm test               # Vitest (all projects, 1.5 workers per CPU); starts a throwaway Postgres unless DATABASE_URL is set
+npm run test:no-docker # every project but the Docker ones (CI shards it: `-- --shard=1/4`); test:docker is sandbox-driver + coding-runner
 npm run build          # tsc emit (libraries) and esbuild bundles: dist/main.js per service, dist/verify-ledger.js
 npm run demo:ledger    # M2 exit demo: real services as processes, ledger, checkpoint, verify, tamper
 npm run evidence:sec-ob-3 # regenerates docs/evidence/sec-ob-3.{json,md} (tests never rewrite the committed evidence)
