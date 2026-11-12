@@ -1,7 +1,7 @@
 import { withTransaction } from '@aisdlc/db';
 import { appendEvents } from '@aisdlc/record';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readModelDigests, rebuildReadModels } from '../src/rebuild-check.js';
+import { catchUpReadModels, readModelDigests, rebuildReadModels } from '../src/rebuild-check.js';
 import { startCoreStack, type CoreStack } from '../src/testing.js';
 
 // RC-OPS-1: the restore drill's read-model check on a real Postgres. The digests are a function of the read models;
@@ -24,8 +24,8 @@ afterAll(async () => s?.stop());
 
 describe('aisdlc-rebuild-check (RC-OPS-1)', () => {
   it('digests every checked read model, and a rebuild from the record gives the same digests', async () => {
-    // the live folds (here: one rebuild stands in for the services' runners)
-    await rebuildReadModels(s.record.pool);
+    // the reference: every projection folded to the head, as the services would on their next read
+    expect((await catchUpReadModels(s.record.pool))['stream_type_counts']).toBeGreaterThan(0);
     const before = await readModelDigests(s.record.pool);
     expect(Object.keys(before)).toContain('projection:core');
     expect(Object.keys(before)).toContain('table:core.evidence_pack');

@@ -84,20 +84,25 @@ sql() { pgw psql -U postgres -d "${2:-aisdlc}" -At -c "$1"; }
 tables_of() {
   pgw psql -U postgres -d "$1" -At -F'|' -c "
     SELECT format('SELECT %L, count(*), md5(coalesce(string_agg(t::text, chr(10) ORDER BY t::text), %L)) FROM %I.%I t',
-                  n.nspname || '.' || c.relname, '', n.nspname, c.relname)
+                  n.nspname || '.' || c.relname, '', n.nspname, c.relname) || ';'
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relkind IN ('r', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-       AND n.nspname NOT LIKE 'pg_toast%' ORDER BY 1" | pgw psql -U postgres -d "$1" -At -F'|'
+       AND n.nspname NOT LIKE 'pg_toast%' ORDER BY 1" | pgw psql -U postgres -d "$1" -At -F'|' -v ON_ERROR_STOP=1
 }
 facts() { # what must survive, into $work/<name>.$1
+  # before the backup the read models are first folded to the record's head (the services fold lazily, on read)
+  dc run --rm --no-deps -T migrate node /app/services/core/dist/aisdlc-rebuild-check.js \
+    $([ "$1" = before ] && echo --catch-up) >"$work/models.$1"
   local db
-  for db in aisdlc notary witness killswitch; do tables_of "$db" >"$work/tables-$db.$1"; done
-  dc run --rm --no-deps -T migrate node /app/services/core/dist/aisdlc-rebuild-check.js >"$work/models.$1"
+  for db in aisdlc notary witness killswitch; do
+    tables_of "$db" >"$work/tables-$db.$1" || fail "could not read the tables of $db"
+    [ -s "$work/tables-$db.$1" ] || fail "database $db has no tables"
+  done
   {
-    echo "ledger $(sql 'SELECT count(*), coalesce(max(ledger_seq),0), md5(coalesce(string_agg(ledger_seq || chr(58) || entry_hash, chr(10) ORDER BY ledger_seq), chr(0))) FROM ledger.ledger_entry')"
+    echo "ledger $(sql 'SELECT count(*), coalesce(max(ledger_seq),0), md5(coalesce(string_agg(ledger_seq || chr(58) || entry_hash, chr(10) ORDER BY ledger_seq), chr(32))) FROM ledger.ledger_entry')"
     echo "checkpoint $(sql 'SELECT cp_seq, to_ledger_seq, root_hash, head_hash FROM ledger.checkpoint ORDER BY cp_seq DESC LIMIT 1')"
     echo "notary-state $(sql 'SELECT last_seq FROM notary.state' notary)"
-    echo "notary-committed $(sql "SELECT count(*), coalesce(max(ledger_seq),0), md5(coalesce(string_agg(ledger_seq || chr(58) || entry_hash, chr(10) ORDER BY ledger_seq), chr(0))) FROM notary.journal WHERE status = 'committed'" notary)"
+    echo "notary-committed $(sql "SELECT count(*), coalesce(max(ledger_seq),0), md5(coalesce(string_agg(ledger_seq || chr(58) || entry_hash, chr(10) ORDER BY ledger_seq), chr(32))) FROM notary.journal WHERE status = 'committed'" notary)"
     echo "witness $(sql 'SELECT cp_seq, to_ledger_seq, root_hash, head_hash FROM witness.cosigned ORDER BY cp_seq DESC LIMIT 1' witness)"
     echo "kills $(sql "SELECT string_agg(kill_id || chr(58) || state, ',' ORDER BY kill_id) FROM killswitch.kill" killswitch)"
     echo "packs $(sql 'SELECT count(*) FROM core.evidence_pack')"
@@ -191,7 +196,11 @@ dc stop "${stop[@]}" >/dev/null 2>&1
 facts before
 say "$(cat "$work"/tables-*.before | wc -l) tables in 4 databases, $(grep -o '"rows"' "$work/models.before" | wc -l) read models"
 say "ledger: $(fact ledger before | cut -d'|' -f1-2 | tr '|' ' ') entries/head; checkpoint $(fact checkpoint before | cut -d'|' -f1-2 | tr '|' ' '); packs $(fact packs before)"
-[ "$DRILL_DATA" = seed ] || [ "$(fact packs before)" -ge 1 ] || fail "the e2e left no evidence pack to check"
+# DRILL_REQUIRE_PACKS=1 fails a drill whose data holds no evidence pack (the compose e2e's scripted S7 signs none yet)
+if [ "$(fact packs before)" = 0 ]; then
+  [ "${DRILL_REQUIRE_PACKS:-0}" = 1 ] && fail "the data holds no evidence pack to check"
+  say "WARNING: the record names no evidence pack: the pack check below checks none"
+fi
 
 # ---------------------------------------------------------------- 3. backup, then the host is lost
 step "backup.sh"

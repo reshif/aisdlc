@@ -67,9 +67,10 @@ dc create --no-build object-store kms-local >/dev/null
 for v in objectstore-data kms-state; do
   vol="$(volume_of "$v")"
   [ -n "$vol" ] || die "compose did not create the volume $v"
+  # a fresh volume holds what the image had at its mount point: replaced by the backup's whole
   docker run --rm --network none -v "$vol:/data" -v "$src/volumes:/backup:ro" "$pg_image" \
-    sh -c 'test -z "$(ls -A /data)" && tar --numeric-owner -C /data -xzpf "/backup/$0.tgz"' "$v" \
-    || die "volume $v is not empty or did not restore"
+    sh -c 'find /data -mindepth 1 -delete && tar --numeric-owner -C /data -xzpf "/backup/$0.tgz"' "$v" \
+    || die "volume $v did not restore"
   say "volume $v restored"
 done
 

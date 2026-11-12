@@ -3,7 +3,7 @@ import { inboxProjection, gateInstanceProjection } from '@aisdlc/decisions';
 import { directoryProjection } from '@aisdlc/directory';
 import { identityProjection } from '@aisdlc/identity/read';
 import { canonicalJson, sha256Hex } from '@aisdlc/kernel';
-import { rebuild, streamTypeCounts, type Projection } from '@aisdlc/record';
+import { rebuild, runProjection, streamTypeCounts, type Projection } from '@aisdlc/record';
 import type pg from 'pg';
 import { agentRunProjection } from './agent-runs.js';
 import { rebuildUnits } from './admission/fold.js';
@@ -86,11 +86,27 @@ export async function readModelDigests(pool: pg.Pool): Promise<Record<string, Re
     const snap = await p.snapshot(pool);
     out[`projection:${p.name}`] = {
       rows: countOf(snap),
-      sha256: sha256Hex(canonicalJson(snap as never)),
+      // a snapshot carries Dates and bigints as the driver reads them: their JSON form is what is hashed
+      sha256: sha256Hex(canonicalJson(JSON.parse(JSON.stringify(snap)) as never)),
     };
   }
   for (const t of PER_ITEM_TABLES)
     if (await present(pool, [t])) out[`table:${t}`] = await tableDigest(pool, t);
+  return out;
+}
+
+/**
+ * Folds every checked projection forward to the head of the record (what the live services do lazily, on their next
+ * read): the reference a restore is compared with. Throws on a projection that needs a rebuild.
+ */
+export async function catchUpReadModels(pool: pg.Pool): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const p of CHECKED_PROJECTIONS) {
+    if (!(await present(pool, p.tables))) continue;
+    const r = await runProjection(pool, p);
+    if (!r.ok) throw new Error(`the ${p.name} read model needs a rebuild`);
+    out[p.name] = r.value.applied;
+  }
   return out;
 }
 
