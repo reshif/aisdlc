@@ -57,6 +57,7 @@ services/   (M13.4: `coding-runner` runs INSIDE the W sandbox: the harness aroun
 platform/compose/  local-prod docker compose: one image, db-init/migrate/seed jobs, secrets as files, the fake GitHub profile, the `sandbox` profile (the two Docker socket proxies and the package mirror; smoke.sh starts one K session through the coding proxy), smoke.sh (README.md says why each container exists)
 platform/sandbox/  the sandbox image (pinned node base, uid 10002, the `aisdlc-run` wrapper)
 docs/       PLAN.md, adr/, specs/
+.claude/    agent tooling: vendored skills in .claude/skills/ (zod, TanStack Query, React performance, accessibility) and the assessment-only .claude/agents/accessibility-tester.md; sources, licences and changes in .claude/THIRD_PARTY.md; this file wins over them
 ```
 
 Packages export TypeScript source (`exports` -> `src/index.ts`), so no build step is needed for typecheck or tests. Imports inside a package use `.js` extensions (NodeNext).
