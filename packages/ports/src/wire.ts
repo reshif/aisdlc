@@ -83,6 +83,11 @@ export const NotaryEvidenceSignRequest = z.strictObject({
   head_sha: z.string().regex(/^[0-9a-f]{40}$/),
 });
 export const NotaryEvidenceSignResponse = z.strictObject({ signature: Signature });
+export const NotaryAuditExportSignRequest = z.strictObject({
+  export_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  scope_ref: z.string().min(1).max(160),
+});
+export const NotaryAuditExportSignResponse = NotaryEvidenceSignResponse;
 
 export const NOTARY_STATUS: Record<NotaryErrorCode, number> = {
   unauthenticated: 401,

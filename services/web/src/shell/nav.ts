@@ -57,6 +57,10 @@ const entry = (
 
 export const NAV: readonly NavEntry[] = [
   entry('Work', '/', 'Home', SIGNED_IN, at('home')),
+  // M19: the floor of a project the person may read (floor.read on the fleet or a project)
+  entry('Work', '/floor', 'Floor', { kind: 'somewhere', action: 'floor.read' }, at('floor')),
+  // M19: every project the person may see, one row each (the bff collapses a confidential one without a role there)
+  entry('Work', '/fleet', 'Fleet', SIGNED_IN, at('fleet')),
   entry('Work', '/board', 'Board', SIGNED_IN, at('board')),
   entry('Work', '/items', 'Items', SIGNED_IN, at('items', 'item', 'pack')),
   // M18: the assistant answers only from what the person can see; every thread is checked on its project

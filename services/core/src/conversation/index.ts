@@ -1,4 +1,5 @@
 export * from './assistant.js';
+export * from './erasable.js';
 export * from './gateway.js';
 export * from './ground.js';
 export * from './routes.js';

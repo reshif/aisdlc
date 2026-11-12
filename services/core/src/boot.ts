@@ -14,6 +14,7 @@ import { BootstrapPdpEntities } from '@aisdlc/onboarding';
 import { HttpCodeHostReads, S3ObjectStore } from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreApp } from './app.js';
+import { HttpAdmissionVerdict } from './floor-live.js';
 import { BootstrapEligibility } from './bootstrap.js';
 import { cardDepsFrom, identityEligibility } from './card-wiring.js';
 import { HttpKnowledge } from './clients.js';
@@ -156,6 +157,9 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
       // M16: a drift restore re-attests the per-repo bypass list in force
       ...(reader ? { bypass: mergeBypassFrom(reader) } : {}),
+      ...(cfg.admissionUrl
+        ? { kill: new HttpAdmissionVerdict({ baseUrl: cfg.admissionUrl }) }
+        : {}),
       // B5 (M12.5): a hand-written plan is made against the merged head knowledge's census names
       ...(cfg.cards
         ? {

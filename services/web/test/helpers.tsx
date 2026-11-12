@@ -71,7 +71,9 @@ export function mockApi(routes: Record<string, Handler>) {
       if (h === undefined) throw new Error(`unexpected request ${method} ${path}`);
       const a = typeof h === 'function' ? h(call) : h;
       const status = a.status ?? 200;
-      return new Response(a.json === undefined ? '' : JSON.stringify(a.json), {
+      // a 204 or 304 has no body at all (the Response constructor refuses one)
+      const none = status === 204 || status === 304;
+      return new Response(none ? null : a.json === undefined ? '' : JSON.stringify(a.json), {
         status,
         headers: { 'content-type': 'application/json', ...(a.headers ?? {}) },
       });

@@ -993,8 +993,12 @@ export function registerPortalRoutes(d: PortalDeps): void {
       const pdpYes =
         item.kind === 'onboarding_card'
           ? await allowed(who, 'card.decide', pdpResource.card(item.project_id, item.id))
-          : item.kind === 'settings_revision'
-            ? await allowed(who, 'gate.decide', pdpResource.gate(item.project_id, item.id, 'M1'))
+          : item.kind === 'settings_revision' || item.kind === 'work_gate'
+            ? await allowed(
+                who,
+                'gate.decide',
+                pdpResource.gate(item.project_id, item.id, item.gate ?? 'M1'),
+              )
             : item.kind === 'prr_resign'
               ? await allowed(who, 'project.onboard', pdpResource.fleet())
               : await allowed(who, 'project.settings.edit', pdpResource.project(item.project_id));

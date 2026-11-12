@@ -10,6 +10,7 @@ import {
   gatePolicy,
   s0Stream,
   type CoreInboxItem,
+  type GateId,
   type PrincipalId,
   type ProjectPrrView,
   type ReadinessStatus,
@@ -19,6 +20,7 @@ import {
 import { configPublish, readLineage, type ConfigDeps } from '@aisdlc/config';
 import {
   decide as decideGate,
+  gateFeasibility,
   prepare as prepareGate,
   readCardState,
   readGateState,
@@ -36,6 +38,7 @@ import { loadS0, s0Cards } from './cards/read.js';
 import { decidersFrom, decidersOf } from './cards/views.js';
 import { coreError, type CoreError } from './errors.js';
 import { activeS0Ids, catchUp } from './queries.js';
+import { catchUpFloor, waitingGateOf } from './floor.js';
 import { governingPrr } from '@aisdlc/onboarding/fold';
 import { readPrrState } from './prr-store.js';
 
@@ -256,6 +259,18 @@ export async function coreInbox(deps: {
         overdue: now >= Date.parse(due),
         escalated: card.state.escalations.length > 0,
         holders: [...who.holders],
+        item_id: null,
+        gate: null,
+        // a card is decided by the holders of its slot: none (or T2 with a sole holder) can never decide it
+        feasibility: who.error !== null ? 'unknown' : who.can_decide ? 'feasible' : 'infeasible',
+        feasibility_reason:
+          who.error !== null
+            ? `who holds ${slot} is unknown: ${who.error}`
+            : who.can_decide
+              ? null
+              : who.holders.length === 0
+                ? `nobody holds the ${slot} role`
+                : `T2 allows no waiver and ${slot} has one holder`,
       });
     }
     const config = deps.config;
@@ -264,6 +279,11 @@ export async function coreInbox(deps: {
       const state = await readGateState(pool, gate);
       if (state?.status === 'pending') {
         const who = await decidersFrom(config.eligibility, project, 'admin');
+        const f = await gateFeasibility(
+          config.eligibility,
+          state.open.payload,
+          state.approvers as never,
+        );
         out.push({
           kind: 'settings_revision',
           id: gate,
@@ -276,10 +296,15 @@ export async function coreInbox(deps: {
           overdue: false,
           escalated: false,
           holders: [...who.holders],
+          item_id: null,
+          gate: 'M1',
+          feasibility: f.state,
+          feasibility_reason: f.reason,
         });
       }
     }
   }
+  out.push(...(await inboxWorkGates(deps)));
   // the X2 card of an S0 record's onboarding pack (M16 R2b): decided through the gate-card routes, listed here too
   const x2 = await pool.query<{ card_id: string }>(
     `SELECT substring(stream from 6) AS card_id FROM record.record_event
@@ -305,14 +330,24 @@ export async function coreInbox(deps: {
       overdue: now >= Date.parse(due),
       escalated: st.escalations.length > 0,
       holders: [...who.holders],
+      item_id: null,
+      gate: null,
+      feasibility: who.error !== null ? 'unknown' : who.can_decide ? 'feasible' : 'infeasible',
+      feasibility_reason:
+        who.error !== null
+          ? `who holds ${slot} is unknown: ${who.error}`
+          : who.can_decide
+            ? null
+            : who.holders.length === 0
+              ? `nobody holds the ${slot} role`
+              : `T2 allows no waiver and ${slot} has one holder`,
     });
   }
   // after onboarding (M16, OB §8): re-affirm, restore, re-sign; one per repo, decided by the project's admin slot
   out.push(
     ...(await driftInboxItems(pool, {
       clock: deps.clock ?? systemClock,
-      holders: async (project) =>
-        (await decidersOf(deps.cards, project, AFTER_ONBOARDING_SLOT)).holders,
+      deciders: (project) => decidersOf(deps.cards, project, AFTER_ONBOARDING_SLOT),
     })),
   );
   return out.sort((a, b) =>
@@ -328,6 +363,63 @@ export async function coreInbox(deps: {
             ? -1
             : 1,
   );
+}
+
+/**
+ * M19: the gates work items wait at, from the floor's read model (a read, never a write path), each with who decides
+ * it and whether its quorum is still feasible (`waitingGateOf`: the vote's own rules). Decided on the item's page.
+ */
+export async function inboxWorkGates(deps: {
+  cards: CardDeps;
+  config?: ConfigDeps | undefined;
+}): Promise<CoreInboxItem[]> {
+  const pool = deps.cards.pool;
+  try {
+    await catchUpFloor(pool);
+  } catch {
+    // read what is projected
+  }
+  const q = await pool.query<{
+    item_id: string;
+    project_id: string;
+    waiting_gates: Array<{ gate: GateId; gate_instance_id: string }>;
+  }>(
+    `SELECT item_id, project_id, waiting_gates FROM core.floor_position
+      WHERE status NOT IN ('done', 'declined') AND jsonb_array_length(waiting_gates) > 0
+      ORDER BY updated_at, item_id LIMIT 500`,
+  );
+  const eligibility = (deps.config ?? deps.cards.decisions).eligibility;
+  const out: CoreInboxItem[] = [];
+  for (const r of q.rows) {
+    for (const g of r.waiting_gates) {
+      const state = await readGateState(pool, g.gate_instance_id);
+      if (!state || state.status !== 'pending') continue;
+      const w = await waitingGateOf(
+        { pool, eligibility },
+        r.project_id,
+        g.gate,
+        g.gate_instance_id,
+      );
+      out.push({
+        kind: 'work_gate',
+        id: g.gate_instance_id,
+        project_id: r.project_id as never,
+        s0_id: null,
+        label: null,
+        slot: w.slot,
+        opened_at: state.open.opened_at,
+        sla_due_at: null,
+        overdue: false,
+        escalated: false,
+        holders: [...(w.deciders ?? [])],
+        item_id: r.item_id as never,
+        gate: g.gate,
+        feasibility: w.feasibility,
+        feasibility_reason: w.feasibility_reason,
+      });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- Readiness record (M8.4)

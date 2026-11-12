@@ -28,27 +28,51 @@ const AFTER_ONBOARDING_TITLE = {
 export const titleOf = (i: PortalInboxItem): string =>
   i.kind === 'settings_revision'
     ? 'Settings revision: publish the role map'
-    : i.kind === 'onboarding_card'
-      ? (CARD_TITLE[i.label as keyof typeof CARD_TITLE] ?? 'Card')
-      : `${AFTER_ONBOARDING_TITLE[i.kind]}: ${i.id}`;
+    : i.kind === 'work_gate'
+      ? `Gate ${i.gate ?? ''}: item ${(i.item_id ?? '').replace(/-/g, '').slice(0, 8)}`
+      : i.kind === 'onboarding_card'
+        ? (CARD_TITLE[i.label as keyof typeof CARD_TITLE] ?? 'Card')
+        : `${AFTER_ONBOARDING_TITLE[i.kind]}: ${i.id}`;
 export const hrefOf = (i: PortalInboxItem): string =>
   i.kind === 'settings_revision'
     ? `/revisions/${i.id}`
-    : i.kind === 'onboarding_card'
-      ? `/cards/${i.id}`
-      : `/projects/${encodeURIComponent(i.project_id)}/drift`;
+    : i.kind === 'work_gate'
+      ? `/items/${i.item_id ?? ''}`
+      : i.kind === 'onboarding_card'
+        ? `/cards/${i.id}`
+        : `/projects/${encodeURIComponent(i.project_id)}/drift`;
+
+/** M19 GateFeasibility: an item nobody eligible can decide (or whose quorum cannot be met) is flagged, unknown too. */
+function Feasibility({ i }: { i: PortalInboxItem }) {
+  if (i.feasibility === 'feasible') return null;
+  return (
+    <Badge tone="bad">
+      {i.feasibility === 'unknown' ? 'who can decide is unknown' : 'nobody can decide it'}
+    </Badge>
+  );
+}
 
 function Item({ i }: { i: PortalInboxItem }) {
   const due = i.sla_due_at ? new Date(i.sla_due_at).getTime() : null;
   return (
-    <li className="card" data-kind={i.kind} data-label={i.label ?? ''} data-overdue={i.overdue}>
+    <li
+      className="card"
+      data-kind={i.kind}
+      data-label={i.label ?? ''}
+      data-overdue={i.overdue}
+      data-feasibility={i.feasibility}
+    >
       <div className="card-head">
         <Link to={hrefOf(i)} className="card-link">
           {titleOf(i)}
         </Link>
         {i.overdue ? <Badge tone="bad">overdue</Badge> : null}
         {i.escalated ? <Badge tone="attention">escalated</Badge> : null}
+        <Feasibility i={i} />
       </div>
+      {i.feasibility !== 'feasible' && i.feasibility_reason ? (
+        <p className="muted">{i.feasibility_reason}</p>
+      ) : null}
       <dl className="facts">
         <div>
           <dt>Project</dt>

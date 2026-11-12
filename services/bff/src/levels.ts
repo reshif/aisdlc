@@ -43,3 +43,22 @@ export async function levelsOn(
   }
   return view === null || data === null ? null : { view_level: view, data_class: data };
 }
+
+/** Where the person holds a role in force: on the fleet, and the projects of their other bindings (M19: the fleet's cut). */
+export interface RolesIn {
+  readonly fleet: boolean;
+  readonly projects: ReadonlySet<string>;
+}
+
+export async function rolesIn(pool: pg.Pool, principal: string, now: Date): Promise<RolesIn> {
+  const grants = await queryGrants(pool, { principal }, null, now);
+  let fleet = false;
+  const projects = new Set<string>();
+  for (const g of grants) {
+    if (g.blockers.length > 0 || !roleDef(g.role_id as RoleId)) continue;
+    if (g.scope.kind === 'fleet') fleet = true;
+    const p = projectOfScope(g.scope);
+    if (p !== null) projects.add(p);
+  }
+  return { fleet, projects };
+}

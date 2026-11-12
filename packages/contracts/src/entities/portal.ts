@@ -10,9 +10,12 @@ import {
   PrincipalId,
   ProjectId,
   S0RecordId,
+  WorkItemId,
   Sha256Hex,
 } from './ids.js';
 import { CardKind } from './onboarding.js';
+import { GateId } from '../flow.js';
+import { GateFeasibilityState } from './floor.js';
 import { GatingProfile, KillDelegation, RoleMap, RoleSlot, TwoPerson } from './projects.js';
 import { ProjectReadinessRecord } from './readiness.js';
 import { ReadinessStatus } from '../states/readiness.js';
@@ -39,16 +42,17 @@ export type CardDeciders = z.infer<typeof CardDeciders>;
 
 // ---------------------------------------------------------------- Inbox
 
-/** `onboarding_card`: a card of an S0 record; `settings_revision`: the M1 gate that publishes card 4's settings. */
 /**
- * `onboarding_card`: a card of an S0 record (C1, C2, C4, C5, SECR, and the X2 of its pack); `settings_revision`: card 4's
- * M1 gate; M16 after onboarding (OB §8): `drift_reaffirm` (instruction or pack text drifted: re-affirm it),
- * `prr_restore` (the record is suspended for drift: restore it once the re-check passes), `prr_resign` (the record
- * expired: re-sign it as a new version). For these three `id` is the repo.
+ * `onboarding_card`: a card of an S0 record (C1, C2, C4, C5, SECR, and the X2 of its pack); `settings_revision`: the M1
+ * gate that publishes card 4's settings; `work_gate` (M19): a gate a work item waits at (from the floor's read model;
+ * decided on the item's page); M16 after onboarding (OB §8): `drift_reaffirm` (instruction or pack text drifted:
+ * re-affirm it), `prr_restore` (the record is suspended for drift: restore it once the re-check passes), `prr_resign`
+ * (the record expired: re-sign it as a new version). For these three `id` is the repo.
  */
 export const InboxItemKind = z.enum([
   'onboarding_card',
   'settings_revision',
+  'work_gate',
   'drift_reaffirm',
   'prr_restore',
   'prr_resign',
@@ -73,6 +77,12 @@ export const CoreInboxItem = z.strictObject({
   escalated: z.boolean(),
   /** Who decides it now (the role map, or the bootstrap grantee). Empty: nobody does yet. */
   holders: z.array(PrincipalId),
+  /** A `work_gate`'s item and gate; `null` for the other kinds. */
+  item_id: WorkItemId.nullable(),
+  gate: GateId.nullable(),
+  /** M19 GateFeasibility: `infeasible` or `unknown` is flagged (fail closed), never shown as on its way. */
+  feasibility: GateFeasibilityState,
+  feasibility_reason: z.string().nullable(),
 });
 export type CoreInboxItem = z.infer<typeof CoreInboxItem>;
 

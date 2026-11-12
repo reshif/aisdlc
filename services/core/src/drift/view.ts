@@ -269,7 +269,14 @@ export async function reaffirmView(
 /** The after-onboarding items of the inbox (OB §8): one per repo that waits for a person. */
 export async function driftInboxItems(
   pool: pg.Pool,
-  o: { clock?: Clock; holders: (project: string) => Promise<readonly string[]> },
+  o: {
+    clock?: Clock;
+    deciders: (project: string) => Promise<{
+      readonly holders: readonly string[];
+      readonly error: string | null;
+      readonly can_decide: boolean;
+    }>;
+  },
 ): Promise<CoreInboxItem[]> {
   const now = (o.clock ?? systemClock).nowMs();
   const repos = await pool.query<{ repo_ref: string }>(
@@ -281,6 +288,8 @@ export async function driftInboxItems(
     const g = l?.governing;
     const inputs = l ? inputsOf(l) : null;
     if (!l || !g || !inputs) continue;
+    const who = await o.deciders(l.project_id);
+    const slot = AFTER_ONBOARDING_SLOT;
     const item = async (kind: CoreInboxItem['kind'], at: string): Promise<CoreInboxItem> => ({
       kind,
       id: l.repo_ref,
@@ -292,7 +301,18 @@ export async function driftInboxItems(
       sla_due_at: null,
       overdue: false,
       escalated: false,
-      holders: [...(await o.holders(l.project_id))] as never,
+      holders: [...who.holders] as never,
+      item_id: null,
+      gate: null,
+      feasibility: who.error !== null ? 'unknown' : who.can_decide ? 'feasible' : 'infeasible',
+      feasibility_reason:
+        who.error !== null
+          ? `who holds ${slot} is unknown: ${who.error}`
+          : who.can_decide
+            ? null
+            : who.holders.length === 0
+              ? `nobody holds the ${slot} role`
+              : `T2 allows no waiver and ${slot} has one holder`,
     });
     const expired = g.status === 'expired' || now >= Date.parse(g.prr.fresh_until);
     if (expired) {
