@@ -29,7 +29,7 @@ beforeAll(async () => {
   url = await listen(app);
   const t = await openThread(s.deps, {
     owner: 'vic',
-    subject: { kind: 'project', project_id: 'acme' },
+    subject: { kind: 'project', project_id: 'acme' as never },
     first: { role: 'person', kind: 'message', text: 'my private question', redactions: [] },
   });
   if (!t.ok) throw new Error(t.error.message);
@@ -42,7 +42,7 @@ beforeAll(async () => {
   if (!a.ok) throw new Error(a.error.message);
   const other = await openThread(s.deps, {
     owner: 'ada',
-    subject: { kind: 'project', project_id: 'beta' },
+    subject: { kind: 'project', project_id: 'beta' as never },
     first: { role: 'person', kind: 'message', text: 'ada asks', redactions: [] },
   });
   if (!other.ok) throw new Error(other.error.message);
@@ -82,7 +82,7 @@ describe('erasable payloads (PLAN M19)', () => {
     if (!target) throw new Error('no payload');
     const wrong = await port.erase({ ...target, sha256: 'f'.repeat(64) });
     expect(!wrong.ok && wrong.error.code).toBe('mismatch');
-    const notTheirs = await port.erase({ ...target, owner: 'ada' });
+    const notTheirs = await port.erase({ ...target, owner: 'ada' as never });
     expect(!notTheirs.ok && notTheirs.error.code).toBe('not_found');
     const e = await port.erase(target);
     expect(e).toEqual({ ok: true, value: { already: false } });
