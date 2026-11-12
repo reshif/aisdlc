@@ -962,7 +962,7 @@ describe('core answers the Push Broker over HTTP (scope push_guard): the same fa
       const guards = new HttpPushGuards({ baseUrl: url, token: TOKENS.codehost });
       expect(await guards.lease(w.itemId, 'main')).toEqual({
         state: 'ok',
-        value: { held: true, epoch: 1, lane: 'L3' },
+        value: { held: true, epoch: 1, lane: 'L3', suspended: false },
       });
       const host = await startTestCodeHost({
         seed: seedFor(w.repo, [['README.md', '# hi\n']]),

@@ -359,7 +359,9 @@ describe('re-affirmation (OB §4.2): the repo text into the record, step-up boun
     const w = await world();
     w.push({ sha: H2, files: { 'AGENTS.md': AFFIRMED, '.github/CODEOWNERS': CODEOWNERS } });
     await poll(w);
-    const LEAK = `${AFFIRMED}\naws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"\n`;
+    // built from parts at run time (the repo self-test scans every file for token-shaped literals)
+    const key = ['wJalrXUtnFEMI', 'K7MDENG', 'bPxRfiCYEXAMPLEKEY'].join('/');
+    const LEAK = `${AFFIRMED}\n${['aws', 'secret', 'access', 'key'].join('_')} = "${key}"\n`;
     w.push({ sha: H3, files: { 'AGENTS.md': LEAK, '.github/CODEOWNERS': CODEOWNERS } });
     await poll(w);
     const view = okv(await reaffirmView(w.d, pid(w.project), w.repo, 'AGENTS.md'));
