@@ -4,6 +4,7 @@ import { makeCanary } from '@aisdlc/secrets-rules';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   latestProbe,
+  lightFloorsOf,
   rebuildProbes,
   runOnboardingProbe,
   type RecordedProbe,
@@ -271,6 +272,21 @@ describe('card 2 exits only on LF3 (no waiver)', () => {
     const r = await decideAs(c, card.card_id, 'alice', 'approve', content(d.view));
     expect(r.ok).toBe(true);
     const rows = (await readCardState(s.record.pool, card.card_id))?.payload?.payload ?? [];
+    // LF1 to LF8 after card 2: LF3, LF5, LF6, LF8 met; card 4 not decided yet (LF2, LF7 unknown); LF4 waits for
+    // the live isolation test (unknown): Light cannot be signed on the floors yet
+    const floors = await lightFloorsOf({ pool: s.record.pool, knowledge: c.knowledge }, c.s0);
+    if (!floors.ok) throw new Error(floors.error.message);
+    const by = Object.fromEntries(floors.value.floors.map((f) => [f.floor, f.state]));
+    expect(by).toMatchObject({
+      LF3: 'met',
+      LF5: 'met',
+      LF6: 'met',
+      LF8: 'met',
+      LF2: 'unknown',
+      LF7: 'unknown',
+      LF4: 'unknown',
+    });
+    expect(floors.value.met).toBe(false);
     expect(rows.find((x) => x.kind === 'light_probe')).toEqual({
       kind: 'light_probe',
       probe_id: recorded.result.probe_id,

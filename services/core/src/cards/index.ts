@@ -12,3 +12,4 @@ export * from './light.js';
 export * from './links.js';
 export { cardsLoop, type CardsLoopOptions } from './loop.js';
 export * from './probe.js';
+export * from './floors.js';
