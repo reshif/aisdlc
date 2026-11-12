@@ -1,5 +1,8 @@
 import {
   STEPS,
+  type FloorItemStatus,
+  type FloorRoom,
+  type FloorStage,
   type Level,
   type OnboardingStatus,
   type OnboardingStepId,
@@ -98,3 +101,65 @@ export const STEP_STATE_TEXT: Readonly<Record<OnboardingStepState, { label: stri
 
 /** "0.1 Census": the id and the title the contracts give the step. */
 export const stepName = (id: OnboardingStepId): string => `${id} ${STEPS[id].title}`;
+
+// ---------------------------------------------------------------- the floor (M19)
+
+/** The floor's station names (the design reference's words for each stage). */
+export const FLOOR_STAGE_TEXT: Readonly<Record<FloorStage, string>> = {
+  S1: 'Intake & triage',
+  S2: 'Shape',
+  S3: 'Specify',
+  S4: 'Design',
+  S5: 'Plan',
+  S6: 'Build in sandbox',
+  S7: 'Verify',
+  S8: 'Human merge',
+  S9: 'Close & learn',
+};
+
+/** The side rooms: what each holds, and what happens next to an item there. */
+export const FLOOR_ROOM_TEXT: Readonly<
+  Record<FloorRoom, { title: string; sub: string; next: string }>
+> = {
+  SCHED: {
+    title: 'Scheduler',
+    sub: 'lease, pod and envelope',
+    next: 'Admission (6.0) checks the approver slot (H1), coding sessions (H2), the envelope (H3) and WIP; first in, first out.',
+  },
+  HOLD: {
+    title: 'Holding shelf',
+    sub: 'held, parked, waiting on a person',
+    next: 'Held items keep their saved work and their pod is released. They return when the hold lifts or the person decides (X1, X3, E6, G3o).',
+  },
+  QUAR: {
+    title: 'Quarantine',
+    sub: 'security triage first',
+    next: 'Security triage (SECT) first. A false positive rebuilds cold; a confirmed one keeps the branch quarantined and the item goes human-led.',
+  },
+  DESK: {
+    title: 'Handoff desk',
+    sub: 'the owner of record chooses',
+    next: 'The owner of record chooses D1 to D5: reshape, extend the envelope (E3), hand to a person, park, or abandon.',
+  },
+  BIN: {
+    title: 'Declined, abandoned',
+    sub: 'closed with a cause',
+    next: 'Closed with a cause. Reopening is a new request linked to this one.',
+  },
+  DONE: {
+    title: 'Done',
+    sub: 'closed in the last 24 hours',
+    next: 'Closed with its close-out record.',
+  },
+};
+
+export const FLOOR_STATUS_TEXT: Readonly<
+  Record<FloorItemStatus, { label: string; tone: 'info' | 'gate' | 'back' | 'bad' | 'ok' | 'mute' }>
+> = {
+  working: { label: 'working', tone: 'info' },
+  waiting: { label: 'waiting', tone: 'gate' },
+  held: { label: 'held', tone: 'back' },
+  stuck: { label: 'stuck', tone: 'bad' },
+  done: { label: 'done', tone: 'ok' },
+  declined: { label: 'declined', tone: 'mute' },
+};

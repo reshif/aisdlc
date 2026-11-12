@@ -445,6 +445,14 @@
         "access.explain"
       ]
     },
+    "ActivitySource": {
+      "type": "string",
+      "enum": [
+        "heartbeat",
+        "model_call",
+        "dispatch"
+      ]
+    },
     "ActorKind": {
       "type": "string",
       "enum": [
@@ -27627,7 +27635,8 @@
           "type": "string",
           "enum": [
             "onboarding_card",
-            "settings_revision"
+            "settings_revision",
+            "work_gate"
           ]
         },
         "id": {
@@ -27715,6 +27724,72 @@
             "maxLength": 128,
             "pattern": "^[A-Za-z0-9_.@-]+$"
           }
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "G0",
+                "G1",
+                "G1f",
+                "G2",
+                "G3",
+                "G3d",
+                "G3s",
+                "G3o",
+                "G4",
+                "G5",
+                "G6",
+                "X1",
+                "X2",
+                "X3",
+                "X4",
+                "E1",
+                "E2",
+                "E3",
+                "E4",
+                "E5",
+                "E6",
+                "M1",
+                "M2",
+                "M3",
+                "M4",
+                "M5",
+                "M6",
+                "Q1",
+                "SECT"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feasibility": {
+          "type": "string",
+          "enum": [
+            "feasible",
+            "infeasible",
+            "unknown"
+          ]
+        },
+        "feasibility_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -27728,7 +27803,11 @@
         "sla_due_at",
         "overdue",
         "escalated",
-        "holders"
+        "holders",
+        "item_id",
+        "gate",
+        "feasibility",
+        "feasibility_reason"
       ],
       "additionalProperties": false
     },
@@ -39401,6 +39480,789 @@
         "br.prod_inventory"
       ]
     },
+    "FleetCollapse": {
+      "type": "string",
+      "enum": [
+        "confidential",
+        "no_floor_read"
+      ]
+    },
+    "FleetView": {
+      "type": "object",
+      "properties": {
+        "plan": {
+          "type": "object",
+          "properties": {
+            "catalogue": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                },
+                "hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "version",
+                "hash"
+              ],
+              "additionalProperties": false
+            },
+            "stations": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S4",
+                  "S5",
+                  "S6",
+                  "S7",
+                  "S8",
+                  "S9"
+                ]
+              }
+            },
+            "gates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Za-z0-9]*(\\+[A-Z][A-Za-z0-9]*)*$"
+                  },
+                  "gates": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "G0",
+                        "G1",
+                        "G1f",
+                        "G2",
+                        "G3",
+                        "G3d",
+                        "G3s",
+                        "G3o",
+                        "G4",
+                        "G5",
+                        "G6",
+                        "X1",
+                        "X2",
+                        "X3",
+                        "X4",
+                        "E1",
+                        "E2",
+                        "E3",
+                        "E4",
+                        "E5",
+                        "E6",
+                        "M1",
+                        "M2",
+                        "M3",
+                        "M4",
+                        "M5",
+                        "M6",
+                        "Q1",
+                        "SECT"
+                      ]
+                    }
+                  },
+                  "after_stage": {
+                    "type": "string",
+                    "enum": [
+                      "S1",
+                      "S2",
+                      "S3",
+                      "S4",
+                      "S5",
+                      "S6",
+                      "S7",
+                      "S8",
+                      "S9"
+                    ]
+                  },
+                  "after_step": {
+                    "type": "string",
+                    "enum": [
+                      "0.1",
+                      "0.2",
+                      "0.3",
+                      "0.4",
+                      "0.5",
+                      "1.1",
+                      "1.2",
+                      "1.3",
+                      "1.4",
+                      "1.5",
+                      "1.6",
+                      "2.1",
+                      "2.1b",
+                      "2.2",
+                      "2.3",
+                      "2.4",
+                      "2.5",
+                      "3.1",
+                      "3.2",
+                      "3.3",
+                      "3.4",
+                      "3.5",
+                      "4.1",
+                      "4.2",
+                      "4.3",
+                      "4.4",
+                      "4.5",
+                      "4.6",
+                      "5.1",
+                      "5.2",
+                      "5.3",
+                      "5.4",
+                      "5.5",
+                      "5.6",
+                      "5.7",
+                      "5.8",
+                      "6.0",
+                      "6.1",
+                      "6.2",
+                      "6.3",
+                      "6.4",
+                      "6.5",
+                      "6.6",
+                      "7.1",
+                      "7.2",
+                      "7.3",
+                      "7.4",
+                      "7.5",
+                      "7.6",
+                      "8.1",
+                      "8.2",
+                      "S8b",
+                      "9.2",
+                      "9.3",
+                      "9.4",
+                      "9.5"
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "gates",
+                  "after_stage",
+                  "after_step"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "lanes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "L0",
+                      "L1",
+                      "L2",
+                      "L3",
+                      "L4",
+                      "L5",
+                      "L6",
+                      "L7",
+                      "L8"
+                    ]
+                  },
+                  "route": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "human_led": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "lane",
+                  "route",
+                  "human_led"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "catalogue",
+            "stations",
+            "gates",
+            "lanes"
+          ],
+          "additionalProperties": false
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "opaque_key": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "team_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "classification": {
+                "type": "string",
+                "enum": [
+                  "internal",
+                  "confidential"
+                ]
+              },
+              "level": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "collapsed": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "confidential",
+                      "no_floor_read"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "in_flight": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "done_24h": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "stations": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "enum": [
+                    "S1",
+                    "S2",
+                    "S3",
+                    "S4",
+                    "S5",
+                    "S6",
+                    "S7",
+                    "S8",
+                    "S9"
+                  ]
+                },
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "stuck_at": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "S1",
+                    "S2",
+                    "S3",
+                    "S4",
+                    "S5",
+                    "S6",
+                    "S7",
+                    "S8",
+                    "S9"
+                  ]
+                }
+              },
+              "gates": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "rooms": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "enum": [
+                    "SCHED",
+                    "HOLD",
+                    "QUAR",
+                    "DESK",
+                    "BIN",
+                    "DONE"
+                  ]
+                },
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "status": {
+                "type": "object",
+                "properties": {
+                  "working": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "waiting": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "held": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "stuck": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "working",
+                  "waiting",
+                  "held",
+                  "stuck"
+                ],
+                "additionalProperties": false
+              },
+              "infeasible_gates": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "lanes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "L0",
+                    "L1",
+                    "L2",
+                    "L3",
+                    "L4",
+                    "L5",
+                    "L6",
+                    "L7",
+                    "L8"
+                  ]
+                }
+              },
+              "kill": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "clear",
+                      "killed",
+                      "unreachable"
+                    ]
+                  },
+                  "killed": {
+                    "type": "boolean"
+                  },
+                  "kill_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "message": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "state",
+                  "killed",
+                  "kill_ids",
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "project_id",
+              "name",
+              "opaque_key",
+              "team_id",
+              "classification",
+              "level",
+              "collapsed",
+              "in_flight",
+              "done_24h",
+              "stations",
+              "stuck_at",
+              "gates",
+              "rooms",
+              "status",
+              "infeasible_gates",
+              "lanes",
+              "kill"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "sessions": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "caps": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 32
+                    },
+                    "coding": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 8
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "coding"
+                  ],
+                  "additionalProperties": false
+                },
+                "caps_source": {
+                  "type": "string",
+                  "enum": [
+                    "config",
+                    "default"
+                  ]
+                },
+                "used": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "enum": [
+                      "K",
+                      "K-exec",
+                      "P",
+                      "W",
+                      "O",
+                      "V"
+                    ]
+                  },
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "required": [
+                    "K",
+                    "K-exec",
+                    "P",
+                    "W",
+                    "O",
+                    "V"
+                  ]
+                },
+                "free": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "enum": [
+                      "K",
+                      "K-exec",
+                      "P",
+                      "W",
+                      "O",
+                      "V"
+                    ]
+                  },
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "required": [
+                    "K",
+                    "K-exec",
+                    "P",
+                    "W",
+                    "O",
+                    "V"
+                  ]
+                }
+              },
+              "required": [
+                "caps",
+                "caps_source",
+                "used",
+                "free"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "silence_minutes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1440
+            },
+            "by_stage": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "enum": [
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S4",
+                  "S5",
+                  "S6",
+                  "S7",
+                  "S8",
+                  "S9"
+                ]
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1440
+              }
+            },
+            "low_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "config",
+                "default",
+                "unreadable"
+              ]
+            }
+          },
+          "required": [
+            "silence_minutes",
+            "by_stage",
+            "low_score",
+            "source"
+          ],
+          "additionalProperties": false
+        },
+        "freshness": {
+          "type": "object",
+          "properties": {
+            "as_of_seq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "head_seq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "stale": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "read_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "as_of_seq",
+            "head_seq",
+            "stale",
+            "reason",
+            "read_at"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "plan",
+        "projects",
+        "sessions",
+        "liveness",
+        "freshness"
+      ],
+      "additionalProperties": false
+    },
+    "FloorActivity": {
+      "type": "object",
+      "properties": {
+        "last_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "heartbeat",
+                "model_call",
+                "dispatch"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_since": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "silent_for_s": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stuck_after_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "silent": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "last_at",
+        "source",
+        "session_since",
+        "silent_for_s",
+        "stuck_after_s",
+        "silent"
+      ],
+      "additionalProperties": false
+    },
+    "FloorConfig": {
+      "type": "object",
+      "properties": {
+        "silence_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "by_stage": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S7",
+              "S8",
+              "S9"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          }
+        },
+        "low_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "silence_minutes",
+        "by_stage",
+        "low_score"
+      ],
+      "additionalProperties": false
+    },
     "FloorDef": {
       "type": "object",
       "properties": {
@@ -39476,6 +40338,204 @@
       ],
       "additionalProperties": false
     },
+    "FloorFlowHour": {
+      "type": "object",
+      "properties": {
+        "hour": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "F": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "B": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "R": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "hour",
+        "F",
+        "B",
+        "R"
+      ],
+      "additionalProperties": false
+    },
+    "FloorFreshness": {
+      "type": "object",
+      "properties": {
+        "as_of_seq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "head_seq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "read_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "as_of_seq",
+        "head_seq",
+        "stale",
+        "reason",
+        "read_at"
+      ],
+      "additionalProperties": false
+    },
+    "FloorGateNode": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*(\\+[A-Z][A-Za-z0-9]*)*$"
+        },
+        "gates": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "G0",
+              "G1",
+              "G1f",
+              "G2",
+              "G3",
+              "G3d",
+              "G3s",
+              "G3o",
+              "G4",
+              "G5",
+              "G6",
+              "X1",
+              "X2",
+              "X3",
+              "X4",
+              "E1",
+              "E2",
+              "E3",
+              "E4",
+              "E5",
+              "E6",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "M5",
+              "M6",
+              "Q1",
+              "SECT"
+            ]
+          }
+        },
+        "after_stage": {
+          "type": "string",
+          "enum": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6",
+            "S7",
+            "S8",
+            "S9"
+          ]
+        },
+        "after_step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "gates",
+        "after_stage",
+        "after_step"
+      ],
+      "additionalProperties": false
+    },
     "FloorId": {
       "type": "string",
       "enum": [
@@ -39495,6 +40555,1503 @@
         "FF2"
       ]
     },
+    "FloorItem": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "lane_bound": {
+          "type": "boolean"
+        },
+        "node": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "station"
+                },
+                "stage": {
+                  "type": "string",
+                  "enum": [
+                    "S1",
+                    "S2",
+                    "S3",
+                    "S4",
+                    "S5",
+                    "S6",
+                    "S7",
+                    "S8",
+                    "S9"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "stage"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "gate"
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "key"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "room"
+                },
+                "room": {
+                  "type": "string",
+                  "enum": [
+                    "SCHED",
+                    "HOLD",
+                    "QUAR",
+                    "DESK",
+                    "BIN",
+                    "DONE"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "room"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "S1",
+                "S2",
+                "S3",
+                "S4",
+                "S5",
+                "S6",
+                "S7",
+                "S8",
+                "S9"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "0.1",
+                "0.2",
+                "0.3",
+                "0.4",
+                "0.5",
+                "1.1",
+                "1.2",
+                "1.3",
+                "1.4",
+                "1.5",
+                "1.6",
+                "2.1",
+                "2.1b",
+                "2.2",
+                "2.3",
+                "2.4",
+                "2.5",
+                "3.1",
+                "3.2",
+                "3.3",
+                "3.4",
+                "3.5",
+                "4.1",
+                "4.2",
+                "4.3",
+                "4.4",
+                "4.5",
+                "4.6",
+                "5.1",
+                "5.2",
+                "5.3",
+                "5.4",
+                "5.5",
+                "5.6",
+                "5.7",
+                "5.8",
+                "6.0",
+                "6.1",
+                "6.2",
+                "6.3",
+                "6.4",
+                "6.5",
+                "6.6",
+                "7.1",
+                "7.2",
+                "7.3",
+                "7.4",
+                "7.5",
+                "7.6",
+                "8.1",
+                "8.2",
+                "S8b",
+                "9.2",
+                "9.3",
+                "9.4",
+                "9.5"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "Draft",
+            "Clarifying",
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "Scheduling",
+            "S6",
+            "S7",
+            "G4",
+            "S8a",
+            "S8b",
+            "G5",
+            "S9",
+            "G6",
+            "Held",
+            "Handoff",
+            "Quarantined",
+            "Parked",
+            "Done",
+            "Declined",
+            "Abandoned",
+            "Withdrawn",
+            "HandedOverClosed",
+            "Superseded",
+            "Deferred"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "working",
+            "waiting",
+            "held",
+            "stuck",
+            "done",
+            "declined"
+          ]
+        },
+        "waiting": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "waiting_gates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "gate": {
+                "type": "string",
+                "enum": [
+                  "G0",
+                  "G1",
+                  "G1f",
+                  "G2",
+                  "G3",
+                  "G3d",
+                  "G3s",
+                  "G3o",
+                  "G4",
+                  "G5",
+                  "G6",
+                  "X1",
+                  "X2",
+                  "X3",
+                  "X4",
+                  "E1",
+                  "E2",
+                  "E3",
+                  "E4",
+                  "E5",
+                  "E6",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "M4",
+                  "M5",
+                  "M6",
+                  "Q1",
+                  "SECT"
+                ]
+              },
+              "gate_instance_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "slot": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "requesters",
+                  "intent",
+                  "design",
+                  "g4",
+                  "g5",
+                  "x",
+                  "sec",
+                  "m4",
+                  "kill"
+                ]
+              },
+              "deciders": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "feasibility": {
+                "type": "string",
+                "enum": [
+                  "feasible",
+                  "infeasible",
+                  "unknown"
+                ]
+              },
+              "feasibility_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "gate",
+              "gate_instance_id",
+              "slot",
+              "deciders",
+              "feasibility",
+              "feasibility_reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "holds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hold_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "hold_id",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "in_session": {
+          "type": "boolean"
+        },
+        "activity": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "last_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "heartbeat",
+                        "model_call",
+                        "dispatch"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "session_since": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "silent_for_s": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "stuck_after_s": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "silent": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "last_at",
+                "source",
+                "session_since",
+                "silent_for_s",
+                "stuck_after_s",
+                "silent"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "route": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "catalogue_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requester": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mine": {
+          "type": "boolean"
+        },
+        "waits_on_me": {
+          "type": "boolean"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "item_id",
+        "key",
+        "lane",
+        "lane_bound",
+        "node",
+        "stage",
+        "step",
+        "phase",
+        "status",
+        "waiting",
+        "waiting_gates",
+        "holds",
+        "in_session",
+        "activity",
+        "route",
+        "catalogue_version",
+        "title",
+        "requester",
+        "mine",
+        "waits_on_me",
+        "updated_at"
+      ],
+      "additionalProperties": false
+    },
+    "FloorItemStatus": {
+      "type": "string",
+      "enum": [
+        "working",
+        "waiting",
+        "held",
+        "stuck",
+        "done",
+        "declined"
+      ]
+    },
+    "FloorKill": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "clear",
+            "killed",
+            "unreachable"
+          ]
+        },
+        "killed": {
+          "type": "boolean"
+        },
+        "kill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "killed",
+        "kill_ids",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "FloorLaneRoute": {
+      "type": "object",
+      "properties": {
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "route": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "human_led": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "lane",
+        "route",
+        "human_led"
+      ],
+      "additionalProperties": false
+    },
+    "FloorLiveness": {
+      "type": "object",
+      "properties": {
+        "silence_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "by_stage": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S7",
+              "S8",
+              "S9"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          }
+        },
+        "low_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "config",
+            "default",
+            "unreadable"
+          ]
+        }
+      },
+      "required": [
+        "silence_minutes",
+        "by_stage",
+        "low_score",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "FloorMove": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "F",
+            "B",
+            "R"
+          ]
+        },
+        "edge": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "item_id",
+        "key",
+        "lane",
+        "kind",
+        "edge",
+        "from",
+        "to",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "FloorMoveKind": {
+      "type": "string",
+      "enum": [
+        "F",
+        "B",
+        "R"
+      ]
+    },
+    "FloorNode": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "station"
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "S1",
+                "S2",
+                "S3",
+                "S4",
+                "S5",
+                "S6",
+                "S7",
+                "S8",
+                "S9"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "stage"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "gate"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "key"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "room"
+            },
+            "room": {
+              "type": "string",
+              "enum": [
+                "SCHED",
+                "HOLD",
+                "QUAR",
+                "DESK",
+                "BIN",
+                "DONE"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "room"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FloorPlan": {
+      "type": "object",
+      "properties": {
+        "catalogue": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "version",
+            "hash"
+          ],
+          "additionalProperties": false
+        },
+        "stations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S7",
+              "S8",
+              "S9"
+            ]
+          }
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Za-z0-9]*(\\+[A-Z][A-Za-z0-9]*)*$"
+              },
+              "gates": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "G0",
+                    "G1",
+                    "G1f",
+                    "G2",
+                    "G3",
+                    "G3d",
+                    "G3s",
+                    "G3o",
+                    "G4",
+                    "G5",
+                    "G6",
+                    "X1",
+                    "X2",
+                    "X3",
+                    "X4",
+                    "E1",
+                    "E2",
+                    "E3",
+                    "E4",
+                    "E5",
+                    "E6",
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "Q1",
+                    "SECT"
+                  ]
+                }
+              },
+              "after_stage": {
+                "type": "string",
+                "enum": [
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S4",
+                  "S5",
+                  "S6",
+                  "S7",
+                  "S8",
+                  "S9"
+                ]
+              },
+              "after_step": {
+                "type": "string",
+                "enum": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5",
+                  "1.1",
+                  "1.2",
+                  "1.3",
+                  "1.4",
+                  "1.5",
+                  "1.6",
+                  "2.1",
+                  "2.1b",
+                  "2.2",
+                  "2.3",
+                  "2.4",
+                  "2.5",
+                  "3.1",
+                  "3.2",
+                  "3.3",
+                  "3.4",
+                  "3.5",
+                  "4.1",
+                  "4.2",
+                  "4.3",
+                  "4.4",
+                  "4.5",
+                  "4.6",
+                  "5.1",
+                  "5.2",
+                  "5.3",
+                  "5.4",
+                  "5.5",
+                  "5.6",
+                  "5.7",
+                  "5.8",
+                  "6.0",
+                  "6.1",
+                  "6.2",
+                  "6.3",
+                  "6.4",
+                  "6.5",
+                  "6.6",
+                  "7.1",
+                  "7.2",
+                  "7.3",
+                  "7.4",
+                  "7.5",
+                  "7.6",
+                  "8.1",
+                  "8.2",
+                  "S8b",
+                  "9.2",
+                  "9.3",
+                  "9.4",
+                  "9.5"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "gates",
+              "after_stage",
+              "after_step"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "lanes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "L0",
+                  "L1",
+                  "L2",
+                  "L3",
+                  "L4",
+                  "L5",
+                  "L6",
+                  "L7",
+                  "L8"
+                ]
+              },
+              "route": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "human_led": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "lane",
+              "route",
+              "human_led"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "catalogue",
+        "stations",
+        "gates",
+        "lanes"
+      ],
+      "additionalProperties": false
+    },
+    "FloorProject": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "opaque_key": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "team_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "confidential"
+          ]
+        },
+        "level": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "collapsed": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "confidential",
+                "no_floor_read"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "in_flight": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "done_24h": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stations": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S7",
+              "S8",
+              "S9"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "stuck_at": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S7",
+              "S8",
+              "S9"
+            ]
+          }
+        },
+        "gates": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "rooms": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "SCHED",
+              "HOLD",
+              "QUAR",
+              "DESK",
+              "BIN",
+              "DONE"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "status": {
+          "type": "object",
+          "properties": {
+            "working": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "waiting": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "held": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "stuck": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "working",
+            "waiting",
+            "held",
+            "stuck"
+          ],
+          "additionalProperties": false
+        },
+        "infeasible_gates": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "lanes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3",
+              "L4",
+              "L5",
+              "L6",
+              "L7",
+              "L8"
+            ]
+          }
+        },
+        "kill": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "clear",
+                "killed",
+                "unreachable"
+              ]
+            },
+            "killed": {
+              "type": "boolean"
+            },
+            "kill_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "state",
+            "killed",
+            "kill_ids",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "project_id",
+        "name",
+        "opaque_key",
+        "team_id",
+        "classification",
+        "level",
+        "collapsed",
+        "in_flight",
+        "done_24h",
+        "stations",
+        "stuck_at",
+        "gates",
+        "rooms",
+        "status",
+        "infeasible_gates",
+        "lanes",
+        "kill"
+      ],
+      "additionalProperties": false
+    },
+    "FloorRoom": {
+      "type": "string",
+      "enum": [
+        "SCHED",
+        "HOLD",
+        "QUAR",
+        "DESK",
+        "BIN",
+        "DONE"
+      ]
+    },
+    "FloorScoreChip": {
+      "type": "object",
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6",
+            "S7",
+            "S8",
+            "S9"
+          ]
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder",
+            "assistant"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "score_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pass_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accept_rate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "flaky",
+            "fail",
+            "unknown"
+          ]
+        },
+        "low": {
+          "type": "boolean"
+        },
+        "eval_signals": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "production_signals": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "stage",
+        "agent_id",
+        "name",
+        "prompt_sha256",
+        "score_id",
+        "provider",
+        "model",
+        "pass_rate",
+        "accept_rate",
+        "status",
+        "low",
+        "eval_signals",
+        "production_signals"
+      ],
+      "additionalProperties": false
+    },
+    "FloorSessions": {
+      "type": "object",
+      "properties": {
+        "caps": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32
+            },
+            "coding": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            }
+          },
+          "required": [
+            "total",
+            "coding"
+          ],
+          "additionalProperties": false
+        },
+        "caps_source": {
+          "type": "string",
+          "enum": [
+            "config",
+            "default"
+          ]
+        },
+        "used": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "K",
+              "K-exec",
+              "P",
+              "W",
+              "O",
+              "V"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "required": [
+            "K",
+            "K-exec",
+            "P",
+            "W",
+            "O",
+            "V"
+          ]
+        },
+        "free": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "K",
+              "K-exec",
+              "P",
+              "W",
+              "O",
+              "V"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "required": [
+            "K",
+            "K-exec",
+            "P",
+            "W",
+            "O",
+            "V"
+          ]
+        }
+      },
+      "required": [
+        "caps",
+        "caps_source",
+        "used",
+        "free"
+      ],
+      "additionalProperties": false
+    },
+    "FloorStage": {
+      "type": "string",
+      "enum": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9"
+      ]
+    },
     "FloorStatus": {
       "type": "string",
       "enum": [
@@ -39503,6 +42060,1459 @@
         "unknown",
         "not_evaluated"
       ]
+    },
+    "FloorStatusCounts": {
+      "type": "object",
+      "properties": {
+        "working": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "waiting": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "held": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stuck": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "working",
+        "waiting",
+        "held",
+        "stuck"
+      ],
+      "additionalProperties": false
+    },
+    "FloorView": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "plan": {
+          "type": "object",
+          "properties": {
+            "catalogue": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                },
+                "hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "version",
+                "hash"
+              ],
+              "additionalProperties": false
+            },
+            "stations": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S4",
+                  "S5",
+                  "S6",
+                  "S7",
+                  "S8",
+                  "S9"
+                ]
+              }
+            },
+            "gates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Za-z0-9]*(\\+[A-Z][A-Za-z0-9]*)*$"
+                  },
+                  "gates": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "G0",
+                        "G1",
+                        "G1f",
+                        "G2",
+                        "G3",
+                        "G3d",
+                        "G3s",
+                        "G3o",
+                        "G4",
+                        "G5",
+                        "G6",
+                        "X1",
+                        "X2",
+                        "X3",
+                        "X4",
+                        "E1",
+                        "E2",
+                        "E3",
+                        "E4",
+                        "E5",
+                        "E6",
+                        "M1",
+                        "M2",
+                        "M3",
+                        "M4",
+                        "M5",
+                        "M6",
+                        "Q1",
+                        "SECT"
+                      ]
+                    }
+                  },
+                  "after_stage": {
+                    "type": "string",
+                    "enum": [
+                      "S1",
+                      "S2",
+                      "S3",
+                      "S4",
+                      "S5",
+                      "S6",
+                      "S7",
+                      "S8",
+                      "S9"
+                    ]
+                  },
+                  "after_step": {
+                    "type": "string",
+                    "enum": [
+                      "0.1",
+                      "0.2",
+                      "0.3",
+                      "0.4",
+                      "0.5",
+                      "1.1",
+                      "1.2",
+                      "1.3",
+                      "1.4",
+                      "1.5",
+                      "1.6",
+                      "2.1",
+                      "2.1b",
+                      "2.2",
+                      "2.3",
+                      "2.4",
+                      "2.5",
+                      "3.1",
+                      "3.2",
+                      "3.3",
+                      "3.4",
+                      "3.5",
+                      "4.1",
+                      "4.2",
+                      "4.3",
+                      "4.4",
+                      "4.5",
+                      "4.6",
+                      "5.1",
+                      "5.2",
+                      "5.3",
+                      "5.4",
+                      "5.5",
+                      "5.6",
+                      "5.7",
+                      "5.8",
+                      "6.0",
+                      "6.1",
+                      "6.2",
+                      "6.3",
+                      "6.4",
+                      "6.5",
+                      "6.6",
+                      "7.1",
+                      "7.2",
+                      "7.3",
+                      "7.4",
+                      "7.5",
+                      "7.6",
+                      "8.1",
+                      "8.2",
+                      "S8b",
+                      "9.2",
+                      "9.3",
+                      "9.4",
+                      "9.5"
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "gates",
+                  "after_stage",
+                  "after_step"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "lanes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "L0",
+                      "L1",
+                      "L2",
+                      "L3",
+                      "L4",
+                      "L5",
+                      "L6",
+                      "L7",
+                      "L8"
+                    ]
+                  },
+                  "route": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "human_led": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "lane",
+                  "route",
+                  "human_led"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "catalogue",
+            "stations",
+            "gates",
+            "lanes"
+          ],
+          "additionalProperties": false
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "L0",
+                  "L1",
+                  "L2",
+                  "L3",
+                  "L4",
+                  "L5",
+                  "L6",
+                  "L7",
+                  "L8"
+                ]
+              },
+              "lane_bound": {
+                "type": "boolean"
+              },
+              "node": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "station"
+                      },
+                      "stage": {
+                        "type": "string",
+                        "enum": [
+                          "S1",
+                          "S2",
+                          "S3",
+                          "S4",
+                          "S5",
+                          "S6",
+                          "S7",
+                          "S8",
+                          "S9"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "stage"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "gate"
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "key"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "room"
+                      },
+                      "room": {
+                        "type": "string",
+                        "enum": [
+                          "SCHED",
+                          "HOLD",
+                          "QUAR",
+                          "DESK",
+                          "BIN",
+                          "DONE"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "room"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "stage": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "S1",
+                      "S2",
+                      "S3",
+                      "S4",
+                      "S5",
+                      "S6",
+                      "S7",
+                      "S8",
+                      "S9"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "step": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "0.1",
+                      "0.2",
+                      "0.3",
+                      "0.4",
+                      "0.5",
+                      "1.1",
+                      "1.2",
+                      "1.3",
+                      "1.4",
+                      "1.5",
+                      "1.6",
+                      "2.1",
+                      "2.1b",
+                      "2.2",
+                      "2.3",
+                      "2.4",
+                      "2.5",
+                      "3.1",
+                      "3.2",
+                      "3.3",
+                      "3.4",
+                      "3.5",
+                      "4.1",
+                      "4.2",
+                      "4.3",
+                      "4.4",
+                      "4.5",
+                      "4.6",
+                      "5.1",
+                      "5.2",
+                      "5.3",
+                      "5.4",
+                      "5.5",
+                      "5.6",
+                      "5.7",
+                      "5.8",
+                      "6.0",
+                      "6.1",
+                      "6.2",
+                      "6.3",
+                      "6.4",
+                      "6.5",
+                      "6.6",
+                      "7.1",
+                      "7.2",
+                      "7.3",
+                      "7.4",
+                      "7.5",
+                      "7.6",
+                      "8.1",
+                      "8.2",
+                      "S8b",
+                      "9.2",
+                      "9.3",
+                      "9.4",
+                      "9.5"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "Draft",
+                  "Clarifying",
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S4",
+                  "S5",
+                  "Scheduling",
+                  "S6",
+                  "S7",
+                  "G4",
+                  "S8a",
+                  "S8b",
+                  "G5",
+                  "S9",
+                  "G6",
+                  "Held",
+                  "Handoff",
+                  "Quarantined",
+                  "Parked",
+                  "Done",
+                  "Declined",
+                  "Abandoned",
+                  "Withdrawn",
+                  "HandedOverClosed",
+                  "Superseded",
+                  "Deferred"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "working",
+                  "waiting",
+                  "held",
+                  "stuck",
+                  "done",
+                  "declined"
+                ]
+              },
+              "waiting": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "waiting_gates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "gate": {
+                      "type": "string",
+                      "enum": [
+                        "G0",
+                        "G1",
+                        "G1f",
+                        "G2",
+                        "G3",
+                        "G3d",
+                        "G3s",
+                        "G3o",
+                        "G4",
+                        "G5",
+                        "G6",
+                        "X1",
+                        "X2",
+                        "X3",
+                        "X4",
+                        "E1",
+                        "E2",
+                        "E3",
+                        "E4",
+                        "E5",
+                        "E6",
+                        "M1",
+                        "M2",
+                        "M3",
+                        "M4",
+                        "M5",
+                        "M6",
+                        "Q1",
+                        "SECT"
+                      ]
+                    },
+                    "gate_instance_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "slot": {
+                      "type": "string",
+                      "enum": [
+                        "admin",
+                        "requesters",
+                        "intent",
+                        "design",
+                        "g4",
+                        "g5",
+                        "x",
+                        "sec",
+                        "m4",
+                        "kill"
+                      ]
+                    },
+                    "deciders": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 128,
+                            "pattern": "^[A-Za-z0-9_.@-]+$"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "feasibility": {
+                      "type": "string",
+                      "enum": [
+                        "feasible",
+                        "infeasible",
+                        "unknown"
+                      ]
+                    },
+                    "feasibility_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "gate",
+                    "gate_instance_id",
+                    "slot",
+                    "deciders",
+                    "feasibility",
+                    "feasibility_reason"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "hold_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "reason": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "hold_id",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "in_session": {
+                "type": "boolean"
+              },
+              "activity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "last_at": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "source": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "heartbeat",
+                              "model_call",
+                              "dispatch"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "session_since": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "silent_for_s": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "stuck_after_s": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "silent": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "last_at",
+                      "source",
+                      "session_since",
+                      "silent_for_s",
+                      "stuck_after_s",
+                      "silent"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "route": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "catalogue_version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "requester": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.@-]+$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "mine": {
+                "type": "boolean"
+              },
+              "waits_on_me": {
+                "type": "boolean"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "item_id",
+              "key",
+              "lane",
+              "lane_bound",
+              "node",
+              "stage",
+              "step",
+              "phase",
+              "status",
+              "waiting",
+              "waiting_gates",
+              "holds",
+              "in_session",
+              "activity",
+              "route",
+              "catalogue_version",
+              "title",
+              "requester",
+              "mine",
+              "waits_on_me",
+              "updated_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "recent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "L0",
+                  "L1",
+                  "L2",
+                  "L3",
+                  "L4",
+                  "L5",
+                  "L6",
+                  "L7",
+                  "L8"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "F",
+                  "B",
+                  "R"
+                ]
+              },
+              "edge": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "from": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "to": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "item_id",
+              "key",
+              "lane",
+              "kind",
+              "edge",
+              "from",
+              "to",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "flow": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hour": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "F": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "B": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "R": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "hour",
+              "F",
+              "B",
+              "R"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "controls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "control_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "hold",
+                  "clamp",
+                  "halt",
+                  "maintenance"
+                ]
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "fleet"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "const": "*"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "enterprise",
+                          "org",
+                          "team",
+                          "project",
+                          "repo",
+                          "service_env",
+                          "environment",
+                          "lane",
+                          "session",
+                          "item",
+                          "role",
+                          "model",
+                          "release",
+                          "budget"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "expires_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "control_id",
+              "kind",
+              "scope",
+              "expires_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "sessions": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "caps": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 32
+                    },
+                    "coding": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 8
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "coding"
+                  ],
+                  "additionalProperties": false
+                },
+                "caps_source": {
+                  "type": "string",
+                  "enum": [
+                    "config",
+                    "default"
+                  ]
+                },
+                "used": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "enum": [
+                      "K",
+                      "K-exec",
+                      "P",
+                      "W",
+                      "O",
+                      "V"
+                    ]
+                  },
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "required": [
+                    "K",
+                    "K-exec",
+                    "P",
+                    "W",
+                    "O",
+                    "V"
+                  ]
+                },
+                "free": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "enum": [
+                      "K",
+                      "K-exec",
+                      "P",
+                      "W",
+                      "O",
+                      "V"
+                    ]
+                  },
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "required": [
+                    "K",
+                    "K-exec",
+                    "P",
+                    "W",
+                    "O",
+                    "V"
+                  ]
+                }
+              },
+              "required": [
+                "caps",
+                "caps_source",
+                "used",
+                "free"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scores": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S4",
+                  "S5",
+                  "S6",
+                  "S7",
+                  "S8",
+                  "S9"
+                ]
+              },
+              "agent_id": {
+                "type": "string",
+                "enum": [
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4",
+                  "A5",
+                  "A6",
+                  "A7",
+                  "A8",
+                  "A9",
+                  "A10",
+                  "A11",
+                  "A12",
+                  "coder",
+                  "assistant"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "prompt_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "score_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "provider": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pass_rate": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "accept_rate": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "flaky",
+                  "fail",
+                  "unknown"
+                ]
+              },
+              "low": {
+                "type": "boolean"
+              },
+              "eval_signals": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "production_signals": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "stage",
+              "agent_id",
+              "name",
+              "prompt_sha256",
+              "score_id",
+              "provider",
+              "model",
+              "pass_rate",
+              "accept_rate",
+              "status",
+              "low",
+              "eval_signals",
+              "production_signals"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "kill": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "clear",
+                "killed",
+                "unreachable"
+              ]
+            },
+            "killed": {
+              "type": "boolean"
+            },
+            "kill_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "state",
+            "killed",
+            "kill_ids",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "silence_minutes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1440
+            },
+            "by_stage": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "enum": [
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S4",
+                  "S5",
+                  "S6",
+                  "S7",
+                  "S8",
+                  "S9"
+                ]
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1440
+              }
+            },
+            "low_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "config",
+                "default",
+                "unreadable"
+              ]
+            }
+          },
+          "required": [
+            "silence_minutes",
+            "by_stage",
+            "low_score",
+            "source"
+          ],
+          "additionalProperties": false
+        },
+        "freshness": {
+          "type": "object",
+          "properties": {
+            "as_of_seq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "head_seq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "stale": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "read_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "as_of_seq",
+            "head_seq",
+            "stale",
+            "reason",
+            "read_at"
+          ],
+          "additionalProperties": false
+        },
+        "view_level": {
+          "type": "string",
+          "enum": [
+            "V1",
+            "V2",
+            "V3"
+          ]
+        },
+        "data_class": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2",
+            "D3"
+          ]
+        }
+      },
+      "required": [
+        "project_id",
+        "plan",
+        "items",
+        "recent",
+        "flow",
+        "controls",
+        "sessions",
+        "scores",
+        "kill",
+        "liveness",
+        "freshness",
+        "view_level",
+        "data_class"
+      ],
+      "additionalProperties": false
+    },
+    "FloorWaitingGate": {
+      "type": "object",
+      "properties": {
+        "gate": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G1f",
+            "G2",
+            "G3",
+            "G3d",
+            "G3s",
+            "G3o",
+            "G4",
+            "G5",
+            "G6",
+            "X1",
+            "X2",
+            "X3",
+            "X4",
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "Q1",
+            "SECT"
+          ]
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slot": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "requesters",
+            "intent",
+            "design",
+            "g4",
+            "g5",
+            "x",
+            "sec",
+            "m4",
+            "kill"
+          ]
+        },
+        "deciders": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feasibility": {
+          "type": "string",
+          "enum": [
+            "feasible",
+            "infeasible",
+            "unknown"
+          ]
+        },
+        "feasibility_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "gate",
+        "gate_instance_id",
+        "slot",
+        "deciders",
+        "feasibility",
+        "feasibility_reason"
+      ],
+      "additionalProperties": false
     },
     "G4DecidersBasis": {
       "type": "string",
@@ -42441,6 +46451,113 @@
         "onboarding"
       ]
     },
+    "GateFeasibility": {
+      "type": "object",
+      "properties": {
+        "gate_instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "gate": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G1f",
+            "G2",
+            "G3",
+            "G3d",
+            "G3s",
+            "G3o",
+            "G4",
+            "G5",
+            "G6",
+            "X1",
+            "X2",
+            "X3",
+            "X4",
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "Q1",
+            "SECT"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "feasible",
+            "infeasible",
+            "unknown"
+          ]
+        },
+        "slot": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "requesters",
+            "intent",
+            "design",
+            "g4",
+            "g5",
+            "x",
+            "sec",
+            "m4",
+            "kill"
+          ]
+        },
+        "needed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "eligible": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "gate_instance_id",
+        "gate",
+        "state",
+        "slot",
+        "needed",
+        "eligible",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "GateFeasibilityState": {
+      "type": "string",
+      "enum": [
+        "feasible",
+        "infeasible",
+        "unknown"
+      ]
+    },
     "GateId": {
       "type": "string",
       "enum": [
@@ -44741,7 +48858,8 @@
       "type": "string",
       "enum": [
         "onboarding_card",
-        "settings_revision"
+        "settings_revision",
+        "work_gate"
       ]
     },
     "InjectionFlag": {
@@ -71898,7 +76016,8 @@
                 "type": "string",
                 "enum": [
                   "onboarding_card",
-                  "settings_revision"
+                  "settings_revision",
+                  "work_gate"
                 ]
               },
               "id": {
@@ -71987,6 +76106,72 @@
                   "pattern": "^[A-Za-z0-9_.@-]+$"
                 }
               },
+              "item_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "gate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "feasibility": {
+                "type": "string",
+                "enum": [
+                  "feasible",
+                  "infeasible",
+                  "unknown"
+                ]
+              },
+              "feasibility_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "may_decide": {
                 "type": "boolean"
               },
@@ -72024,6 +76209,10 @@
               "overdue",
               "escalated",
               "holders",
+              "item_id",
+              "gate",
+              "feasibility",
+              "feasibility_reason",
               "may_decide",
               "deciders"
             ],
@@ -72039,7 +76228,8 @@
                 "type": "string",
                 "enum": [
                   "onboarding_card",
-                  "settings_revision"
+                  "settings_revision",
+                  "work_gate"
                 ]
               },
               "id": {
@@ -72128,6 +76318,72 @@
                   "pattern": "^[A-Za-z0-9_.@-]+$"
                 }
               },
+              "item_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "gate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "feasibility": {
+                "type": "string",
+                "enum": [
+                  "feasible",
+                  "infeasible",
+                  "unknown"
+                ]
+              },
+              "feasibility_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "may_decide": {
                 "type": "boolean"
               },
@@ -72165,6 +76421,10 @@
               "overdue",
               "escalated",
               "holders",
+              "item_id",
+              "gate",
+              "feasibility",
+              "feasibility_reason",
               "may_decide",
               "deciders"
             ],
@@ -72185,7 +76445,8 @@
           "type": "string",
           "enum": [
             "onboarding_card",
-            "settings_revision"
+            "settings_revision",
+            "work_gate"
           ]
         },
         "id": {
@@ -72274,6 +76535,72 @@
             "pattern": "^[A-Za-z0-9_.@-]+$"
           }
         },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "G0",
+                "G1",
+                "G1f",
+                "G2",
+                "G3",
+                "G3d",
+                "G3s",
+                "G3o",
+                "G4",
+                "G5",
+                "G6",
+                "X1",
+                "X2",
+                "X3",
+                "X4",
+                "E1",
+                "E2",
+                "E3",
+                "E4",
+                "E5",
+                "E6",
+                "M1",
+                "M2",
+                "M3",
+                "M4",
+                "M5",
+                "M6",
+                "Q1",
+                "SECT"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feasibility": {
+          "type": "string",
+          "enum": [
+            "feasible",
+            "infeasible",
+            "unknown"
+          ]
+        },
+        "feasibility_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "may_decide": {
           "type": "boolean"
         },
@@ -72311,6 +76638,10 @@
         "overdue",
         "escalated",
         "holders",
+        "item_id",
+        "gate",
+        "feasibility",
+        "feasibility_reason",
         "may_decide",
         "deciders"
       ],
@@ -97032,6 +101363,71 @@
         "sha256",
         "size",
         "exec"
+      ],
+      "additionalProperties": false
+    },
+    "SessionHeartbeat": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "unit_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9._-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sandbox_class": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "K",
+                "K-exec",
+                "P",
+                "W",
+                "O",
+                "V"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "item_id",
+        "project_id",
+        "session_id",
+        "unit_id",
+        "sandbox_class",
+        "at"
       ],
       "additionalProperties": false
     },

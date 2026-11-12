@@ -65,9 +65,10 @@ export class FakeEligibility implements EligibilityPort {
     return this;
   }
 
-  /** Makes every call for the project fail, to test fail-closed behaviour. */
-  breakProject(project: ProjectId): this {
-    this.down.add(project);
+  /** Makes every call for the project fail, to test fail-closed behaviour (`false` mends it). */
+  breakProject(project: ProjectId, broken = true): this {
+    if (broken) this.down.add(project);
+    else this.down.delete(project);
     return this;
   }
 

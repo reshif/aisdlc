@@ -212,6 +212,9 @@ export async function evalHistory(
     .slice(0, f.limit ?? 100);
 }
 
+/** Every eval run the record holds, oldest first (the floor's score chips fold them with every agent's runs). */
+export const loadAllEvalRuns = (pool: pg.Pool): Promise<EvalRunRecord[]> => loadRuns(pool, {});
+
 /** AgentScore of one agent per (prompt sha, provider, model): eval runs and production outcomes (M11.2). */
 export async function agentScoresOf(pool: pg.Pool, agent: AgentId): Promise<AgentScore[]> {
   const runs = await loadRuns(pool, { agent });
