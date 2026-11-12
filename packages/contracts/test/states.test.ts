@@ -166,13 +166,12 @@ const cases: Record<string, Case> = {
       active -> stale | suspended | expired | superseded`,
     inferred: `
       stale -> suspended | expired | superseded
-      suspended -> expired | superseded`,
+      suspended -> active | expired | superseded`,
     nonEdges: [
       ['proposed', 'stale'],
       ['proposed', 'suspended'],
       ['proposed', 'expired'],
       ['stale', 'active'],
-      ['suspended', 'active'],
       ['expired', 'active'],
       ['superseded', 'active'],
       ['active', 'proposed'],
@@ -354,5 +353,20 @@ describe('ReadinessRecord actors', () => {
     expect(canTransitionReadinessBy('mechanical', 'stale', 'active')).toBe(false);
     expect(canTransitionReadinessBy('m4_decision', 'active', 'superseded')).toBe(true);
     expect(canTransitionReadinessBy('m4_decision', 'expired', 'active')).toBe(false);
+  });
+
+  it('lets only a restore lift a suspension (DEC-21(b)), and a restore do nothing else', () => {
+    expect(canTransitionReadinessBy('restore', 'suspended', 'active')).toBe(true);
+    expect(canTransitionReadinessBy('mechanical', 'suspended', 'active')).toBe(false);
+    expect(canTransitionReadinessBy('m4_decision', 'suspended', 'active')).toBe(false);
+    for (const [from, to] of [
+      ['expired', 'active'],
+      ['stale', 'active'],
+      ['proposed', 'active'],
+      ['active', 'suspended'],
+      ['suspended', 'expired'],
+    ] as const) {
+      expect(canTransitionReadinessBy('restore', from, to)).toBe(false);
+    }
   });
 });

@@ -35,6 +35,7 @@ import type pg from 'pg';
 import { recordUnitProgress } from '../admission/admit.js';
 import { coreError, type CoreError } from '../errors.js';
 import { clockOf, inCoreLedgerTx, inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
+import { readGoverning } from '../prr-store.js';
 import { readItem } from '../work-items.js';
 
 // What core does for the Push Broker (PLAN M13.6; DM §3.6 PushReceipt, PullRequest; DEC-12(a) record-first):
@@ -61,14 +62,21 @@ export async function unitLeaseFacts(
   unitKey: string,
   laneOf: () => Promise<string>,
 ): Promise<PushLeaseFacts> {
-  const q = await db.query<{ epoch: number; status: string }>(
-    `SELECT l.epoch, l.status FROM core.lease l JOIN core.unit u USING (unit_id)
+  const q = await db.query<{ epoch: number; status: string; repo: string }>(
+    `SELECT l.epoch, l.status, u.repo FROM core.lease l JOIN core.unit u USING (unit_id)
       WHERE u.item_id = $1 AND u.unit_key = $2`,
     [itemId, unitKey],
   );
   const lane = await laneOf();
   const l = q.rows[0];
-  return PushLeaseFacts.parse({ held: l?.status === 'held', epoch: l?.epoch ?? 0, lane });
+  // OB §8, DEC-21: a record suspended for drift closes the agent lanes, in flight too (the broker refuses the push)
+  const gov = l ? await readGoverning(db as Executor, l.repo) : null;
+  return PushLeaseFacts.parse({
+    held: l?.status === 'held',
+    epoch: l?.epoch ?? 0,
+    lane,
+    suspended: gov?.governing?.status === 'suspended',
+  });
 }
 
 /**

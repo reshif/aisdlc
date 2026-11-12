@@ -105,6 +105,8 @@ export function makeHarness(stack: () => CoreStack, prefix: string) {
         on_behalf_of: pr(o.requester ?? 'alice'),
         ...(o.attestations ? { attestations: o.attestations } : {}),
       }),
+      // Full is only a level-up of a Light repo (user decision 2026-11-12): a Full scenario stands for that path
+      o.level === 'full' ? { levelUp: { from_version: 1, from_level: 'light' } } : {},
     );
     if (!r.ok) throw new Error(r.error.message);
     const s0 = r.value.s0_id;

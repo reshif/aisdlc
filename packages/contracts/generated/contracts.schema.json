@@ -1271,6 +1271,140 @@
       ],
       "additionalProperties": false
     },
+    "AffirmedFileObservation": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "blob_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "blob_sha",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "AffirmedFilesValue": {
+      "type": "object",
+      "properties": {
+        "sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "files": {
+          "maxItems": 60,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "blob_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sha256": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "blob_sha",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "codeowners": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "blob_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "errors": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "string",
+                      "const": "unknown"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "blob_sha",
+                "errors"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sha",
+        "files",
+        "codeowners"
+      ],
+      "additionalProperties": false
+    },
     "AgentBinding": {
       "type": "object",
       "properties": {
@@ -10811,6 +10945,47 @@
       "required": [
         "repo",
         "refs"
+      ],
+      "additionalProperties": false
+    },
+    "BypassAttestation": {
+      "type": "object",
+      "properties": {
+        "bypass_matches_list": {
+          "type": "boolean",
+          "const": true
+        },
+        "bypass_has_no_app": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "bypass_matches_list",
+        "bypass_has_no_app"
+      ],
+      "additionalProperties": false
+    },
+    "BypassListShown": {
+      "type": "object",
+      "properties": {
+        "logins": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "list_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "logins",
+        "list_hash"
       ],
       "additionalProperties": false
     },
@@ -25704,6 +25879,38 @@
       ],
       "additionalProperties": false
     },
+    "CodeownersObservation": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blob_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "errors": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "const": "unknown"
+            }
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "blob_sha",
+        "errors"
+      ],
+      "additionalProperties": false
+    },
     "CodeownersOwner": {
       "oneOf": [
         {
@@ -29021,7 +29228,10 @@
           "enum": [
             "onboarding_card",
             "settings_revision",
-            "work_gate"
+            "work_gate",
+            "drift_reaffirm",
+            "prr_restore",
+            "prr_resign"
           ]
         },
         "id": {
@@ -32571,6 +32781,926 @@
         "text",
         "card",
         "lint"
+      ],
+      "additionalProperties": false
+    },
+    "DriftBaseline": {
+      "type": "object",
+      "properties": {
+        "required_checks": {
+          "anyOf": [
+            {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "integration_id": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "integration_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "codeowners": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "blob_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "errors": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "string",
+                      "const": "unknown"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "blob_sha",
+                "errors"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "required_checks",
+        "codeowners"
+      ],
+      "additionalProperties": false
+    },
+    "DriftEffect": {
+      "type": "string",
+      "enum": [
+        "reaffirm",
+        "suspend"
+      ]
+    },
+    "DriftEvaluatedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "head_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rules_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "findings": {
+          "maxItems": 80,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instruction_text",
+                  "pack_file",
+                  "codeowners",
+                  "protect_main",
+                  "required_check"
+                ]
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "reaffirm",
+                  "suspend"
+                ]
+              },
+              "subject": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reasons": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "expected": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "observed": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "effect",
+              "subject",
+              "reasons",
+              "expected",
+              "observed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "findings_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "head_sha",
+        "rules_hash",
+        "findings",
+        "findings_hash"
+      ],
+      "additionalProperties": false
+    },
+    "DriftFinding": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "instruction_text",
+            "pack_file",
+            "codeowners",
+            "protect_main",
+            "required_check"
+          ]
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "reaffirm",
+            "suspend"
+          ]
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasons": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "effect",
+        "subject",
+        "reasons",
+        "expected",
+        "observed"
+      ],
+      "additionalProperties": false
+    },
+    "DriftFindingKind": {
+      "type": "string",
+      "enum": [
+        "instruction_text",
+        "pack_file",
+        "codeowners",
+        "protect_main",
+        "required_check"
+      ]
+    },
+    "DriftHistoryRow": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "evaluated",
+            "suspended",
+            "restored",
+            "reaffirmed",
+            "version_requested",
+            "expired",
+            "activated"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ledger_entry_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "at",
+        "type",
+        "summary",
+        "by",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DriftReaffirmedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "previous_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "blob_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "lint_report_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "step_up_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "path",
+        "text",
+        "text_sha256",
+        "previous_sha256",
+        "head_sha",
+        "blob_sha",
+        "lint_report_hash",
+        "step_up_ref",
+        "by",
+        "at",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DriftRestoredPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "recheck": {
+          "type": "object",
+          "properties": {
+            "findings_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "head_sha": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rules_hash": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "findings_hash",
+            "head_sha",
+            "rules_hash"
+          ],
+          "additionalProperties": false
+        },
+        "baseline": {
+          "type": "object",
+          "properties": {
+            "required_checks": {
+              "anyOf": [
+                {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "integration_id": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "integration_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "codeowners": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "blob_sha": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    },
+                    "errors": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "string",
+                          "const": "unknown"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "blob_sha",
+                    "errors"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "required_checks",
+            "codeowners"
+          ],
+          "additionalProperties": false
+        },
+        "bypass": {
+          "type": "object",
+          "properties": {
+            "logins": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "list_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "logins",
+            "list_hash"
+          ],
+          "additionalProperties": false
+        },
+        "attestation": {
+          "type": "object",
+          "properties": {
+            "bypass_matches_list": {
+              "type": "boolean",
+              "const": true
+            },
+            "bypass_has_no_app": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "bypass_matches_list",
+            "bypass_has_no_app"
+          ],
+          "additionalProperties": false
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "by",
+        "at",
+        "recheck",
+        "baseline",
+        "bypass",
+        "attestation",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DriftSuspendedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "active",
+            "stale",
+            "suspended",
+            "expired",
+            "superseded"
+          ]
+        },
+        "findings": {
+          "minItems": 1,
+          "maxItems": 80,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instruction_text",
+                  "pack_file",
+                  "codeowners",
+                  "protect_main",
+                  "required_check"
+                ]
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "reaffirm",
+                  "suspend"
+                ]
+              },
+              "subject": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reasons": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "expected": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "observed": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "effect",
+              "subject",
+              "reasons",
+              "expected",
+              "observed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "findings_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "from",
+        "findings",
+        "findings_hash",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DriftVersionRequestedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "level_up",
+            "re_sign"
+          ]
+        },
+        "from_level": {
+          "type": "string",
+          "enum": [
+            "census",
+            "light",
+            "full"
+          ]
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "census",
+            "light",
+            "full"
+          ]
+        },
+        "new_s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "opens": {
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "0.3",
+              "C3"
+            ]
+          }
+        },
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "reason",
+        "from_level",
+        "level",
+        "new_s0_id",
+        "opens",
+        "by"
       ],
       "additionalProperties": false
     },
@@ -50995,7 +52125,8 @@
         "default_branch_head",
         "installation",
         "effective_rules",
-        "agent_pulls"
+        "agent_pulls",
+        "affirmed_files"
       ]
     },
     "InboundFactPayload": {
@@ -51017,7 +52148,8 @@
             "default_branch_head",
             "installation",
             "effective_rules",
-            "agent_pulls"
+            "agent_pulls",
+            "affirmed_files"
           ]
         },
         "value": {
@@ -51539,7 +52671,10 @@
       "enum": [
         "onboarding_card",
         "settings_revision",
-        "work_gate"
+        "work_gate",
+        "drift_reaffirm",
+        "prr_restore",
+        "prr_resign"
       ]
     },
     "InjectionFlag": {
@@ -77701,6 +78836,84 @@
         "skip"
       ]
     },
+    "OnboardingVersionReason": {
+      "type": "string",
+      "enum": [
+        "level_up",
+        "re_sign"
+      ]
+    },
+    "OnboardingVersionRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "level_up",
+            "re_sign"
+          ]
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "census",
+            "light",
+            "full"
+          ]
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "repo",
+        "reason",
+        "level",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "OnboardingVersionResult": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "census",
+            "light",
+            "full"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "level_up",
+            "re_sign"
+          ]
+        },
+        "duplicate": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "s0_id",
+        "level",
+        "reason",
+        "duplicate"
+      ],
+      "additionalProperties": false
+    },
     "OpsAction": {
       "type": "object",
       "properties": {
@@ -78273,6 +79486,78 @@
       ],
       "additionalProperties": false
     },
+    "PackCodeownersOutcome": {
+      "type": "string",
+      "enum": [
+        "rendered",
+        "repo_has_codeowners",
+        "role_map_unpublished",
+        "no_owner_mapped"
+      ]
+    },
+    "PackCodeownersResolvedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "rendered",
+            "repo_has_codeowners",
+            "role_map_unpublished",
+            "no_owner_mapped"
+          ]
+        },
+        "owners": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "login": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 39
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "mapped",
+                  "no_linked_login"
+                ]
+              }
+            },
+            "required": [
+              "principal_id",
+              "login",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "s0_id",
+        "outcome",
+        "owners"
+      ],
+      "additionalProperties": false
+    },
     "PackFile": {
       "type": "object",
       "properties": {
@@ -78290,7 +79575,8 @@
             "intent",
             "manifest",
             "oracle_lock",
-            "seed"
+            "seed",
+            "codeowners"
           ]
         },
         "sha256": {
@@ -78332,7 +79618,8 @@
         "intent",
         "manifest",
         "oracle_lock",
-        "seed"
+        "seed",
+        "codeowners"
       ]
     },
     "PackKind": {
@@ -78408,7 +79695,8 @@
                   "intent",
                   "manifest",
                   "oracle_lock",
-                  "seed"
+                  "seed",
+                  "codeowners"
                 ]
               },
               "sha256": {
@@ -78562,7 +79850,8 @@
                   "intent",
                   "manifest",
                   "oracle_lock",
-                  "seed"
+                  "seed",
+                  "codeowners"
                 ]
               },
               "sha256": {
@@ -79569,7 +80858,10 @@
                 "enum": [
                   "onboarding_card",
                   "settings_revision",
-                  "work_gate"
+                  "work_gate",
+                  "drift_reaffirm",
+                  "prr_restore",
+                  "prr_resign"
                 ]
               },
               "id": {
@@ -79781,7 +81073,10 @@
                 "enum": [
                   "onboarding_card",
                   "settings_revision",
-                  "work_gate"
+                  "work_gate",
+                  "drift_reaffirm",
+                  "prr_restore",
+                  "prr_resign"
                 ]
               },
               "id": {
@@ -79998,7 +81293,10 @@
           "enum": [
             "onboarding_card",
             "settings_revision",
-            "work_gate"
+            "work_gate",
+            "drift_reaffirm",
+            "prr_restore",
+            "prr_resign"
           ]
         },
         "id": {
@@ -81369,6 +82667,495 @@
     "PortalPath": {
       "type": "string",
       "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+    },
+    "PortalProjectDriftView": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+              },
+              "prr": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "proposed",
+                          "active",
+                          "stale",
+                          "suspended",
+                          "expired",
+                          "superseded"
+                        ]
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "census",
+                          "light",
+                          "full"
+                        ]
+                      },
+                      "fresh_until": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "expired": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "status",
+                      "level",
+                      "fresh_until",
+                      "expired"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "head_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files_polled_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "rules_polled_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "instruction_text",
+                        "pack_file",
+                        "codeowners",
+                        "protect_main",
+                        "required_check"
+                      ]
+                    },
+                    "effect": {
+                      "type": "string",
+                      "enum": [
+                        "reaffirm",
+                        "suspend"
+                      ]
+                    },
+                    "subject": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reasons": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      }
+                    },
+                    "expected": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "observed": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "effect",
+                    "subject",
+                    "reasons",
+                    "expected",
+                    "observed"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "affirmed",
+                        "pending_projection",
+                        "drift",
+                        "absent"
+                      ]
+                    },
+                    "served_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "observed_sha256": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "state",
+                    "served_sha256",
+                    "observed_sha256"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "suspension": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "findings": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "instruction_text",
+                                "pack_file",
+                                "codeowners",
+                                "protect_main",
+                                "required_check"
+                              ]
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "reaffirm",
+                                "suspend"
+                              ]
+                            },
+                            "subject": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 300
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reasons": {
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              }
+                            },
+                            "expected": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 80
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "observed": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 80
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "effect",
+                            "subject",
+                            "reasons",
+                            "expected",
+                            "observed"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "at",
+                      "findings"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "restore": {
+                "type": "object",
+                "properties": {
+                  "ready": {
+                    "type": "boolean"
+                  },
+                  "why_not": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bypass": {
+                    "type": "object",
+                    "properties": {
+                      "logins": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "list_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "required": [
+                      "logins",
+                      "list_hash"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "ready",
+                  "why_not",
+                  "bypass"
+                ],
+                "additionalProperties": false
+              },
+              "level_up": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                }
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "evaluated",
+                        "suspended",
+                        "restored",
+                        "reaffirmed",
+                        "version_requested",
+                        "expired",
+                        "activated"
+                      ]
+                    },
+                    "summary": {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "by": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "ledger_entry_id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "type",
+                    "summary",
+                    "by",
+                    "ledger_entry_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "repo",
+              "prr",
+              "head_sha",
+              "files_polled_at",
+              "rules_polled_at",
+              "findings",
+              "files",
+              "suspension",
+              "restore",
+              "level_up",
+              "history"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "may": {
+          "type": "object",
+          "properties": {
+            "restore": {
+              "type": "boolean"
+            },
+            "reaffirm": {
+              "type": "boolean"
+            },
+            "recheck": {
+              "type": "boolean"
+            },
+            "request_version": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "restore",
+            "reaffirm",
+            "recheck",
+            "request_version"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "project_id",
+        "repos",
+        "may"
+      ],
+      "additionalProperties": false
     },
     "PortalS0Revision": {
       "type": "object",
@@ -85026,6 +86813,470 @@
         "project",
         "repos",
         "s0"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectDriftView": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+              },
+              "prr": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "proposed",
+                          "active",
+                          "stale",
+                          "suspended",
+                          "expired",
+                          "superseded"
+                        ]
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "census",
+                          "light",
+                          "full"
+                        ]
+                      },
+                      "fresh_until": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "expired": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "status",
+                      "level",
+                      "fresh_until",
+                      "expired"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "head_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files_polled_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "rules_polled_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "instruction_text",
+                        "pack_file",
+                        "codeowners",
+                        "protect_main",
+                        "required_check"
+                      ]
+                    },
+                    "effect": {
+                      "type": "string",
+                      "enum": [
+                        "reaffirm",
+                        "suspend"
+                      ]
+                    },
+                    "subject": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reasons": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      }
+                    },
+                    "expected": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "observed": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "effect",
+                    "subject",
+                    "reasons",
+                    "expected",
+                    "observed"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "affirmed",
+                        "pending_projection",
+                        "drift",
+                        "absent"
+                      ]
+                    },
+                    "served_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "observed_sha256": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "state",
+                    "served_sha256",
+                    "observed_sha256"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "suspension": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "findings": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "instruction_text",
+                                "pack_file",
+                                "codeowners",
+                                "protect_main",
+                                "required_check"
+                              ]
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "reaffirm",
+                                "suspend"
+                              ]
+                            },
+                            "subject": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 300
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reasons": {
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              }
+                            },
+                            "expected": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 80
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "observed": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 80
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "effect",
+                            "subject",
+                            "reasons",
+                            "expected",
+                            "observed"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "at",
+                      "findings"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "restore": {
+                "type": "object",
+                "properties": {
+                  "ready": {
+                    "type": "boolean"
+                  },
+                  "why_not": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bypass": {
+                    "type": "object",
+                    "properties": {
+                      "logins": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "list_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "required": [
+                      "logins",
+                      "list_hash"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "ready",
+                  "why_not",
+                  "bypass"
+                ],
+                "additionalProperties": false
+              },
+              "level_up": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                }
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "evaluated",
+                        "suspended",
+                        "restored",
+                        "reaffirmed",
+                        "version_requested",
+                        "expired",
+                        "activated"
+                      ]
+                    },
+                    "summary": {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "by": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "ledger_entry_id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "type",
+                    "summary",
+                    "by",
+                    "ledger_entry_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "repo",
+              "prr",
+              "head_sha",
+              "files_polled_at",
+              "rules_polled_at",
+              "findings",
+              "files",
+              "suspension",
+              "restore",
+              "level_up",
+              "history"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "project_id",
+        "repos"
       ],
       "additionalProperties": false
     },
@@ -97843,7 +100094,8 @@
           "type": "string",
           "enum": [
             "m4_decision",
-            "mechanical"
+            "mechanical",
+            "restore"
           ]
         },
         "cause": {
@@ -100196,6 +102448,9 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 8
+        },
+        "suspended": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -100266,6 +102521,7 @@
                 "base_unknown",
                 "guards_unavailable",
                 "repo_not_allowed",
+                "prr_suspended",
                 "refused"
               ]
             },
@@ -100391,6 +102647,7 @@
                 "base_unknown",
                 "guards_unavailable",
                 "repo_not_allowed",
+                "prr_suspended",
                 "refused"
               ]
             },
@@ -100480,6 +102737,7 @@
         "base_unknown",
         "guards_unavailable",
         "repo_not_allowed",
+        "prr_suspended",
         "refused"
       ]
     },
@@ -101077,7 +103335,8 @@
       "type": "string",
       "enum": [
         "m4_decision",
-        "mechanical"
+        "mechanical",
+        "restore"
       ]
     },
     "ReadinessPillar": {
@@ -101099,6 +103358,189 @@
         "expired",
         "superseded"
       ]
+    },
+    "ReaffirmRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "step_up": {
+          "type": "object",
+          "properties": {
+            "proof": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          },
+          "required": [
+            "proof"
+          ],
+          "additionalProperties": false
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "repo",
+        "path",
+        "text_sha256",
+        "step_up",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "ReaffirmResult": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "path",
+        "text_sha256",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "ReaffirmView": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "affirmed_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "affirmed_text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "repo_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repo_text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lint": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule": {
+                "type": "string",
+                "minLength": 1
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "blocking",
+                  "advisory"
+                ]
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rule",
+              "severity",
+              "line"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "secret_hit": {
+          "type": "boolean"
+        },
+        "bound_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "why_not": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "repo",
+        "path",
+        "head_sha",
+        "affirmed_sha256",
+        "affirmed_text",
+        "repo_sha256",
+        "repo_text",
+        "lint",
+        "secret_hit",
+        "bound_hash",
+        "why_not"
+      ],
+      "additionalProperties": false
     },
     "RecordEvent": {
       "type": "object",
@@ -101964,6 +104406,452 @@
       ],
       "additionalProperties": false
     },
+    "RepoDriftView": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "prr": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "proposed",
+                    "active",
+                    "stale",
+                    "suspended",
+                    "expired",
+                    "superseded"
+                  ]
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                },
+                "fresh_until": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "expired": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "version",
+                "status",
+                "level",
+                "fresh_until",
+                "expired"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "head_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "files_polled_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rules_polled_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instruction_text",
+                  "pack_file",
+                  "codeowners",
+                  "protect_main",
+                  "required_check"
+                ]
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "reaffirm",
+                  "suspend"
+                ]
+              },
+              "subject": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reasons": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "expected": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "observed": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "effect",
+              "subject",
+              "reasons",
+              "expected",
+              "observed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "affirmed",
+                  "pending_projection",
+                  "drift",
+                  "absent"
+                ]
+              },
+              "served_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "observed_sha256": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "state",
+              "served_sha256",
+              "observed_sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "suspension": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "instruction_text",
+                          "pack_file",
+                          "codeowners",
+                          "protect_main",
+                          "required_check"
+                        ]
+                      },
+                      "effect": {
+                        "type": "string",
+                        "enum": [
+                          "reaffirm",
+                          "suspend"
+                        ]
+                      },
+                      "subject": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reasons": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "expected": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "observed": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "effect",
+                      "subject",
+                      "reasons",
+                      "expected",
+                      "observed"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "at",
+                "findings"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restore": {
+          "type": "object",
+          "properties": {
+            "ready": {
+              "type": "boolean"
+            },
+            "why_not": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "bypass": {
+              "type": "object",
+              "properties": {
+                "logins": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "list_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "logins",
+                "list_hash"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "ready",
+            "why_not",
+            "bypass"
+          ],
+          "additionalProperties": false
+        },
+        "level_up": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "census",
+              "light",
+              "full"
+            ]
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "evaluated",
+                  "suspended",
+                  "restored",
+                  "reaffirmed",
+                  "version_requested",
+                  "expired",
+                  "activated"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ledger_entry_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "at",
+              "type",
+              "summary",
+              "by",
+              "ledger_entry_id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "repo",
+        "prr",
+        "head_sha",
+        "files_polled_at",
+        "rules_polled_at",
+        "findings",
+        "files",
+        "suspension",
+        "restore",
+        "level_up",
+        "history"
+      ],
+      "additionalProperties": false
+    },
     "RepoFullName": {
       "type": "string",
       "maxLength": 200,
@@ -102226,6 +105114,100 @@
         "reserved_at",
         "abandoned_at",
         "max_age_ms"
+      ],
+      "additionalProperties": false
+    },
+    "RestoreRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "bypass": {
+          "type": "object",
+          "properties": {
+            "logins": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "list_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "logins",
+            "list_hash"
+          ],
+          "additionalProperties": false
+        },
+        "attestation": {
+          "type": "object",
+          "properties": {
+            "bypass_matches_list": {
+              "type": "boolean",
+              "const": true
+            },
+            "bypass_has_no_app": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "bypass_matches_list",
+            "bypass_has_no_app"
+          ],
+          "additionalProperties": false
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "repo",
+        "bypass",
+        "attestation",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "RestoreResult": {
+      "type": "object",
+      "properties": {
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "active",
+            "stale",
+            "suspended",
+            "expired",
+            "superseded"
+          ]
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "prr_version",
+        "status",
+        "ledger_entry_id"
       ],
       "additionalProperties": false
     },
@@ -108477,6 +111459,55 @@
         "affirm",
         "correct",
         "keep_observed"
+      ]
+    },
+    "ServedFile": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "affirmed",
+            "pending_projection",
+            "drift",
+            "absent"
+          ]
+        },
+        "served_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "observed_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "state",
+        "served_sha256",
+        "observed_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "ServedFileState": {
+      "type": "string",
+      "enum": [
+        "affirmed",
+        "pending_projection",
+        "drift",
+        "absent"
       ]
     },
     "ServiceEnv": {

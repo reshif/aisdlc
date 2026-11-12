@@ -19,6 +19,7 @@ import { makeCanary } from '@aisdlc/secrets-rules';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CorePushGuards,
+  coreInbox,
   laneEligibility,
   listReonboardProposals,
   rebuildKnowledgeDefects,
@@ -465,6 +466,11 @@ describe('the oracle lock through X2 (M17)', () => {
       // idempotent
       const again = await projectFullPack(deps, c.s0);
       expect(again.ok && again.value.x2_card_id).toBe(v.value.x2_card_id);
+      // the Full pack's X2 card is in the inbox too (M16 lists every S0 pack's X2), for the X slot
+      const inbox = await coreInbox({ cards: deps.cards, clock: s.clock });
+      expect(inbox.filter((i) => i.id === v.value.x2_card_id)).toEqual([
+        expect.objectContaining({ kind: 'onboarding_card', label: 'X2', s0_id: c.s0, slot: 'x' }),
+      ]);
 
       // the guards: the Full pack has its own lease; the X2 binds only its own patch
       const guards = new CorePushGuards(s.record.pool);

@@ -8,7 +8,13 @@ import {
   type CodeHostRead,
 } from '@aisdlc/contracts';
 import { systemClock, type Clock } from '@aisdlc/kernel';
-import { mapRead, repoKey } from '@aisdlc/ports';
+import {
+  TRACKER_ROUTES,
+  mapRead,
+  readUnreadable,
+  repoKey,
+  type IssueTrackerPort,
+} from '@aisdlc/ports';
 import { newApp, sendError, type ServiceAuth } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { b4Checks } from './b4.js';
@@ -21,9 +27,11 @@ import type { TokenBroker } from './token-broker.js';
  * What a caller may do (PLAN M5.2, M5.3): `census` reads repo facts for the Census (the repos,
  * files, heads, CODEOWNERS) and the credential-free bundle, `posture` reads the posture facts (installation, effective rules,
  * collaborators, CODEOWNERS errors, the B4 verdict), `codeowners_sync` feeds CODEOWNERS owners into
- * the project's g4 group, `reload` re-reads the integration registry now (M10.4).
+ * the project's g4 group, `reload` re-reads the integration registry now (M10.4), `push` is the Push Broker (M13.6),
+ * `tracker` the issue twin's tracker (M16: its own App, `issues: write`; only core-worker holds a token with it).
  */
-export type CodeHostScope = 'census' | 'posture' | 'codeowners_sync' | 'reload' | 'push';
+export type CodeHostScope =
+  'census' | 'posture' | 'codeowners_sync' | 'reload' | 'push' | 'tracker';
 
 export interface CodeHostAppOptions {
   /** The host to serve with. With `runtime` it is ignored: the runtime's current host is used per request. */
@@ -45,6 +53,12 @@ export interface CodeHostAppOptions {
   /** For the B4a check on the permissions of tokens actually minted. */
   readonly broker?: TokenBroker;
   readonly clock?: Clock;
+  /**
+   * M16 (user decision 2026-11-12: core-worker keeps no route out): the issue twin's tracker, through ITS OWN App
+   * (`GitHubIssueTracker`; never the Push Broker's or the read App's credential). Absent: the tracker routes answer
+   * `unknown`.
+   */
+  readonly tracker?: IssueTrackerPort;
 }
 
 const statusOf = (r: CodeHostNotOk): number => {
@@ -192,6 +206,114 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     if (!repo || !Number.isInteger(number) || number < 1)
       return bad(reply, 'owner/name and a pull request number');
     return send(reply, await hostOf().pr_status({ repo, number }));
+  });
+
+  // ------------------------------------------------------------ the issue twin's tracker (M16)
+
+  /**
+   * The five operations of `IssueTrackerPort`, under scope `tracker`, for a REGISTERED repo only, through the tracker's
+   * own App. The tracker's own checks (a twin's two labels and one marker; comments and closes on its own issues only)
+   * run in `GitHubIssueTracker` before any request.
+   */
+  async function trackerFor(
+    req: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<{ t: IssueTrackerPort; repo: RepoFullName } | null> {
+    if (!allowed(req, 'tracker')) {
+      forbid(reply, 'tracker');
+      return null;
+    }
+    const repo = repoOf(req);
+    if (!repo) {
+      bad(reply, 'owner/name is required');
+      return null;
+    }
+    if (!o.tracker) {
+      send(
+        reply,
+        readUnreadable('not_implemented', 'no tracker App is configured on the codehost'),
+      );
+      return null;
+    }
+    const project = await hostOf().projectOf(repo);
+    if (project.state !== 'ok') {
+      send(reply, project);
+      return null;
+    }
+    if (project.value === null) {
+      send(reply, readUnreadable('repo_not_allowed', `${repo} is not a registered repository`));
+      return null;
+    }
+    return { t: o.tracker, repo: repo as RepoFullName };
+  }
+  const numberOf = (req: FastifyRequest): number | null => {
+    const n = Number((req.params as { number?: string }).number);
+    return Number.isInteger(n) && n >= 1 ? n : null;
+  };
+  const strings = (b: unknown, keys: readonly string[]): Record<string, unknown> | null => {
+    if (typeof b !== 'object' || b === null) return null;
+    const r = b as Record<string, unknown>;
+    if (Object.keys(r).some((k) => !keys.includes(k))) return null;
+    return r;
+  };
+
+  app.get(TRACKER_ROUTES.issues(':owner/:name'), async (req, reply) => {
+    const c = await trackerFor(req, reply);
+    if (!c) return;
+    const label = q(req)['label'];
+    if (!label) return bad(reply, 'label is required');
+    return send(reply, await c.t.list_labelled({ repo: c.repo, label }));
+  });
+
+  app.get(TRACKER_ROUTES.issue(':owner/:name', ':number' as never), async (req, reply) => {
+    const c = await trackerFor(req, reply);
+    if (!c) return;
+    const n = numberOf(req);
+    if (n === null) return bad(reply, 'an issue number');
+    return send(reply, await c.t.read_issue({ repo: c.repo, number: n }));
+  });
+
+  app.post(TRACKER_ROUTES.issues(':owner/:name'), async (req, reply) => {
+    const c = await trackerFor(req, reply);
+    if (!c) return;
+    const b = strings(req.body, ['title', 'body', 'labels']);
+    if (
+      !b ||
+      typeof b['title'] !== 'string' ||
+      typeof b['body'] !== 'string' ||
+      !Array.isArray(b['labels']) ||
+      !b['labels'].every((l) => typeof l === 'string')
+    ) {
+      return bad(reply, 'title, body and labels are required, and nothing else');
+    }
+    return send(
+      reply,
+      await c.t.file_issue({
+        repo: c.repo,
+        title: b['title'],
+        body: b['body'],
+        labels: b['labels'] as string[],
+      }),
+    );
+  });
+
+  app.post(TRACKER_ROUTES.comments(':owner/:name', ':number' as never), async (req, reply) => {
+    const c = await trackerFor(req, reply);
+    if (!c) return;
+    const n = numberOf(req);
+    const b = strings(req.body, ['body']);
+    if (n === null || !b || typeof b['body'] !== 'string') {
+      return bad(reply, 'an issue number and a body, and nothing else');
+    }
+    return send(reply, await c.t.comment_issue({ repo: c.repo, number: n, body: b['body'] }));
+  });
+
+  app.post(TRACKER_ROUTES.close(':owner/:name', ':number' as never), async (req, reply) => {
+    const c = await trackerFor(req, reply);
+    if (!c) return;
+    const n = numberOf(req);
+    if (n === null || !strings(req.body ?? {}, [])) return bad(reply, 'an issue number, no body');
+    return send(reply, await c.t.close_issue({ repo: c.repo, number: n }));
   });
 
   // ------------------------------------------------------------ posture

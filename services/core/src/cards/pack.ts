@@ -3,6 +3,7 @@ import {
   ONBOARDING_PACK_LANE,
   PACK_EVENT,
   PACK_KINDS,
+  PackCodeownersResolvedPayload,
   PackRenderedPayload,
   PackX2OpenedPayload,
   PushIntendedPayload,
@@ -14,6 +15,8 @@ import {
   type PackKind,
   type PackProjectionView,
   type PatchSet,
+  type ProjectId,
+  type RepoFullName,
 } from '@aisdlc/contracts';
 import { openCard, readGateState } from '@aisdlc/decisions';
 import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
@@ -41,6 +44,7 @@ import { coreError, type CoreError } from '../errors.js';
 import { fullBaselineOf } from './full.js';
 import { clockOf, inCoreTx, lockKeys } from '../journal.js';
 import { activeS0Ids } from '../queries.js';
+import { loadProjectSettings } from '../settings.js';
 import { lightProposalOf, reviewsOf } from './light.js';
 import { decisionsFor, SYSTEM_CARDS_ACTOR, type CardDeps } from './model.js';
 import { appliedCards } from './sync.js';
@@ -229,6 +233,80 @@ export function affirmedOf(
   });
 }
 
+// ---------------------------------------------------------------- CODEOWNERS, resolved once and recorded
+
+/**
+ * The logins the pack's CODEOWNERS names, from the record: the `pack.codeowners_resolved` event, written once before the
+ * first render from what is true then (the repo has no CODEOWNERS at the census head; the project's PUBLISHED role map;
+ * the admin slot's people as the GitHub logins identity links them to among the repo's collaborators). A read that
+ * fails records nothing (the loop tries again); an owner who maps to no login stays out with that reason.
+ */
+export async function codeownersOf(
+  d: PackDeps,
+  loaded: LoadedS0,
+  baseSha: string,
+): Promise<Result<string[], CoreError>> {
+  const pool = d.cards.pool;
+  const s0Id = loaded.s0.record.s0_id;
+  const prior = await pool.query<{ body: unknown }>(
+    'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2 ORDER BY seq LIMIT 1',
+    [packStream(s0Id), PACK_EVENT.codeowners_resolved],
+  );
+  const known = prior.rows[0] ? PackCodeownersResolvedPayload.parse(prior.rows[0].body) : null;
+  const loginsOf = (p: PackCodeownersResolvedPayload) =>
+    p.outcome === 'rendered' ? p.owners.flatMap((o) => (o.login ? [o.login] : [])) : [];
+  if (known) return ok(loginsOf(known));
+
+  const repo = loaded.s0.repo as RepoFullName;
+  const project = loaded.s0.record.project_id;
+  const unread = (what: string, m: string) =>
+    err(coreError('unavailable', `CODEOWNERS for the pack: ${what}: ${m}`));
+  let outcome: PackCodeownersResolvedPayload['outcome'] = 'rendered';
+  const owners: PackCodeownersResolvedPayload['owners'] = [];
+  const existing = await d.cards.source.codeowners({ repo, sha: baseSha });
+  if (existing.state !== 'ok') return unread('the repo', existing.message);
+  if (existing.value !== null) outcome = 'repo_has_codeowners';
+  else {
+    const settings = await loadProjectSettings(pool, d.cards.registry, project as ProjectId);
+    if (!settings.ok) {
+      if (settings.error.code !== 'unknown_project')
+        return unread('the role map', settings.error.message);
+      outcome = 'role_map_unpublished';
+    } else {
+      const slot = settings.value.settings.role_map.admin;
+      const people = slot.kind === 'principals' ? [...slot.principals].sort() : [];
+      const collab = await d.cards.source.collaborators({ repo });
+      if (collab.state !== 'ok') return unread('the collaborators', collab.message);
+      const writers = collab.value.filter(
+        (c) => c.permission !== 'read' && c.permission !== 'triage',
+      );
+      const linked = await d.cards.links.githubLogins(writers.map((c) => c.login));
+      if (!linked.ok) return unread('the identity links', linked.error.message);
+      const loginOf = new Map<string, string>();
+      for (const c of [...writers].sort((x, y) => (x.login < y.login ? -1 : 1))) {
+        const p = linked.value[c.login.toLowerCase()];
+        if (p && !loginOf.has(p)) loginOf.set(p, c.login.toLowerCase());
+      }
+      for (const p of people) {
+        const login = loginOf.get(p) ?? null;
+        owners.push({ principal_id: p, login, reason: login ? 'mapped' : 'no_linked_login' });
+      }
+      if (!owners.some((o) => o.login !== null)) outcome = 'no_owner_mapped';
+    }
+  }
+  const body = PackCodeownersResolvedPayload.parse({ s0_id: s0Id, outcome, owners });
+  const w = await inCoreTx(d.cards, async (j, tx) => {
+    await lockKeys(tx, [packStream(s0Id)]);
+    const again = (await j.events(packStream(s0Id))).find(
+      (e) => e.type === PACK_EVENT.codeowners_resolved,
+    );
+    if (again) return ok(PackCodeownersResolvedPayload.parse(again.payload));
+    const e = await j.emit(packStream(s0Id), PACK_EVENT.codeowners_resolved, body, PACK_ACTOR);
+    return e.ok ? ok(body) : e;
+  });
+  return w.ok ? ok(loginsOf(w.value)) : w;
+}
+
 // ---------------------------------------------------------------- the step
 
 const view = (
@@ -275,9 +353,12 @@ export async function projectPack(
   if (!aff.ok) return aff;
   if (aff.value === null) return ok(view(s0Id, 'light', 'waiting_for_c2', null));
   const a = aff.value;
+  const owners = await codeownersOf(d, loaded, a.base_sha);
+  if (!owners.ok) return owners;
   let rendered;
   try {
     rendered = renderOnboardingPack({
+      codeowners: owners.value,
       s0_id: s0Id,
       repo: loaded.s0.repo,
       base_sha: a.base_sha,

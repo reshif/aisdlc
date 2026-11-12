@@ -4,7 +4,14 @@ import { FakeRegisteredRepos, FileRegisteredRepos, HttpRegisteredRepos } from '@
 import { GitHubRestCodeHost } from './adapter.js';
 import { HttpPushGuards } from './push-guards.js';
 import { createCodeHostApp } from './app.js';
-import { codeHostConfigFromEnv, codeHostRegistryConfigFromEnv } from './config.js';
+import {
+  codeHostConfigFromEnv,
+  codeHostRegistryConfigFromEnv,
+  trackerConfigFromEnv,
+  type CodeHostTrackerConfig,
+} from './config.js';
+import { AppKey } from './app-key.js';
+import { GitHubIssueTracker } from './issue-tracker.js';
 import { HttpIdentityLinks } from './identity-client.js';
 import { RegistryHostSelector, reportHealth } from './registry-runtime.js';
 import { AllowListedCodeHost } from './repo-allow-list.js';
@@ -23,9 +30,31 @@ import { GitHubTransport } from './transport.js';
 const requestLog = (e: { method: string; path: string; status: number; auth: string }): void =>
   console.log(`codehost: ghreq ${JSON.stringify(e)}`);
 
+/** The issue twin's tracker on its OWN App (M16), or none. */
+function trackerOf(
+  t: CodeHostTrackerConfig | null,
+  env: Env,
+  egressHosts?: ReadonlySet<string>,
+): GitHubIssueTracker | undefined {
+  if (!t) return undefined;
+  const host = new URL(t.apiUrl).hostname;
+  if (egressHosts && !egressHosts.has(host)) {
+    throw new Error(`CODEHOST_TRACKER_API_URL: ${host} is not an allowed egress host`);
+  }
+  return new GitHubIssueTracker({
+    baseUrl: t.apiUrl,
+    appId: t.appId,
+    installationId: t.installationId,
+    appKey: AppKey.fromRef(t.appKeyRef, { env }),
+    login: t.login,
+    log: (line) => console.log(`codehost: tracker ${line}`),
+  });
+}
+
 export async function bootCodeHost(env: Env): Promise<RunningService> {
   if (env['CODEHOST_REGISTRY_INTEGRATION']) return bootCodeHostFromRegistry(env);
   const cfg = codeHostConfigFromEnv(env);
+  const tracker = trackerOf(trackerConfigFromEnv(env), env);
   const listenOpts = listenConfig(env, 'CODEHOST', 8350);
   const clock = systemClock;
   const broker = new TokenBroker({
@@ -50,6 +79,7 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
       ? new FileRegisteredRepos(cfg.registeredReposFile)
       : new FakeRegisteredRepos().breakIt();
   const app = createCodeHostApp({
+    ...(tracker ? { tracker } : {}),
     host: new AllowListedCodeHost(
       new GitHubRestCodeHost({
         transport,
@@ -93,6 +123,7 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
  */
 async function bootCodeHostFromRegistry(env: Env): Promise<RunningService> {
   const cfg = codeHostRegistryConfigFromEnv(env);
+  const tracker = trackerOf(trackerConfigFromEnv(env), env, new Set(cfg.egressHosts));
   const listenOpts = listenConfig(env, 'CODEHOST', 8350);
   const selector = new RegistryHostSelector({
     integrationId: cfg.integrationId,
@@ -118,6 +149,7 @@ async function bootCodeHostFromRegistry(env: Env): Promise<RunningService> {
   ];
   for (const t of timers) t.unref();
   const app = createCodeHostApp({
+    ...(tracker ? { tracker } : {}),
     runtime: selector,
     identity: new HttpIdentityLinks({ baseUrl: cfg.identityUrl, token: cfg.identityToken }),
     auth: cfg.auth,

@@ -173,7 +173,18 @@ export interface OnboardResult {
 export interface OnboardOptions {
   /** The catalogue pin the record starts with. Default: this build's catalogue. */
   readonly catalogue?: CatalogueRef;
+  /**
+   * User decision 2026-11-12 (PLAN §7a): Full is reached ONLY as a level-up of a repo signed at Light (card 3 is decided
+   * by the intent slot, which exists only after card 4's role map, and the bootstrap grant never covers card 3). The
+   * level-up request (`requestVersion`) passes the version it raises (`light`), and the re-sign of an expired Full
+   * record the version it renews (`full`); any other request for Full is refused.
+   */
+  readonly levelUp?: { readonly from_version: number; readonly from_level: 'light' | 'full' };
 }
+
+/** Why a request for Full that is not a level-up is refused (user decision 2026-11-12). */
+export const FULL_ONLY_AS_LEVEL_UP =
+  "Full is reached only as a level-up after a Light onboarding: card 3 is decided by the intent slot, which exists only after card 4's role map. Onboard at Light first, then ask for a level-up to Full.";
 
 const hasAttestations = (a: OnboardAttestations | undefined): a is OnboardAttestations =>
   a !== undefined && Object.keys(a).length > 0;
@@ -231,6 +242,9 @@ export async function requestOnboarding(
         });
       }
     }
+
+    if (req.level === 'full' && !opts.levelUp)
+      return err(coreError('refused', FULL_ONLY_AS_LEVEL_UP));
 
     const existingRepo = await j.repo(req.repo);
     if (existingRepo && existingRepo.project_id !== req.project_id) {

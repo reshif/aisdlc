@@ -267,6 +267,9 @@ secrets:
   db-url-gate-relay: { file: ./secrets/db-url-gate-relay }
   gate-relay-app.pem: { file: ./secrets/gate-relay-app.pem }
   gate-relay-app.pub.pem: { file: ./secrets/gate-relay-app.pub.pem }
+  # M16: the issue twin's tracker App key: mounted on the codehost only (core-worker keeps no route out, 2026-11-12)
+  tracker-app.pem: { file: ./secrets/tracker-app.pem }
+  tracker-app.pub.pem: { file: ./secrets/tracker-app.pub.pem }
   tok-gate-relay-kms: { file: ./secrets/tok-gate-relay-kms }
   tok-operator-gate-relay: { file: ./secrets/tok-operator-gate-relay }
   tok-bff-gate-check: { file: ./secrets/tok-bff-gate-check }
@@ -878,6 +881,10 @@ services:
         "codehost":"http://codehost:8350","notary":"http://notary:8310","witness":"http://witness:8320",
         "killswitch":"http://killswitch:8400","kms-local":"http://kms-local:8300","gateway":"http://gateway:8410",
         "bff":"http://bff:8340","object-store":{"url":"http://object-store:9000","path":"/minio/health/live"}}
+      # M16: the issue twin (DEC-20(a)) through the codehost's tracker routes (scope `tracker`): the tracker's OWN App is
+      # the codehost's to hold; core-worker holds no GitHub credential and has no route out (user decision 2026-11-12).
+      # Empty TRACKER_LOGIN: the `issue_twin` loop does not run.
+      CORE_WORKER_TRACKER_LOGIN: ${TRACKER_LOGIN:-}
       CORE_WORKER_HOST: 0.0.0.0
       CORE_WORKER_PORT: '8360'
     secrets:
@@ -950,13 +957,20 @@ services:
         {"knowledge":{"token_ref":"file:/run/secrets/tok-knowledge-codehost","scopes":["census"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-codehost","scopes":["reload"]},
         "core":{"token_ref":"file:/run/secrets/tok-core-codehost","scopes":["census","posture"]},
-        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-codehost","scopes":["census","posture"]},
+        "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-codehost","scopes":["census","posture","tracker"]},
         "verify":{"token_ref":"file:/run/secrets/tok-verify-codehost","scopes":["census"]}}
       CODEHOST_IDENTITY_URL: http://identity:8330
       CODEHOST_IDENTITY_TOKEN_REF: file:/run/secrets/tok-codehost-identity
       CODEHOST_CORE_URL: http://core:8380
       CODEHOST_CORE_TOKEN_REF: file:/run/secrets/tok-codehost-core
       TMPDIR: /work
+      # M16: the issue twin's tracker, on its OWN App (issues: write, metadata read; never the read App's or the Push
+      # Broker's key). Empty TRACKER_APP_ID: no tracker. The fake profile is on loopback, as the main App.
+      CODEHOST_TRACKER_APP_ID: ${TRACKER_APP_ID:-}
+      CODEHOST_TRACKER_INSTALLATION_ID: ${TRACKER_INSTALLATION_ID:-4}
+      CODEHOST_TRACKER_APP_KEY_REF: file:/run/secrets/tracker-app.pem
+      CODEHOST_TRACKER_LOGIN: ${TRACKER_LOGIN:-aisdlc-tracker[bot]}
+      CODEHOST_TRACKER_API_URL: ${TRACKER_GITHUB_API_URL:-https://api.github.com}
       CODEHOST_HOST: 0.0.0.0
       CODEHOST_PORT: '8350'
     volumes:
@@ -971,6 +985,7 @@ services:
         tok-codehost-identity,
         tok-codehost-core,
         tok-verify-codehost,
+        tracker-app.pem,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8350']
@@ -1645,7 +1660,14 @@ services:
       FAKE_GITHUB_DEPLOY_INSTALLATION_ID: ${GATE_RELAY_INSTALLATION_ID:-3}
       FAKE_GITHUB_DEPLOY_APP_PUBLIC_KEY_FILE: /run/secrets/gate-relay-app.pub.pem
       FAKE_GITHUB_GATE_RELAY_PORT: '8356'
-    secrets: [github-app.pub.pem, gate-check-app.pub.pem, gate-relay-app.pub.pem]
+      # the issue twin's tracker App on the same fake host (M16): its key and installation; the codehost reaches it on
+      # loopback, as the main App (core-worker never does)
+      FAKE_GITHUB_TRACKER_APP_ID: ${TRACKER_APP_ID:-876543}
+      FAKE_GITHUB_TRACKER_INSTALLATION_ID: ${TRACKER_INSTALLATION_ID:-4}
+      FAKE_GITHUB_TRACKER_APP_PUBLIC_KEY_FILE: /run/secrets/tracker-app.pub.pem
+      FAKE_GITHUB_TRACKER_LOGIN: ${TRACKER_LOGIN:-aisdlc-tracker[bot]}
+    secrets:
+      [github-app.pub.pem, gate-check-app.pub.pem, gate-relay-app.pub.pem, tracker-app.pub.pem]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8353']
       interval: 5s

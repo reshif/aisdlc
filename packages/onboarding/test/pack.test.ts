@@ -79,6 +79,23 @@ describe('the onboarding pack, rendered from the record', () => {
     expect(r.patch_hash).toBe(patchHashOf(r.patch));
   });
 
+  it('CODEOWNERS (M16): only from the logins the record resolved; every path theirs; in the manifest; protected', () => {
+    expect(renderOnboardingPack({ ...input(), codeowners: [] })?.patch_hash).toBe(
+      renderOnboardingPack(input())?.patch_hash,
+    );
+    const r = renderOnboardingPack({ ...input(), codeowners: ['Bob-GH', 'alice-gh', 'bob-gh'] });
+    if (!r) throw new Error('nothing rendered');
+    const co = text(r, '.github/CODEOWNERS');
+    expect(co?.split('\n').at(-2)).toBe('* @alice-gh @bob-gh');
+    expect(co).toMatch(/^# A projection of the AISDLC factory record/);
+    expect(r.files.find((f) => f.path === '.github/CODEOWNERS')).toMatchObject({
+      source: 'codeowners',
+    });
+    expect(r.files.find((f) => f.path === '.github/CODEOWNERS')?.protected_rule).not.toBeNull();
+    const manifest = JSON.parse(text(r, '.factory/knowledge/pack.json') ?? '{}');
+    expect(manifest.files.map((f: { path: string }) => f.path)).toContain('.github/CODEOWNERS');
+  });
+
   it('deterministic: the same record is the same patch hash; a different claim verdict is another', () => {
     const a = renderOnboardingPack(input());
     const b = renderOnboardingPack({ ...input(), claims: [...input().claims].reverse() });
