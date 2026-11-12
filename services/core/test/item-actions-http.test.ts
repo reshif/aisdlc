@@ -447,8 +447,13 @@ describe('D5 over HTTP (M14.6): the human-led work of an L8 item is done', () =>
     const sha = 'c'.repeat(40);
     // a reference that is neither a PR number nor a full commit SHA is not the contract
     expect(
-      (await post(path, { on_behalf_of: 'dee', key: 'k1', reference: { kind: 'commit', sha: 'x' } }))
-        .status,
+      (
+        await post(path, {
+          on_behalf_of: 'dee',
+          key: 'k1',
+          reference: { kind: 'commit', sha: 'x' },
+        })
+      ).status,
     ).toBe(400);
     const r = await post(path, {
       on_behalf_of: 'dee',
@@ -474,7 +479,7 @@ describe('D5 over HTTP (M14.6): the human-led work of an L8 item is done', () =>
   });
 });
 
-describe('Handoffs over HTTP (P1-4): the E4 card facts, the owner of record\'s choice, D4 hand-back', () => {
+describe("Handoffs over HTTP (P1-4): the E4 card facts, the owner of record's choice, D4 hand-back", () => {
   let item: string;
   let d: ReturnType<typeof driverOver>;
   beforeAll(async () => {
@@ -553,7 +558,11 @@ describe('Handoffs over HTTP (P1-4): the E4 card facts, the owner of record\'s c
     expect(v1.e4).toMatchObject({ status: 'decided', outcome: 'approve', approvers: ['ivy'] });
     expect(v1.choices).toEqual(expect.arrayContaining(['resume', 'takeover', 'abandon']));
     const choose = (who: string, choice: string, token = TOKENS.bff) =>
-      post(`/v1/items/${item}/handoff/choose`, { on_behalf_of: who, handoff_id: hid, choice }, token);
+      post(
+        `/v1/items/${item}/handoff/choose`,
+        { on_behalf_of: who, handoff_id: hid, choice },
+        token,
+      );
     expect((await choose('ivy', 'takeover', TOKENS.reader)).status).toBe(403);
     // the PDP: dee holds no x slot
     expect((await choose('dee', 'takeover')).status).toBe(403);

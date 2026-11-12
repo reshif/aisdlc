@@ -10,6 +10,7 @@ import { Badge } from '../components/Badge';
 import { Callout, PageError, Loading } from '../components/Notice';
 import { describeError } from '../format';
 import { PlanForm } from '../items/PlanForm';
+import { HandoffPanel, showsHandoff } from '../items/HandoffPanel';
 import { newKey, waitingText } from '../items/waiting';
 import { Link } from '../router';
 import { DegradedBanners } from '../components/Degraded';
@@ -79,6 +80,7 @@ export function ItemPage({ id, csrf }: { id: string; csrf: string }) {
       ) : null}
 
       <ItemTabs item={it}>
+        {showsHandoff(it) ? <HandoffPanel id={id} csrf={csrf} /> : null}
         <Questions item={it} csrf={csrf} />
         {it.may.ready ? <Ready id={id} csrf={csrf} /> : null}
         {it.may.observe ? <Observe id={id} lane={lane} csrf={csrf} /> : null}

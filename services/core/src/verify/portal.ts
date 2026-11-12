@@ -483,7 +483,9 @@ export async function gateCardContext(
         origin_phase: h.origin_phase,
         origin_step: h.origin_step,
         pack: h.pack,
-        valid_choices: HandoffChoice.array().catch([]).parse(f.valid_choices ?? []),
+        valid_choices: HandoffChoice.array()
+          .catch([])
+          .parse(f.valid_choices ?? []),
         status: h.status,
         choice: h.choice,
       }

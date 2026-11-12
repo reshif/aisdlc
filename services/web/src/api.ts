@@ -18,6 +18,9 @@ import type {
   ItemPlanRequest,
   ItemPlanResult,
   PortalItemView,
+  PortalItemHandoffView,
+  HandoffChoice,
+  HumanWorkReference,
   CardDeciders,
   LedgerAuditView,
   OnboardRequest,
@@ -503,6 +506,24 @@ export const api = {
     request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/observe`, b, csrf),
   itemPlan: (id: string, b: PortalPlan, csrf: string) =>
     request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
+  // ------------------------------------------------------------ handoffs (P1-4)
+  itemHandoff: (id: string) =>
+    request<PortalItemHandoffView>('GET', `/api/items/${encodeURIComponent(id)}/handoff`),
+  itemHandoffChoose: (
+    id: string,
+    b: { handoff_id: string; choice: HandoffChoice; extension_percent?: number },
+    csrf: string,
+  ) =>
+    request<ItemActionResult>(
+      'POST',
+      `/api/items/${encodeURIComponent(id)}/handoff/choose`,
+      b,
+      csrf,
+    ),
+  itemHandBack: (id: string, b: { plan_changed: boolean; key: string }, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/hand-back`, b, csrf),
+  itemHumanDone: (id: string, b: { key: string; reference?: HumanWorkReference }, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/human-done`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
   knowledge: (project: string) =>

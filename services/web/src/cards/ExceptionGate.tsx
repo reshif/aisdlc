@@ -28,7 +28,7 @@ import { Receipt } from './DecideShell';
 type Decision = 'approve' | 'request_changes' | 'reject';
 
 /** The gates this screen decides (Q1 is the quarantine: its decision is the SECT triage). */
-export const EXCEPTION_GATES: readonly GateId[] = ['SECT', 'Q1', 'E6', 'X2', 'X3', 'E2'];
+export const EXCEPTION_GATES: readonly GateId[] = ['SECT', 'Q1', 'E6', 'X2', 'X3', 'E2', 'E4'];
 
 interface Copy {
   readonly shown: GateId;
@@ -122,6 +122,32 @@ const COPY: Readonly<Partial<Record<GateId, Copy>>> = {
       reject: 'Reject',
     },
     after: 'Approved: the step runs again with the dependency approved.',
+  },
+  E4: {
+    shown: 'E4',
+    eyebrow: 'E4 · exception · owner of record',
+    title: 'Handoff to the owner of record',
+    sub: 'The factory stopped and handed the item to a person (D1 from S6, D2 from S7, D3 from G4, or straight to E4). As its owner of record you take the handoff; then you record what happens next on the item page.',
+    sentence: (c) => (
+      <>
+        Do you take the handoff of {item(c)}
+        {c.handoff ? (
+          <>
+            {' '}
+            ({c.handoff.code}, trigger <code>{c.handoff.trigger}</code>)
+          </>
+        ) : null}{' '}
+        as its owner of record?
+      </>
+    ),
+    readWhat: 'the handoff and its Handoff Pack',
+    labels: {
+      approve: 'Take the handoff',
+      request_changes: 'Ask for more facts',
+      reject: 'Not mine to take',
+    },
+    after:
+      'Approved: you choose on the item page (resume, an extension, re-plan, re-spec, a developer takes over, close or abandon). Anything else, or expiry, opens E4 again: nothing is chosen on its own.',
   },
   E2: {
     shown: 'E2',
@@ -407,6 +433,57 @@ function GateMain({ c }: { c: GateContextWire }) {
           ) : null}
           {c.step === '7.5' || !c.constitution ? checkCard : null}
         </>
+      );
+    case 'E4':
+      return (
+        <Card title="The handoff" testId="handoff">
+          {c.handoff ? (
+            <>
+              <KeyValue
+                label="What was handed off"
+                rows={[
+                  ['Handoff', `${c.handoff.code} (#${c.handoff.n})`],
+                  ['Trigger', <code key="t">{c.handoff.trigger}</code>],
+                  [
+                    'From',
+                    `${c.handoff.origin_phase}${c.handoff.origin_step ? ` at ${c.handoff.origin_step}` : ''}`,
+                  ],
+                  [
+                    'Handoff Pack',
+                    <span key="p">
+                      <code>{c.handoff.pack.pack_id}</code>{' '}
+                      <code title={c.handoff.pack.content_sha256}>
+                        {short(c.handoff.pack.content_sha256, 16)}
+                      </code>
+                    </span>,
+                  ],
+                  [
+                    'State',
+                    c.handoff.status === 'open'
+                      ? 'open'
+                      : `chosen: ${c.handoff.choice ?? '[unknown]'}`,
+                  ],
+                ]}
+              />
+              <p className="ui-eyebrow">The choices the flow allowed when E4 opened</p>
+              {c.handoff.valid_choices.length === 0 ? (
+                <p className="muted">[unknown]: the item page shows the ones open now.</p>
+              ) : (
+                <ul className="s7-rules" aria-label="Choices">
+                  {c.handoff.valid_choices.map((x) => (
+                    <li key={x}>
+                      <code>{x}</code>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p className="muted">
+              The handoff of this gate is [unknown]: do not decide it until the item shows it.
+            </p>
+          )}
+        </Card>
       );
     default:
       return checkCard;
