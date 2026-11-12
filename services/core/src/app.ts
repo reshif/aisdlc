@@ -5,6 +5,7 @@ import {
   integrationEvents,
 } from './integration-api.js';
 import { registerPortalListRoutes } from './portal-lists.js';
+import { registerFloorRoutes } from './floor.js';
 import {
   ItemAnswerRequest,
   ItemObserveRequest,
@@ -360,6 +361,16 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     pool: o.pool,
     pdp: o.pdp,
     now: () => clock.now(),
+    allowed: (req, scope) => allowed(req, scope),
+  });
+
+  // M19: the floor's live read model (floor.read on the project, item.view_floor per item)
+  registerFloorRoutes({
+    app,
+    pool: o.pool,
+    pdp: o.pdp,
+    now: () => clock.now(),
+    eligibility: (o.config ?? o.cards?.decisions)?.eligibility,
     allowed: (req, scope) => allowed(req, scope),
   });
 
