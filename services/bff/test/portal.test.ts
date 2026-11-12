@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ASK_LANE_WITHOUT_HINT, PortalRequestReceipt } from '@aisdlc/contracts';
 import { bindProject, grantFleetRole } from '@aisdlc/identity/testing';
 import { Browser, signIn, startBffStack, type BffStack } from '../src/testing.js';
 import {
@@ -6,7 +7,10 @@ import {
   CORE_TOKEN,
   GATE_ID,
   ITEM_ID,
+  HANDOFF_ID,
   agentRunsFixture,
+  handoffFixture,
+  handoffViewFixture,
   itemViewFixture,
   S0_ID,
   startFakeCore,
@@ -64,6 +68,7 @@ beforeAll(async () => {
     intent: ['bob'],
     kill: ['carol'],
     design: ['bob'],
+    x: ['bob'],
   });
   await grantFleetRole(s.identity.deps, 'root', 'factory.admin');
 });
@@ -117,6 +122,21 @@ const CASES: RouteCase[] = [
       repo: 'acme/web',
       lane: 'L3',
       text: 'Add pagination to the orders list.',
+    },
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: 'POST /v1/requests',
+  },
+  {
+    name: 'ask for work in one area of the repo (M17, DEC-25)',
+    method: 'POST',
+    path: '/api/requests',
+    body: {
+      project_id: 'acme',
+      repo: 'acme/web',
+      lane: 'L3',
+      area: 'packages/money',
+      text: 'Round the totals in the ledger.',
     },
     allowed: 'alice',
     denied: 'dora',
@@ -183,6 +203,23 @@ const CASES: RouteCase[] = [
     allowed: 'bob',
     denied: 'alice',
     forwards: `POST /v1/items/${ITEM_ID}/human-done`,
+  },
+  {
+    name: 'D4: the developer hands the item back (P1-4)',
+    method: 'POST',
+    path: `/api/items/${ITEM_ID}/hand-back`,
+    body: { plan_changed: false, key: 'h1' },
+    allowed: 'bob',
+    denied: 'alice',
+    forwards: `POST /v1/items/${ITEM_ID}/hand-back`,
+  },
+  {
+    name: 'the handoff panel of an item (P1-4)',
+    method: 'GET',
+    path: `/api/items/${ITEM_ID}/handoff`,
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `GET /v1/items/${ITEM_ID}/handoff?on_behalf_of=alice`,
   },
   {
     name: 'the agent runs of an item',
@@ -483,6 +520,8 @@ describe.each(CASES)('$name ($method $path)', (c) => {
     }
     if (c.method === 'POST') {
       expect((sent?.body as Json).on_behalf_of).toBe(c.allowed);
+      // what the person sent reaches core as sent (an Ask's area included)
+      expect(sent?.body).toMatchObject(c.body as object);
     }
   });
 
@@ -695,6 +734,92 @@ describe('the inbox', () => {
   });
 });
 
+describe('a work gate in the inbox (P1-2)', () => {
+  it('carries the card it is decided on, as core read it from the record', async () => {
+    const gate = {
+      kind: 'work_gate',
+      id: GATE_ID,
+      project_id: 'acme',
+      s0_id: null,
+      label: null,
+      slot: 'intent',
+      opened_at: '2026-11-08T10:00:00.000Z',
+      sla_due_at: null,
+      overdue: false,
+      escalated: false,
+      holders: ['bob'],
+      item_id: ITEM_ID,
+      gate: 'G0',
+      card_id: CARD_ID,
+      feasibility: 'feasible',
+      feasibility_reason: null,
+    };
+    core.override.set('GET /v1/inbox', { status: 200, json: [gate] });
+    const bob = await api('bob', 'GET', '/api/inbox');
+    expect(bob.status).toBe(200);
+    expect(bob.json.decide).toHaveLength(1);
+    expect(bob.json.decide[0]).toMatchObject({
+      kind: 'work_gate',
+      item_id: ITEM_ID,
+      card_id: CARD_ID,
+      may_decide: true,
+      deciders: [{ principal_id: 'bob', display_name: 'Person bob' }],
+    });
+    // core leaving the card out is not a contract it keeps: refused, never guessed
+    const without: Record<string, unknown> = { ...gate };
+    delete without['card_id'];
+    core.override.set('GET /v1/inbox', { status: 200, json: [without] });
+    expect((await api('bob', 'GET', '/api/inbox')).status).toBe(502);
+  });
+});
+
+describe('ask for work (P1-1): the receipt', () => {
+  const ask = { project_id: 'acme', repo: 'acme/web', text: 'Add pagination to the orders list.' };
+
+  it('sends a lane hint through, and without one proposes the default lane; N1 and the session principal always', async () => {
+    const hinted = await api('alice', 'POST', '/api/requests', { ...ask, lane: 'L1' });
+    expect(hinted.status).toBe(201);
+    expect(core.seen.at(-1)?.body).toEqual({
+      ...ask,
+      lane: 'L1',
+      channel: 'N1',
+      on_behalf_of: 'alice',
+    });
+    const bare = await api('alice', 'POST', '/api/requests', ask);
+    expect(bare.status).toBe(201);
+    expect(core.seen.at(-1)?.body).toMatchObject({ lane: ASK_LANE_WITHOUT_HINT, channel: 'N1' });
+    // the browser names neither the channel nor the principal
+    expect(
+      (await api('alice', 'POST', '/api/requests', { ...ask, on_behalf_of: 'bob' })).status,
+    ).toBe(400);
+    expect((await api('alice', 'POST', '/api/requests', { ...ask, channel: 'N3' })).status).toBe(
+      400,
+    );
+  });
+
+  it('answers with the receipt core gave, and the name of each person who decides G0 and G1', async () => {
+    const r = await api('alice', 'POST', '/api/requests', ask);
+    const receipt = PortalRequestReceipt.parse(r.json);
+    expect(receipt).toMatchObject({
+      state: 'routed_l8',
+      asked_lane: 'L3',
+      proposed_lane: 'L8',
+      lane_opens_at: 'light',
+      verdict: { route: 'l8', reason: 'level_too_low' },
+      request_text: { taint: 'untrusted', text: ask.text },
+    });
+    expect(receipt.principal_names).toEqual({ bob: 'Person bob' });
+  });
+
+  it('refuses a receipt that is not what the contract says (a 502, never a guess)', async () => {
+    core.override.set('POST /v1/requests', {
+      status: 201,
+      json: { request_id: ITEM_ID, item_id: ITEM_ID, duplicate: false },
+    });
+    expect((await api('alice', 'POST', '/api/requests', ask)).status).toBe(502);
+  });
+});
+
 describe('may_decide on a card follows the slot holders, and a card 5 also the m4 slot', () => {
   it('is false for the project admin when core says another person decides', async () => {
     core.override.set(`GET /v1/cards/${CARD_ID}`, {
@@ -786,6 +911,8 @@ describe('what the person may do with an item (M12.5): the PDP and where the ite
     gate_instance_id: 'gi-1',
     status: 'pending',
     outcome: null,
+    card_id: CARD_ID,
+    ledger_entry_id: null,
   });
   const may = async (who: 'alice' | 'bob', over: Record<string, unknown>) => {
     core.override.set(key(who), { status: 200, json: view(over) });
@@ -818,5 +945,75 @@ describe('what the person may do with an item (M12.5): the PDP and where the ite
     });
     expect(await may('bob', { waiting: 'human:plan' })).toMatchObject({ plan: true });
     expect(await may('alice', { waiting: 'human:plan' })).toMatchObject({ plan: false });
+  });
+});
+
+describe('the handoff panel (P1-4): what the person may do, and the E4 choice', () => {
+  const itemKey = (who: string) => `GET /v1/items/${ITEM_ID}?on_behalf_of=${who}`;
+  const viewKey = (who: string) => `GET /v1/items/${ITEM_ID}/handoff?on_behalf_of=${who}`;
+  const may = async (who: 'alice' | 'bob', over: Record<string, unknown>) => {
+    core.override.set(viewKey(who), { status: 200, json: { ...handoffViewFixture(), ...over } });
+    const r = await api(who, 'GET', `/api/items/${ITEM_ID}/handoff`);
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    return r.json.may as Record<string, boolean>;
+  };
+  const e4 = handoffViewFixture().e4;
+
+  it('decide E4 and choose: the x slot only; choose also only for who approved E4 in the ledger', async () => {
+    expect(await may('bob', {})).toEqual({
+      decide_e4: true,
+      choose: false,
+      hand_back: false,
+      human_done: false,
+    });
+    expect(await may('alice', {})).toMatchObject({ decide_e4: false });
+    const decided = {
+      e4: { ...e4, status: 'decided', outcome: 'approve', approvers: ['bob'] },
+      choices: ['resume', 'takeover', 'abandon'],
+    };
+    expect(await may('bob', decided)).toMatchObject({ decide_e4: false, choose: true });
+    expect(
+      await may('bob', { ...decided, e4: { ...decided.e4, approvers: ['someone-else'] } }),
+    ).toMatchObject({ choose: false });
+  });
+
+  it('D4 and D5: the design slot, only while a developer has the work (D4: taken over, a hand-back left)', async () => {
+    const dev = {
+      waiting: 'human:human_led',
+      lane: 'L8',
+      human_led: { taken_over: true, lane_before: 'L3', hand_backs_left: 1 },
+    };
+    expect(await may('bob', dev)).toMatchObject({ hand_back: true, human_done: true });
+    expect(await may('alice', dev)).toMatchObject({ hand_back: false, human_done: false });
+    expect(
+      await may('bob', { ...dev, human_led: { ...dev.human_led, hand_backs_left: 0 } }),
+    ).toMatchObject({ hand_back: false, human_done: true });
+  });
+
+  it("the choice: the PDP on the item's E4 gate first, then core with the principal from the session", async () => {
+    const withHandoff = { ...itemViewFixture(), phase: 'Handoff', handoff: handoffFixture() };
+    const body = { handoff_id: HANDOFF_ID, choice: 'takeover' };
+    core.override.set(itemKey('alice'), { status: 200, json: withHandoff });
+    const denied = await api('alice', 'POST', `/api/items/${ITEM_ID}/handoff/choose`, body);
+    expect(denied.status).toBe(403);
+    expect(core.seen.filter((x) => x.method === 'POST')).toHaveLength(0);
+    core.override.set(itemKey('bob'), { status: 200, json: withHandoff });
+    // another handoff than the open one is a conflict, and nothing is forwarded
+    const other = await api('bob', 'POST', `/api/items/${ITEM_ID}/handoff/choose`, {
+      ...body,
+      handoff_id: ITEM_ID,
+    });
+    expect(other.status).toBe(409);
+    // the browser cannot name who chooses
+    const named = await api('bob', 'POST', `/api/items/${ITEM_ID}/handoff/choose`, {
+      ...body,
+      on_behalf_of: 'root',
+    });
+    expect(named.status).toBe(400);
+    const r = await api('bob', 'POST', `/api/items/${ITEM_ID}/handoff/choose`, body);
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    const sent = core.seen.find((x) => x.method === 'POST');
+    expect(sent?.path).toBe(`/v1/items/${ITEM_ID}/handoff/choose`);
+    expect(sent?.body).toEqual({ ...body, on_behalf_of: 'bob' });
   });
 });

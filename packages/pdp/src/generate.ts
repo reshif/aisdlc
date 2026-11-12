@@ -130,3 +130,22 @@ export function buildBundle(
 /** Policy ids in the bundle that grant `role` its actions (for explain and tests). */
 export const actionsOfPolicies = (policies: Record<string, string>, role: string): ActionId[] =>
   ACTION_IDS.filter((a) => rolePolicyId(role, a) in policies && actionDef(a) !== undefined);
+
+/**
+ * A bundle with some policies taken out, rehashed and its version marked `.without`; it throws on a policy id the
+ * bundle does not have. For tests that prove which action a route asks: withhold exactly that grant from a role that
+ * keeps its others, and the route must refuse.
+ */
+export function bundleWithoutPolicies(bundle: PolicyBundle, ids: readonly string[]): PolicyBundle {
+  const missing = ids.filter((id) => !(id in bundle.policies));
+  if (missing.length > 0) throw new Error(`no such policy: ${missing.join(', ')}`);
+  const policies = Object.fromEntries(
+    Object.entries(bundle.policies).filter(([id]) => !ids.includes(id)),
+  );
+  const base = {
+    schema: bundle.schema,
+    policies,
+    bundle_version: `${bundle.bundle_version}.without`,
+  };
+  return { ...base, bundle_hash: policyBundleHash(base) };
+}

@@ -25,6 +25,7 @@ import { listPullRequests, listPushReceipts } from '../build/push.js';
 import type { PrincipalLinksPort } from '../clients.js';
 import { coreError, type CoreError } from '../errors.js';
 import type { CoreDeps } from '../journal.js';
+import { autonomyNow } from '../drift/krl.js';
 import { readGoverning } from '../prr-store.js';
 import { passingPackFor } from '../verify/evidence.js';
 import { readItem, readItemEvents } from '../work-items.js';
@@ -64,7 +65,7 @@ export interface G4Opening {
 }
 
 /** The changed paths of a head: the intent of the applied push that wrote it, or `null` when the record has none. */
-async function changedPaths(
+export async function changedPaths(
   db: Executor,
   itemId: string,
   unitKey: string,
@@ -128,8 +129,14 @@ export async function g4ReviewOf(
     .map((p) => p.cap as Autonomy);
   const gov = await readGoverning(d.pool, s.repo);
   const a = gov?.governing?.prr.autonomy;
+  // OB §4.2 (M16 part 3): the autonomy in force now, the signed one tightened by open KRL penalties from drift
+  const now = a ? await autonomyNow(d.pool, s.repo) : null;
   const prr = a
-    ? { effective: a.effective, posture_cap: a.posture_cap, r3_zones: a.r3_zones }
+    ? {
+        effective: now?.effective_now ?? a.effective,
+        posture_cap: a.posture_cap,
+        r3_zones: a.r3_zones,
+      }
     : null;
   const authors = await humanAuthors(d.pool, s);
   const lane = s.lane ?? s.proposed_lane;

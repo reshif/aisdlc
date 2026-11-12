@@ -1,6 +1,8 @@
 import {
   G4_REVIEW_FACT,
   G6_ACCEPTANCE_FACT,
+  GATE_NEEDED_FACT,
+  gateNeededSubjectHash,
   g6SubjectHash,
   ITEM_EVENT,
   ItemCommand,
@@ -48,6 +50,7 @@ import type pg from 'pg';
 import type { CoreError } from './errors.js';
 import { governingPrr } from './fold.js';
 import { inCoreTx, lockKeys, type CoreDeps } from './journal.js';
+import { unresolvedR3 } from './knowledge-defects.js';
 import { laneEligibility, routeLane } from './lane-eligibility.js';
 import { repoIdentity } from './prr-store.js';
 import { questionIdOf } from './requests.js';
@@ -79,6 +82,7 @@ import { syncKillHolds } from './kill.js';
 import { catchUpWork } from './work-projection.js';
 import { dispatchAgent, recordFailure, releaseRun } from './agent-dispatch.js';
 import { g6AcceptanceOf } from './closeout/record.js';
+import { gateNeededFor } from './gate-needed.js';
 import { g5Card, releaseBindingOf } from './release/binding.js';
 import { admitUnit, ensureAdmitted, syncUnits, type AdmissionPorts } from './admission/index.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
@@ -196,7 +200,15 @@ export async function ensureItems(d: WorkDriverDeps): Promise<{ created: string[
       if (!id) return ok(null);
       const prr = governingPrr(await j.prr(id.project_id, id.repo_id));
       const verdict = applyGuard(
-        routeLane(request.repo, request.lane, prr, clockOf(d).now()),
+        routeLane(
+          request.repo,
+          request.lane,
+          prr,
+          clockOf(d).now(),
+          undefined,
+          request.area,
+          prr ? await unresolvedR3(tx, request.repo, prr.version) : [],
+        ),
         await projectGuard(tx, {
           project_id: id.project_id,
           lane: request.lane,
@@ -388,6 +400,7 @@ function resultDraft(
           gate: out.gate,
           reason_code: out.reason_code,
           ...(out.output_hash ? { output_hash: out.output_hash } : {}),
+          ...(out.detail ? { detail: out.detail } : {}),
         },
       };
     case 'failed':
@@ -511,12 +524,14 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
     }
 
     case 'check_eligibility': {
+      // DEC-25: an item whose request named an area asks that area's lanes (absent: the repo as a whole)
       const base = await laneEligibility(
         d.pool,
         s.repo,
         c.lane,
         clockOf(d),
         catalogueOfItem(s).eligibility,
+        s.area,
       );
       // R3 and R4: a tripped breaker or an overdue hotfix follow-up sends a NEW item to L8. The same
       // check also answers R1 ("may this project run the lane the work needs"), which is no new item.
@@ -570,6 +585,9 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
       // M15.4 9.2: G6 is the requester's own acceptance: exactly the requester decides it (the deciders narrow the
       // `requesters` slot to them), of the merged commit and the release it binds
       const g6 = c.gates.includes('G6') ? await g6AcceptanceOf(d.pool, s) : null;
+      // P1-8: an X1 or a G3o at 6.3 binds what its stage reported (the operation, the oracle deviations): in its facts
+      // and its subject hash, so an approval is of exactly that
+      const needed = await gateNeededFor(d.pool, s.item_id, c.gates, c.facts);
       const cards = await openCards(d.decisions, {
         project_id: s.project_id as ProjectId,
         requester: s.requester as PrincipalId,
@@ -593,13 +611,17 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
                     ? g5.subject_hash
                     : g === 'G6' && g6
                       ? g6SubjectHash(c.subject_hash, g6)
-                      : c.subject_hash,
+                      : needed
+                        ? gateNeededSubjectHash(c.subject_hash, needed)
+                        : c.subject_hash,
                 facts:
                   g === 'G5' && g5
                     ? g5.facts
                     : g === 'G6' && g6
                       ? { ...(c.facts as JsonObject), [G6_ACCEPTANCE_FACT]: g6 as never }
-                      : (c.facts as JsonObject),
+                      : needed
+                        ? { ...(c.facts as JsonObject), [GATE_NEEDED_FACT]: needed as never }
+                        : (c.facts as JsonObject),
                 ...(g === 'G6' ? { deciders: [s.requester as PrincipalId] } : {}),
                 // B5: the person who wrote the plan by hand is treated like the requester on G3 (and G3s, the skeleton
                 // of the same plan): the kernel's SoD rule, single-holder waiver stamped, never at T2.

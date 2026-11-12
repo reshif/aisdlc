@@ -2,6 +2,7 @@ import {
   GATE_EVENT,
   VoteDecision,
   gatePolicy,
+  stepUpOf,
   type PrincipalId,
   type Sha256Hex,
 } from '@aisdlc/contracts';
@@ -35,7 +36,8 @@ import { readGateState, type GateState } from './state.js';
 //
 // `decide` refuses: an unknown, replayed or expired nonce; a nonce for a gate whose subject has been
 // superseded (or any gate no longer pending); a nonce whose evidence was not recorded as viewed; and,
-// where the gate needs a step-up (G5, M4, or opened with `step_up`), a missing proof or one that
+// where the gate needs a step-up (G5, M4, opened with `step_up`, or any gate that needs two people:
+// `stepUpOf`, RC-SEC-4), a missing proof or one that
 // `StepUpPort.verify(proof, bound_hash, principal)` rejects. The nonce is consumed in the same
 // transaction as the decision, so a refused attempt leaves it usable (until it expires) and a
 // successful one cannot be replayed.
@@ -106,7 +108,7 @@ export async function prepare(
         gate_instance_id: input.gate_instance_id,
         subject_hash: p.subject_hash,
         evidence_hash: evidence,
-        step_up: p.step_up,
+        step_up: stepUpOf(p),
       },
       pending: [],
     });
@@ -237,7 +239,7 @@ export async function consumeNonce(
     return err(decisionError('evidence_not_viewed', 'evidence_viewed was not recorded'));
   }
   let stepUp: ConsumedNonce['stepUp'] = null;
-  if (p.step_up.required) {
+  if (stepUpOf(p).required) {
     if (!stepUpInput?.proof) {
       return err(decisionError('step_up_required', `${p.gate_id} needs a step-up proof`));
     }

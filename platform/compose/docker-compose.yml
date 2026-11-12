@@ -765,6 +765,9 @@ services:
       SEED_IDENTITY_URL: http://identity:8330
       SEED_IDENTITY_TOKEN_REF: file:/run/secrets/tok-seed-identity
       SEED_FACTORY_ADMIN: alice
+      # the design personas (lt, oh, nf, mw, tb, ...): their IdP groups (config/idp-seed.json) bound to their fleet,
+      # team and viewer roles; project slot roles come from a project's role map once it is onboarded
+      SEED_PERSONAS: '1'
       # The GitHub App is the first code-host row of the integration registry (ids and a key REFERENCE;
       # the key itself stays in the codehost's own file).
       SEED_GITHUB_APP_ID: ${GITHUB_APP_ID:?run ./init-secrets first}
@@ -836,7 +839,7 @@ services:
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal"]},
-        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops","settings"]},
         "sandbox-controller":{"token_ref":"file:/run/secrets/tok-sandbox-controller-core","scopes":["activity"]},
         "audit":{"token_ref":"file:/run/secrets/tok-audit-core","scopes":["erasure"]}}
       CORE_NOTARY_URL: http://notary:8310
@@ -1356,6 +1359,10 @@ services:
       SANDBOX_CONTROLLER_PROXY_URL: http://docker-proxy-coding:2375
       SANDBOX_CONTROLLER_PROXY_TOKEN_REF: file:/run/secrets/tok-sandbox-controller-docker-coding
       SANDBOX_CONTROLLER_IMAGE: ${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
+      # M16 part 3 (LF4): the image id (sha256:...) of that W image (`docker image inspect --format '{{.Id}}'`). A W
+      # session starts only when it is the M1-approved `onboarding.light_tests.worker_image` (the image SP-STD-1 was
+      # recorded for) and the daemon made the container from it; empty: no W session runs
+      SANDBOX_CONTROLLER_WORKER_IMAGE_ID: ${SANDBOX_AGENT_IMAGE_ID:-}
       # M16: the onboarding probe image (a digest) the driver may run; a K-exec session must ALSO name the image the
       # M1-approved config `onboarding.sandbox_image` names, under a probe grant core recorded (`core.probe_grant`)
       SANDBOX_CONTROLLER_PROBE_IMAGES: ${SANDBOX_ONBOARDING_IMAGE:-}

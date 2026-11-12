@@ -26,6 +26,7 @@ export async function startTestController(o: {
   reload?: () => Promise<void>;
   scopes?: readonly ControllerScope[];
   probeImage?: () => string | null;
+  workerImage?: { lf4: () => string | null; host: string | null };
   onStart?: ConstructorParameters<typeof SandboxController>[0]['onStart'];
   sweep?: ConstructorParameters<typeof SandboxController>[0]['sweep'];
 }): Promise<TestController> {
@@ -37,6 +38,7 @@ export async function startTestController(o: {
     grants: o.grants ?? new FakeGrants(),
     hostId: 'test',
     ...(o.probeImage ? { probeImage: o.probeImage } : {}),
+    ...(o.workerImage ? { workerImage: o.workerImage } : {}),
     ...(o.onStart ? { onStart: o.onStart } : {}),
     ...(o.sweep ? { sweep: o.sweep } : {}),
   });

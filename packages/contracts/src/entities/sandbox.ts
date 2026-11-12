@@ -288,6 +288,11 @@ export const SandboxErrorCode = z.enum([
   'unavailable',
   'refused',
   'driver_failure',
+  /**
+   * M16 part 3 (LF4): the W image this host runs is not the `worker_image` the isolation test (SP-STD-1) was recorded
+   * for (`onboarding.light_tests.worker_image`), or either is not named: no W session starts (fail closed).
+   */
+  'image_unverified',
 ]);
 export type SandboxErrorCode = z.infer<typeof SandboxErrorCode>;
 

@@ -19,6 +19,7 @@ import {
   type ProjectId,
   type ProjectReadinessRecord,
   type RecordEvent,
+  type WorkIntakeState,
 } from '@aisdlc/contracts';
 import { dedupeScan } from '@aisdlc/work';
 import { deterministicId, err, newId, ok, type Result } from '@aisdlc/kernel';
@@ -29,7 +30,8 @@ import { createItemIn, itemIdOfRequest, openItemsOfRepo } from './work-items.js'
 import type { PrrVersion } from './fold.js';
 import { clockOf, inCoreTx, lockKeys, type CoreDeps, type Journal } from './journal.js';
 import { applyGuard, projectGuard } from './breaker.js';
-import { routeLane } from './lane-eligibility.js';
+import { unresolvedR3 } from './knowledge-defects.js';
+import { areaOf, routeLane } from './lane-eligibility.js';
 import { governingPrr } from './fold.js';
 import { repoIdentity } from './prr-store.js';
 
@@ -39,7 +41,8 @@ import { repoIdentity } from './prr-store.js';
 // Everything is a record event on `work:<request_id>`. Nothing here starts an agent session, a
 // unit or a work item: a request that is admitted waits for M9.
 
-export type WorkState = 'requested' | 'held' | 'admitted' | 'routed_l8' | 'released' | 'l8_offered';
+/** Where a request stands (contracts' `WorkIntakeState`, the one list). */
+export type WorkState = WorkIntakeState;
 
 export interface WorkRequestState {
   readonly request: WorkRequestedPayload;
@@ -85,6 +88,8 @@ export interface WorkRequestInput {
   readonly project_id: ProjectId;
   readonly repo: string;
   readonly lane: Lane;
+  /** M17 (DEC-25): the area of the repo the work is in; an area the governing record does not hold is refused. */
+  readonly area?: string;
   readonly requester: PrincipalId;
   /** Default `N1`; a request that the factory raises itself would say N6. */
   readonly channel?: EntryChannel;
@@ -138,8 +143,27 @@ export async function requestWork(
     }
     const prr = id ? governingPrr(await j.prr(id.project_id, id.repo_id)) : null;
     const repoRef = id?.repo_ref ?? input.repo;
+    // DEC-25: an area is one of the governing record's (its system map's); a record with one repo-wide area holds
+    // every path. With no record the request is held (N8) and the area is checked again when an M4 releases it.
+    if (input.area !== undefined && prr && areaOf(prr.prr, input.area) === null) {
+      const known = (prr.prr.level.areas ?? []).map((a) => a.area).join(', ');
+      return err(
+        coreError(
+          'invalid_input',
+          `area_unknown: ${input.area} is not an area of the repo's system map (${known})`,
+        ),
+      );
+    }
     const verdict = applyGuard(
-      routeLane(repoRef, input.lane, prr, clockOf(deps).now()),
+      routeLane(
+        repoRef,
+        input.lane,
+        prr,
+        clockOf(deps).now(),
+        undefined,
+        input.area,
+        prr ? await unresolvedR3(tx, repoRef, prr.version) : [],
+      ),
       id
         ? await projectGuard(tx, {
             project_id: id.project_id,
@@ -151,7 +175,11 @@ export async function requestWork(
     );
     const seen = foldWork(await j.events(workStream(requestId)));
     if (seen) {
-      if (seen.request.lane !== input.lane || repoKeyOf(seen.request.repo) !== key) {
+      if (
+        seen.request.lane !== input.lane ||
+        repoKeyOf(seen.request.repo) !== key ||
+        seen.request.area !== input.area
+      ) {
         return err(coreError('conflict', 'request_id was used for a different request'));
       }
       if (
@@ -180,6 +208,7 @@ export async function requestWork(
         project_id: input.project_id,
         repo: repoRef,
         lane: input.lane,
+        ...(input.area === undefined ? {} : { area: input.area }),
         channel: input.channel ?? 'N1',
         requester: input.requester,
         catalogue_ref: currentCatalogueRef(),
@@ -375,7 +404,15 @@ export async function fanOutHeld(
     // Re-fold under the lock: the request may have moved since the listing.
     const cur = foldWork(await j.events(workStream(h.id)));
     if (cur?.state !== 'held') continue;
-    const verdict = routeLane(o.repo, h.request.lane, o.version, o.now);
+    const verdict = routeLane(
+      o.repo,
+      h.request.lane,
+      o.version,
+      o.now,
+      undefined,
+      h.request.area,
+      await unresolvedR3(tx, o.repo, o.version.version),
+    );
     const ok_ = verdict.route === 'normal' && verdict.eligible;
     const w = await j.emit(
       workStream(h.id),

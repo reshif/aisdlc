@@ -63,6 +63,12 @@ export interface DriverConfig {
    * names any other image is refused before anything is made; the socket proxy keeps its own list.
    */
   readonly images?: readonly string[];
+  /**
+   * M16 part 3 (LF4): the image id (`sha256:...`) a container of a class must be made from, checked on the daemon's own
+   * answer after the create (`Image` of the container's inspect) and before it starts; `undefined`: no check for the
+   * class. A mismatch (an empty id included) is refused `image_unverified` and nothing runs.
+   */
+  readonly expectImageId?: (cls: SandboxSpec['class']) => string | undefined;
   readonly scratch: ScratchRoot;
   /** Container names of the peers a session network may attach, by role. A class that needs a peer not named here does not run. */
   readonly peers: Partial<Record<SandboxPeer, string>>;
@@ -381,11 +387,12 @@ export class DockerSandboxDriver implements SandboxPort {
         profile.key,
         spec.class,
         profile.network === 'none' ? 'none' : netName,
+        this.cfg.expectImageId?.(spec.class),
       );
       if (problems.length > 0)
         return err(
           sandboxError(
-            'refused',
+            problems.some((p) => p.startsWith('Image=')) ? 'image_unverified' : 'refused',
             `the daemon's container is not what was asked: ${problems.join('; ')}`,
           ),
         );
@@ -502,13 +509,19 @@ export class DockerSandboxDriver implements SandboxPort {
     hasKey: boolean,
     cls: string,
     network: string,
+    expectImage?: string,
   ): Promise<string[]> {
     const r = await this.api.json<{
+      Image?: string;
       Config?: { Env?: string[]; User?: string; Labels?: Record<string, string> };
       HostConfig?: Record<string, unknown>;
     }>('GET', `/containers/${name}/json`);
     if (r.status !== 200 || !r.json) return [`inspect: ${r.status}`];
     const problems = envCredentialProblems(r.json.Config?.Env ?? [], hasKey);
+    // LF4: the image the daemon made the container from, by id
+    if (expectImage !== undefined && (expectImage === '' || r.json.Image !== expectImage)) {
+      problems.push(`Image=${String(r.json.Image ?? 'unknown').slice(0, 80)}`);
+    }
     const h = r.json.HostConfig ?? {};
     if (h['Privileged'] !== false) problems.push('Privileged');
     if (h['ReadonlyRootfs'] !== true) problems.push('ReadonlyRootfs');

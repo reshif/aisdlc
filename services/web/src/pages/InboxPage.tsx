@@ -24,6 +24,8 @@ const AFTER_ONBOARDING_TITLE = {
   drift_reaffirm: 'Re-affirm changed instruction text',
   prr_restore: 'Restore a suspended readiness record',
   prr_resign: 'Re-sign an expired readiness record',
+  drift_security: 'Security event: agent work held',
+  reonboard: 'Re-onboarding proposed',
 } as const;
 
 export const titleOf = (i: PortalInboxItem): string =>
@@ -38,7 +40,10 @@ export const hrefOf = (i: PortalInboxItem): string =>
   i.kind === 'settings_revision'
     ? `/revisions/${i.id}`
     : i.kind === 'work_gate'
-      ? `/items/${i.item_id ?? ''}`
+      ? // P1-2: a work gate opens the card it is decided on; the item page only when the record names no card
+        i.card_id !== null
+        ? `/cards/${i.card_id}`
+        : `/items/${i.item_id ?? ''}`
       : i.kind === 'onboarding_card'
         ? `/cards/${i.id}`
         : `/projects/${encodeURIComponent(i.project_id)}/drift`;
@@ -81,6 +86,14 @@ function Item({ i }: { i: PortalInboxItem }) {
             <Link to={`/projects/${i.project_id}`}>{i.project_id}</Link>
           </dd>
         </div>
+        {i.kind === 'work_gate' && i.item_id !== null ? (
+          <div>
+            <dt>Work item</dt>
+            <dd>
+              <Link to={`/items/${i.item_id}`}>{i.item_id.replace(/-/g, '').slice(0, 8)}</Link>
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt>Opened</dt>
           <dd>{shortTime(i.opened_at)}</dd>
@@ -104,7 +117,7 @@ function Item({ i }: { i: PortalInboxItem }) {
 
 /**
  * The inbox: the open cards the person may decide, with when an answer is due, and below them the
- * ones they can see but may not decide, with who does. Nothing is decided from this page.
+ * ones they can see but may not decide, with who does. Nothing is decided from this page: each entry opens its card.
  */
 export function InboxPage() {
   const q = useQuery({ queryKey: ['inbox'], queryFn: () => api.inbox(), refetchInterval: 15_000 });

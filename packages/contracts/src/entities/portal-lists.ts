@@ -17,13 +17,13 @@ import { AuditOutcome, CloseOutRecord, EscapeReportedPayload } from './closeout.
 // thinnest read over what core or the bff already holds; every route is PDP-guarded like its neighbours.
 //
 //   core GET /v1/items              ItemListView        (item.view_floor per row)
-//   core GET /v1/agents             AgentRegistryView   (audit.read on the fleet)
+//   core GET /v1/agents             AgentRegistryView   (quality.read on the fleet)
 //   core GET /v1/catalogue          CatalogueView       (signed in: the catalogue is everyone's)
-//   core GET /v1/admission          AdmissionView       (audit.read on the fleet)
-//   core GET /v1/controls           ControlsView        (audit.read on the fleet)
-//   core GET /v1/kills              KillsView           (audit.read on the fleet)
+//   core GET /v1/admission          AdmissionView       (ops.read on the fleet)
+//   core GET /v1/controls           ControlsView        (ops.read on the fleet)
+//   core GET /v1/kills              KillsView           (ops.read on the fleet)
 //   core GET /v1/audit/decisions    AuditDecisionsView  (audit.read on the fleet)
-//   bff  GET /api/integrations      IntegrationsView    (audit.read on the fleet)
+//   bff  GET /api/integrations      IntegrationsView    (quality.read or ops.read on the fleet)
 //   bff  GET /api/directory         DirectoryView       (audit.read on the fleet)
 //   bff  GET /api/projects/:id/explain  AccessExplainView (access.explain on the project)
 

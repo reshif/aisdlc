@@ -17,6 +17,7 @@ import { CONTRACT_GRANT, sandboxContract } from '@aisdlc/ports/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ConfigCaps, StaticCaps } from '../src/caps.js';
 import { FakeGrants } from '../src/grants.js';
+import { workerImageWhyNot } from '../src/controller.js';
 import { startTestController, type TestController } from '../src/testing.js';
 
 // M14.2: the sandbox-controller in front of a FakeSandbox, through HttpSandbox (the adapter core uses). The same
@@ -405,5 +406,66 @@ describe('M16: the onboarding probe image and grant', () => {
     expect(o.ok ? null : o.error.code).toBe('refused');
     expect(fake.runs).toEqual([]);
     expect((await tc.client.run(probe())).ok).toBe(true);
+  });
+});
+
+describe('M16 part 3: W runs only the image LF4 was recorded for', () => {
+  const LF4 = `sha256:${'a'.repeat(64)}`;
+  const OTHER = `sha256:${'b'.repeat(64)}`;
+  const w = (id: string) => spec({ session_id: id, class: 'W', gateway_key: KEY });
+
+  it('the reasons, pure: none named, the host not by digest, another image; the same digest under a name is the image', () => {
+    expect(workerImageWhyNot(null, LF4)).toMatch(/names no worker_image/);
+    expect(workerImageWhyNot(LF4, null)).toMatch(/not named by digest/);
+    expect(workerImageWhyNot(LF4, OTHER)).toMatch(/not sha256:aaaa/);
+    expect(workerImageWhyNot(`aisdlc/sandbox-agent@${LF4}`, LF4)).toBeNull();
+  });
+
+  it('a mismatch, or no image named, refuses W with image_unverified and starts nothing; O is not concerned; the match runs', async () => {
+    const fake = new FakeSandbox();
+    const cfg: { lf4: string | null } = { lf4: null };
+    tc = await startTestController({
+      driver: fake,
+      grants: new FakeGrants().grant(CONTRACT_GRANT),
+      workerImage: { lf4: () => cfg.lf4, host: LF4 },
+    });
+    const none = await tc.client.run(w('ctl-li-1'));
+    expect(none.ok ? null : none.error).toMatchObject({
+      code: 'image_unverified',
+      message: expect.stringMatching(/names no worker_image/),
+    });
+    cfg.lf4 = OTHER;
+    const other = await tc.client.run(w('ctl-li-2'));
+    expect(other.ok ? null : other.error.code).toBe('image_unverified');
+    expect(fake.runs).toEqual([]);
+    expect((await tc.client.run(spec({ session_id: 'ctl-li-o' }))).ok).toBe(true);
+    cfg.lf4 = LF4;
+    expect((await tc.client.run(w('ctl-li-3'))).ok).toBe(true);
+    expect(fake.runs.map((r) => r.session_id)).toEqual(['ctl-li-o', 'ctl-li-3']);
+  });
+
+  it('a config read that throws is no image (fail closed); a host whose W image is not named refuses too', async () => {
+    const fake = new FakeSandbox();
+    tc = await startTestController({
+      driver: fake,
+      grants: new FakeGrants().grant(CONTRACT_GRANT),
+      workerImage: {
+        lf4: () => {
+          throw new Error('reader down');
+        },
+        host: LF4,
+      },
+    });
+    const r = await tc.client.run(w('ctl-li-4'));
+    expect(r.ok ? null : r.error.code).toBe('image_unverified');
+    await tc.close();
+    tc = await startTestController({
+      driver: fake,
+      grants: new FakeGrants().grant(CONTRACT_GRANT),
+      workerImage: { lf4: () => LF4, host: null },
+    });
+    const h = await tc.client.run(w('ctl-li-5'));
+    expect(h.ok ? null : h.error.code).toBe('image_unverified');
+    expect(fake.runs).toEqual([]);
   });
 });

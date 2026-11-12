@@ -15,6 +15,8 @@ import {
   ItemObserveRequest,
   ItemPlanRequest,
   ItemHumanDoneRequest,
+  ItemHandBackRequest,
+  ItemHandoffChooseRequest,
   ItemReadyRequest,
   ItemReleaseRequest,
   ProjectDefaultEnvelope,
@@ -97,6 +99,7 @@ import { projectKnowledge } from './portal-knowledge.js';
 import {
   getProject,
   getProjectDetail,
+  getProjectState,
   getS0Overview,
   listProjects,
   listS0ForRepo,
@@ -108,6 +111,8 @@ import { agentStatsOf, listAgentRuns } from './agent-runs.js';
 import { CorePushGuards } from './build/push.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
+import { itemGateLinks } from './item-gates.js';
+import type { ItemState } from '@aisdlc/work';
 import {
   evidencePackView,
   gateCardContext,
@@ -115,10 +120,11 @@ import {
   signedPackBytes,
 } from './verify/portal.js';
 import type { ObjectStorePort } from '@aisdlc/ports';
-import { answerQuestion, decideReady, submitRequest } from './requests.js';
+import { answerQuestion, decideReady, requestReceipt, submitRequest } from './requests.js';
 import { observeRelane, reRequestRelease, requestRework } from './work-signals.js';
 import { submitHumanPlan } from './planning/human-plan.js';
-import { completeHumanWork } from './work-signals.js';
+import { chooseHandoff, completeHumanWork, handBack } from './work-signals.js';
+import { itemHandoffView } from './handoff.js';
 import type { GroundingPort } from './planning/grounding.js';
 import { readItem, readItemEvents } from './work-items.js';
 import { loadProjectSettings, proposeProjectSettings } from './settings.js';
@@ -140,7 +146,13 @@ import { registerIssueTwinRoutes } from './issue-twin/routes.js';
 import { registerDriftRoutes } from './drift/routes.js';
 import { registerErasableRoutes } from './conversation/erasable.js';
 import { registerGovernanceRoutes } from './governance-routes.js';
-import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
+import {
+  configKeyView,
+  listConfigKeys,
+  listProjectConfigKeys,
+  projectConfigKeyView,
+  proposeConfigKey,
+} from './config-console.js';
 import {
   cardDetail,
   cardHeader,
@@ -400,6 +412,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     now: () => clock.now(),
     eligibility: (o.config ?? o.cards?.decisions)?.eligibility,
     kill: o.kill,
+    registry: o.registry,
     allowed: (req, scope) => allowed(req, scope),
   });
   // M19: the fleet (counts per project, the bff cuts it) and the sessions' heartbeats
@@ -414,7 +427,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   });
 
   // M19: HealthTile / HealthSnapshot. The tiles of the Operate › Health screen, the HealthSnapshot rule applied at read
-  // time (older than two minutes: unknown). Scope `portal`: the bff asks the PDP (audit.read on the fleet) first.
+  // time (older than two minutes: unknown). Scope `portal`: the bff asks the PDP (ops.read on the fleet) first.
   app.get('/v1/health', async (req, reply) => {
     if (!allowed(req, 'portal'))
       return sendError(reply, 403, 'forbidden', 'scope portal is needed');
@@ -567,13 +580,19 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       project_id: b.value.project_id,
       repo: b.value.repo,
       lane: b.value.lane,
+      ...(b.value.area === undefined ? {} : { area: b.value.area }),
       requester: b.value.on_behalf_of,
       channel: b.value.channel,
       text: b.value.text,
       ...(b.value.request_id ? { request_id: b.value.request_id } : {}),
     });
     if (!r.ok) return fail(reply, r.error);
-    return reply.code(r.value.duplicate ? 200 : 201).send(r.value);
+    const receipt = await requestReceipt(
+      r.value,
+      b.value.project_id,
+      (o.config ?? o.cards?.decisions)?.eligibility,
+    );
+    return reply.code(r.value.duplicate ? 200 : 201).send(receipt);
   });
 
   // ------------------------------------------------------------ the R3 circuit breaker (PLAN M9.5)
@@ -745,6 +764,14 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
   });
 
+  /** The card and ledger entry of each of the item's gates (P1-2), from the record. */
+  const gateLinksOf = (st: ItemState) =>
+    itemGateLinks(
+      o.pool,
+      st.item_id,
+      st.gates.map((g) => g.gate_instance_id),
+    );
+
   app.get('/v1/items/:id', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
     const id = params(req)['id'] as string;
@@ -769,7 +796,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     ) {
       return;
     }
-    return itemView(s);
+    return itemView(s, await gateLinksOf(s));
   });
 
   // ------------------------------------------------------------ the portal's actions on an item (PLAN M12.5)
@@ -815,7 +842,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   const maintenanceOn = async (): Promise<boolean> => (await o.config?.maintenance?.()) === true;
   const view = async (id: string) => {
     const again = await readItem(o.pool, id);
-    return again ? itemView(again.state) : null;
+    return again ? itemView(again.state, await gateLinksOf(again.state)) : null;
   };
 
   /** 1.6: the Ready decision. */
@@ -957,7 +984,129 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     if (await maintenanceOn()) {
       return fail(reply, coreError('refused', 'maintenance mode MM-2: decisions are disabled'));
     }
-    const r = await completeHumanWork(itemDeps, it.id, b.value.on_behalf_of, b.value.key);
+    const r = await completeHumanWork(
+      itemDeps,
+      it.id,
+      b.value.on_behalf_of,
+      b.value.key,
+      undefined,
+      b.value.reference,
+    );
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), duplicate: r.value.duplicate };
+  });
+
+  // ------------------------------------------------------------ handoffs (P1-4, FL "HANDOFFS")
+  //
+  // The handoff panel of an item: what was handed off and why, its E4 card, the choices the flow allows now; the
+  // owner's E4 choice (the PDP's `gate.decide` on the E4 gate, then the ledger: only who approved E4 chooses); and D4,
+  // the developer's hand-back (the PDP's `item.human_done`, the same slot that says the human-led work is done).
+
+  /** The handoff view of an item; decided like the item itself (`item.view_floor`). */
+  app.get('/v1/items/:id/handoff', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const who = PrincipalId.safeParse((req.query as Record<string, string>)['on_behalf_of']);
+    if (!who.success) return fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+    const it = await itemFor(req, reply, who.data, 'item.view_floor');
+    if (!it) return;
+    try {
+      const r = await itemHandoffView(o.pool, it.id);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the handoff could not be read'));
+    }
+  });
+
+  /** E4: the owner of record's choice, once E4 is decided approve in the ledger by the same person. */
+  app.post('/v1/items/:id/handoff/choose', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemHandoffChooseRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.view_floor');
+    if (!it) return;
+    const h = it.state.handoffs.find((x) => x.handoff_id === b.value.handoff_id);
+    if (!h || h.e4_gate_instance_id === null) {
+      return fail(reply, coreError('conflict', 'no such handoff with an open E4'));
+    }
+    const st = it.state;
+    if (
+      !(await guard(
+        reply,
+        b.value.on_behalf_of,
+        'gate.decide',
+        pdpResource.gate(st.project_id, h.e4_gate_instance_id, 'E4', {
+          item: st.item_id,
+          lane: st.lane ?? st.proposed_lane,
+        }),
+      ))
+    ) {
+      return;
+    }
+    // a choice the flow does not allow now is refused here: the interpreter would ignore it, and its one key is spent
+    const taken = (await readItemEvents(o.pool, it.id)).some(
+      (e) => e.idempotency_key === `handoff:chosen:${b.value.handoff_id}`,
+    );
+    if (!taken) {
+      const v = await itemHandoffView(o.pool, it.id);
+      if (!v.ok) return fail(reply, v.error);
+      if (!v.value.choices.includes(b.value.choice)) {
+        return fail(reply, coreError('conflict', `the choice ${b.value.choice} is not open now`));
+      }
+      const max = v.value.extension_max_percent;
+      if (
+        b.value.choice === 'extend' &&
+        (b.value.extension_percent === undefined || max === null || b.value.extension_percent > max)
+      ) {
+        return fail(
+          reply,
+          coreError('invalid_input', `an extension names its percent, at most ${max ?? 0}`),
+        );
+      }
+    }
+    const r = await chooseHandoff(itemDeps, it.id, {
+      handoff_id: b.value.handoff_id,
+      choice: b.value.choice,
+      by: b.value.on_behalf_of,
+      ...(b.value.extension_percent !== undefined
+        ? { extension_percent: b.value.extension_percent }
+        : {}),
+      ...(b.value.cause !== undefined ? { cause: b.value.cause } : {}),
+    });
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), duplicate: r.value.duplicate };
+  });
+
+  /** D4: the developer who took the item over hands it back, once (`plan_changed`: through G3 again). */
+  app.post('/v1/items/:id/hand-back', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemHandBackRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.human_done');
+    if (!it) return;
+    const signalKey = `hand_back:${b.value.key}`;
+    const taken = (await readItemEvents(o.pool, it.id)).some(
+      (e) => e.idempotency_key === signalKey,
+    );
+    const w = it.state.waiting;
+    if (!taken && (w?.kind !== 'human' || w.what !== 'human_led' || it.state.takeover === null)) {
+      return fail(reply, coreError('conflict', 'the item was not taken over by a developer'));
+    }
+    if (!taken) {
+      const v = await itemHandoffView(o.pool, it.id);
+      if (v.ok && (v.value.human_led?.hand_backs_left ?? 0) === 0) {
+        return fail(reply, coreError('conflict', 'the item was handed back once already (D4)'));
+      }
+    }
+    if (await maintenanceOn()) {
+      return fail(reply, coreError('refused', 'maintenance mode MM-2: decisions are disabled'));
+    }
+    const r = await handBack(
+      itemDeps,
+      it.id,
+      b.value.on_behalf_of,
+      b.value.plan_changed,
+      b.value.key,
+    );
     if (!r.ok) return fail(reply, r.error);
     return { item: await view(it.id), duplicate: r.value.duplicate };
   });
@@ -1082,8 +1231,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   });
 
   /**
-   * Acceptance rate, back-edge rate and cost per run of an agent (M11.2), over the fleet (`audit.read`
-   * on the fleet) or one project (`?project=`, `audit.read` on it).
+   * Acceptance rate, back-edge rate and cost per run of an agent (M11.2), over the fleet (`quality.read`
+   * on the fleet) or one project (`?project=`, `quality.read` on it; PLAN §7a).
    */
   app.get('/v1/agents/:id/stats', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -1101,7 +1250,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       !(await guard(
         reply,
         who.data,
-        'audit.read',
+        'quality.read',
         scope === null ? pdpResource.fleet() : pdpResource.project(scope),
       ))
     ) {
@@ -1126,7 +1275,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return { recorded: !r.value.duplicate };
   });
 
-  /** Who may read the eval history and scores: `audit.read` on the fleet, or on the project tag asked for. */
+  /** Who may read the eval history and scores: `quality.read` on the fleet, or the project tag asked for (PLAN §7a). */
   async function evalReadGuard(req: FastifyRequest, reply: FastifyReply) {
     if (!allowed(req, 'work')) {
       sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -1148,7 +1297,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       !(await guard(
         reply,
         who.data,
-        'audit.read',
+        'quality.read',
         tag === null ? pdpResource.fleet() : pdpResource.project(tag),
       ))
     ) {
@@ -1291,6 +1440,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         // M15.5: the project's admission limits (ADR-0003 §6)
         wip_limit: ProjectWipLimit.optional(),
         default_envelope: ProjectDefaultEnvelope.optional(),
+        // P1-5: the project lineage's head the draft was made against (absent: the head now)
+        parent_rev_hash: Sha256Hex.nullable().optional(),
         on_behalf_of: PrincipalId,
       }),
       req.body,
@@ -1302,11 +1453,12 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return;
     }
     if (!o.config) return fail(reply, coreError('unavailable', 'no decision kernel is configured'));
-    const { on_behalf_of, ...change } = b.value;
+    const { on_behalf_of, parent_rev_hash, ...change } = b.value;
     const r = await proposeProjectSettings(o.config, {
       project: id,
       change,
       proposed_by: on_behalf_of,
+      ...(parent_rev_hash !== undefined ? { parent_rev_hash } : {}),
     });
     if (!r.ok) return fail(reply, r.error);
     return reply.code(202).send(r.value);
@@ -1701,7 +1853,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   );
   app.post('/v1/revisions/:gate/decide', (req, reply) =>
     revisionAction(req, reply, RevisionDecideRequest, (d, _gate, b) =>
-      decideRevision(d, { nonce: b.nonce, decision: b.decision }),
+      decideRevision(d, { nonce: b.nonce, decision: b.decision, step_up: b.step_up }),
     ),
   );
   /** Retries the publish of an approved revision (the decision is already on the ledger). */
@@ -1757,6 +1909,40 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       parent_rev_hash: b.value.parent_rev_hash,
     });
     return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
+
+  // ------------------------------------------------------------ the project layer (P1-5)
+  //
+  // A project's own settings after onboarding, read as config keys of its layer (the value in force for the project,
+  // the lineage, pending M1s at the project's admin slot, history). A proposal is `PUT /v1/projects/:id/settings`
+  // with one field and the head it was drafted against: the existing M1 path, nothing new.
+
+  app.get('/v1/projects/:id/config/keys', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    if (!config) return;
+    return listProjectConfigKeys(config);
+  });
+
+  app.get('/v1/projects/:id/config/keys/:key', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    const id = projectIdOf(req);
+    const key = keyParam(req);
+    if (!config) return;
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    if (!key) return fail(reply, coreError('invalid_input', 'bad config key'));
+    try {
+      const st = await getProjectState(o.pool, id);
+      if (!st) return fail(reply, coreError('not_found', 'no such project'));
+      const r = await projectConfigKeyView(config, id, key, {
+        tier: st.project.tier ?? st.attestations.tier_floor ?? null,
+        deploys: st.project.deploys ?? null,
+      });
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the configuration could not be read'));
+    }
   });
 
   // ------------------------------------------------------------ readiness record and ledger (M8.4)

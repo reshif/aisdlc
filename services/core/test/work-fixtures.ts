@@ -69,6 +69,8 @@ export async function seedActivePrr(
     version?: number;
     /** Overrides of the record's autonomy (M15.1: G4's mode reads it); the record hash follows. */
     autonomy?: Partial<ProjectReadinessRecord['autonomy']>;
+    /** M17: what a decided card 3 put in the record (`affirmed.full`, ServiceEnvs); the record hash follows. */
+    affirmedFull?: NonNullable<ProjectReadinessRecord['affirmed']['full']>;
   } = {},
 ): Promise<Seeded> {
   n += 1;
@@ -103,8 +105,12 @@ export async function seedActivePrr(
       over: { project_id: project, version, deploys: project_deploys },
     }),
   );
-  const changed = o.autonomy ? { ...made, autonomy: { ...made.autonomy, ...o.autonomy } } : made;
-  const prr = o.autonomy ? { ...changed, record_hash: prrRecordHash(changed) } : made;
+  const withAut = o.autonomy ? { ...made, autonomy: { ...made.autonomy, ...o.autonomy } } : made;
+  const changed = o.affirmedFull
+    ? { ...withAut, affirmed: { ...withAut.affirmed, full: o.affirmedFull } }
+    : withAut;
+  const prr =
+    o.autonomy || o.affirmedFull ? { ...changed, record_hash: prrRecordHash(changed) } : made;
   const stream = prrStream(project, repoIdOf(repo));
   const w = await inCoreTx(deps, async (j, tx) => {
     await lockKeys(tx, [`project:${project}`, `repo:${repo.toLowerCase()}`]);
@@ -312,4 +318,24 @@ export async function decideGate(s: CoreStack, gate: string, principal: string, 
     decision,
     ...(proof ? { step_up: { proof } } : {}),
   });
+}
+
+/** The card that carries a gate instance of an item (from the item's `gates_opened` events). */
+export async function cardOfGate(
+  s: CoreStack,
+  itemId: string,
+  gateInstanceId: string,
+): Promise<string> {
+  const q = await s.record.pool.query<{ body: { gates?: unknown; card_ids?: unknown } }>(
+    `SELECT body FROM record.record_event WHERE stream = $1 AND type = 'item.gates_opened' ORDER BY seq`,
+    [`item:${itemId}`],
+  );
+  for (const r of q.rows) {
+    const gates = (r.body.gates ?? []) as Array<{ gate_instance_id: string }>;
+    const cards = (r.body.card_ids ?? []) as string[];
+    if (gates.some((g) => g.gate_instance_id === gateInstanceId) && cards.length === 1) {
+      return cards[0] as string;
+    }
+  }
+  throw new Error(`no single card carries ${gateInstanceId}`);
 }

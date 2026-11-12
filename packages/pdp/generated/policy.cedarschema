@@ -41,3 +41,9 @@ action "control.apply" appliesTo { principal: [Principal], resource: [Fleet, Pro
 action "control.lift" appliesTo { principal: [Principal], resource: [Fleet, Project, Lane] };
 action "banner.publish" appliesTo { principal: [Principal], resource: [Fleet, Project] };
 action "access.explain" appliesTo { principal: [Principal], resource: [Fleet, Project] };
+action "identity.admin" appliesTo { principal: [Principal], resource: [Fleet] };
+action "access.manage" appliesTo { principal: [Principal], resource: [Fleet, Project] };
+action "ops.read" appliesTo { principal: [Principal], resource: [Fleet, Project] };
+action "session.stop" appliesTo { principal: [Principal], resource: [Fleet, Project] };
+action "quality.read" appliesTo { principal: [Principal], resource: [Fleet, Project] };
+action "assistant.use" appliesTo { principal: [Principal], resource: [Fleet, Project] };

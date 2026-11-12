@@ -28,6 +28,12 @@ const PROBES: readonly ActionId[] = [
   'config.propose',
   'audit.read',
   'access.explain',
+  // PLAN §7a (2026-11-12)
+  'access.manage',
+  'ops.read',
+  'quality.read',
+  'session.stop',
+  'assistant.use',
 ];
 
 const scopeText = (s: Scope): string =>

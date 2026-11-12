@@ -1,6 +1,9 @@
 import { CATALOGUE, currentCatalogueRef } from '@aisdlc/catalogue';
+import { readReleaseSetting, type ConfigRegistry } from '@aisdlc/config';
 import {
   FloorNode,
+  LaneValues,
+  applyReleaseSetting,
   ITEM_EVENT,
   ITEM_STREAM_PREFIX,
   ItemCreatedPayload,
@@ -14,6 +17,7 @@ import {
   type FloorItem,
   type FloorMove,
   type FloorView,
+  type FloorPlan,
   type FloorWaitingGate,
   type GateId,
   type Lane,
@@ -41,6 +45,8 @@ import {
   CataloguePinUnavailable,
   floorPlanOf,
   floorPositionOf,
+  floorRouteOf,
+  laneRoute,
   floorTitleOf,
   foldItem,
   pinnedCatalogueResolver,
@@ -59,6 +65,8 @@ import {
   readActivity,
   type KillVerdictPort,
 } from './floor-live.js';
+import { getProjectState } from './queries.js';
+import { loadProjectSettings } from './settings.js';
 import { itemView } from './work-view.js';
 
 // The floor's live read model (PLAN M19, DM §3.10 ItemPosition and FlowWindow). `core.floor_position` is one row per
@@ -328,6 +336,37 @@ export interface FloorReadDeps {
   readonly eligibility?: EligibilityPort | undefined;
   /** The kill switch's verdict (core-worker's `/admission`); without it the floor shows the project killed (AR9). */
   readonly kill?: KillVerdictPort | undefined;
+  /** The config registry, to read the project's gating profile (P2-10); without it no gate is drawn off. */
+  readonly registry?: ConfigRegistry | undefined;
+}
+
+/**
+ * P2-10: the plan's gate nodes no lane has under the project's gating profile now (with its release choice, the T2
+ * floor and its deploys applied, as an item pinned now would have them). Anything unreadable is no gate off.
+ */
+async function gatesOffFor(d: FloorReadDeps, project: string, plan: FloorPlan): Promise<string[]> {
+  if (!d.registry) return [];
+  try {
+    const settings = await loadProjectSettings(d.pool, d.registry, project as never);
+    const st = await getProjectState(d.pool, project);
+    if (!settings.ok || !st) return [];
+    const release = await readReleaseSetting(d.pool, project);
+    const profile = applyReleaseSetting(
+      { ...settings.value.settings.gating_profile, project_deploys: st.project.deploys ?? null },
+      release.state === 'ok' ? release.value : null,
+    );
+    // no signed tier yet: drawn as T2 (more gates on, never fewer)
+    const tier = settings.value.tier ?? st.attestations.tier_floor ?? 'T2';
+    const on = new Set<string>();
+    for (const lane of LaneValues) {
+      const def = CATALOGUE.lanes[lane];
+      if (!def) continue;
+      for (const g of floorRouteOf(laneRoute(def, profile, tier)).gates) on.add(g.key);
+    }
+    return plan.gates.map((g) => g.key).filter((k) => !on.has(k));
+  } catch {
+    return [];
+  }
 }
 
 interface PositionRow {
@@ -541,9 +580,11 @@ export async function readFloor(
     // no chips rather than no floor: a chip that cannot be read is not drawn (never as fine)
     scores = [];
   }
+  const plan = floorPlanOf(CATALOGUE, currentCatalogueRef());
   return {
     project_id: project as never,
-    plan: floorPlanOf(CATALOGUE, currentCatalogueRef()),
+    plan,
+    gates_off: await gatesOffFor(d, project, plan),
     items,
     recent,
     flow,

@@ -14,7 +14,7 @@ pattern, the onboarding agent console and the backend gaps) are specified in [`p
 
 - **Access model, mirrored from the contracts** (`portal-prototype/src/access.js`):
   - the 14 roles of `ROLE_CATALOGUE`, each with its view level V1–V3 and data class D0–D2;
-  - the `ACTION_CATALOGUE`, plus six portal rows marked `proposed`;
+  - the `ACTION_CATALOGUE`, with the six portal rows marked `proposed` (added to the catalogue on 2026-11-12, §5 item 6);
   - `GATE_POLICIES`, which gives each gate one deciding slot;
   - `TWO_PERSON_GATES`: X1, X2, E2 and M4;
   - the cross-cutting rules:
@@ -27,7 +27,7 @@ pattern, the onboarding agent console and the backend gaps) are specified in [`p
     - expiry never approves;
     - an active kill blocks approvals.
 - **One engine for every screen**: `A.why(action, resource)`, `A.can`, `A.decideCheck(gate, item)`, `A.act` (a locked button explains itself and offers "request access"), `A.visibleItems()`, `A.viewLevel`, `A.dataClass`. Route guards hide navigation the person cannot open; a direct link gives a 403 with the reason, and an invisible item gives the same 404 as a key that does not exist.
-- **Accounts** (dev IdP list):
+- **Accounts** (dev IdP list; since 2026-11-12 also the real dev IdP's and the local seed's, after `alice` and `bob`: `services/bff/src/dev-oidc/personas.ts`, `platform/compose/config/`; fleet, team and viewer roles are seeded, project slot roles come from each design project's role map once it is onboarded):
 
   | Account | Role |
   |---|---|
@@ -78,7 +78,7 @@ pattern, the onboarding agent console and the backend gaps) are specified in [`p
 | S8 and S9 | **Built (2026-11-12, `build/portal`)**: G5's decisions and RELHOLD's re-request and B14 on the item page (`items/Governance.tsx`), the 9.3 close-out record with B17 escapes (`/items/:id/closeout`). Still thin: merge reconciliation (B15a, B15b), DeployMarker and rollback B16 as a linked item have no screen of their own | M15 (done), the rest with the floor (M19) |
 | Lifecycle states | explain screens for re-laning R1–R4, the R3 breaker, PARK and BLOCKED, the rework budget, MM-2 | M15 |
 | Onboarding cards 2 and 3 | card 2 (Light: claims ≤50 with evidence, practices, instruction text with step-up, never affirmed in the proposing session) opens only as decided; card 3 (Full: the code map, seeds, the exam measured, golden candidates, the oracle-lock proposal, the interview) built in M17.1 (`cards/C3Form.tsx`) | M16, M17 |
-| After onboarding | per-area level editing (DEC-25), level-up, re-affirm card, drift suspension → L8 and one-click restore with bypass re-attestation (DEC-21), expiry | M16, M17 |
+| After onboarding | per-area level editing (DEC-25), level-up, re-affirm card, drift suspension → L8 and one-click restore with bypass re-attestation (DEC-21), expiry; the re-onboarding card (M17 part 2: a knowledge-defect proposal in the admin slot's inbox, kind `reonboard`, accepted or declined with a reason on the project's Drift page, `DriftPage.tsx` `Reonboarding`; bff `POST /api/projects/:id/reonboarding/decide`). **Built (M16 part 3)**: X2 on an S0 record's onboarding pack on the exception gate screen (`cards/ExceptionGate.tsx`, core `GET /v1/cards/:id/gate/context` with `subject_kind: s0_record`): the rendered files with their sha256 and protected-path rule, whether they are the recorded render, the patch hash the subject hash binds, the deciding card's payload hash, the CODEOWNERS resolution (Light) and the oracle lock and intended seeds (Full); the drift page's KRL row (signed, now, the autonomy in force and the drifted paths that lowered it); the drift page's security card (OB §8: agent work held; the widened installation confirmed by the `sec` slot; new history secrets counted) and the inbox's `drift_security`. Still missing: a post-onboarding SECR card for a new history secret | M16, M17 |
 | Notifications | real-time delivery; Slack and email adapter settings per channel | M18 |
 
 ## 4. Missing: no screen yet
@@ -105,16 +105,18 @@ The prototype shows today's spec or contract behaviour for each of these. The re
 3. **Payments API readiness.** The example project is at Light but runs L4 lanes, which OB opens only at Full. The prototype makes `api/` and `billing/` Full per area (DEC-25). Keep that, or change the example data.
 4. **E4.** The flow text says "the owner of record chooses", but `GATE_POLICIES` gives E4 to the exception slot `x`.
 5. **Factory-wide M1.** `GATE_POLICIES.M1` is the project admin slot, and no slot covers a fleet configuration change. Who decides it?
-6. **Proposed actions.** Six actions are not in `ACTION_CATALOGUE` yet. Adding them is an M3 catalogue/permission change.
+6. **Proposed actions. Decided 2026-11-12 (PLAN.md §7a):** the six actions are in `ACTION_CATALOGUE` (PDP policy 1.5.0; the role catalogue is unchanged). Each switch is checked on the server (core and/or the bff) and hinted in the portal (`useCan`/`Guarded`, the nav guards).
 
-   | Action | What it covers |
-   |---|---|
-   | `access.manage` | role bindings and access requests |
-   | `identity.admin` | SSO, sessions, suspension, erasure and legal hold |
-   | `ops.read` | scheduler, sandboxes and health |
-   | `session.stop` | stopping one sandbox session |
-   | `quality.read` | agents, evals, gateway and integrations |
-   | `assistant.use` | Ask the factory |
+   | Action | What it covers | Held by | Switched from |
+   |---|---|---|---|
+   | `identity.admin` | SSO, sessions, suspension, erasure and legal hold | factory.admin (fleet only) | `config.decide`: the audit service's and the bff's erasure and hold writes, the Audit panel's buttons |
+   | `access.manage` | role bindings and access requests | the project admin slot, factory.admin | nothing yet: no portal route changes a binding (they change through the role map) and access requests have no backend |
+   | `ops.read` | scheduler, sandboxes, controls, kill journal, health | factory.admin, factory.auditor, the project admin and security slots | `audit.read`: core `/v1/admission`, `/v1/controls`, `/v1/kills`; bff `/api/admission`, `/api/slots`, `/api/controls` (and the read before a lift), `/api/kills`, `/api/integrations` (with `quality.read`); the Operate nav |
+   | `session.stop` | stopping one sandbox session (a kill-class action; the fleet is factory.admin only) | the kill, admin and security slots, factory.admin | nothing: the sandbox-controller cannot stop a running session, so there is no route or button yet |
+   | `quality.read` | agents, evals, models and routes, integrations | factory.admin, factory.auditor, the project admin slot | `audit.read`: core `/v1/agents`, `/v1/agents/:id/stats`, `/v1/evals/summary`, `/v1/evals/runs`, `/v1/agents/:id/scores`; the bff's same routes and `/api/integrations`; the Quality nav |
+   | `assistant.use` | Ask the factory and the onboarding assistant (a V1 read) | every role that sees the project | `project.view` alone: core and the bff now ask `project.view` AND `assistant.use` (`ASSISTANT_ACTIONS`); the onboarding panel's hint and the Ask nav entry |
+
+   The project admin and security slots hold `ops.read` on their project only, but the Operate screens read fleet-wide views, so in practice Operate is the factory admins' and auditors' until a per-project Operate view exists.
 
 ## 6. How the real portal gets there
 

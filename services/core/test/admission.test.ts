@@ -1,7 +1,12 @@
 import {
+  DRIFT_CAUSE,
   PLANNING_EVENT,
+  PRR_EVENT,
+  PrrStatusChangedPayload,
   UNIT_EVENT,
   planningStream,
+  prrStream,
+  repoIdOf,
   unitStream,
   type Lane,
   type ProjectSettings,
@@ -19,7 +24,12 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AdmissionCapacity,
+  activeGrantCount,
   admitUnit,
+  agentWorkHold,
+  itemWorkHold,
+  readGoverning,
+  setPrrStatus,
   assertLeaseEpoch,
   chooseHandoff,
   driveWork,
@@ -501,6 +511,119 @@ describe('HUMAN-WAIT in S6', () => {
     expect(grants[1]?.envelope.ref).toBe(grants[0]?.envelope.ref);
     expect(grants[1]?.clock.paused_ms).toBeGreaterThanOrEqual(3_600_000);
     expect(r.envelope.reserved).toHaveLength(2); // this item's and the other's: one group per Unit
+  });
+});
+
+describe('HUMAN-WAIT on a drift suspension (OB §8, M16 part 3)', () => {
+  /** The restore's status change (a person's, DEC-21(b)); drift.test drives the whole restore path. */
+  const restore = async (project: string, repo: string) => {
+    const g = await readGoverning(s.record.pool, repo);
+    const v = g?.governing;
+    if (!v) throw new Error('no governing record');
+    ok(
+      await inCoreTx(s.deps, async (j, tx) => {
+        await lockKeys(tx, [`project:${project}`, `repo:${repo}`]);
+        return j.emit(
+          prrStream(project, repoIdOf(repo)),
+          PRR_EVENT.status_changed,
+          PrrStatusChangedPayload.parse({
+            version: v.version,
+            record_hash: v.prr.record_hash,
+            from: 'suspended',
+            to: 'active',
+            actor: 'restore',
+            cause: DRIFT_CAUSE.restored,
+          }),
+          'alice',
+        );
+      }),
+    );
+  };
+
+  it('releases the lease and the slot, keeps the snapshot and pauses the clock; nothing re-admits until the restore, which resumes from the snapshot', async () => {
+    const r = rigOf(1);
+    const x = await newItem(r);
+    r.stall.add(x.itemId);
+    await runItem(s, r.d, x.itemId, { stop: afterAdmission });
+    expect((await listGrants(s.record.pool, x.itemId))[0]).toMatchObject({ status: 'active' });
+
+    // the rules poll found protect-main loosened: the record is suspended (mechanical, tighten-only)
+    ok(await setPrrStatus(s.deps, { repo: x.repo, to: 'suspended', cause: DRIFT_CAUSE.suspended }));
+    const hold = await agentWorkHold(s.record.pool, x.repo);
+    expect(hold).toMatchObject({ cause: 'prr_suspended' });
+    await driveWork(r.d);
+    const [g1] = await listGrants(s.record.pool, x.itemId);
+    expect(g1).toMatchObject({ status: 'waiting', lease_epoch: 1 });
+    expect(g1?.snapshot_ref).toMatch(/^snap:/);
+    expect(g1?.clock.paused_since).not.toBeNull();
+    const [l1] = await listLeases(s.record.pool, x.itemId);
+    expect(l1).toMatchObject({ status: 'released', epoch: 1 });
+    // the snapshot is kept for the hold, not a gate; the wait is recorded with its cause and the suspension's event
+    expect(r.snapshots.kept).toEqual([
+      expect.objectContaining({ gate: null, gate_instance_id: `hold:${hold?.ref}` }),
+    ]);
+    const waits = await q<{ body: Record<string, unknown> }>(
+      'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2',
+      [unitStream(x.itemId), UNIT_EVENT.wait_entered],
+    );
+    expect(waits.map((w) => w.body)).toEqual([
+      expect.objectContaining({
+        cause: 'prr_suspended',
+        hold_ref: hold?.ref,
+        gate: null,
+        gate_instance_id: null,
+      }),
+    ]);
+    // a second pass waits nothing twice
+    await driveWork(r.d);
+    expect(r.snapshots.kept).toHaveLength(1);
+
+    // the session is let go but nothing re-admits while the record is suspended: held, no new grant
+    r.stall.delete(x.itemId);
+    for (let i = 0; i < 3; i++) {
+      await runItem(s, r.d, x.itemId, { passes: 4 });
+      s.clock.advance(1_000);
+    }
+    expect((await listGrants(s.record.pool, x.itemId)).map((g) => g.status)).toEqual(['waiting']);
+    expect((await state(x.itemId))?.terminal).toBeNull();
+    // the slot is free meanwhile: the coding cap counts no waiting grant
+    expect(await activeGrantCount(s.record.pool)).toBe(0);
+
+    // an hour passes; a person restores the record; the next S6 command re-admits from the snapshot
+    s.clock.advance(3_600_000);
+    await restore(x.project, x.repo);
+    expect(await agentWorkHold(s.record.pool, x.repo)).toBeNull();
+    const done = await settle(r, x.itemId);
+    expect(done?.state.terminal).toBe('Done');
+    const grants = await listGrants(s.record.pool, x.itemId);
+    expect(grants.map((g) => [g.status, g.lease_epoch])).toEqual([
+      ['released', 1],
+      ['released', 2],
+    ]);
+    expect(grants[0]).toMatchObject({ release_cause: 'readmitted' });
+    expect(grants[1]).toMatchObject({
+      resumes_grant_id: grants[0]?.grant_id,
+    });
+    expect(grants[1]?.envelope.ref).toBe(grants[0]?.envelope.ref);
+    expect(grants[1]?.clock.paused_ms).toBeGreaterThanOrEqual(3_600_000);
+    // the read models are rebuilt from the record alone
+    await rebuildUnits(s.deps, x.itemId);
+    expect((await listGrants(s.record.pool, x.itemId)).map((g) => g.status)).toEqual([
+      'released',
+      'released',
+    ]);
+  });
+
+  it('a suspended record admits no new session at 6.0 (L8 is not held)', async () => {
+    const r = rigOf(1);
+    const x = await newItem(r);
+    ok(await setPrrStatus(s.deps, { repo: x.repo, to: 'suspended', cause: DRIFT_CAUSE.suspended }));
+    const st = await state(x.itemId);
+    if (!st) throw new Error('no item');
+    const a = ok(await admitUnit({ ...s.deps, ...r.d.admission } as never, st, 'adm-suspended'));
+    expect(a).toMatchObject({ admitted: false, reason: 'WIP' });
+    expect(a.admitted === false && a.why).toMatch(/suspended/);
+    expect(await itemWorkHold(s.record.pool, { ...st, lane: 'L8' })).toBeNull();
   });
 });
 

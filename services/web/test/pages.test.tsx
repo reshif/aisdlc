@@ -22,6 +22,7 @@ const item = (over: Record<string, unknown> = {}) => ({
   holders: ['alice'],
   item_id: null,
   gate: null,
+  card_id: CARD_ID,
   feasibility: 'feasible',
   feasibility_reason: null,
   may_decide: true,
@@ -37,7 +38,13 @@ describe('the inbox', () => {
         json: {
           decide: [
             item({ overdue: true }),
-            item({ kind: 'settings_revision', id: GATE, label: null, sla_due_at: null }),
+            item({
+              kind: 'settings_revision',
+              id: GATE,
+              label: null,
+              sla_due_at: null,
+              card_id: null,
+            }),
           ],
           view: [
             item({
@@ -71,8 +78,9 @@ describe('the inbox', () => {
     expect(other).toHaveTextContent('Card 4');
   });
 
-  it('lists a work item gate linking to its item, flagged when nobody can decide it (M19)', async () => {
+  it('lists a work item gate linking to its decision card (P1-2) and its item, flagged when nobody can decide it (M19)', async () => {
     const ITEM = '0190a1b2-c3d4-7e5f-8a6b-111111111111';
+    const WORK_CARD = '0190a1b2-c3d4-7e5f-8a6b-222222222222';
     mockApi({
       'GET /api/me': { json: me() },
       'GET /api/inbox': {
@@ -91,6 +99,7 @@ describe('the inbox', () => {
               deciders: [],
               item_id: ITEM,
               gate: 'G0',
+              card_id: WORK_CARD,
               feasibility: 'infeasible',
               feasibility_reason: 'G0: nobody holds the slot (slot intent, 0 holder(s))',
             }),
@@ -103,11 +112,45 @@ describe('the inbox', () => {
     const li = within(other).getAllByRole('listitem')[0] as HTMLElement;
     expect(within(li).getByRole('link', { name: 'Gate G0: item 0190a1b2' })).toHaveAttribute(
       'href',
+      `/cards/${WORK_CARD}`,
+    );
+    expect(within(li).getByRole('link', { name: '0190a1b2' })).toHaveAttribute(
+      'href',
       `/items/${ITEM}`,
     );
     expect(within(li).getByText('nobody can decide it')).toBeInTheDocument();
     expect(li).toHaveTextContent('nobody holds the slot');
     expect(li).toHaveAttribute('data-feasibility', 'infeasible');
+  });
+
+  it('a work gate whose card the record does not name still opens its item, never a dead link', async () => {
+    const ITEM = '0190a1b2-c3d4-7e5f-8a6b-111111111111';
+    mockApi({
+      'GET /api/me': { json: me() },
+      'GET /api/inbox': {
+        json: {
+          decide: [
+            item({
+              kind: 'work_gate',
+              id: GATE,
+              label: null,
+              s0_id: null,
+              slot: 'intent',
+              item_id: ITEM,
+              gate: 'G1',
+              card_id: null,
+            }),
+          ],
+          view: [],
+        },
+      },
+    });
+    renderAt('/inbox');
+    const mine = await screen.findByRole('list', { name: 'Waiting for you' });
+    expect(within(mine).getByRole('link', { name: 'Gate G1: item 0190a1b2' })).toHaveAttribute(
+      'href',
+      `/items/${ITEM}`,
+    );
   });
 
   it('empty: says nothing is waiting', async () => {

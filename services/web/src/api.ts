@@ -9,6 +9,7 @@ import type {
   ThreadView,
   ConfigKeySummary,
   ConfigKeyView,
+  Tier,
   ConfigProposeResult,
   DecisionBatchView,
   DecisionQuery,
@@ -18,6 +19,11 @@ import type {
   ItemPlanRequest,
   ItemPlanResult,
   PortalItemView,
+  PortalItemHandoffView,
+  HandoffChoice,
+  HumanWorkReference,
+  PortalAskRequest,
+  PortalRequestReceipt,
   CardDeciders,
   LedgerAuditView,
   OnboardRequest,
@@ -36,6 +42,8 @@ import type {
   RestoreResult,
   RepoDriftView,
   OnboardingVersionResult,
+  ReonboardDecideResult,
+  ReonboardDecision,
   BypassListShown,
   Level,
   OnboardingVersionReason,
@@ -115,6 +123,10 @@ export interface Me {
 export type ConfigKeyWire = ConfigKeyView & {
   readonly may_propose: boolean;
   readonly principal_names: Readonly<Record<string, string>>;
+  /** The project layer only (P1-5): the project's tier and deploys, for the floors. */
+  readonly project_id?: string;
+  readonly tier?: Tier | null;
+  readonly deploys?: boolean | null;
 };
 
 export type OnboardInput = Omit<OnboardRequest, 'on_behalf_of'>;
@@ -347,6 +359,15 @@ async function conditional<T>(path: string, etag: string | null): Promise<Condit
   return { kind: 'fresh', etag: res.headers.get('etag'), value: json as T };
 }
 
+/** A prepared M1 vote: the nonce, what it binds, and the step-up it needs (two people: RC-SEC-4). */
+export interface PreparedRevision {
+  nonce: string;
+  expires_at: string;
+  evidence_hash: string;
+  /** Absent from an older core: no step-up asked for (core still refuses a vote that needs one). */
+  step_up?: { required: boolean; bound_hash: string };
+}
+
 export const api = {
   me: () => request<Me>('GET', '/api/me'),
   /** M19: a project's floor, cut to the person; polled with the last ETag. */
@@ -371,6 +392,29 @@ export const api = {
     request<ConfigProposeResult>(
       'POST',
       `/api/config/keys/${encodeURIComponent(key)}/proposals`,
+      b,
+      csrf,
+    ),
+  // P1-5: a project's own layer
+  projectConfigKeys: (project: string) =>
+    request<{ keys: ConfigKeySummary[]; may_propose: boolean }>(
+      'GET',
+      `/api/projects/${encodeURIComponent(project)}/config/keys`,
+    ),
+  projectConfigKey: (project: string, key: string) =>
+    request<ConfigKeyWire>(
+      'GET',
+      `/api/projects/${encodeURIComponent(project)}/config/keys/${encodeURIComponent(key)}`,
+    ),
+  proposeProjectConfig: (
+    project: string,
+    key: string,
+    b: { value: unknown; parent_rev_hash: string | null },
+    csrf: string,
+  ) =>
+    request<ConfigProposeResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/config/keys/${encodeURIComponent(key)}/proposals`,
       b,
       csrf,
     ),
@@ -460,7 +504,7 @@ export const api = {
       `/api/revisions/${encodeURIComponent(gate)}`,
     ),
   prepareRevision: (gate: string, csrf: string) =>
-    request<{ nonce: string; expires_at: string; evidence_hash: string }>(
+    request<PreparedRevision>(
       'POST',
       `/api/revisions/${encodeURIComponent(gate)}/prepare`,
       {},
@@ -473,7 +517,11 @@ export const api = {
       b,
       csrf,
     ),
-  decideRevision: (gate: string, b: { nonce: string; decision: string }, csrf: string) =>
+  decideRevision: (
+    gate: string,
+    b: { nonce: string; decision: string; step_up?: { proof: string } },
+    csrf: string,
+  ) =>
     request<RevisionDecision>('POST', `/api/revisions/${encodeURIComponent(gate)}/decide`, b, csrf),
   publishRevision: (gate: string, csrf: string) =>
     request<{ published: boolean }>(
@@ -482,6 +530,9 @@ export const api = {
       {},
       csrf,
     ),
+  /** P1-1 Ask for work: one request (portal channel N1), answered with intake's receipt. */
+  askForWork: (b: PortalAskRequest, csrf: string) =>
+    request<PortalRequestReceipt>('POST', '/api/requests', b, csrf),
   item: (id: string) => request<PortalItemView>('GET', `/api/items/${encodeURIComponent(id)}`),
   itemVerify: (id: string, head?: string) =>
     request<ItemVerifyView>(
@@ -503,6 +554,24 @@ export const api = {
     request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/observe`, b, csrf),
   itemPlan: (id: string, b: PortalPlan, csrf: string) =>
     request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
+  // ------------------------------------------------------------ handoffs (P1-4)
+  itemHandoff: (id: string) =>
+    request<PortalItemHandoffView>('GET', `/api/items/${encodeURIComponent(id)}/handoff`),
+  itemHandoffChoose: (
+    id: string,
+    b: { handoff_id: string; choice: HandoffChoice; extension_percent?: number },
+    csrf: string,
+  ) =>
+    request<ItemActionResult>(
+      'POST',
+      `/api/items/${encodeURIComponent(id)}/handoff/choose`,
+      b,
+      csrf,
+    ),
+  itemHandBack: (id: string, b: { plan_changed: boolean; key: string }, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/hand-back`, b, csrf),
+  itemHumanDone: (id: string, b: { key: string; reference?: HumanWorkReference }, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/human-done`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
   knowledge: (project: string) =>
@@ -561,6 +630,17 @@ export const api = {
       b,
       csrf,
     ),
+  driftSecurityConfirm: (
+    project: string,
+    b: { repo: string; installation_hash: string },
+    csrf: string,
+  ) =>
+    request<{ installation_hash: string; ledger_entry_id: string }>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/drift/security/confirm`,
+      b,
+      csrf,
+    ),
   driftReaffirm: (
     project: string,
     b: { repo: string; path: string; text_sha256: string; step_up: { proof: string } },
@@ -580,6 +660,18 @@ export const api = {
     request<OnboardingVersionResult>(
       'POST',
       `/api/projects/${encodeURIComponent(project)}/onboarding-versions`,
+      b,
+      csrf,
+    ),
+  /** M17: accept (a new onboarding from 0.1) or decline a re-onboarding proposal. */
+  reonboardDecide: (
+    project: string,
+    b: { repo: string; proposal_id: string; decision: ReonboardDecision; reason: string },
+    csrf: string,
+  ) =>
+    request<ReonboardDecideResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/reonboarding/decide`,
       b,
       csrf,
     ),
@@ -732,7 +824,7 @@ export const api = {
       `/api/config/revisions/${encodeURIComponent(gate)}`,
     ),
   prepareFactoryRevision: (gate: string, csrf: string) =>
-    request<{ nonce: string; expires_at: string; evidence_hash: string }>(
+    request<PreparedRevision>(
       'POST',
       `/api/config/revisions/${encodeURIComponent(gate)}/prepare`,
       {},
@@ -746,7 +838,11 @@ export const api = {
     request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/evidence`, b, csrf),
   decideFactoryRevision: (
     gate: string,
-    b: { nonce: string; decision: 'approve' | 'reject' | 'request_changes' },
+    b: {
+      nonce: string;
+      decision: 'approve' | 'reject' | 'request_changes';
+      step_up?: { proof: string };
+    },
     csrf: string,
   ) =>
     request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/decide`, b, csrf),

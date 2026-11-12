@@ -1,8 +1,35 @@
-import type { ItemView } from '@aisdlc/contracts';
-import type { ItemState } from '@aisdlc/work';
+import { GateIdValues, type GateId, type ItemView } from '@aisdlc/contracts';
+import {
+  effectiveProfile,
+  pinnedCatalogueResolver,
+  presentGates,
+  type ItemState,
+} from '@aisdlc/work';
+import type { ItemGateLink } from './item-gates.js';
 
-/** An item for a reader (the portal, the floor): where it is, what it waits for; never request text. */
-export function itemView(s: ItemState): ItemView {
+/** P2-10: the gates the item's pinned profile has on its lane, and the switchable ones it has off. */
+function profileGates(s: ItemState): ItemView['profile_gates'] {
+  const cat = pinnedCatalogueResolver(s.catalogue_ref);
+  const def = cat?.lanes[s.lane ?? s.proposed_lane];
+  if (!def) return null;
+  const present = presentGates(def, effectiveProfile(s.profile, s.tier));
+  const switchable = new Set<GateId>(
+    def.gates.filter((p) => p.presence === 'by_profile').map((p) => p.gate),
+  );
+  return {
+    on: GateIdValues.filter((g) => present.has(g)),
+    off: GateIdValues.filter((g) => switchable.has(g) && !present.has(g)),
+  };
+}
+
+/**
+ * An item for a reader (the portal, the floor): where it is, what it waits for; never request text. `links` are the
+ * card and ledger entry of each gate (`itemGateLinks`); a gate with none is shown with `null`s.
+ */
+export function itemView(
+  s: ItemState,
+  links: ReadonlyMap<string, ItemGateLink> = new Map(),
+): ItemView {
   const w = s.waiting;
   return {
     item_id: s.item_id as never,
@@ -40,6 +67,9 @@ export function itemView(s: ItemState): ItemView {
       gate_instance_id: g.gate_instance_id,
       status: g.status,
       outcome: g.outcome,
+      card_id: (links.get(g.gate_instance_id)?.card_id ??
+        null) as ItemView['gates'][number]['card_id'],
+      ledger_entry_id: links.get(g.gate_instance_id)?.ledger_entry_id ?? null,
     })),
     outstanding: s.outstanding.length,
     terminal_cause: s.terminal_cause,
@@ -49,5 +79,6 @@ export function itemView(s: ItemState): ItemView {
     catalogue_ref: s.catalogue_ref,
     injection_suspected: s.intake.injection?.suspected ?? false,
     dedupe_links: s.intake.dedupe_links,
+    profile_gates: profileGates(s),
   };
 }

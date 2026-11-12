@@ -147,3 +147,23 @@ export class StreamRedactor {
     this.n += c.n;
   }
 }
+
+/**
+ * Redaction of a NON-streamed answer (M10.6, RC-SEC-12): the same ruleset over what the caller is
+ * given back, the text of each text block and the strings inside each tool call's input. A secret the
+ * model echoes (from its context, or invented to look like one) never reaches the caller. Block ids and
+ * tool names are not content and stay as they are. The content is copied, never changed in place.
+ */
+export function redactResponseContent<
+  B extends
+    | { type: 'text'; text: string }
+    | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> },
+>(content: readonly B[]): { content: B[]; redactions: number } {
+  const c: Counter = { n: 0 };
+  const out = content.map((b) =>
+    b.type === 'text'
+      ? { ...b, text: redactString(b.text, c) }
+      : { ...b, input: redactJson(b.input, c) as Record<string, unknown> },
+  );
+  return { content: out, redactions: c.n };
+}

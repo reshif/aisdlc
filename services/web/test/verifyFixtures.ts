@@ -47,6 +47,7 @@ export const itemView = (over: Record<string, unknown> = {}) => ({
   catalogue_ref: { version: '1.0.0', hash: 'a'.repeat(64) },
   injection_suspected: false,
   dedupe_links: [],
+  profile_gates: null,
   may: { ready: false, answer: false, observe: false, plan: false },
   ...over,
 });
@@ -278,13 +279,17 @@ const STATION: Record<string, string> = {
   X2: '7.4!X2',
   X3: '6.4!X3',
   E2: '4.5!E2',
+  X1: '6.4!X1',
+  G3o: '6.3!G3o',
 };
 
 /** `GET /api/cards/:id/gate/context`. */
 export const gateContext = (gate: string, over: Record<string, unknown> = {}) => ({
   card_id: CARD,
   project_id: 'testbed',
+  subject_kind: 'item',
   item_id: ITEM,
+  s0_id: null,
   gate,
   gate_instance_id: `g-${gate}`,
   station: STATION[gate] ?? gate,
@@ -325,6 +330,9 @@ export const gateContext = (gate: string, over: Record<string, unknown> = {}) =>
           markdown: '# Constitution check\n\nC-EGRESS: violation',
         }
       : null,
+  onboarding_pack: null,
+  handoff: null,
+  subject: null,
   data_class: 'D1',
   principal_names: { alice: 'Alice Admin', bob: 'Bob Builder', carol: 'Carol Customer' },
   ...over,

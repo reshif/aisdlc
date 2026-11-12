@@ -4,6 +4,7 @@ import {
   GateOpenedPayload,
   VoteDecision,
   gatePolicy,
+  stepUpOf,
   type GateCardDecideRequest,
   type GateId,
   type PrincipalId,
@@ -92,7 +93,7 @@ export async function gateCardView(
       slot: gatePolicy(p.gate_id).slot,
       status: g.state.status,
       outcome: g.state.outcome,
-      step_up_required: p.step_up.required,
+      step_up_required: stepUpOf(p).required,
     };
   });
   const first = state.gates[0]?.state.open.payload;

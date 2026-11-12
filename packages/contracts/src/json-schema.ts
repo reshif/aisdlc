@@ -8,7 +8,11 @@ import * as values from './values.js';
  * Every exported Zod schema of this package, by export name. A test fails when an exported schema
  * is missing here, so the generated JSON Schema cannot silently lag the contracts.
  */
-export const SCHEMAS = {
+/*
+ * Annotated explicitly: the inferred object type of every schema grew past what tsc will serialize
+ * into a declaration file (TS7056), which fails the package build. No caller needs the key types.
+ */
+export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   ScopeKind: values.ScopeKind,
   Scope: values.Scope,
   DataClass: values.DataClass,
@@ -143,6 +147,7 @@ export const SCHEMAS = {
   GrantStatus: entities.GrantStatus,
   GrantReleaseCause: entities.GrantReleaseCause,
   HumanWaitGate: entities.HumanWaitGate,
+  HumanWaitCause: entities.HumanWaitCause,
   AdmissionSlot: entities.AdmissionSlot,
   GrantEnvelope: entities.GrantEnvelope,
   SnapshotRef: entities.SnapshotRef,
@@ -166,9 +171,19 @@ export const SCHEMAS = {
   ItemObserveRequest: entities.ItemObserveRequest,
   ItemPlanRequest: entities.ItemPlanRequest,
   ItemHumanDoneRequest: entities.ItemHumanDoneRequest,
+  ItemHandBackRequest: entities.ItemHandBackRequest,
+  ItemHandoffChooseRequest: entities.ItemHandoffChooseRequest,
+  ItemHandoffView: entities.ItemHandoffView,
+  PortalItemHandoffView: entities.PortalItemHandoffView,
+  HumanWorkReference: entities.HumanWorkReference,
   ItemActionResult: entities.ItemActionResult,
   ItemPlanResult: entities.ItemPlanResult,
   PortalItemView: entities.PortalItemView,
+  WorkIntakeState: entities.WorkIntakeState,
+  RequestGateDeciders: entities.RequestGateDeciders,
+  SubmitRequestReceipt: entities.SubmitRequestReceipt,
+  PortalAskRequest: entities.PortalAskRequest,
+  PortalRequestReceipt: entities.PortalRequestReceipt,
   ConstitutionRule: entities.ConstitutionRule,
   Constitution: entities.Constitution,
   AgentRunState: entities.AgentRunState,
@@ -222,6 +237,10 @@ export const SCHEMAS = {
   ReonboardProposedPayload: entities.ReonboardProposedPayload,
   ReonboardProposalStatus: entities.ReonboardProposalStatus,
   ReonboardProposalView: entities.ReonboardProposalView,
+  ReonboardDecision: entities.ReonboardDecision,
+  ReonboardDecidedPayload: entities.ReonboardDecidedPayload,
+  ReonboardDecideRequest: entities.ReonboardDecideRequest,
+  ReonboardDecideResult: entities.ReonboardDecideResult,
   StageOutcome: entities.StageOutcome,
   StageRequest: entities.StageRequest,
   ItemCommand: entities.ItemCommand,
@@ -331,6 +350,8 @@ export const SCHEMAS = {
   PrrArea: entities.PrrArea,
   PrrAreaFloor: entities.PrrAreaFloor,
   AreaFloorId: entities.AreaFloorId,
+  R3ZoneTrigger: entities.R3ZoneTrigger,
+  PrrR3Zone: entities.PrrR3Zone,
   AreaFloorState: entities.AreaFloorState,
   PrrTier: entities.PrrTier,
   PrrCriterionResult: entities.PrrCriterionResult,
@@ -929,6 +950,24 @@ export const SCHEMAS = {
   GateCheckRunsView: entities.GateCheckRunsView,
   GateDecisionView: entities.GateDecisionView,
   GateCardContext: entities.GateCardContext,
+  S0PackGateContext: entities.S0PackGateContext,
+  PullRequestLink: entities.PullRequestLink,
+  ChangedPathView: entities.ChangedPathView,
+  StepStatusView: entities.StepStatusView,
+  MergeReviewUnitView: entities.MergeReviewUnitView,
+  MergeReviewSubject: entities.MergeReviewSubject,
+  ReleaseSubject: entities.ReleaseSubject,
+  AcceptanceSubject: entities.AcceptanceSubject,
+  IrreversibleSubject: entities.IrreversibleSubject,
+  OracleDiffStatus: entities.OracleDiffStatus,
+  OracleDeviationSubject: entities.OracleDeviationSubject,
+  GateSubjectView: entities.GateSubjectView,
+  ReleaseStatusState: entities.ReleaseStatusState,
+  OracleDeviationKind: entities.OracleDeviationKind,
+  OracleDeviation: entities.OracleDeviation,
+  IrreversibleOperationDetail: entities.IrreversibleOperationDetail,
+  OracleDeviationDetail: entities.OracleDeviationDetail,
+  GateNeededDetail: entities.GateNeededDetail,
   VerifyCheckId: entities.VerifyCheckId,
   CheckVerdict: entities.CheckVerdict,
   FindingSeverity: entities.FindingSeverity,
@@ -967,6 +1006,8 @@ export const SCHEMAS = {
   ConfigKeyRevision: entities.ConfigKeyRevision,
   ConfigPending: entities.ConfigPending,
   ConfigKeyView: entities.ConfigKeyView,
+  ProjectConfigKeyView: entities.ProjectConfigKeyView,
+  ProjectLayerKey: entities.ProjectLayerKey,
   ConfigProposeRequest: entities.ConfigProposeRequest,
   ConfigProposeResult: entities.ConfigProposeResult,
   // M16: the GitHub issue twin
@@ -1010,6 +1051,13 @@ export const SCHEMAS = {
   BypassListShown: entities.BypassListShown,
   DriftRestoredPayload: entities.DriftRestoredPayload,
   DriftReaffirmedPayload: entities.DriftReaffirmedPayload,
+  DriftKrlLoweredPayload: entities.DriftKrlLoweredPayload,
+  OpenFindingsValue: entities.OpenFindingsValue,
+  InstallationObservation: entities.InstallationObservation,
+  DriftSecurityRaisedPayload: entities.DriftSecurityRaisedPayload,
+  DriftSecurityConfirmedPayload: entities.DriftSecurityConfirmedPayload,
+  SecurityConfirmRequest: entities.SecurityConfirmRequest,
+  SecurityConfirmResult: entities.SecurityConfirmResult,
   OnboardingVersionReason: entities.OnboardingVersionReason,
   DriftVersionRequestedPayload: entities.DriftVersionRequestedPayload,
   RestoreRequest: entities.RestoreRequest,
@@ -1125,7 +1173,7 @@ export const SCHEMAS = {
   LegalHoldList: entities.LegalHoldList,
   RetentionView: entities.RetentionView,
   SignedExportBytes: entities.SignedExportBytes,
-} as const satisfies Record<string, z.ZodType>;
+};
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
 
@@ -1133,7 +1181,8 @@ export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema
 export function generateJsonSchema(): Record<string, unknown> {
   const $defs: Record<string, unknown> = {};
   for (const name of Object.keys(SCHEMAS).sort()) {
-    const schema = SCHEMAS[name as keyof typeof SCHEMAS];
+    const schema = SCHEMAS[name];
+    if (schema === undefined) continue;
     const def: Record<string, unknown> = {
       ...z.toJSONSchema(schema, { target: 'draft-2020-12', io: 'output' }),
     };

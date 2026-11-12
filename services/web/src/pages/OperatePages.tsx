@@ -38,7 +38,7 @@ import { IntegrationTiles } from './QualityPages';
 // Operate (prototype `capacity`, `sessions`, `controls`, `kill`, `health`): the scheduler's admission
 // state (H1–H3, WIP, HUMAN-WAIT), the sandbox-controller's slots and caps, the control plane with its
 // preview → nonce → apply, the kill switch's journal as core observed it, and the health tiles. Reads
-// are `audit.read` on the fleet; a control is `control.apply` / `control.lift` on its scope.
+// are `ops.read` on the fleet; a control is `control.apply` / `control.lift` on its scope.
 
 // ---------------------------------------------------------------- scheduler
 
@@ -268,8 +268,9 @@ export function SandboxesPage() {
         />
       </Card>
       <NotBuilt title="Stopping one session" milestone="M19">
-        The portal has no session stop yet (the proposed <code>session.stop</code> action, coverage
-        §5 item 6); a kill of the session scope stops it today.
+        The <code>session.stop</code> action exists, but the sandbox-controller cannot stop a
+        running session yet, so there is no route or button; a kill of the session scope stops it
+        today.
       </NotBuilt>
     </>
   );

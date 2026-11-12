@@ -28,10 +28,12 @@ import {
   readDriftedText,
   restoreWhyNot,
 } from './actions.js';
+import { listReonboardProposals } from '../knowledge-defects.js';
 import { catchUp } from '../queries.js';
 import { repoIdentity } from '../prr-store.js';
 import type { DriftDeps } from './check.js';
-import { evaluateDrift, servedFiles } from './evaluate.js';
+import { evaluateDrift, installationHash, securityFindings, servedFiles } from './evaluate.js';
+import { krlNow, openKrl } from './krl.js';
 import { inputsOf, loadDrift, reaffirmedOf, type LoadedDrift } from './state.js';
 
 // What the portal shows after onboarding (PLAN M16; the design reference's project "Drift" tab): per repo, the
@@ -125,6 +127,35 @@ function history(l: LoadedDrift): DriftHistoryRow[] {
           ledger_entry_id: ledger as never,
         });
         break;
+      case DRIFT_EVENT.krl_lowered:
+        out.push({
+          at: e.occurred_at,
+          type: 'krl_lowered',
+          summary: `KRL ${String(p['krl_from'])} -> ${String(p['krl_to'])}: ${String(p['path'])} (area ${String(p['area'])}) drifted from the affirmed text; re-affirm it to lift this`,
+          by: null,
+          ledger_entry_id: ledger as never,
+        });
+        break;
+      case DRIFT_EVENT.security_raised: {
+        const f = (p['findings'] as Array<Parameters<typeof describe>[0]>) ?? [];
+        out.push({
+          at: e.occurred_at,
+          type: 'security_raised',
+          summary: `security event: agent work held (${f.map(describe).join('; ')})`.slice(0, 300),
+          by: null,
+          ledger_entry_id: ledger as never,
+        });
+        break;
+      }
+      case DRIFT_EVENT.security_confirmed:
+        out.push({
+          at: e.occurred_at,
+          type: 'security_confirmed',
+          summary: `the installation was confirmed by the security slot (${String(p['installation_hash']).slice(0, 12)})`,
+          by: (p['by'] as string) ?? null,
+          ledger_entry_id: ledger as never,
+        });
+        break;
       case DRIFT_EVENT.version_requested:
         out.push({
           at: e.occurred_at,
@@ -190,6 +221,39 @@ export async function repoDriftView(
       bypass: shown ?? { logins: [], list_hash: bypassListHash([]) },
     },
     level_up: g && g.status !== 'expired' ? levelsAbove(g.prr.level.signed) : [],
+    security: g
+      ? {
+          held: securityFindings(findings).length > 0,
+          installation: l.installation
+            ? {
+                observed: l.installation.value,
+                hash: installationHash(l.installation.value),
+                widened: findings.some((f) => f.kind === 'installation'),
+              }
+            : null,
+          new_findings: findings.filter((f) => f.kind === 'history_secret').length,
+        }
+      : null,
+    krl: g
+      ? (() => {
+          const open = openKrl(l.drift, g.version);
+          return {
+            ...krlNow(g.prr, new Set(open.map((p) => p.area)).size),
+            lowered: open.map((p) => ({
+              area: p.area,
+              path: p.path,
+              at: p.at,
+              ledger_entry_id: p.ledger_entry_id,
+            })),
+          };
+        })()
+      : null,
+    // open proposals first (each is a card for the admin slot), then the decided ones, newest first
+    reonboarding: (await listReonboardProposals(db, l.repo_ref)).sort(
+      (a, b) =>
+        Number(a.status !== 'proposed') - Number(b.status !== 'proposed') ||
+        (a.proposed_at < b.proposed_at ? 1 : a.proposed_at > b.proposed_at ? -1 : 0),
+    ),
     history: hist.slice(0, 50),
   });
 }
@@ -304,6 +368,7 @@ export async function driftInboxItems(
       holders: [...who.holders] as never,
       item_id: null,
       gate: null,
+      card_id: null,
       feasibility: who.error !== null ? 'unknown' : who.can_decide ? 'feasible' : 'infeasible',
       feasibility_reason:
         who.error !== null
@@ -323,7 +388,21 @@ export async function driftInboxItems(
       const s = [...l.drift.suspensions].reverse().find((x) => x.prr_version === g.version);
       out.push(await item('prr_restore', s?.at ?? l.files?.at ?? g.prr.issued_at));
     }
-    if (evaluateDrift(inputs).some((f) => f.effect === 'reaffirm')) {
+    if (evaluateDrift(inputs).some((f) => f.effect === 'security')) {
+      const raised = [...l.drift.security_raised]
+        .reverse()
+        .find((x) => x.prr_version === g.version);
+      out.push(await item('drift_security', raised?.at ?? l.files?.at ?? g.prr.issued_at));
+    }
+    // M17: an open re-onboarding proposal (knowledge defects in an area) is a card for the admin slot
+    const open = (await listReonboardProposals(pool, l.repo_ref)).filter(
+      (p) => p.status === 'proposed',
+    );
+    if (open.length > 0) out.push(await item('reonboard', open[0]?.proposed_at ?? g.prr.issued_at));
+    if (
+      evaluateDrift(inputs).some((f) => f.effect === 'reaffirm') ||
+      openKrl(l.drift, g.version).length > 0
+    ) {
       out.push(
         await item(
           'drift_reaffirm',

@@ -5,6 +5,7 @@ import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { PageError, Loading } from '../components/Notice';
 import { shortTime } from '../format';
+import { AskForWorkButton } from '../items/AskForWorkButton';
 import { Link } from '../router';
 import { Card } from '../ui';
 import { STATUS_TEXT, levelTitle } from '../vocab';
@@ -67,6 +68,9 @@ export function ProjectDetailPage({ id }: { id: string }) {
         <Link to="/">Projects</Link>
       </p>
       <h1>{project.name}</h1>
+      <p className="actions">
+        <AskForWorkButton project={project.project_id} />
+      </p>
       {drift.data ? <DriftBanner project={project.project_id} repos={drift.data.repos} /> : null}
       <dl className="facts facts-wide">
         <div>
@@ -128,6 +132,12 @@ export function ProjectDetailPage({ id }: { id: string }) {
       )}
 
       <h2>Settings</h2>
+      <p>
+        <Link to={`/projects/${project.project_id}/settings`}>
+          This project&rsquo;s gates, who decides them, release and limits
+        </Link>{' '}
+        <span className="muted">(each change is an M1 decided by the project&rsquo;s admins)</span>
+      </p>
       <AreaLevelSettings project={project.project_id} />
 
       <h2>Onboarding records</h2>

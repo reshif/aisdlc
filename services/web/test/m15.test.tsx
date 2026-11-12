@@ -32,6 +32,7 @@ const view = (over: Record<string, unknown> = {}) => ({
   catalogue_ref: { version: '1.3.0', hash: SHA_A },
   injection_suspected: false,
   dedupe_links: [],
+  profile_gates: null,
   may: { ready: false, answer: false, observe: false, plan: false },
   ...over,
 });
@@ -40,6 +41,8 @@ const gate = (g: string, status: string, outcome: string | null, n = 1) => ({
   gate_instance_id: `${g}-${n}`,
   status,
   outcome,
+  card_id: null,
+  ledger_entry_id: status === 'decided' ? `le-${g}-${n}` : null,
 });
 
 describe('the item page: release and review', () => {

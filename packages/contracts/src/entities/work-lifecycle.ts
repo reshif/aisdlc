@@ -1,3 +1,4 @@
+import { hashCanonical } from '@aisdlc/kernel';
 import { z } from 'zod';
 import { BackEdgeId, GateId, HoldReason, AbandonCause, RelaneId, TriggerId } from '../flow.js';
 import { EntryChannel, Lane, StageId, StepId, Tier } from '../values.js';
@@ -6,6 +7,8 @@ import { CatalogueRef } from './config.js';
 import { LintRuleId } from './detectors.js';
 import { PrrGatingProfile } from './readiness.js';
 import {
+  AreaId,
+  CardId,
   IsoDateTime,
   PrincipalId,
   ProjectId,
@@ -283,6 +286,16 @@ export const Handoff = z.strictObject({
 });
 export type Handoff = z.infer<typeof Handoff>;
 
+/**
+ * D5 (L8): where the developer's work is, as a reference the factory can check against the code host: a pull
+ * request by number, or a commit by its full SHA. Data, never instructions; never free text.
+ */
+export const HumanWorkReference = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('pr'), number: z.number().int().min(1).max(1_000_000_000) }),
+  z.strictObject({ kind: z.literal('commit'), sha: GitSha }),
+]);
+export type HumanWorkReference = z.infer<typeof HumanWorkReference>;
+
 // ---------------------------------------------------------------- Assumption (one shape)
 
 /** The four places an assumption comes from today (DM §8 gap 4): thread, event, agent output, intent open questions. */
@@ -428,6 +441,69 @@ export type StagePortName = z.infer<typeof StagePortName>;
 export const RaisableGate = GateId.extract(['G3o', 'X1', 'X2', 'X3', 'E1', 'E2', 'E6']);
 export type RaisableGate = z.infer<typeof RaisableGate>;
 
+/**
+ * 6.3's oracle binding check (`checkOracleBinding` in `@aisdlc/build`): how an oracle test deviates from the oracle
+ * specs G2 approved. `oracle_not_red` is an oracle that passes before the change (6.3 runs each one, red).
+ */
+export const OracleDeviationKind = z.enum([
+  'oracle_missing',
+  'oracle_unbound',
+  'spec_mismatch',
+  'no_marker',
+  'duplicate_oracle',
+  'oracle_not_red',
+  'repro_missing',
+]);
+export type OracleDeviationKind = z.infer<typeof OracleDeviationKind>;
+
+export const OracleDeviation = z.strictObject({
+  kind: OracleDeviationKind,
+  oracle_id: z.string().min(1).max(64).nullable(),
+  path: z.string().min(1).max(1024).nullable(),
+});
+export type OracleDeviation = z.infer<typeof OracleDeviation>;
+
+/**
+ * P1-8: what a stage tells the person deciding the gate it raised, beside its reason code. Recorded on the item's
+ * `stage_gate_needed` event and bound by core into the gate's facts (`GATE_NEEDED_FACT`) and subject hash, so an
+ * approval is of exactly this operation or these deviations.
+ *
+ *   irreversible_operation  X1: what the operation is (the factory's own words), the command line the agent was about
+ *                           to run (secrets masked; the agent's text, data, shown only at D2) and its target path
+ *   oracle_deviation        G3o at 6.3: every way the oracle code deviates from the specs G2 approved
+ */
+export const IrreversibleOperationDetail = z.strictObject({
+  kind: z.literal('irreversible_operation'),
+  /** `tripwire`: the factory stopped the command before it ran; `agent_blocker`: the agent said it needs one. */
+  source: z.enum(['tripwire', 'agent_blocker']),
+  /** The factory's classification (`classifyCommand`), never repo or agent text. */
+  what: z.string().min(1).max(300),
+  command: z.string().min(1).max(500).nullable(),
+  target: z.string().min(1).max(1024).nullable(),
+  /** `agent_blocker`: what the agent said about it (masked, at most 500 characters; data, D2). */
+  agent_note: z.string().min(1).max(500).nullable(),
+});
+export type IrreversibleOperationDetail = z.infer<typeof IrreversibleOperationDetail>;
+
+export const OracleDeviationDetail = z.strictObject({
+  kind: z.literal('oracle_deviation'),
+  deviations: z.array(OracleDeviation).min(1).max(100),
+});
+export type OracleDeviationDetail = z.infer<typeof OracleDeviationDetail>;
+
+export const GateNeededDetail = z.discriminatedUnion('kind', [
+  IrreversibleOperationDetail,
+  OracleDeviationDetail,
+]);
+export type GateNeededDetail = z.infer<typeof GateNeededDetail>;
+
+/** The key a gate's facts carry its stage's `GateNeededDetail` under (X1, G3o at 6.3). */
+export const GATE_NEEDED_FACT = 'gate_needed';
+
+/** The subject hash of a gate that binds a `GateNeededDetail`: the engine's subject and the detail, together. */
+export const gateNeededSubjectHash = (engineSubjectHash: string, d: GateNeededDetail): string =>
+  hashCanonical({ engine: engineSubjectHash, [GATE_NEEDED_FACT]: d } as never);
+
 /** What a stage port answers. The fakes are deterministic; a real one is an agent or a service. */
 export const StageOutcome = z.discriminatedUnion('outcome', [
   z.strictObject({
@@ -485,6 +561,8 @@ export const StageOutcome = z.discriminatedUnion('outcome', [
     reason_code: z.string().min(1).max(64),
     /** The artefact the gate decides (4.5's constitution report for E2): bound into the gate's subject hash. */
     output_hash: Sha256Hex.optional(),
+    /** P1-8: what an X1 or a G3o at 6.3 is about; core binds it into the gate's facts and subject hash. */
+    detail: GateNeededDetail.optional(),
   }),
   z.strictObject({ outcome: z.literal('failed'), code: z.string().min(1).max(64) }),
 ]);
@@ -662,6 +740,8 @@ export const ItemCreatedPayload = z.strictObject({
   prr: z.strictObject({ version: z.number().int().min(1), record_hash: Sha256Hex }),
   /** The lane the request asked for, or 1.3 proposes. Nothing is bound until G0 (FIX 7). */
   proposed_lane: Lane,
+  /** M17 (DEC-25): the area the request named; 1.4 asks its lanes. Absent: the repo as a whole. */
+  area: AreaId.optional(),
   intake: ItemIntake,
   origin: SpawnOrigin.nullable(),
 });
@@ -686,6 +766,7 @@ export const ItemStagePayloads = {
     gate: RaisableGate,
     reason_code: z.string().min(1),
     output_hash: Sha256Hex.optional(),
+    detail: GateNeededDetail.optional(),
   }),
   [ITEM_EVENT.questions_raised]: z.strictObject({
     ...Answers,
@@ -744,6 +825,8 @@ export const ItemEventPayloads = {
      */
     outputs: z.partialRecord(StepId, Sha256Hex).optional(),
     base_sha: GitSha.optional(),
+    /** D5 (L8): the pull request or commit the developer names as the work (absent: not named). */
+    reference: HumanWorkReference.optional(),
   }),
   [ITEM_EVENT.gates_opened]: z.strictObject({
     ...Answers,
@@ -877,6 +960,11 @@ export const SubmitRequestBody = z.strictObject({
   repo: RepoFullName,
   /** The lane asked for or proposed (1.3 may change it; G0 binds it). */
   lane: Lane,
+  /**
+   * M17 (DEC-25): the area of the repo the work is in, as its system map names it; an area the governing record does
+   * not hold is refused. Absent: the repo as a whole, which runs only what its lowest area may.
+   */
+  area: AreaId.optional(),
   /** N1 portal Ask and N3 API are open (`OPEN_INTAKE_CHANNELS`). */
   channel: EntryChannel,
   text: z.string().min(1).max(100_000),
@@ -907,6 +995,10 @@ export const ItemView = z.strictObject({
       gate_instance_id: z.string(),
       status: z.enum(['pending', 'decided']),
       outcome: z.string().nullable(),
+      /** The decision card the gate is decided on (from the record's `card.opened`); `null` when none is known. */
+      card_id: CardId.nullable(),
+      /** The ledger entry of the decision; `null` while pending (or for a decision recorded without one). */
+      ledger_entry_id: z.string().min(1).nullable(),
     }),
   ),
   outstanding: z.number().int().min(0),
@@ -921,5 +1013,11 @@ export const ItemView = z.strictObject({
   /** B27: the request text was flagged (the card says which rules). */
   injection_suspected: z.boolean(),
   dedupe_links: z.array(WorkItemId),
+  /**
+   * P2-10: the human gates of the item's route under the catalogue and gating profile it pinned (`on`, catalogue
+   * order), and the gates its lane could have that the profile has off (`off`: off for this project when the item was
+   * pinned). Conditional gates (raised by a step) are in neither. `null`: the pinned catalogue cannot be read.
+   */
+  profile_gates: z.strictObject({ on: z.array(GateId), off: z.array(GateId) }).nullable(),
 });
 export type ItemView = z.infer<typeof ItemView>;

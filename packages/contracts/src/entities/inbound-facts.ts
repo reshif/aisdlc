@@ -23,6 +23,8 @@ export const InboundFactKind = z.enum([
   'agent_pulls',
   /** M16 (OB §4.2, §8): the hashes of the files the record affirmed or projected, at the default branch's head: `AffirmedFilesValue`. */
   'affirmed_files',
+  /** M16 part 3 (OB §8 "New history secret"): the ids of the repo's OPEN secret findings, as knowledge reports them: `OpenFindingsValue`. */
+  'open_findings',
 ]);
 export type InboundFactKind = z.infer<typeof InboundFactKind>;
 export const InboundFactKindValues: readonly InboundFactKind[] = InboundFactKind.options;

@@ -14,12 +14,15 @@ import { shortTime } from '../format';
 import { FindingsTable, StepVerdict, stepFacts } from '../items/VerifyTab';
 import { explainDecideError, type DecideProblem } from '../lib/decideErrors';
 import { Link } from '../router';
-import { Card, GateTag, KeyValue, PageHead, Pill } from '../ui';
+import { Card, GateTag, KeyValue, PageHead, Pill, Table } from '../ui';
 import { Receipt } from './DecideShell';
+import { AcceptanceMain, MergeReviewMain, ReleaseMain } from './ReleaseGates';
 
 // The gate screens S7 (and S6, and 4.5) raise (PLAN M14.6; prototype `views-m14.js` g.Q1, g.E6, g.X2, g.X3, g.E2 on the
 // decide shell of `views-decide.js`): Q1 (the quarantine, decided through its security triage SECT), E6 (a locked test
-// must change), X2 (a protected path, two people), X3 (a new package) and E2 (the constitution). Each shows what the
+// must change), X2 (a protected path, two people), X3 (a new package) and E2 (the constitution); the S6 HUMAN-WAIT
+// gates X1 (an irreversible operation: its command and target, two people) and G3o (the oracle diff against the specs
+// G2 approved); and, on the same shell, G4, G5 and G6 (`ReleaseGates.tsx`, portal review P1-3, P1-7). Each shows what the
 // decision binds (the subject hash and what it is made of), who may decide and why not this person (the PDP's reason
 // first), the two-person state, a step-up where the gate needs one, and decide or deny with a reason. The reason is
 // the card payload's `decision_reason`: its hash goes into every ledger entry of the decision. Nothing is sent on its
@@ -28,7 +31,23 @@ import { Receipt } from './DecideShell';
 type Decision = 'approve' | 'request_changes' | 'reject';
 
 /** The gates this screen decides (Q1 is the quarantine: its decision is the SECT triage). */
-export const EXCEPTION_GATES: readonly GateId[] = ['SECT', 'Q1', 'E6', 'X2', 'X3', 'E2'];
+export const EXCEPTION_GATES: readonly GateId[] = [
+  'SECT',
+  'Q1',
+  'E6',
+  'X2',
+  'X3',
+  'E2',
+  // P1-8: the two HUMAN-WAIT gates of S6
+  'X1',
+  'G3o',
+  // P1-3, P1-7: the merge review, the release and the requester's acceptance
+  'G4',
+  'G5',
+  'G6',
+  // P1-4: the owner of record takes a handoff
+  'E4',
+];
 
 interface Copy {
   readonly shown: GateId;
@@ -41,9 +60,34 @@ interface Copy {
   readonly after: string;
   /** Q1: the person chooses a finding; the choice is the decision. */
   readonly choice?: ReadonlyArray<{ id: Decision; label: string; desc: string }>;
+  /** Labels that depend on the context (G4: the B13 rounds left on "Request changes"). */
+  readonly labelsFor?: (c: GateContextWire) => Partial<Record<Decision, string>>;
+  /** The choices this gate offers, where the flow treats a request for changes as a refusal (X1, G3o, G5, G6). */
+  readonly decisions?: readonly Decision[];
 }
 
-const item = (c: GateContextWire) => <code>{c.item_id.slice(0, 8)}</code>;
+const item = (c: GateContextWire) => <code>{(c.item_id ?? c.s0_id ?? '').slice(0, 8)}</code>;
+
+/** X2 on an S0 record's onboarding pack (M16): the pack the factory rendered from the record, not a Unit's diff. */
+const S0_X2: Copy = {
+  shown: 'X2',
+  eyebrow: 'X2 · action gate · onboarding pack',
+  title: 'Onboarding pack: protected paths',
+  sub: 'The factory rendered the affirmed pack from the record (AGENTS.md, CLAUDE.md, .factory/**). It touches protected paths, so X2 decides it; the patch hash binds exactly these files. The factory opens a draft PR and never merges.',
+  sentence: (c) => (
+    <>
+      May the {c.onboarding_pack?.kind === 'full' ? 'Full' : 'Light'} onboarding pack of record{' '}
+      {item(c)} be opened as a draft PR?
+    </>
+  ),
+  readWhat: 'the rendered files and their hashes',
+  labels: { approve: 'Approve', request_changes: 'Request changes', reject: 'Reject' },
+  after:
+    'Approved in the ledger: the Push Broker opens a draft PR with exactly this patch. Rejected: nothing is pushed; a new card decision renders a new pack.',
+};
+
+const recordLink = (c: GateContextWire) =>
+  c.item_id ? `/items/${c.item_id}` : `/s0/${c.s0_id ?? ''}`;
 
 const COPY: Readonly<Partial<Record<GateId, Copy>>> = {
   SECT: {
@@ -123,6 +167,32 @@ const COPY: Readonly<Partial<Record<GateId, Copy>>> = {
     },
     after: 'Approved: the step runs again with the dependency approved.',
   },
+  E4: {
+    shown: 'E4',
+    eyebrow: 'E4 · exception · owner of record',
+    title: 'Handoff to the owner of record',
+    sub: 'The factory stopped and handed the item to a person (D1 from S6, D2 from S7, D3 from G4, or straight to E4). As its owner of record you take the handoff; then you record what happens next on the item page.',
+    sentence: (c) => (
+      <>
+        Do you take the handoff of {item(c)}
+        {c.handoff ? (
+          <>
+            {' '}
+            ({c.handoff.code}, trigger <code>{c.handoff.trigger}</code>)
+          </>
+        ) : null}{' '}
+        as its owner of record?
+      </>
+    ),
+    readWhat: 'the handoff and its Handoff Pack',
+    labels: {
+      approve: 'Take the handoff',
+      request_changes: 'Ask for more facts',
+      reject: 'Not mine to take',
+    },
+    after:
+      'Approved: you choose on the item page (resume, an extension, re-plan, re-spec, a developer takes over, close or abandon). Anything else, or expiry, opens E4 again: nothing is chosen on its own.',
+  },
   E2: {
     shown: 'E2',
     eyebrow: 'E2 · exception · two-person',
@@ -141,6 +211,122 @@ const COPY: Readonly<Partial<Record<GateId, Copy>>> = {
     },
     after:
       'With the last approval the step continues with the exception bound to it; the constitution itself is not changed (that is a factory.constitution revision, M1).',
+  },
+  X1: {
+    shown: 'X1',
+    eyebrow: 'X1 · action gate · irreversible operation · two-person',
+    title: 'Irreversible operation',
+    sub: 'The coding session was stopped before an operation that cannot be undone. The session waits (HUMAN-WAIT: its slot is released, its workspace kept). Two different approvers decide X1.',
+    sentence: (c) => {
+      const s = c.subject?.kind === 'irreversible_operation' ? c.subject : null;
+      return (
+        <>
+          May the session on {item(c)} do this once:{' '}
+          {s?.operation?.what ?? 'an operation the record does not name'}?
+        </>
+      );
+    },
+    readWhat: 'the operation, its command and its target',
+    labels: { approve: 'Approve once', request_changes: 'Request changes', reject: 'Deny (D1)' },
+    decisions: ['approve', 'reject'],
+    after:
+      'With the last approval the session is admitted again and may run this class of operation once; denied, the item hands off (D1).',
+  },
+  G3o: {
+    shown: 'G3o',
+    eyebrow: 'G3o · oracle deviation · design approvers',
+    title: 'Oracle deviation',
+    sub: 'The oracle tests are not what G2 approved (6.3 binds each oracle file to its approved spec by hash), or, after an approved E6, a locked oracle is about to change. Nothing deviating goes on without this decision.',
+    sentence: (c) => <>May the oracles of {item(c)} deviate from the specs G2 approved as shown?</>,
+    readWhat: 'the oracle diff against the approved specs',
+    labels: {
+      approve: 'Approve the deviation',
+      request_changes: 'Request changes',
+      reject: 'Deny',
+    },
+    decisions: ['approve', 'reject'],
+    // FL "denied conditional gates": at 6.3 an alternative once, then D1; at 6.4 D1; at 7.2 D2
+    labelsFor: (c) => ({
+      reject:
+        c.step === '6.3'
+          ? 'Deny (find an alternative, 1×)'
+          : c.step === '7.2'
+            ? 'Deny (D2)'
+            : 'Deny (D1)',
+    }),
+    after:
+      'Approved: the oracles are locked as they are and the step is done (after E6: the locked test may change once and is locked again). Denied at 6.3: an alternative once, then ET8.',
+  },
+  G4: {
+    shown: 'G4',
+    eyebrow: 'G4 · merge review · always human',
+    title: 'Merge review',
+    sub: 'The pull request of each Unit, with the signed Evidence Pack of exactly its head. G4 is never skipped; a new push is a new head and an approval of the old one no longer stands. The factory never merges.',
+    sentence: (c) => {
+      const s = c.subject?.kind === 'merge_review' ? c.subject : null;
+      const n = s?.units.length ?? 0;
+      return (
+        <>
+          May {item(c)} merge ({n} pull request{n === 1 ? '' : 's'}, mode {s?.review.mode ?? '?'})?
+        </>
+      );
+    },
+    readWhat: 'the Evidence Pack, the S7 steps and the diff',
+    labels: { approve: 'Approve the merge', request_changes: 'Request changes', reject: 'Reject' },
+    labelsFor: (c) => {
+      const b = c.subject?.kind === 'merge_review' ? c.subject.b13 : null;
+      if (b === null || b.left === null) return {};
+      return {
+        request_changes:
+          b.left > 0
+            ? `Request changes (B13: ${b.left} of ${b.limit} left)`
+            : `Request changes (no B13 round left: ${b.exhausted_to ?? 'handoff'})`,
+      };
+    },
+    after:
+      'Approved: the item waits for a person to merge on the code host (the factory never merges). Changes requested or rejected: back to S6 (B13) while a round is left, then D3.',
+  },
+  G5: {
+    shown: 'G5',
+    eyebrow: 'G5 · release · step-up',
+    title: 'Release',
+    sub: 'What gate-relay may deploy: the merged commit, bound to the Evidence Pack of its head and to the project’s release target. G5 is always decided with a step-up.',
+    sentence: (c) => {
+      const b = c.subject?.kind === 'release' ? c.subject.binding : null;
+      return (
+        <>
+          May {item(c)} be released
+          {b?.status === 'bound' ? (
+            <>
+              {' '}
+              to <code>{b.environment}</code>
+            </>
+          ) : null}
+          ?
+        </>
+      );
+    },
+    readWhat: 'the binding, the release evidence and the deployment state',
+    labels: {
+      approve: 'Approve the release',
+      request_changes: 'Request changes',
+      reject: 'Deny (release held)',
+    },
+    decisions: ['approve', 'reject'],
+    after:
+      'Approved: gate-relay creates the deployment once, through its own App; a refusal or an unhealthy deploy holds the release (RELHOLD).',
+  },
+  G6: {
+    shown: 'G6',
+    eyebrow: 'G6 · acceptance · the requester',
+    title: 'Acceptance',
+    sub: 'The requester accepts the work: what was asked for (the intent and its acceptance criteria) against what merged and was released.',
+    sentence: (c) => <>Does what merged for {item(c)} do what you asked for?</>,
+    readWhat: 'the intent, its acceptance criteria and what merged',
+    labels: { approve: 'Accept', request_changes: 'Request changes', reject: 'Reject (B18)' },
+    decisions: ['approve', 'reject'],
+    after:
+      'Accepted: the close-out record is written (9.3). Rejected: the item is done and a new linked item carries what is missing (B18).',
   },
 };
 
@@ -182,12 +368,12 @@ export function ExceptionGateBody({
   card: GateCardWire;
   c: GateContextWire;
 }) {
-  const copy = COPY[c.gate === 'Q1' ? 'SECT' : c.gate];
+  const copy = c.onboarding_pack ? S0_X2 : COPY[c.gate === 'Q1' ? 'SECT' : c.gate];
   if (!copy) return <p className="muted">The portal does not show this kind of gate yet.</p>;
   const name = (p: string) => c.principal_names[p] ?? card.principal_names[p] ?? p;
   const crumbs = [
     { label: 'Inbox', to: '/inbox' },
-    { label: 'Work item', to: `/items/${c.item_id}` },
+    { label: c.item_id ? 'Work item' : 'Onboarding record', to: recordLink(c) },
     { label: copy.shown },
   ];
   return (
@@ -199,8 +385,8 @@ export function ExceptionGateBody({
         title={copy.title}
         sub={copy.sub}
         actions={
-          <Link className="ui-btn ui-btn-sm" to={`/items/${c.item_id}`}>
-            Open item
+          <Link className="ui-btn ui-btn-sm" to={recordLink(c)}>
+            {c.item_id ? 'Open item' : 'Open record'}
           </Link>
         }
       />
@@ -240,9 +426,9 @@ export function ExceptionGateBody({
             <KeyValue
               rows={[
                 [
-                  'Work item',
-                  <Link key="i" to={`/items/${c.item_id}`}>
-                    {c.item_id}
+                  c.item_id ? 'Work item' : 'Onboarding record',
+                  <Link key="i" to={recordLink(c)}>
+                    {c.item_id ?? c.s0_id}
                   </Link>,
                 ],
                 ['Station', <code key="s">{c.station}</code>],
@@ -259,7 +445,7 @@ export function ExceptionGateBody({
               ]}
             />
           </Card>
-          <GateMain c={c} />
+          <GateMain c={c} name={name} />
         </div>
         <aside className="s7-stack">
           <DecisionPanel id={id} csrf={csrf} me={me} card={card} c={c} copy={copy} name={name} />
@@ -270,7 +456,7 @@ export function ExceptionGateBody({
 }
 
 /** The gate-specific evidence. */
-function GateMain({ c }: { c: GateContextWire }) {
+function GateMain({ c, name }: { c: GateContextWire; name: (p: string) => string }) {
   const check = c.check;
   const checkCard = check ? (
     <Card title={`What ${check.step} found`} actions={<StepVerdict s={check} />} testId="check">
@@ -327,6 +513,7 @@ function GateMain({ c }: { c: GateContextWire }) {
         </>
       );
     case 'X2':
+      if (c.onboarding_pack) return <OnboardingPack k={c.onboarding_pack} />;
       return (
         <>
           <Card title="The protected-path patch" testId="patch">
@@ -408,9 +595,364 @@ function GateMain({ c }: { c: GateContextWire }) {
           {c.step === '7.5' || !c.constitution ? checkCard : null}
         </>
       );
+    case 'E4':
+      return (
+        <Card title="The handoff" testId="handoff">
+          {c.handoff ? (
+            <>
+              <KeyValue
+                label="What was handed off"
+                rows={[
+                  ['Handoff', `${c.handoff.code} (#${c.handoff.n})`],
+                  ['Trigger', <code key="t">{c.handoff.trigger}</code>],
+                  [
+                    'From',
+                    `${c.handoff.origin_phase}${c.handoff.origin_step ? ` at ${c.handoff.origin_step}` : ''}`,
+                  ],
+                  [
+                    'Handoff Pack',
+                    <span key="p">
+                      <code>{c.handoff.pack.pack_id}</code>{' '}
+                      <code title={c.handoff.pack.content_sha256}>
+                        {short(c.handoff.pack.content_sha256, 16)}
+                      </code>
+                    </span>,
+                  ],
+                  [
+                    'State',
+                    c.handoff.status === 'open'
+                      ? 'open'
+                      : `chosen: ${c.handoff.choice ?? '[unknown]'}`,
+                  ],
+                ]}
+              />
+              <p className="ui-eyebrow">The choices the flow allowed when E4 opened</p>
+              {c.handoff.valid_choices.length === 0 ? (
+                <p className="muted">[unknown]: the item page shows the ones open now.</p>
+              ) : (
+                <ul className="s7-rules" aria-label="Choices">
+                  {c.handoff.valid_choices.map((x) => (
+                    <li key={x}>
+                      <code>{x}</code>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p className="muted">
+              The handoff of this gate is [unknown]: do not decide it until the item shows it.
+            </p>
+          )}
+        </Card>
+      );
+    case 'X1':
+      return <IrreversibleMain c={c} />;
+    case 'G3o':
+      return (
+        <>
+          <OracleDiffMain c={c} />
+          {c.check ? checkCard : null}
+        </>
+      );
+    case 'G4':
+    case 'G5':
+    case 'G6': {
+      const s = c.subject;
+      if (s?.kind === 'merge_review') return <MergeReviewMain c={c} s={s} name={name} />;
+      if (s?.kind === 'release') return <ReleaseMain c={c} s={s} />;
+      if (s?.kind === 'acceptance') return <AcceptanceMain s={s} name={name} />;
+      return (
+        <Card title="What it decides" testId="subject-missing">
+          <p className="notice notice-bad" role="alert">
+            The gate&rsquo;s subject facts are not in the record: [unknown]. Do not decide on it.
+          </p>
+        </Card>
+      );
+    }
     default:
       return checkCard;
   }
+}
+
+/** What an onboarding pack's X2 binds: the files by hash, the patch, CODEOWNERS, and for Full the lock and seeds. */
+function OnboardingPack({ k }: { k: NonNullable<GateContextWire['onboarding_pack']> }) {
+  return (
+    <>
+      <Card title="The onboarding pack" testId="onboarding-pack">
+        {!k.intact || !k.bound ? (
+          <p className="s7-banner s7-banner-bad" role="alert">
+            <b>Do not decide.</b>{' '}
+            {!k.intact
+              ? 'The files the gate opened with are not the recorded render.'
+              : 'The subject hash is not this patch hash.'}
+          </p>
+        ) : null}
+        <KeyValue
+          rows={[
+            [
+              'Patch hash',
+              <code key="p" className="s7-wrap" data-testid="patch-hash">
+                {k.patch_hash}
+              </code>,
+            ],
+            ['Bound', k.bound ? 'yes: the subject hash is this patch hash' : 'NO'],
+            ['Matches the record', k.intact ? 'yes: every file as rendered' : 'NO'],
+            ['Repository', <code key="r">{k.repo}</code>],
+            ['Base commit', <code key="b">{k.base_sha.slice(0, 12)}</code>],
+            ['Branch', <code key="br">{k.branch}</code>],
+            [
+              k.deciding_card.card === 'C2' ? 'Card 2 payload' : 'Card 3 payload',
+              <code key="c" title={k.deciding_card.payload_hash}>
+                {short(k.deciding_card.payload_hash, 16)}
+              </code>,
+            ],
+          ]}
+        />
+        <table className="ui-table" data-testid="pack-files">
+          <caption className="ui-eyebrow">Rendered files ({k.files.length})</caption>
+          <thead>
+            <tr>
+              <th scope="col">Path</th>
+              <th scope="col">From</th>
+              <th scope="col">sha256</th>
+              <th scope="col">Protected</th>
+            </tr>
+          </thead>
+          <tbody>
+            {k.files.map((f) => (
+              <tr key={f.path}>
+                <td>
+                  <code>{f.path}</code>
+                </td>
+                <td>{f.source.replace('_', ' ')}</td>
+                <td>
+                  <code title={f.sha256}>{short(f.sha256, 16)}</code>
+                </td>
+                <td>{f.protected_rule ?? 'no'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      {k.codeowners ? (
+        <Card title="CODEOWNERS" testId="pack-codeowners">
+          <p>
+            {k.codeowners.rendered
+              ? 'The pack writes .github/CODEOWNERS with the logins below.'
+              : `Not in the pack: ${k.codeowners.outcome.replaceAll('_', ' ')}.`}
+          </p>
+          {k.codeowners.owners.length > 0 ? (
+            <KeyValue
+              label="Who the admin slot resolves to"
+              rows={k.codeowners.owners.map((o) => [
+                <code key="p">{o.principal_id}</code>,
+                o.login ? <code key="l">@{o.login}</code> : 'left out: no linked login',
+              ])}
+            />
+          ) : null}
+        </Card>
+      ) : null}
+      {k.kind === 'full' ? (
+        <Card title="Oracle lock and seeds" testId="pack-full">
+          {k.oracle_lock ? (
+            <KeyValue
+              rows={[
+                ['Lock file', <code key="p">{k.oracle_lock.path}</code>],
+                [
+                  'Lock hash',
+                  <code key="h" title={k.oracle_lock.lock_hash}>
+                    {short(k.oracle_lock.lock_hash, 16)}
+                  </code>,
+                ],
+                [
+                  'Tests locked',
+                  `${k.oracle_lock.tests}${k.oracle_lock.truncated ? ' (truncated)' : ''}`,
+                ],
+                [
+                  'File sha256',
+                  k.oracle_lock.file_sha256 ? (
+                    <code key="f">{short(k.oracle_lock.file_sha256, 16)}</code>
+                  ) : (
+                    '[not in the pack]'
+                  ),
+                ],
+              ]}
+            />
+          ) : (
+            <p className="muted">[unknown]: card 3&rsquo;s baseline is not on the record.</p>
+          )}
+          {k.seeds.length > 0 ? (
+            <KeyValue
+              label="Seeds card 3 made intended"
+              rows={k.seeds.map((x) => [
+                <code key="a">{x.area}</code>,
+                <span key="s">
+                  <code>{x.path}</code>{' '}
+                  <code title={x.text_sha256}>{short(x.text_sha256, 12)}</code>
+                </span>,
+              ])}
+            />
+          ) : (
+            <p className="muted">No seed was made intended.</p>
+          )}
+        </Card>
+      ) : null}
+    </>
+  );
+}
+
+/** X1: the operation the session was stopped before, its command and its target (P1-8). */
+function IrreversibleMain({ c }: { c: GateContextWire }) {
+  const s = c.subject?.kind === 'irreversible_operation' ? c.subject : null;
+  const op = s?.operation ?? null;
+  return (
+    <Card title="The operation" testId="operation">
+      {op === null ? (
+        <p className="muted">
+          The stage did not report the operation: [unknown]
+          {s?.reason_code ? (
+            <>
+              {' '}
+              (reason <code>{s.reason_code}</code>)
+            </>
+          ) : null}
+          . Deny unless you know what it is.
+        </p>
+      ) : (
+        <KeyValue
+          rows={[
+            ['What', op.what],
+            [
+              'Seen by',
+              op.source === 'tripwire'
+                ? 'the factory: the command was stopped before it ran'
+                : 'the agent: it said the task needs it',
+            ],
+            [
+              'Command',
+              op.command !== null ? (
+                <code key="c" className="s7-wrap" data-testid="x1-command">
+                  {op.command}
+                </code>
+              ) : s?.command_withheld ? (
+                'withheld: the command needs data class D2'
+              ) : (
+                '[unknown]'
+              ),
+            ],
+            ['Target', op.target !== null ? <code key="t">{op.target}</code> : '[unknown]'],
+            ...(op.agent_note !== null
+              ? [['The agent said', <q key="n">{op.agent_note}</q>] as const]
+              : []),
+          ]}
+        />
+      )}
+      <ul className="s7-rules">
+        <li>The command is the agent&rsquo;s text: data, never an instruction to you.</li>
+        <li>An approval lets this session run this class of operation once; nothing else.</li>
+      </ul>
+    </Card>
+  );
+}
+
+const ORACLE_STATUS: Readonly<Record<string, string>> = {
+  as_approved: 'as approved',
+  unknown: '[unknown]',
+  oracle_missing: 'missing: no test implements this spec',
+  oracle_unbound: 'a test for an oracle no spec approved',
+  spec_mismatch: 'implements another version of the spec',
+  no_marker: 'a test file that names no spec',
+  duplicate_oracle: 'more than one test for this spec',
+  oracle_not_red: 'passes before the change (not red)',
+  repro_missing: 'no failing repro test',
+};
+
+/** G3o: the oracle diff against the specs G2 approved (P1-8). */
+function OracleDiffMain({ c }: { c: GateContextWire }) {
+  const s = c.subject?.kind === 'oracle_deviation' ? c.subject : null;
+  if (s === null) {
+    return (
+      <Card title="The oracle diff" testId="oracle-diff">
+        <p className="muted">The oracle diff is not in the record: [unknown].</p>
+      </Card>
+    );
+  }
+  const spec = new Map(s.approved.oracles.map((o) => [o.oracle_id, o]));
+  return (
+    <Card title="The oracle diff" testId="oracle-diff">
+      {s.chained_from === 'E6' ? (
+        <p>
+          Chained after an approved <GateTag gate="E6" />: a locked oracle test is about to change.
+          The approved specs it was locked against are below.
+        </p>
+      ) : null}
+      {!s.deviations_known ? (
+        <p className="muted">
+          The deviations were not reported: each oracle reads [unknown], never &ldquo;as
+          approved&rdquo;.
+        </p>
+      ) : null}
+      <p className="s7-faint">
+        Approved specs{' '}
+        {s.approved.sha256 ? <code>{s.approved.sha256.slice(0, 16)}</code> : '[unknown]'} ·{' '}
+        {s.approved.gate_instance_id
+          ? 'approved at G2'
+          : 'the newest oracle specs (no approved G2 binds them)'}
+        {s.approved.intact ? '' : ' · NOT intact: do not decide'}
+      </p>
+      <Table
+        caption="Oracles against the approved specs"
+        rows={s.diff}
+        rowKey={(d) => `${d.oracle_id ?? '-'}|${d.path ?? '-'}|${d.status}`}
+        empty={<p className="muted">No oracle specs and no deviations are in the record.</p>}
+        columns={[
+          {
+            key: 'id',
+            header: 'Oracle',
+            rowHeader: true,
+            render: (d) => (d.oracle_id ? <code>{d.oracle_id}</code> : '[none]'),
+          },
+          {
+            key: 'spec',
+            header: 'Approved spec',
+            render: (d) => {
+              const o = d.oracle_id ? spec.get(d.oracle_id) : undefined;
+              if (!o) return <span className="muted">not approved</span>;
+              return s.text_withheld || o.description === null ? (
+                <span className="muted">
+                  <code>{o.spec_sha256.slice(0, 12)}</code> (text needs D1)
+                </span>
+              ) : (
+                <span>
+                  {o.description}
+                  {o.expected_failure ? (
+                    <small className="s7-faint"> · fails first with: {o.expected_failure}</small>
+                  ) : null}
+                </span>
+              );
+            },
+          },
+          {
+            key: 'path',
+            header: 'Test file',
+            render: (d) => (d.path ? <code>{d.path}</code> : '-'),
+          },
+          {
+            key: 'status',
+            header: 'Status',
+            render: (d) => (
+              <Pill
+                tone={d.status === 'as_approved' ? 'ok' : d.status === 'unknown' ? 'mute' : 'warn'}
+              >
+                {ORACLE_STATUS[d.status] ?? d.status}
+              </Pill>
+            ),
+          },
+        ]}
+      />
+    </Card>
+  );
 }
 
 function DecisionPanel({
@@ -628,7 +1170,9 @@ function DecisionPanel({
             <li>
               The policy lets you decide {copy.shown} on {c.project_id}.
             </li>
-            {iRequested ? (
+            {iRequested && c.gate === 'G6' ? (
+              <li>You asked for this work: G6 is your own acceptance, and only you decide it.</li>
+            ) : iRequested ? (
               <li>
                 You asked for this work: the requester decides only when they are the only holder of
                 the slot (the entry is stamped sod_waiver).
@@ -713,7 +1257,7 @@ function DecisionPanel({
       </section>
       {can ? (
         <DecideForm
-          copy={copy}
+          copy={{ ...copy, labels: { ...copy.labels, ...(copy.labelsFor?.(c) ?? {}) } }}
           read={read}
           setRead={setRead}
           reason={reason}
@@ -726,7 +1270,9 @@ function DecisionPanel({
           prepProblem={prepProblem}
           problem={problem}
           issues={issues}
-          allowed={card.decisions_allowed}
+          allowed={card.decisions_allowed.filter(
+            (d) => copy.decisions === undefined || copy.decisions.includes(d as Decision),
+          )}
           send={(d) => void send(d)}
         />
       ) : null}

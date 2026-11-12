@@ -71,7 +71,9 @@ export interface WaitSnapshotRequest {
   readonly item_id: string;
   /** The epoch of the lease that is being released. */
   readonly lease_epoch: number;
-  readonly gate: HumanWaitGate;
+  /** The pending gate; `null` when the wait is a hold on the repo (a suspension, a security event: M16). */
+  readonly gate: HumanWaitGate | null;
+  /** The wait's key: the gate instance, or `hold:<ref>` for a hold. */
   readonly gate_instance_id: string;
 }
 

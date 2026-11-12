@@ -4,6 +4,7 @@ import { RepoFullName } from './codehost.js';
 import { CatalogueRef } from './config.js';
 import { Classification } from './identity.js';
 import {
+  AreaId,
   CauseCode,
   CardId,
   IsoDateTime,
@@ -550,6 +551,8 @@ export const EligibilityReason = z.enum([
   'followup_overdue',
   /** DEC-25: the request names an area the record's per-area table does not hold. */
   'area_unknown',
+  /** M17: the area (or, for the repo as a whole, some area) is an R3 zone: only the Census lanes run there. */
+  'r3_zone',
 ]);
 export type EligibilityReason = z.infer<typeof EligibilityReason>;
 
@@ -585,6 +588,11 @@ export const WorkRequestedPayload = z.strictObject({
   channel: EntryChannel,
   requester: PrincipalId,
   catalogue_ref: CatalogueRef,
+  /**
+   * M17 (DEC-25): the area of the repo the work is in, as the repo's system map names it (validated against the
+   * governing record at intake). 1.4 then asks that area's lanes. Absent: the repo as a whole (the lowest area's).
+   */
+  area: AreaId.optional(),
   /**
    * M9.1: the request's text after S1 step 1.1 (normalised, taint-marked, with its provenance and
    * any injection flags). Absent on a request made by the M7.6 minimal intake.
