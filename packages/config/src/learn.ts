@@ -1,5 +1,8 @@
 import {
   DEFAULT_FACTORY_M1_POLICY,
+  DEFAULT_FLOOR_CONFIG,
+  FLOOR_CONFIG_KEY,
+  FloorConfig,
   DEFAULT_LEARN_CONFIG,
   FACTORY_M1_POLICY_KEY,
   FACTORY_SCOPE,
@@ -46,6 +49,23 @@ export function registerGovernanceConfig(registry: ConfigRegistry): ConfigRegist
     });
   }
   return registry;
+}
+
+/**
+ * Registers `factory.floor` (M19, factory layer only): the silence after which an item in a session is drawn stuck
+ * (DM Heartbeat, per station when set) and the line below which an agent score chip is low. A display threshold, not a
+ * control: nothing is stopped or admitted by it. Idempotent.
+ */
+export function registerFloorConfig(registry: ConfigRegistry): ConfigRegistry {
+  if (registry.get(FLOOR_CONFIG_KEY)) return registry;
+  return registry.setting({
+    key: FLOOR_CONFIG_KEY,
+    schema: FloorConfig,
+    default: { ...DEFAULT_FLOOR_CONFIG, by_stage: {} },
+    overridable: false,
+    description:
+      'the floor (M19): minutes of silence after which an item in a session is drawn stuck (per station when set), and the eval or acceptance rate below which an agent score chip is low. Display only; factory layer, M1-gated',
+  });
 }
 
 /** Registers a project's admission limits (ADR-0003 §6: project admin, M1 on the project). Idempotent. */
@@ -134,6 +154,10 @@ export const readFactoryM1Policy = (db: Executor): Promise<SettingRead<FactoryM1
 /** 9.4's thresholds in force. */
 export const readLearnConfig = (db: Executor): Promise<SettingRead<LearnConfig>> =>
   readFactoryKey(db, LEARN_CONFIG_KEY, LearnConfig, DEFAULT_LEARN_CONFIG);
+
+/** The floor's thresholds in force (published factory layer over the defaults). */
+export const readFloorConfig = (db: Executor): Promise<SettingRead<FloorConfig>> =>
+  readFactoryKey(db, FLOOR_CONFIG_KEY, FloorConfig, DEFAULT_FLOOR_CONFIG);
 
 /** A project's admission limits in force (project over factory over the defaults). */
 export async function readAdmissionSettings(

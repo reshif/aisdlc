@@ -20,6 +20,10 @@ const item = (over: Record<string, unknown> = {}) => ({
   overdue: false,
   escalated: false,
   holders: ['alice'],
+  item_id: null,
+  gate: null,
+  feasibility: 'feasible',
+  feasibility_reason: null,
   may_decide: true,
   deciders: [{ principal_id: 'alice', display_name: 'Alice Admin' }],
   ...over,
@@ -65,6 +69,45 @@ describe('the inbox', () => {
     const other = screen.getByRole('list', { name: 'Not yours to decide' });
     expect(other).toHaveTextContent('Bob Builder');
     expect(other).toHaveTextContent('Card 4');
+  });
+
+  it('lists a work item gate linking to its item, flagged when nobody can decide it (M19)', async () => {
+    const ITEM = '0190a1b2-c3d4-7e5f-8a6b-111111111111';
+    mockApi({
+      'GET /api/me': { json: me() },
+      'GET /api/inbox': {
+        json: {
+          decide: [],
+          view: [
+            item({
+              kind: 'work_gate',
+              id: GATE,
+              label: null,
+              s0_id: null,
+              slot: 'intent',
+              sla_due_at: null,
+              may_decide: false,
+              holders: [],
+              deciders: [],
+              item_id: ITEM,
+              gate: 'G0',
+              feasibility: 'infeasible',
+              feasibility_reason: 'G0: nobody holds the slot (slot intent, 0 holder(s))',
+            }),
+          ],
+        },
+      },
+    });
+    renderAt('/inbox');
+    const other = await screen.findByRole('list', { name: 'Not yours to decide' });
+    const li = within(other).getAllByRole('listitem')[0] as HTMLElement;
+    expect(within(li).getByRole('link', { name: 'Gate G0: item 0190a1b2' })).toHaveAttribute(
+      'href',
+      `/items/${ITEM}`,
+    );
+    expect(within(li).getByText('nobody can decide it')).toBeInTheDocument();
+    expect(li).toHaveTextContent('nobody holds the slot');
+    expect(li).toHaveAttribute('data-feasibility', 'infeasible');
   });
 
   it('empty: says nothing is waiting', async () => {

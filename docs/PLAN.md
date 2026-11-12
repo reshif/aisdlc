@@ -323,6 +323,18 @@ Thread, Turn, Draft, Citation, ProposalButton (actions only through buttons that
 
 Floor read models (ItemPosition, FlowWindow, SessionActivity, Heartbeat, GateFeasibility, HealthSnapshot, HealthTile, FloorProject) with lane routes generated from the catalogue; agent score chips from AgentScore and ScoreSignal; **the floor screen** in the portal over those live read models (moved here from M21 on 2026-11-12: belts, gates, rooms, pods, viewer mode without titles); StepUpUse with backfill after a Notary outage. Audit as **two services** (RV §1.3): `audit-exporter` (export signing, write-once store) and `audit-backend` (pseudonym resolution, erasure, retention classes, legal hold, permission history, its own signed log); ledger types `audit.export` and `erasure.execute`.
 
+Built so far (`build/m19`, 2026-11-12):
+
+- **Floor plan and ItemPosition.** `floorPlanOf` and `floorPositionOf` (`@aisdlc/work`) derive stations, gate positions and every lane's route from the catalogue's route (DM gap 12 closed for the floor); `core.floor_position` and `core.floor_move` (FlowWindow's F, B, R) are a rebuildable projection of the `item:` streams under each item's pinned catalogue (migration `0018_floor.sql`).
+- **Reads.** core `GET /v1/floor/:project` (PDP `floor.read`, `item.view_floor` per item, `stale` when the read model is behind); bff `GET /api/floor/:project` cut by view level and data class (`cutFloorView`), the sandbox-controller's slots as pods (unknown when unreachable), ETag poll.
+- **Screen.** web `/floor`: belts, stations, gates with the deciders' initials, rooms, pods, back-edges and re-lanes of the last 24 hours, lane filters, drawers, viewer mode without titles, stale and paused banners.
+- **SessionActivity and Heartbeat.** `POST /v1/sessions/heartbeat` (scope `activity`) records `session.heartbeat` first; `core.session_activity` (migration `0019_floor_activity.sql`) folds it with the gateway's model calls and core's dispatches. An item in a session silent past the threshold of `factory.floor` (config, default 30 min, per station when set) is drawn stuck.
+- **GateFeasibility.** `gateFeasibility` (decision kernel) on every waiting gate of the floor and in the inbox, which now lists the work items' gates; infeasible and unknown are flagged.
+- **Score chips.** each station shows its lowest agent score (AgentScore under the current prompt, ScoreSignal counts), low under `factory.floor.low_score`.
+- **Kill banner.** core-worker's `/admission` verdict (`CORE_ADMISSION_URL`); unreachable or unconfigured reads killed (AR9).
+- **Fleet.** FloorProject per project (`GET /v1/fleet`, bff `GET /api/fleet` cut per person: confidential without a role collapsed), web `/fleet`.
+- **Still open in M19.** A reporter that posts heartbeats (the sandbox-controller or the runner: until one does, a session's model calls and dispatches are its only activity), HealthSnapshot/HealthTile on the floor, StepUpUse backfill, and the two audit services.
+
 ### M20 — Dogfood (OB R5, R7)
 
 Pre-push full-history scan, squashed push, multi-repo allow-list, Census + 0.4 + M4 of this repo, L8 merges through the L8 gate-check profile; later Full per area, the O4 cross-family reviewer, the first agent-led L2 on this repo. Gated by DEC-16, DEC-22..26.
@@ -362,7 +374,7 @@ core-worker keeps one aggregated `/healthz` (503 while any loop is down or an ac
 ## 6. How the build runs
 
 - The orchestrating session owns the plan, the briefs and the review of every task.
-- Each task goes to one implementation agent with a written brief: goal, spec sections, files it may touch, acceptance tests. One task in flight at a time.
+- Each task goes to one implementation agent with a written brief: goal, spec sections, files it may touch, acceptance tests. Independent tasks may run in parallel (user, 2026-11-12): a few at a time, each in its own git worktree and branch; each still passes `npm run check` and review before it merges, and milestones merge one PR at a time on green CI.
 - After each task: review the diff, run `npm run check`, commit (Conventional Commits). Milestones end with a pull request for human review. A human merges.
 - Decisions that belong to the user are asked at the milestone that needs them.
 

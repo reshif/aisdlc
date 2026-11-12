@@ -1,6 +1,7 @@
 export * from './errors.js';
 export * from './policy.js';
 export * from './ports.js';
+export * from './feasibility.js';
 export * from './state.js';
 export * from './projection.js';
 export * from './migrations.js';

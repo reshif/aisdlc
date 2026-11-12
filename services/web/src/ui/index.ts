@@ -6,7 +6,7 @@ import './ui.css';
 
 export { Card, KeyValue, PageHead, Stat, Stats, type Crumb, type StatTone } from './layout';
 export { Table, type Column } from './Table';
-export { ActorGlyph, Chip, GateTag, Pill, laneText, type PillTone } from './tags';
+export { ActorGlyph, Chip, GateTag, Pill, laneFill, laneText, type PillTone } from './tags';
 export {
   Steps,
   Tabs,

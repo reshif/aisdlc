@@ -10,9 +10,12 @@ import {
   PrincipalId,
   ProjectId,
   S0RecordId,
+  WorkItemId,
   Sha256Hex,
 } from './ids.js';
 import { CardKind } from './onboarding.js';
+import { GateId } from '../flow.js';
+import { GateFeasibilityState } from './floor.js';
 import { GatingProfile, KillDelegation, RoleMap, RoleSlot, TwoPerson } from './projects.js';
 import { ProjectReadinessRecord } from './readiness.js';
 import { ReadinessStatus } from '../states/readiness.js';
@@ -39,8 +42,11 @@ export type CardDeciders = z.infer<typeof CardDeciders>;
 
 // ---------------------------------------------------------------- Inbox
 
-/** `onboarding_card`: a card of an S0 record; `settings_revision`: the M1 gate that publishes card 4's settings. */
-export const InboxItemKind = z.enum(['onboarding_card', 'settings_revision']);
+/**
+ * `onboarding_card`: a card of an S0 record; `settings_revision`: the M1 gate that publishes card 4's settings;
+ * `work_gate` (M19): a gate a work item waits at (from the floor's read model; decided on the item's page).
+ */
+export const InboxItemKind = z.enum(['onboarding_card', 'settings_revision', 'work_gate']);
 export type InboxItemKind = z.infer<typeof InboxItemKind>;
 
 /** One open thing in the factory's inbox, as core knows it. */
@@ -61,6 +67,12 @@ export const CoreInboxItem = z.strictObject({
   escalated: z.boolean(),
   /** Who decides it now (the role map, or the bootstrap grantee). Empty: nobody does yet. */
   holders: z.array(PrincipalId),
+  /** A `work_gate`'s item and gate; `null` for the other kinds. */
+  item_id: WorkItemId.nullable(),
+  gate: GateId.nullable(),
+  /** M19 GateFeasibility: `infeasible` or `unknown` is flagged (fail closed), never shown as on its way. */
+  feasibility: GateFeasibilityState,
+  feasibility_reason: z.string().nullable(),
 });
 export type CoreInboxItem = z.infer<typeof CoreInboxItem>;
 

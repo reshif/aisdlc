@@ -313,6 +313,10 @@ export function inboxItems() {
     overdue: false,
     escalated: false,
     holders,
+    item_id: null,
+    gate: null,
+    feasibility: 'feasible',
+    feasibility_reason: null,
     ...over,
   });
   return [
@@ -330,6 +334,10 @@ export function inboxItems() {
       overdue: false,
       escalated: false,
       holders: ['alice'],
+      item_id: null,
+      gate: 'M1',
+      feasibility: 'feasible',
+      feasibility_reason: null,
     },
     // A card of acme that bob (an intent approver) can see but alice alone decides.
     card('acme', ['alice'], { label: 'C4', id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe88' }),

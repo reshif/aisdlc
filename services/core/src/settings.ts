@@ -5,6 +5,7 @@ import {
   proposeRevision,
   readLineage,
   registerAdmissionConfig,
+  registerFloorConfig,
   registerGateCheckConfig,
   registerGovernanceConfig,
   registerReleaseConfig,
@@ -91,6 +92,8 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   // M15.5: who decides a factory M1, 9.4 Learn's thresholds, and a project's WIP limit and default envelope
   registerGovernanceConfig(registry);
   registerAdmissionConfig(registry);
+  // M19: the floor's silence thresholds and score line
+  registerFloorConfig(registry);
   return registry
     .setting({
       key: PROJECT_CONFIG_KEYS.role_map,

@@ -677,6 +677,8 @@ services:
       CORE_ASSISTANT_EXTRA_MODELS: fake-model
       CORE_HOST: 0.0.0.0
       CORE_PORT: '8380'
+      # M19: the floor's kill banner reads core-worker's read-only verdict (core is not on the kill switch's network)
+      CORE_ADMISSION_URL: http://core-worker:8360
     secrets:
       [
         db-url-aisdlc,
