@@ -307,6 +307,8 @@ export class CorePush implements PushPort {
       patch_hash,
       files: req.patch.files.length,
       command_key: req.command_key,
+      // M15.1: what G4 reads as the changed paths of the head this patch becomes (the patch is the whole diff)
+      paths: [...new Set(req.patch.files.map((f) => f.path))].sort(),
     });
     const w = await this.recordIntent(intent);
     if (!w.ok) throw new Error(w.error.message);

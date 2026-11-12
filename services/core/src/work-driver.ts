@@ -1,4 +1,5 @@
 import {
+  G4_REVIEW_FACT,
   ITEM_EVENT,
   ItemCommand,
   WORK_COMMAND_DESTINATION,
@@ -77,6 +78,7 @@ import { catchUpWork } from './work-projection.js';
 import { dispatchAgent, recordFailure, releaseRun } from './agent-dispatch.js';
 import { admitUnit, ensureAdmitted, syncUnits, type AdmissionPorts } from './admission/index.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
+import { g4ReviewOf, type ReviewPorts } from './review/index.js';
 
 // The work driver (PLAN M9.2; ADR-0001 "Departure from the runtime review"): what replaces Temporal.
 // The interpreter (`@aisdlc/work`) is pure; this is the side that makes it happen, in four moves a
@@ -138,6 +140,14 @@ export interface WorkDriverDeps {
    * or an error. Absent, the secret is dropped (the ports of M9 to M11 need none).
    */
   readonly vault?: RunKeyVault;
+  /**
+   * G4 review (M15.1): with it, G4 opens with its review mode decided from the item (`g4ReviewOf`): the passing
+   * Evidence Pack of exactly each PR head bound into the card, the D37 step-up on a sensitive path, and in mode C only
+   * the code owners of the changed paths as its deciders. Unknown inputs refuse the open (it is delivered again).
+   * core-worker wires it with the decision kernel; a driver built without one (tests of other things) opens G4 as a
+   * plain card.
+   */
+  readonly review?: ReviewPorts;
 }
 
 const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
@@ -536,21 +546,40 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
 
     case 'open_gates': {
       if (!d.decisions) throw new Error('the decision kernel is not configured: gates cannot open');
+      // M15.1: G4 opens with its review: the mode and why, the pack of exactly each head, step-up, deciders
+      const g4 =
+        d.review && c.gates.includes('G4')
+          ? must(
+              await g4ReviewOf(cd, d.review, s, c.subject_hash, c.facts as Record<string, unknown>),
+            )
+          : null;
       const cards = await openCards(d.decisions, {
         project_id: s.project_id as ProjectId,
         requester: s.requester as PrincipalId,
         subject_kind: 'item',
         subject_id: s.item_id,
-        gates: c.gates.map((g) => ({
-          gate_id: g,
-          subject_hash: c.subject_hash,
-          facts: c.facts as JsonObject,
-          // B5: the person who wrote the plan by hand is treated like the requester on G3 (and G3s, the skeleton
-          // of the same plan): the kernel's SoD rule, single-holder waiver stamped, never at T2.
-          ...((g === 'G3' || g === 'G3s') && s.plan_author
-            ? { authors: [s.plan_author as PrincipalId] }
-            : {}),
-        })),
+        gates: c.gates.map((g) =>
+          g === 'G4' && g4
+            ? {
+                gate_id: g,
+                subject_hash: g4.subject_hash,
+                evidence_pack_hash: g4.review.evidence_sha256,
+                facts: { ...(c.facts as JsonObject), [G4_REVIEW_FACT]: g4.review as never },
+                ...(g4.review.step_up ? { step_up: true } : {}),
+                ...(g4.deciders ? { deciders: g4.deciders } : {}),
+                ...(g4.authors.length > 0 ? { authors: g4.authors } : {}),
+              }
+            : {
+                gate_id: g,
+                subject_hash: c.subject_hash,
+                facts: c.facts as JsonObject,
+                // B5: the person who wrote the plan by hand is treated like the requester on G3 (and G3s, the skeleton
+                // of the same plan): the kernel's SoD rule, single-holder waiver stamped, never at T2.
+                ...((g === 'G3' || g === 'G3s') && s.plan_author
+                  ? { authors: [s.plan_author as PrincipalId] }
+                  : {}),
+              },
+        ),
       });
       if (!cards.ok) throw new Error(`${cards.error.code}: ${cards.error.message}`);
       const gates: Array<{ gate: (typeof c.gates)[number]; gate_instance_id: string }> = [];

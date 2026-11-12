@@ -10,6 +10,7 @@ import {
 } from '@aisdlc/contracts';
 import {
   decideCard,
+  gateHolders,
   prepareCard,
   readCardOpened,
   readCardState,
@@ -86,10 +87,17 @@ export async function gateCardView(
   const facts = Facts.safeParse(first.facts);
   const slots = [...new Set(gates.map((g) => g.slot))];
   const holders = new Set<string>();
-  for (const slot of slots) {
-    const h = await d.eligibility.holders(head.project_id as never, slot as never);
+  // per gate: a gate opened with deciders (G4 mode C: the code owners of the changed paths) narrows its slot
+  for (const g of state.gates) {
+    const p = g.state.open.payload;
+    const h = await gateHolders(
+      d.eligibility,
+      head.project_id as never,
+      gatePolicy(p.gate_id).slot,
+      p.deciders,
+    );
     if (!h.ok) return err(coreError('unavailable', 'who holds the role could not be read'));
-    for (const p of h.value) holders.add(p);
+    for (const x of h.value) holders.add(x);
   }
   const reason = state.payload?.payload.find((i) => i.kind === 'decision_reason');
   return ok(
