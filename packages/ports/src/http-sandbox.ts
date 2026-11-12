@@ -14,7 +14,7 @@ import {
   type SandboxSpecWire,
 } from '@aisdlc/contracts';
 import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
-import { callJson } from '@aisdlc/service-kit';
+import { callJson, traceHeaders } from '@aisdlc/service-kit';
 import {
   sandboxError,
   type OutFile,
@@ -231,6 +231,8 @@ export function postLong(
       {
         method: 'POST',
         headers: {
+          // M19: the trace of the stage command's request, when there is one
+          ...traceHeaders(),
           authorization: `Bearer ${token}`,
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),

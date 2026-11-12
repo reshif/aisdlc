@@ -19,7 +19,8 @@ import type pg from 'pg';
 //
 // A reading is ephemeral, never a fact: nothing decides on it, it is not in the record, and the read applies the
 // HealthSnapshot rule (older than two minutes reads `unknown`, never green; a service nobody read is `unknown`).
-// A probe that gets no answer reads `down` (`unreachable`); a non-2xx answer reads `down` (`unhealthy`).
+// A probe that gets no answer reads `down` (`unreachable`); a non-2xx answer reads `down` (`unhealthy`). M19: a
+// profile service (`HealthTarget.profile`) that does not answer reads `unknown` (`not_reached`): never ok, never down.
 
 export const HEALTH_REPORTER = 'core-worker';
 export const HEALTH_LOOP = 'health_snapshot';
@@ -28,6 +29,12 @@ export const HEALTH_LOOP = 'health_snapshot';
 export interface HealthTarget {
   readonly url: string;
   readonly path?: string;
+  /**
+   * M19: a service of a compose profile (sandbox-controller, verify, gate-check, gate-relay, notifier, audit), which a
+   * deployment may not run. No answer is then `unknown` (`not_reached`): it cannot be told from not deployed, so it is
+   * never drawn down, and never ok. A relay's 502/504 (the bff answering for the notifier) is the same no answer.
+   */
+  readonly profile?: boolean;
 }
 
 const LOOP_STATE: Record<LoopState, { state: HealthState; code: string }> = {
@@ -115,9 +122,13 @@ export async function probeService(
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
-    return one('down', 'unreachable', null);
+    return t.profile ? one('unknown', 'not_reached', null) : one('down', 'unreachable', null);
   }
   const ms = Date.now() - started;
+  if (t.profile && (res.status === 502 || res.status === 504)) {
+    await res.arrayBuffer().catch(() => undefined);
+    return one('unknown', 'not_reached', null);
+  }
   let body: unknown;
   try {
     const text = await res.text();
