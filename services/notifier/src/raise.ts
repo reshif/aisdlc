@@ -5,6 +5,7 @@ import {
   NOTIFICATION_DELIVERIES_MAX,
   type DataClass,
   type NotificationChannelRow,
+  type NotificationRaisedPayload,
   type NotificationReason,
   type PrincipalId,
   type RoleSlot,
@@ -85,14 +86,21 @@ export function chosenChannels(
   return [...new Set(ids)].sort().slice(0, NOTIFICATION_DELIVERIES_MAX);
 }
 
-async function raiseFor(d: RaiseDeps, tx: Tx, e: SourceEvent, now: Date): Promise<number> {
+/** What one source event raises: read only (identity, preferences, the record), nothing appended yet. */
+async function draftsFor(
+  d: RaiseDeps,
+  tx: Tx,
+  e: SourceEvent,
+  now: Date,
+): Promise<NotificationRaisedPayload[]> {
   const maxAge = d.maxSourceAgeMs ?? 24 * 3600_000;
-  if (now.getTime() - Date.parse(e.occurred_at) > maxAge) return 0;
+  if (now.getTime() - Date.parse(e.occurred_at) > maxAge) return [];
   const intent = intentOf(e, {
     cardOpened: e.type === CARD_EVENT.escalated ? await cardOpenedOf(tx, e.stream) : null,
   });
-  if (intent === null) return 0;
-  if (intent.gate_instance_id !== null && (await gateClosed(tx, intent.gate_instance_id))) return 0;
+  if (intent === null) return [];
+  if (intent.gate_instance_id !== null && (await gateClosed(tx, intent.gate_instance_id)))
+    return [];
   // the first audience that reaches a person says why they got it (an escalation's backup before the slot)
   const who = new Map<
     string,
@@ -105,38 +113,33 @@ async function raiseFor(d: RaiseDeps, tx: Tx, e: SourceEvent, now: Date): Promis
     }
   }
   const rows = d.channels();
-  let raised = 0;
+  const out: NotificationRaisedPayload[] = [];
   for (const [principal, why] of [...who].sort(([a], [b]) => (a < b ? -1 : 1))) {
     if (!(await d.recipients.isActiveHuman(principal))) continue;
     const { preferences } = await preferencesOf(tx, principal);
     if (preferences.muted_kinds.includes(intent.content.kind)) continue;
     const notification_id = deterministicId(`notifier:${e.event_id}:${principal}`);
-    const ok = await recordRaised(
-      tx,
-      {
-        notification_id,
-        principal_id: principal as PrincipalId,
-        content: intent.content,
-        reason: why.reason,
-        slot: why.slot,
-        data_class: why.data_class,
-        source: {
-          stream: e.stream,
-          stream_seq: e.stream_seq,
-          global_seq: e.global_seq,
-          type: e.type,
-        },
-        deliveries: chosenChannels(rows, preferences.channels).map((channel_id) => ({
-          delivery_id: deterministicId(`${notification_id}:${channel_id}`),
-          channel_id,
-        })),
-        raised_at: now.toISOString(),
+    out.push({
+      notification_id,
+      principal_id: principal as PrincipalId,
+      content: intent.content,
+      reason: why.reason,
+      slot: why.slot,
+      data_class: why.data_class,
+      source: {
+        stream: e.stream,
+        stream_seq: e.stream_seq,
+        global_seq: e.global_seq,
+        type: e.type,
       },
-      d.clock ?? systemClock,
-    );
-    if (ok) raised += 1;
+      deliveries: chosenChannels(rows, preferences.channels).map((channel_id) => ({
+        delivery_id: deterministicId(`${notification_id}:${channel_id}`),
+        channel_id,
+      })),
+      raised_at: now.toISOString(),
+    });
   }
-  return raised;
+  return out;
 }
 
 /** One pass: the next batch of source events after the cursor. The first pass ever only places the cursor at the head. */
@@ -174,25 +177,31 @@ export async function raiseOnce(d: RaiseDeps): Promise<RaiseReport> {
         ORDER BY record_event.global_seq LIMIT $3`,
       [after, [...SOURCE_TYPES], d.batch ?? 200],
     );
-    let raised = 0;
+    // every read first, then every append: the record's counter lock (taken by the first append, held to commit) is
+    // never held while identity or the preferences are read
+    const drafts: NotificationRaisedPayload[] = [];
     let last = after;
     for (const r of ev.rows) {
-      raised += await raiseFor(
-        d,
-        tx,
-        {
-          event_id: r.event_id,
-          stream: r.stream,
-          stream_seq: r.seq,
-          global_seq: Number(r.global_seq),
-          type: r.type,
-          body: r.body,
-          occurred_at: r.occurred_at.toISOString(),
-        },
-        now,
+      drafts.push(
+        ...(await draftsFor(
+          d,
+          tx,
+          {
+            event_id: r.event_id,
+            stream: r.stream,
+            stream_seq: r.seq,
+            global_seq: Number(r.global_seq),
+            type: r.type,
+            body: r.body,
+            occurred_at: r.occurred_at.toISOString(),
+          },
+          now,
+        )),
       );
       last = Number(r.global_seq);
     }
+    let raised = 0;
+    for (const p of drafts) if (await recordRaised(tx, p, clock)) raised += 1;
     if (last !== after) {
       await tx.query(
         'UPDATE notifier.source_cursor SET last_global_seq = $1, updated_at = $2 WHERE id',
