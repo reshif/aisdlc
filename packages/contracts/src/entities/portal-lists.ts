@@ -11,6 +11,7 @@ import { Team } from './identity.js';
 import { IsoDateTime, PrincipalId, ProjectId, RoleId, Sha256Hex, WorkItemId } from './ids.js';
 import { IntegrationEvent, IntegrationHealthTiles } from './integrations.js';
 import { ActionId, PdpResource } from './policy.js';
+import { AuditOutcome, CloseOutRecord, EscapeReportedPayload } from './closeout.js';
 
 // The portal's list and read views (2026-11-12, the screens whose backends were on main). Each is the
 // thinnest read over what core or the bff already holds; every route is PDP-guarded like its neighbours.
@@ -206,3 +207,20 @@ export const AccessExplainView = z.strictObject({
   holders: z.array(ExplainHolder),
 });
 export type AccessExplainView = z.infer<typeof AccessExplainView>;
+
+// ---------------------------------------------------------------- 9.3 close-out (M15), as core serves it
+
+/** `GET /v1/items/:id/closeout`: the record with its id, the escapes reported after it (B17), and its 9.5 audit. */
+export const ItemCloseOutView = z.strictObject({
+  closeout_sha256: Sha256Hex,
+  record: CloseOutRecord,
+  escapes: z.array(EscapeReportedPayload),
+  audit: z
+    .strictObject({
+      sampled: z.boolean(),
+      outcome: AuditOutcome.nullable(),
+      audited_by: PrincipalId.nullable(),
+    })
+    .nullable(),
+});
+export type ItemCloseOutView = z.infer<typeof ItemCloseOutView>;

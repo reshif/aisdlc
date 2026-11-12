@@ -28,6 +28,9 @@ export type Route =
   | { name: 'ask' }
   | { name: 'notifications' }
   | { name: 'notificationPrefs' }
+  | { name: 'closeout'; id: string }
+  | { name: 'learn'; id: string }
+  | { name: 'factoryRevision'; id: string }
   | { name: StaticScreen }
   | { name: 'notfound' };
 
@@ -70,6 +73,12 @@ export function parseRoute(path: string): Route {
   if (p === '/me/notifications/preferences') return { name: 'notificationPrefs' };
   const cfg = /^\/config\/([^/]+)$/.exec(p);
   if (cfg) return { name: 'configKey', key: decodeURIComponent(cfg[1] as string) };
+  const closeout = /^\/items\/([^/]+)\/closeout$/.exec(p);
+  if (closeout) return { name: 'closeout', id: decodeURIComponent(closeout[1] as string) };
+  const learn = /^\/projects\/([^/]+)\/learn$/.exec(p);
+  if (learn) return { name: 'learn', id: decodeURIComponent(learn[1] as string) };
+  const frev = /^\/config\/revisions\/([^/]+)$/.exec(p);
+  if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
   const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
   if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
   const sub = /^\/projects\/([^/]+)\/(readiness|ledger)$/.exec(p);

@@ -19,6 +19,9 @@ import { MyAccessPage } from './pages/MyAccessPage';
 import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsPage';
 import { AskPage } from './assistant/AskPage';
 import { HomePage } from './pages/HomePage';
+import { CloseoutPage } from './pages/CloseoutPage';
+import { LearnPage } from './pages/LearnPage';
+import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
 import { BoardPage, ItemsPage } from './pages/ItemsPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
 import {
@@ -203,6 +206,12 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <ItemPage id={route.id} csrf={me.csrf_token} />;
     case 'pack':
       return <PackPage id={route.id} />;
+    case 'closeout':
+      return <CloseoutPage id={route.id} csrf={csrf} />;
+    case 'learn':
+      return <LearnPage project={route.id} csrf={csrf} />;
+    case 'factoryRevision':
+      return <FactoryRevisionPage gate={route.id} csrf={csrf} me={me.principal.principal_id} />;
     case 'inbox':
       return <InboxPage />;
     case 'revision':

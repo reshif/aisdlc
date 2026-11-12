@@ -1,3 +1,4 @@
+import { ItemGovernance } from '../items/Governance';
 import { LaneValues, type Lane } from '@aisdlc/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
@@ -80,6 +81,7 @@ export function ItemPage({ id, csrf }: { id: string; csrf: string }) {
         {it.may.ready ? <Ready id={id} csrf={csrf} /> : null}
         {it.may.observe ? <Observe id={id} lane={lane} csrf={csrf} /> : null}
         {it.may.plan ? <PlanForm id={id} csrf={csrf} /> : null}
+        <ItemGovernance item={it} csrf={csrf} />
       </ItemTabs>
     </>
   );

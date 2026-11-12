@@ -887,6 +887,7 @@ export const SCHEMAS = {
   DirectoryView: entities.DirectoryView,
   ExplainHolder: entities.ExplainHolder,
   AccessExplainView: entities.AccessExplainView,
+  ItemCloseOutView: entities.ItemCloseOutView,
 } as const satisfies Record<string, z.ZodType>;
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';

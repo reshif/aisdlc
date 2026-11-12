@@ -5,6 +5,7 @@ import { Guarded } from '../access';
 import { api } from '../api';
 import { ErrorNote, Loading, PageError } from '../components/Notice';
 import { shortTime } from '../format';
+import { Link } from '../router';
 import { validateAgainst, type JsonSchema } from '../lib/schema';
 import { Card, EmptyState, KeyValue, Pill, Table, useToast, type PillTone } from '../ui';
 import { SchemaField, diffValues, looksLikeSecretRef } from './SchemaForm';
@@ -222,6 +223,13 @@ export function ConfigConsole({ configKey, csrf }: { configKey: string; csrf: st
                     ? 'nobody holds it yet, so nobody can decide it.'
                     : p.deciders.holders.map(who).join(', ')}
                 </div>
+                {p.revision.gate_instance_id ? (
+                  <div>
+                    <Link to={`/config/revisions/${p.revision.gate_instance_id}`}>
+                      Open the revision to decide it
+                    </Link>
+                  </div>
+                ) : null}
                 {p.revision.changes_key ? (
                   <ValueView
                     value={p.revision.value}
