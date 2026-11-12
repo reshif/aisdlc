@@ -121,7 +121,7 @@ The "before" run is `load-m19-before.json`: the factory image built from this br
    action x resource matrix).
 2. **The bootstrap grant lookup scanned the record**: `liveBootstrap`, asked on every PDP decision about a project
    resource, read `s0.bootstrap_granted` events with no index (a sequential scan of `record.record_event`, growing with
-   the record). Migration `0023_bootstrap_lookup.sql`: a partial index.
+   the record). Migration `0024_bootstrap_lookup.sql`: a partial index.
 3. **A work driver pass ran for minutes**: it dispatched up to 20 claims of 20 commands (400 commands, 136 to 234 s per
    pass at 120 items), and a gate decided in the meantime was taken into its item only at the next pass's start, so
    the people kept seeing gates pending they had decided (the 922 errors were mostly their second try, `409
