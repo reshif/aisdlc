@@ -157,7 +157,16 @@ describe('the work item page', () => {
             lane: 'L4',
             phase: 'S4',
             waiting: 'gates:G3d',
-            gates: [{ gate: 'G3d', gate_instance_id: 'gi-1', status: 'pending', outcome: null }],
+            gates: [
+              {
+                gate: 'G3d',
+                gate_instance_id: 'gi-1',
+                status: 'pending',
+                outcome: null,
+                card_id: null,
+                ledger_entry_id: null,
+              },
+            ],
           },
           { observe: true },
         ),
