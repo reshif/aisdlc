@@ -27930,6 +27930,150 @@
       ],
       "additionalProperties": false
     },
+    "DegradedView": {
+      "type": "object",
+      "properties": {
+        "as_of": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "kills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "clear",
+                  "killed",
+                  "unreachable"
+                ]
+              },
+              "killed": {
+                "type": "boolean"
+              },
+              "kill_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "project_id",
+              "state",
+              "killed",
+              "kill_ids",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "notary": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "degraded",
+                "down",
+                "unknown"
+              ]
+            },
+            "detail_code": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "as_of": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pending_ops_actions": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "state",
+            "detail_code",
+            "as_of",
+            "pending_ops_actions"
+          ],
+          "additionalProperties": false
+        },
+        "read_models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+              },
+              "as_of_seq": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "head_seq": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "stale": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "as_of_seq",
+              "head_seq",
+              "stale",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "as_of",
+        "kills",
+        "notary",
+        "read_models"
+      ],
+      "additionalProperties": false
+    },
     "DeliveryErrorCode": {
       "type": "string",
       "enum": [
@@ -78968,6 +79112,47 @@
       "maxLength": 128,
       "pattern": "^[a-z0-9][a-z0-9_-]*$"
     },
+    "ProjectKillVerdict": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "clear",
+            "killed",
+            "unreachable"
+          ]
+        },
+        "killed": {
+          "type": "boolean"
+        },
+        "kill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "project_id",
+        "state",
+        "killed",
+        "kill_ids",
+        "message"
+      ],
+      "additionalProperties": false
+    },
     "ProjectLearnView": {
       "type": "object",
       "properties": {
@@ -92232,6 +92417,42 @@
         "status",
         "outcome",
         "card_id"
+      ],
+      "additionalProperties": false
+    },
+    "ReadModelFreshness": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "as_of_seq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "head_seq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "as_of_seq",
+        "head_seq",
+        "stale",
+        "reason"
       ],
       "additionalProperties": false
     },

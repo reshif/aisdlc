@@ -8,6 +8,7 @@ import { registerPortalListRoutes } from './portal-lists.js';
 import { registerFloorRoutes } from './floor.js';
 import { registerFleetRoutes } from './fleet.js';
 import { readHealthView } from './health.js';
+import { readDegraded } from './degraded.js';
 import type { KillVerdictPort } from './floor-live.js';
 import {
   ItemAnswerRequest,
@@ -410,6 +411,23 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return await readHealthView(o.pool, clock.now());
     } catch {
       return fail(reply, coreError('unavailable', 'the health tiles could not be read'));
+    }
+  });
+
+  // M19: the degraded states a screen states first (kill verdicts of the projects named, the Notary, stale read
+  // models). Scope `portal`: the bff names only projects the person may view.
+  app.get('/v1/degraded', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    const raw = (req.query as { projects?: unknown }).projects;
+    const projects = (typeof raw === 'string' ? raw.split(',') : [])
+      .map((p) => p.trim())
+      .filter((p) => ProjectId.safeParse(p).success);
+    if (projects.length > 50) return fail(reply, coreError('invalid_input', 'at most 50 projects'));
+    try {
+      return await readDegraded({ pool: o.pool, now: () => clock.now(), kill: o.kill }, projects);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the degraded states could not be read'));
     }
   });
 

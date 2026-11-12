@@ -164,3 +164,46 @@ export function healthViewOf(snapshots: readonly HealthSnapshot[], nowMs: number
     tiles,
   };
 }
+
+// ---------------------------------------------------------------- degraded states (portal coverage §4)
+
+/** One read model's freshness at read time: caught up with the record, or behind (and why). */
+export const ReadModelFreshness = z.strictObject({
+  name: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+  as_of_seq: z.number().int().min(0),
+  head_seq: z.number().int().min(0),
+  /** It could not catch up (it needs a rebuild, or the catch-up failed): the screens it feeds say so. */
+  stale: z.boolean(),
+  reason: z.string().nullable(),
+});
+export type ReadModelFreshness = z.infer<typeof ReadModelFreshness>;
+
+/** The kill switch's verdict on one project, as a banner reads it (unreachable is killed, AR9). */
+export const ProjectKillVerdict = z.strictObject({
+  project_id: z.string().min(1),
+  state: z.enum(['clear', 'killed', 'unreachable']),
+  killed: z.boolean(),
+  kill_ids: z.array(z.string().min(1)),
+  message: z.string().nullable(),
+});
+export type ProjectKillVerdict = z.infer<typeof ProjectKillVerdict>;
+
+/**
+ * `GET /v1/degraded` (core) and `GET /api/degraded` (bff): what a screen must say before it shows anything else. The
+ * kill switch's verdict per project (unreachable reads killed, AR9), the Notary (down: decisions fail closed, operator
+ * actions wait for the backfill), and the read models that are behind.
+ */
+export const DegradedView = z.strictObject({
+  as_of: IsoDateTime,
+  kills: z.array(ProjectKillVerdict),
+  notary: z.strictObject({
+    /** The Notary's tile (the HealthSnapshot rule applied): `unknown` when nothing read it recently. */
+    state: HealthState,
+    detail_code: z.string().nullable(),
+    as_of: IsoDateTime.nullable(),
+    /** Operator actions executed and not yet ledgered (they are backfilled once the Notary answers). */
+    pending_ops_actions: z.number().int().min(0),
+  }),
+  read_models: z.array(ReadModelFreshness),
+});
+export type DegradedView = z.infer<typeof DegradedView>;

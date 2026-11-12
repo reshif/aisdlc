@@ -1005,6 +1005,9 @@ export const SCHEMAS = {
   HealthTile: entities.HealthTile,
   HealthCounts: entities.HealthCounts,
   HealthView: entities.HealthView,
+  ReadModelFreshness: entities.ReadModelFreshness,
+  ProjectKillVerdict: entities.ProjectKillVerdict,
+  DegradedView: entities.DegradedView,
 } as const satisfies Record<string, z.ZodType>;
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';

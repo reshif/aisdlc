@@ -197,6 +197,31 @@ describe('fleet audit reads', () => {
     core.override.set('GET /v1/health', { status: 200, json: { tiles: 'x' } });
     expect((await api('root', 'GET', '/api/health')).status).toBe(502);
   });
+
+  it('M19 degraded: only the projects the person may view are asked about', async () => {
+    const view = {
+      as_of: T,
+      kills: [
+        {
+          project_id: 'acme',
+          state: 'unreachable',
+          killed: true,
+          kill_ids: [],
+          message: 'no answer',
+        },
+      ],
+      notary: { state: 'down', detail_code: 'unreachable', as_of: T, pending_ops_actions: 2 },
+      read_models: [{ name: 'work_item', as_of_seq: 3, head_seq: 3, stale: false, reason: null }],
+    };
+    core.override.set('GET /v1/degraded?projects=acme', { status: 200, json: view });
+    core.seen.length = 0;
+    const r = await api('bob', 'GET', '/api/degraded?projects=acme,secret');
+    expect(r.status).toBe(200);
+    expect(r.json).toEqual(view);
+    expect(core.seen.at(-1)?.path).toBe('/v1/degraded?projects=acme');
+    core.override.set('GET /v1/degraded?projects=acme', { status: 200, json: { kills: 1 } });
+    expect((await api('bob', 'GET', '/api/degraded?projects=acme')).status).toBe(502);
+  });
 });
 
 describe('items and the catalogue', () => {
