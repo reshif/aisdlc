@@ -165,6 +165,8 @@ export const ActionDef = z.strictObject({
 export type ActionDef = z.infer<typeof ActionDef>;
 
 const ADMINS = ['factory.admin'] as const;
+/** The fleet reader: the whole record, deciding nothing. */
+const AUDITOR = 'factory.auditor';
 /** Who may start an onboarding: every administrative holder plus the grantable onboarder (M9.0). */
 const ONBOARDERS = ['factory.admin', 'factory.onboarder'] as const;
 
@@ -173,7 +175,8 @@ const ONBOARDERS = ['factory.admin', 'factory.onboarder'] as const;
  * `item.view_floor` and `floor.read` (DM §7), `kill.release` (DM `PreparedDecision`), the decision
  * of gates and cards (`gate.approve` in DM, `gate.decide` here because a decision is approve,
  * reject or request changes). Added here: `project.view`, `project.settings.edit`, `gate.view`,
- * `card.decide`, `kill.request`, `config.propose`, `audit.read`, `access.explain`.
+ * `card.decide`, `kill.request`, `config.propose`, `audit.read`, `access.explain`; on 2026-11-12 (PLAN §7a) the
+ * portal's `identity.admin`, `access.manage`, `ops.read`, `session.stop`, `quality.read` and `assistant.use`.
  */
 export const ACTION_CATALOGUE = {
   'project.onboard': {
@@ -449,6 +452,72 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'view_level', min: 'V3' }],
     log_allow: false,
   },
+  // PLAN §7a (2026-11-12): the six portal actions the design proposed (portal-coverage §5 item 6), replacing the
+  // stand-ins the screens and routes used until then (`audit.read`, `config.decide`, `project.view`).
+  'identity.admin': {
+    action_id: 'identity.admin',
+    description:
+      'Administer sign-in and people: SSO and session policy, suspension, erasure and legal hold',
+    class: 'config',
+    resource_types: ['Fleet'],
+    grants: [{ kind: 'roles', roles: [...ADMINS] }],
+    log_allow: true,
+  },
+  'access.manage': {
+    action_id: 'access.manage',
+    description:
+      'Grant or remove role bindings and decide access requests (an approver grant still needs its M gate)',
+    class: 'config',
+    resource_types: ['Fleet', 'Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'ops.read': {
+    action_id: 'ops.read',
+    description:
+      'See Operate: the scheduler and admission, sandboxes and slots, controls, the kill journal, health',
+    class: 'read',
+    resource_types: ['Fleet', 'Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin', 'sec'] },
+      { kind: 'roles', roles: [...ADMINS, AUDITOR] },
+    ],
+    log_allow: false,
+  },
+  'session.stop': {
+    action_id: 'session.stop',
+    description: 'Stop one sandbox session (a session-scope kill)',
+    class: 'kill',
+    resource_types: ['Fleet', 'Project'],
+    grants: [
+      { kind: 'slots', slots: ['kill', 'admin', 'sec'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'quality.read': {
+    action_id: 'quality.read',
+    description: 'See Quality: agents, evals, models and routes, integrations',
+    class: 'read',
+    resource_types: ['Fleet', 'Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS, AUDITOR] },
+    ],
+    log_allow: false,
+  },
+  'assistant.use': {
+    action_id: 'assistant.use',
+    description:
+      'Ask the factory and the onboarding assistant (answers only from what you can already see)',
+    class: 'read',
+    resource_types: ['Fleet', 'Project'],
+    grants: [{ kind: 'view_level', min: 'V1' }],
+    log_allow: false,
+  },
 } as const satisfies Record<string, z.input<typeof ActionDef>>;
 
 export type ActionId = keyof typeof ACTION_CATALOGUE;
@@ -463,7 +532,7 @@ export const LOGGED_ALLOW_ACTIONS: readonly ActionId[] = ACTION_IDS.filter(
 );
 
 /** Bump with any change to the actions, their grants, the entity model or the cross-cutting rules. */
-export const PDP_POLICY_VERSION = '1.4.0';
+export const PDP_POLICY_VERSION = '1.5.0';
 
 const VIEW_RANK: Readonly<Record<ViewLevel, number>> = { V1: 1, V2: 2, V3: 3 };
 
