@@ -9,6 +9,7 @@ import type {
   ThreadView,
   ConfigKeySummary,
   ConfigKeyView,
+  Tier,
   ConfigProposeResult,
   DecisionBatchView,
   DecisionQuery,
@@ -118,6 +119,10 @@ export interface Me {
 export type ConfigKeyWire = ConfigKeyView & {
   readonly may_propose: boolean;
   readonly principal_names: Readonly<Record<string, string>>;
+  /** The project layer only (P1-5): the project's tier and deploys, for the floors. */
+  readonly project_id?: string;
+  readonly tier?: Tier | null;
+  readonly deploys?: boolean | null;
 };
 
 export type OnboardInput = Omit<OnboardRequest, 'on_behalf_of'>;
@@ -374,6 +379,29 @@ export const api = {
     request<ConfigProposeResult>(
       'POST',
       `/api/config/keys/${encodeURIComponent(key)}/proposals`,
+      b,
+      csrf,
+    ),
+  // P1-5: a project's own layer
+  projectConfigKeys: (project: string) =>
+    request<{ keys: ConfigKeySummary[]; may_propose: boolean }>(
+      'GET',
+      `/api/projects/${encodeURIComponent(project)}/config/keys`,
+    ),
+  projectConfigKey: (project: string, key: string) =>
+    request<ConfigKeyWire>(
+      'GET',
+      `/api/projects/${encodeURIComponent(project)}/config/keys/${encodeURIComponent(key)}`,
+    ),
+  proposeProjectConfig: (
+    project: string,
+    key: string,
+    b: { value: unknown; parent_rev_hash: string | null },
+    csrf: string,
+  ) =>
+    request<ConfigProposeResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/config/keys/${encodeURIComponent(key)}/proposals`,
       b,
       csrf,
     ),

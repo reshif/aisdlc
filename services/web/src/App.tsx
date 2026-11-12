@@ -1,3 +1,4 @@
+import { ProjectSettingsPage } from './pages/ProjectSettingsPage';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { AccessProvider, reasonText } from './access';
@@ -225,6 +226,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <InboxPage />;
     case 'revision':
       return <RevisionPage gate={route.id} csrf={me.csrf_token} />;
+    case 'projectSettings':
+      return <ProjectSettingsPage id={route.id} csrf={me.csrf_token} />;
     case 'readiness':
       return <PrrPage project={route.id} />;
     case 'knowledge':
