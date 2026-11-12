@@ -2,8 +2,10 @@ import {
   PRR_EVENT,
   PrrActivatedPayload,
   PrrProposedPayload,
+  prrRecordHash,
   prrStream,
   repoIdOf,
+  type ProjectReadinessRecord,
   type Level,
   type PrincipalId,
   type PrrGatingProfile,
@@ -65,6 +67,8 @@ export async function seedActivePrr(
     gating?: PrrGatingProfile;
     /** The PRR version to write (a second one supersedes the first). */
     version?: number;
+    /** Overrides of the record's autonomy (M15.1: G4's mode reads it); the record hash follows. */
+    autonomy?: Partial<ProjectReadinessRecord['autonomy']>;
   } = {},
 ): Promise<Seeded> {
   n += 1;
@@ -91,7 +95,7 @@ export async function seedActivePrr(
   }
   const gating = o.gating ?? GATING_ON;
   const { project_deploys, ...profile } = gating;
-  const prr = built(
+  const made = built(
     inputs({
       tier: o.tier ?? 'T1',
       level: o.level ?? 'full',
@@ -99,6 +103,8 @@ export async function seedActivePrr(
       over: { project_id: project, version, deploys: project_deploys },
     }),
   );
+  const changed = o.autonomy ? { ...made, autonomy: { ...made.autonomy, ...o.autonomy } } : made;
+  const prr = o.autonomy ? { ...changed, record_hash: prrRecordHash(changed) } : made;
   const stream = prrStream(project, repoIdOf(repo));
   const w = await inCoreTx(deps, async (j, tx) => {
     await lockKeys(tx, [`project:${project}`, `repo:${repo.toLowerCase()}`]);

@@ -1,6 +1,7 @@
 import { ConfigReader, ConfigRegistry, registerGatewayConfig } from '@aisdlc/config';
 import {
   AdmissionCapacity,
+  DbPrincipalLinks,
   DbProjectSettings,
   DbRegisteredRepos,
   GatewayEnvelope,
@@ -321,6 +322,7 @@ export async function bootCoreWorker(
       const beforeVerify = built ? built.stagePorts : agentPorts;
       // M14.3: S7 7.1 to 7.5 through the verify service (its kits through the sandbox-controller); M14.4: 7.6 here, the
       // Evidence Pack signed by the Notary's evidence purpose and stored in the object store's write-once bucket
+      const verifying = Boolean(cfg.verify && cfg.knowledge && cfg.objectStore && ledger);
       const stagePorts =
         cfg.verify && cfg.knowledge && cfg.objectStore && ledger
           ? verifyStagePorts({
@@ -366,6 +368,9 @@ export async function bootCoreWorker(
               ? { admission: { ...admissionBase, attempted: realCapacity.attempted } }
               : {}),
             ...(cfg.stagePorts === 'agents' ? { vault } : {}),
+            // M15.1: with S7's Evidence Packs, G4 opens with its review (mode C or E, the pack of exactly each PR head,
+            // CODEOWNERS at the base through the codehost, the owners' principals through identity's links)
+            ...(verifying ? { review: { source, links: new DbPrincipalLinks(readPool) } } : {}),
             capacity: deps.capacity ?? realCapacity ?? new FakeCapacity(),
             ...(killState ? { kill: killState } : {}),
             // M11.2: every agent-acted stage command gets a per-Unit key minted from the agent's contract
