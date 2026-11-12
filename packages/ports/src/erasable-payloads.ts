@@ -49,8 +49,26 @@ export class FakeErasablePayloads implements ErasablePayloadsPort {
 
   constructor(private readonly now: () => string = () => new Date().toISOString()) {}
 
-  add(p: Omit<ErasablePayload, 'erased_at'> & { text?: string }): void {
-    this.rows.set(p.payload_id, { ...p, erased_at: null, text: p.text ?? 'some words' });
+  add(p: {
+    readonly payload_id: string;
+    readonly thread_id: string;
+    readonly owner: string;
+    readonly project_id: string | null;
+    readonly sha256: string;
+    readonly created_at: string;
+    readonly text?: string;
+  }): void {
+    this.rows.set(p.payload_id, {
+      kind: 'conversation_payload',
+      payload_id: p.payload_id,
+      thread_id: p.thread_id,
+      owner: p.owner as ErasablePayload['owner'],
+      project_id: p.project_id as ErasablePayload['project_id'],
+      sha256: p.sha256,
+      created_at: p.created_at,
+      erased_at: null,
+      text: p.text ?? 'some words',
+    });
   }
 
   async list(q: ErasablePayloadQuery) {

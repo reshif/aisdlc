@@ -628,6 +628,8 @@ export const ExportWrittenPayload = z.strictObject({
   events: z.number().int().min(0),
   uncovered: z.number().int().min(0),
   produced_at: IsoDateTime,
+  /** The `audit.export` entry, written last in the same transaction. */
+  entry_id: z.uuid(),
 });
 export type ExportWrittenPayload = z.infer<typeof ExportWrittenPayload>;
 
@@ -655,9 +657,8 @@ export const ErasureDecidedPayload = z.strictObject({
   by: z.string().min(1),
   reason: Text(500),
   matter_ref: MatterRef.nullable(),
-  /** The `erasure.execute` entry (approved only). */
-  entry_seq: z.number().int().min(1).nullable(),
-  entry_hash: Sha256Hex.nullable(),
+  /** The `erasure.execute` entry (approved only), written last in the same transaction. */
+  entry_id: z.uuid().nullable(),
   at: IsoDateTime,
 });
 export type ErasureDecidedPayload = z.infer<typeof ErasureDecidedPayload>;
@@ -693,8 +694,8 @@ export const HoldPlacedPayload = z.strictObject({
   matter_ref: MatterRef,
   reason: Text(500),
   placed_by: PrincipalId,
-  entry_seq: z.number().int().min(1),
-  entry_hash: Sha256Hex,
+  /** The `legal_hold.place` entry, written last in the same transaction. */
+  entry_id: z.uuid(),
   at: IsoDateTime,
 });
 export type HoldPlacedPayload = z.infer<typeof HoldPlacedPayload>;
@@ -703,8 +704,7 @@ export const HoldReleasedPayload = z.strictObject({
   hold_id: z.uuid(),
   released_by: PrincipalId,
   reason: Text(500),
-  entry_seq: z.number().int().min(1),
-  entry_hash: Sha256Hex,
+  entry_id: z.uuid(),
   at: IsoDateTime,
 });
 export type HoldReleasedPayload = z.infer<typeof HoldReleasedPayload>;
