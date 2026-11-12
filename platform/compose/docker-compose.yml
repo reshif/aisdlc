@@ -15,7 +15,7 @@
 
 x-factory:
   &factory # The one image, built by `migrate` below; every service picks its bundle with `command`.
-  image: aisdlc/factory:local
+  image: ${AISDLC_IMAGE:-aisdlc/factory:local}
   pull_policy: never
   user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
   init: true

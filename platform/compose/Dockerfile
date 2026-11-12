@@ -32,7 +32,9 @@ RUN set -eu; mkdir /out; \
       [ -d "$d" ] && cp -r --parents "$d" /out; \
     done; \
     mkdir -p /out/packages/ledger/dist; \
-    cp packages/ledger/dist/verify-ledger.js* /out/packages/ledger/dist/
+    cp packages/ledger/dist/verify-ledger.js* /out/packages/ledger/dist/; \
+    mkdir -p /out/packages/verify/dist; \
+    cp packages/verify/dist/verify-pack.js* /out/packages/verify/dist/
 
 FROM ${RUNTIME_IMAGE} AS runtime
 # git is the one OS package (codehost and knowledge run it; neither needs a shell, a compiler or curl).

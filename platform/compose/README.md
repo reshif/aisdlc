@@ -196,6 +196,14 @@ tokens and passwords (down -v first). See `secrets/README.md` for who mounts wha
 The files are read through a bind mount, so the containers must run as their owner:
 `init-secrets` writes `AISDLC_UID`/`AISDLC_GID` into `.env` (your own uid; 10001 when run as root).
 
+## Backup and restore (RC-OPS-1)
+
+`./backup.sh <dir>` takes every database and role, the object store and key custody's volumes, `secrets/` and
+`.env` (a secret itself: keep it encrypted); `./restore.sh <dir>` puts them back onto a fresh stack (no Postgres
+volume) before it is brought up. `npm run drill:restore` (`drill-restore.sh`) proves it end to end. What is taken,
+in which order and why, how to check a restore, and the RPO and RTO: `docs/runbooks/backup-restore.md`. The image
+name is `AISDLC_IMAGE` (default `aisdlc/factory:local`).
+
 ## First run: the seed
 
 A new factory denies every decision (no policy bundle) and nobody holds any role, yet the bundle
