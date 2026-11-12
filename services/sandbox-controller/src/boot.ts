@@ -25,7 +25,7 @@ import {
 import { z } from 'zod';
 import { createControllerApp } from './app.js';
 import { ConfigCaps } from './caps.js';
-import { SandboxController } from './controller.js';
+import { SandboxController, type ControllerDeps, type SweepResult } from './controller.js';
 import { RecordGrants } from './grants.js';
 import { CoreHeartbeats, HeartbeatReporter } from './heartbeat.js';
 
@@ -82,7 +82,7 @@ function probeImagesEnv(env: Env): string[] {
 }
 
 /** The driver of this host: the `DockerSandboxDriver` in front of the coding proxy (this process holds its token). */
-function driverFromEnv(env: Env): SandboxPort {
+function driverFromEnv(env: Env): DockerSandboxDriver {
   const u = new URL(httpUrlEnv(env, 'SANDBOX_CONTROLLER_PROXY_URL'));
   return new DockerSandboxDriver({
     endpoint: {
@@ -131,13 +131,16 @@ function driverFromEnv(env: Env): SandboxPort {
  *                                     `POST /v1/sessions/heartbeat`. Both or neither; without them no heartbeat is sent
  *                                     (a session's model calls and dispatches are then its only activity)
  *   SANDBOX_CONTROLLER_HEARTBEAT_MS   how often each running session beats (default 30000; a session also beats at start)
+ *   SANDBOX_CONTROLLER_SWEEP_MS       M19: how often what no running session owns is swept (default 60000); the first
+ *                                     sweep runs at boot, before the API listens, and removes everything of this host's
+ *                                     proxy owner (a dead predecessor's sessions)
  *   SANDBOX_CONTROLLER_HOST (127.0.0.1), SANDBOX_CONTROLLER_PORT (8430)
  *
  * `deps.driver` replaces the Docker driver (tests).
  */
 export async function bootSandboxController(
   env: Env,
-  deps: { driver?: SandboxPort } = {},
+  deps: { driver?: SandboxPort; sweep?: ControllerDeps['sweep'] } = {},
 ): Promise<RunningService> {
   const dbUrl = databaseUrl(env, 'SANDBOX_CONTROLLER_DATABASE_URL');
   const callers = jsonEnv(env, 'SANDBOX_CONTROLLER_CALLERS', Callers);
@@ -151,7 +154,11 @@ export async function bootSandboxController(
   const bodyLimit = intEnv(env, 'SANDBOX_CONTROLLER_BODY_LIMIT_MB', 64, 1) * 1024 * 1024;
   const reloadMs = intEnv(env, 'SANDBOX_CONTROLLER_CAPS_RELOAD_MS', 5_000, 100);
   const listenOpts = listenConfig(env, 'SANDBOX_CONTROLLER', 8430);
-  const driver = deps.driver ?? driverFromEnv(env);
+  const docker = deps.driver ? null : driverFromEnv(env);
+  const driver: SandboxPort = deps.driver ?? (docker as DockerSandboxDriver);
+  const sweepFn: ControllerDeps['sweep'] | undefined =
+    deps.sweep ?? (docker ? (keep) => docker.sweep(keep) : undefined);
+  const sweepMs = intEnv(env, 'SANDBOX_CONTROLLER_SWEEP_MS', 60_000, 1_000);
   const coreUrl = env['SANDBOX_CONTROLLER_CORE_URL'] ?? '';
   const coreTokenRef = env['SANDBOX_CONTROLLER_CORE_TOKEN_REF'] ?? '';
   if ((coreUrl === '') !== (coreTokenRef === '')) {
@@ -171,6 +178,7 @@ export async function bootSandboxController(
   const pool = createPool(dbUrl, 4);
   let reader: ConfigReader | undefined;
   let timer: NodeJS.Timeout | undefined;
+  let sweepTimer: NodeJS.Timeout | undefined;
   try {
     const have = await pool.query<Record<string, string | null>>(
       `SELECT to_regclass('config.genuine_publish')::text AS config,
@@ -222,7 +230,27 @@ export async function bootSandboxController(
         lf4: () => (caps.isStale ? null : workerImageFrom(r0.current())),
         host: workerImageIdEnv(env),
       },
+      ...(sweepFn ? { sweep: sweepFn } : {}),
     });
+    // M19: what a dead predecessor left (its sessions' containers, networks and repo copies) goes before anything
+    // new is placed; a sweep that cannot finish is logged and retried, never a reason not to start
+    const swept = (when: string, r: SweepResult) => {
+      const n = r.containers.length + r.networks.length + r.scratch.length;
+      if (n > 0 || r.errors.length > 0) {
+        console.error(
+          `sandbox-controller: sweep (${when}): removed ${r.containers.length} container(s), ${r.networks.length} network(s), ${r.scratch.length} scratch dir(s)${r.errors.length > 0 ? `; could not: ${r.errors.join('; ').slice(0, 300)}` : ''}`,
+        );
+      } else if (when === 'boot') {
+        console.error('sandbox-controller: sweep (boot): nothing left behind');
+      }
+    };
+    if (sweepFn) {
+      swept('boot', await controller.sweep());
+      sweepTimer = setInterval(() => {
+        void controller.sweep().then((r) => swept('periodic', r));
+      }, sweepMs);
+      sweepTimer.unref();
+    }
     if (heartbeatSink !== null) {
       reporter = new HeartbeatReporter({
         sessions: () => controller.sessions(),
@@ -242,10 +270,12 @@ export async function bootSandboxController(
     const url = await listen(app, listenOpts);
     const r = reader;
     const t = timer;
+    const st = sweepTimer;
     return {
       url,
       close: async () => {
         clearInterval(t);
+        if (st) clearInterval(st);
         reporter?.stop();
         await app.close();
         await r.stop();
@@ -254,6 +284,7 @@ export async function bootSandboxController(
     };
   } catch (e) {
     if (timer) clearInterval(timer);
+    if (sweepTimer) clearInterval(sweepTimer);
     await reader?.stop().catch(() => undefined);
     await pool.end().catch(() => undefined);
     throw e;

@@ -9,6 +9,7 @@ import { err, ok, type Result } from '@aisdlc/kernel';
 import {
   pdpEntityError,
   type PdpBindingFact,
+  type PdpEntityError,
   type PdpEntityPort,
   type PdpPrincipalFacts,
 } from '@aisdlc/ports';
@@ -49,26 +50,77 @@ export class IdentityPdpEntities implements PdpEntityPort {
     },
   ) {}
 
-  async principalFacts(principal: PrincipalId, scopes: readonly Scope[], at: Date) {
+  /** One batch (M19): the read model caught up once, the principal and the bindings of each scope read once. */
+  batch(): PdpEntityPort {
+    let fresh: Promise<Result<void, string>> | null = null;
+    const principals = new Map<string, ReturnType<typeof getPrincipal>>();
+    const scoped = new Map<string, ReturnType<typeof effectiveBindings>>();
+    return {
+      principalFacts: (principal, scopes, at) =>
+        this.facts(principal, scopes, at, {
+          fresh: () => (fresh ??= this.catchUp()),
+          principal: (id) => {
+            let p = principals.get(id);
+            if (!p) principals.set(id, (p = getPrincipal(this.o.pool, id)));
+            return p;
+          },
+          bindings: (id, scope, t) => {
+            const k = `${id}|${scope.kind}:${scope.ref}|${t.toISOString()}`;
+            let b = scoped.get(k);
+            if (!b) {
+              scoped.set(
+                k,
+                (b = effectiveBindings(
+                  this.o.pool,
+                  id,
+                  scope,
+                  t,
+                  this.o.catalogue ?? ROLE_CATALOGUE,
+                )),
+              );
+            }
+            return b;
+          },
+        }),
+    };
+  }
+
+  private async catchUp(): Promise<Result<void, string>> {
+    if (this.o.freshness === 'check') {
+      const cur = await identityReadModelCurrent(this.o.pool);
+      return cur.ok ? ok(undefined) : err(cur.error);
+    }
+    const fresh = await freshReadModel(this.o.pool);
+    return fresh.ok ? ok(undefined) : err(fresh.error.message);
+  }
+
+  principalFacts(principal: PrincipalId, scopes: readonly Scope[], at: Date) {
+    return this.facts(principal, scopes, at, {
+      fresh: () => this.catchUp(),
+      principal: (id) => getPrincipal(this.o.pool, id),
+      bindings: (id, scope, t) =>
+        effectiveBindings(this.o.pool, id, scope, t, this.o.catalogue ?? ROLE_CATALOGUE),
+    });
+  }
+
+  private async facts(
+    principal: PrincipalId,
+    scopes: readonly Scope[],
+    at: Date,
+    r: {
+      fresh: () => Promise<Result<void, string>>;
+      principal: (id: string) => ReturnType<typeof getPrincipal>;
+      bindings: (id: string, scope: Scope, at: Date) => ReturnType<typeof effectiveBindings>;
+    },
+  ): Promise<Result<PdpPrincipalFacts | null, PdpEntityError>> {
     try {
-      if (this.o.freshness === 'check') {
-        const cur = await identityReadModelCurrent(this.o.pool);
-        if (!cur.ok) return err(pdpEntityError('unavailable', cur.error));
-      } else {
-        const fresh = await freshReadModel(this.o.pool);
-        if (!fresh.ok) return err(pdpEntityError('unavailable', fresh.error.message));
-      }
-      const p = await getPrincipal(this.o.pool, principal);
+      const fresh = await r.fresh();
+      if (!fresh.ok) return err(pdpEntityError('unavailable', fresh.error));
+      const p = await r.principal(principal);
       if (!p) return ok<PdpPrincipalFacts | null>(null);
       const seen = new Map<string, PdpBindingFact>();
       for (const scope of scopes) {
-        const found = await effectiveBindings(
-          this.o.pool,
-          principal,
-          scope,
-          at,
-          this.o.catalogue ?? ROLE_CATALOGUE,
-        );
+        const found = await r.bindings(principal, scope, at);
         for (const b of found) {
           seen.set(b.binding_id, {
             binding_id: b.binding_id,

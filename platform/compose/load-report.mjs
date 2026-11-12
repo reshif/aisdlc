@@ -1,0 +1,195 @@
+// The load test's report (PLAN M19; load.sh runs it): the run's own measurements (aisdlc-load run), the memory of every
+// container and Postgres's connections sampled from outside, the machine, and each number against its threshold.
+// Writes LOAD_OUT.json (everything) and LOAD_OUT.md (the tables). Plain Node, no dependency.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const work = process.env.LOAD_WORK;
+const out = process.env.LOAD_OUT;
+if (!work || !out) throw new Error('LOAD_WORK and LOAD_OUT are required');
+const run = JSON.parse(readFileSync(join(work, 'report.json'), 'utf8'));
+const lines = (f) => {
+  try {
+    return readFileSync(join(work, f), 'utf8').split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+const project = process.env.COMPOSE_PROJECT_NAME ?? '';
+
+// docker stats: "t|name|12.3MiB / 256MiB|1.2%"
+const mib = (s) => {
+  const m = /^([\d.]+)\s*([KMG]i?B|B)$/.exec(s.trim());
+  if (!m) return null;
+  const f = { B: 1 / 1048576, KiB: 1 / 1024, KB: 1 / 1024, MiB: 1, MB: 1, GiB: 1024, GB: 1024 }[
+    m[2]
+  ];
+  return Number(m[1]) * f;
+};
+const mem = {};
+for (const l of lines('mem.txt')) {
+  const [, name, usage, cpu] = l.split('|');
+  if (!name || !usage) continue;
+  const [used, limit] = usage.split('/').map(mib);
+  if (used == null) continue;
+  const svc = name.replace(`${project}-`, '').replace(/-\d+$/, '');
+  const m = (mem[svc] ??= { samples: 0, max_mib: 0, sum: 0, limit_mib: limit, cpu_max_pct: 0 });
+  m.samples += 1;
+  m.sum += used;
+  m.max_mib = Math.max(m.max_mib, used);
+  m.cpu_max_pct = Math.max(m.cpu_max_pct, Number.parseFloat(cpu) || 0);
+}
+const memory = Object.fromEntries(
+  Object.entries(mem)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => [
+      k,
+      {
+        samples: v.samples,
+        mean_mib: Math.round((v.sum / v.samples) * 10) / 10,
+        max_mib: Math.round(v.max_mib * 10) / 10,
+        limit_mib: v.limit_mib == null ? null : Math.round(v.limit_mib),
+        max_of_limit_pct: v.limit_mib ? Math.round((v.max_mib / v.limit_mib) * 1000) / 10 : null,
+        cpu_max_pct: Math.round(v.cpu_max_pct * 10) / 10,
+      },
+    ]),
+);
+
+// pg_stat_activity: "t|role|n"
+const byT = new Map();
+const roleMax = {};
+for (const l of lines('pg.txt')) {
+  const [t, role, n] = l.split('|');
+  const c = Number(n);
+  if (!t || !role || !Number.isFinite(c)) continue;
+  byT.set(t, (byT.get(t) ?? 0) + c);
+  roleMax[role] = Math.max(roleMax[role] ?? 0, c);
+}
+const totals = [...byT.values()];
+const postgres = {
+  samples: totals.length,
+  connections_max: totals.length ? Math.max(...totals) : 0,
+  connections_mean: totals.length
+    ? Math.round((totals.reduce((a, b) => a + b, 0) / totals.length) * 10) / 10
+    : 0,
+  max_by_role: Object.fromEntries(Object.entries(roleMax).sort(([a], [b]) => a.localeCompare(b))),
+  max_connections: 100,
+};
+
+const [cpus, memKb, cpuModel, kernel, docker] = (process.env.LOAD_MACHINE ?? '').split('|');
+const machine = {
+  cpus: Number(cpus),
+  memory_gib: Math.round((Number(memKb) / 1048576) * 10) / 10,
+  cpu_model: cpuModel ?? null,
+  kernel: kernel ?? null,
+  docker: docker ?? null,
+  note: 'one shared VM; other workloads may have run on the same Docker daemon during the run',
+};
+const settings = Object.fromEntries(
+  (process.env.LOAD_SETTINGS ?? '').split(' ').map((kv) => kv.split('=')),
+);
+
+// The thresholds (stated before the run; docs/evidence/load-m19.md says why each is where it is)
+const r = run.reads_ms ?? {};
+const p95 = (k) => r[k]?.p95 ?? null;
+const T = [
+  ['floor read at core, p95 (ms)', p95('burst_in_flight.core.floor'), 250],
+  ['floor read at the bff, p95 (ms)', p95('burst_in_flight.bff.floor'), 400],
+  ['fleet read at the bff, p95 (ms)', p95('burst_in_flight.bff.fleet'), 400],
+  ['inbox at the bff, p95 (ms)', p95('burst_in_flight.bff.inbox'), 500],
+  [
+    'work driver command latency, p95 (ms)',
+    run.work_driver?.latency_ms?.p95 ?? null,
+    3 * Number(settings.driver_interval_ms ?? 1000) + 2000,
+  ],
+  ['Postgres connections, max', postgres.connections_max, 80],
+  [
+    'memory of the busiest service, max % of its limit',
+    Math.max(0, ...Object.values(memory).map((m) => m.max_of_limit_pct ?? 0)),
+    80,
+  ],
+  ['items not done at the deadline', run.items?.not_done ?? null, 0],
+  ['dead-lettered work commands', run.work_driver?.dead ?? null, 0],
+];
+const thresholds = T.map(([what, value, limit]) => ({
+  what,
+  value,
+  limit,
+  ok: value !== null && value <= limit,
+}));
+
+const doc = {
+  generated_by: 'platform/compose/load.sh',
+  machine,
+  settings,
+  ...run,
+  memory,
+  postgres,
+  thresholds,
+};
+writeFileSync(`${out}.json`, `${JSON.stringify(doc, null, 2)}\n`);
+
+const row = (k, t) =>
+  t ? `| ${k} | ${t.n} | ${t.p50} | ${t.p95} | ${t.p99} | ${t.max} |` : `| ${k} | 0 | | | | |`;
+const md = [
+  '# Load test M19',
+  '',
+  `Generated by \`platform/compose/load.sh\` (${settings.commit ?? ''}, ${run.started_at} to ${run.ended_at}, ${run.duration_s} s). The numbers are in \`load-m19.json\`.`,
+  '',
+  '## Machine and settings',
+  '',
+  `- ${machine.cpus} CPUs (${machine.cpu_model}), ${machine.memory_gib} GiB, kernel ${machine.kernel}, Docker ${machine.docker}. ${machine.note}.`,
+  `- ${run.projects?.length ?? '?'} projects, ${settings.items} items each (${run.items?.submitted} submitted), coding cap ${settings.coding_cap}, ${settings.concurrency} people acting at once, the work driver polling every ${settings.driver_interval_ms} ms; CORE_WORKER_STAGE_PORTS=fake.`,
+  '',
+  '## Items',
+  '',
+  `${run.items?.done} of ${run.items?.submitted} items done; end to end ${run.items?.end_to_end_s?.p50} s at p50, ${run.items?.end_to_end_s?.p95} s at p95. The floor showed ${run.items?.floor_items_seen?.max} items of a project at most.`,
+  '',
+  '## Reads (ms)',
+  '',
+  '`burst_in_flight`: back-to-back reads once every item is on the floor; `during`: sampled while the people act; `burst_end`: after the last item.',
+  '',
+  '| read | n | p50 | p95 | p99 | max |',
+  '|---|---|---|---|---|---|',
+  ...Object.entries(r).map(([k, t]) => row(k, t)),
+  '',
+  '## The engine',
+  '',
+  '| what | n | p50 | p95 | p99 | max |',
+  '|---|---|---|---|---|---|',
+  row('work driver: command created to dispatched (ms)', run.work_driver?.latency_ms),
+  row('6.0 admission command (ms)', run.admission?.command_6_0_ms),
+  row('request submitted (core, ms)', run.submit_ms),
+  '',
+  `Commands: ${run.work_driver?.commands}, retried ${run.work_driver?.retried}, dead ${run.work_driver?.dead}. Admission: ${run.admission?.admitted} Units admitted over ${run.admission?.span_s} s (${run.admission?.per_minute} per minute), ${run.admission?.held_events} HELD events.`,
+  '',
+  '## Postgres connections',
+  '',
+  `Max ${postgres.connections_max} (mean ${postgres.connections_mean}) of max_connections ${postgres.max_connections}, over ${postgres.samples} samples. Max per role: ${Object.entries(
+    postgres.max_by_role,
+  )
+    .map(([k, v]) => `${k} ${v}`)
+    .join(', ')}.`,
+  '',
+  '## Memory per service (MiB)',
+  '',
+  '| service | mean | max | limit | max % of limit | CPU max % |',
+  '|---|---|---|---|---|---|',
+  ...Object.entries(memory).map(
+    ([k, m]) =>
+      `| ${k} | ${m.mean_mib} | ${m.max_mib} | ${m.limit_mib ?? ''} | ${m.max_of_limit_pct ?? ''} | ${m.cpu_max_pct} |`,
+  ),
+  '',
+  '## Thresholds',
+  '',
+  '| what | value | threshold | |',
+  '|---|---|---|---|',
+  ...thresholds.map(
+    (t) => `| ${t.what} | ${t.value ?? 'n/a'} | ${t.limit} | ${t.ok ? 'ok' : '**over**'} |`,
+  ),
+  '',
+  `Errors seen by the driver: ${run.errors?.count ?? 0}${run.errors?.first?.length ? ` (${run.errors.first.join('; ')})` : ''}.`,
+  '',
+].join('\n');
+writeFileSync(`${out}.md`, md);
+console.log(md);

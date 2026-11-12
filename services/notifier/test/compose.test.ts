@@ -45,7 +45,13 @@ describe('the notifier in the compose stack', () => {
   });
 
   it('is on its own networks only, and only the bff can reach its API', () => {
-    expect(netsOf(n).sort()).toEqual(['data-notifier', 'notifier-api', 'notifier-egress']);
+    // M19: plus its own network to the collector (it and the collector only)
+    expect(netsOf(n).sort()).toEqual([
+      'data-notifier',
+      'notifier-api',
+      'notifier-egress',
+      'telemetry-notifier',
+    ]);
     for (const x of ['data-notifier', 'notifier-api'])
       expect(compose.networks[x]?.internal).toBe(true);
     expect(members('data-notifier')).toEqual(['notifier', 'postgres']);

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   OtlpExporter,
   ServiceConfigError,
+  callJson,
+  traceContext,
+  traceHeaders,
+  withTrace,
   instrumentApp,
   listen,
   listenConfig,
@@ -220,5 +224,77 @@ describe('the exporter on a service', () => {
       (col.got.traces[0] as any).resourceSpans[0].resource.attributes[0].value.stringValue,
     ).toBe('witness');
     await col.close();
+  });
+});
+
+describe('M19: traceparent on outbound calls made through the kit', () => {
+  /** A downstream service that answers with the traceparent it was sent. */
+  async function echo() {
+    const app = newApp();
+    app.get('/echo', async (req) => ({ traceparent: req.headers.traceparent ?? null }));
+    return { app, url: await listen(app) };
+  }
+
+  it("a call made while serving an exported request names that request's server span as its parent", async () => {
+    const col = await fakeCollector();
+    const down = await echo();
+    const app = newApp();
+    app.get('/v1/up', async () => {
+      const r = await callJson({ baseUrl: down.url, token: 't', method: 'GET', path: '/echo' });
+      return r.reached ? r.json : null;
+    });
+    const exporter = new OtlpExporter(cfg(col.url));
+    instrumentApp(app, exporter);
+    const url = await listen(app);
+    try {
+      const parent = '4bf92f3577b34da6a3ce929d0e0e4736';
+      const got = (await (
+        await fetch(new URL('/v1/up', url), {
+          headers: { traceparent: `00-${parent}-00f067aa0ba902b7-01` },
+        })
+      ).json()) as { traceparent: string };
+      await exporter.flush();
+      const span = spansOf(col.got.traces[0])[0];
+      // the same trace; the downstream call's parent is this service's server span, sampled
+      expect(got.traceparent).toBe(`00-${parent}-${span.spanId}-01`);
+      expect(span.parentSpanId).toBe('00f067aa0ba902b7');
+    } finally {
+      await app.close();
+      await down.app.close();
+      await col.close();
+    }
+  });
+
+  it("without telemetry the caller's trace is carried on; outside a request no header is sent", async () => {
+    const down = await echo();
+    const app = newApp();
+    app.get('/v1/up', async () => {
+      const r = await callJson({ baseUrl: down.url, token: 't', method: 'GET', path: '/echo' });
+      return r.reached ? r.json : null;
+    });
+    const url = await listen(app);
+    try {
+      const tp = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+      const carried = (await (
+        await fetch(new URL('/v1/up', url), { headers: { traceparent: tp } })
+      ).json()) as { traceparent: string | null };
+      expect(carried.traceparent).toBe(tp);
+      const none = (await (await fetch(new URL('/v1/up', url))).json()) as {
+        traceparent: string | null;
+      };
+      expect(none.traceparent).toBeNull();
+      // a loop's tick has no request: nothing is sent
+      expect(traceHeaders()).toEqual({});
+      expect(traceContext()).toBeUndefined();
+      const out = await callJson({ baseUrl: down.url, token: 't', method: 'GET', path: '/echo' });
+      expect(out.reached && out.json).toEqual({ traceparent: null });
+      const inTrace = withTrace({ traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) }, () =>
+        traceHeaders(),
+      );
+      expect(inTrace).toEqual({ traceparent: `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01` });
+    } finally {
+      await app.close();
+      await down.app.close();
+    }
   });
 });

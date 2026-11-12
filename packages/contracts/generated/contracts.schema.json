@@ -44888,6 +44888,7 @@
         "gate-check",
         "gate-relay",
         "notifier",
+        "audit",
         "object-store"
       ]
     },

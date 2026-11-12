@@ -18,6 +18,7 @@ import {
   FakeSandbox,
   FakeStagePort,
   GuardedSandbox,
+  type FakeSandboxOutcome,
   RunKeyVault,
   type SandboxPort,
   type SandboxSpec,
@@ -42,13 +43,20 @@ const GRANT: SandboxGrantRef = {
   lease_epoch: 1,
 };
 
-/** The synthetic repo's sessions: a W session fixes `add`; O sessions run the tests over whatever tree they get. */
-function scriptedSandbox(): FakeSandbox {
+/**
+ * The synthetic repo's sessions: a W session fixes `add`; O sessions run the tests over whatever tree they get.
+ * `w` (M19) answers a W session first: `null` goes on to the scripted fix; anything else is what the session gives.
+ */
+function scriptedSandbox(
+  w?: (spec: SandboxSpec) => Promise<FakeSandboxOutcome | null> | FakeSandboxOutcome | null,
+): FakeSandbox {
   const calc = (spec: SandboxSpec): string => {
     const f = spec.repo.find((x) => x.path === 'src/calc.js');
     return f ? Buffer.from(f.content).toString() : '';
   };
-  return new FakeSandbox((spec) => {
+  return new FakeSandbox(async (spec) => {
+    const first = spec.class === 'W' && w ? await w(spec) : null;
+    if (first !== null) return first;
     if (spec.class === 'W') {
       const h = sha256(FIXED);
       const res: CodingSessionResult = {
@@ -179,5 +187,89 @@ describe('S6 6.1 to 6.5 through the sandbox-controller', () => {
     const none = await step(w, '6.2', 'again');
     expect(!none.ok && none.error.message).toContain('no admission grant');
     expect(fake.runs.length).toBe(before);
+  });
+});
+
+// M19, the runner-killed-mid-session drill (docs/runbooks/drill-runner.md): the runner dies while 6.4's coding session
+// runs. Either way the step is NOT answered (no outcome is kept: no silent pass), the slot is free again, and the
+// command delivered again with the same key runs a fresh session under the SAME grant and lease epoch and completes.
+describe('M19: a runner killed in the middle of a coding session', () => {
+  async function upTo64(w: World) {
+    for (const s of ['6.1', '6.2', '6.3'] as const) {
+      const r = await step(w, s);
+      expect(r.ok && r.value.outcome).toBe('completed');
+    }
+  }
+
+  it("the session's container is killed: a void run, the step is an error and the redelivery completes", async () => {
+    let killed = 0;
+    const fake = scriptedSandbox(() => (killed++ === 0 ? { status: 'killed' } : null));
+    const grants = new FakeGrants().grant(GRANT);
+    tc = await startTestController({ driver: fake, grants });
+    const c = tc;
+    const w = world(() => c.client, fake);
+    await upTo64(w);
+    const first = await step(w, '6.4', 'cmd-6.4');
+    expect(first.ok).toBe(false);
+    expect(!first.ok && first.error.message).toMatch(/void \(killed\)/);
+    // the slot is free at once, and the grant is untouched
+    const slots = await c.client.slots();
+    expect(slots.ok && slots.value.used_total).toBe(0);
+    expect(slots.ok && slots.value.free.W).toBe(1);
+    // the outbox delivers the same command again (same key): a fresh session, the same grant, an outcome
+    const again = await step(w, '6.4', 'cmd-6.4');
+    expect(again.ok && again.value.outcome).toBe('completed');
+    const ws = fake.runs.filter((r) => r.class === 'W');
+    expect(ws).toHaveLength(2);
+    for (const r of fake.runs) expect(r.grant).toEqual(GRANT);
+    expect(new Set(ws.map((r) => r.grant?.lease_epoch))).toEqual(new Set([GRANT.lease_epoch]));
+  });
+
+  it('the controller itself dies mid-session: the step is an error; the next controller sweeps, then the redelivery completes', async () => {
+    let started!: () => void;
+    const inSession = new Promise<void>((r) => (started = r));
+    let release!: () => void;
+    const hang = new Promise<null>((r) => (release = () => r(null)));
+    const dying = scriptedSandbox(() => {
+      started();
+      return hang;
+    });
+    const grants = new FakeGrants().grant(GRANT);
+    tc = await startTestController({ driver: dying, grants });
+    const dead = tc;
+    // core's view of the runner host: one URL, whichever controller process answers on it
+    let current: SandboxPort = dead.client;
+    const viaHost: SandboxPort = { run: (spec) => current.run(spec) };
+    const w = world(() => viaHost, dying);
+    await upTo64(w);
+    const pending = step(w, '6.4', 'cmd-6.4');
+    await inSession;
+    await dead.kill();
+    const first = await pending;
+    expect(first.ok).toBe(false);
+    expect(!first.ok && first.error.message).toMatch(/sandbox (unavailable|driver_failure)/);
+
+    // the restarted controller (a new process: a new driver, nothing running) sweeps before it places anything
+    const swept: Array<ReadonlySet<string>> = [];
+    const fresh = scriptedSandbox();
+    tc = await startTestController({
+      driver: fresh,
+      grants,
+      sweep: async (keep) => {
+        swept.push(keep);
+        return { containers: ['s6-w-dead'], networks: ['s6-w-dead'], scratch: [], errors: [] };
+      },
+    });
+    const r0 = await tc.controller.sweep();
+    expect(r0.containers).toEqual(['s6-w-dead']);
+    expect(swept.map((k) => [...k])).toEqual([[]]);
+    current = tc.client;
+    const again = await step(w, '6.4', 'cmd-6.4');
+    expect(again.ok && again.value.outcome).toBe('completed');
+    expect(fresh.runs.filter((r) => r.class === 'W')).toHaveLength(1);
+    expect(fresh.runs[0]?.grant).toEqual(GRANT);
+    const slots = await tc.client.slots();
+    expect(slots.ok && slots.value.used_total).toBe(0);
+    release();
   });
 });

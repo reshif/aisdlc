@@ -56,10 +56,12 @@ describe('routes: only the verbs the driver needs', () => {
     ['POST', '/containers/aisdlc-sbx-sess-000001/stop'],
     ['POST', '/containers/aisdlc-sbx-sess-000001/restart'],
     ['POST', '/containers/aisdlc-sbx-sess-000001/pause'],
-    ['GET', '/containers/json'],
+    // M19: the lists are the proxy's own (its filter): a client filter or a size query is refused
+    ['GET', '/containers/json?filters=x'],
+    ['GET', '/containers/json?size=1'],
     ['POST', '/containers/prune'],
     ['POST', '/networks/prune'],
-    ['GET', '/networks'],
+    ['GET', '/networks?filters=x'],
     ['POST', '/volumes/create'],
     ['GET', '/volumes'],
     ['GET', '/info'],
@@ -128,6 +130,8 @@ describe('create: the valid body passes for every class', () => {
     expect(out.HostConfig.ReadonlyRootfs).toBe(true);
     expect(out.HostConfig.Memory).toBe(512 * 1024 * 1024);
     expect(out.Labels[SANDBOX_LABEL.sandbox]).toBe('1');
+    // M19: the proxy's own owner label, never the client's
+    expect(out.Labels[SANDBOX_LABEL.owner]).toBe('local');
   });
 });
 
