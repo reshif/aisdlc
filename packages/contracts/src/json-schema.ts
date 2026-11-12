@@ -710,6 +710,13 @@ export const SCHEMAS = {
   SignedEvidencePack: entities.SignedEvidencePack,
   EvidencePackSignedPayload: entities.EvidencePackSignedPayload,
   D2HandoffRecord: entities.D2HandoffRecord,
+  MyBinding: entities.MyBinding,
+  MyProjectAccess: entities.MyProjectAccess,
+  MyAccessView: entities.MyAccessView,
+  DecisionQuery: entities.DecisionQuery,
+  DecisionBatchRequest: entities.DecisionBatchRequest,
+  DecisionAnswer: entities.DecisionAnswer,
+  DecisionBatchView: entities.DecisionBatchView,
 } as const satisfies Record<string, z.ZodType>;
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
