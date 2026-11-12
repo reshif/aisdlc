@@ -5,6 +5,7 @@ import {
   checkLedgerEntrySignature,
   checkpointDigestHex,
   computeLedgerEntryHash,
+  auditExportSigningDigest,
   evidencePackSigningDigest,
   ledgerDraftHash,
   type CheckpointCore,
@@ -125,6 +126,31 @@ export interface EvidenceSignerPort {
   signEvidencePack(req: EvidenceSignRequest): Promise<Result<Signature, NotaryError>>;
 }
 
+/** What the audit service asks the Notary to sign (PLAN M19): an export id, with the scope it says it covers. */
+export interface AuditExportSignRequest {
+  export_sha256: string;
+  /** `fleet` or `project:<id>`: journalled with the signature. */
+  scope_ref: string;
+}
+
+/**
+ * The Notary's third signing purpose (PLAN M19): a signed audit export. The same rules as an Evidence Pack: the message
+ * is domain-separated (`auditExportSigningMessage`), the signature is journalled once per export id and answered again
+ * for the same id; the same id named with another scope is refused.
+ */
+export interface AuditExportSignerPort {
+  signAuditExport(req: AuditExportSignRequest): Promise<Result<Signature, NotaryError>>;
+}
+
+/** Why an audit export signing request is malformed, or `null` (one check for the fake and the service). */
+export function badAuditExportSignRequest(req: AuditExportSignRequest): string | null {
+  if (!/^[0-9a-f]{64}$/.test(req.export_sha256)) return 'export_sha256 is not a sha256';
+  if (!/^(fleet|project:[a-z0-9][a-z0-9_-]{0,127})$/.test(req.scope_ref)) {
+    return 'scope_ref is fleet or project:<id>';
+  }
+  return null;
+}
+
 const PACK_REQ = {
   sha: /^[0-9a-f]{64}$/,
   item: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
@@ -168,9 +194,10 @@ interface Row {
  * a `KeyCustodyPort` for the signatures (use `fakeKeyCustody()` for a deterministic one). The
  * shared conformance suite in `@aisdlc/ports/testing` runs against it and the real service.
  */
-export class FakeNotary implements NotaryPort, EvidenceSignerPort {
+export class FakeNotary implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort {
   private readonly rows = new Map<number, Row>();
   private readonly packs = new Map<string, { req: EvidenceSignRequest; signature: Signature }>();
+  private readonly exports = new Map<string, { scope_ref: string; signature: Signature }>();
   private lastSeq = 0;
   private lastHash: string | null = null;
 
@@ -287,6 +314,29 @@ export class FakeNotary implements NotaryPort, EvidenceSignerPort {
       value: b64urlEncode(sig.value),
     };
     this.packs.set(req.pack_sha256, { req: { ...req }, signature });
+    return ok(signature);
+  }
+
+  async signAuditExport(req: AuditExportSignRequest): Promise<Result<Signature, NotaryError>> {
+    const bad = badAuditExportSignRequest(req);
+    if (bad) return err(notaryError('invalid_request', bad));
+    const have = this.exports.get(req.export_sha256);
+    if (have) {
+      return have.scope_ref === req.scope_ref
+        ? ok(have.signature)
+        : err(notaryError('invalid_request', 'this export was signed for another scope'));
+    }
+    const sig = await this.custody.sign(
+      this.keyId,
+      hexBytes(auditExportSigningDigest(req.export_sha256)),
+    );
+    if (!sig.ok) return err(notaryError('signer_unavailable', sig.error.message));
+    const signature: Signature = {
+      key_id: this.keyId,
+      alg: LEDGER_SIGNATURE_ALG,
+      value: b64urlEncode(sig.value),
+    };
+    this.exports.set(req.export_sha256, { scope_ref: req.scope_ref, signature });
     return ok(signature);
   }
 

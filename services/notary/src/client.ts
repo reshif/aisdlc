@@ -2,6 +2,7 @@ import type { LedgerEntry } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import {
   ErrorEnvelope,
+  NotaryAuditExportSignResponse,
   NotaryCheckpointResponse,
   NotaryConfirmResponse,
   NotaryEvidenceSignResponse,
@@ -11,6 +12,8 @@ import {
   NotaryVerifyResponse,
   NOTARY_STATUS,
   notaryError,
+  type AuditExportSignRequest,
+  type AuditExportSignerPort,
   type CheckpointSignRequest,
   type EvidenceSignRequest,
   type EvidenceSignerPort,
@@ -35,7 +38,7 @@ export interface HttpNotaryOptions {
 const CODES = Object.keys(NOTARY_STATUS) as NotaryErrorCode[];
 
 /** `NotaryPort` over HTTP. A network or protocol failure is `unavailable`, never a success. */
-export class HttpNotary implements NotaryPort, EvidenceSignerPort {
+export class HttpNotary implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort {
   constructor(private readonly o: HttpNotaryOptions) {}
 
   private async call<S extends z.ZodType>(
@@ -87,6 +90,11 @@ export class HttpNotary implements NotaryPort, EvidenceSignerPort {
 
   async signEvidencePack(req: EvidenceSignRequest) {
     const r = await this.call('POST', '/v1/evidence/sign', req, NotaryEvidenceSignResponse);
+    return r.ok ? ok(r.value.signature) : r;
+  }
+
+  async signAuditExport(req: AuditExportSignRequest) {
+    const r = await this.call('POST', '/v1/audit-export/sign', req, NotaryAuditExportSignResponse);
     return r.ok ? ok(r.value.signature) : r;
   }
 

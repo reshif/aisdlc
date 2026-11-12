@@ -1,6 +1,7 @@
 import {
   checkLedgerEntrySignature,
   draftOfEntry,
+  auditExportSigningMessage,
   evidencePackSigningMessage,
   ledgerDraftHash,
   ledgerEntryMessage,
@@ -251,6 +252,51 @@ describe('notary: Evidence Pack signatures (M14.4)', () => {
       expect(!bad.ok && bad.error.code).toBe('invalid_request');
       const cp = await n.clientFor('checkpointer').signEvidencePack(req);
       expect(!cp.ok && cp.error.code).toBe('forbidden');
+    } finally {
+      await n.stop();
+    }
+  });
+});
+
+describe('notary: audit export signatures (M19)', () => {
+  const req = { export_sha256: 'd'.repeat(64), scope_ref: 'project:acme' };
+
+  it('signs the domain-separated export message, journalled once, the same signature on a retry', async () => {
+    const n = await start();
+    try {
+      const c = n.clientFor('audit');
+      const a = await c.signAuditExport(req);
+      expect(a.ok, JSON.stringify(a)).toBe(true);
+      if (!a.ok) return;
+      expect(await c.signAuditExport(req)).toEqual(a);
+      const jwk = await kms.custodyFor('witness').publicKey('dev:notary');
+      if (!jwk.ok) throw new Error('no key');
+      expect(
+        await verifyEs256(jwk.value, auditExportSigningMessage(req.export_sha256), a.value.value),
+      ).toBe(true);
+      // another purpose: an export signature is not an Evidence Pack signature over the same id
+      expect(
+        await verifyEs256(jwk.value, evidencePackSigningMessage(req.export_sha256), a.value.value),
+      ).toBe(false);
+      await expect(
+        n.database.pool.query('DELETE FROM notary.audit_export_signature'),
+      ).rejects.toThrow(/append-only/);
+    } finally {
+      await n.stop();
+    }
+  });
+
+  it('refuses the same export for another scope, a malformed request, and a caller without the scope', async () => {
+    const n = await start();
+    try {
+      const c = n.clientFor('audit');
+      expect((await c.signAuditExport(req)).ok).toBe(true);
+      const other = await c.signAuditExport({ ...req, scope_ref: 'fleet' });
+      expect(!other.ok && other.error.code).toBe('invalid_request');
+      const bad = await c.signAuditExport({ ...req, scope_ref: 'project:Bad Name' });
+      expect(!bad.ok && bad.error.code).toBe('invalid_request');
+      const core = await n.clientFor('core').signAuditExport(req);
+      expect(!core.ok && core.error.code).toBe('forbidden');
     } finally {
       await n.stop();
     }

@@ -54,3 +54,4 @@ export * from './onboarding-spikes.js';
 export * from './onboarding-pack.js';
 export * from './issue-twin.js';
 export * from './portal-lists.js';
+export * from './audit.js';
