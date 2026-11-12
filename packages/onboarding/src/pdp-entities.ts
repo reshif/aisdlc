@@ -93,9 +93,9 @@ export class BootstrapPdpEntities implements PdpEntityPort {
     const grants = new Map<string, ReturnType<typeof liveBootstrap>>();
     return new BootstrapPdpEntities(this.base.batch?.() ?? this.base, {
       db: this.o.db,
-      live: (project) => {
+      live: (db, project) => {
         let g = grants.get(project);
-        if (!g) grants.set(project, (g = (this.o.live ?? liveBootstrap)(this.o.db, project)));
+        if (!g) grants.set(project, (g = (this.o.live ?? liveBootstrap)(db, project)));
         return g;
       },
     });
