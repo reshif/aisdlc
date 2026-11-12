@@ -150,6 +150,20 @@ export interface StartOptions {
  * service principal with a link) and ghost (a principal with no IdP link, on purpose). The caller shapes identity (`bindProject`, `grantFleetRole`, ...) after.
  */
 export async function startBffStack(o: StartOptions = {}): Promise<BffStack> {
+  // `freePort` binds and releases a port, and the stack starts other servers (identity, the dev OIDC
+  // provider) before the bff binds it, so on a busy machine another process can take it in between.
+  // Only that race (EADDRINUSE) starts the whole stack again, with a fresh port; any other error fails.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await startBffStackOnce(o);
+    } catch (e) {
+      const inUse = (e as { code?: unknown } | null)?.code === 'EADDRINUSE';
+      if (!inUse || attempt >= 5) throw e;
+    }
+  }
+}
+
+async function startBffStackOnce(o: StartOptions): Promise<BffStack> {
   const identity = await startIdentityStack();
   const stoppers: Array<() => Promise<void>> = [() => identity.stop()];
   try {
