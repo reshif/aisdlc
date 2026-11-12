@@ -1,4 +1,5 @@
 import { createServer } from 'node:net';
+import type { PolicyBundle } from '@aisdlc/contracts';
 import { migrateConfig } from '@aisdlc/config';
 import { migrateDirectory } from '@aisdlc/directory';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
@@ -14,7 +15,7 @@ import type { OidcPort } from '@aisdlc/ports';
 import { listen } from '@aisdlc/service-kit';
 import type { FastifyInstance } from 'fastify';
 import { createBffApp, type BffAppOptions } from './app.js';
-import { startDevOidcProvider, type DevOidcProvider } from './dev-oidc/provider.js';
+import { startDevOidcProvider, type DevOidcProvider, type DevUser } from './dev-oidc/provider.js';
 import { migrateBff } from './migrations.js';
 import { HttpOidcClient } from './oidc/http-client.js';
 import { StepUpIssuer } from './stepup/issuer.js';
@@ -142,6 +143,13 @@ export interface StartOptions {
   /** Wraps the real OIDC client (to make the IdP misbehave in a test). */
   readonly wrapOidc?: (real: OidcPort) => OidcPort;
   readonly override?: Partial<BffAppOptions>;
+  /** The policy bundle the PDP loads (default: `buildBundle()`, the catalogues as they are). */
+  readonly bundle?: PolicyBundle;
+  /**
+   * The dev IdP's users instead of the test principals (`SUBJECTS`). Then the stack creates no principal and no link:
+   * the caller's IdP sync does (e.g. the compose seed's `idp-seed.json`), and `signInSubject` signs a user in.
+   */
+  readonly devUsers?: readonly DevUser[];
 }
 
 /**
@@ -174,32 +182,36 @@ async function startBffStackOnce(o: StartOptions): Promise<BffStack> {
     const port = await freePort();
     const base = `http://127.0.0.1:${port}`;
     const oidc = await startDevOidcProvider({
-      users: Object.entries(SUBJECTS).map(([name, subject]) => ({
-        subject,
-        name,
-        email: `${name}@example.test`,
-      })),
+      users:
+        o.devUsers ??
+        Object.entries(SUBJECTS).map(([name, subject]) => ({
+          subject,
+          name,
+          email: `${name}@example.test`,
+        })),
       clients: [{ ...CLIENT, redirect_uris: [`${base}/auth/callback`] }],
       autoLogin: true,
       clock: identity.clock,
     });
     stoppers.push(() => oidc.stop());
 
-    await seedPrincipals(identity.deps, ['alice', 'bob', 'carol', 'root', 'ghost', 'dora']);
-    await seedPrincipals(identity.deps, ['bot'], { kind: 'service' });
-    await seedLinks(
-      identity.deps,
-      ['alice', 'bob', 'carol', 'root', 'dora', 'bot'].map((principal) => ({
-        principal,
-        issuer: oidc.issuer,
-        subject: SUBJECTS[principal as keyof typeof SUBJECTS],
-      })),
-    );
+    if (o.devUsers === undefined) {
+      await seedPrincipals(identity.deps, ['alice', 'bob', 'carol', 'root', 'ghost', 'dora']);
+      await seedPrincipals(identity.deps, ['bot'], { kind: 'service' });
+      await seedLinks(
+        identity.deps,
+        ['alice', 'bob', 'carol', 'root', 'dora', 'bot'].map((principal) => ({
+          principal,
+          issuer: oidc.issuer,
+          subject: SUBJECTS[principal as keyof typeof SUBJECTS],
+        })),
+      );
+    }
 
     const pool = identity.record.pool;
     const log = new MemoryDecisionLog();
     const pdp = new Pdp({
-      source: new StaticBundleSource(buildBundle()),
+      source: new StaticBundleSource(o.bundle ?? buildBundle()),
       entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
       clock: identity.clock,
       log,
@@ -265,6 +277,16 @@ export async function signIn(
   browser = new Browser(),
   returnTo = '/',
 ): Promise<{ browser: Browser; res: Response; chain: string[] }> {
+  return signInSubject(s, SUBJECTS[who], browser, returnTo);
+}
+
+/** Signs the dev IdP user with this subject in (a stack started with `devUsers`). */
+export async function signInSubject(
+  s: Pick<BffStack, 'base'>,
+  subject: string,
+  browser = new Browser(),
+  returnTo = '/',
+): Promise<{ browser: Browser; res: Response; chain: string[] }> {
   // The dev provider has autoLogin; the hint names the user it should sign in. The bff does not
   // forward a hint on login (it does not know the user yet), so the test plays the user: it follows
   // the redirect to the provider and submits the form for `who`.
@@ -272,7 +294,7 @@ export async function signIn(
     `${s.base}/auth/login?return_to=${encodeURIComponent(returnTo)}`,
   );
   const idp = new URL(first.headers.get('location') as string);
-  idp.searchParams.set('login_hint', SUBJECTS[who]);
+  idp.searchParams.set('login_hint', subject);
   const hopped = await browser.follow(idp.toString());
   return {
     browser,

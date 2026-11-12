@@ -64,6 +64,8 @@ export const STATIC_SCREENS = {
   '/roles': 'roles',
   '/access-requests': 'accessRequests',
   '/access-explain': 'explain',
+  // PLAN §7a: guarded by `assistant.use` somewhere, so a direct link is the 403 page like the others
+  '/ask': 'ask',
 } as const;
 export type StaticScreen = (typeof STATIC_SCREENS)[keyof typeof STATIC_SCREENS];
 
@@ -76,7 +78,6 @@ export function parseRoute(path: string): Route {
   if (p === '/inbox') return { name: 'inbox' };
   if (p === '/me/access') return { name: 'access' };
   if (p === '/config') return { name: 'config' };
-  if (p === '/ask') return { name: 'ask' };
   if (p === '/ask-for-work') return { name: 'askForWork', project: null };
   const askFor = /^\/ask-for-work\/([^/]+)$/.exec(p);
   if (askFor) return { name: 'askForWork', project: decodeURIComponent(askFor[1] as string) };

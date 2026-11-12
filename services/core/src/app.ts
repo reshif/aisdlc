@@ -416,7 +416,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   });
 
   // M19: HealthTile / HealthSnapshot. The tiles of the Operate › Health screen, the HealthSnapshot rule applied at read
-  // time (older than two minutes: unknown). Scope `portal`: the bff asks the PDP (audit.read on the fleet) first.
+  // time (older than two minutes: unknown). Scope `portal`: the bff asks the PDP (ops.read on the fleet) first.
   app.get('/v1/health', async (req, reply) => {
     if (!allowed(req, 'portal'))
       return sendError(reply, 403, 'forbidden', 'scope portal is needed');
@@ -1097,8 +1097,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   });
 
   /**
-   * Acceptance rate, back-edge rate and cost per run of an agent (M11.2), over the fleet (`audit.read`
-   * on the fleet) or one project (`?project=`, `audit.read` on it).
+   * Acceptance rate, back-edge rate and cost per run of an agent (M11.2), over the fleet (`quality.read`
+   * on the fleet) or one project (`?project=`, `quality.read` on it; PLAN §7a).
    */
   app.get('/v1/agents/:id/stats', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -1116,7 +1116,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       !(await guard(
         reply,
         who.data,
-        'audit.read',
+        'quality.read',
         scope === null ? pdpResource.fleet() : pdpResource.project(scope),
       ))
     ) {
@@ -1141,7 +1141,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return { recorded: !r.value.duplicate };
   });
 
-  /** Who may read the eval history and scores: `audit.read` on the fleet, or on the project tag asked for. */
+  /** Who may read the eval history and scores: `quality.read` on the fleet, or the project tag asked for (PLAN §7a). */
   async function evalReadGuard(req: FastifyRequest, reply: FastifyReply) {
     if (!allowed(req, 'work')) {
       sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -1163,7 +1163,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       !(await guard(
         reply,
         who.data,
-        'audit.read',
+        'quality.read',
         tag === null ? pdpResource.fleet() : pdpResource.project(tag),
       ))
     ) {

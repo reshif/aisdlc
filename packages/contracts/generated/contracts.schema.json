@@ -631,7 +631,13 @@
                     "control.apply",
                     "control.lift",
                     "banner.publish",
-                    "access.explain"
+                    "access.explain",
+                    "identity.admin",
+                    "access.manage",
+                    "ops.read",
+                    "session.stop",
+                    "quality.read",
+                    "assistant.use"
                   ]
                 }
               }
@@ -909,7 +915,13 @@
         "control.apply",
         "control.lift",
         "banner.publish",
-        "access.explain"
+        "access.explain",
+        "identity.admin",
+        "access.manage",
+        "ops.read",
+        "session.stop",
+        "quality.read",
+        "assistant.use"
       ]
     },
     "ActivitySource": {
@@ -7739,7 +7751,13 @@
                         "control.apply",
                         "control.lift",
                         "banner.publish",
-                        "access.explain"
+                        "access.explain",
+                        "identity.admin",
+                        "access.manage",
+                        "ops.read",
+                        "session.stop",
+                        "quality.read",
+                        "assistant.use"
                       ]
                     },
                     "resource": {
@@ -30265,7 +30283,13 @@
             "control.apply",
             "control.lift",
             "banner.publish",
-            "access.explain"
+            "access.explain",
+            "identity.admin",
+            "access.manage",
+            "ops.read",
+            "session.stop",
+            "quality.read",
+            "assistant.use"
           ]
         },
         "resource": {
@@ -30431,7 +30455,13 @@
                   "control.apply",
                   "control.lift",
                   "banner.publish",
-                  "access.explain"
+                  "access.explain",
+                  "identity.admin",
+                  "access.manage",
+                  "ops.read",
+                  "session.stop",
+                  "quality.read",
+                  "assistant.use"
                 ]
               },
               "resource": {
@@ -30591,7 +30621,13 @@
                   "control.apply",
                   "control.lift",
                   "banner.publish",
-                  "access.explain"
+                  "access.explain",
+                  "identity.admin",
+                  "access.manage",
+                  "ops.read",
+                  "session.stop",
+                  "quality.read",
+                  "assistant.use"
                 ]
               },
               "resource": {
@@ -30906,7 +30942,13 @@
             "control.apply",
             "control.lift",
             "banner.publish",
-            "access.explain"
+            "access.explain",
+            "identity.admin",
+            "access.manage",
+            "ops.read",
+            "session.stop",
+            "quality.read",
+            "assistant.use"
           ]
         },
         "resource": {
@@ -41055,7 +41097,13 @@
               "control.apply",
               "control.lift",
               "banner.publish",
-              "access.explain"
+              "access.explain",
+              "identity.admin",
+              "access.manage",
+              "ops.read",
+              "session.stop",
+              "quality.read",
+              "assistant.use"
             ]
           }
         }
@@ -82524,7 +82572,13 @@
                   "control.apply",
                   "control.lift",
                   "banner.publish",
-                  "access.explain"
+                  "access.explain",
+                  "identity.admin",
+                  "access.manage",
+                  "ops.read",
+                  "session.stop",
+                  "quality.read",
+                  "assistant.use"
                 ]
               }
             }
@@ -82603,7 +82657,13 @@
                     "control.apply",
                     "control.lift",
                     "banner.publish",
-                    "access.explain"
+                    "access.explain",
+                    "identity.admin",
+                    "access.manage",
+                    "ops.read",
+                    "session.stop",
+                    "quality.read",
+                    "assistant.use"
                   ]
                 }
               }
@@ -82814,7 +82874,13 @@
               "control.apply",
               "control.lift",
               "banner.publish",
-              "access.explain"
+              "access.explain",
+              "identity.admin",
+              "access.manage",
+              "ops.read",
+              "session.stop",
+              "quality.read",
+              "assistant.use"
             ]
           }
         }
@@ -102474,7 +102540,13 @@
             "control.apply",
             "control.lift",
             "banner.publish",
-            "access.explain"
+            "access.explain",
+            "identity.admin",
+            "access.manage",
+            "ops.read",
+            "session.stop",
+            "quality.read",
+            "assistant.use"
           ]
         },
         "resource": {
@@ -125724,7 +125796,13 @@
                         "control.apply",
                         "control.lift",
                         "banner.publish",
-                        "access.explain"
+                        "access.explain",
+                        "identity.admin",
+                        "access.manage",
+                        "ops.read",
+                        "session.stop",
+                        "quality.read",
+                        "assistant.use"
                       ]
                     },
                     "resource": {
@@ -126631,7 +126709,13 @@
                   "control.apply",
                   "control.lift",
                   "banner.publish",
-                  "access.explain"
+                  "access.explain",
+                  "identity.admin",
+                  "access.manage",
+                  "ops.read",
+                  "session.stop",
+                  "quality.read",
+                  "assistant.use"
                 ]
               },
               "resource": {
@@ -127133,7 +127217,13 @@
                   "control.apply",
                   "control.lift",
                   "banner.publish",
-                  "access.explain"
+                  "access.explain",
+                  "identity.admin",
+                  "access.manage",
+                  "ops.read",
+                  "session.stop",
+                  "quality.read",
+                  "assistant.use"
                 ]
               },
               "resource": {

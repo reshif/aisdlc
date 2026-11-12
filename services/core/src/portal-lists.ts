@@ -37,11 +37,11 @@ import { catchUpWork } from './work-projection.js';
 // like the bff's `/api/me/decisions`). Reads only: nothing here writes the record.
 //
 //   GET /v1/items?on_behalf_of=[&project=]       work    item.view_floor per row
-//   GET /v1/agents?on_behalf_of=                 work    audit.read on the fleet (the registry is code)
+//   GET /v1/agents?on_behalf_of=                 work    quality.read on the fleet (the registry is code)
 //   GET /v1/catalogue                            work    every released catalogue, with its pinned items
-//   GET /v1/admission?on_behalf_of=              work    audit.read on the fleet
-//   GET /v1/controls?on_behalf_of=               portal  audit.read on the fleet (every scope's controls)
-//   GET /v1/kills?on_behalf_of=                  portal  audit.read on the fleet (the observed journal)
+//   GET /v1/admission?on_behalf_of=              work    ops.read on the fleet
+//   GET /v1/controls?on_behalf_of=               portal  ops.read on the fleet (every scope's controls)
+//   GET /v1/kills?on_behalf_of=                  portal  ops.read on the fleet (the observed journal)
 //   GET /v1/audit/decisions?on_behalf_of=[&limit=&action=]  portal  audit.read on the fleet
 
 export interface PortalListDeps {
@@ -74,8 +74,16 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     }
   };
 
-  /** The scope, the principal, and the PDP's `audit.read` on the fleet (a logged decision, like the other audit reads). */
-  async function auditReader(req: FastifyRequest, reply: FastifyReply, scope: 'work' | 'portal') {
+  /**
+   * The scope, the principal, and the PDP's answer for `action` on the fleet (a logged decision, like the other audit
+   * reads): `audit.read` for the decision log, `ops.read` for Operate, `quality.read` for Quality (PLAN §7a).
+   */
+  async function fleetReader(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    scope: 'work' | 'portal',
+    action: 'audit.read' | 'ops.read' | 'quality.read',
+  ) {
     if (!d.allowed(req, scope)) {
       sendError(reply, 403, 'forbidden', `scope ${scope} is needed`);
       return null;
@@ -86,14 +94,10 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
       sendError(reply, 503, 'unavailable', 'no policy decision point is configured');
       return null;
     }
-    const out = await d.pdp.decide({
-      principal: p,
-      action: 'audit.read',
-      resource: pdpResource.fleet(),
-    });
+    const out = await d.pdp.decide({ principal: p, action, resource: pdpResource.fleet() });
     if (out.decision !== 'allow') {
       reply.code(403).send({
-        error: { code: 'forbidden', message: 'audit.read denied', reasons: out.reasons },
+        error: { code: 'forbidden', message: `${action} denied`, reasons: out.reasons },
       });
       return null;
     }
@@ -178,7 +182,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   // ------------------------------------------------------------ agents: the registry is code (packages/agents)
 
   app.get('/v1/agents', async (req, reply) => {
-    if (!(await auditReader(req, reply, 'work'))) return;
+    if (!(await fleetReader(req, reply, 'work', 'quality.read'))) return;
     const view: AgentRegistryView = {
       lock_format: PROMPTS_LOCK.format,
       agents: AGENT_DEFINITIONS.map((a) => ({
@@ -239,7 +243,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   // ------------------------------------------------------------ admission: H1-H3, WIP, HUMAN-WAIT
 
   app.get('/v1/admission', async (req, reply) => {
-    if (!(await auditReader(req, reply, 'work'))) return;
+    if (!(await fleetReader(req, reply, 'work', 'ops.read'))) return;
     try {
       await catchUpWork(d.pool);
       const [active, waiting, inSlot] = await Promise.all([
@@ -282,7 +286,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   // ------------------------------------------------------------ controls (every scope) and the kill journal
 
   app.get('/v1/controls', async (req, reply) => {
-    if (!(await auditReader(req, reply, 'portal'))) return;
+    if (!(await fleetReader(req, reply, 'portal', 'ops.read'))) return;
     try {
       const now = d.now();
       return {
@@ -295,7 +299,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   });
 
   app.get('/v1/kills', async (req, reply) => {
-    if (!(await auditReader(req, reply, 'portal'))) return;
+    if (!(await fleetReader(req, reply, 'portal', 'ops.read'))) return;
     try {
       const q = await d.pool.query<{ body: unknown }>(
         `SELECT body FROM record.record_event WHERE type = $1
@@ -327,7 +331,7 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
   // ------------------------------------------------------------ audit: the PDP decision log
 
   app.get('/v1/audit/decisions', async (req, reply) => {
-    if (!(await auditReader(req, reply, 'portal'))) return;
+    if (!(await fleetReader(req, reply, 'portal', 'audit.read'))) return;
     const q = req.query as Record<string, string>;
     const limit = q['limit'] === undefined ? 100 : Number(q['limit']);
     if (!Number.isInteger(limit) || limit < 1 || limit > 500) {

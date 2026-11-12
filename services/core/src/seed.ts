@@ -27,6 +27,7 @@ import {
   type EligibilityPort,
   type StepUpPort,
 } from '@aisdlc/decisions';
+import { PERSONA_GROUPS } from '@aisdlc/bff/dev-oidc';
 import { codeHostRow, modelProviderRow } from '@aisdlc/integrations';
 import { canonicalJson, err, ok } from '@aisdlc/kernel';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
@@ -53,7 +54,10 @@ import { registerCoreConfig } from './settings.js';
 //   1. identity: sync the identity provider seed (the dev principals), then put the factory admin
 //      in the `grp-factory-admins` group bound to the `factory.admin` role at fleet scope. Every
 //      step is a write through identity's own API and so a journal event; nothing is skipped
-//      when it is already in place.
+//      when it is already in place. With `SEED_PERSONAS=1` (compose), the design personas' IdP
+//      groups (`PERSONA_GROUPS`, @aisdlc/bff/dev-oidc) are bound to their roles too: fleet and team
+//      roles and the direct project viewers. Project slot roles come only from a published role
+//      map, so they are not seeded here (`personaRoleMap` is what a design project would carry).
 //   2. the policy bundle: proposed as the factory-layer `pdp.bundle` revision, decided at its M1
 //      gate by that admin and published. The decision is a real ledger entry signed by the
 //      Notary. The one thing not real is who clicked: the genesis eligibility below names the
@@ -201,6 +205,8 @@ interface SeedConfig {
   readonly identityToken: string;
   /** `SEED_GITHUB_*`: the GitHub App row of the registry; null: no code host is registered. */
   readonly github: SeedGithub | null;
+  /** `SEED_PERSONAS=1`: bind the design personas' IdP groups to their roles (`PERSONA_GROUPS`). */
+  readonly personas: boolean;
 }
 
 /**
@@ -239,10 +245,16 @@ export function seedConfigFromEnv(env: Env): SeedConfig {
     identityUrl: httpUrlEnv(env, 'SEED_IDENTITY_URL'),
     identityToken: resolveSecretRef(requiredEnv(env, 'SEED_IDENTITY_TOKEN_REF'), { env }),
     github: seedGithub(env),
+    personas: env['SEED_PERSONAS'] === '1',
   };
 }
 
-async function identityStep(cfg: SeedConfig, log: (l: string) => void): Promise<void> {
+/** The identity part of the seed (the IdP sync, the factory admin, the personas); idempotent. */
+export async function seedIdentity(
+  cfg: Pick<SeedConfig, 'admin' | 'group' | 'identityUrl' | 'identityToken' | 'personas'>,
+  log: (l: string) => void,
+  now: () => Date = () => new Date(),
+): Promise<void> {
   const call = (method: 'GET' | 'POST', path: string, body?: unknown) =>
     callJson({
       baseUrl: cfg.identityUrl,
@@ -274,8 +286,45 @@ async function identityStep(cfg: SeedConfig, log: (l: string) => void): Promise<
   const bindings = body?.bindings;
   if (bindings?.some((b) => b.role_id === 'factory.admin')) {
     log(`seed: ${cfg.admin} already holds factory.admin`);
-    return;
+  } else {
+    await adminStepOf(cfg, call, must, log);
   }
+  if (cfg.personas) await personaStep();
+
+  async function personaStep() {
+    // each group exists by now (the IdP sync made it with its members); its binding is the seed's. `already_exists` is
+    // a binding in place from an earlier run (a guest's keeps the expiry that run set); any other refusal fails.
+    for (const g of PERSONA_GROUPS) {
+      const expiry =
+        g.expires_in_days === null
+          ? null
+          : new Date(now().getTime() + g.expires_in_days * 86_400_000).toISOString();
+      const r = await call('POST', '/v1/bindings', {
+        group_id: g.group_id,
+        role_id: g.role,
+        scope: g.scope,
+        ...(expiry === null ? {} : { expiry }),
+      });
+      const code = r.reached
+        ? (r.json as { error?: { code?: unknown } } | null)?.error?.code
+        : undefined;
+      if (r.reached && r.status === 409 && code === 'already_exists') continue;
+      await must(`bind ${g.group_id}`, r);
+    }
+    log(`seed: the design personas' groups are bound (${PERSONA_GROUPS.length})`);
+  }
+}
+
+async function adminStepOf(
+  cfg: Pick<SeedConfig, 'admin' | 'group'>,
+  call: (method: 'GET' | 'POST', path: string, body?: unknown) => ReturnType<typeof callJson>,
+  must: (
+    what: string,
+    r: Awaited<ReturnType<typeof callJson>>,
+    tolerate?: number[],
+  ) => Promise<void>,
+  log: (l: string) => void,
+): Promise<void> {
   // 409: the group or the membership exists already (an earlier, interrupted run).
   await must(
     'create group',
@@ -409,7 +458,7 @@ export async function runSeed(
     throw e;
   }
   try {
-    await identityStep(cfg, log);
+    await seedIdentity(cfg, log);
     await bundleStep(env, cfg, log);
     return 0;
   } catch (e) {

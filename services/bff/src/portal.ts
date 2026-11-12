@@ -708,8 +708,8 @@ export function registerPortalRoutes(d: PortalDeps): void {
     if (!q.success) return sendError(reply, 400, 'invalid_input', 'bad query');
     const resource =
       q.data.project === undefined ? pdpResource.fleet() : pdpResource.project(q.data.project);
-    if (!(await allowed(d.principalOf(req), 'audit.read', resource))) {
-      return deny(reply, 'audit.read');
+    if (!(await allowed(d.principalOf(req), 'quality.read', resource))) {
+      return deny(reply, 'quality.read');
     }
     const qs = new URLSearchParams({ on_behalf_of: d.principalOf(req) });
     if (q.data.project !== undefined) qs.set('project', q.data.project);
@@ -720,7 +720,7 @@ export function registerPortalRoutes(d: PortalDeps): void {
 
   // ------------------------------------------------------------ evals (M11.3)
 
-  /** Evals are factory-wide: `audit.read` on the fleet, or on the project tag asked for. */
+  /** Evals are factory-wide: `quality.read` on the fleet, or on the project tag asked for (PLAN §7a). */
   async function evalRead(
     req: FastifyRequest,
     reply: FastifyReply,
@@ -738,8 +738,8 @@ export function registerPortalRoutes(d: PortalDeps): void {
     }
     const resource =
       q.data.project === undefined ? pdpResource.fleet() : pdpResource.project(q.data.project);
-    if (!(await allowed(d.principalOf(req), 'audit.read', resource))) {
-      deny(reply, 'audit.read');
+    if (!(await allowed(d.principalOf(req), 'quality.read', resource))) {
+      deny(reply, 'quality.read');
       return null;
     }
     const qs = new URLSearchParams({ on_behalf_of: d.principalOf(req) });
