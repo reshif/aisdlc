@@ -169,3 +169,11 @@
   overflow: auto;
   margin: 4px 0 0;
 }
+.pg-form fieldset {
+  flex-basis: 100%;
+}
+.pg-form fieldset label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
