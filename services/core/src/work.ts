@@ -19,6 +19,7 @@ import {
   type ProjectId,
   type ProjectReadinessRecord,
   type RecordEvent,
+  type WorkIntakeState,
 } from '@aisdlc/contracts';
 import { dedupeScan } from '@aisdlc/work';
 import { deterministicId, err, newId, ok, type Result } from '@aisdlc/kernel';
@@ -40,7 +41,8 @@ import { repoIdentity } from './prr-store.js';
 // Everything is a record event on `work:<request_id>`. Nothing here starts an agent session, a
 // unit or a work item: a request that is admitted waits for M9.
 
-export type WorkState = 'requested' | 'held' | 'admitted' | 'routed_l8' | 'released' | 'l8_offered';
+/** Where a request stands (contracts' `WorkIntakeState`, the one list). */
+export type WorkState = WorkIntakeState;
 
 export interface WorkRequestState {
   readonly request: WorkRequestedPayload;

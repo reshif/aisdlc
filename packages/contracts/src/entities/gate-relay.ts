@@ -321,6 +321,25 @@ export type ReleaseStatus =
       readonly rollback_marker_id: string | null;
     };
 
+/** The states of `ReleaseStatus`, as the portal shows gate-relay's deployment state on a G5 card. */
+export const ReleaseStatusState = z.enum([
+  'none',
+  'intended',
+  'refused',
+  'deployed',
+  'healthy',
+  'unhealthy',
+]);
+export type ReleaseStatusState = z.infer<typeof ReleaseStatusState>;
+// the enum and the union name the same states (a compile error otherwise)
+const _releaseStates: [ReleaseStatus['state'], ReleaseStatusState] extends [
+  ReleaseStatusState,
+  ReleaseStatus['state'],
+]
+  ? true
+  : never = true;
+void _releaseStates;
+
 /** Folds an item's `gaterelay:` events into the status of the release made for one G5 instance. */
 export function foldReleaseStatus(
   events: ReadonlyArray<{ readonly type: string; readonly body: unknown }>,

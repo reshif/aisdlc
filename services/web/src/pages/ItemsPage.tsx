@@ -5,6 +5,7 @@ import { api } from '../api';
 import { Read, itemKey } from '../components/Read';
 import { shortTime } from '../format';
 import { Link } from '../router';
+import { AskForWorkButton } from '../items/AskForWorkButton';
 import { Card, Chip, EmptyState, PageHead, Pill, Table, laneText, type Column } from '../ui';
 
 // Items and the board (prototype `items`, `board`): the items the person may see, filtered to the
@@ -163,9 +164,12 @@ export function ItemsPage() {
         title="Items"
         sub="Every item you may see, where it is in the lifecycle, and whether it is held. Items carry no title here; the request is on the item page."
         actions={
-          <Link to="/board" className="ui-btn">
-            Board
-          </Link>
+          <>
+            <AskForWorkButton />
+            <Link to="/board" className="ui-btn">
+              Board
+            </Link>
+          </>
         }
       />
       <Read q={q} what="the items">
