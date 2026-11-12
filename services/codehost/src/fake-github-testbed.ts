@@ -23,6 +23,9 @@ export const TESTBED_FILES: Readonly<Record<string, string>> = {
   'test/index.test.js':
     "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { greet } from '../src/index.js';\n\ntest('greet', () => assert.equal(greet('x'), 'hello x'));\n",
   'docs/overview.md': '# Overview\n\nThe testbed has one function and one test.\n',
+  // what a Light onboarding's card 4 asks the person to attest is in place (LF7): how it is run, and what a merge does
+  'operations.md':
+    '# Operations\n\nNothing runs: the testbed is never deployed. A merge to main changes nothing outside the repository.\n',
   '.gitignore': 'node_modules/\n',
 };
 
