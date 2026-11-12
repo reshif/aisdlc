@@ -1,6 +1,9 @@
 import {
   C1DecisionContent,
+  C2DecisionContent,
   C4DecisionContent,
+  INTENT_QUESTIONS,
+  PRACTICE_QUESTIONS,
   C5DecisionContent,
   EMPTY_ROLE_MAP,
   SecrDecisionContent,
@@ -225,17 +228,116 @@ export const secrView = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+export const PROPOSAL_HASH = 'c2'.repeat(32);
+export const TEXT_HASH = 'd4'.repeat(32);
+export const BOUND_HASH = 'b0'.repeat(32);
+
+/** Card 2's view: two claims, the questions, AGENTS.md reviewed section by section. */
+export const c2View = (over: Record<string, unknown> = {}) => ({
+  card: 'C2',
+  repo: 'reshif/asf-factory-testbed',
+  proposal: {
+    proposal_hash: PROPOSAL_HASH,
+    census_hash: 'c'.repeat(64),
+    baseline_sha: 'a'.repeat(40),
+    template_hash: 't'.repeat(64),
+  },
+  claims: [
+    {
+      claim_id: 'cl-0000000000000001',
+      category: 'command',
+      text: 'The task `test` runs as `npm test`.',
+      evidence: [{ path: 'package.json', blob: 'a'.repeat(40), line: 4 }],
+    },
+    {
+      claim_id: 'cl-0000000000000002',
+      category: 'stack',
+      text: 'The repository uses TypeScript (language).',
+      evidence: [{ path: 'package.json', blob: 'a'.repeat(40), line: 1 }],
+    },
+  ],
+  claims_dropped: 0,
+  claims_truncated: false,
+  verdicts: ['affirm', 'correct', 'unknown'],
+  lf6: { min_affirmed_or_unknown_pct: 90 },
+  intent_questions: INTENT_QUESTIONS.slice(0, 2),
+  practice_questions: PRACTICE_QUESTIONS.slice(0, 1),
+  instructions: [
+    {
+      path: 'AGENTS.md',
+      area: '.',
+      state: 'data',
+      source_blob_sha: 'd'.repeat(40),
+      proposed_by: 'factory',
+      sections: [
+        {
+          index: 0,
+          heading: 'Commands',
+          level: 2,
+          kind: 'commands',
+          verdict: 'accepted',
+          reasons: [],
+          lint_rules: [],
+          line_start: 1,
+          line_end: 3,
+          text_sha256: '1'.repeat(64),
+        },
+        {
+          index: 1,
+          heading: 'Tools',
+          level: 2,
+          kind: null,
+          verdict: 'rejected',
+          reasons: ['tools'],
+          lint_rules: [],
+          line_start: 4,
+          line_end: 6,
+          text_sha256: '2'.repeat(64),
+        },
+        {
+          index: 2,
+          heading: 'Boundaries',
+          level: 2,
+          kind: 'boundaries',
+          verdict: 'drafted',
+          reasons: [],
+          lint_rules: [],
+          line_start: 5,
+          line_end: 8,
+          text_sha256: '3'.repeat(64),
+        },
+      ],
+      missing_required: ['boundaries'],
+      proposed: {
+        text: '## Commands\n\n- test: `npm test`\n\n## Boundaries\n\n- ask a person\n',
+        text_sha256: TEXT_HASH,
+        lines: 7,
+        lint: [],
+        lint_report_hash: 'l'.repeat(64),
+        secret_hits: 0,
+        blocked: null,
+      },
+      affirmable: true,
+      required: true,
+    },
+  ],
+  edits: 0,
+  step_up: { required: true, bound_hash: BOUND_HASH, binds: 'the affirmed files' },
+  ...over,
+});
+
 const SCHEMAS = {
   C1: C1DecisionContent,
+  C2: C2DecisionContent,
   C4: C4DecisionContent,
   C5: C5DecisionContent,
   SECR: SecrDecisionContent,
 } as const;
 
-const STEP = { C1: '0.1', C4: '0.4', C5: '0.5', SECR: '0.1' } as const;
+const STEP = { C1: '0.1', C2: '0.2', C4: '0.4', C5: '0.5', SECR: '0.1' } as const;
 
 export function detail(
-  kind: Exclude<CardKind, 'C2' | 'C3' | 'BATCH' | 'X2'>,
+  kind: Exclude<CardKind, 'C3' | 'BATCH' | 'X2'>,
   view: object,
   over: Partial<CardDetailWire> = {},
 ): CardDetailWire {

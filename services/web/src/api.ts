@@ -317,6 +317,13 @@ export const api = {
     request<CardDecision>('POST', `/api/cards/${encodeURIComponent(id)}/decide`, b, csrf),
   recheck: (id: string, csrf: string) =>
     request<unknown>('POST', `/api/cards/${encodeURIComponent(id)}/recheck`, {}, csrf),
+  /** Card 2: edit one file's proposed instruction text (secret-scanned by the factory before it is stored). */
+  editInstructions: (
+    id: string,
+    b: { path: string; text: string; base_text_sha256: string | null },
+    csrf: string,
+  ) =>
+    request<CardDetailWire>('POST', `/api/cards/${encodeURIComponent(id)}/instructions`, b, csrf),
   stepUpStart: (b: { subject_hash: string; return_to: string }, csrf: string) =>
     request<StepUpStart>('POST', '/api/step-up', b, csrf),
   stepUpCollect: (attempt: string) =>

@@ -4,6 +4,7 @@ import { ApiError, api } from '../api';
 import { Badge } from '../components/Badge';
 import { PageError, Loading } from '../components/Notice';
 import { C1Form } from '../cards/C1Form';
+import { C2Form } from '../cards/C2Form';
 import { C4Form } from '../cards/C4Form';
 import { C5Panel } from '../cards/C5Panel';
 import { GateArtefacts } from '../cards/GateArtefacts';
@@ -14,6 +15,7 @@ import { stepName } from '../vocab';
 
 const TITLE: Readonly<Partial<Record<CardKind, string>>> = {
   C1: 'Card 1: confirm the census',
+  C2: 'Card 2: claims, intent and instruction text',
   C4: 'Card 4: controls and who can do what',
   C5: 'Card 5: sign-off and M4',
   SECR: 'Security card: a secret in the history',
@@ -65,10 +67,11 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
       </p>
       <fieldset className="plain-fieldset" disabled={!decidable} aria-label="Card">
         {summary.card === 'C1' ? <C1Form card={card} csrf={csrf} me={me} /> : null}
+        {summary.card === 'C2' ? <C2Form card={card} csrf={csrf} /> : null}
         {summary.card === 'C4' ? <C4Form card={card} csrf={csrf} me={me} /> : null}
         {summary.card === 'C5' ? <C5Panel card={card} csrf={csrf} /> : null}
         {summary.card === 'SECR' ? <SecrForm card={card} csrf={csrf} /> : null}
-        {!['C1', 'C4', 'C5', 'SECR'].includes(summary.card) ? (
+        {!['C1', 'C2', 'C4', 'C5', 'SECR'].includes(summary.card) ? (
           <p className="muted">The portal does not show this kind of card yet.</p>
         ) : null}
       </fieldset>
