@@ -21,6 +21,7 @@ export type Route =
   | { name: 'inbox' }
   | { name: 'revision'; id: string }
   | { name: 'readiness'; id: string }
+  | { name: 'knowledge'; id: string }
   | { name: 'ledger'; id: string }
   | { name: 'issues'; id: string }
   | { name: 'drift'; id: string }
@@ -97,10 +98,17 @@ export function parseRoute(path: string): Route {
   }
   const drift = /^\/projects\/([^/]+)\/drift$/.exec(p);
   if (drift) return { name: 'drift', id: decodeURIComponent(drift[1] as string) };
-  const sub = /^\/projects\/([^/]+)\/(readiness|ledger|issues)$/.exec(p);
+  const sub = /^\/projects\/([^/]+)\/(readiness|ledger|issues|knowledge)$/.exec(p);
   if (sub) {
     return {
-      name: sub[2] === 'ledger' ? 'ledger' : sub[2] === 'issues' ? 'issues' : 'readiness',
+      name:
+        sub[2] === 'ledger'
+          ? 'ledger'
+          : sub[2] === 'issues'
+            ? 'issues'
+            : sub[2] === 'knowledge'
+              ? 'knowledge'
+              : 'readiness',
       id: decodeURIComponent(sub[1] as string),
     };
   }

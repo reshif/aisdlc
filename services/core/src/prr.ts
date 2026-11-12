@@ -1,7 +1,13 @@
-import { AUTONOMY, effectiveAutonomy, eligibleLanes, readinessCap } from '@aisdlc/catalogue';
+import { areaLevelsOf, lowestAreaLevel, type AreaLevelInput } from '@aisdlc/onboarding';
+import {
+  AUTONOMY,
+  catalogueFor,
+  effectiveAutonomy,
+  eligibleLanes,
+  readinessCap,
+} from '@aisdlc/catalogue';
 import {
   AutonomyValues,
-  CENSUS_AREA,
   MS_PER_DAY,
   PRR_FRESH_DAYS,
   PRR_GOVERNANCE_CAP_MAP,
@@ -25,6 +31,7 @@ import {
   type Lane,
   type Level,
   type PrincipalId,
+  type PrrArea,
   type PrrBody,
   type PrrSecuritySummary,
   type RoleMap,
@@ -53,6 +60,8 @@ export type PrrBuildCode =
   | 'b3_not_met'
   | 'gating_floor'
   | 'no_signer'
+  /** The S0 record's pinned catalogue is not a released one (or its hash does not match). */
+  | 'catalogue_unknown'
   | 'invalid_record';
 
 export interface PrrBuildError {
@@ -188,6 +197,11 @@ export interface PrrInputs {
   readonly security: PrrSecuritySummary;
   readonly signer: ProjectReadinessRecord['signer'];
   readonly affirmed?: ProjectReadinessRecord['affirmed'];
+  /**
+   * DEC-25: the areas of card 3's system map with their tests and seeds (`areaLevelsOf`). Absent or `null`: one
+   * repo-wide area `.` at the signed level.
+   */
+  readonly areas?: AreaLevelInput | null;
 }
 
 const TIER_RANK: Readonly<Record<Tier, number>> = { T0: 0, T1: 1, T2: 2 };
@@ -317,6 +331,8 @@ export function closeOwnerCardGaps(
   f: {
     /** Card 2 was decided: instruction text affirmed (RS-AI-4), claims (RS-KN-4), intent (RS-KN-5). */
     light_affirmed?: boolean;
+    /** Card 3 was decided (M17): the full codekb, the system map and the seeds exist (RS-KN-7, FF1). */
+    full_baseline?: boolean;
     owner_confirmed: boolean;
     tier_signed: boolean;
     app_scoped: boolean;
@@ -330,6 +346,7 @@ export function closeOwnerCardGaps(
     'RS-AI-4': f.light_affirmed === true,
     'RS-KN-4': f.light_affirmed === true,
     'RS-KN-5': f.light_affirmed === true,
+    'RS-KN-7': f.full_baseline === true,
     'RS-ID-3': f.tier_signed,
     'RS-ID-4':
       census.repo.visibility !== null &&
@@ -417,13 +434,39 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
     issued_at: i.now,
   });
 
-  // ---- lanes: what the signed level and tier unlock, confined to Census lanes while posture is red.
-  const ff2 = census.floors.find((f) => f.id === 'FF2')?.status === 'met';
-  const laneLevel: Level = AUTONOMY.posture[posture].census_lanes_only ? 'census' : signed;
-  const lanes_eligible: Lane[] = eligibleLanes(laneLevel, {
-    tier: c1.tier,
-    stagingSeparationAttested: ff2,
-  });
+  // ---- lanes: what the signed level and tier unlock, confined to Census lanes while posture is red,
+  // read from the eligibility table of the catalogue the S0 record is pinned to (catalogue 1.4.0
+  // opened L0 at Light and L7 at Census; a record pinned before it keeps the older table).
+  const pinned = catalogueFor(s0.catalogue_ref);
+  if (!pinned.ok) {
+    return fail(
+      'catalogue_unknown',
+      `the S0 record's catalogue ${s0.catalogue_ref.version} is not a released one`,
+      [pinned.error._tag],
+    );
+  }
+  // Per area (DEC-25(a)): each area's floors can only lower it below the signed level; each area opens the lanes
+  // of its own level, and the repo as a whole (a request that names no area) the lanes of the LOWEST area.
+  // FF2 (L5 only): the census never evaluates it; card 3's ServiceEnv declaration does (`ff2Of`), and only a Full
+  // record carries one. Unknown is unmet.
+  const ff2 =
+    census.floors.find((f) => f.id === 'FF2')?.status === 'met' ||
+    i.affirmed?.full?.service_envs?.ff2 === 'met';
+  const redLanes = AUTONOMY.posture[posture].census_lanes_only;
+  const lanesAt = (level: Level): Lane[] =>
+    eligibleLanes(
+      redLanes ? 'census' : level,
+      { tier: c1.tier, stagingSeparationAttested: ff2 },
+      pinned.value.eligibility,
+    );
+  const areaRows = areaLevelsOf(signed, i.areas ?? null);
+  const areas: PrrArea[] = areaRows.map((r) => ({
+    area: r.area,
+    level: r.level,
+    floors: [...r.floors],
+    lanes: lanesAt(r.level),
+  }));
+  const lanes_eligible: Lane[] = lanesAt(lowestAreaLevel(areaRows));
 
   // ---- writes. B3 decides whether the factory may write at all; a read-only Census signs without it.
   const b3 = b3Met(c4);
@@ -477,7 +520,8 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
     level: {
       requested: s0.requested_level,
       signed,
-      by_area: { [CENSUS_AREA]: signed },
+      by_area: Object.fromEntries(areas.map((a) => [a.area, a.level])),
+      areas,
       steps: {
         '0.1': 'done',
         '0.2': s0.step_0_2 === 'done' ? 'done' : 'not_requested',

@@ -21,8 +21,8 @@ import type { S0Settings } from '../driver.js';
 // prepare / evidence viewed / decide, and every decision is a ledger entry with the hash of its
 // list payload.
 
-/** The cards this layer owns. C2 is Light's (M16); C3 (Full) is a later task's. */
-export const HANDLED_CARDS = ['C1', 'C2', 'C4', 'C5', 'SECR'] as const;
+/** The cards this layer owns. C2 is Light's (M16), C3 Full's (M17). */
+export const HANDLED_CARDS = ['C1', 'C2', 'C3', 'C4', 'C5', 'SECR'] as const;
 export type HandledCard = (typeof HANDLED_CARDS)[number];
 export const isHandled = (k: string | null): k is HandledCard =>
   k !== null && (HANDLED_CARDS as readonly string[]).includes(k);
@@ -31,6 +31,7 @@ export const isHandled = (k: string | null): k is HandledCard =>
 export const STEP_OF_CARD: Readonly<Record<HandledCard, OnboardingStepId>> = {
   C1: '0.1',
   C2: '0.2',
+  C3: '0.3',
   C4: '0.4',
   C5: '0.5',
   SECR: '0.1',
@@ -45,6 +46,7 @@ export const STEP_OF_CARD: Readonly<Record<HandledCard, OnboardingStepId>> = {
 export const SLOT_OF_CARD: Readonly<Record<HandledCard, RoleSlot>> = {
   C1: gatePolicy('M1').slot,
   C2: gatePolicy('M1').slot,
+  C3: gatePolicy('G2').slot,
   C4: gatePolicy('M1').slot,
   C5: gatePolicy('M1').slot,
   SECR: gatePolicy('SECT').slot,

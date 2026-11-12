@@ -26,6 +26,28 @@ import { GitSha, S0RecordId, Sha256Hex } from './ids.js';
 
 /** The Unit key of an onboarding pack push: its branch is `agent/<s0 id>/onboarding-pack`. */
 export const ONBOARDING_PACK_UNIT = 'onboarding-pack';
+/**
+ * The Unit key of the Full pack (M17, the oracle lock through X2): card 3's oracle lock and the seeds it affirmed
+ * `intended`, on their own branch `agent/<s0 id>/onboarding-full-pack` and their own X2 (step 0.3's artefact).
+ */
+export const ONBOARDING_FULL_PACK_UNIT = 'onboarding-full-pack';
+/** Where the oracle lock lives in the repo (DM §3.2 OracleLock). A protected path (`.factory/**`). */
+export const ORACLE_LOCK_PATH = '.factory/oracle-lock.json';
+export const ORACLE_LOCK_SCHEMA_ID = 'oracle-lock/1';
+
+/** Which projection a pack is: card 2's (Light, step 0.2) or card 3's (Full, step 0.3). */
+export const PackKind = z.enum(['light', 'full']);
+export type PackKind = z.infer<typeof PackKind>;
+/** The Unit key, the S0 step and the X2 facts kind of each pack. */
+export const PACK_KINDS: Readonly<
+  Record<
+    PackKind,
+    { readonly unit: string; readonly step: '0.2' | '0.3'; readonly facts_kind: string }
+  >
+> = {
+  light: { unit: ONBOARDING_PACK_UNIT, step: '0.2', facts_kind: 'onboarding_pack' },
+  full: { unit: ONBOARDING_FULL_PACK_UNIT, step: '0.3', facts_kind: 'onboarding_full_pack' },
+};
 /** The broker's `lane` for an onboarding pack: not a delivery lane (S0 is not an item), never the spike lane. */
 export const ONBOARDING_PACK_LANE = 'S0';
 /** The one lease epoch an onboarding pack is pushed under (it has no Unit and no lease of its own). */
@@ -47,6 +69,10 @@ export const PackFileSource = z.enum([
   'unknowns',
   'intent',
   'manifest',
+  /** card 3's oracle lock proposal, as affirmed (`.factory/oracle-lock.json`). */
+  'oracle_lock',
+  /** a living-spec seed card 3 affirmed `intended` (`specs/<area>.md`). */
+  'seed',
   'codeowners',
 ]);
 export type PackFileSource = z.infer<typeof PackFileSource>;
@@ -99,7 +125,12 @@ export const PackRenderedPayload = z.strictObject({
   repo: RepoFullName,
   /** The commit the pack is written on top of: the census head card 2 was about. */
   base_sha: GitSha,
-  /** Card 2 as decided: the card and its payload hash (what the projection renders). */
+  /** Absent on a Light pack (every pack before M17); `full` for card 3's. */
+  kind: PackKind.optional(),
+  /**
+   * The deciding card and its payload hash (what the projection renders): card 2 for a Light pack, card 3 for a
+   * Full one (the field names are the first release's and stay, so older events keep parsing).
+   */
   c2_card_id: z.string().uuid(),
   c2_payload_hash: Sha256Hex,
   renderer: z.literal(ONBOARDING_PACK_RENDERER),
@@ -120,7 +151,7 @@ export type PackX2OpenedPayload = z.infer<typeof PackX2OpenedPayload>;
 
 /** Where an S0 record's pack projection stands (derived from the record and the ledger, never stored as truth). */
 export const PackProjectionState = z.enum([
-  /** card 2 is not applied (approved) yet: nothing to render. */
+  /** the deciding card (card 2 for Light, card 3 for Full) is not applied (approved) yet: nothing to render. */
   'waiting_for_c2',
   /** rendered and recorded; X2 is open, waiting for a decision. */
   'x2_pending',
@@ -137,6 +168,8 @@ export type PackProjectionState = z.infer<typeof PackProjectionState>;
 
 export const PackProjectionView = z.strictObject({
   s0_id: S0RecordId,
+  /** Absent: the Light pack. */
+  kind: PackKind.optional(),
   state: PackProjectionState,
   patch_hash: Sha256Hex.nullable(),
   files: z.array(PackFile),

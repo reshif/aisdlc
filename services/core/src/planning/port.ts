@@ -25,6 +25,7 @@ import {
   type ProposalReason,
   type StageOutcome,
   type StageRequest,
+  type ReonboardTriggersConfig,
 } from '@aisdlc/contracts';
 import { err, hashCanonical, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import {
@@ -38,6 +39,7 @@ import { limitValue, type ItemState } from '@aisdlc/work';
 import type pg from 'pg';
 import { z } from 'zod';
 import { inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
+import { recordKnowledgeDefects } from '../knowledge-defects.js';
 import { readItem } from '../work-items.js';
 import { readWork } from '../work.js';
 import { checkContractFiles, designFactsOf, evaluateConstitution } from './design.js';
@@ -124,6 +126,8 @@ export interface AgentPlanningDeps extends CoreDeps {
   readonly maxOutputTokens?: number;
   /** Tool-use round trips inside one answer (default 6; the last call is made without tools). */
   readonly maxToolRounds?: number;
+  /** `onboarding.reonboard_triggers` (M17): the knowledge-defect threshold; absent: the spec's 3 in 30 days. */
+  readonly reonboardTriggers?: () => ReonboardTriggersConfig;
 }
 
 type Ctx = Parameters<typeof outcomeFor>[3];
@@ -356,6 +360,16 @@ export class AgentPlanningPort implements PlanningPort {
       ...(grounding.repo_text ? { repo_text: grounding.repo_text } : {}),
       artefacts: pieces,
     });
+    // M17: the repo defects the build logged are recorded, and may propose a re-onboarding (OB §8). Recorded first:
+    // a defect that cannot be recorded stops the step, which the driver retries.
+    if (built.defects.length > 0) {
+      const kd = await recordKnowledgeDefects(d, {
+        repo: s.repo,
+        defects: built.defects,
+        source: { kind: 'item_step', ref: `${req.item_id}:${step}` },
+      });
+      if (!kd.ok) return portError(`knowledge defects: ${kd.error.message}`);
+    }
 
     let system: string;
     try {

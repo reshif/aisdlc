@@ -38,6 +38,7 @@ import {
   DbWatchedPulls,
   registerCoreConfig,
   constitutionFrom,
+  reonboardTriggersFrom,
   roleMapSyncLoop,
   s0DriverLoop,
   maintenanceFrom,
@@ -285,6 +286,7 @@ export async function bootCoreWorker(
               keys: vault,
               knowledge: cfg.knowledge,
               constitution: constitutionFrom(rd),
+              reonboardTriggers: reonboardTriggersFrom(rd),
             })
           : baseStagePorts;
       // M13.3, M13.4: with a sandbox proxy, 6.1 to 6.5 run real coding sessions (the DEC-18 owner allow-list and B1 in
