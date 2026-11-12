@@ -1,0 +1,30 @@
+/* Quality: agents, evals, models and routes, integrations */
+.ql-steps,.ql-tags{display:flex;flex-wrap:wrap;gap:4px}
+.ql-step{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--line-2);border-radius:5px;padding:1px 5px;font-size:11.5px;background:var(--sunk)}
+.ql-step.spec{border-style:dashed}
+.ql-tag{display:inline-block;font-family:var(--mono);font-size:11px;border:1px solid var(--line-2);border-radius:4px;padding:1px 6px;background:var(--panel-2);color:var(--fg-2)}
+.ql-tag.bad{border-color:#6a2522;color:#ffb0aa;background:var(--bad-bg)}
+.ql-d{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.ql-d.up{color:#7fe0a5}.ql-d.down{color:#ffb0aa}
+.ql-rowbtn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0;padding:2px 0;text-align:left;cursor:pointer;color:var(--fg)}
+.ql-rowbtn[aria-pressed="true"] b{color:var(--gate)}
+.ql-rowbtn:hover b{text-decoration:underline}
+/* M14: S7 checks, pack */
+.m14-chk{border-top:1px solid var(--line)}
+.m14-chk:first-child{border-top:0}
+.m14-chk>summary{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;list-style:none;flex-wrap:wrap}
+.m14-chk>summary::-webkit-details-marker{display:none}
+.m14-chk>summary .sp{flex:1}
+.m14-body{padding:0 16px 14px}
+.m14-run{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* onboarding console */
+.ob-thread{display:flex;flex-direction:column;gap:8px;max-height:460px;overflow-y:auto;padding-right:2px}
+.ob-turn{border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:8px 10px;font-size:13px;max-width:100%}
+.ob-turn.me{align-self:flex-end;background:var(--info-bg);border-color:#24476e;max-width:88%}
+.ob-turn.refusal{border-color:#5d4a14;background:var(--warn-bg);color:#f6d77f}
+.ob-cites{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.ob-cite{font-family:var(--mono);font-size:11px;border:1px solid var(--line-2);border-radius:4px;padding:1px 6px;color:#8cc0f5;background:var(--sunk)}
+.ob-draft{margin-top:8px;border:1px dashed var(--line-2);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px}
+.ob-draft pre{white-space:pre-wrap;margin:0}
+.ob-sugg{display:flex;flex-wrap:wrap;gap:4px}
+.ob-sugg .btn{white-space:normal;text-align:left}

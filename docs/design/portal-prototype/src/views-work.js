@@ -85,7 +85,7 @@
   const typeOf = (it) => (it.type === 'feature' && TYPE_BY_LANE[it.lane] ? TYPE_BY_LANE[it.lane] : it.type);
   const stuckMins = (it) => (/(\d+)m ago/.exec(it.updated || '') || [0, 0])[1];
 
-  /* ---------------------------------------------------------------- lane route (catalogue 1.4.0) */
+  /* ---------------------------------------------------------------- lane route (catalogue 1.3.0) */
   const ROUTES = { L0: ['S1', 'S6', 'S7', 'S8', 'S9'], L1: ['S1', 'S3', 'S5', 'S6', 'S7', 'S8', 'S9'], L7: ['S1', 'S2', 'S6', 'S9'] };
   ROUTES.L2 = ROUTES.L1; ROUTES.L3 = ROUTES.L1;
   const routeOf = (lane) => ROUTES[lane] || ALL_STAGES;
@@ -140,7 +140,7 @@
   const GORD = { G0: 0, G0G1: 0, G1f: 1, G2: 2, G3d: 3, G3: 4, G4: 5, G5: 6, G6: 7 };
   const gateSeq = (it, g) => { const fixed = { 'W-23G3': 18422, 'W-28G2': 18417, 'W-31X1': 18420, 'W-15G4': 18413 }; return fixed[it.key + g] || Math.min(18410 - (7 - (GORD[g] ?? 5)), itemSeq(it) + (GORD[g] ?? 5) * 38 + num(it.key + g, 1, 30)); };
 
-  const agentForStep = (step) => D.AGENTS.find((a) => a.steps.includes(step));
+  const agentForStep = (step) => A.primaryAgent(step);
   const ART = {
     '1.5': ['Intent block', 'intent', 'G0G1'], '2.1': ['Context brief', 'context', null], '2.3': ['Decision brief', 'decision', null], '2.4': ['Initiative elaboration', 'initiative', 'G1f'],
     '3.2': ['spec-delta.md', 'spec', 'G2'], '3.3': ['Validator report', 'validator', 'G2'], '3.4': ['Oracle specs', 'oracles', 'G2'],
@@ -190,7 +190,7 @@
     const add = (k, step, t, m = '', tag = '') => ev.push({ k, step, t, m, tag });
     const rq = it.requester, ow = it.owner;
     const src = { ak: 'portal Ask', ks: 'API (security scanner)', pm: 'portal Ask', dn: 'GitHub issue ' + repo(it) + '#' + num(it.key, 300, 420) }[rq] || 'portal Ask';
-    add('h', '1.1', `<b>Request received</b> from ${E(pname(rq))} via ${E(src)}`, `catalogue pinned {1.4.0, 8c2e…f1} · idempotency key ${hx(it.key + 'idem', 10)}`, 'record');
+    add('h', '1.1', `<b>Request received</b> from ${E(pname(rq))} via ${E(src)}`, `catalogue pinned {1.3.0, 8c2e…f1} · idempotency key ${hx(it.key + 'idem', 10)}`, 'record');
     const reached = (s) => pr.stepStatus(s) === 'done' || pr.stepStatus(s) === 'now';
     const doneS = (s) => pr.stepStatus(s) === 'done';
     if (reached('1.1')) add('d', '1.1', '<b>1.1 Normalised</b> and taint-marked', `${num(it.key, 1, 3)} span${num(it.key, 1, 3) > 1 ? 's' : ''} marked as data (links, pasted log) · 0 injection flags (L-*) · text ${A.hash(hx(it.key + 'req'))}`, 'record');
@@ -285,7 +285,7 @@
     if (it.key === 'W-19') { add('x', '6.4', '<b>ET10 tripwire</b>: the session read <code>~/.aws/credentials</code>', 'IMMEDIATE stop · session ses-7f12 tainted · snapshot kept · Q1 QUARANTINE', 'back'); add('g', '6.4', `<b>SECT triage</b> opened for ${E(pname('ks'))}`, 'security triage before any handoff', 'gate'); }
     if (it.key === 'W-18') { add('b', '6.4', '<b>ET1</b>: budget envelope spent (4,000¢ of 4,000¢)', 'session killed · tokens revoked · A11 wrote the Handoff Pack', 'back'); add('g', '6.4', `<b>E4</b>: ${E(pname(it.owner))} chooses: answer and resume, extend ≤ +50%, re-plan, take over, or abandon`, 'D1 handoff from S6', 'gate'); }
     if (it.key === 'W-24') { const i = ev.findIndex((e) => e.step === '7.6'); ev.splice(i < 0 ? ev.length : i, 0, { k: 'b', step: '8.1', t: '<b>B13</b>: merge review asked for changes (round 1 of 2, ET7)', m: '2 comments on api/src/mit/network-id.ts · back to 6.4', tag: 'back' }, { k: 'a', step: '6.4', t: '<b>Coder reworked</b> u3 for B13', m: 'rework budget 1 of 5', tag: 'agent' }); }
-    if (it.key === 'W-22') add('d', '6.0', '<b>Waiting for a coding pod</b> (3 of 3 busy)', 'FIFO by priority · next free slot when W-21 pushes', 'record');
+    if (it.key === 'W-22') add('d', '6.0', '<b>Waiting for the coding slot</b> (1 of 1 busy)', 'FIFO · second in line after W-38', 'record');
     // assign times spread over the item's age
     const span = ageMs(it.age); const start = NOW.getTime() - span; const end = NOW.getTime() - (it.state === 'done' ? ageMs(it.updated) : 6e4 * 3);
     ev.forEach((e, i) => { e.time = new Date(start + (end - start) * (ev.length === 1 ? 0 : i / (ev.length - 1))); });
@@ -343,7 +343,7 @@
     const cols = D.STAGES.map((s) => {
       const its = live.filter((i) => i.stage === s.id);
       const steps = D.stepsOf(s.id);
-      return colHtml({ sid: s.id, id: s.id, title: s.name, items: its, actors: A.actors(s.actors, 15), sub: `${steps[0]}–${steps[steps.length - 1]}${s.id === 'S6' ? ' · pods 3 of 3' : ''}`, empty: s.id === 'S8' ? 'Nothing waiting to merge. The factory never merges: a person does, on GitHub.' : 'No item is working here right now' });
+      return colHtml({ sid: s.id, id: s.id, title: s.name, items: its, actors: A.actors(s.actors, 15), sub: `${steps[0]}–${steps[steps.length - 1]}${s.id === 'S6' ? ' · coding slot 1 of 1' : ''}`, empty: s.id === 'S8' ? 'Nothing waiting to merge. The factory never merges: a person does, on GitHub.' : 'No item is working here right now' });
     });
     const side = [
       { title: 'Waiting on a person', items: items.filter((i) => i.state === 'waiting'), color: 'var(--gate)', sub: 'gates, answers, merges', wide: true },
@@ -391,7 +391,7 @@
         <span class="lbl">Group by</span><div class="seg" id="wk-by">${A.j([['stage', 'Stage'], ['lane', 'Lane'], ['owner', 'Owner']], ([k, l]) => `<button data-by="${k}" aria-pressed="${boardState.by === k}">${l}</button>`)}</div>
       </div>
       <div id="wk-board">${boardBody()}</div>
-      <div class="wk-status"><span><b>Same data as the floor</b>: positions from ItemPosition, refreshed every 5 s</span><span>catalogue <b>1.4.0</b> · 8c2e…f1</span><span>Click a card for the quick look, open it for the full record</span></div>`;
+      <div class="wk-status"><span><b>Same data as the floor</b>: positions from ItemPosition, refreshed every 5 s</span><span>catalogue <b>1.3.0</b> · 8c2e…f1</span><span>Click a card for the quick look, open it for the full record</span></div>`;
     },
     mount: (root) => {
       const redraw = () => { root.querySelector('#wk-board').innerHTML = boardBody(); };
@@ -581,8 +581,8 @@
       btn = dec.allow ? dec.btn : dec.btn + `<div class="row">${nudge()}</div>`;
     } else if (it.state === 'quarantined') {
       tone = 'bad'; big = 'Quarantined: security triage';
-      body = `<p>${wt ? E(wt) + '. ' : ''}${A.gate('SECT')} triage comes before any handoff: a false positive gets a cold rebuild in a new session; a confirmed one quarantines the branch and demotes autonomy.</p>`;
-      btn = dec.btn + `<div class="row">${A.act('Open session ses-7f12', 'ops.read', resProj(it.project), { href: '#sessions' })}</div>`;
+      body = it.gate === 'Q1' ? `<p>${wt ? E(wt) + '. ' : ''}${A.gate('Q1')} test-integrity quarantine: the security approver decides whether the tests were bent; nothing hands off, pushes or merges until then.</p>` : `<p>${wt ? E(wt) + '. ' : ''}${A.gate('SECT')} triage comes before any handoff: a false positive gets a cold rebuild in a new session; a confirmed one quarantines the branch and demotes autonomy.</p>`;
+      btn = dec.btn + (it.key === 'W-19' ? `<div class="row">${A.act('Open session ses-7f12', 'ops.read', resProj(it.project), { href: '#sessions' })}</div>` : '');
     } else if (it.state === 'handoff') {
       tone = 'hand'; big = `The owner of record chooses (E4)`;
       body = `<p>${wt ? E(wt) + '. ' : ''}The Handoff Pack (A11) is ready. Options: answer and resume on the same envelope, one extension up to +50% (E3), re-plan, re-spec, a developer takes over (lease epoch +1), or abandon.</p>`;
@@ -612,12 +612,12 @@
     const dc = dcOf(it), vl = vlOf(it);
     const hasPr = it.pr || pr.stepStatus('6.6') === 'done' || (it.key === 'W-31');
     const prRef = it.pr || `${repo(it)}#${it.key === 'W-31' ? 407 : num(it.key, 380, 415)}`;
-    const ep = pr.stepStatus('7.6') === 'done';
+    const ep = A.m14.packed(it);
     const ledgerN = ev2count(it);
     const lock = (label, why) => `<span class="x faint">${A.icon('lock', 14)}<span>${label}</span><span class="sp"></span><span class="small">${why}</span></span>`;
     const rows = [
       hasPr ? (dc >= 1 ? `<a href="#item-${it.key}" data-toast="Opens ${E(prRef)} on GitHub (draft, opened by the Push Broker).">${A.icon('ext', 14)}<span>Pull request</span><span class="sp"></span><span class="mono small">${E(prRef)}</span></a>` : lock('Pull request', 'diff needs D1')) : `<span class="x faint">${A.icon('ext', 14)}<span>Pull request</span><span class="sp"></span><span class="small">after 6.6</span></span>`,
-      ep ? (vl >= 2 ? `<a href="#item-${it.key}" data-toast="Evidence Pack ep-${hx(it.key, 6)} verified offline: ES256 signature ok, bound to head ${sha(it, 'head3')}.">${A.icon('lock', 14)}<span>Evidence Pack</span><span class="sp"></span>${A.hash(hx(it.key + 'ep'))}</a>` : lock('Evidence Pack', 'needs V2')) : `<span class="x faint">${A.icon('lock', 14)}<span>Evidence Pack</span><span class="sp"></span><span class="small">signed at 7.6</span></span>`,
+      ep ? (vl >= 2 ? `<a href="#pack-${it.key}">${A.icon('lock', 14)}<span>Evidence Pack</span><span class="sp"></span>${A.hash(A.m14.packId(it))}</a>` : lock('Evidence Pack', 'needs V2')) : `<span class="x faint">${A.icon('lock', 14)}<span>Evidence Pack</span><span class="sp"></span><span class="small">signed at 7.6</span></span>`,
       A.can('audit.read', resProj(it.project)) ? `<a href="#ledger">${A.icon('ledger', 14)}<span>Ledger entries</span><span class="sp"></span><span class="mono small">${ledgerN} entries</span></a>` : `<span class="x">${A.icon('ledger', 14)}<span>Ledger entries</span><span class="sp"></span><span class="mono small">${ledgerN} entries</span></span>`,
       A.can('floor.read', resProj(it.project)) ? `<a href="#floor">${A.icon('floor', 14)}<span>Position on the floor</span><span class="sp"></span><span class="mono small">${it.stage} · ${it.step}</span></a>` : '',
       it.pod && A.can('ops.read', resProj(it.project)) ? `<a href="#sessions">${A.icon('sessions', 14)}<span>Session</span><span class="sp"></span><span class="mono small">${E((D.SESSIONS.find((s) => s.item === it.key && s.state === 'running') || {}).id || '')}</span></a>` : '',
@@ -676,7 +676,7 @@
       const head = `<span class="mono faint">${s.id}</span> ${E(s.name)}`;
       const tag = { done: A.pill('done', 'ok'), now: A.pill('current', 'gate'), todo: A.pill('upcoming', 'mute'), skip: A.pill(`skipped by ${it.lane}`, 'mute'), off: A.pill('not reached', 'mute') }[st];
       return `<section class="card ${st}"><div class="hd"><h3>${head}</h3><span class="sp"></span>${tag}</div><div class="bd"><div class="steps">${rows}</div>${st === 'skip' ? `<p class="small faint" style="margin-top:8px">The ${it.lane} lane profile skips this stage. R1 inserts it back (first missing stage only) if the diff, a contract or a sensitive path needs it.</p>` : ''}${gl}</div></section>`;
-    })}</div><p class="small faint" style="margin-top:12px">Steps and actors come from the item's pinned catalogue {1.4.0, 8c2e…f1}: ${A.glyph('A', 14)} agent · ${A.glyph('D', 14)} deterministic · ${A.glyph('H', 14)} person.</p>`;
+    })}</div><p class="small faint" style="margin-top:12px">Steps and actors come from the item's pinned catalogue {1.3.0, 8c2e…f1}: ${A.glyph('A', 14)} agent · ${A.glyph('D', 14)} deterministic · ${A.glyph('H', 14)} person.</p>`;
   };
 
   /* ---- tab: artefacts */
@@ -705,7 +705,7 @@
   };
   const artPreview = (it, a) => {
     const head = `<div class="row" style="margin-bottom:12px"><span class="eyebrow">${a.step} · ${a.kind}</span><span class="sp" style="flex:1"></span>${a.gate ? (a.bound === 'done' ? `<span class="pill ok">bound by ${D.GATES[a.gate].short || a.gate} · #${gateSeq(it, a.gate).toLocaleString()}</span>` : a.bound === 'open' ? `<span class="pill gate">on the open ${D.GATES[a.gate].short || a.gate} card</span>` : `<span class="pill mute">awaiting ${D.GATES[a.gate].short || a.gate}</span>`) : '<span class="pill mute">informational</span>'}</div>
-      <div class="row small muted" style="margin-bottom:12px">${a.agent ? `${A.glyph('A', 14)} ${a.agent.id} ${E(a.agent.name)} · prompt ${a.agent.sha} · contract ${a.agent.ver}` : `${A.glyph('D', 14)} deterministic`}<span>·</span><span class="mono" title="sha256:${a.hash}">sha256:${a.hash.slice(0, 16)}…</span><span>· core.artefact, secret-scanned before storing</span></div>`;
+      <div class="row small muted" style="margin-bottom:12px">${a.agent ? `${A.glyph('A', 14)} ${a.agent.id} ${E(a.agent.name)} · prompt ${a.agent.prompt} ${a.agent.sha} · contract ${a.agent.cv}` : `${A.glyph('D', 14)} deterministic`}<span>·</span><span class="mono" title="sha256:${a.hash}">sha256:${a.hash.slice(0, 16)}…</span><span>· core.artefact, secret-scanned before storing</span></div>`;
     const t = T(it);
     const crit = [`${t} works for the documented happy path`, 'Errors return problem+json with a stable code', 'Existing clients see no change in behaviour', 'Every new record event carries the item id'];
     let body;
@@ -863,19 +863,8 @@
     ['7.5', 'Constitution check, all lanes', 'D+A', ['no unapproved egress', 'migrations reversible']],
     ['7.6', 'Pack assembly and sign', 'D', ['Evidence Pack assembled', 'signed ES256 by the Notary', 'bound to the head SHA']],
   ];
-  const tabEvidence = (it) => {
-    const pr = progress(it);
-    if (it.lane === 'L7') return A.empty('Spikes never reach S7 or G4. 6.5 ends in a spike report, the branch is archived and nothing is pushed.');
-    if (!['done', 'now'].includes(pr.stepStatus('7.1')) && !pr.finished) {
-      const self = pr.stepStatus('6.5') === 'done' || pr.stepStatus('6.5') === 'now';
-      return `<div class="banner info">Evidence starts at S7 (Verify, in the CVW). ${it.key} is at ${it.step}.</div>${self ? '' : ''}${A.card('What S7 will check', `<div class="steps">${A.j(CHECKS, ([id, t, a]) => `<div class="s todo"><span class="id">${id}</span><span>${t}</span>${A.actors(A.actorKinds(a), 16)}</div>`)}</div>`)}`;
-    }
-    const st = (id) => (pr.finished ? 'done' : pr.stepStatus(id));
-    const signed = st('7.6') === 'done';
-    return `${A.stats([{ k: 'Checks passed', v: `${CHECKS.filter((c) => st(c[0]) === 'done').length} of 6`, tone: signed ? 'ok' : '' }, { k: 'Evidence Pack', v: signed ? 'signed' : 'not yet', d: signed ? `ep-${hx(it.key, 6)} · ES256` : 'assembled at 7.6', tone: signed ? 'ok' : '' }, { k: 'Head SHA', v: `<span class="mono" style="font-size:22px">${sha(it, 'head3')}</span>`, d: 'pack bound to this commit' }, { k: 'Gate-check on GitHub', v: ['S8', 'S9'].includes(it.stage) || pr.finished ? 'passed' : signed ? 'armed' : '—', d: 'PR head SHA == pack SHA' }])}
-      <section class="card" style="margin-top:14px"><div class="hd"><h3>S7 checks</h3><span class="sp"></span><span class="small muted">run in the CVW (class V), never by the coder</span></div><div class="bd flush">${A.j(CHECKS, ([id, t, a, li]) => { const s = st(id); return `<div class="wk-check"><span class="id">${id}</span><div><div class="row" style="gap:8px">${A.actors(A.actorKinds(a), 16)}<b style="font-weight:500">${t}</b></div>${s === 'done' ? `<ul>${A.j(li, (l) => `<li>${E(l)}</li>`)}</ul>` : s === 'now' ? '<div class="d">running now</div>' : '<div class="d">waiting for the previous check</div>'}</div>${s === 'done' ? A.pill('pass', 'ok') : s === 'now' ? A.pill('running', 'info') : A.pill('queued', 'mute')}</div>`; })}</div></section>
-      ${signed ? `<section class="card" style="margin-top:14px"><div class="hd"><h3>Evidence Pack</h3><span class="sp"></span><button class="btn sm" data-toast="verify-ledger: pack signature ok, ledger entry ok, head SHA matches.">Verify offline</button></div><div class="bd">${A.kv([['Pack id', `<span class="mono">ep-${hx(it.key, 6)}</span>`], ['sha256', `<span class="mono small">${hx(it.key + 'evidence' + 'art', 64)}</span>`], ['Bound to', `head <span class="mono">${sha(it, 'head3')}</span> of ${E(it.pr || repo(it))}`], ['Signed by', 'notary · ES256 · ledger entry ' + `#${(gateSeq(it, 'G4') - 1).toLocaleString()}`], ['Contents', 'checks 7.1–7.6, oracle map, diff summary, agent runs, tripwire log']])}</div></section>` : ''}`;
-  };
+  // S7 per-check results, the Evidence Pack and gate-check: views-m14.js
+  const tabEvidence = (it) => A.m14.verifyTab(it);
 
   /* ---- actions */
   /** which PDP action each header action asks; abandon is the requester or project.settings.edit */
@@ -937,7 +926,7 @@
       const vl = vlOf(it), dc = dcOf(it);
       const head = `<div class="wk-ihead"><div class="crumbs"><a href="#items">Items</a> / <a href="#board">${E(p.name)}</a> / <span class="mono">${it.key}</span></div>
         <h1><span class="k">${it.key}</span>${titleFor(it)}</h1>
-        <div class="wk-meta"><span>${A.lane(it.lane)} ${E(D.LANES[it.lane].label)}</span><span id="wk-state">${A.statePill(it.state)}</span><span>${A.icon('projects', 14)} ${E(p.name)} <span class="mono faint">${E(p.repo)}</span></span><span><span class="lbl2">requester</span>${A.who(it.requester)}</span><span><span class="lbl2">owner of record</span>${A.who(it.owner)}</span><span><span class="lbl2">catalogue</span><span class="hash" title="pinned {version, hash}">1.4.0 · 8c2e…f1</span></span><span><span class="lbl2">type</span>${E(typeOf(it))} · ${E(it.size)} · risk ${E(it.risk)}</span><span><span class="lbl2">age</span>${E(it.age)}</span></div>
+        <div class="wk-meta"><span>${A.lane(it.lane)} ${E(D.LANES[it.lane].label)}</span><span id="wk-state">${A.statePill(it.state)}</span><span>${A.icon('projects', 14)} ${E(p.name)} <span class="mono faint">${E(p.repo)}</span></span><span><span class="lbl2">requester</span>${A.who(it.requester)}</span><span><span class="lbl2">owner of record</span>${A.who(it.owner)}</span><span><span class="lbl2">catalogue</span><span class="hash" title="pinned {version, hash}">1.3.0 · 8c2e…f1</span></span><span><span class="lbl2">type</span>${E(typeOf(it))} · ${E(it.size)} · risk ${E(it.risk)}</span><span><span class="lbl2">age</span>${E(it.age)}</span></div>
         <div class="wk-acts">${actionsFor(it)}</div></div>`;
       const pr = progress(it);
       const tl = timeline(it), arts = artefactsOf(it), us = unitsOf(it), runs = runsOf(it), gs = gatesOf(it);
@@ -952,9 +941,9 @@
         vl >= 2 && us.length ? { id: 'units', label: 'Units & build', n: us.length, html: tabUnits(it) } : null,
         vl >= 2 && runs.length ? { id: 'runs', label: 'Agent runs', n: runs.length, html: tabRuns(it) } : null,
         gs.length ? { id: 'gates', label: 'Gates & decisions', n: gs.length, html: tabGates(it) } : null,
-        vl >= 2 && evReached ? { id: 'evidence', label: 'Evidence', html: tabEvidence(it) } : null,
+        vl >= 2 && evReached ? { id: 'evidence', label: 'Verify', html: tabEvidence(it) } : null,
       ].filter(Boolean);
-      const want = it.stage === 'S6' && us.length ? 'units' : it.gate === 'G4' ? 'evidence' : 'timeline';
+      const want = it.stage === 'S6' && us.length ? 'units' : it.gate === 'G4' || it.stage === 'S7' ? 'evidence' : 'timeline';
       const startTab = tabs.find((t) => t.id === want) ? want : 'timeline';
       const hiddenTabs = vl < 2 ? `<div class="wk-tabnote small faint">${A.icon('lock', 12)} Units, agent runs and evidence need view level V2; you are V${vl} here. <button class="wk-hint" data-wkdc="3" data-wkp="${p.id}">why</button></div>` : '';
       return `<div id="wk-ip">${head}${track(it)}<div style="height:16px"></div>${conf}${banners}
@@ -1040,7 +1029,7 @@
   const askPanel = () => {
     const a = analyse(); const s = askState;
     if (!s.need.trim()) return `<div class="sec">${A.empty('Start typing what you need. The factory will show what it reads, what it flags and where it would route the request, before you send anything.')}</div>`;
-    const norm = { title: a.title, project: a.proj.repo, requester: me(), urgency: s.urgency, data_class: s.dc, body_hash: 'sha256:' + hx(s.why, 16) + '…', spans: { data: a.urls.length + (s.why.includes('\n') ? 1 : 0), redacted: a.secrets.length, flagged: a.flags.length }, catalogue: '1.4.0' };
+    const norm = { title: a.title, project: a.proj.repo, requester: me(), urgency: s.urgency, data_class: s.dc, body_hash: 'sha256:' + hx(s.why, 16) + '…', spans: { data: a.urls.length + (s.why.includes('\n') ? 1 : 0), redacted: a.secrets.length, flagged: a.flags.length }, catalogue: '1.3.0' };
     return `
       <div class="sec"><div class="sh"><span class="mono">1.1</span><b>Normalised request</b><span class="sp" style="flex:1"></span>${A.glyph('D', 16)}</div><pre class="code" style="font-size:11.5px;white-space:pre-wrap">${E(JSON.stringify(norm, null, 1))}</pre></div>
       <div class="sec"><div class="sh"><span class="mono">1.1</span><b>Taint marks</b><span class="sp" style="flex:1"></span>${a.flags.length ? A.pill(`${a.flags.length} flagged`, 'bad') : A.pill('clean', 'ok')}</div>

@@ -64,6 +64,7 @@
   /* ================================================================ who may decide: gates */
   const KEY_PROJECT = { 'cfg-r7': 'payments' };
   const PROPOSER = { 'cfg-r7': 'lt' };
+  const SUBJ_REQ = {}; // the requester of a gate whose subject is not an item (an X4 merge: the person who merged)
   const projOfKey = (key) => (A.item(key) || {}).project || KEY_PROJECT[key] || null;
   const withProject = (project, fn) => { const keep = A.state.project; A.state.project = project; try { return fn(); } finally { A.state.project = keep; } };
   const gateEligible = (gid, key) => {
@@ -74,15 +75,18 @@
       let blocked = '';
       if (it && gp.own_request === 'blocked' && pid === it.requester) blocked = 'requester: blocked (SoD)';
       if (PROPOSER[key] === pid) blocked = 'proposer: blocked';
+      if (SUBJ_REQ[key] === pid) blocked = 'made the merge: blocked (SoD)';
       return { pid, via: gid === 'G6' ? 'the requester' : A.roleLabel(role), blocked };
     });
   };
   /** A.decideCheck, plus two stricter rows the portal adds (fail closed: they only take away) */
   const gateCheck = (gid, key) => {
+    if (gid === 'M1' && A.cfg && A.cfg.revById(key)) return A.cfg.m1Check(A.cfg.revById(key));
     const project = projOfKey(key), it = A.item(key), meId = A.me();
     const c = withProject(project, () => A.decideCheck(gid, key));
     const rows = c.rules.slice();
     if (gid === 'G6' && it) rows.splice(1, 0, it.requester === meId ? { ok: true, text: 'You asked for this work, so G6 is your acceptance.' } : { ok: false, text: `G6 is the requester’s acceptance: only ${name(it.requester)}, who asked for ${it.key}, accepts it.` });
+    if (SUBJ_REQ[key]) rows.push(SUBJ_REQ[key] === meId ? { ok: false, text: 'You made this bypass merge. Its X4 review is decided by someone else (SoD).' } : { ok: true, text: `Separation of duties: ${name(SUBJ_REQ[key])} made the merge, not you.` });
     if (PROPOSER[key]) rows.push(PROPOSER[key] === meId ? { ok: false, text: 'You proposed this change. The proposer never approves its own M1.' } : { ok: true, text: `Separation of duties: ${name(PROPOSER[key])} proposed it, not you.` });
     return { ...c, rules: rows, allow: rows.every((r) => r.ok || r.info), eligible: gateEligible(gid, key), project, slot: (X.GATE_POLICY[gid] || {}).slot };
   };
@@ -122,7 +126,6 @@
   const OTHER = [
     { kind: 'card', c: 'C4', p: 'mobile', label: 'Card 4', title: 'Card 4: controls and roles', sub: 'S0-4c1e · step 0.4' },
     { kind: 'card', c: 'C5', p: 'ledger', label: 'M4', title: 'Card 5: sign-off and M4 (Light)', sub: 'S0-91b7 · prr/1 v2 · two-person' },
-    { kind: 'config', gate: 'M1', key: 'cfg-r7', p: 'payments', title: 'Config: Payments API settings r6 → r7', sub: 'project.payments.settings · proposed by Luis Torres' },
   ];
   const allRows = () => {
     const out = [];
@@ -131,8 +134,8 @@
       const named = i.wait.length ? i.wait : chk.eligible.filter((e) => !e.blocked).map((e) => e.pid);
       out.push({ kind: 'gate', gate: i.gate, item: i.key, proj: i.project, route: `gate-${i.gate}-${i.key}`, title: (D.GATES[i.gate] || {}).title || i.gate, chk, named });
     });
-    OTHER.forEach((r) => {
-      if (!A.canSeeProject(r.p)) return;
+    [...OTHER, ...(A.cfg ? A.cfg.inboxRows() : []), ...((A.dcx && A.dcx.extra) || [])].forEach((r) => {
+      if (r.p === 'factory' ? !(A.can('config.propose', { type: 'Fleet' }) || A.can('audit.read', { type: 'Fleet' })) : !A.canSeeProject(r.p)) return;
       const chk = r.kind === 'card' ? cardCheck(r.c, r.p) : gateCheck(r.gate, r.key);
       out.push({ ...r, proj: r.p, route: r.kind === 'card' ? `card-${r.c}-${r.p}` : `gate-${r.gate}-${r.key}`, chk, named: chk.eligible.filter((e) => !e.blocked && !e.signed).map((e) => e.pid) });
     });
@@ -239,7 +242,7 @@
             : '<b>Nothing waits for your decision.</b> Gates, cards, questions and access requests for your roles appear here first.';
       const tabs = [
         { id: 'me', label: 'Waiting on me', n: wait.length, html: A.card('', `<div class="dc-ib">${wait.length ? ibHead + J(wait, ibRow) : ''}</div>${wait.length ? '' : A.empty(emptyText)}`, { flush: true }) +
-          (blocked.length ? `<div style="height:16px"></div>` + A.card('Named on, but the policy says no', `<div class="list">${J(blocked, (r) => `<div class="li" data-go="${r.route}"><span>${rowTag(r)}</span><div style="min-width:0"><div class="ti">${E(r.title)} · ${r.item ? ich(r.item) : E(r.sub || '')}</div><div class="me">✕ ${E(firstNo(r.chk))}</div></div><span class="btn sm">View</span></div>`)}</div>`, { flush: true, actions: '<span class="tiny faint">the item names you; the PDP would refuse your decision</span>' }) : '') },
+          (blocked.length ? `<div style="height:16px"></div>` + A.card('Named on, but the policy says no', `<div class="list">${J(blocked, (r) => `<div class="li" tabindex="0" data-go="${r.route}"><span>${rowTag(r)}</span><div style="min-width:0"><div class="ti">${E(r.title)} · ${r.item ? ich(r.item) : E(r.sub || '')}</div><div class="me">✕ ${E(firstNo(r.chk))}</div></div><span class="btn sm">View</span></div>`)}</div>`, { flush: true, actions: '<span class="tiny faint">the item names you; the PDP would refuse your decision</span>' }) : '') },
       ];
       if (team.length || A.bindingsOf(meId).some((b) => b.scope.kind === 'project' && DECIDING.includes(X.ROLE[b.role].slot))) tabs.push({ id: 'team', label: 'My team', n: team.length, html: teamTable(team, 'Open on your projects, waiting on someone else', { empty: 'Nothing open on your projects waits on someone else.' }) });
       if (fleetRead) tabs.push({ id: 'all', label: 'Across the factory', n: rows.length, html: teamTable(rows, 'Every open gate and card you can see', { factory: true, actions: '<span class="tiny faint">read-only oversight · audit.read (fleet)</span>' }) });
@@ -423,6 +426,7 @@
         const seq = SEQ++;
         const d = { outcome, label, reason, by: actor, at: `today ${stamp()}`, seq, hash: hx(route + outcome + reason + seq), cp: 313, sod: now.eligible.filter((x) => !x.blocked).length === 1, stepUp: now.stepUp };
         DEC[route] = d;
+        if (o.onDecided) o.onDecided(d);
         LOG.unshift({ by: actor, at: stamp(), gate: o.gate, item: o.item ? o.item.key : route, title: o.title, label, seq, hash: d.hash });
         A.closeOverlay(); swap();
         root.querySelector('.dc-panel').scrollIntoView({ block: 'nearest' });
@@ -470,7 +474,7 @@
           <span class="eyebrow">Derived lane (the factory, not the agent)</span>
           <div class="row" style="gap:12px;align-items:flex-start;flex-wrap:nowrap"><span style="transform:scale(1.4);transform-origin:left top;margin-right:10px">${A.lane('L4')}</span>
             <div style="min-width:0"><div class="mono small">laneForClassification(feature, M, medium) → <b>L4</b></div>
-            <div class="small muted" style="margin-top:4px">Catalogue 1.4.0 (pinned <span class="mono">8c2e…f1</span>) rule <span class="mono">lanes.feature[size S–L, risk ≤ high] → L4</span>. Not L1–L3: those take change, bug or remediation only. Not L5: no staged rollout asked. Not L6: size is under XL. A1’s output has no lane field.</div></div></div>
+            <div class="small muted" style="margin-top:4px">Catalogue 1.3.0 (pinned <span class="mono">8c2e…f1</span>) rule <span class="mono">lanes.feature[size S–L, risk ≤ high] → L4</span>. Not L1–L3: those take change, bug or remediation only. Not L5: no staged rollout asked. Not L6: size is under XL. A1’s output has no lane field.</div></div></div>
           <div class="row" style="margin-top:10px;gap:6px"><span class="small muted">Gating profile v2 pins:</span>${J(['G0G1', 'G2', 'G3d', 'G3', 'G4', 'G5', 'G6'], A.gate)}</div>
         </div>`, { flush: true }) +
       A.card('A2 intent block <span class="mono small faint">step 1.5 · provisional G1</span>', `
@@ -605,7 +609,7 @@ O-6  given any payload
       A.card('Budget envelope <span class="mono small faint">5.5 · deterministic</span>', `${J(env, ([k, c, col]) => `<div class="row between small" style="padding:3px 0"><span>${E(k)}</span><span class="mono">${A.cents(c)}</span></div><div style="height:5px;border-radius:3px;background:var(--sunk);margin-bottom:4px"><i style="display:block;height:100%;width:${(c / tot * 100 * 3).toFixed(1)}%;max-width:100%;border-radius:3px;background:var(--${col})"></i></div>`)}
         <div class="row between" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"><b>Envelope (L4 profile)</b><b class="mono">${A.cents(tot)}</b></div>
         <p class="tiny faint" style="margin-top:6px">Hard stop at 100% (ET1 → D1). One extension of up to +50% needs E3.</p>`) +
-      A.card('Capacity <span class="mono small faint">5.6</span>', `${A.kv([['Sessions', '4, one coding session per Unit, run one at a time'], ['Pods now', '3 of 3 busy · W-22 is ahead in the FIFO'], ['Expected start', '~35 min after G3'], ['Wall clock', '~2 h 10 min for all four Units'], ['Scheduling', '5.7 automatic (lease + slot + envelope)']])}`) +
+      A.card('Capacity <span class="mono small faint">5.6</span>', `${A.kv([['Sessions', '4, one coding session per Unit, run one at a time'], ['Coding slot now', '1 of 1 busy · W-38 and W-22 are ahead in the FIFO'], ['Expected start', '~35 min after G3'], ['Wall clock', '~2 h 10 min for all four Units'], ['Scheduling', '5.7 automatic (lease + slot + envelope)']])}`) +
       `</div>` +
       A.card('Six artefacts and the base commit', `${A.table([{ h: 'Artefact', r: (a) => `<span class="mono">${a[0]}</span>` }, { h: 'Says', r: (a) => `<span class="small muted">${a[1]}</span>` }, { h: 'Hash', r: (a) => A.hash(hx(a[0]), 10) }], arts)}
         <div style="padding:10px 16px">${rules([['info', `Bound to base commit <span class="hash">${BASE}</span> (main, 2026-11-09 16:12). main is 2 commits ahead; neither touches a Unit scope (checked again at 6.1).`]])}</div>`, { flush: true });
@@ -818,35 +822,7 @@ COMMIT;
     };
   };
 
-  g.M1 = () => {
-    const diff = `project.payments.settings     r6 → r7     proposed by Luis Torres
-
-  wip_limit                    12 → 14
-  envelope_default.L4          4000 → 5000   (cents)
-+ protected_paths              src/billing/mit/**
-  gating.G5                    on   (unchanged)
-  two_person.X1_X2_E2          on   (unchanged)`;
-    const main = A.card('The change', `<pre class="code">${E(diff)}</pre>`) +
-      A.card('What it changes', rules([
-        ['info', 'New items only: items in flight keep the profile they pinned at G0.'],
-        ['info', 'Policy bundle 37 → 38; the PRR re-binds as prr/1 v4 (settings hash changes, role map and gating profile do not).'],
-        ['ok', 'Within the tier floor: Payments API is T1.'],
-        ['warn', 'A bigger L4 envelope raises the cost cap of every new feature by $10.00.'],
-      ]));
-    return {
-      title: 'Config change: Payments API settings r7',
-      sub: 'A project setting changes only through M1: one person proposes, another approves, and the ledger records both.',
-      sentence: 'May <span class="mono">project.payments.settings</span> r7 be published?',
-      subject: { hash: hx('m1-r7'), binds: [['settings r7', hx('r7')], ['settings r6 (current)', hx('r6')]] },
-      facts: [['Project', 'Payments API'], ['Proposed by', `${A.who('lt')} <span class="tiny faint">config.propose via factory.admin</span>`], ['Proposed', '40 min ago'], ['Reason given', '“Two more slots for the Q4 MIT work; MIT code is now protected.”']], main,
-      crumbs: '<a href="#inbox">Inbox</a><span>›</span><a href="#project-payments">Payments API</a><span>›</span><span>M1</span>',
-      actions: '<a class="btn sm" href="#project-payments">Open the project</a>',
-      rules: [['info', '<b>One proposes, another approves.</b> Luis Torres may propose as factory admin; M1 is decided by the project’s admin slot, and never by the proposer.']],
-      options: { approve: 'Approve and publish', changes: 'Send back', reject: 'Reject' },
-      readWhat: 'the diff',
-      after: 'The config service publishes r7 and policy bundle 38.',
-    };
-  };
+  // g.M1 (a config revision) is built by cfg.js / views-config.js from the revision store
 
   g.MERGE = (it) => ({
     title: 'Merge on GitHub: Typo in refund email template',
@@ -876,14 +852,15 @@ COMMIT;
   A.view('gate', {
     nav: false, parent: 'inbox', match: /^gate-([A-Za-z0-9]+)-(.+)$/,
     // gate.view on the item's project; a project you cannot see has no gates for you (404, not 403)
-    access: ([gid, key]) => { const p = projOfKey(key || ''); if (!p || !A.canSeeProject(p)) return null; return { action: 'gate.view', res: { type: 'Gate', project: p, gate: gid === 'MERGE' ? 'G4' : gid, item: key } }; },
+    access: ([gid, key]) => { const p = projOfKey(key || ''); if (p === 'factory') return A.can('config.propose', { type: 'Fleet' }) ? null : { action: 'audit.read', res: { type: 'Fleet' } }; if (!p || !A.canSeeProject(p)) return null; return { action: 'gate.view', res: { type: 'Gate', project: p, gate: gid === 'MERGE' ? 'G4' : gid, item: key } }; },
     render: ([gid, key]) => {
       const project = projOfKey(key);
-      if (!project || !A.canSeeProject(project)) return notFound();
-      const it = A.item(key) || null, dc = A.dataClass(project), gate = gid === 'MERGE' ? 'G4' : gid;
+      if (!project || (project !== 'factory' && !A.canSeeProject(project))) return notFound();
+      const it = A.item(key) || null, dc = project === 'factory' ? 2 : A.dataClass(project), gate = gid === 'MERGE' ? 'G4' : gid;
+      if (!it && !g[gid]) return notFound();
       const o = (g[gid] ? g[gid](it, key, gid, { dc }) : genericGate(it, key, gid));
       o.route = `gate-${gid}-${key}`; o.gate = gate; o.item = it; o.crumbLabel = (D.GATES[gid] || {}).short || gid;
-      o.eyebrow = o.eyebrow || `${A.gate(o.gate)} <span style="margin-left:6px">${E((D.GATES[o.gate] || {}).title || '')}</span> · ${E(A.project(project).name)}`;
+      o.eyebrow = o.eyebrow || `${A.gate(o.gate)} <span style="margin-left:6px">${E((D.GATES[o.gate] || {}).title || '')}</span> · ${E((A.project(project) || { name: 'Factory' }).name)}`;
       o.check = gateCheck(gate, key); o.recheck = () => gateCheck(gate, key);
       o.whyAction = 'gate.decide'; o.whyRes = { type: 'Gate', project, gate, item: key };
       if (dc < 1) {
@@ -895,7 +872,7 @@ COMMIT;
         o.main = A.card('Evidence', hidden(1, 'Titles, artefacts, the diff and the evidence bound to this gate are D1 content.', project));
         o.banners = (o.banners || []).filter((b) => b[0] !== 'warn');
         o.rules = [];
-        if (!it) o.facts = [['Project', E(A.project(project).name)]];
+        if (!it) o.facts = [['Project', E((A.project(project) || { name: 'Factory' }).name)]];
       }
       return shell(o);
     },
@@ -1075,7 +1052,7 @@ COMMIT;
   });
 
   const LANE_WHY = [
-    ['L0', 'hotfix', 'any area at Light or above; catalogue 1.4.0 allows it (§13.3 open item)', true],
+    ['L0', 'hotfix', 'api/ and billing/ are at Full; from Light once catalogue 1.4.0 is released (decided 2026-11-11)', true],
     ['L1–L3', 'small change, remediation', 'Light floors LF1–LF8 met in api/, billing/, migrations/', true],
     ['L4', 'feature', 'Full (FF1) in api/ and billing/; work in migrations/ goes L8', true],
     ['L5', 'feature, staged', 'Full and operations.md says staging_separation: yes', true],
@@ -1135,31 +1112,25 @@ COMMIT;
           { h: 'Decides', r: (o) => (o.r.slot ? `<div class="row" style="gap:4px">${J(gatesOfSlot(o.r.slot).filter((gk) => D.GATES[gk]), A.gate) || '<span class="faint small">—</span>'}</div>` : '<span class="faint small">no gate</span>') },
           { h: 'People', r: (o) => (o.bs.length ? `<div class="stack" style="gap:6px">${J(o.bs, (b) => `<div class="row" style="gap:8px">${A.who(b.pid)}${b.pid === A.me() ? A.pill('you', 'info') : ''}<span class="tiny faint">${E(b.source)}${b.note ? ' · ' + E(b.note) : ''}${b.expires ? ` · until ${E(b.expires)}` : ''}</span></div>`)}</div>` : `<span class="small ${o.r.slot && o.r.approval_capable ? 'dc-warnt' : 'muted'}">${o.r.slot === 'requesters' ? 'nobody: no one may ask for work' : o.r.approval_capable ? 'nobody: its gates wait for a holder' : 'nobody'}</span>`) },
           { h: 'View · data', r: (o) => `<span class="mono small">${o.r.view_level} · ${o.r.data_class}</span>` },
-        ], slotRows), { flush: true, actions: `${A.can('access.explain', res) ? '<a class="btn sm" href="#access-explain">Who can do what here</a>' : ''}${A.act('Edit role map', 'project.settings.edit', res, { cls: 'sm', attrs: 'data-dcrolemap' })}` })}
+        ], slotRows), { flush: true, actions: `${A.can('access.explain', res) ? '<a class="btn sm" href="#access-explain">Who can do what here</a>' : ''}${A.act('Edit role map', 'project.settings.edit', res, { cls: 'sm', href: `#cfg-project.role_map@${id}` })}` })}
         <div class="grid g2">
           ${A.card('Rules on top of the role map', rules([['info', '<b>Two-person</b> (DEC-28): X1, X2, E2 and M4 need two different approvers.'], ['info', '<b>Step-up</b>: G5, M4, and G4 when a sensitive path is in the diff.'], ['info', '<b>Separation of duties</b>: nobody decides their own request (except G6); a plan or code author never approves it.'], ['info', '<b>Factory admin</b> decides no gate here unless this role map gives the slot.']]))}
           ${A.card('Through a fleet role', fleet.length ? `<div class="stack" style="gap:8px">${J(fleet, (b) => `<div class="row between"><span class="row" style="gap:8px">${A.who(b.pid)}<span class="pill plain">${A.roleLabel(b.role)}</span></span><span class="tiny faint">${E(X.ROLE[b.role].view_level)} · ${E(X.ROLE[b.role].data_class)} · decides nothing here</span></div>`)}</div>` : '<p class="small muted">Confidential: fleet roles do not reach this project. Only the people above can see it.</p>')}
         </div>
-        ${pend.length ? A.card('Access requests for this project', `<div class="list">${J(pend, (r) => `<div class="li" data-go="access-requests"><span>${A.avatar(r.pid, 'sm')}</span><div style="min-width:0"><div class="ti">${E(name(r.pid))} asks for <span class="mono">${E(r.role)}</span>${r.m6 ? ' <span class="pill warn">needs M6</span>' : ''}</div><div class="me">“${E(r.why)}” · ${E(r.at)}</div></div><span class="btn sm">Review</span></div>`)}</div>`, { flush: true }) : ''}
+        ${pend.length ? A.card('Access requests for this project', `<div class="list">${J(pend, (r) => `<div class="li" tabindex="0" data-go="access-requests"><span>${A.avatar(r.pid, 'sm')}</span><div style="min-width:0"><div class="ti">${E(name(r.pid))} asks for <span class="mono">${E(r.role)}</span>${r.m6 ? ' <span class="pill warn">needs M6</span>' : ''}</div><div class="me">“${E(r.why)}” · ${E(r.at)}</div></div><span class="btn sm">Review</span></div>`)}</div>`, { flush: true }) : ''}
       </div>`;
 
-      const settingsName = `project.${id}.settings`;
-      const settings = `<div class="banner ${editable ? 'warn' : 'info'}">${A.icon('lock', 14)} ${editable ? 'A change here is a config change (M1): you propose it, a project admin other than you approves it.' : 'Read only. Changing settings needs project.settings.edit (this project’s admin, or a factory admin) and then an M1 approval.'}${id === 'payments' ? ' Pending: <a href="#gate-M1-cfg-r7">settings r7 by Luis Torres</a>.' : ''}</div>
-        <div class="grid g2">
-          ${A.card('Human gates (gating profile v2)', tog('G0+G1 triage and intent', 'on for every lane', true, !editable) + tog('G3 / G3s plan approval', 'on for L4–L6', true, !editable) + tog('G5 production release', 'the project deploys on tag', true, !editable) + tog('G2 spec + oracle specs', 'on for L4–L6, off for L1–L3', true, !editable) + tog('G6 requester acceptance', 'off when the requester is the operator', true, !editable) + tog('G4 merge approval', 'safety floor: never off', true, true))}
-          <div class="stack">
-            ${A.card('Limits', `<div class="field"><label for="dc-wip">WIP limit (items in flight)</label><input class="input" id="dc-wip" type="number" value="${x.wip[1]}" min="1" ${editable ? '' : 'disabled'}>${id === 'payments' ? '<span class="help">Pending in r7: 14.</span>' : ''}</div>
-              <div class="field" style="margin-top:12px"><label>Envelope defaults per lane</label>${A.table([{ h: 'Lane', r: (r) => A.lane(r[0]) }, { h: 'Envelope', cls: 'r', r: (r) => `<span class="mono">${A.cents(r[1])}</span>` }], [['L0', 2000], ['L1', 1500], ['L2', 1500], ['L4', 4000], ['L5', 8000], ['L6', 12000], ['L7', 1000]].filter((r) => p.lanes.includes(r[0])))}</div>`)}
-            ${A.card('Protected paths <span class="small faint">X2 for any change</span>', `<pre class="code">AGENTS.md
-CLAUDE.md
-CODEOWNERS
-.factory/**
-.claude/**
-.mcp.json
-migrations/**${id === 'payments' ? '\nsrc/billing/settlement/**' : ''}</pre>`)}
-          </div>
-        </div>
-        <div class="row" style="justify-content:flex-end;margin-top:16px">${editable ? '<button class="btn" data-toast="No changes to propose">Discard</button>' : ''}${A.act('Propose change (M1)', 'project.settings.edit', res, { cls: 'primary', attrs: 'id="dc-propose"' })}</div>`;
+      const C = A.cfg, T = (k, o) => C.tile(k, id, o);
+      const bypass = (C.inForce('codehost.merge_bypass').doc[p.repo] || []);
+      const execOn = C.inForce('sandbox.exec_allowed_repos').doc.includes(p.repo);
+      const pendF = C.pendingOf('factory');
+      const settings = `<div class="banner ${editable ? 'warn' : 'info'}">${A.icon('lock', 14)}<span>${editable ? 'Each setting opens the one configuration screen: you draft, see the diff and propose; the admin slot decides the M1 card, never you.' : 'Read only for you. Changing a project setting needs project.settings.edit (the project admin, or a factory admin), then an M1 decided by someone else.'} The factory floors (G4, X1–X4, the E-gates, Q1, M4, verification in every lane${C.tierOf(id) === 'T2' ? ', the T2 gating floor and two-person' : ''}) have no switch.</span></div>
+        <h3 class="cf-sec">Project layer <span class="small faint">tier ${C.tierOf(id)} · project.settings.edit → M1 at the admin slot</span></h3>
+        <div class="cf-tiles">${T('project.role_map')}${T('project.two_person')}${T('project.gating_profile')}${T('project.kill_delegations')}${T('project.release', { value: (C.inForce('project.release', id).doc.mode === 'off' ? 'Off: merged is done' : 'Release to a target, decided at G5') + (C.deploysOf(id) ? ' · Project.deploys = true' : '') })}${T('project.wip_limit', { value: `Clamp control in force: ${x.wip[1]} in flight` })}${T('project.default_envelope', { value: 'From the coder contract and the lane default' })}</div>
+        <h3 class="cf-sec">Factory settings for this repo <span class="small faint">factory layer · config.propose → a factory M1</span></h3>
+        <div class="cf-tiles">${C.tile('codehost.merge_bypass', null, { label: 'Merge bypass list', value: bypass.length ? J(bypass, (b) => `${A.who(b.principal_id)} <span class="mono tiny">@${E(b.login)}</span>`) + '<div class="tiny muted">every bypass merge opens an X4 review</div>' : 'Nobody: an unchecked merge here is unauthorised' })}${C.tile('sandbox.exec_allowed_repos', null, { label: 'Run repo code in sandboxes (DEC-18)', value: execOn ? `${A.pill('on the allow-list', 'ok')} builds, tests and S7 run here` : `${A.pill('not on the list', 'warn')} the factory only reads the code${pendF && (pendF.changes['sandbox.exec_allowed_repos'] || []).includes(p.repo) ? ' · added in pending r' + pendF.rev : ''}` })}${C.tile('integrations.installs', null, { label: 'Integrations for this project', value: J(C.inForce('integrations.installs').doc.filter((i) => i.project_id === id), (i) => `<span class="mono small">${E(i.integration_id)}</span> `) || 'fleet defaults' })}</div>
+        <h3 class="cf-sec">Not a setting <span class="small faint">changed another way</span></h3>
+        <div class="cf-tiles"><div class="cf-tile"><div class="cf-tk">Per-area levels (DEC-25)</div><div class="cf-tv">${J(x.areas, (a) => `<span class="mono small">${E(a[0])}</span> ${lvl(a[1])} `)}</div><div class="tiny muted">A level changes with a new onboarding version signed at M4 (level-up, re-affirm: M16, M17), not by M1.</div><a class="btn sm" href="#readiness-${id}">Readiness</a></div><div class="cf-tile"><div class="cf-tk">Protected paths</div><div class="cf-tv mono small">AGENTS.md, CLAUDE.md, CODEOWNERS, .factory/**, .claude/**, .mcp.json, migrations/**</div><div class="tiny muted">DEFAULT_PROTECTED_GLOBS (code): any change opens X2.</div></div><div class="cf-tile"><div class="cf-tk">Repo settings on GitHub</div><div class="cf-tv small">Rulesets, bypass actors, branch protection</div><div class="tiny muted">The factory never changes them; the controls report says what to fix and a person applies it on GitHub.</div></div></div>`;
 
       const polls = [['Default-branch head', '10 min', x.poll, 'main @ 3f9c2ab · re-census queued: no', 'ok'], ['Instruction files', '10 min', x.poll, id === 'web' ? 'AGENTS.md changed in a1b2c3d: serving affirmed 5e1f02ab' : 'AGENTS.md = affirmed text', id === 'web' ? 'warn' : 'ok'], ['Effective rules on main', 'hourly (work in flight)', '22 min ago', 'protect-main intact · gate-check pinned', 'ok'], ['Installation and repositories', '10 min', x.poll, 'scope unchanged (1 repo)', 'ok'], ['Labelled factory issues', '10 min', x.poll, '6 open · 1 closed_verified', 'ok'], ['History secrets', 'nightly / weekly full', '02:10 today', '41 new commits, 0 findings', 'ok']];
       const drift = `${A.card('Polls <span class="small faint">no webhooks: detection latency is the poll interval</span>', A.table([{ h: 'What', r: (r) => r[0] }, { h: 'Every', r: (r) => `<span class="small mono">${r[1]}</span>` }, { h: 'Last', r: (r) => `<span class="small mono">${r[2]}</span>` }, { h: 'Result', r: (r) => `<span class="small">${E(r[3])}</span>` }, { h: '', r: (r) => A.pill(r[4] === 'ok' ? 'clean' : 'drift', r[4]) }], polls), { flush: true, actions: A.act('Poll now', 'config.propose', res, { cls: 'sm', attrs: 'data-toast="Poll queued for all six sources"' }) })}
@@ -1201,25 +1172,6 @@ migrations/**${id === 'payments' ? '\nsrc/billing/settlement/**' : ''}</pre>`)}
     mount: (root, [id]) => {
       on('pd', root, 'click', (e) => {
         const pj = e.target.closest('[data-dcproj]'); if (pj) { A.state.project = pj.dataset.dcproj; return; }
-        if (e.target.closest('[data-dcrolemap]')) {
-          const m = A.modal(`<div class="row between"><h2>Edit the role map</h2><button class="icon-btn" data-close aria-label="Close">${A.icon('close')}</button></div>
-            <p class="muted">The role map is part of the project settings. Your edit becomes a settings revision that a project admin other than you approves at M1. Granting a role that decides gates also needs an M6 approver grant.</p>
-            <div class="field"><label for="dc-rm-p">Person</label><select class="input" id="dc-rm-p">${J(Object.values(D.PEOPLE), (pp) => `<option value="${pp.id}">${E(pp.name)}</option>`)}</select></div>
-            <div class="field"><label for="dc-rm-r">Role</label><select class="input" id="dc-rm-r">${J(X.ROLES.filter((r) => r.scope_kinds.includes('project')), (r) => `<option>${r.role_id}</option>`)}</select></div>
-            <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Cancel</button><button class="btn primary" id="dc-rm-go">Propose the change</button></div>`);
-          m.querySelector('#dc-rm-go').onclick = () => { const r = m.querySelector('#dc-rm-r').value; A.closeOverlay(); A.toast(`Proposed: ${name(m.querySelector('#dc-rm-p').value)} as ${r}. Waits for M1${X.ROLE[r].approval_capable ? ' and M6' : ''}.`); };
-          return;
-        }
-        if (!e.target.closest('#dc-propose')) return;
-        if (!A.can('project.settings.edit', { type: 'Project', project: id })) return;
-        const changed = [...root.querySelectorAll('[data-panel="pd:set"] .dc-sw input')].filter((i) => !i.checked && !i.disabled).map((i) => i.getAttribute('aria-label'));
-        const wip = root.querySelector('#dc-wip').value;
-        const m = A.modal(`<div class="row between"><h2>Propose a settings change</h2><button class="icon-btn" data-close aria-label="Close">${A.icon('close')}</button></div>
-          <p class="muted">This creates a new settings revision. It takes effect only when a project admin other than you approves it at M1.</p>
-          <pre class="code">${E(`project.${id}.settings   → next revision\n  wip_limit   → ${wip}\n${changed.map((c) => `- gate        ${c}: on → off`).join('\n') || '  (no gate changes)'}`)}</pre>
-          <div class="field"><label for="dc-pr">Reason</label><textarea class="input" id="dc-pr" rows="2" placeholder="Why this change"></textarea></div>
-          <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Cancel</button><button class="btn primary" id="dc-pgo">Propose</button></div>`);
-        m.querySelector('#dc-pgo').onclick = () => { A.closeOverlay(); A.toast('Settings revision proposed. It waits for M1 by another admin-slot holder.'); };
       });
     },
     unmount: () => off('pd'),
@@ -1322,6 +1274,7 @@ migrations/**${id === 'payments' ? '\nsrc/billing/settlement/**' : ''}</pre>`)}
         ['Card 1', 'Repo and owners', 'card-C1-mobile', 'decided', 'Mei Wong (bootstrap)'],
         ['Security', 'History secret (aws-access-key-id)', 'card-SECR-mobile', 'rotated', 'Mei Wong (bootstrap)'],
         ['Card 2', 'Claims, intent, AGENTS.md', 'card-C2-mobile', 'decided', 'Mei Wong (bootstrap) · step-up'],
+        ['Card 3', 'Full baseline', 'card-C3-mobile', 'not requested', 'only when Full is asked (M17)'],
         ['Card 4', 'Controls, environment, role map', 'card-C4-mobile', DEC['card-C4-mobile'] ? DEC['card-C4-mobile'].label : 'open', 'Mei Wong (bootstrap, last card under it)'],
         ['Card 5', 'Sign-off and M4', 'card-C5-mobile', 'not open', 'the role map’s M4 holders, from card 4'],
       ] : [['Card 1', 'Repo and owners', `card-C1-${id}`, 'not open', 'you (bootstrap)']];
@@ -1340,7 +1293,7 @@ migrations/**${id === 'payments' ? '\nsrc/billing/settlement/**' : ''}</pre>`)}
       }) + A.stats([{ k: 'Level asked', v: level, d: 'signed level can be lower' }, { k: 'Step', v: mobile ? '0.4' : '0.1', d: mobile ? 'controls and environment' : 'census running' }, { k: 'Cards decided', v: mobile ? '3 of 5' : '0', d: 'never auto-approved' }, { k: 'Gaps', v: mobile ? 7 : '—', d: mobile ? '1 blocking, 6 tracked' : 'after census' }, { k: 'Parks after', v: '5 bd', d: 'of silence on a card' }]) +
         `<div class="banner info" style="margin-top:16px">${A.icon('lock', 14)} Bootstrap: ${isReq ? 'you asked for this onboarding, so you decide' : `${E(name(reqr))} asked for this onboarding, so ${E(first(reqr))} decides`} its admin cards until card 4 publishes the role map. From card 5 on, the role map decides.</div>` +
         `<div class="split" style="margin-top:4px"><div class="stack">${A.card('Steps', stepsHtml, { flush: true })}${census}</div>
-         <aside class="stack">${A.card('Cards', `<div class="list">${J(cards, ([t, d, r, s, who]) => `<div class="li" data-go="${r}"><span>${cardTag(t)}</span><div style="min-width:0"><div class="ti">${E(d)}</div><div class="me">${E(who)}</div></div>${A.pill(s, s === 'open' ? 'gate' : s === 'not open' ? 'mute' : 'ok')}</div>`)}</div>`, { flush: true })}
+         <aside class="stack">${A.card('Cards', `<div class="list">${J(cards, ([t, d, r, s, who]) => `<div class="li" tabindex="0" data-go="${r}"><span>${cardTag(t)}</span><div style="min-width:0"><div class="ti">${E(d)}</div><div class="me">${E(who)}</div></div>${A.pill(s, s === 'open' ? 'gate' : /^not /.test(s) ? 'mute' : 'ok')}</div>`)}</div>`, { flush: true })}
          ${A.card('Access', rules([['ok', 'GitHub App installed: only select repositories'], ['ok', 'Read-only token works; GitHub sees reads only'], ['info', 'No onboarding PR yet: the factory opens one after card 2 (AGENTS.md, CODEOWNERS, knowledge pack); you approve and merge it on GitHub, never push to it']]))}</aside></div>`;
     },
   });
@@ -1380,7 +1333,7 @@ migrations/**${id === 'payments' ? '\nsrc/billing/settlement/**' : ''}</pre>`)}
           <div style="margin-top:8px">${A.table([{ h: 'Criterion', r: (c) => `<span class="mono small">${c[0]}</span> <span class="small">${E(c[1])}</span>` }, { h: 'Evidence', r: (c) => `<span class="tiny faint mono">${E(c[3])}</span>` }, { h: '', r: (c) => A.pill(c[2], c[2] === 'met' ? 'ok' : c[2] === 'unknown' ? 'warn' : 'bad') }], q.cr)}</div></div>`), { flush: true, actions: '<span class="tiny faint">unknown counts as unmet</span>' })}
         ${A.card('Caps', A.table([{ h: 'Cap', r: (c) => `<b>${c[0]}</b>` }, { h: 'Value', r: (c) => `<span class="small ${c[2] ? '' : 'muted'}">${E(c[1])}</span>` }, { h: '', r: (c) => (c[2] ? A.pill('binding', 'warn') : '') }], caps) + `<p class="tiny faint" style="padding:10px 16px">Automatic changes only tighten. Loosening always needs a person.</p>`, { flush: true })}
       </div><aside class="stack">
-        ${A.card('Binding', A.kv([['Record hash', A.hash(rh, 16)], ['M4', `ledger <span class="mono">${id === 'payments' ? '17,880' : id === 'web' ? '17,402' : id === 'ledger' ? '17,702' : '17,790'}</span> · ${A.who(x.m4 || p.owner)}`], ['Signer', 'team mode · two-person'], ['Baseline', '<span class="mono">3f9c2ab</span>'], ['Catalogue', '1.4.0 · 8c2e…f1'], ['Criteria', 'CRITERIA_V2@2']]) + `<p class="tiny faint" style="margin-top:10px">M4 sits outside the record hash and binds to it. The record never holds a secret value or an issue body.</p>`)}
+        ${A.card('Binding', A.kv([['Record hash', A.hash(rh, 16)], ['M4', `ledger <span class="mono">${id === 'payments' ? '17,880' : id === 'web' ? '17,402' : id === 'ledger' ? '17,702' : '17,790'}</span> · ${A.who(x.m4 || p.owner)}`], ['Signer', 'team mode · two-person'], ['Baseline', '<span class="mono">3f9c2ab</span>'], ['Catalogue', '1.3.0 · 8c2e…f1'], ['Criteria', 'CRITERIA_V2@2']]) + `<p class="tiny faint" style="margin-top:10px">M4 sits outside the record hash and binds to it. The record never holds a secret value or an issue body.</p>`)}
         ${A.card('Gating profile', `<div class="row" style="gap:6px">${J(['G0G1', 'G2', 'G3d', 'G3', 'G4', 'G5', 'G6'], A.gate)}</div><p class="tiny faint" style="margin-top:8px">schedule: automatic · tier floor not applied (T1)</p>`)}
         ${A.card('Revisions', `<ul class="tl">${J([[`v${v}`, '10-30', 'api/, billing/ raised to Full', 'g'], ['v2', '10-14', 'role map: Jonas Meyer added to X1_X2_E2', 'h'], ['v1', '10-02', 'first signed at Light', 'g']].slice(0, v), (r) => `<li><span class="when">${r[1]}</span><span class="dot ${r[3]}"></span><div class="what"><div class="t"><span class="mono">${r[0]}</span> ${E(r[2])}</div><div class="m">${A.hash(hx(r[0] + id), 8)} ${r[0] === `v${v}` ? 'active' : 'superseded'}</div></div></li>`)}</ul>`)}
       </aside></div>`;
@@ -1435,4 +1388,7 @@ migrations/**${id === 'payments' ? '\nsrc/billing/settlement/**' : ''}</pre>`)}
     },
     unmount: () => off('is'),
   });
+  /* ================================================================ shared with cfg.js, views-config.js, views-m14.js, views-onboard.js */
+  A.dcx = { g, KEY_PROJECT, PROPOSER, SUBJ_REQ, DUE, OPENED, DEC, SIGNED, LOG, HISTORY, rules, hx, itemFacts, ich, gateCheck, cardCheck, holders, name, hidden, tag, lvl, BASE, CARDS, PX, BOOT, nextSeq: () => SEQ++ };
+  A.inboxCount = () => { const me = A.me(); if (!me) return 0; return allRows().filter((r) => r.named.includes(me) && r.chk.allow).length + taskRows().length + accessRows().length; };
 })();

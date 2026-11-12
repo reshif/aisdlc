@@ -5,13 +5,13 @@
   /* ground and surfaces: blue-black neutrals biased toward the belt steel */
   --bg:#0f1216; --panel:#181c22; --panel-2:#1e232b; --panel-3:#252b35; --sunk:#13161b;
   --line:#2a3039; --line-2:#3a424f; --belt:#343c48; --belt-2:#454f5d;
-  --fg:#e7eaef; --fg-2:#c4cad3; --muted:#949daa; --faint:#6a7381;
+  --fg:#e7eaef; --fg-2:#c4cad3; --muted:#a3acb8; --faint:#8b95a4;
   /* semantic, from the floor legend */
   --gate:#f2b51d; --gate-ink:#2a1e00;
   --back:#f39c34; --hand:#4f9be8; --quar:#e2574f; --ok:#3faf6b; --warn:#e6b23a; --bad:#e2574f;
   --agent:#8f80f7; --det:#9aa5b4; --human:#2fb7a6;
   /* lanes (chip fills) */
-  --l0:#c8460f; --l13:#1f6fbf; --l45:#6a3fb8; --l6:#2e8b3e; --l7:#8a5a12; --l8:#22857d;
+  --l0:#c8460f; --l13:#1f6fbf; --l45:#6a3fb8; --l6:#267a35; --l7:#8a5a12; --l8:#1b6f68;
   --ok-bg:#15301f; --warn-bg:#352a0c; --bad-bg:#3a1716; --info-bg:#132a43; --agent-bg:#241f45;
   --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
   --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -80,6 +80,10 @@ main{min-width:0;padding-block:22px 64px;padding-left:28px;padding-right:max(28p
 .banner.bad{background:var(--bad-bg);border-color:#6a2522;color:#ffb0aa}
 .banner.info{background:var(--info-bg);border-color:#24476e;color:#b5d4f6}
 .banner .sp{flex:1}
+.banner>svg{flex:none}
+.banner>svg+span{flex:1 1 220px;min-width:0}
+.banner.gate{background:var(--warn-bg);border-color:#7a5f12;color:#f6d77f}
+.banner.ok{background:var(--ok-bg);border-color:#28583a;color:#9fe3b8}
 
 /* ---------- page head ---------- */
 .ph{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:20px}
@@ -203,7 +207,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 
 /* tabs */
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
-.tabs button{background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 14px;color:var(--muted);cursor:pointer;white-space:nowrap;font-size:13.5px}
+.tabs button{background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 12px;flex:none;color:var(--muted);cursor:pointer;white-space:nowrap;font-size:13.5px}
 .tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--gate)}
 .tabs button .n{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-left:5px}
 

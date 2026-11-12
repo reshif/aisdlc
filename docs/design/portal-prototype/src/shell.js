@@ -122,9 +122,9 @@
     const blocks = [];
     if (fleetAdmin) blocks.push(A.card('Factory at a glance', A.stats([
       { k: 'Projects', v: D.PROJECTS.length, d: '1 onboarding · 1 confidential' },
-      { k: 'Coding pods', v: '3 / 3', d: 'queue 2 · HUMAN-WAIT 2', tone: 'warn' },
-      { k: 'Active kills', v: 2, d: 'k-0193 model · k-0192 item', tone: 'bad' },
-      { k: 'Services degraded', v: 2, d: 'email notifier · web-checkout CI', tone: 'warn' },
+      { k: 'Coding slot', v: '1 / 1', d: 'queue 6 · HUMAN-WAIT 2 · caps 4 / 1', tone: 'warn' },
+      { k: 'Active kills', v: 3, d: 'k-0193 lane web/L0 · k-0192 session · k-0191 lane', tone: 'bad' },
+      { k: 'Pending factory M1', v: (A.cfg ? A.cfg.L.factory.filter((r) => r.state === 'pending').length : 0), d: 'decided by a factory admin other than the proposer', tone: 'warn' },
       { k: 'Access requests', v: A.ACCESS_REQUESTS.filter((r) => r.state === 'pending').length, d: 'across projects' },
       { k: 'Spend today', v: '$412', d: 'of $1,500 factory budget' },
     ]), { actions: '<a class="small" href="#health">Health</a> · <a class="small" href="#kill">Kill switch</a>' }));
@@ -139,7 +139,7 @@
       <div class="ac-roles"><span class="eyebrow">Your roles</span>${roleSummary}<a class="small" href="#my-access">What can I do?</a></div>
       <div class="split">
         <div class="stack">
-          ${A.card('Needs you', tasks.length ? `<div class="list">${A.j(tasks, (t) => `<div class="li" data-go="${t.go}"><span>${t.i ? A.chip(t.i) : A.avatar(t.k === 'access' ? 'tb' : me, 'sm')}</span><div><div class="ti">${t.html}</div>${t.i ? `<div class="me">${A.esc(A.project(t.i.project).name)} · waiting ${t.i.updated || t.i.age}</div>` : ''}</div><span class="btn sm primary">${t.cta}</span></div>`)}</div>` : A.empty('Nothing waits on you. Decisions, questions and access requests for your roles appear here first.'), { flush: true, actions: '<a class="small" href="#inbox">Inbox</a>' })}
+          ${A.card('Needs you', tasks.length ? `<div class="list">${A.j(tasks, (t) => `<div class="li" tabindex="0" data-go="${t.go}"><span>${t.i ? A.chip(t.i) : A.avatar(t.k === 'access' ? 'tb' : me, 'sm')}</span><div><div class="ti">${t.html}</div>${t.i ? `<div class="me">${A.esc(A.project(t.i.project).name)} · waiting ${t.i.updated || t.i.age}</div>` : ''}</div><span class="btn sm primary">${t.cta}</span></div>`)}</div>` : A.empty('Nothing waits on you. Decisions, questions and access requests for your roles appear here first.'), { flush: true, actions: '<a class="small" href="#inbox">Inbox</a>' })}
           ${asks.length ? A.card('Your requests', A.table([{ h: 'Item', r: (i) => A.ichip(i.key) }, { h: 'Where', r: (i) => `<span class="mono">${i.stage} ${i.step}</span>` }, { h: 'State', r: (i) => A.statePill(i.state) }, { h: 'Waiting on', r: (i) => (i.wait.length ? A.avatars(i.wait) : '<span class="faint">the factory</span>') }], asks, { href: (i) => 'item-' + i.key }), { flush: true }) : ''}
           ${blocks.join('')}
         </div>
@@ -185,5 +185,6 @@
     };
   } });
 
-  A.view('notfound', { nav: false, render: () => `<div class="ac-403"><div class="eyebrow">404</div><h1>Nothing here</h1><p class="muted">The link may be old, or the item was never visible to you. Items in projects you cannot see do not exist for you.</p><a class="btn" href="#home">Go home</a></div>` });
+  A.notFoundHtml = () => `<div class="ac-403"><div class="eyebrow">404</div><h1>Nothing here</h1><p class="muted">The link may be old, or it points at something you cannot see. Items, gates and settings in projects you have no role on do not exist for you.</p><a class="btn" href="#home">Go home</a></div>`;
+  A.view('notfound', { nav: false, render: () => A.notFoundHtml() });
 })();
