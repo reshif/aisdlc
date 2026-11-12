@@ -38,11 +38,27 @@ export interface NavEntry {
 
 export const NAV: readonly NavEntry[] = [
   {
+    // M18: the assistant answers only from what the person can see; every thread is checked on its project
+    group: 'Work',
+    to: '/ask',
+    label: 'Ask the factory',
+    guard: { kind: 'signed_in' },
+    current: (r) => r.name === 'ask',
+  },
+  {
     group: 'Decide',
     to: '/inbox',
     label: 'Inbox',
     guard: { kind: 'signed_in' },
     current: (r) => r.name === 'inbox' || r.name === 'card' || r.name === 'revision',
+  },
+  {
+    // M18: what the notifier raised for the person; the inbox stays the record of what waits
+    group: 'Decide',
+    to: '/me/notifications',
+    label: 'Notifications',
+    guard: { kind: 'signed_in' },
+    current: (r) => r.name === 'notifications' || r.name === 'notificationPrefs',
   },
   {
     group: 'Projects',
