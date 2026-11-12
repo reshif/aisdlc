@@ -2,6 +2,7 @@ import {
   ConfigReader,
   ConfigRegistry,
   onboardingImageFrom,
+  workerImageFrom,
   registerSandboxConfig,
 } from '@aisdlc/config';
 import { RunnerHostId, SANDBOX_IMAGE_REF } from '@aisdlc/contracts';
@@ -26,6 +27,18 @@ import { createControllerApp } from './app.js';
 import { ConfigCaps } from './caps.js';
 import { SandboxController } from './controller.js';
 import { RecordGrants } from './grants.js';
+
+/** `SANDBOX_CONTROLLER_WORKER_IMAGE_ID`: the image id (`sha256:...`) of the W image this host runs, or `null`. */
+export function workerImageIdEnv(env: Env): string | null {
+  const v = (env['SANDBOX_CONTROLLER_WORKER_IMAGE_ID'] ?? '').trim();
+  if (v === '') return null;
+  if (!/^sha256:[0-9a-f]{64}$/.test(v)) {
+    throw new ServiceConfigError(
+      'SANDBOX_CONTROLLER_WORKER_IMAGE_ID is an image id: sha256:<64 hex>',
+    );
+  }
+  return v;
+}
 
 const Callers = z.record(
   z.string(),
@@ -78,6 +91,8 @@ function driverFromEnv(env: Env): SandboxPort {
     },
     image: env['SANDBOX_CONTROLLER_IMAGE'] || 'aisdlc/sandbox-agent:local',
     images: probeImagesEnv(env),
+    // M16 part 3 (LF4): a W container must be made from exactly this image id (checked on the daemon's answer)
+    expectImageId: (cls) => (cls === 'W' ? (workerImageIdEnv(env) ?? '') : undefined),
     scratch: (() => {
       const d = dirEnv(env, 'SANDBOX_CONTROLLER_SCRATCH');
       return { local: d, host: d };
@@ -103,6 +118,9 @@ function driverFromEnv(env: Env): SandboxPort {
  *   SANDBOX_CONTROLLER_SCRATCH        repo copies: a plain absolute directory, the same path for the daemon
  *   SANDBOX_CONTROLLER_MIRROR, SANDBOX_CONTROLLER_GATEWAY   the peers' container names
  *   SANDBOX_CONTROLLER_IMAGE          the session image (default aisdlc/sandbox-agent:local)
+ *   SANDBOX_CONTROLLER_WORKER_IMAGE_ID M16 part 3: the image id (sha256:...) of SANDBOX_CONTROLLER_IMAGE. A W session
+ *                                    starts only when it is `onboarding.light_tests.worker_image` (the image LF4's
+ *                                    isolation test was recorded for) and the daemon made the container from it
  *   SANDBOX_CONTROLLER_PROBE_IMAGES   M16: digest references the driver may also run (the onboarding probe image); a
  *                                     K-exec session must ALSO name the image `onboarding.sandbox_image` approves
  *   SANDBOX_CONTROLLER_BODY_LIMIT_MB  the largest session request (default 64)
@@ -171,6 +189,11 @@ export async function bootSandboxController(
       hostId: host.data,
       // M16: the image M1 approved, from the same reader; a failed last reload reads as none (fail closed)
       probeImage: () => (caps.isStale ? null : (onboardingImageFrom(r0.current())?.image ?? null)),
+      // M16 part 3: W runs only the image LF4 names; a failed last reload reads as none (fail closed)
+      workerImage: {
+        lf4: () => (caps.isStale ? null : workerImageFrom(r0.current())),
+        host: workerImageIdEnv(env),
+      },
     });
     const app = createControllerApp({
       controller,

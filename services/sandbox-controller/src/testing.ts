@@ -24,6 +24,7 @@ export async function startTestController(o: {
   reload?: () => Promise<void>;
   scopes?: readonly ControllerScope[];
   probeImage?: () => string | null;
+  workerImage?: { lf4: () => string | null; host: string | null };
 }): Promise<TestController> {
   const token = randomBytes(24).toString('hex');
   const caps = o.caps ?? new StaticCaps();
@@ -33,6 +34,7 @@ export async function startTestController(o: {
     grants: o.grants ?? new FakeGrants(),
     hostId: 'test',
     ...(o.probeImage ? { probeImage: o.probeImage } : {}),
+    ...(o.workerImage ? { workerImage: o.workerImage } : {}),
   });
   const app = createControllerApp({
     controller,

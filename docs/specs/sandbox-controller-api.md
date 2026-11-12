@@ -30,7 +30,7 @@ In this order, and the first that fails answers:
 
 Success: `200 SandboxRunWire`: the `SandboxRun` with `/out` files as `{path, size, sha256, content_b64}`. A void run (`timed_out`, `oom_killed`, `out_oversized`, `killed`) is a `200` run, not an error. A driver error is passed on with its own code (`503 unavailable`, `409 busy` from the proxy's own count, ...); a driver that throws is `502 driver_failure`.
 
-Errors: `{"error": {"code": <SandboxErrorCode>, "message": ...}}` (`invalid_spec 400`, `exec_not_allowed 403`, `b1_blocked 403`, `refused 403`, `busy 409`, `unavailable 503`, `driver_failure 502`).
+Errors: `{"error": {"code": <SandboxErrorCode>, "message": ...}}` (`invalid_spec 400`, `exec_not_allowed 403`, `b1_blocked 403`, `image_unverified 403` (M16 part 3: a W session when the host's W image id, `SANDBOX_CONTROLLER_WORKER_IMAGE_ID`, is not `onboarding.light_tests.worker_image`, the image LF4's isolation test was recorded for, or either is unnamed; the driver also checks the container the daemon made is that image), `refused 403`, `busy 409`, `unavailable 503`, `driver_failure 502`).
 
 `HttpSandbox` fails closed: a spec with no `grant` is refused before anything is sent; a transport error, the deadline (the session's `time_s` plus a margin, default 120 s) or a non-2xx is a `SandboxError` (a code it does not know reads `unavailable`); a body that does not parse, an answer for another session, or an `/out` file whose bytes do not match its size and sha256 is `driver_failure`. It uses `node:http` for this call, not `fetch`, so a 60-minute W session is not cut by a 300 s header timeout.
 

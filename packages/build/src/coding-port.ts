@@ -142,6 +142,12 @@ export const failingNames = (text: string, exit: number | null): string[] => {
   return [...names].map((n) => n.slice(0, 200)).sort();
 };
 
+/** The B6 reason when the sandbox refuses W for its image (LF4). */
+export const WORKER_IMAGE_UNVERIFIED = 'worker_image_unverified';
+
+/** The sandbox refused a session for its image (`image_unverified`). */
+class ImageUnverified extends Error {}
+
 export class AgentCodingPort implements CodingPort {
   readonly port = 'coding' as const;
 
@@ -161,6 +167,13 @@ export class AgentCodingPort implements CodingPort {
       if (!(o as { transient?: boolean }).transient) this.d.store.keepOutcome(req.command_key, o);
       return ok(o);
     } catch (e) {
+      // M16 part 3 (LF4): the host's W image is not the one LF4 was recorded for. A refusal, never a retry of an
+      // unknown: the item is BLOCKED (B6) with the reason recorded on its stream; a person fixes the image or the config
+      if (e instanceof ImageUnverified) {
+        const o = rework('B6', WORKER_IMAGE_UNVERIFIED);
+        this.d.store.keepOutcome(req.command_key, o);
+        return ok(o);
+      }
       // unknown whether it ran: the command is delivered again with the same key
       return err(
         StagePortError({ message: `coding ${req.step}: ${(e as Error).message}`.slice(0, 300) }),
@@ -231,6 +244,7 @@ export class AgentCodingPort implements CodingPort {
       grant = g.value;
     }
     const r = await this.d.sandbox.run(grant ? { ...spec, grant } : spec);
+    if (!r.ok && r.error.code === 'image_unverified') throw new ImageUnverified(r.error.message);
     if (!r.ok) throw new Error(`sandbox ${r.error.code}: ${r.error.message}`);
     return r.value;
   }

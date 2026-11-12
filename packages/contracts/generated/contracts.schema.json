@@ -111102,7 +111102,8 @@
         "busy",
         "unavailable",
         "refused",
-        "driver_failure"
+        "driver_failure",
+        "image_unverified"
       ]
     },
     "SandboxExecAllowedRepos": {
