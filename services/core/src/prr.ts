@@ -1,4 +1,10 @@
-import { AUTONOMY, effectiveAutonomy, eligibleLanes, readinessCap } from '@aisdlc/catalogue';
+import {
+  AUTONOMY,
+  catalogueFor,
+  effectiveAutonomy,
+  eligibleLanes,
+  readinessCap,
+} from '@aisdlc/catalogue';
 import {
   AutonomyValues,
   CENSUS_AREA,
@@ -53,6 +59,8 @@ export type PrrBuildCode =
   | 'b3_not_met'
   | 'gating_floor'
   | 'no_signer'
+  /** The S0 record's pinned catalogue is not a released one (or its hash does not match). */
+  | 'catalogue_unknown'
   | 'invalid_record';
 
 export interface PrrBuildError {
@@ -420,13 +428,24 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
     issued_at: i.now,
   });
 
-  // ---- lanes: what the signed level and tier unlock, confined to Census lanes while posture is red.
+  // ---- lanes: what the signed level and tier unlock, confined to Census lanes while posture is red,
+  // read from the eligibility table of the catalogue the S0 record is pinned to (catalogue 1.4.0
+  // opened L0 at Light and L7 at Census; a record pinned before it keeps the older table).
+  const pinned = catalogueFor(s0.catalogue_ref);
+  if (!pinned.ok) {
+    return fail(
+      'catalogue_unknown',
+      `the S0 record's catalogue ${s0.catalogue_ref.version} is not a released one`,
+      [pinned.error._tag],
+    );
+  }
   const ff2 = census.floors.find((f) => f.id === 'FF2')?.status === 'met';
   const laneLevel: Level = AUTONOMY.posture[posture].census_lanes_only ? 'census' : signed;
-  const lanes_eligible: Lane[] = eligibleLanes(laneLevel, {
-    tier: c1.tier,
-    stagingSeparationAttested: ff2,
-  });
+  const lanes_eligible: Lane[] = eligibleLanes(
+    laneLevel,
+    { tier: c1.tier, stagingSeparationAttested: ff2 },
+    pinned.value.eligibility,
+  );
 
   // ---- writes. B3 decides whether the factory may write at all; a read-only Census signs without it.
   const b3 = b3Met(c4);

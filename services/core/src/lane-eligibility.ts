@@ -24,8 +24,14 @@ import { readGoverning } from './prr-store.js';
 //   PRR stale, suspended or expired               -> L8 human-led, through the 1.4 rule (`l8`)
 //   PRR active but the level (or tier, posture)
 //     does not open the lane                      -> L8, through the same rule
-//   L0 and L7                                     -> `unspecified` at every level: not eligible, L8
+//   the caller's catalogue does not open the lane
+//     at the record's level (an item pinned to 1.3.0
+//     asks for L0 or L7: `unspecified` there)       -> L8, through the same rule
 //   otherwise                                     -> `normal`
+//
+// The record's `lanes_eligible` was computed from the S0 record's pinned catalogue; the caller's table
+// (an item's pinned one, a new request's the current) must ALSO open the lane at the record's level,
+// so an item keeps the rule of the catalogue it was created under.
 //
 // Drift and too-low levels never use N8, and this is not the R3 circuit breaker (flow.md R3 is
 // ET14 only). Expiry never approves: an `active` record past its `fresh_until` is treated as
@@ -88,8 +94,17 @@ export function routeLane(
     // Human-led L8 is where everything goes; a request for L8 itself is no worse off.
     return { ...base, eligible: lane === 'L8', route: 'l8', reason };
   }
+  const opened = tableOf(governing.prr.level.signed, lane, table);
   if (governing.prr.autonomy.lanes_eligible.includes(lane)) {
-    return { ...base, eligible: true, route: 'normal', reason: 'eligible' };
+    if (opened === 'eligible') {
+      return { ...base, eligible: true, route: 'normal', reason: 'eligible' };
+    }
+    return {
+      ...base,
+      eligible: false,
+      route: 'l8',
+      reason: opened === 'unspecified' ? 'lane_unspecified' : 'level_too_low',
+    };
   }
   return { ...base, eligible: false, route: 'l8', reason: whyClosed(governing, lane, table) };
 }

@@ -24,9 +24,9 @@ describe('catalogue pinning (M1.6)', () => {
     expect(catalogueHash(CATALOGUE, flow)).not.toBe(catalogueHash());
   });
 
-  it('is version 1.3.0 and validates against its schema', () => {
-    expect(CATALOGUE_VERSION).toBe('1.3.0');
-    expect(CATALOGUE.version).toBe('1.3.0');
+  it('is version 1.4.0 and validates against its schema', () => {
+    expect(CATALOGUE_VERSION).toBe('1.4.0');
+    expect(CATALOGUE.version).toBe('1.4.0');
     expect(CatalogueData.safeParse(CATALOGUE).success).toBe(true);
   });
 
@@ -34,7 +34,7 @@ describe('catalogue pinning (M1.6)', () => {
     const ref = currentCatalogueRef();
     expect(CatalogueRef.safeParse(ref).success).toBe(true);
     expect(ref).toEqual({
-      version: '1.3.0',
+      version: '1.4.0',
       hash: hashCanonical({ catalogue: CATALOGUE, flow: PINNED_FLOW_TABLES }),
     });
     expect(isCurrentCatalogue(ref)).toBe(true);
@@ -91,7 +91,7 @@ describe('catalogue pinning (M1.6)', () => {
       ['schedule default', (c) => void (c.gating.schedule_default = 'human')],
       ['t2 floor', (c) => void c.gating.t2_floor.groups.pop()],
       ['always required', (c) => void c.gating.always_required.pop()],
-      ['eligibility', (c) => void (c.eligibility.by_level.light.L0 = 'eligible')],
+      ['eligibility', (c) => void (c.eligibility.by_level.census.L0 = 'eligible')],
       ['tier min level', (c) => void delete c.eligibility.tier_min_level.T2],
       ['autonomy tier cap', (c) => void (c.autonomy.tier.T2 = 'A3')],
       ['autonomy readiness', (c) => void (c.autonomy.readiness.RL0 = 'A0')],
@@ -165,7 +165,7 @@ describe('catalogue pinning (M1.6)', () => {
     // A later catalogue has another hash; the stored pin is not "current" any more but stays valid.
     const changed = clone();
     changed.rework_budget.total.value = 7;
-    const later = { version: '1.3.0', hash: catalogueHash(changed) };
+    const later = { version: '1.5.0', hash: catalogueHash(changed) };
     expect(later.hash).not.toBe(pin.hash);
     expect(isCurrentCatalogue(later)).toBe(false);
     expect(isCurrentCatalogue(pin)).toBe(true);

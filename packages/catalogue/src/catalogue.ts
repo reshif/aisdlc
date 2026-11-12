@@ -29,9 +29,11 @@ import { CatalogueData } from './schema.js';
  * 1.2.0 (M9.4): the phase table gains `-> Handoff` from every active phase (E4 is reached directly from
  * B2, B23-B25 and B28), and `flow_limits` holds D4 "hand back once" and X3 "find alternative, 1x".
  * 1.3.0 (M9.5): ET14's `trip` threshold is 3 (the flow gives R3 no number), and the phase table is
- * unchanged. Released versions are immutable snapshots (`history.ts`); never edit one.
+ * unchanged. 1.4.0 (M17): L0 (hotfix) is eligible from Light and L7 (spike) from Census (PLAN §7a,
+ * the user's decision on OB §2.1's open item); a T2 repo needs Full for both, as for every agent-led
+ * lane, and the lanes drop the matching `unspecified` notes. Released versions are immutable snapshots (`history.ts`); never edit one.
  */
-export const CATALOGUE_VERSION = '1.3.0';
+export const CATALOGUE_VERSION = '1.4.0';
 
 /** The catalogue, validated by `CatalogueData` when this module loads. An invalid catalogue throws. */
 export const CATALOGUE: CatalogueData = CatalogueData.parse({
