@@ -1,0 +1,45 @@
+name: e2e-pr
+
+# Request to merged PR on the local-prod compose stack, on fakes (platform/compose/e2e-pr.sh; RC-E2E-2, RC-E2E-7,
+# RC-PROC-1): a real Chromium decides every gate as its slot holder, S6 runs in W sessions, S7 in the verify service,
+# the Push Broker opens the Draft PR on the fake GitHub, gate-check passes it, a person merges, verify-ledger passes.
+# Nightly on main and on demand. It is not on pull requests: one run builds four images and takes longer than the
+# PR budget (about 15 minutes); see the job's own timing in its log.
+
+on:
+  schedule:
+    - cron: '37 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-pr-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2e-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Playwright as a library, outside the lockfile (the repo's own tests never use it), and its Chromium
+      - name: Playwright and Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: request to merged PR
+        run: npm run e2e:pr
+      - name: the run's leftovers
+        if: always()
+        run: |
+          docker ps -a --format '{{.Names}} {{.Status}}' | head -40
+          docker network ls --filter label=aisdlc.sandbox=1 -q | wc -l

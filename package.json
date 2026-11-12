@@ -29,9 +29,10 @@
     "evidence:sp-std-3": "SP_STD_3_EVIDENCE_DIR=docs/evidence vitest run --project text-lint precision",
     "smoke:compose": "bash platform/compose/smoke.sh",
     "e2e:compose": "bash platform/compose/e2e.sh",
+    "e2e:pr": "bash platform/compose/e2e-pr.sh",
     "live:census": "bash platform/compose/live-census.sh",
     "drill:compose": "platform/compose/drill.sh",
-    "lint:shell": "bash -n platform/compose/smoke.sh platform/compose/e2e.sh platform/compose/live-census.sh platform/compose/verify-ledger.sh platform/compose/drill.sh platform/sandbox/onboarding/build.sh && (command -v shellcheck >/dev/null && shellcheck -x platform/compose/*.sh platform/compose/init-secrets || echo shellcheck not installed: syntax checked only)"
+    "lint:shell": "bash -n platform/compose/smoke.sh platform/compose/e2e.sh platform/compose/e2e-pr.sh platform/compose/live-census.sh platform/compose/verify-ledger.sh platform/compose/drill.sh platform/sandbox/onboarding/build.sh && (command -v shellcheck >/dev/null && shellcheck -x platform/compose/*.sh platform/compose/init-secrets || echo shellcheck not installed: syntax checked only)"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
