@@ -27,24 +27,28 @@ const AFTER_ONBOARDING_TITLE = {
 } as const;
 
 export const titleOf = (i: PortalInboxItem): string =>
-  i.kind === 'settings_revision'
-    ? 'Settings revision: publish the role map'
-    : i.kind === 'work_gate'
-      ? `Gate ${i.gate ?? ''}: item ${(i.item_id ?? '').replace(/-/g, '').slice(0, 8)}`
-      : i.kind === 'onboarding_card'
-        ? (CARD_TITLE[i.label as keyof typeof CARD_TITLE] ?? 'Card')
-        : `${AFTER_ONBOARDING_TITLE[i.kind]}: ${i.id}`;
+  i.kind === 'access_grant'
+    ? `Role grant or revoke on ${i.project_id === 'factory' ? 'the whole factory' : i.project_id}`
+    : i.kind === 'settings_revision'
+      ? 'Settings revision: publish the role map'
+      : i.kind === 'work_gate'
+        ? `Gate ${i.gate ?? ''}: item ${(i.item_id ?? '').replace(/-/g, '').slice(0, 8)}`
+        : i.kind === 'onboarding_card'
+          ? (CARD_TITLE[i.label as keyof typeof CARD_TITLE] ?? 'Card')
+          : `${AFTER_ONBOARDING_TITLE[i.kind]}: ${i.id}`;
 export const hrefOf = (i: PortalInboxItem): string =>
-  i.kind === 'settings_revision'
-    ? `/revisions/${i.id}`
-    : i.kind === 'work_gate'
-      ? // P1-2: a work gate opens the card it is decided on; the item page only when the record names no card
-        i.card_id !== null
-        ? `/cards/${i.card_id}`
-        : `/items/${i.item_id ?? ''}`
-      : i.kind === 'onboarding_card'
-        ? `/cards/${i.id}`
-        : `/projects/${encodeURIComponent(i.project_id)}/drift`;
+  i.kind === 'access_grant'
+    ? `/access/grants/${i.id}`
+    : i.kind === 'settings_revision'
+      ? `/revisions/${i.id}`
+      : i.kind === 'work_gate'
+        ? // P1-2: a work gate opens the card it is decided on; the item page only when the record names no card
+          i.card_id !== null
+          ? `/cards/${i.card_id}`
+          : `/items/${i.item_id ?? ''}`
+        : i.kind === 'onboarding_card'
+          ? `/cards/${i.id}`
+          : `/projects/${encodeURIComponent(i.project_id)}/drift`;
 
 /** M19 GateFeasibility: an item nobody eligible can decide (or whose quorum cannot be met) is flagged, unknown too. */
 function Feasibility({ i }: { i: PortalInboxItem }) {

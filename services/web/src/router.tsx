@@ -37,6 +37,7 @@ export type Route =
   | { name: 'closeout'; id: string }
   | { name: 'learn'; id: string }
   | { name: 'factoryRevision'; id: string }
+  | { name: 'accessGrant'; id: string }
   | { name: StaticScreen }
   | { name: 'notfound' };
 
@@ -89,6 +90,8 @@ export function parseRoute(path: string): Route {
   if (closeout) return { name: 'closeout', id: decodeURIComponent(closeout[1] as string) };
   const learn = /^\/projects\/([^/]+)\/learn$/.exec(p);
   if (learn) return { name: 'learn', id: decodeURIComponent(learn[1] as string) };
+  const grantRoute = /^\/access\/grants\/([^/]+)$/.exec(p);
+  if (grantRoute) return { name: 'accessGrant', id: decodeURIComponent(grantRoute[1] as string) };
   const frev = /^\/config\/revisions\/([^/]+)$/.exec(p);
   if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
   const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
