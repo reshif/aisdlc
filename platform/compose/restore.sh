@@ -6,7 +6,7 @@
 #
 # Against COMPOSE_PROJECT_NAME (the compose default when unset), from platform/compose, onto NOTHING: the project
 # must have no Postgres volume (a fresh host, or `docker compose down -v` first) and secrets/ must be absent or hold
-# exactly the backup's files. The image (AISDLC_IMAGE, default aisdlc/factory:local) must exist: build it from the
+# exactly the backup's files. The image (AISDLC_FACTORY_IMAGE, default aisdlc/factory:local) must exist: build it from the
 # commit in manifest.json.
 #
 #   1. every file is checked against SHA256SUMS (a damaged backup is refused, nothing is touched)

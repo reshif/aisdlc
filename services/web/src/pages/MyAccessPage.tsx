@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ACTION_CATALOGUE,
   ActionId,
@@ -10,7 +11,8 @@ import {
   type PdpResource,
   type Scope,
 } from '@aisdlc/contracts';
-import { reasonText, rolesThatGrant, useAccess, useCan } from '../access';
+import { reasonText, rolesThatGrant, useAccess, useCan, useMe } from '../access';
+import { AccessRequestForm, GrantsList } from './AccessPages';
 import { Loading, PageError } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
@@ -18,7 +20,8 @@ import { Card, EmptyState, GateTag, PageHead, Pill, Stat, Stats, Table } from '.
 
 // My access (portal-coverage §2 `my-access`): every role binding the person reaches, where it
 // applies and where it comes from, the view level and data class per project, and a small matrix
-// of what the PDP allows per project. Read-only: it shows what the server says.
+// of what the PDP allows per project. It shows what the server says; asking for a role (P1-6) is a proposal that
+// someone at the scope's admin slot decides.
 
 /** The actions the matrix asks about on each project (all of them apply to a Project resource). */
 const PROBES: readonly ActionId[] = [
@@ -60,6 +63,7 @@ function Cell({ action, resource }: { action: ActionId; resource: PdpResource })
 
 /** "Request access" lands here with `?want=<action>&project=<id>[&gate=<id>]`. */
 function RequestPanel() {
+  const me = useMe();
   const qs = new URLSearchParams(window.location.search);
   const want = ActionId.safeParse(qs.get('want'));
   if (!want.success) return null;
@@ -106,11 +110,32 @@ function RequestPanel() {
         </>
       )}
       <p className="muted">
-        The portal has no access-request form yet: ask the project&rsquo;s admin (or a factory admin
-        for a factory role) to bind you to one of these roles. A gate-deciding role also needs an M6
-        approver grant.
+        A role of a project&rsquo;s role map (a gate-deciding slot) is given in its Project
+        settings: ask the project&rsquo;s admin. The roles beyond it you can ask for here; someone
+        at the scope&rsquo;s admin slot decides, never you.
       </p>
+      <AccessRequestForm me={me} project={project} roles={roles} />
     </Card>
+  );
+}
+
+/** Ask for a role from scratch (no locked button led here): on the whole factory, or a project you name. */
+function AskForRole() {
+  const me = useMe();
+  const [project, setProject] = useState('');
+  return (
+    <>
+      <label className="pg-form">
+        Project (empty for the whole factory){' '}
+        <input value={project} onChange={(e) => setProject(e.target.value.trim())} />
+      </label>
+      <AccessRequestForm
+        key={project}
+        me={me}
+        project={project === '' ? null : project}
+        roles={[]}
+      />
+    </>
   );
 }
 
@@ -207,6 +232,10 @@ export function MyAccessPage() {
           ]}
         />
       </Card>
+      <Card title="Ask for a role" testId="ask-role">
+        <AskForRole />
+      </Card>
+      <GrantsList only={(g) => g.proposed_by === v.principal.principal_id || g.may_decide} />
       <Card title="Per project" flush>
         <Table<MyProjectAccess>
           caption="View level, data class and what you may do per project"

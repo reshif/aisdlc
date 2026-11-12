@@ -65,6 +65,8 @@ describe('gate-check in the compose stack', () => {
         'gatecheck-github',
         'kms-clients',
         'objectstore-api',
+        // M19: its own network to the collector (it and the collector only)
+        'telemetry-gate-check',
       ].sort(),
     );
     for (const n of ['data-gatecheck', 'gatecheck-github'])

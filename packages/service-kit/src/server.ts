@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
-import { OtlpExporter, instrumentApp, type TelemetryConfig } from './telemetry.js';
+import { OtlpExporter, carryTrace, instrumentApp, type TelemetryConfig } from './telemetry.js';
 
 /** A Fastify instance with no logging noise; services add their routes. Bodies up to 8 MiB unless a service says more. */
 export function newApp(opts: { bodyLimit?: number } = {}): FastifyInstance {
@@ -14,7 +14,9 @@ export async function listen(
   app: FastifyInstance,
   opts: { host?: string; port?: number; telemetry?: TelemetryConfig } = {},
 ): Promise<string> {
+  // M19: with telemetry, a server span per request; without, the caller's trace is still carried on outbound calls
   if (opts.telemetry) instrumentApp(app, new OtlpExporter(opts.telemetry));
+  else carryTrace(app);
   await app.listen({ host: opts.host ?? '127.0.0.1', port: opts.port ?? 0 });
   const addr = app.server.address();
   if (addr === null || typeof addr === 'string') throw new Error('server has no TCP address');

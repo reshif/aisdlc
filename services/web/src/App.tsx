@@ -27,6 +27,7 @@ import { HomePage } from './pages/HomePage';
 import { CloseoutPage } from './pages/CloseoutPage';
 import { LearnPage } from './pages/LearnPage';
 import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
+import { AccessGrantPage, AccessRequestsPage } from './pages/AccessPages';
 import { BoardPage, ItemsPage } from './pages/ItemsPage';
 import { FloorPage } from './floor/FloorPage';
 import { FleetPage } from './floor/FleetPage';
@@ -39,13 +40,7 @@ import {
   SchedulerPage,
 } from './pages/OperatePages';
 import { AuditPage, CataloguePage, FleetLedgerPage } from './pages/GovernPages';
-import {
-  AccessRequestsPage,
-  ExplainPage,
-  PeoplePage,
-  RolesPage,
-  TeamsPage,
-} from './pages/AdminPages';
+import { ExplainPage, PeoplePage, RolesPage, TeamsPage } from './pages/AdminPages';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
 import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
@@ -196,13 +191,13 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'catalogue':
       return <CataloguePage />;
     case 'people':
-      return <PeoplePage />;
+      return <PeoplePage me={me} />;
     case 'teams':
       return <TeamsPage />;
     case 'roles':
       return <RolesPage />;
     case 'accessRequests':
-      return <AccessRequestsPage />;
+      return <AccessRequestsPage me={me} />;
     case 'explain':
       return <ExplainPage me={me} />;
     case 'onboard':
@@ -221,6 +216,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <CloseoutPage id={route.id} csrf={csrf} />;
     case 'learn':
       return <LearnPage project={route.id} csrf={csrf} />;
+    case 'accessGrant':
+      return <AccessGrantPage id={route.id} csrf={csrf} />;
     case 'factoryRevision':
       return <FactoryRevisionPage gate={route.id} csrf={csrf} me={me.principal.principal_id} />;
     case 'inbox':

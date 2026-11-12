@@ -453,7 +453,7 @@ export async function readFloor(
   d: FloorReadDeps,
   project: string,
   principal: string,
-  visible: (itemId: string, lane: Lane) => Promise<boolean>,
+  visible: (rows: ReadonlyArray<{ item_id: string; lane: Lane }>) => Promise<ReadonlySet<string>>,
 ): Promise<FloorView> {
   let stale: string | null = null;
   try {
@@ -485,8 +485,9 @@ export async function readFloor(
     d.pool,
     rows.rows.filter((r) => r.in_session).map((r) => r.item_id),
   );
+  const may = await visible(rows.rows);
   for (const r of rows.rows) {
-    if (!(await visible(r.item_id, r.lane))) continue;
+    if (!may.has(r.item_id)) continue;
     shown.add(r.item_id);
     const gates: FloorWaitingGate[] = [];
     for (const g of r.waiting_gates) {
@@ -637,19 +638,20 @@ export function registerFloorRoutes(d: FloorRouteDeps): void {
         error: { code: 'forbidden', message: 'floor.read denied', reasons: out.reasons },
       });
     }
-    const visible = async (itemId: string, lane: Lane) => {
+    // one batch of probes for the whole floor (M19 load test: one bundle check and one read of the person's facts,
+    // not one per item); an error is no item shown (fail closed)
+    const visible = async (rows: ReadonlyArray<{ item_id: string; lane: Lane }>) => {
       try {
-        const r = await pdp.decide(
-          {
-            principal: p,
-            action: 'item.view_floor',
-            resource: pdpResource.item(project.data, itemId, lane),
-          },
-          { log: false },
+        const answers = await pdp.decideEach(
+          p,
+          'item.view_floor',
+          rows.map((r) => pdpResource.item(project.data, r.item_id, r.lane)),
         );
-        return r.decision === 'allow';
+        return new Set(
+          rows.filter((_, i) => answers[i]?.decision === 'allow').map((r) => r.item_id),
+        );
       } catch {
-        return false;
+        return new Set<string>();
       }
     };
     try {

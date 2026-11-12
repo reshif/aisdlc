@@ -68,6 +68,8 @@ export interface CoreConfig {
   } | null;
   /** M19: core-worker's read-only `/admission` (the kill switch's verdict, for the floor's kill banner). */
   readonly admissionUrl: string | null;
+  /** P1-6: identity's API with scope `grant` (the decided grant path); `null`: approved grants wait unapplied. */
+  readonly identity: { readonly url: string; readonly token: string } | null;
 }
 
 /**
@@ -93,6 +95,8 @@ export interface CoreConfig {
  *                            back (and checks them); without it the viewer shows the record's facts only
  *   CORE_ADMISSION_URL       (M19) core-worker's read-only `/admission`: the kill switch's verdict the floor shows
  *                            (core has no route to the kill switch); without it the floor reads killed (AR9)
+ *   CORE_IDENTITY_URL, CORE_IDENTITY_TOKEN_REF   (P1-6) identity's API, scope `grant`: writes the role binding an
+ *                            approved access M1 decided; without it a decided grant waits (`POST .../apply` retries)
  * Every secret is an `env:NAME` or `file:PATH` reference.
  */
 export function coreConfigFromEnv(env: Env): CoreConfig {
@@ -159,6 +163,7 @@ export function coreConfigFromEnv(env: Env): CoreConfig {
       env['CORE_ADMISSION_URL'] === undefined || env['CORE_ADMISSION_URL'] === ''
         ? null
         : httpUrlEnv(env, 'CORE_ADMISSION_URL'),
+    identity: remote('IDENTITY'),
   };
 }
 

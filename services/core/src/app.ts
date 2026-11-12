@@ -146,6 +146,8 @@ import { registerIssueTwinRoutes } from './issue-twin/routes.js';
 import { registerDriftRoutes } from './drift/routes.js';
 import { registerErasableRoutes } from './conversation/erasable.js';
 import { registerGovernanceRoutes } from './governance-routes.js';
+import { registerAccessRoutes } from './access-routes.js';
+import type { AccessGrantWriterPort } from './clients.js';
 import {
   configKeyView,
   listConfigKeys,
@@ -225,6 +227,8 @@ export interface CoreAppOptions {
   readonly bypass?: () => MergeBypassConfig | null;
   /** M19: the kill switch's verdict for the floor (core-worker's `/admission`); without it the floor shows killed (AR9). */
   readonly kill?: KillVerdictPort;
+  /** P1-6: identity's `grant` scope, which writes what an approved access M1 decided; absent: nothing is applied. */
+  readonly grants?: AccessGrantWriterPort;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -2041,6 +2045,22 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     config: o.config ?? o.cards?.config,
     allowed: (req, scope) => allowed(req, scope),
     guard,
+  });
+
+  // ------------------------------------------------------------ role-binding grants and access requests (P1-6)
+
+  registerAccessRoutes({
+    app,
+    pool: o.pool,
+    decisions: o.config ?? o.cards?.config,
+    writer: o.grants,
+    allowed: (req, scope) => allowed(req, scope),
+    guard,
+    may: async (principal, action, resource) =>
+      // a capability probe to filter a list: not logged (every write still asks, and is logged)
+      o.pdp
+        ? (await o.pdp.decide({ principal, action, resource }, { log: false })).decision === 'allow'
+        : false,
   });
 
   // ------------------------------------------------------------ the erasable payloads (M19, the audit service)

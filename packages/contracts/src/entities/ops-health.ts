@@ -39,6 +39,7 @@ export const FACTORY_SERVICES = [
   'gate-check',
   'gate-relay',
   'notifier',
+  'audit',
   'object-store',
 ] as const;
 export const FactoryService = z.enum(FACTORY_SERVICES);

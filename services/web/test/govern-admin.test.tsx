@@ -184,7 +184,7 @@ describe('admin', () => {
     expect(await screen.findByRole('table', { name: 'Teams' })).toHaveTextContent('Payments');
   });
 
-  it('roles are the catalogue itself, read without a call; access requests say they are not built', async () => {
+  it('roles are the catalogue itself, read without a call; access requests list the proposals', async () => {
     const { calls } = mockApi({ 'GET /api/me': { json: me([]) } });
     const v = renderAt('/roles');
     const t = await screen.findByRole('table', { name: 'Roles' });
@@ -202,9 +202,7 @@ describe('admin', () => {
     expect(within(nav).queryByRole('link', { name: 'Who can do what' })).toBeNull();
     v.unmount();
     renderAt('/access-requests');
-    expect(await screen.findByTestId('not-built')).toHaveTextContent(
-      'There is no access-request API yet',
-    );
+    expect(await screen.findByText('No grant, revoke or request.')).toBeInTheDocument();
   });
 
   it("who can do what: the holders of a project with the PDP's actions; without access.explain a 403", async () => {

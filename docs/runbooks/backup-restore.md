@@ -40,7 +40,7 @@ ledger and checkpoint heads the backup covers; `SHA256SUMS` covers every file.
 ## 3. Restore onto a fresh host
 
 1. Check out the commit in `manifest.json` and build the image (`docker compose build`, or the `docker build` of the
-   compose README behind a proxy). Set `AISDLC_IMAGE` if it is not `aisdlc/factory:local`.
+   compose README behind a proxy). Set `AISDLC_FACTORY_IMAGE` if it is not `aisdlc/factory:local`.
 2. Make sure the project has no Postgres volume (`docker compose down -v` on a reused host) and `secrets/` is absent.
 3. Decrypt the backup to a local directory and run:
 
@@ -72,7 +72,7 @@ ledger and checkpoint heads the backup covers; `SHA256SUMS` covers every file.
 `npm run drill:restore` (`platform/compose/drill-restore.sh`) does all of it end to end: a stack with data (the
 browser e2e when Playwright resolves, `DRILL_DATA=e2e`; else an onboarding through core, `DRILL_DATA=seed`), a kill
 kept engaged and a kill released, quiesce, backup, `down -v` and the secrets moved away, restore, every check above,
-then `down -v`. Its own project (`aisdlc-drill`) and subnets (`10.237`); `DRILL_SKIP_BUILD=1` with `AISDLC_IMAGE` uses
+then `down -v`. Its own project (`aisdlc-drill`) and subnets (`10.237`); `DRILL_SKIP_BUILD=1` with `AISDLC_FACTORY_IMAGE` uses
 an image as it is; `DRILL_KEEP=1` leaves the restored stack up; `DRILL_BACKUP_DIR` keeps the backup.
 
 ## 5. RPO and RTO

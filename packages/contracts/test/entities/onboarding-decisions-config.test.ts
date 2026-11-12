@@ -150,7 +150,8 @@ describe('decisions', () => {
   };
   it('GateInstance round-trips with item or s0_record subjects and the status enum', () => {
     expect(GateInstance.parse(gi)).toEqual(gi);
-    expect(GateInstance.safeParse({ ...gi, subject_kind: 'access' }).success).toBe(false);
+    expect(GateInstance.safeParse({ ...gi, subject_kind: 'access' }).success).toBe(true);
+    expect(GateInstance.safeParse({ ...gi, subject_kind: 'role' }).success).toBe(false);
     expect(GateInstance.safeParse({ ...gi, gate_id: 'G99' }).success).toBe(false);
     expect(GateInstance.safeParse({ ...gi, status: 'approved' }).success).toBe(false);
     expect(GateInstance.safeParse({ ...gi, status: 'decided' }).success).toBe(false);

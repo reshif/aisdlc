@@ -53,6 +53,8 @@ export function mockApi(routes: Record<string, Handler>) {
   const table: Record<string, Handler> = {
     'GET /api/me/access': { json: emptyAccess() },
     'POST /api/me/decisions': (c: Call) => ({ json: denyAll(c) }),
+    // P1-6: My access lists the person's own access requests
+    'GET /api/access/grants': { json: { grants: [] } },
     ...routes,
   };
   vi.stubGlobal(

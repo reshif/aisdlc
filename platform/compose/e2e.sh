@@ -60,7 +60,7 @@ for p in 8340 8390; do
   if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then fail "port $p is already in use on this host (another stack?)"; fi
 done
 if [ "${E2E_SKIP_BUILD:-0}" = 1 ]; then
-  docker image inspect "${AISDLC_IMAGE:-aisdlc/factory:local}" >/dev/null 2>&1 || fail "E2E_SKIP_BUILD=1 but the image ${AISDLC_IMAGE:-aisdlc/factory:local} does not exist"
+  docker image inspect "${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local}" >/dev/null 2>&1 || fail "E2E_SKIP_BUILD=1 but the image ${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local} does not exist"
 else
   dc build
 fi

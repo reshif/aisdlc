@@ -107,6 +107,34 @@ describe('probeService', () => {
       await svc.close();
     }
   });
+
+  it('M19: a profile service that does not answer is unknown (not_reached), never down or ok; one that answers is read', async () => {
+    const now = () => new Date('2026-11-12T12:00:00.000Z');
+    const svc = await fakeService({ status: 200, body: { ok: true } });
+    const t = { url: svc.url, profile: true };
+    try {
+      expect((await probeService('verify', t, now))[0]).toMatchObject({ state: 'ok' });
+      svc.answer.status = 503;
+      expect((await probeService('verify', t, now))[0]).toMatchObject({
+        state: 'down',
+        detail_code: 'unhealthy',
+      });
+      // the bff's relay for the notifier: its 502 is "the notifier did not answer"
+      svc.answer.status = 502;
+      expect((await probeService('notifier', t, now))[0]).toMatchObject({
+        state: 'unknown',
+        detail_code: 'not_reached',
+      });
+    } finally {
+      await svc.close();
+    }
+    expect((await probeService('verify', t, now))[0]).toMatchObject({
+      tile_id: 'service.verify',
+      state: 'unknown',
+      detail_code: 'not_reached',
+      sli_value: null,
+    });
+  });
 });
 
 describe('snapshotsOfReport (a supervisor report)', () => {

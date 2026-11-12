@@ -1,3 +1,4 @@
+import { listAccessGrants } from './access-grants.js';
 import {
   CardId,
   LedgerAuditView,
@@ -352,6 +353,38 @@ export async function coreInbox(deps: {
               ? `nobody holds the ${slot} role`
               : `T2 allows no waiver and ${slot} has one holder`,
     });
+  }
+  // P1-6: a grant, revoke or access request waiting for its M1, in the inbox of the slot holders who may decide it
+  const accessKernel = deps.config;
+  if (accessKernel) {
+    for (const g of await listAccessGrants({ pool, decisions: accessKernel })) {
+      if (g.status !== 'pending') continue;
+      const state = await readGateState(pool, g.gate_instance_id);
+      if (!state || state.status !== 'pending') continue;
+      const f = await gateFeasibility(
+        accessKernel.eligibility,
+        state.open.payload,
+        state.approvers as never,
+      );
+      out.push({
+        kind: 'access_grant',
+        id: g.grant_id,
+        project_id: g.project_id,
+        s0_id: null,
+        label: null,
+        slot: 'admin',
+        opened_at: state.open.opened_at,
+        sla_due_at: null,
+        overdue: false,
+        escalated: false,
+        holders: g.deciders,
+        item_id: null,
+        gate: 'M1',
+        card_id: null,
+        feasibility: f.state,
+        feasibility_reason: f.reason,
+      });
+    }
   }
   // after onboarding (M16, OB §8): re-affirm, restore, re-sign; one per repo, decided by the project's admin slot
   out.push(

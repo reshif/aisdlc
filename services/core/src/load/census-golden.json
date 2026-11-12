@@ -1,0 +1,1575 @@
+{
+  "schema": "census/1",
+  "census_id": "census:acme.app:4076d2d9fe2dd372af063d2a3343797285c1cdab",
+  "repo": {
+    "full_name": "acme/app",
+    "owner": "acme",
+    "name": "app",
+    "repo_id": "acme.app",
+    "visibility": "private",
+    "owner_type": "org",
+    "plan": "team",
+    "default_branch": "main",
+    "archetype": null
+  },
+  "baseline_sha": "4076d2d9fe2dd372af063d2a3343797285c1cdab",
+  "requested_level": "census",
+  "pins": {
+    "catalogue": {
+      "version": "1.4.0",
+      "hash": "05b89d8d188eb3ce5c3ef73a59f3183ec15465996ff773b59e9a13e407660217"
+    },
+    "criteria_set": "CRITERIA_V2@1.4.0",
+    "detector_set_version": "detectors/1:be3f9b49f675",
+    "rules_version": "secrets-rules/2:961394bbf87c",
+    "assembly": "census-rules/1"
+  },
+  "refs_covered": "all",
+  "security_summary": {
+    "history_scan": {
+      "status": "ok",
+      "refs_covered": "all",
+      "commits_scanned": 1,
+      "truncated": false,
+      "open": 0,
+      "rotated": 0,
+      "false_positive": 0,
+      "accepted_test_fixture": 0,
+      "rules_version": "secrets-rules/2:961394bbf87c"
+    }
+  },
+  "risk_category": {
+    "tier_floor": "T0",
+    "signals": [],
+    "raised_by": [],
+    "regulatory": "attested",
+    "criticality": "attested",
+    "t0": "attested",
+    "floor_basis": "complete",
+    "blocks_m4_until_attested": false,
+    "blocks_m4_reasons": []
+  },
+  "posture": {
+    "state": "green",
+    "reasons": [],
+    "b7": "probe_pending"
+  },
+  "blockers": [
+    {
+      "id": "B1",
+      "status": "met",
+      "reasons": [],
+      "notes": [],
+      "evidence": [
+        {
+          "source": "scan",
+          "ref": "scan:finding_counts"
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "status": "met",
+      "reasons": [],
+      "notes": [],
+      "evidence": [
+        {
+          "source": "scan",
+          "ref": "scan:coverage"
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "status": "not_evaluated",
+      "reasons": [],
+      "notes": ["protect_main_recorded_at_census"],
+      "evidence": []
+    },
+    {
+      "id": "B4",
+      "status": "met",
+      "reasons": [],
+      "notes": [],
+      "evidence": [
+        {
+          "source": "codehost",
+          "ref": "codehost:installation"
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "status": "met",
+      "reasons": [],
+      "notes": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "detector:b5_workflows"
+        }
+      ]
+    },
+    {
+      "id": "B6",
+      "status": "met",
+      "reasons": [],
+      "notes": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "detector:b6_apply_on_merge"
+        }
+      ]
+    }
+  ],
+  "criteria": [
+    {
+      "id": "RS-ID-1",
+      "family": "ID",
+      "pillar": "ORL",
+      "class": "FLOOR",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "codehost",
+          "ref": "codehost:installation"
+        },
+        {
+          "source": "intake",
+          "ref": "intake:default_branch"
+        }
+      ]
+    },
+    {
+      "id": "RS-ID-2",
+      "family": "ID",
+      "pillar": "ORL",
+      "class": "FLOOR",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "attestation",
+          "ref": "attestation:owner_confirmed"
+        }
+      ]
+    },
+    {
+      "id": "RS-ID-3",
+      "family": "ID",
+      "pillar": "ORL",
+      "class": "FLOOR",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "attestation",
+          "ref": "attestation:tier"
+        }
+      ]
+    },
+    {
+      "id": "RS-ID-4",
+      "family": "ID",
+      "pillar": "ORL",
+      "class": "FLOOR",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "codehost",
+          "ref": "codehost:repo"
+        }
+      ]
+    },
+    {
+      "id": "RS-AI-1",
+      "family": "AI",
+      "pillar": "KRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:instruction_file",
+          "path": "AGENTS.md",
+          "blob": "e57df40d684924a3e9d782324173a0ceffe8105a",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-AI-2",
+      "family": "AI",
+      "pillar": "KRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["needs_wizard"],
+      "evidence": []
+    },
+    {
+      "id": "RS-AI-3",
+      "family": "AI",
+      "pillar": "KRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": []
+    },
+    {
+      "id": "RS-AI-4",
+      "family": "AI",
+      "pillar": "KRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["needs_human_attestation"],
+      "evidence": []
+    },
+    {
+      "id": "RS-AI-5",
+      "family": "AI",
+      "pillar": "KRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": []
+    },
+    {
+      "id": "RS-AI-6",
+      "family": "AI",
+      "pillar": "KRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "na",
+      "observed": "pass",
+      "na_rule": "NA-NO-NESTED-AGENTS",
+      "reasons": [],
+      "evidence": []
+    },
+    {
+      "id": "RS-AI-7",
+      "family": "AI",
+      "pillar": "KRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "detector:inventory"
+        }
+      ]
+    },
+    {
+      "id": "RS-BT-1",
+      "family": "BT",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:task_command",
+          "path": "package.json",
+          "blob": "a8fa974820631f5cbb7076bde0530c1b43ba78ee",
+          "line": 4
+        },
+        {
+          "source": "detector",
+          "ref": "fact:task_command",
+          "path": "package.json",
+          "blob": "a8fa974820631f5cbb7076bde0530c1b43ba78ee",
+          "line": 5
+        }
+      ]
+    },
+    {
+      "id": "RS-BT-2",
+      "family": "BT",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["probe_pending"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-BT-2:."
+    },
+    {
+      "id": "RS-BT-3",
+      "family": "BT",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:lockfile",
+          "path": "package-lock.json",
+          "blob": "b42f79ad354009e76c3d30a149316eed8816fb5e",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-BT-4",
+      "family": "BT",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".nvmrc",
+          "blob": "2bd5a0a98a36cc08ada88b804d3be047e6aa5b8a",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-BT-5",
+      "family": "BT",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["probe_pending"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-BT-5:."
+    },
+    {
+      "id": "RS-BT-6",
+      "family": "BT",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["probe_pending"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-BT-6:."
+    },
+    {
+      "id": "RS-BT-7",
+      "family": "BT",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["probe_pending"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-BT-7:."
+    },
+    {
+      "id": "RS-BT-8",
+      "family": "BT",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": ["required_check_not_read"],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".github/workflows/ci.yml",
+          "blob": "b076494d65f7891076b9ac8eb65bc8e8290bcb6c",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "id": "RS-ST-1",
+      "family": "ST",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:task_command",
+          "path": "package.json",
+          "blob": "a8fa974820631f5cbb7076bde0530c1b43ba78ee",
+          "line": 7
+        }
+      ]
+    },
+    {
+      "id": "RS-ST-2",
+      "family": "ST",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:task_command",
+          "path": "package.json",
+          "blob": "a8fa974820631f5cbb7076bde0530c1b43ba78ee",
+          "line": 6
+        }
+      ]
+    },
+    {
+      "id": "RS-ST-3",
+      "family": "ST",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:task_command",
+          "path": "package.json",
+          "blob": "a8fa974820631f5cbb7076bde0530c1b43ba78ee",
+          "line": 8
+        }
+      ]
+    },
+    {
+      "id": "RS-ST-4",
+      "family": "ST",
+      "pillar": "VRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["needs_wizard"],
+      "evidence": []
+    },
+    {
+      "id": "RS-ST-5",
+      "family": "ST",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".gitattributes",
+          "blob": "cf9687215b2cb3f1984eb29cf0896bff9a215ab0",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-ST-6",
+      "family": "ST",
+      "pillar": "VRL",
+      "class": "ADVISORY",
+      "escalated": false,
+      "scoring_class": "ADVISORY",
+      "status": "unmet",
+      "observed": "fail",
+      "na_rule": null,
+      "reasons": ["no_pre_commit_hooks"],
+      "evidence": []
+    },
+    {
+      "id": "RS-TH-1",
+      "family": "TH",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["probe_pending"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-TH-1:."
+    },
+    {
+      "id": "RS-TH-2",
+      "family": "TH",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "RECORDED",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["needs_history"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-TH-2:."
+    },
+    {
+      "id": "RS-TH-3",
+      "family": "TH",
+      "pillar": "VRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "na",
+      "observed": "pass",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["nothing_to_quarantine"],
+      "evidence": []
+    },
+    {
+      "id": "RS-TH-4",
+      "family": "TH",
+      "pillar": "VRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "RECORDED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": []
+    },
+    {
+      "id": "RS-TH-5",
+      "family": "TH",
+      "pillar": "VRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["probe_pending"],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".c8rc.json",
+          "blob": "9c6954ba573f61bb27f12dde2035cc2598ece51f",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-TH-6",
+      "family": "TH",
+      "pillar": "VRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": null,
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["probe_pending"],
+      "evidence": []
+    },
+    {
+      "id": "RS-CC-1",
+      "family": "CC",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:codeowners",
+          "path": ".github/CODEOWNERS",
+          "blob": "fc1f5b2d49864bfac5739e48c41948b2525b5293",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-CC-2",
+      "family": "CC",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:codeowners",
+          "path": ".github/CODEOWNERS",
+          "blob": "fc1f5b2d49864bfac5739e48c41948b2525b5293",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-CC-3",
+      "family": "CC",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["protect_main_unknown"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-CC-3:."
+    },
+    {
+      "id": "RS-CC-4",
+      "family": "CC",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["app_push_scope_unknown"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-CC-4:."
+    },
+    {
+      "id": "RS-CC-5",
+      "family": "CC",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["push_ruleset_unreadable"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-CC-5:."
+    },
+    {
+      "id": "RS-CC-6",
+      "family": "CC",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "RECORDED",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["needs_codehost_settings"],
+      "evidence": [],
+      "gap_id": "gap:acme.app:RS-CC-6:."
+    },
+    {
+      "id": "RS-CC-7",
+      "family": "CC",
+      "pillar": "ERL",
+      "class": "ADVISORY",
+      "escalated": false,
+      "scoring_class": "ADVISORY",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["needs_history"],
+      "evidence": []
+    },
+    {
+      "id": "RS-KN-1",
+      "family": "KN",
+      "pillar": "KRL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "README.md",
+          "blob": "9b57f5f811d4790532a9f151ee841d252e48da34",
+          "line": 1
+        },
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "README.md",
+          "blob": "9b57f5f811d4790532a9f151ee841d252e48da34",
+          "line": 5
+        }
+      ]
+    },
+    {
+      "id": "RS-KN-2",
+      "family": "KN",
+      "pillar": "KRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["needs_wizard"],
+      "evidence": []
+    },
+    {
+      "id": "RS-KN-3",
+      "family": "KN",
+      "pillar": "KRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["probe_pending"],
+      "evidence": []
+    },
+    {
+      "id": "RS-KN-4",
+      "family": "KN",
+      "pillar": "KRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["needs_human_attestation"],
+      "evidence": []
+    },
+    {
+      "id": "RS-KN-5",
+      "family": "KN",
+      "pillar": "KRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["needs_human_attestation"],
+      "evidence": []
+    },
+    {
+      "id": "RS-KN-6",
+      "family": "KN",
+      "pillar": "KRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "ADVISORY",
+      "status": "na",
+      "observed": "pass",
+      "na_rule": "NA-LEVEL",
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "docs/adr/0001-record-decisions.md",
+          "blob": "62980dfb21d0458d7a0354dd2d85dfb621f4c767",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-KN-7",
+      "family": "KN",
+      "pillar": "KRL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": null,
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["needs_wizard"],
+      "evidence": []
+    },
+    {
+      "id": "RS-OP-1",
+      "family": "OP",
+      "pillar": "ORL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": []
+    },
+    {
+      "id": "RS-OP-2",
+      "family": "OP",
+      "pillar": "ORL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["operations_unattested"],
+      "evidence": []
+    },
+    {
+      "id": "RS-OP-3",
+      "family": "OP",
+      "pillar": "ORL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "ADVISORY",
+      "status": "na",
+      "observed": "pass",
+      "na_rule": "NA-LEVEL",
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "docs/runbooks/deploy.md",
+          "blob": "97c021be800f309753c3aa23b3d6f16b70c7c159",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-EN-1",
+      "family": "EN",
+      "pillar": "ERL",
+      "class": null,
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "na",
+      "observed": "unknown",
+      "na_rule": "NA-LEVEL",
+      "reasons": ["egress_undeclared"],
+      "evidence": []
+    },
+    {
+      "id": "RS-EN-2",
+      "family": "EN",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "unknown",
+      "observed": "unknown",
+      "na_rule": null,
+      "reasons": ["env_example_placeholders_only", "probe_pending"],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".env.example",
+          "blob": "37a106b8d355b960bb90671a36e30d3bde6298d9",
+          "line": 1
+        }
+      ],
+      "gap_id": "gap:acme.app:RS-EN-2:."
+    },
+    {
+      "id": "RS-EN-3",
+      "family": "EN",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "RECORDED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "intake",
+          "ref": "intake:head_tree"
+        }
+      ]
+    },
+    {
+      "id": "RS-PUB-1",
+      "family": "PUB",
+      "pillar": "ORL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "LICENSE",
+          "blob": "4dcf83d97af41854c06e550e9d0e12d82a4d0bee",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-PUB-2",
+      "family": "PUB",
+      "pillar": "ORL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "SECURITY.md",
+          "blob": "30c76cf208184cf6690247ddd0a57a6f84ead493",
+          "line": 3
+        }
+      ]
+    },
+    {
+      "id": "RS-PUB-4",
+      "family": "PUB",
+      "pillar": "ORL",
+      "class": "ADVISORY",
+      "escalated": false,
+      "scoring_class": "ADVISORY",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".github/pull_request_template.md",
+          "blob": "40ddadb5c6b509d26cbfbbe2d2157639d8c96ff9",
+          "line": 1
+        },
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": "CONTRIBUTING.md",
+          "blob": "859acff97ac73c4a42605676163e1698f22d3071",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-PUB-5",
+      "family": "PUB",
+      "pillar": "ORL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "SCORED",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "detector",
+          "ref": "fact:presence",
+          "path": ".github/dependabot.yml",
+          "blob": "f520b0eee40ef8b1bc6ca81b25205b7050cc4327",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "RS-SEC",
+      "family": "SEC",
+      "pillar": "ERL",
+      "class": "RECORDED",
+      "escalated": false,
+      "scoring_class": "FLOOR",
+      "status": "met",
+      "observed": "pass",
+      "na_rule": null,
+      "reasons": [],
+      "evidence": [
+        {
+          "source": "scan",
+          "ref": "scan:coverage"
+        },
+        {
+          "source": "scan",
+          "ref": "scan:finding_counts"
+        }
+      ]
+    }
+  ],
+  "floors": [
+    {
+      "id": "CF1",
+      "status": "met",
+      "criteria": ["RS-ID-1"]
+    },
+    {
+      "id": "CF2",
+      "status": "met",
+      "criteria": ["RS-ID-2"]
+    },
+    {
+      "id": "CF3",
+      "status": "met",
+      "criteria": ["RS-ID-3"]
+    },
+    {
+      "id": "CF4",
+      "status": "met",
+      "criteria": ["RS-ID-4"]
+    },
+    {
+      "id": "LF1",
+      "status": "not_evaluated",
+      "criteria": ["RS-SEC"]
+    },
+    {
+      "id": "LF2",
+      "status": "not_evaluated",
+      "criteria": ["RS-CC-3", "RS-CC-4"]
+    },
+    {
+      "id": "LF3",
+      "status": "not_evaluated",
+      "criteria": ["RS-BT-1", "RS-BT-2", "RS-BT-7", "RS-TH-1", "RS-EN-2"]
+    },
+    {
+      "id": "LF4",
+      "status": "not_evaluated",
+      "criteria": ["RS-AI-7"]
+    },
+    {
+      "id": "LF5",
+      "status": "not_evaluated",
+      "criteria": ["RS-AI-3", "RS-AI-4"]
+    },
+    {
+      "id": "LF6",
+      "status": "not_evaluated",
+      "criteria": ["RS-KN-4", "RS-KN-5"]
+    },
+    {
+      "id": "LF7",
+      "status": "not_evaluated",
+      "criteria": ["RS-OP-1", "RS-OP-2"]
+    },
+    {
+      "id": "LF8",
+      "status": "not_evaluated",
+      "criteria": ["RS-EN-1"]
+    },
+    {
+      "id": "FF1",
+      "status": "not_evaluated",
+      "criteria": ["RS-KN-7"]
+    },
+    {
+      "id": "FF2",
+      "status": "not_evaluated",
+      "criteria": ["RS-OP-2"]
+    }
+  ],
+  "pre_score": {
+    "basis_level": "light",
+    "pillars": [
+      {
+        "pillar": "VRL",
+        "level": 1,
+        "by_area": {
+          ".": 1
+        },
+        "criteria": [
+          "RS-BT-1",
+          "RS-BT-2",
+          "RS-BT-3",
+          "RS-BT-4",
+          "RS-BT-5",
+          "RS-BT-6",
+          "RS-BT-7",
+          "RS-BT-8",
+          "RS-ST-1",
+          "RS-ST-2",
+          "RS-ST-3",
+          "RS-ST-4",
+          "RS-ST-5",
+          "RS-ST-6",
+          "RS-TH-1",
+          "RS-TH-2",
+          "RS-TH-3",
+          "RS-TH-4",
+          "RS-TH-5",
+          "RS-TH-6"
+        ],
+        "floors_open": 0,
+        "measured": 10,
+        "total": 18,
+        "scored_pass": 8,
+        "scored_total": 12,
+        "all_pass": false
+      },
+      {
+        "pillar": "ERL",
+        "level": 1,
+        "by_area": {
+          ".": 1
+        },
+        "criteria": [
+          "RS-CC-1",
+          "RS-CC-2",
+          "RS-CC-3",
+          "RS-CC-4",
+          "RS-CC-5",
+          "RS-CC-6",
+          "RS-CC-7",
+          "RS-EN-1",
+          "RS-EN-2",
+          "RS-EN-3",
+          "RS-SEC"
+        ],
+        "floors_open": 0,
+        "measured": 4,
+        "total": 10,
+        "scored_pass": 2,
+        "scored_total": 3,
+        "all_pass": false
+      },
+      {
+        "pillar": "ORL",
+        "level": 1,
+        "by_area": {
+          ".": 1
+        },
+        "criteria": [
+          "RS-ID-1",
+          "RS-ID-2",
+          "RS-ID-3",
+          "RS-ID-4",
+          "RS-OP-1",
+          "RS-OP-2",
+          "RS-OP-3",
+          "RS-PUB-1",
+          "RS-PUB-2",
+          "RS-PUB-4",
+          "RS-PUB-5"
+        ],
+        "floors_open": 0,
+        "measured": 8,
+        "total": 9,
+        "scored_pass": 3,
+        "scored_total": 3,
+        "all_pass": false
+      },
+      {
+        "pillar": "KRL",
+        "level": 1,
+        "by_area": {
+          ".": 1
+        },
+        "criteria": [
+          "RS-AI-1",
+          "RS-AI-2",
+          "RS-AI-3",
+          "RS-AI-4",
+          "RS-AI-5",
+          "RS-AI-6",
+          "RS-AI-7",
+          "RS-KN-1",
+          "RS-KN-2",
+          "RS-KN-3",
+          "RS-KN-4",
+          "RS-KN-5",
+          "RS-KN-6",
+          "RS-KN-7"
+        ],
+        "floors_open": 0,
+        "measured": 5,
+        "total": 11,
+        "scored_pass": 3,
+        "scored_total": 6,
+        "all_pass": false
+      }
+    ],
+    "composite": 1
+  },
+  "probe": {
+    "state": "pending",
+    "blocker": "B7",
+    "counts_only_in": "K-exec"
+  },
+  "inventory": {
+    "status": "complete",
+    "kinds": [
+      {
+        "inventory": "agents_md",
+        "state": "data",
+        "file_count": 1,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "claude_md",
+        "state": "data",
+        "file_count": 1,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "claude_dir",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "mcp_json",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "cursor",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "copilot_instructions",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "windsurf",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "gemini",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "aider",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "continue",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "git_hooks",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "pre_commit_config",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "devcontainer",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "vscode_tasks",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "direnv",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      },
+      {
+        "inventory": "install_scripts",
+        "state": "absent",
+        "file_count": 0,
+        "auto_run": "not_applicable"
+      }
+    ],
+    "files_total": 2,
+    "auto_run_kinds": [],
+    "agents": {
+      "root_present": true,
+      "root_lines": 3,
+      "chain_bytes": 48,
+      "nested": 0
+    }
+  },
+  "detectors": {
+    "status": "ok",
+    "error_codes": [],
+    "facts_truncated": false,
+    "fact_counts": {
+      "stack": 4,
+      "lockfile": 1,
+      "presence": 19,
+      "codeowners": 1,
+      "task_command": 8,
+      "instruction_file": 16
+    },
+    "lint": {
+      "docs_linted": 2,
+      "blocking": 0,
+      "advisory": 0
+    }
+  },
+  "coverage_counts": {},
+  "gaps": [
+    {
+      "gap_id": "gap:acme.app:RS-BT-2:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-BT-2",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-BT-5:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-BT-5",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-BT-6:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-BT-6",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-BT-7:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-BT-7",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-TH-1:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-TH-1",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-TH-2:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-TH-2",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-CC-3:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-CC-3",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-CC-4:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-CC-4",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-CC-5:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-CC-5",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-CC-6:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-CC-6",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    },
+    {
+      "gap_id": "gap:acme.app:RS-EN-2:.",
+      "repo_id": "acme.app",
+      "criterion": "RS-EN-2",
+      "area": ".",
+      "severity": "tracked",
+      "blocks_level": null,
+      "disposition": "track_only",
+      "status": "open",
+      "issue": null,
+      "remediation_item_ref": null,
+      "waiver": null,
+      "visibility_class": "public_safe"
+    }
+  ],
+  "census_hash": "184c2a891dae73b85de57d7529d6fc3a99c1559cd5cf6f586e1be57ffc287fe7"
+}

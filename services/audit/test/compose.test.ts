@@ -60,6 +60,8 @@ describe('the audit service in the compose stack', () => {
         'kms-clients',
         'notary-api',
         'objectstore-api',
+        // M19: its own network to the collector (it and the collector only)
+        'telemetry-audit',
       ].sort(),
     );
     for (const x of ['data-audit', 'audit-api', 'audit-core'])

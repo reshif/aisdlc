@@ -224,6 +224,36 @@ describe('the slot is always released', () => {
   });
 });
 
+describe('M19: the sweep keeps exactly the sessions this controller runs', () => {
+  it('a running session is kept; once it ends nothing is (and no sweep configured sweeps nothing)', async () => {
+    const held = new HeldDriver();
+    const keeps: string[][] = [];
+    tc = await startTestController({
+      driver: held,
+      grants: new FakeGrants().grant(CONTRACT_GRANT),
+      sweep: async (keep) => {
+        keeps.push([...keep].sort());
+        return { containers: [], networks: [], scratch: [], errors: [] };
+      },
+    });
+    const running = tc.client.run(spec({ session_id: 'ctl-keep-01' }));
+    while (held.started.length === 0) await new Promise((r) => setTimeout(r, 5));
+    await tc.controller.sweep();
+    held.release('ctl-keep-01');
+    expect((await running).ok).toBe(true);
+    await tc.controller.sweep();
+    expect(keeps).toEqual([['ctl-keep-01'], []]);
+    await tc.close();
+    tc = await startTestController({ driver: new FakeSandbox() });
+    expect(await tc.controller.sweep()).toEqual({
+      containers: [],
+      networks: [],
+      scratch: [],
+      errors: [],
+    });
+  });
+});
+
 describe('the HTTP surface', () => {
   it('/v1/slots is the SandboxSlots shape with the caps and their source; /healthz needs no token', async () => {
     tc = await startTestController({ driver: new FakeSandbox() });

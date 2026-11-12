@@ -59,6 +59,8 @@ describe('gate-relay in the compose stack', () => {
         'gaterelay-github',
         'kms-clients',
         'objectstore-api',
+        // M19: its own network to the collector (it and the collector only)
+        'telemetry-gate-relay',
       ].sort(),
     );
     for (const n of ['data-gaterelay', 'gaterelay-github'])

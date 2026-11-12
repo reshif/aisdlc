@@ -20,7 +20,7 @@
 #   5. `down -v`, the moved secrets put back, the backup deleted (DRILL_KEEP=1 keeps the stack, DRILL_BACKUP_DIR the
 #      backup), also on failure
 #
-# DRILL_SKIP_BUILD=1 uses the image AISDLC_IMAGE (default aisdlc/factory:local) as it is. Its own project and subnets
+# DRILL_SKIP_BUILD=1 uses the image AISDLC_FACTORY_IMAGE (default aisdlc/factory:local) as it is. Its own project and subnets
 # (COMPOSE_PROJECT_NAME aisdlc-drill, AISDLC_SUBNET_PREFIX 10.237), so it runs beside another stack; it needs ports
 # 8340 and 8390 free. Exit 0 only if every check held. The summary goes to DRILL_REPORT (default: stdout only).
 set -euo pipefail
@@ -30,7 +30,7 @@ repo_root="$(cd ../.. && pwd)"
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-drill}"
 export AISDLC_SUBNET_PREFIX="${AISDLC_SUBNET_PREFIX:-10.237}"
-export AISDLC_IMAGE="${AISDLC_IMAGE:-aisdlc/factory:local}"
+export AISDLC_FACTORY_IMAGE="${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local}"
 export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
 export KILL_OBSERVER_INTERVAL_MS="${KILL_OBSERVER_INTERVAL_MS:-3000}"
 export CORE_WORKER_STAGE_PORTS="${CORE_WORKER_STAGE_PORTS:-agents}"
@@ -150,7 +150,7 @@ for p in 8340 8390; do
   if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then fail "port $p is already in use on this host (another stack?)"; fi
 done
 if [ "${DRILL_SKIP_BUILD:-0}" = 1 ]; then
-  docker image inspect "$AISDLC_IMAGE" >/dev/null 2>&1 || fail "DRILL_SKIP_BUILD=1 but the image $AISDLC_IMAGE does not exist"
+  docker image inspect "$AISDLC_FACTORY_IMAGE" >/dev/null 2>&1 || fail "DRILL_SKIP_BUILD=1 but the image $AISDLC_FACTORY_IMAGE does not exist"
 fi
 if [ "$DRILL_DATA" = e2e ]; then
   step "a stack with data: the browser e2e (onboarding, S1 to S7, decisions, evidence packs), left running"
