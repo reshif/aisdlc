@@ -116,6 +116,13 @@ networks:
   # (`POST /v1/sessions/heartbeat`, token `tok-sandbox-controller-core`, scope `activity` and nothing else).
   core-activity:
     internal: true
+  # M19: the OpenTelemetry collector's inbound networks (profile `telemetry`). `telemetry` is shared by the services that
+  # already share `app` (core, core-worker, identity, knowledge, codehost), so it opens no path between them that did
+  # not exist; the bff has its own (`telemetry-bff`). The collector joins only these and has no way out.
+  telemetry:
+    internal: true
+  telemetry-bff:
+    internal: true
   # The verify service (M14.3, the plan's `cvw`): `verify-api` is how core-worker asks it for a step's check (nobody
   # else is on it); `data-verify` is its own way to Postgres (its role writes its own table and its own `verify:`
   # record streams, nothing else); `verify-codehost` is its one link to the codehost (the bundle route: the repo at the
@@ -571,6 +578,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/identity/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`): set OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       IDENTITY_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       IDENTITY_CALLERS: >-
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-identity","scopes":["reconcile"]},
@@ -610,7 +619,7 @@ services:
       migrate: { condition: service_completed_successfully }
       notary: { condition: service_healthy }
       kms-local: { condition: service_healthy }
-    networks: [app, data-record, kms-clients, notary-api]
+    networks: [app, data-record, kms-clients, notary-api, telemetry]
     mem_limit: 192m
 
   # First-run bootstrap, LOCAL ONLY (refuses unless FACTORY_ENV=local): makes the factory admin a
@@ -655,6 +664,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/core/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`): set OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       CORE_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       CORE_CALLERS: >-
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
@@ -714,7 +725,16 @@ services:
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
     networks:
-      [app, data-record, kms-clients, notary-api, objectstore-api, gateway-api, core-activity]
+      [
+        app,
+        data-record,
+        kms-clients,
+        notary-api,
+        objectstore-api,
+        gateway-api,
+        core-activity,
+        telemetry,
+      ]
     mem_limit: 256m
 
   # The one process that hosts every loop (code-host polls, S0 driver, role-map sync, cards,
@@ -723,6 +743,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/core-worker/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`): set OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       CORE_WORKER_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       CORE_WORKER_CODEHOST_URL: http://codehost:8350
       CORE_WORKER_CODEHOST_TOKEN_REF: file:/run/secrets/tok-core-worker-codehost
@@ -823,6 +845,7 @@ services:
         sandbox-controller-api,
         verify-api,
         objectstore-api,
+        telemetry,
       ]
     mem_limit: 256m
 
@@ -835,6 +858,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/codehost/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`): set OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # The GitHub App is a row of the integration registry (`github-app`, seeded from the compose settings and
       # changed through an M1 gate), read from core and followed by config revision with no restart. The App
       # key stays in its own file (the reference is in the row); this deployment allows that one file and these
@@ -877,7 +902,7 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [app, egress, verify-codehost, gatecheck-github, gaterelay-github]
+    networks: [app, egress, verify-codehost, gatecheck-github, gaterelay-github, telemetry]
     mem_limit: 192m
 
   # Boundary: repo content (untrusted) vs credentials. Analyses bundles it gets from the codehost;
@@ -887,6 +912,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/knowledge/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`): set OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       KNOWLEDGE_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       KNOWLEDGE_CALLERS: >-
         {"core":{"token_ref":"file:/run/secrets/tok-core-knowledge","scopes":["census","security","search"]},
@@ -922,7 +949,7 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
       codehost: { condition: service_healthy }
-    networks: [app, data-record, kms-clients]
+    networks: [app, data-record, kms-clients, telemetry]
     mem_limit: 256m
 
   # ----------------------------------------------------------------------- browser edge
@@ -933,6 +960,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/bff/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`): set OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       BFF_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       BFF_PUBLIC_URL: http://localhost:8340
       BFF_OIDC_ISSUER: http://dev-oidc.localhost:8390
@@ -985,7 +1014,16 @@ services:
       kms-local: { condition: service_healthy }
       dev-oidc: { condition: service_healthy }
       core: { condition: service_healthy }
-    networks: [edge, data-record, kms-clients, gatecheck-api, notifier-api, sandbox-controller-api]
+    networks:
+      [
+        edge,
+        data-record,
+        kms-clients,
+        gatecheck-api,
+        notifier-api,
+        sandbox-controller-api,
+        telemetry-bff,
+      ]
     mem_limit: 256m
 
   # The dev identity provider (FACTORY_ENV=local only: it refuses to start otherwise). The browser
@@ -1417,6 +1455,32 @@ services:
       start_period: 5s
     networks: [objectstore-api]
     mem_limit: 512m
+
+  # The OpenTelemetry collector (PLAN M19; ADR-0003 §2 Telemetry: one collector for metrics, logs and traces), profile
+  # `telemetry`. Turned on with `--profile telemetry` and OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318, which
+  # the services that join its networks export their content-free server spans and request histograms to
+  # (packages/service-kit/src/telemetry.ts). It holds no secret, publishes no port, has no route out (locally it only
+  # prints counts, `debug`), and nothing depends on it: while it is down, telemetry is lost and work is not. Image: the
+  # upstream core distribution, pinned by digest; it runs as its own non-root user with a read-only root and no
+  # capabilities. Its image has no shell, so it has no healthcheck.
+  otel-collector:
+    image: otel/opentelemetry-collector:0.138.0@sha256:56951db9579bf00d3f32a4e934e19548183a86c14640798502bcd4c225976ea6
+    profiles: [telemetry]
+    command: ['--config=/etc/otelcol/config.yaml']
+    user: '10001:10001'
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    volumes:
+      - ./config/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+    networks: [telemetry, telemetry-bff]
+    mem_limit: 128m
+    pids_limit: 128
 
   # ------------------------------------------------------------- the fake GitHub (a profile)
 

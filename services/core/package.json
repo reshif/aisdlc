@@ -62,6 +62,7 @@
     "@aisdlc/codehost": "0.0.0",
     "@aisdlc/gateway": "0.0.0",
     "@aisdlc/knowledge": "0.0.0",
-    "@aisdlc/verify-service": "0.0.0"
+    "@aisdlc/verify-service": "0.0.0",
+    "yaml": "2.9.1"
   }
 }
