@@ -38,6 +38,8 @@ export const ReviewReason = z.enum([
   'r3_zone',
   /** A human wrote the change (L8, or a developer who took the item over): a codeowner reads it. */
   'human_led',
+  /** B19: the project's mode-E audit sample tripped (the pinned catalogue's miss rate over its minimum sample). */
+  'mode_e_suspended',
 ]);
 export type ReviewReason = z.infer<typeof ReviewReason>;
 

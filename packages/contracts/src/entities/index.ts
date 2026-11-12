@@ -43,3 +43,4 @@ export * from './gate-check.js';
 export * from './review.js';
 export * from './merge.js';
 export * from './gate-relay.js';
+export * from './closeout.js';
