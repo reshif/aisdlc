@@ -44,18 +44,17 @@
   const ck = (state, label, title) => `<span class="op-ck ${state}" title="${E(title || '')}">${label}${state === 'pass' ? ' ✓' : state === 'fail' ? ' ✗' : ''}</span>`;
 
   /* ================================================================ 1. Scheduler: admission and capacity */
-  const POD_CAP = 3;
+  const POD_CAP = 1; // CODING_SESSION_CAP = 1 and sandbox.caps coding 1: one W session per host
   const PODS = [
     { pod: 1, item: 'W-31', unit: 'u2', of: 3, epoch: 4, ses: 'ses-7f21', min: 18, step: '6.4', grant: 'gr-W31-u2-4', env: [702, 1400], note: 'Re-admitted 10:23 after X1 (approved by Jonas Meyer); snapshot snap/W-31/u2/e3 rehydrated by 6.1' },
-    { pod: 2, item: 'W-21', unit: 'main', of: 1, epoch: 1, ses: 'ses-7f19', min: 6, step: '6.5', grant: 'gr-W21-main-1', env: [260, 1500], note: 'Self-check and tripwires: oracles green, diff 84 lines of a 400-line L2 budget' },
-    { pod: 3, item: 'W-38', unit: 'main', of: 1, epoch: 1, ses: 'ses-7f22', min: 2, step: '6.4', grant: 'gr-W38-main-1', env: [140, 1000], note: 'L7 spike: ends at 6.5 with a spike report, never pushes' },
   ];
   const QUEUE = [
-    { pos: 1, item: 'W-22', unit: 'u1', of: 2, waited: 47, ck: ['pass', 'fail', 'pass', 'pass'], why: 'Session cap only (H2: 3 of 3 pods busy). First in line for the next free pod.', next: 'next free pod, est. 12 min (W-38 spike reaches 6.5)' },
-    { pos: 2, item: 'C-47', unit: 'u1', of: 2, waited: 31, ck: ['pass', 'fail', 'pass', 'pass'], why: 'Session cap only (H2). Second in line.', next: 'after W-22' },
-    { pos: 3, item: 'L-09', unit: 'main', of: 1, waited: 185, ck: ['pass', 'fail', 'pass', 'fail'], why: 'WIP: lease agent/L-09/main (epoch 3) is held by Sam Osei after an E4 takeover. Re-admits on D4 hand-back, which bumps the epoch to 4.', next: 'passed over until hand-back' },
-    { pos: 4, item: 'L-08', unit: 'main', of: 1, waited: 130, ck: ['fail', 'fail', 'pass', 'pass'], why: 'H1 approver slot: the only code owner of proto/ (Sam Osei) is the requester, so 0 eligible G4 deciders (SoD). Needs an M6 approver grant.', next: 'passed over until an approver exists', act: 'Request M6 grant' },
-    { pos: 5, item: 'W-18', unit: 'u3', of: 3, waited: 1580, ck: ['pass', 'fail', 'fail', 'pass'], why: 'H3 envelope: the item spent 4,000¢ of 4,000¢ (ET1), so no Unit envelope can be reserved. Waits on an E3 extension or Priya Menon\'s E4 choice.', next: 'passed over until E3 or E4' },
+    { pos: 1, item: 'W-38', unit: 'main', of: 1, waited: 52, ck: ['pass', 'fail', 'pass', 'pass'], why: 'Session cap only (H2: the one coding slot is busy with W-31). First in line.', next: 'when W-31 u2 leaves 6.4' },
+    { pos: 2, item: 'W-22', unit: 'u1', of: 2, waited: 47, ck: ['pass', 'fail', 'pass', 'pass'], why: 'Session cap only (H2). Second in line.', next: 'after W-38' },
+    { pos: 3, item: 'C-47', unit: 'u1', of: 2, waited: 31, ck: ['pass', 'fail', 'pass', 'pass'], why: 'Session cap only (H2). Third in line.', next: 'after W-22' },
+    { pos: 4, item: 'L-09', unit: 'main', of: 1, waited: 185, ck: ['pass', 'fail', 'pass', 'fail'], why: 'WIP: lease agent/L-09/main (epoch 3) is held by Sam Osei after an E4 takeover. Re-admits on D4 hand-back, which bumps the epoch to 4.', next: 'passed over until hand-back' },
+    { pos: 5, item: 'L-08', unit: 'main', of: 1, waited: 130, ck: ['fail', 'fail', 'pass', 'pass'], why: 'H1 approver slot: the only code owner of proto/ (Sam Osei) is the requester, so 0 eligible G4 deciders (SoD). Needs an M6 approver grant.', next: 'passed over until an approver exists', act: 'Request M6 grant' },
+    { pos: 6, item: 'W-18', unit: 'u3', of: 3, waited: 1580, ck: ['pass', 'fail', 'fail', 'pass'], why: 'H3 envelope: the item spent 4,000¢ of 4,000¢ (ET1), so no Unit envelope can be reserved. Waits on an E3 extension or Priya Menon\'s E4 choice.', next: 'passed over until E3 or E4' },
   ];
   const WAITS = [
     { item: 'W-29', unit: 'u2', gate: 'X1', on: 'jm', what: 'Irreversible migration: UPDATE charges SET merchant_category on 41M rows', released: '08:53', mins: 112, epoch: 3, snap: 'snap/W-29/u2/e3', env: [640, 1500] },
@@ -131,10 +130,10 @@
       const slots = SLOTS.filter((s) => s.proj === 'fleet' || opsOK(s.proj));
       const fleet = isFleetReader();
       const scopeNote = fleet ? 'You read the whole factory (fleet role); confidential projects stay collapsed.' : `You see Units of ${A.visibleProjects().filter((p) => opsOK(p.id)).map((p) => `<b>${E(p.name)}</b>`).join(', ')}. Pods and queue positions of other projects show as busy, nothing more.`;
-      return `${A.pageHead({ eyebrow: 'Operate · S6 6.0 admission', title: 'Scheduler', sub: 'Who holds a coding pod, who waits for one and why. Admission checks H1 (approver slot), H2 (session cap), H3 (envelope) and WIP (lease) for every Unit; the queue is first in, first out, and a Unit that fails anything but H2 is passed over, never blocking the line.', actions: `<button class="btn" data-toast="Admission dry-run: 0 Units would be admitted now (3 of 3 pods busy)">Dry-run admission</button>${A.act('Clamp or hold…', 'control.apply', PR(A.state.project), { href: '#controls' })}` })}
+      return `${A.pageHead({ eyebrow: 'Operate · S6 6.0 admission', title: 'Scheduler', sub: 'Who holds a coding pod, who waits for one and why. Admission checks H1 (approver slot), H2 (session cap), H3 (envelope) and WIP (lease) for every Unit; the queue is first in, first out, and a Unit that fails anything but H2 is passed over, never blocking the line.', actions: `<button class="btn" data-toast="Admission dry-run: 0 Units would be admitted now (3 of the coding slot busy)">Dry-run admission</button>${A.act('Clamp or hold…', 'control.apply', PR(A.state.project), { href: '#controls' })}` })}
       <div class="op-scope-note">${A.icon('lock', 13)}<span>${scopeNote}</span></div>
       ${A.stats([
-        { k: 'Coding pods busy', v: `${busy}<span class="faint" style="font-size:18px"> / ${POD_CAP}</span>`, d: 'CODING_SESSION_CAP 3 (local-prod runs 1)', tone: 'warn' },
+        { k: 'Coding pods busy', v: `${busy}<span class="faint" style="font-size:18px"> / ${POD_CAP}</span>`, d: 'CODING_SESSION_CAP 1 · sandbox.caps coding 1 (open decision: make it config, gap 10)', tone: 'warn' },
         { k: 'Admission queue', v: Q.length, d: `${mineQ.length} you can read · oldest ${fmtMin(Math.max(...Q.map((q) => q.waited)))}` },
         { k: 'HUMAN-WAIT', v: waits.length, d: 'pods released, clocks paused' },
         { k: 'Envelope reserved', v: A.cents(envs.reduce((a, e) => a + e.res, 0)), d: `${A.cents(envs.reduce((a, e) => a + e.spent, 0))} spent across ${envs.filter((e) => e.res).length} Units` },
@@ -335,6 +334,11 @@
         { k: 'Hostile probe', v: '74/74', d: 'SEC-OB-3 contained · 0 escaped', tone: 'ok' },
       ])}
       <div style="height:16px"></div>
+      ${(() => { const C = A.cfg, caps = C.inForce('sandbox.caps').doc, run4 = SESS.filter((x) => x.state === 'running'); const w = run4.filter((x) => x.cls === 'W').length; const fac = A.can('config.propose', FLEET) || A.can('audit.read', FLEET);
+        return `<div class="grid g2" style="align-items:start">${A.card('Live slots <span class="small faint">sandbox-controller · GET /v1/slots</span>', A.kv([['Host', '<span class="mono">local</span> · caps_source config'], ['Caps in force', `total <b>${caps.total}</b> · coding (W) <b>${caps.coding}</b>`], ['Running', `${isFleetReader() ? run4.length : run4.filter((x) => itemOK(x.item)).length + ' of yours, ' + run4.length + ' in all'} · W ${w}`], ['Free', `W <b>${Math.max(0, Math.min(caps.coding - w, caps.total - run4.length))}</b> · other classes <b>${Math.max(0, caps.total - run4.length)}</b>`], ['Over a cap', '409 busy: nothing starts and nothing queues here; H2 holds the item in core’s FIFO']]) + `<p class="tiny faint" style="margin-top:8px">Core’s H2 also caps coding at CODING_SESSION_CAP = 1 (code), so raising the coding cap has no effect until gap 10 is fixed.</p>`)}
+          <div class="stack">${fac ? C.tile('sandbox.caps') + C.tile('sandbox.exec_allowed_repos', null, { value: `${C.inForce('sandbox.exec_allowed_repos').doc.length} repos may run code; any other repo is only read (exec_not_allowed)` }) : A.card('Caps and the exec allow-list', '<p class="small muted">Both are factory settings (sandbox.caps, sandbox.exec_allowed_repos), changed by a factory M1. Factory admins and auditors open them under Govern › Configuration.</p>')}</div></div>
+        ${A.card('Session policy <span class="small faint">code: class ceilings, DEC-18, B1</span>', `<div class="dc-rule"><div><span class="dc-ico info">i</span><span>A class ceiling (network peers, CPU, memory, pids, time) can only be lowered by a session spec, never raised (preflightSpec).</span></div><div><span class="dc-ico info">i</span><span>A repo off the DEC-18 allow-list never has its code run: classes K-exec, P, W, O and V are refused with exec_not_allowed; K is exempt.</span></div><div><span class="dc-ico info">i</span><span>B1: while a secret finding is open on a repo, every class that carries its text into a model is blocked (b1_blocked).</span></div><div><span class="dc-ico info">i</span><span>The controller starts only sessions core granted at 6.0 (active admission grant for exactly that item, Unit and lease epoch).</span></div></div>`)}`; })()}
+      <div style="height:16px"></div>
       <div class="op-classes">${A.j(CLASSES, (c) => { const n = run.filter((s) => s.cls === c.id).length; return `<div class="op-cls ${n ? 'on' : ''}"><div class="row between"><span class="op-cls-id">${c.id}</span><span class="n">${n} running</span></div><p class="d">${E(c.d)}</p>
         <dl><dt>network</dt><dd>${c.net}</dd><dt>repo</dt><dd>${c.repo}</dd><dt>exec</dt><dd>${c.exec ? 'yes' : 'no'}</dd><dt>key</dt><dd>${c.key ? (c.id === 'W' ? 'per Unit' : 'per job') : 'none'}</dd><dt>cpu</dt><dd>${c.cpu}</dd><dt>memory</dt><dd>${c.mem} MiB</dd><dt>pids</dt><dd>${c.pids}</dd><dt>time</dt><dd>${c.time}</dd><dt>/out</dt><dd>${c.out}</dd></dl></div>`; })}</div>
       <p class="tiny faint" style="margin-top:8px">Every class: read-only root, CapDrop ALL, no-new-privileges, uid 10002, default seccomp, no Docker socket, no credential-shaped env name. The only network peers that exist are the gateway and the package mirror.</p>
@@ -386,7 +390,7 @@
     { id: 'ctl-4e1a', kind: 'hold', sk: 'lane', ref: 'payments/L6', origin: 'operator', by: 'pm', created: 'Nov 9 16:20', expires: 'Nov 12 18:00', state: 'active', ledger: 'ledgered', seq: 18391, note: 'No new L6 agent work until the settlement design review (W-32)' },
     { id: 'ctl-4e0f', kind: 'clamp', sk: 'project', ref: 'web', params: 'max_in_flight 1', origin: 'automation', by: 'R3 breaker', created: 'Nov 10 06:12', expires: 'Nov 12 06:12', state: 'active', ledger: 'ledgered', seq: 18402, note: 'R3: three B9 verify failures in 24 h on web-checkout' },
     { id: 'ctl-4df2', kind: 'halt', sk: 'release', ref: 'payments/rel-2026.11.3', origin: 'security', by: 'ks', created: 'Nov 8 09:01', expires: 'when SECT on W-19 is decided', state: 'active', ledger: 'ledgered', seq: 18288, note: 'No S8b release or G5 while the CORS quarantine is open' },
-    { id: 'ctl-4dd0', kind: 'hold', sk: 'budget', ref: 'gw/provider/deepseek', origin: 'kill', by: 'killswitch', created: 'Nov 10 10:43', expires: 'while k-0193 is active', state: 'active', ledger: 'pending', seq: null, note: 'Mirror of kill k-0193 (model deepseek-v4): no new reservations' },
+    { id: 'ctl-4dd0', kind: 'hold', sk: 'lane', ref: 'web/L0', origin: 'kill', by: 'killswitch', created: 'today 10:43', expires: 'while k-0193 is active', state: 'active', ledger: 'pending', seq: null, note: 'Mirror of kill k-0193 (lane web/L0): no new admissions' },
     { id: 'ctl-4dc7', kind: 'maintenance', sk: 'fleet', ref: 'fleet', origin: 'operator', by: 'lt', created: 'Nov 9 11:00', expires: 'Nov 14 04:00', state: 'active', ledger: 'ledgered', seq: 18350, note: 'Sat 02:00–04:00 UTC, Postgres 16.6 minor upgrade: timers frozen, work held like MM-2' },
     { id: 'ctl-4db1', kind: 'clamp', sk: 'budget', ref: 'bg/team-web/monthly', params: 'max_in_flight 2', origin: 'automation', by: 'gateway_triggers', created: 'Nov 7 14:40', expires: 'Dec 1 00:00', state: 'active', ledger: 'ledgered', seq: 18190, note: 'Team budget at 92% of the month' },
   ];
@@ -548,7 +552,7 @@
             <div class="field"><label for="op-btarget">Target</label><select class="input" id="op-btarget"><option>banner</option><option>channel</option><option>statuspage</option></select></div>
             <div class="field"><label for="op-bscope">Scope</label><select class="input" id="op-bscope">${A.j(bScopes, (sc) => `<option>${sc}</option>`)}</select><span class="help">Only scopes where you hold banner.publish.</span></div>
             <div class="field"><label for="op-bexp">Expires</label><select class="input" id="op-bexp"><option>Nov 10 18:00</option><option>Nov 11 09:00</option><option>Nov 14 04:00</option></select></div>
-            <div class="field full"><label for="op-btext">Text (max 500)</label><textarea class="input" id="op-btext" maxlength="500" style="min-height:60px">The DeepSeek provider is stopped (kill k-0193). A10 shaping runs on Anthropic until it is released.</textarea></div>
+            <div class="field full"><label for="op-btext">Text (max 500)</label><textarea class="input" id="op-btext" maxlength="500" style="min-height:60px">The Web Checkout hotfix lane is stopped (kill k-0193) while C-48 is merged on GitHub. Ask for an L1 change instead.</textarea></div>
           </div>
           <div class="lbl" style="margin:12px 0 6px">Preview</div><div class="op-banner-prev" data-op-bprev></div>` : `<div class="row between" style="gap:10px"><span class="small muted" style="flex:1;min-width:200px">Publishing a banner needs <span class="mono">banner.publish</span>: project admins for their project, factory admins for the fleet.</span>${A.act('Publish a banner', 'banner.publish', PR(A.state.project))}</div>`}`, { foot: bScopes.length ? '<button class="btn primary" data-op-bpub>Publish banner</button>' : '' })}
         ${A.card('Ops flags', A.table([
@@ -601,26 +605,26 @@
   /* ================================================================ 4. Kill switch */
   // project: the project a kill belongs to (null = a fleet resource: model, role, fleet)
   const KILLS = [
-    { id: 'k-0193', scope: 'model', ref: 'deepseek/deepseek-v4', project: null, state: 'active', by: 'lt', at: 'today 10:43', reason: 'Provider returned another tenant\'s completion inside a tool_result (INC-2211). Stop every call until the vendor confirms isolation.', req: 2, appr: [] },
-    { id: 'k-0192', scope: 'item', ref: 'payments/W-19', project: 'payments', state: 'release_pending', by: 'tripwire', at: 'Nov 8 08:53', reason: 'ET10: the coding session read ~/.aws/credentials. Requested automatically by the tripwire; quarantine until SECT triage is complete.', req: 2, appr: ['lt'] },
+    { id: 'k-0193', scope: 'lane', ref: 'web/L0', project: 'web', state: 'active', by: 'mw', at: 'today 10:43', reason: 'A second Safari wallet hotfix was requested while C-48 still waits for its merge. No new L0 agent work until C-48 is merged and checked.', req: 2, appr: [] },
+    { id: 'k-0192', scope: 'session', ref: 'payments/ses-7f12', project: 'payments', state: 'release_pending', by: 'tripwire', at: 'Nov 8 08:53', reason: 'ET10: the coding session read ~/.aws/credentials. Requested automatically by the tripwire; quarantine until SECT triage is complete.', req: 2, appr: ['lt'] },
     { id: 'k-0191', scope: 'lane', ref: 'identity/L0', project: 'identity', state: 'active', by: 'ks', at: 'Nov 8 08:58', reason: 'No hotfix lane on Identity Hub while the signing key ceremony runs.', req: 2, appr: [] },
   ];
   const KILLS_DONE = [
-    { id: 'k-0190', scope: 'session', ref: 'payments/ses-7f12', project: 'payments', state: 'released', by: 'ks', at: 'Nov 8 08:54', reason: 'Tainted session of W-19', req: 2, appr: ['rb', 'lt'], rel: 'today 10:20' },
+    { id: 'k-0190', scope: 'lane', ref: 'payments/L2', project: 'payments', state: 'released', by: 'ks', at: 'Nov 8 08:54', reason: 'No new remediation work while the ET10 on W-19 was triaged', req: 2, appr: ['rb', 'lt'], rel: 'today 10:20' },
     { id: 'k-0187', scope: 'project', ref: 'web', project: 'web', state: 'released', by: 'mw', at: 'Nov 4 15:02', reason: 'Wrong base branch configured; agents pushed to agent/* of the archived repo', req: 2, appr: ['lt', 'ks'], rel: 'Nov 4 16:40' },
   ];
   // [seq, event, subject, actor, at, signature, core ledger, project (null = fleet)]
   const JOURNAL = [
-    [217, 'kill.requested', 'k-0193 · model deepseek/deepseek-v4', 'lt', '10:43:12', 'ks:es256:2026-10', null, null],
-    [216, 'kill.released', 'k-0190 · session payments/ses-7f12', 'lt', '10:20:38', 'ks:es256:2026-10', 18419, 'payments'],
+    [217, 'kill.requested', 'k-0193 · lane web/L0', 'mw', '10:43:12', 'ks:es256:2026-10', null, 'web'],
+    [216, 'kill.released', 'k-0190 · lane payments/L2', 'lt', '10:20:38', 'ks:es256:2026-10', 18419, 'payments'],
     [215, 'kill.release_approved', 'k-0190 (2 of 2)', 'lt', '10:20:37', 'ks:es256:2026-10', 'with #18,419', 'payments'],
     [214, 'kill.release_approved', 'k-0190 (1 of 2)', 'rb', 'Nov 9 18:05', 'ks:es256:2026-10', 18382, 'payments'],
     [213, 'kill.release_approved', 'k-0192 (1 of 2)', 'lt', 'Nov 9 17:40', 'ks:es256:2026-10', 18380, 'payments'],
     [212, 'kill.holders_synced', 'project payments · 2 holders', null, 'Nov 9 12:00', 'ks:es256:2026-10', 18341, 'payments'],
     [211, 'kill.signature_attested', 'names #209 (written while KMS was down)', null, 'Nov 8 09:12', 'ks:es256:2026-10', 18288, 'payments'],
     [210, 'kill.requested', 'k-0191 · lane identity/L0', 'ks', 'Nov 8 08:58', 'ks:es256:2026-10', 18270, 'identity'],
-    [209, 'kill.requested', 'k-0190 · session payments/ses-7f12', 'ks', 'Nov 8 08:54', 'pending_signature', 18287, 'payments'],
-    [208, 'kill.requested', 'k-0192 · item payments/W-19 (tripwire ET10)', null, 'Nov 8 08:53', 'ks:es256:2026-10', 18286, 'payments'],
+    [209, 'kill.requested', 'k-0190 · lane payments/L2', 'ks', 'Nov 8 08:54', 'pending_signature', 18287, 'payments'],
+    [208, 'kill.requested', 'k-0192 · session payments/ses-7f12 (tripwire ET10, W-19)', null, 'Nov 8 08:53', 'ks:es256:2026-10', 18286, 'payments'],
   ];
   const killRes = (k) => (k.project ? PR(k.project) : FLEET);
   const killVisible = (k) => !k.project || A.canSeeProject(k.project);
@@ -631,11 +635,9 @@
   const killReadOnly = () => !killProjects().length && !sessStopProjects().length && !A.can('kill.request', FLEET);
   const SCOPES = [
     { s: 'session', what: 'One sandbox session: container killed, its key revoked, lease released, the item goes to handoff.', action: 'session.stop', fleet: false, refs: () => SESS.filter((x) => x.state === 'running' && sessStopProjects().includes(projOfSess(x))).map((x) => `${projOfSess(x)}/${x.id}`), projects: sessStopProjects },
-    { s: 'item', what: 'Every session, key and admission of one work item. Gates stay open; nothing is approved.', action: 'kill.request', fleet: false, refs: () => D.ITEMS.filter((i) => live(i) && killProjects().includes(i.project)).map((i) => `${i.project}/${i.key}`), projects: killProjects },
     { s: 'lane', what: 'One lane of one project, for example no new L0 hotfixes: admissions, sessions and keys of that lane.', action: 'kill.request', fleet: false, refs: () => killProjects().flatMap((p) => (A.project(p).lanes || []).map((l) => `${p}/${l}`)), projects: killProjects },
     { s: 'project', what: 'All agent work in one project: sessions, gateway keys, pushes and new admissions.', action: 'kill.request', fleet: false, refs: () => killProjects(), projects: killProjects },
-    { s: 'role', what: 'One agent role everywhere (e.g. coder or A5 review): its keys stop working at the gateway.', action: 'kill.request', fleet: true, refs: () => D.AGENTS.map((a) => `${a.id}`) },
-    { s: 'model', what: 'One provider model at the gateway. Routes that need it fail closed (ET1 handoffs).', action: 'kill.request', fleet: true, refs: () => ['anthropic/claude-opus-5-5', 'anthropic/claude-sonnet-5-5', 'anthropic/claude-haiku-5-5', 'openai_compat/codex-2'] },
+    // contracts/controls.ts KillScope: fleet, project, lane, session. The domain model also lists item, role and model (DM §8 gap 8, coverage §5.2): one vocabulary is decided in M19.
     { s: 'fleet', what: 'Everything stops. Every session, key, push and admission in every project.', action: 'kill.request', fleet: true, refs: () => ['fleet'], note: 'factory admin only (DEC-29)' },
   ];
   const scopeAllowed = (sc) => (sc.fleet ? A.can(sc.action, FLEET) : sc.projects().length > 0);
@@ -748,6 +750,9 @@
       </div>
       <div style="height:20px"></div>
       <div class="row between" style="margin-bottom:10px"><h3>Kill by scope</h3><span class="small faint">${ro ? 'who may kill at each scope' : 'pick a scope; you will see what stops before anything happens'}</span></div>
+      ${A.card('Who can kill', (() => { const C = A.cfg; const rows = A.visibleProjects().filter((p) => p.level !== 'Onboarding').map((p) => { const rm = C.inForce('project.role_map', p.id).doc; const del = C.inForce('project.kill_delegations', p.id).doc.filter((d) => !d.revoked_at); return { p, kill: ((rm.kill || {}).principals || []), admin: ((rm.admin || {}).principals || []), del }; });
+        return A.table([{ h: 'Project', r: (r) => E(r.p.name) }, { h: 'Kill slot', r: (r) => (r.kill.length ? A.avatars(r.kill) + ' <span class="small">' + E(r.kill.map(nm).join(', ')) + '</span>' : '<span class="faint">nobody</span>') }, { h: 'Admin slot', r: (r) => A.avatars(r.admin) }, { h: 'Delegations', r: (r) => (r.del.length ? A.j(r.del, (d) => `<div class="small">${E(nm(d.delegate))} · ${E(d.scope.kind)} ${E(d.scope.ref)}</div>`) : '<span class="faint small">none</span>') }, { h: '', r: (r) => `<a class="small" href="#cfg-project.role_map@${r.p.id}">role map</a>` }], rows) + `<p class="tiny faint" style="padding:10px 16px">Holders are derived from the role map’s kill and admin slots plus delegations, pushed to the killswitch by core-worker (PUT /v1/holders). The fleet kill is factory.admin only (DEC-29): ${E(A.cfg.factoryAdmins().map(nm).join(', '))}. A release needs two different people (DEC-28). Delegations live in two stores today (gap 11).</p>`; })(), { flush: true })}
+      <div style="height:16px"></div>
       <div class="op-scopes">${A.j(SCOPES, (sc) => { const ok = scopeAllowed(sc), res = sc.fleet ? FLEET : PR(A.state.project); return `<div class="op-scope ${sc.s === 'fleet' ? 'fleet' : ''} ${ok ? '' : 'off'}"><h4>${sc.s}</h4><p>${E(sc.what)}</p><div class="who"><span class="mono">${sc.action}</span> · ${sc.fleet ? 'Fleet' : 'Project'}${sc.note ? ` · ${sc.note}` : ''}<br>${E(names(scopeWho(sc)))}</div>${ro ? '' : ok ? `<button class="btn danger sm" data-op-kill="${sc.s}">${A.icon('kill', 13)} ${sc.s === 'session' ? 'Stop' : 'Kill'} ${sc.s}…</button>` : A.act(`Kill ${sc.s}`, sc.action, res, { cls: 'sm' })}</div>`; })}</div>
       <div style="height:20px"></div>
       <div class="split">
@@ -802,8 +807,8 @@
     T('lifecycle', 'loop', 'ok', '1.1 s', 'command lag', 3, '', 1, 0.6), T('reconciler', 'loop', 'ok', '0', 'mismatches', 41, 'entries == events', 0, 0.01),
     T('checkpointer', 'loop', 'ok', '6', 'entries open', 25, 'cp 312 at 18,500', 40, 30), T('gate-lifecycle', 'loop', 'ok', '2', 'SLA near', 15, 'B21 at 75%', 2, 1),
     T('access-sync', 'loop', 'ok', '18 s', 'lag', 4, 'alert above 120 s', 20, 12), T('gateway_triggers', 'loop', 'ok', '1', 'ET1 today', 33, 'W-18 → D1', 0.5, 0.6),
-    T('GitHub App', 'integration', 'ok', '4', 'installed repos', 19, 'acme-aisdlc, read + push', 4, 0.1), T('anthropic', 'integration', 'ok', '2.1 s', 'p95 first token', 7, '3 models routed', 2, 0.6),
-    T('openai_compat', 'integration', 'degraded', '7.9 s', 'p95 first token', 10, 'codex-2 slow since 09:40', 5, 3), T('deepseek', 'integration', 'unknown', '—', 'no report', 184, 'killed: k-0193', 3, 1),
+    T('GitHub App', 'integration', 'ok', '4', 'installed repos', 19, 'read-only App and Push Broker', 4, 0.1), T('anthropic', 'integration', 'ok', '2.1 s', 'p95 first token', 7, '2 models routed in prod', 2, 0.6), T('sandbox-controller', 'sandbox', 'ok', '1 of 1', 'W slots used', 6, 'caps 4 / 1 · config r14', 1, 0.2), T('gate-check', 'loop', 'ok', '15 s', 'verdict loop', 11, 'App not created: fake host', 15, 2), T('verify', 'loop', 'ok', '2', 'S7 runs open', 8, '7.1–7.5 in O sessions', 2, 1),
+    T('codex', 'integration', 'unknown', '—', 'no report', 900, 'row disabled: not built', 5, 3), T('deepseek', 'integration', 'unknown', '—', 'no report', 184, 'draft row: not built', 3, 1),
   ];
   const tileState = (t) => (t.asof > 120 ? 'unknown' : t.state);
   const tileHtml = (t) => { const st = tileState(t); const col = { ok: 'var(--ok)', degraded: 'var(--warn)', down: 'var(--bad)', unknown: 'var(--faint)' }[st]; return `<div class="op-tile ${st}"><div class="row between" style="flex-wrap:nowrap"><span class="nm">${E(t.name)}</span>${A.health(st)}</div>
@@ -825,7 +830,7 @@
       const W = 520, H = 120, max = 140, y = (v) => H - 14 - (v / max) * (H - 24), bw = W / ACCESS.length;
       return `${A.pageHead({ eyebrow: 'Operate · HealthTile · HealthSnapshot (30 s)', title: 'Health', sub: 'Every service, loop and integration reports a snapshot every 30 seconds. A snapshot older than two minutes reads unknown: silence is never treated as healthy.', actions: '<button class="btn" data-toast="Snapshots refreshed from 29 reporters">Refresh</button>' })}
       <div class="op-scope-note">${A.icon('lock', 13)}<span>Health shows the factory's own machinery, never item content, so everyone with ops.read sees the same tiles. Notes that name a project only name the ones you can see.</span></div>
-      <div class="banner ${cnt('down') ? 'bad' : 'warn'}"><b>${cnt('ok')} ok · ${cnt('degraded')} degraded · ${cnt('down')} down · ${cnt('unknown')} unknown.</b> openai_compat is slow (A5 review runs take longer); the knowledge index is 2 commits behind${A.canSeeProject('web') ? ' on web-checkout' : ' on one project'}; deepseek is silent because it is killed (k-0193).<span class="sp"></span>${killAllowed() ? '<a href="#kill" style="color:inherit;text-decoration:underline">Kill switch</a>' : ''}</div>
+      <div class="banner ${cnt('down') ? 'bad' : 'warn'}"><b>${cnt('ok')} ok · ${cnt('degraded')} degraded · ${cnt('down')} down · ${cnt('unknown')} unknown.</b> the knowledge index is 2 commits behind${A.canSeeProject('web') ? ' on web-checkout' : ' on one project'}; codex and deepseek are disabled or draft rows, so they report nothing and read unknown.<span class="sp"></span>${killAllowed() ? '<a href="#kill" style="color:inherit;text-decoration:underline">Kill switch</a>' : ''}</div>
       <div class="grid g3">
         ${A.card('Ledger reconciler', `<div class="row" style="gap:16px;align-items:flex-end"><div><div class="op-big-n num">18,422</div><div class="tiny muted">ledger entries</div></div><div class="op-big-n" style="color:var(--ok)">=</div><div><div class="op-big-n num">18,422</div><div class="tiny muted">record events with an entry</div></div></div><div class="hr" style="margin:12px 0"></div>${A.kv([['Mismatches', A.pill('0', 'ok')], ['Last run', '41 s ago · every 60 s'], ['Backfilled', '0 pending (Notary up)']])}`)}
         ${A.card('Checkpoint and witness', `${A.kv([['Last checkpoint', '<span class="mono">311</span> · entries 18,000–18,416'], ['Root', A.hash(hx('cp311'), 16)], ['Witness co-sign', `${A.pill('co-signed', 'ok')} 09:12:44`], ['Open entries', '6 (18,417–18,422)'], ['Next', 'at 18,500 or 11:12, whichever first']])}<div class="row" style="margin-top:12px">${A.act('Open ledger', 'audit.read', PR(A.state.project), { cls: 'sm', href: '#ledger' })}<button class="btn sm" data-toast="verify-ledger: 18,422 entries, 311 checkpoints, chain and signatures OK">Verify now</button></div>`)}
@@ -917,6 +922,7 @@
       const L = full ? DELIV : mine, cnt = (st) => L.filter((d) => d[6] === st).length;
       const backup = pid === 'rb' ? 'Luis Torres' : 'Rana Begum';
       return `${A.pageHead({ eyebrow: 'Govern · NotificationPort', title: 'Notifications', sub: 'The portal inbox is the record of what waits on whom. Slack and email only nudge people toward it, so a failed or suppressed message never loses a decision. Choose what nudges you and where.', actions: '<a class="btn" href="#inbox">Open my inbox</a>' })}
+      <div class="banner warn">${A.icon('notifications', 14)}<span><b>Backend M18.</b> No notifier service or Slack/email adapter exists yet (notifier is an integration kind with no adapter). This screen is the design: the counts and deliveries are example data. Channels will be rows of <a href="#cfg-notifications.channels">notifications.channels</a>, changed by a factory M1; preferences are per person.</span></div>
       <div class="op-scope-note">${A.icon('lock', 13)}<span>${admin ? 'You administer the channels (identity.admin) and see every delivery.' : auditor ? '<b>Read-only: factory.auditor.</b> You see every delivery and the channel settings; you change only your own preferences.' : 'You see your own preferences and the messages sent to you. Channel settings and other people’s deliveries need identity.admin; auditors read them.'}</span>${full ? '' : switchHint()}</div>
       ${A.stats(full ? [
         { k: 'Sent 24h', v: 148, d: '96 Slack · 52 email' },
@@ -934,8 +940,8 @@
       <div style="height:16px"></div>
       ${full ? `<div class="op-chans">
         <div class="op-chan auth"><div class="row between"><h4>Portal inbox</h4>${A.pill('authoritative', 'gate')}</div><p class="small muted">Every card lands here first. Decisions happen only here, with step-up.</p><div class="tiny mono faint">PortalInbox · fd_inbox_entry</div></div>
-        <div class="op-chan"><div class="row between"><h4>Slack</h4>${A.health('ok')}</div><p class="small muted">Workspace acme · app AISDLC · DMs only, never a channel for gate content.</p><div class="tiny mono faint">integration notify.slack · r2 · 96 sent 24h</div><div>${A.act('Configure', 'identity.admin', FLEET, { cls: 'sm', attrs: 'data-toast="Draft notify.slack r3 created; publishing needs an M1 gate"' })}</div></div>
-        <div class="op-chan"><div class="row between"><h4>Email</h4>${A.pill('degraded', 'warn')}</div><p class="small muted">SMTP relay smtp.acme.example. Links only, no item text in the body.</p><div class="tiny mono faint">integration notify.email · 2 failures 24h</div><div>${A.act('Configure', 'identity.admin', FLEET, { cls: 'sm', attrs: 'data-toast="Draft notify.email r5 created; publishing needs an M1 gate"' })}</div></div>
+        <div class="op-chan"><div class="row between"><h4>Slack</h4>${A.health('ok')}</div><p class="small muted">Workspace acme · app AISDLC · DMs only, never a channel for gate content.</p><div class="tiny mono faint">integration notify.slack · r2 · 96 sent 24h</div><div>${A.act('Configure', 'config.propose', FLEET, { cls: 'sm', href: '#cfg-notifications.channels' })}</div></div>
+        <div class="op-chan"><div class="row between"><h4>Email</h4>${A.pill('degraded', 'warn')}</div><p class="small muted">SMTP relay smtp.acme.example. Links only, no item text in the body.</p><div class="tiny mono faint">integration notify.email · 2 failures 24h</div><div>${A.act('Configure', 'config.propose', FLEET, { cls: 'sm', href: '#cfg-notifications.channels' })}</div></div>
         <div class="op-chan def"><div class="row between"><h4>Teams</h4>${A.pill('deferred', 'mute')}</div><p class="small muted">On hold. The adapter resumes behind the same port; its cards become NotificationDelivery rows.</p><div class="tiny mono faint">TeamsBotAdapter · on hold (DM gap 16)</div></div>
       </div>
       <div style="height:16px"></div>` : ''}

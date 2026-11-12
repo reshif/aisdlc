@@ -92,7 +92,8 @@
     B('pm', 'project.intent_approver', 'project', 'payments'), B('pm', 'project.requester', 'project', 'payments'), B('pm', 'project.release_approver', 'project', 'payments'), B('pm', 'project.viewer', 'project', 'web'),
     B('dn', 'project.requester', 'project', 'payments'), B('dn', 'project.requester', 'project', 'ledger'),
     B('ak', 'project.requester', 'project', 'payments'), B('ak', 'project.requester', 'project', 'ledger'),
-    B('jm', 'project.exception_approver', 'project', 'payments'), B('jm', 'project.exception_approver', 'project', 'ledger'),
+    B('jm', 'project.exception_approver', 'project', 'payments'), B('jm', 'project.exception_approver', 'project', 'ledger'), B('so', 'project.exception_approver', 'project', 'payments', { note: 'second approver for two-person X1, X2, E2' }),
+    B('pm', 'project.onboarding_signer', 'project', 'payments'), B('rb', 'project.onboarding_signer', 'project', 'payments'), B('so', 'project.onboarding_signer', 'project', 'ledger'), B('rb', 'project.onboarding_signer', 'project', 'ledger', { note: 'second M4 signer' }), B('so', 'project.kill_holder', 'project', 'ledger'),
     B('ks', 'project.security_approver', 'project', 'payments'), B('ks', 'project.security_approver', 'project', 'web'), B('ks', 'project.security_approver', 'project', 'ledger'), B('ks', 'project.admin', 'project', 'identity'), B('ks', 'project.security_approver', 'project', 'identity'),
     B('so', 'project.admin', 'project', 'ledger'), B('so', 'project.code_owner', 'project', 'ledger', { source: 'CODEOWNERS (synced)' }), B('so', 'project.intent_approver', 'project', 'ledger'), B('so', 'project.design_approver', 'project', 'ledger'), B('so', 'project.code_owner', 'project', 'payments', { source: 'CODEOWNERS (synced)' }),
     B('mw', 'project.admin', 'project', 'web'), B('mw', 'project.code_owner', 'project', 'web', { source: 'CODEOWNERS (synced)' }), B('mw', 'project.intent_approver', 'project', 'web'), B('mw', 'project.design_approver', 'project', 'web'), B('mw', 'factory.onboarder', 'team', 'web'), B('mw', 'project.onboarding_signer', 'project', 'mobile', { note: 'bootstrap until card 4' }),
@@ -103,6 +104,7 @@
   /* ================================================================ accounts that can sign in (the dev IdP lists these; production is SSO) */
   const ACCOUNTS = [
     { pid: 'lt', persona: 'Factory owner', blurb: 'Runs the factory: projects, people, access, kill switch, config. Decides no gate unless a project gives the slot.' },
+    { pid: 'oh', persona: 'Deputy factory admin', blurb: 'Factory admin with Luis: decides factory M1 proposals Luis makes, second person for fleet kill releases.' },
     { pid: 'rb', persona: 'Project admin', blurb: 'Payments API role map and settings; kill holder; backup design approver.' },
     { pid: 'ar', persona: 'Approver and code owner', blurb: 'Decides G0–G3 and G4 on Payments API. The default account of this prototype.' },
     { pid: 'pm', persona: 'Product owner', blurb: 'Requests work, approves intent and specs, releases (G5).' },
@@ -262,7 +264,7 @@
       <p class="tiny faint">The portal only mirrors the policy. The server asks the PDP again on every request, so a hidden or enabled button never grants anything.</p>`);
   };
   A.ACCESS_REQUESTS = [
-    { id: 'ar-31', pid: 'tb', role: 'project.requester', project: 'payments', why: 'Finance needs to file reporting requests directly', at: '2h ago', state: 'pending', approver: 'rb' },
+    { id: 'ar-31', pid: 'tb', role: 'project.requester', project: 'payments', why: 'Finance needs to file reporting requests directly until the Q1 close', at: '2h ago', state: 'pending', approver: 'rb', until: '2027-02-01' },
     { id: 'ar-30', pid: 'dn', role: 'project.code_owner', project: 'payments', why: 'I own billing/ now (CODEOWNERS PR #398 merged)', at: '1d ago', state: 'pending', approver: 'rb', m6: true },
     { id: 'ar-29', pid: 'mw', role: 'project.viewer', project: 'payments', why: 'Checkout depends on refunds API', at: '3d ago', state: 'approved', approver: 'rb', ledger: 18391 },
     { id: 'ar-28', pid: 'ak', role: 'project.admin', project: 'payments', why: '—', at: '6d ago', state: 'denied', approver: 'rb', note: 'Ops needs requester, not admin' },

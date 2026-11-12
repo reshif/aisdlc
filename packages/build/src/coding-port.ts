@@ -11,6 +11,7 @@ import {
   patchSetOf,
   type CodingTask,
   type PatchFile,
+  type SandboxGrantRef,
   type StageOutcome,
   type StageRequest,
 } from '@aisdlc/contracts';
@@ -132,7 +133,8 @@ interface TestRun {
   readonly canary: boolean;
 }
 
-const failingNames = (text: string, exit: number | null): string[] => {
+/** The failing test names a TAP or node:test run printed (or `exit N` when it named none). Also S7's (M14.3). */
+export const failingNames = (text: string, exit: number | null): string[] => {
   const names = new Set<string>();
   for (const m of text.matchAll(/^\s*not ok \d+ - (.+?)\s*(?:#.*)?$/gm)) names.add(m[1] as string);
   for (const m of text.matchAll(/^\s*✖ (.+?)(?: \(\d[\d.]*m?s\))?$/gm)) names.add(m[1] as string);
@@ -214,8 +216,21 @@ export class AgentCodingPort implements CodingPort {
     return `s6-${tag}-${hex(req.item_id, 8)}-${hex(req.command_key, 8)}`;
   }
 
-  private async sandboxRun(spec: Parameters<SandboxPort['run']>[0]): Promise<SandboxRun> {
-    const r = await this.d.sandbox.run(spec);
+  /**
+   * One session. The live admission grant of the item goes with it (M14.2: the sandbox-controller starts nothing core
+   * did not grant); a source that names no grant sends none, and a controller then refuses the session.
+   */
+  private async sandboxRun(
+    req: StageRequest,
+    spec: Parameters<SandboxPort['run']>[0],
+  ): Promise<SandboxRun> {
+    let grant: SandboxGrantRef | null = null;
+    if (this.d.source.sessionGrant) {
+      const g = await this.d.source.sessionGrant(req.item_id);
+      if (!g.ok) throw new Error(`the admission grant: ${g.error.message}`);
+      grant = g.value;
+    }
+    const r = await this.d.sandbox.run(grant ? { ...spec, grant } : spec);
     if (!r.ok) throw new Error(`sandbox ${r.error.code}: ${r.error.message}`);
     return r.value;
   }
@@ -227,7 +242,7 @@ export class AgentCodingPort implements CodingPort {
     tree: string,
     argv: readonly string[],
   ): Promise<TestRun> {
-    const r = await this.sandboxRun({
+    const r = await this.sandboxRun(req, {
       session_id: this.sid(tag, req),
       class: 'O',
       command: argv,
@@ -536,7 +551,7 @@ export class AgentCodingPort implements CodingPort {
       { path: `${CODING_SESSION_DIR}/${CODING_TASK_FILE}`, content: JSON.stringify(spec) },
     ];
     const ran = await this.d.keys.lend(agent.run_id, (secret) =>
-      this.sandboxRun({
+      this.sandboxRun(req, {
         session_id: this.sid('63a', req),
         class: 'W',
         command: ['node', CODING_RUNNER_PATH],
@@ -937,7 +952,7 @@ export class AgentCodingPort implements CodingPort {
       ];
       // the Unit's key is lent for the length of the run and goes nowhere else: the driver sets it as the sandbox's gateway key env
       const ran = await this.d.keys.lend(agent.run_id, (secret) =>
-        this.sandboxRun({
+        this.sandboxRun(req, {
           session_id: this.sid(`64-${guard}`, req),
           class: 'W',
           command: ['node', CODING_RUNNER_PATH],

@@ -15,13 +15,13 @@ Those documents describe an earlier code base (`ai-software-factory`) that is no
 
 ---
 
-## 0. Where the build stopped (2026-11-09)
+## 0. Where the build is (2026-11-12)
 
-Paused by the user after M13 (to resume: read this section, then start M14).
+Resumed on 2026-11-12, sequentially: one milestone at a time, no parallel tracks (the user's choice).
 
-- **Done and merged or in the M13 PR:** M0–M13. Main has M0–M12; M13 (sandbox, admission, S6 build, push broker, spike) is PR reshif/aisdlc#12 on `build/m13`, **not merged: its GitHub CI fails.** Locally (password Postgres, Docker available) all 3638 tests pass.
-- **First thing on resume — fix M13 CI:** run 25 hit the old 15-minute job limit (now 40); run 26 failed after 16 minutes with a test failure not yet identified (the log tail is only Postgres output; read the Vitest summary earlier in the job log). Most likely cause to check first: the Docker sandbox tests (`services/sandbox-driver`, `services/coding-runner`, `services/docker-proxy` stub tests) need the `aisdlc/sandbox` and agent images, which the GitHub runner does not have; they must either build them in CI or skip cleanly with a clear message when the images are absent. Then merge #12 once green.
-- **Next:** M14 (S7 verify, signed Evidence Pack, gate-check), then M15 (S8/S9), M16 (Light onboarding — first real agent lanes L1–L3), M17, M18, M19 (floor, audit), M20 (dogfood).
+- **Merged on main:** M0–M13 (M13 is reshif/aisdlc#12). M13's CI failure was a URL with credentials in this file, which the repo secret self-test flags; GitHub CI is now green with all 3638 tests and the Docker sandbox tests. ADR-0003 (the target architecture) and the user's 2026-11-11 decisions (§7a) are reshif/aisdlc#13.
+- **In progress:** M14 on `build/m14`, including ADR-0003's M14 tasks (see M14 below).
+- **Next:** M15 (S8/S9), M16 (Light onboarding — first real agent lanes L1–L3), M17, M18, M19 (floor, audit), M20 (dogfood).
 - **How the build runs:** one task per agent, each reviewed; `npm run check` must exit 0 with `DATABASE_URL` pointing at the local CI-style cluster on 127.0.0.1:55433 (user and password `postgres`) (start that password Postgres from `/var/tmp/aisdlc-cipg` or the db test helper), then `timeout 600 npm run build`, `npm ci --dry-run`, and `npm run smoke:compose` (in a sandbox without apt, build the image from `aisdlc-sandbox-node-git:local` and run with `SMOKE_SKIP_BUILD=1`). PR per milestone; merge after GitHub CI is green (user authorised).
 - **Open follow-ups to carry:** M7.7 single-flight S0 driver; M8.0b non-local genesis; M9.7 kill signing timeout, portal kill/control screens, L0/L7 eligibility (decided 2026-11-11: L0 from Light, L7 from Census; needs a catalogue version); M10.6 response redaction for non-streamed calls, per-model prices to confirm before real spend, install-absent semantics; M13 follow-ups: Handoff Pack as an artefact type, self-heal for a crash between push and receipt, B15 rebase path, codehost push in registry mode, compose wiring of real coding sessions.
 - **Architecture:** ADR-0003 is the target (18 services, 22 containers locally, sandboxes on separate hosts); PLAN §5 lists what each milestone adds.
@@ -262,13 +262,17 @@ Ready (1.6) decision endpoint and portal action; observed-signal actions for B4 
 
 **M13.7 built (L7 spike).** The route of L7 has no 6.6. At 6.5 the port ends the throwaway S6 in the SPIKE report instead of the self-check's rework loops (tripwires stand: a spike is not a licence to hunt for credentials): findings from facts (what the agent reported, how the repo tests answered, what changed), a recommendation derived from them, and the work archived as a content-addressed session snapshot (`archive_ref`), stored as a `spike_report` artefact; then 9.3. A spike never reaches the Push Broker by code path (the port refuses a 6.6 for L7), by the client (`CorePush` reads the lane from core and never calls the broker) and by the broker's guard (core's word for the lane).
 
-### M14 — S7 Verify and the gate plane
+### M14 — S7 Verify and the gate plane (plus ADR-0003's M14 tasks)
 
 | Task | Deliverable | Acceptance |
 |---|---|---|
-| M14.1 | `services/cvw`: kits with no secrets and no network; 7.1 deterministic checks, 7.2 test integrity (mutation, holdout, stub probe → Q1), 7.3 spec conformance, 7.4 secrets and dependencies (new findings only), 7.5 constitution check in every lane, X2 on protected paths | One test per check |
-| M14.2 | 7.6 Evidence Pack assembly, signed, bound to the head SHA; B9–B12 and D2 | Pack verifies offline |
-| M14.3 | `services/gate-check` with its own narrow App (`checks:write`): check run passes only if PR head SHA == Evidence Pack SHA and G3 is decided; S0 profile and L8 profile (DEC-13(a)); laundering-check for non-agent PRs | SP-FID-1 equivalent on the fake host, then live on the testbed |
+| M14.0 | ADR-0003 first task: PLAN §5 follows the ADR (done in reshif/aisdlc#13) | — |
+| M14.1 | Object store: `ObjectStorePort` (content-addressed put/get/head; a write-once bucket mode) with a deterministic fake and an S3-compatible adapter; MinIO in compose; Evidence Packs and new large blobs go through it | Contract suite runs on the fake and on MinIO; the write-once bucket refuses overwrite and delete |
+| M14.2 | `services/sandbox-controller` (ADR-0003 §6–7): owns the sandbox driver, class ceilings and two caps per runner host (a total, default 4, and coding, default 1; config, M1-gated); core reaches it through an HTTP `SandboxPort` adapter; it starts only sessions core granted, and its state is disposable | Admission's H2 check reads the controller's free slots; over-cap sessions wait in core's queue; the existing sandbox tests pass through the controller |
+| M14.3 | `services/verify` (the plan's `cvw`): kits with no secrets and no network; 7.1 deterministic checks, 7.2 test integrity (mutation, holdout, stub probe → Q1), 7.3 spec conformance, 7.4 secrets and dependencies (new findings only), 7.5 constitution check in every lane, X2 on protected paths | One test per check |
+| M14.4 | 7.6 Evidence Pack assembly, signed, bound to the head SHA, stored in the object store; B9–B12 and D2 | The pack verifies offline |
+| M14.5 | `services/gate-check` with its own narrow App (`checks:write`), built against the fake GitHub first (§7a): the check run passes only if the PR head SHA equals the Evidence Pack SHA and G3 is decided; S0 and L8 profiles and a laundering check for non-agent PRs (DEC-13(a)); the per-repo list of named bypass people (DEC-10 as refined: config, M1-gated, never an App), with every bypass merge recorded for X4 review | SP-FID-1 equivalent on the fake host; the live run on the testbed once the user has created the App |
+| M14.6 | Portal: S7 results and the Evidence Pack viewer on the item page; gate screens for Q1, E6, X2, X3 and E2 (`docs/design/portal-coverage.md` §3) | Browser e2e decides one of each on the compose stack |
 
 ### M15 — S8 Integrate and release, S9 close-out
 

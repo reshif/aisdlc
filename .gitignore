@@ -9,3 +9,5 @@ tmp/
 .env
 .env.*
 .vitest/
+# agent worktrees (local, one per parallel task)
+.claude/worktrees/

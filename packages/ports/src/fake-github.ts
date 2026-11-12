@@ -9,7 +9,9 @@ import {
   type CodeHostRead,
   type CodeownersFile,
   type FileAtSha,
+  type GateCheckAuthor,
   type GitSha,
+  type GithubPermissions,
 } from '@aisdlc/contracts';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -35,6 +37,14 @@ import {
   type ReadAtShaRequest,
   type RepoRequest,
 } from './codehost.js';
+import {
+  badCheckRunWrite,
+  type CheckRunRead,
+  type CheckRunWrite,
+  type GateCheckHostPort,
+  type GateCheckPull,
+  type PullCommit,
+} from './gate-check-host.js';
 import {
   NO_PUSH_GUARDS,
   commitMessage,
@@ -116,11 +126,38 @@ interface FakePr {
   state: 'open' | 'closed';
   merged: boolean;
   draft: boolean;
+  /** M14.5: who opened it (the Push Broker's bot for `apply_patch`, a person for `openPull`). */
+  readonly author: GateCheckAuthor;
+  readonly base_ref: string;
+  /** The commits ahead of the base, oldest first. */
+  commits: PullCommit[];
+  merged_by: string | null;
+  merge_commit_sha: string | null;
+  merged_at: string | null;
 }
+
+/** An App's credential on the fake host: its id and what its installation token carries. */
+export interface FakeAppIdentity {
+  readonly app_id: number;
+  readonly permissions: GithubPermissions;
+}
+
+interface StoredCheckRun extends CheckRunRead {
+  readonly external_id: string;
+  readonly title: string;
+  readonly summary: string;
+}
+
+/** The login GitHub gives the Push Broker's App on the fake host (an App's PRs are authored by `<slug>[bot]`). */
+export const FAKE_PUSH_BROKER_LOGIN = 'aisdlc-push[bot]';
+/** The Push Broker's App id on the fake host. */
+export const FAKE_PUSH_APP_ID = 1001;
 
 export interface FakeGitHubOptions {
   /** The Unit's owner (lease and X2). Default: none, so a push is refused (fail closed). */
   readonly guards?: PushGuardsPort;
+  /** The bot login of the Push Broker's App (the author of every PR `apply_patch` opens). */
+  readonly brokerLogin?: string;
 }
 
 type PortMethod = (typeof CODEHOST_PORT_METHODS)[number];
@@ -134,9 +171,18 @@ export class FakeGitHub implements CodeHostPort {
   private prs = new Map<string, FakePr[]>();
   /** What the last accepted `apply_patch` wrote: for tests that look at the commit and the PR body. */
   readonly pushed: Array<{ commit: FakeCommit; pr: FakePr; repo: string }> = [];
+  private checkRunsByRepo = new Map<string, StoredCheckRun[]>();
+  private nextCheckRunId = 1;
+  private readonly brokerLogin: string;
+  private brokenChecks: CodeHostNotOk | null = null;
+  /** The Push Broker's App as a credential on this host (its token carries the installation's grant). */
+  get pushApp(): FakeAppIdentity {
+    return { app_id: FAKE_PUSH_APP_ID, permissions: { ...this.seed.installation.permissions } };
+  }
 
   constructor(seed?: CodeHostSeed, opts: FakeGitHubOptions = {}) {
     this.guards = opts.guards ?? NO_PUSH_GUARDS;
+    this.brokerLogin = opts.brokerLogin ?? FAKE_PUSH_BROKER_LOGIN;
     if (seed) this.load(seed);
   }
 
@@ -158,6 +204,7 @@ export class FakeGitHub implements CodeHostPort {
     this.seed = structuredClone(CodeHostSeed.parse(seed));
     this.commits = new Map();
     this.prs = new Map();
+    this.checkRunsByRepo = new Map();
     return this;
   }
 
@@ -186,6 +233,13 @@ export class FakeGitHub implements CodeHostPort {
 
   unbreak(): this {
     this.broken.clear();
+    this.brokenChecks = null;
+    return this;
+  }
+
+  /** Makes every call of every App view (`asApp`) answer `as` until `unbreak`. */
+  breakChecksApi(as: CodeHostNotOk): this {
+    this.brokenChecks = as;
     return this;
   }
 
@@ -432,6 +486,7 @@ export class FakeGitHub implements CodeHostPort {
       pr.head_sha = sha;
       pr.title = text.title;
       pr.body = text.body;
+      pr.commits.push({ sha, message });
     } else {
       this.requests.push({ method: 'POST', path: `/repos/${req.repo}/pulls` });
       pr = {
@@ -443,10 +498,16 @@ export class FakeGitHub implements CodeHostPort {
         state: 'open',
         merged: false,
         draft: true,
+        author: { login: this.brokerLogin, type: 'Bot' },
+        base_ref: repo.default_branch,
+        commits: [{ sha, message }],
+        merged_by: null,
+        merge_commit_sha: null,
+        merged_at: null,
       };
       list.push(pr);
     }
-    this.pushed.push({ commit, pr: { ...pr }, repo: req.repo });
+    this.pushed.push({ commit, pr: { ...pr, commits: [...pr.commits] }, repo: req.repo });
     return readOk({
       branch: req.branch,
       commit_sha: sha,
@@ -481,5 +542,261 @@ export class FakeGitHub implements CodeHostPort {
       checks_read: false,
       checks: [],
     });
+  }
+
+  // ---------------------------------------------------------------- M14.5: people's PRs, merges, check runs
+
+  /** A person opens a pull request (not through the Push Broker): its branch points at `head_sha`. */
+  openPull(
+    repo: string,
+    o: {
+      readonly head_ref: string;
+      readonly head_sha: string;
+      readonly author: string;
+      readonly title?: string;
+      readonly body?: string;
+      readonly commits?: readonly PullCommit[];
+      readonly draft?: boolean;
+    },
+  ): number {
+    const r = this.seed.repos.find((x) => repoKey(x.full_name) === repoKey(repo));
+    if (!r) throw new Error(`no repo ${repo}`);
+    const list = this.prs.get(repoKey(repo)) ?? [];
+    this.prs.set(repoKey(repo), list);
+    this.moveBranch(repo, o.head_ref, o.head_sha);
+    const number = list.length + 1;
+    list.push({
+      number,
+      head_ref: o.head_ref,
+      head_sha: o.head_sha,
+      title: o.title ?? 'A change',
+      body: o.body ?? '',
+      state: 'open',
+      merged: false,
+      draft: o.draft ?? false,
+      author: { login: o.author, type: 'User' },
+      base_ref: r.default_branch,
+      commits: [...(o.commits ?? [{ sha: o.head_sha, message: 'a change' }])],
+      merged_by: null,
+      merge_commit_sha: null,
+      merged_at: null,
+    });
+    return number;
+  }
+
+  /** Somebody pushed to a PR's branch: its head moves (the old check run stays on the old head). */
+  pushToPull(repo: string, number: number, sha: string, message = 'another change'): this {
+    const pr = this.prOf(repo, number);
+    if (!pr) throw new Error(`no pull request ${number}`);
+    pr.head_sha = sha;
+    pr.commits.push({ sha, message });
+    return this.moveBranch(repo, pr.head_ref, sha);
+  }
+
+  /** A person merges a PR on the host (the factory never does: this is the test’s hand, not a port method; the name avoids the verb the forbidden-verb check looks for). */
+  landPull(repo: string, number: number, by: string, at = '2026-11-12T12:00:00Z'): this {
+    const pr = this.prOf(repo, number);
+    if (!pr) throw new Error(`no pull request ${number}`);
+    pr.state = 'closed';
+    pr.merged = true;
+    pr.merged_by = by;
+    pr.merged_at = at;
+    pr.merge_commit_sha = createHash('sha1').update(`merge\0${pr.head_sha}\0${by}`).digest('hex');
+    return this;
+  }
+
+  closePull(repo: string, number: number): this {
+    const pr = this.prOf(repo, number);
+    if (pr) pr.state = 'closed';
+    return this;
+  }
+
+  /** Every check run written in a repo, in order (tests). */
+  checkRunsOf(repo: string): readonly StoredCheckRun[] {
+    return [...(this.checkRunsByRepo.get(repoKey(repo)) ?? [])];
+  }
+
+  /**
+   * The host as one App's credential sees it (M14.5): gate-check's App reads PRs and writes check runs only if its
+   * token carries `checks: write`; the Push Broker's (`pushApp`) does not, so its view refuses the write. The view has
+   * no push method at all.
+   */
+  asApp(app: FakeAppIdentity): GateCheckHostPort {
+    return new FakeAppView(this, app);
+  }
+
+  /** @internal the App views' access to the host's state. */
+  _apps(): {
+    readonly prs: Map<string, FakePr[]>;
+    readonly checkRuns: Map<string, StoredCheckRun[]>;
+    readonly repoKnown: (repo: string) => boolean;
+    readonly headOf: (repo: string, branch: string) => string | null;
+    readonly log: (method: 'GET' | 'POST', path: string) => void;
+    readonly broken: () => CodeHostNotOk | null;
+    readonly nextId: () => number;
+  } {
+    return {
+      prs: this.prs,
+      checkRuns: this.checkRunsByRepo,
+      repoKnown: (repo) => this.repoKnown(repo),
+      headOf: (repo, branch) =>
+        this.seed.heads.find((h) => repoKey(h.repo) === repoKey(repo) && h.branch === branch)
+          ?.sha ?? null,
+      log: (method, path) => this.requests.push({ method, path }),
+      broken: () => this.brokenChecks,
+      nextId: () => this.nextCheckRunId++,
+    };
+  }
+}
+
+const LEVEL: Record<string, number> = { read: 1, write: 2, admin: 3 };
+
+/** One App's view of a `FakeGitHub` (see `asApp`). */
+class FakeAppView implements GateCheckHostPort {
+  readonly app_id: number;
+
+  constructor(
+    private readonly host: FakeGitHub,
+    private readonly app: FakeAppIdentity,
+  ) {
+    this.app_id = app.app_id;
+  }
+
+  private can(perm: string, level: 'read' | 'write'): boolean {
+    return (LEVEL[this.app.permissions[perm] ?? ''] ?? 0) >= (LEVEL[level] ?? 99);
+  }
+
+  private start(
+    method: 'GET' | 'POST',
+    path: string,
+    repo: string,
+    perm: string,
+    level: 'read' | 'write',
+  ): CodeHostNotOk | null {
+    const h = this.host._apps();
+    h.log(method, path);
+    const b = h.broken();
+    if (b) return b;
+    if (!h.repoKnown(repo))
+      return readUnreadable(
+        'not_found',
+        `repository ${repo} is not reachable by this installation`,
+      );
+    if (!this.can(perm, level)) {
+      return readUnreadable(
+        'forbidden',
+        `${method} ${path}: 403 (the token has no ${perm}:${level})`,
+      );
+    }
+    return null;
+  }
+
+  private pullOf(p: FakePr): GateCheckPull {
+    return {
+      number: p.number,
+      state: p.state,
+      draft: p.draft,
+      merged: p.merged,
+      head_sha: p.head_sha,
+      head_ref: p.head_ref,
+      base_ref: p.base_ref,
+      author: { ...p.author },
+      title: p.title,
+      body: p.body,
+      merged_by: p.merged_by,
+      merge_commit_sha: p.merge_commit_sha,
+      merged_at: p.merged_at,
+    };
+  }
+
+  async list_pulls(req: {
+    repo: string;
+    state: 'open' | 'closed';
+  }): Promise<CodeHostRead<GateCheckPull[]>> {
+    const no = this.start('GET', `/repos/${req.repo}/pulls`, req.repo, 'pull_requests', 'read');
+    if (no) return no;
+    const list = this.host._apps().prs.get(repoKey(req.repo)) ?? [];
+    return readOk(list.filter((p) => p.state === req.state).map((p) => this.pullOf(p)));
+  }
+
+  async pull_commits(req: { repo: string; number: number }): Promise<CodeHostRead<PullCommit[]>> {
+    const no = this.start(
+      'GET',
+      `/repos/${req.repo}/pulls/${req.number}/commits`,
+      req.repo,
+      'pull_requests',
+      'read',
+    );
+    if (no) return no;
+    const pr = this.host
+      ._apps()
+      .prs.get(repoKey(req.repo))
+      ?.find((p) => p.number === req.number);
+    if (!pr) return readUnreadable('not_found', `no pull request ${req.number}`);
+    return readOk(pr.commits.map((c) => ({ ...c })));
+  }
+
+  async branch_head(req: { repo: string; branch: string }): Promise<CodeHostRead<string>> {
+    const no = this.start(
+      'GET',
+      `/repos/${req.repo}/branches/${encodeURIComponent(req.branch)}`,
+      req.repo,
+      'metadata',
+      'read',
+    );
+    if (no) return no;
+    const h = this.host._apps().headOf(req.repo, req.branch);
+    return h ? readOk(h) : readUnreadable('not_found', `no branch ${req.branch}`);
+  }
+
+  async check_runs(req: {
+    repo: string;
+    sha: string;
+    name: string;
+  }): Promise<CodeHostRead<CheckRunRead[]>> {
+    const no = this.start(
+      'GET',
+      `/repos/${req.repo}/commits/${req.sha}/check-runs`,
+      req.repo,
+      'checks',
+      'read',
+    );
+    if (no) return no;
+    const runs = this.host._apps().checkRuns.get(repoKey(req.repo)) ?? [];
+    return readOk(
+      runs
+        .filter((r) => r.head_sha === req.sha && r.name === req.name)
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          head_sha: r.head_sha,
+          status: r.status,
+          conclusion: r.conclusion,
+          app_id: r.app_id,
+        })),
+    );
+  }
+
+  async write_check_run(req: CheckRunWrite): Promise<CodeHostRead<{ id: number; app_id: number }>> {
+    const bad = badCheckRunWrite(req);
+    if (bad) return readUnreadable('refused', bad);
+    const no = this.start('POST', `/repos/${req.repo}/check-runs`, req.repo, 'checks', 'write');
+    if (no) return no;
+    const h = this.host._apps();
+    const list = h.checkRuns.get(repoKey(req.repo)) ?? [];
+    h.checkRuns.set(repoKey(req.repo), list);
+    const id = h.nextId();
+    list.push({
+      id,
+      name: req.name,
+      head_sha: req.head_sha,
+      status: req.status,
+      conclusion: req.conclusion,
+      app_id: this.app.app_id,
+      external_id: req.external_id,
+      title: req.title,
+      summary: req.summary,
+    });
+    return readOk({ id, app_id: this.app.app_id });
   }
 }

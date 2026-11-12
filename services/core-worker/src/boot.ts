@@ -13,6 +13,7 @@ import {
   agentStagePorts,
   CorePush,
   buildStagePorts,
+  verifyStagePorts,
   execAllowedReposFrom,
   cardDepsFrom,
   cardsLoop,
@@ -20,6 +21,7 @@ import {
   killHoldersLoop,
   gatewayTriggersLoop,
   killObserverLoop,
+  mergeReviewLoop,
   registerCoreConfig,
   constitutionFrom,
   roleMapSyncLoop,
@@ -30,8 +32,15 @@ import {
   workSettingsFrom,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
-import { HttpBundleSource, HttpCodeHostPush } from '@aisdlc/ports';
+import {
+  HttpBundleSource,
+  HttpCodeHostPush,
+  HttpSandbox,
+  S3ObjectStore,
+  type SandboxPort,
+} from '@aisdlc/ports';
 import { DockerSandboxDriver } from '@aisdlc/sandbox-driver';
+import { HttpVerify } from '@aisdlc/verify';
 import { checkpointerLoop, reconcilerLoop } from './ledger-loops.js';
 import type { Jwk } from '@aisdlc/kernel';
 import {
@@ -50,6 +59,7 @@ import { HttpWitness } from '@aisdlc/witness/client';
 import {
   FakeCapacity,
   FakeStagePorts,
+  scriptVerifyExceptions,
   FileRegisteredRepos,
   RunKeyVault,
   type CapacityPort,
@@ -235,7 +245,12 @@ export async function bootCoreWorker(
       // M12: with `agents`, S2 and S3 run with real agents; the key secrets pass from the driver to the
       // planning port through this one in-process vault and go nowhere else
       const vault = new RunKeyVault();
-      const baseStagePorts = deps.stagePorts ?? new FakeStagePorts();
+      const fakes = deps.stagePorts ?? new FakeStagePorts();
+      // M14.6: the compose e2e's scripted S7 (FACTORY_ENV=local only, checked by the config)
+      const baseStagePorts =
+        cfg.fakeVerify === 'exceptions' && fakes instanceof FakeStagePorts
+          ? scriptVerifyExceptions(fakes)
+          : fakes;
       if (cfg.stagePorts === 'agents' && (!cfg.gateway || !cfg.knowledge)) {
         throw new Error('CORE_WORKER_STAGE_PORTS=agents needs the gateway and knowledge');
       }
@@ -251,20 +266,37 @@ export async function bootCoreWorker(
             })
           : baseStagePorts;
       // M13.3, M13.4: with a sandbox proxy, 6.1 to 6.5 run real coding sessions (the DEC-18 owner allow-list and B1 in
-      // front of every session), and HUMAN-WAIT's snapshots are of the session's real workspace
+      // front of every session), and HUMAN-WAIT's snapshots are of the session's real workspace. M14.2: with the
+      // sandbox-controller, the same sessions go to it over HTTP (it owns the driver, the ceilings and the caps; this
+      // process holds no proxy token) and H2 reads its free slots
+      const sc = cfg.sandboxController;
+      const controller = sc ? new HttpSandbox({ baseUrl: sc.url, token: sc.token }) : null;
+      const session: { sandbox: SandboxPort; storeDir: string; model: string } | null =
+        sc && controller
+          ? { sandbox: controller, storeDir: sc.storeDir, model: sc.model }
+          : cfg.sandbox
+            ? {
+                sandbox: new DockerSandboxDriver({
+                  endpoint: {
+                    ...proxyEndpoint(cfg.sandbox.proxyUrl),
+                    token: cfg.sandbox.proxyToken,
+                  },
+                  image: cfg.sandbox.image,
+                  scratch: { local: cfg.sandbox.scratch, host: cfg.sandbox.scratch },
+                  peers: { mirror: cfg.sandbox.mirror, gateway: cfg.sandbox.gateway },
+                  trustedCommands: [],
+                }),
+                storeDir: cfg.sandbox.storeDir,
+                model: cfg.sandbox.model,
+              }
+            : null;
       const built =
-        cfg.sandbox && cfg.knowledge
+        session && cfg.knowledge
           ? buildStagePorts({
               pool,
               base: agentPorts,
-              sandbox: new DockerSandboxDriver({
-                endpoint: { ...proxyEndpoint(cfg.sandbox.proxyUrl), token: cfg.sandbox.proxyToken },
-                image: cfg.sandbox.image,
-                scratch: { local: cfg.sandbox.scratch, host: cfg.sandbox.scratch },
-                peers: { mirror: cfg.sandbox.mirror, gateway: cfg.sandbox.gateway },
-                trustedCommands: [],
-              }),
-              storeDir: cfg.sandbox.storeDir,
+              sandbox: session.sandbox,
+              storeDir: session.storeDir,
               keys: vault,
               bundles: new HttpBundleSource({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken }),
               knowledge: new HttpKnowledge({
@@ -272,7 +304,7 @@ export async function bootCoreWorker(
                 token: cfg.knowledge.token,
               }),
               execAllowedRepos: execAllowedReposFrom(rd),
-              model: cfg.sandbox.model,
+              model: session.model,
               // M13.6: the Push Broker's client, with the record first and the receipt in the record and the ledger
               ...(cfg.pushBroker
                 ? {
@@ -292,7 +324,32 @@ export async function bootCoreWorker(
                 : {}),
             })
           : null;
-      const stagePorts = built ? built.stagePorts : agentPorts;
+      const beforeVerify = built ? built.stagePorts : agentPorts;
+      // M14.3: S7 7.1 to 7.5 through the verify service (its kits through the sandbox-controller); M14.4: 7.6 here, the
+      // Evidence Pack signed by the Notary's evidence purpose and stored in the object store's write-once bucket
+      const stagePorts =
+        cfg.verify && cfg.knowledge && cfg.objectStore && ledger
+          ? verifyStagePorts({
+              pool,
+              ledger,
+              signer: ledger.notary,
+              objects: new S3ObjectStore({
+                endpoint: cfg.objectStore.endpoint,
+                accessKeyRef: cfg.objectStore.accessKeyRef,
+                secretKeyRef: cfg.objectStore.secretKeyRef,
+              }),
+              base: beforeVerify,
+              client: new HttpVerify({ baseUrl: cfg.verify.url, token: cfg.verify.token }),
+              keys: vault,
+              constitution: constitutionFrom(rd),
+              execAllowedRepos: execAllowedReposFrom(rd),
+              knowledge: new HttpKnowledge({
+                baseUrl: cfg.knowledge.url,
+                token: cfg.knowledge.token,
+              }),
+              ...(built ? { store: built.store } : {}),
+            })
+          : beforeVerify;
       // M13.1: 6.0 admission (a lease epoch, an approver slot, capacity, the envelope reserved in the gateway)
       // and the capacity port behind it, which frees the held items only when their next admission can succeed
       const admissionBase = cfg.gateway
@@ -302,6 +359,7 @@ export async function bootCoreWorker(
               new GatewayAdminClient({ baseUrl: cfg.gateway.url, token: cfg.gateway.token }),
             ),
             snapshots: built ? built.snapshots : new ReferenceSnapshots(),
+            ...(controller ? { slots: controller } : {}),
           }
         : null;
       const realCapacity = admissionBase ? new AdmissionCapacity({ pool, ...admissionBase }) : null;
@@ -355,6 +413,25 @@ export async function bootCoreWorker(
         gatewayTriggersLoop(
           { pool },
           { startDelayMs: 3_000, intervalMs: cfg.gatewayTriggersIntervalMs },
+        ),
+      );
+    }
+    if (ledger) {
+      // M14.5: the X4 review of every merge gate-check recorded without aisdlc/gate passing (a bypass by a listed
+      // person, or an unauthorised merge). gate-check has no route to core: it records, this loop opens the cards.
+      const rd = await ensureReader();
+      supervisor.add(
+        mergeReviewLoop(
+          {
+            decisions: {
+              pool,
+              ledger,
+              eligibility: identityEligibility(readPool, registry),
+              stepUp: new RefusingStepUp(),
+              maintenance: maintenanceFrom(rd),
+            },
+          },
+          { startDelayMs: 3_500 },
         ),
       );
     }

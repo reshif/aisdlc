@@ -174,8 +174,7 @@
 
   /* ================================================================ 1. Organisation & sign-in */
   const ORG = {
-    revs: [{ rev: 'identity.settings r9', what: 'Idle timeout for privileged roles 30 → 20 minutes', by: 'lt', at: '2h ago', state: 'M1 pending' }],
-    published: 'identity.settings r8 · published 2026-10-30 (M1 #17990)',
+    revs: [], // no identity.settings key exists: sign-in and session policy are deployment settings (portal-config §1.5, §6)
   };
   const CLAIMS = [
     ['sub', 'Principal.entra_oid', 'immutable; the principal id'], ['preferred_username', 'Principal.upn', ''], ['email', 'IdentityLink (email)', 'must end in an allowed domain'], ['name', 'Principal.display_name', ''],
@@ -189,10 +188,11 @@
     ['2026-11-03 14:00', 'delta', '1 disabled (Erik Carlsson) → 2 bindings revoked', 'ok'], ['2026-11-02 02:00', 'full', '214 users read · 13 in scope · 4 groups', 'ok'], ['2026-10-29 10:00', 'delta', '429 from Graph, retried after 30 s', 'warn'],
   ];
   function orgRender() {
-    const edit = (sec) => A.act('Edit', 'identity.admin', F, { cls: 'sm', attrs: `data-edit="${sec}"` });
+    const ENV = { sso: 'BFF_OIDC_* (issuer, client id, scopes)', claims: 'BFF_OIDC_* claim mapping', groups: 'identity /v1/groups and the IdP sync seed (IDENTITY_IDP_SEED_FILE)', session: 'BFF_IDLE_SECONDS, BFF_ABSOLUTE_SECONDS, BFF_STEP_UP_MODE', domains: 'BFF_ALLOWED_ORIGINS and the IdP tenant', guests: 'the IdP tenant and BFF_* settings' };
+    const edit = (sec) => `<button class="btn sm locked" aria-disabled="true" data-cflock="${esc('Deployment setting, read only here: ' + ENV[sec] + '. Whoever runs the deployment sets it; making it editable from the portal would remove the bound it places on the factory (portal-config §6).')}">${A.icon('lock', 13)} Read only</button>`;
     const revs = ORG.revs.filter((r) => r.state === 'M1 pending');
     const guests = Object.keys(DIR).filter((p) => DIR[p].source === 'guest');
-    return A.pageHead({ eyebrow: 'Admin · identity', title: 'Organisation & sign-in', sub: 'How people sign in to the factory: the identity provider, provisioning, session and MFA rules, guests and the break-glass account. A change is a configuration revision that an M1 gate publishes.', actions: `${A.act('Run SCIM sync now', 'identity.admin', F, { attrs: 'data-sync' })}${A.act('Unseal break-glass', 'identity.admin', F, { cls: 'danger', attrs: 'data-unseal' })}` }) +
+    return A.pageHead({ eyebrow: 'Admin · identity', title: 'Organisation & sign-in', sub: 'How people sign in to the factory: the identity provider, provisioning, session and MFA rules, guests and the break-glass account. These are deployment settings: shown here read only, set by whoever runs the deployment. Bindings for fleet roles come from IdP groups.', actions: `${A.act('Run SCIM sync now', 'identity.admin', F, { attrs: 'data-sync' })}${A.act('Unseal break-glass', 'identity.admin', F, { cls: 'danger', attrs: 'data-unseal' })}` }) +
       roHint() +
       (revs.length ? j(revs, (r) => `<div class="banner warn">${A.gate('M1')} <b>${esc(r.rev)}</b> waits on M1: ${esc(r.what)}. Proposed by ${esc(person(r.by).name)} ${esc(r.at)}; a factory admin other than the proposer decides it.<span class="sp"></span><span class="mono small">${esc(ORG.published)}</span></div>`) : '') +
       A.stats([
@@ -215,27 +215,10 @@
         ${A.card('Allowed email domains', `<div class="row" style="gap:6px">${j(['acme.example', 'acme-payments.example', 'partners.acme.example'], (d) => `<span class="ad-tag">${d}</span>`)}</div><p class="small muted" style="margin-top:10px">Sign-in from any other domain is refused before a principal is created. Last refused: <span class="mono">gmail.com</span> today 08:31.</p>`, { actions: edit('domains') })}
         ${A.card('External guests', A.kv([['Network', 'company network only (10.20.0.0/14 and VPN)'], ['Longest access', '90 days, then the binding expires; expiry never approves'], ['Roles', '<span class="mono">project.viewer</span> only (V1 · D0)'], ['Sponsor', 'a project admin of the project, named on the binding'], ['MFA', 'their own IdP’s MFA is not trusted; TOTP enrolled here']]) + `<div class="ad-gap s"></div>` + j(guests, (g) => `<div class="li ad-li" data-person="${g}">${who(g)}<div><div class="small">${esc(DIR[g].home)}</div><div class="tiny faint">sponsor ${esc(person(DIR[g].sponsor).name)} · until ${DIR[g].guestUntil}</div></div>${A.pill('guest', 'warn')}</div>`), { actions: edit('guests') })}
         ${A.card('Break-glass account', A.kv([['Principal', mono('bg-factory-01') + ' <span class="pill ok">sealed</span>'], ['Holds', 'factory.admin (fleet) while unsealed, at most 4 hours'], ['Unseal', 'two people: a factory admin and a security approver, each with a security key'], ['Custodians', `${who('lt')} ${who('ks')}`], ['After use', 'an X4 break-glass post-hoc review opens automatically'], ['Last use', '2026-08-14 · gateway key rotation outage · X4 approved (ledger #9120)']]), { actions: A.gate('X4') })}
-        ${A.card('Revisions', A.table([{ h: 'Revision', r: (r) => mono(r.rev) }, { h: 'Change', r: (r) => `<span class="small">${esc(r.what)}</span>` }, { h: 'By', r: (r) => who(r.by) }, { h: 'State', r: (r) => A.pill(r.state, r.state === 'published' ? 'ok' : 'warn') }], [...ORG.revs, { rev: 'identity.settings r8', what: 'Guest maximum 180 → 90 days', by: 'lt', state: 'published' }, { rev: 'identity.settings r7', what: 'Add partners.acme.example', by: 'lt', state: 'published' }]), { flush: true })}
+        ${A.card('Where these come from', A.table([{ h: 'Setting', r: (r) => esc(r[0]) }, { h: 'Source', r: (r) => `<span class="mono small">${esc(r[1])}</span>` }], [['Sign-in (OIDC)', 'BFF_OIDC_*'], ['Session idle and absolute', 'BFF_IDLE_SECONDS · BFF_ABSOLUTE_SECONDS'], ['Step-up mode', 'BFF_STEP_UP_MODE'], ['Allowed origins', 'BFF_ALLOWED_ORIGINS'], ['PDP sampling', 'BFF_PDP_SAMPLE_RATE'], ['Identity callers', 'IDENTITY_CALLERS']]), { flush: true })}
       </div></div>`;
   }
-  const ORG_FORMS = {
-    sso: ['Single sign-on', [['Issuer', 'https://sso.acme.example'], ['Client id', 'aisdlc-portal-prod'], ['Scopes', 'openid profile email groups']]],
-    claims: ['Claims mapping', [['groups claim', 'groups'], ['MFA claim', 'amr']]],
-    groups: ['IdP groups → fleet roles', [['aisdlc-admins →', 'factory.admin'], ['aisdlc-audit →', 'factory.auditor']]],
-    session: ['Session policy', [['Idle timeout (minutes)', '30'], ['Longest session (hours)', '12'], ['Step-up lasts (minutes)', '15']]],
-    domains: ['Allowed email domains', [['Domains (comma separated)', 'acme.example, acme-payments.example, partners.acme.example']]],
-    guests: ['External guest rules', [['Longest access (days)', '90'], ['Allowed network', '10.20.0.0/14, VPN']]],
-  };
   function orgMount(root) {
-    root.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => {
-      const [title, fields] = ORG_FORMS[b.dataset.edit];
-      const m = A.modal(`<div class="row between"><h2>Edit: ${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${A.icon('close')}</button></div>
-        ${j(fields, ([l, v], i) => `<div class="field"><label for="ad-f${i}">${esc(l)}</label><input class="input" id="ad-f${i}" value="${esc(v)}"></div>`)}
-        <div class="field"><label for="ad-fr">Why</label><textarea class="input" id="ad-fr" placeholder="For example: audit finding AF-12 asks for a shorter idle timeout"></textarea></div>
-        <div class="banner info" style="margin:0">Saving proposes <b>identity.settings r${9 + ORG.revs.length}</b>. Nothing changes until an M1 config gate approves it, and you cannot decide your own proposal.</div>
-        <div class="row"><button class="btn primary" id="ad-fgo">Propose revision</button><button class="btn ghost" data-close>Cancel</button></div>`);
-      m.querySelector('#ad-fgo').onclick = () => { const rev = `identity.settings r${9 + ORG.revs.length}`; ORG.revs.unshift({ rev, what: `${title}: ${m.querySelector('#ad-fr').value || 'edited in the portal'}`, by: A.me(), at: 'just now', state: 'M1 pending' }); A.closeOverlay(); A.render(); A.toast(`${rev} proposed. An M1 card is open for another factory admin.`); };
-    }));
     const s = root.querySelector('[data-sync]:not(.locked)'); if (s) s.onclick = () => { SYNC.unshift(['just now', 'delta', 'no changes', 'ok']); A.render(); A.toast('SCIM delta sync finished: no changes'); };
     const u = root.querySelector('[data-unseal]:not(.locked)'); if (u) u.onclick = () => {
       const m = A.modal(`<div class="row between"><h2>Unseal break-glass</h2><button class="icon-btn" data-close aria-label="Close">${A.icon('close')}</button></div>
@@ -394,6 +377,8 @@
     m.querySelector('#ad-bgo').onclick = () => {
       const who2 = m.querySelector('#ad-bp').value, role = m.querySelector('#ad-br').value, [kind, ref] = m.querySelector('#ad-bs').value.split(':');
       const r = X.ROLE[role], exp = m.querySelector('#ad-be').value;
+      if (who2 === A.me()) { A.toast('You cannot grant yourself a role: someone else adds it.'); return; }
+      if (kind === 'project' && X.ROLE[role].slot) { A.closeOverlay(); A.go(`cfg-project.role_map@${ref}`); A.toast(`Project roles come from the role map: draft ${who2 === 'ak' ? '' : ''}${person(who2).name} into the ${X.ROLE[role].slot} slot and propose it (M1${X.ROLE[role].approval_capable ? ' + M6' : ''}).`); return; }
       if (live().some((b) => b.pid === who2 && b.role === role && b.scope.kind === kind && (b.scope.ref || '') === (ref || ''))) { A.toast('That binding already exists'); return; }
       if (r.approval_capable && kind === 'project') { m6Flow({ pid: who2, role, project: ref, why: m.querySelector('#ad-bw').value || 'added from People' }, () => openPerson(who2)); return; }
       X.BINDINGS.push({ pid: who2, role, scope: { kind, ref: ref || null }, source: 'portal (access.manage)', since: '2026-11-10', ...(exp ? { expires: exp } : {}) });
@@ -529,8 +514,8 @@
     ], gpRows);
     const rules = `<div class="grid g2 ad-cols"><div>${A.card('Cross-cutting rules', `<ul class="ad-xr">${j(XCUT, ([t, d, pol, where]) => `<li><b>${esc(t)}</b><span>${esc(d)}</span><span class="mono tiny faint">${esc(pol)} · ${esc(where)}</span>${A.pill('enforced', 'ok')}</li>`)}</ul>`)}</div>
       <div class="stack">${A.card('Separation-of-duties pairs', A.table([{ h: 'Kind', r: (s) => mono(s[0]) }, { h: 'Role A', r: (s) => `<span class="mono small">${s[1]}</span>` }, { h: 'Role B', r: (s) => `<span class="mono small">${s[2]}</span>` }, { h: 'Effect', r: (s) => `<span class="small">${esc(s[3])}</span>` }], SOD_PAIRS) + '<p class="tiny faint ad-pad">No current binding breaks a static pair. 0 toxic pairs flagged.</p>', { flush: true })}
-      ${A.card('Policy bundle', A.kv([['Bundle', mono('pdp 37 · pdp-1.3.0.roles-1.1.0')], ['Hash', A.hash('3f9a0c71e2b84d55a1c0f9e3d7b26c21', 16)], ['Published', '4 days ago · M3 #18011 by Luis Torres'], ['Policies', '61 generated from the role catalogue + 13 cross-cutting'], ['Evaluator', 'embedded Cedar in every service, fail closed'], ['Decision log', 'every deny; allows on decide, kill and config · retention decision_7y']]) + `<pre class="code ad-code" style="margin-top:12px">@id("xcut/factory_admin_no_gate")\nforbid (principal, action == Action::"gate.decide", resource)\nunless { resource.slot in principal.slots[resource.project] };</pre>`)}</div></div>`;
-    return A.pageHead({ eyebrow: 'Admin · policy', title: 'Roles & permissions', sub: 'The rules every screen and service follows: the roles, the actions the PDP is asked, which role grants which action, and how each gate is decided. Anyone signed in can read this; changing it is an M3 catalogue or permission gate.', actions: A.act('Propose a change (M3)', 'config.propose', F, { cls: 'primary', attrs: 'data-m3' }) }) +
+      ${A.card('Policy bundle', A.kv([['Bundle', mono('pdp 37 · pdp-1.3.0.roles-1.1.0')], ['Hash', A.hash('3f9a0c71e2b84d55a1c0f9e3d7b26c21', 16)], ['Published', 'factory r1 bundle, then each release · PDP_POLICY_VERSION 1.3.0'], ['Policies', '61 generated from the role catalogue + 13 cross-cutting'], ['Evaluator', 'embedded Cedar in every service, fail closed'], ['Decision log', 'every deny; allows on decide, kill and config · retention decision_7y']]) + `<pre class="code ad-code" style="margin-top:12px">@id("xcut/factory_admin_no_gate")\nforbid (principal, action == Action::"gate.decide", resource)\nunless { resource.slot in principal.slots[resource.project] };</pre>`)}</div></div>`;
+    return A.pageHead({ eyebrow: 'Admin · policy', title: 'Roles & permissions', sub: 'The rules every screen and service follows: the roles, the actions the PDP is asked, which role grants which action, and how each gate is decided. Anyone signed in can read this; changing it is code: a PR with a new PDP_POLICY_VERSION, then a new policy bundle published through a factory M1 (the META gate M3 is not wired yet, M15.5).', actions: `<a class="btn" href="#cfg-pdp.bundle">Policy bundle in force</a>` }) +
       A.stats([
         { k: 'Roles', v: R.length, d: 'roles-1.1.0 · 11 project, 3 fleet' },
         { k: 'Actions', v: ACT.length, d: `${ACT.filter(([, a]) => a.proposed).length} proposed with this portal`, tone: 'warn' },
@@ -541,23 +526,13 @@
       ]) + '<div class="ad-gap"></div>' +
       A.tabs('adr', [
         { id: 'roles', label: 'Role catalogue', n: R.length, html: A.card('', roleT, { flush: true }) },
-        { id: 'actions', label: 'Action catalogue', n: ACT.length, html: A.card('', actT + '<p class="tiny faint ad-pad"><span class="ad-tag warn">proposed</span> rows are portal actions not yet in the contracts’ ACTION_CATALOGUE; adding them is part of the M3 change that ships this portal. The “You” column is your answer on the current project.</p>', { flush: true }) },
+        { id: 'actions', label: 'Action catalogue', n: ACT.length, html: A.card('', actT + '<p class="tiny faint ad-pad"><span class="ad-tag warn">proposed</span> rows are portal actions not yet in the contracts’ ACTION_CATALOGUE; adding them is a code change to ACTION_CATALOGUE (a PR and a new policy bundle) before the real portal ships them (coverage §5.6, gap 6). The “You” column is your answer on the current project.</p>', { flush: true }) },
         { id: 'matrix', label: 'Role × action', html: A.card('Which role grants which action', mx, { flush: true }) },
         { id: 'gates', label: 'Gate policy', n: gpRows.length, html: A.card('', gpT, { flush: true }) },
         { id: 'rules', label: 'Rules on top', n: XCUT.length, html: rules },
       ]);
   }
-  function rolesMount(root) {
-    const b = root.querySelector('[data-m3]:not(.locked)'); if (!b) return;
-    b.onclick = () => {
-      const m = A.modal(`<div class="row between"><h2>${A.gate('M3')} Propose a catalogue or permission change</h2><button class="icon-btn" data-close aria-label="Close">${A.icon('close')}</button></div>
-        <div class="field"><label for="ad-m3k">Change</label><select class="input" id="ad-m3k"><option>Add the 6 proposed portal actions to ACTION_CATALOGUE</option><option>Add a role</option><option>Change a role’s view level or data class</option><option>Change a gate policy (slot, two-person, step-up)</option></select></div>
-        <div class="field"><label for="ad-m3w">Why</label><textarea class="input" id="ad-m3w">The portal needs access.manage, identity.admin, ops.read, session.stop, quality.read and assistant.use as catalogue rows so the PDP, not the portal, answers them.</textarea></div>
-        <div class="banner info" style="margin:0">Opens an M3 card. A new policy bundle is generated (roles-1.2.0) and published only after M3 is approved by someone other than you. Running items keep their pinned bundle.</div>
-        <div class="row"><button class="btn primary" id="ad-m3go">Open M3 card</button><button class="btn ghost" data-close>Cancel</button></div>`);
-      m.querySelector('#ad-m3go').onclick = () => { const e = logLedger('gate.opened', 'M3 · catalogue/permission change', m.querySelector('#ad-m3k').value, 'M3-0019'); A.closeOverlay(); A.toast(`M3-0019 opened (ledger #${e.seq}). Bundle 38 is built when it is approved.`); };
-    };
-  }
+  function rolesMount() {}
   A.view('roles', { label: 'Roles & permissions', group: 'Admin', icon: 'catalogue', access: () => null /* readable by everyone signed in: transparency */, render: rolesRender, mount: rolesMount });
 
   /* ================================================================ 5. Access requests */
@@ -578,8 +553,9 @@
         <div class="row between" style="align-items:flex-start"><div class="row" style="gap:10px;flex-wrap:nowrap;min-width:0">${av(r.pid, 'lg')}<div><b>${esc(person(r.pid).name)}</b> asks for <span class="mono">${esc(r.role)}</span><div class="small muted">${esc(r.project ? projName(r.project) : 'the whole factory')} · ${esc(r.at)} · <span class="mono">${r.id}</span></div></div></div>${r.state === 'awaiting M6' ? `<span class="pill warn">${r.m6card} open</span>` : r.m6 ? '<span class="pill warn">needs M6 approver grant</span>' : '<span class="pill info">direct</span>'}</div>
         <div class="fence"><div class="src">reason given</div>${esc(r.why)}</div>
         <div class="ad-facts">${A.kv([['Role', `${role.view_level || ''} · ${role.data_class || ''}${role.approval_capable ? ' · decides ' + gatesOfSlot(role.slot).join(', ') : ''}${role.privileged ? ' · privileged (security key)' : ''}`], ['Holds here', has.length ? j(has, (b) => `<span class="ad-tag">${b.role.replace('project.', '')}</span> `) : '<span class="faint">nothing yet</span>'], guestBlock ? ['Guest rule', '<span class="pill bad">external guests hold project.viewer only</span>'] : null, ['SoD check', conflict ? `<span class="pill warn">${conflict[0]} with ${conflict[1] === r.role ? conflict[2] : conflict[1]}</span>` : '<span class="pill ok">no conflicting pair</span>'], ['Decided by', j(approvers, (a) => who(a)) + '<div class="tiny faint">project admin; a factory admin may also decide</div>']])}</div>
-        ${guestBlock ? `<p class="small muted">${esc(person(r.pid).name)} is an external guest (identity.settings r8). Deny with a reason, or ask an identity admin to convert the account to an employee first.</p>` : ''}
+        ${guestBlock ? `<p class="small muted">${esc(person(r.pid).name)} is an external guest (guest rule: viewer only, at most 90 days). Deny with a reason, or ask an identity admin to convert the account to an employee first.</p>` : ''}
         ${r.state === 'awaiting M6' ? `<p class="small muted">Approved as a request; the binding waits on ${r.m6card}, decided by the admin slot with step-up.</p>` : ''}
+        <div class="field ad-reason"><label for="ad-rqx-${r.id}">Access until <span class="faint">(the binding expires by itself; expiry never approves anything)</span></label><input class="input" type="date" id="ad-rqx-${r.id}" value="${esc(r.until || (meta(r.pid).source === 'guest' ? '2027-02-10' : ''))}"></div>
         <div class="field ad-reason"><label for="ad-rq-${r.id}">Reason for your decision</label><input class="input" id="ad-rq-${r.id}" placeholder="Visible to ${esc(person(r.pid).name.split(' ')[0])} and written to the ledger"></div>
         <div class="row" style="gap:8px">${own ? '<span class="small muted">This is your own request; another admin decides it.</span>' : `${guestBlock && canActOn(r) ? '<button class="btn primary sm" disabled title="Guest rule: viewer only">Approve</button>' : A.act(r.m6 ? 'Approve and open M6' : 'Approve', r.project ? 'access.manage' : 'identity.admin', res, { cls: 'primary sm', attrs: `data-approve="${r.id}"` })}${A.act('Deny', r.project ? 'access.manage' : 'identity.admin', res, { cls: 'sm danger', attrs: `data-deny="${r.id}"` })}`}${!canActOn(r) && !own ? devHint() : ''}</div>
       </div></section>`;
@@ -598,7 +574,8 @@
     root.querySelectorAll('[data-approve]:not(.locked)').forEach((b) => (b.onclick = () => {
       const r = A.ACCESS_REQUESTS.find((x) => x.id === b.dataset.approve); const note = root.querySelector(`#ad-rq-${r.id}`).value;
       if (r.m6 && r.project) { m6Flow({ pid: r.pid, role: r.role, project: r.project, why: r.why, reqId: r.id }); return; }
-      X.BINDINGS.push({ pid: r.pid, role: r.role, scope: r.project ? { kind: 'project', ref: r.project } : { kind: 'fleet', ref: null }, source: `access request ${r.id}`, since: '2026-11-10' });
+      const until = (root.querySelector(`#ad-rqx-${r.id}`) || {}).value;
+      X.BINDINGS.push({ pid: r.pid, role: r.role, scope: r.project ? { kind: 'project', ref: r.project } : { kind: 'fleet', ref: null }, source: `access request ${r.id}`, since: '2026-11-12', ...(until ? { expires: until } : {}) });
       const e = logLedger('access.binding_created', `${r.pid} · ${r.role} · ${r.project ? projName(r.project) : 'fleet'}`, `request ${r.id}${note ? ': ' + note : ''}`);
       Object.assign(r, { state: 'approved', ledger: e.seq, decidedBy: A.me(), note: note || 'approved' }); A.render(); A.toast(`Approved. Ledger #${e.seq} access.binding_created`);
     }));

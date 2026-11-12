@@ -20,6 +20,22 @@ export const me = (fleet: Me['actions']['fleet'] = ['project.onboard']): Me => (
   actions: { fleet, projects: [] },
 });
 
+/** `GET /api/me/access` for alice with no binding. */
+export const emptyAccess = () => ({
+  principal: { principal_id: 'alice', display_name: 'Alice Admin' },
+  roles_version: '1.1.0',
+  bindings: [],
+  fleet: { view_level: null, data_class: null, roles: [], actions: [] },
+  projects: [],
+});
+
+/** `POST /api/me/decisions` that says no to everything (the PDP's default). */
+export const denyAll = (c: { body: unknown }) => ({
+  decisions: (
+    (c.body as { queries?: Array<{ action: string; resource: unknown }> }).queries ?? []
+  ).map((q) => ({ ...q, allow: false, reasons: ['no_policy_permits'] })),
+});
+
 export interface Call {
   readonly method: string;
   readonly path: string;
@@ -33,7 +49,12 @@ type Handler = Answer | ((c: Call) => Answer);
 /** Replaces `fetch` with a table keyed by `METHOD path`; an unknown route is a test failure. */
 export function mockApi(routes: Record<string, Handler>) {
   const calls: Call[] = [];
-  const table = { ...routes };
+  // The shell asks for access hints on some screens; a test that does not care gets "no roles".
+  const table: Record<string, Handler> = {
+    'GET /api/me/access': { json: emptyAccess() },
+    'POST /api/me/decisions': (c: Call) => ({ json: denyAll(c) }),
+    ...routes,
+  };
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string | URL, init: RequestInit = {}) => {

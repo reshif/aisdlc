@@ -1,11 +1,14 @@
 # Portal: what the prototype covers, what is missing, and how the real portal gets there
 
-Status: 2026-11-10. Owner of the plan: PLAN.md M21 (portal lift). This file is the checklist M21 closes.
+Status: 2026-11-12 (steps 1 and 2 of §6 done). Owner of the plan: PLAN.md M21 (portal lift). This file is the checklist M21 closes.
 
 The portal prototype lives in [`portal-prototype/`](portal-prototype/) (plain browser JS, example data, in memory). Build it with
 `node docs/design/portal-prototype/assemble.mjs <out.html>` and open the file; the published copy is the "AISDLC Portal" artifact.
 It is a **design reference**: the real portal is `services/web` (React + Vite, served by the bff), and nothing in the prototype
 calls the bff. Where the prototype and the specs disagree, the specs win; the open points are listed in §5.
+
+Configuration and maintenance (what each setting is, who proposes and decides it, which routes exist, the one propose → M1 → publish
+pattern, the onboarding agent console and the backend gaps) are specified in [`portal-config.md`](portal-config.md).
 
 ## 1. What the prototype is built on
 
@@ -70,8 +73,8 @@ calls the bff. Where the prototype and the specs disagree, the specs win; the op
 
 | What | Missing detail | Lands with |
 |---|---|---|
-| Gate screens G1f, G3d, G3s, G3o, G5, X2, X3, X4, E1, E2, E3, E5, E6, Q1, M2–M6, and M4 as a gate | gate-specific facts: G3d design and threat review, G3s skeleton, G3o oracle deviation, X2 protected-path diff with the patch hash, X3 the new package with licence and advisory facts, E2 the constitution report, E3 the envelope extension, E6 the locked-test change request, Q1 the test-integrity finding, G5 release evidence, M5 autonomy promotion with its eval comparison, M6 approver grant | M14 (Q1, E6, X2, X3, E2), M15 (G5, X4, M2–M6), M17 (G3o) |
-| S7 Verify on the item page | per-check results 7.1–7.6 with mutation score, holdout, stub probe, conformance findings; Evidence Pack viewer (signed, head SHA, verify offline); gate-check run status | M14 |
+| Gate screens G1f, G3d, G3s, G3o, G5, X4, E1, E3, E5, M2–M6, and M4 as a gate | gate-specific facts: G3d design and threat review, G3s skeleton, G3o oracle deviation, E3 the envelope extension, G5 release evidence, M5 autonomy promotion with its eval comparison, M6 approver grant. **Built in M14.6** (`services/web/src/cards/ExceptionGate.tsx`, bff `GET /api/cards/:id/gate/context`): Q1 (decided through SECT: confirmed or false positive), E6, X2 (the patch hash 6.6 pushed), X3 (licence and advisories shown as unknown until a source exists), E2 (the constitution report), each with the subject hash and what it binds, who may decide and why not you, the two-person state, step-up and a reason bound to the ledger. The compose e2e decides Q1, X2, E2 and E6 in the browser on the scripted S7 (`CORE_WORKER_FAKE_VERIFY=exceptions`); X3 is covered by the component and route tests only, because it is raised only at 6.4 and the census testbed routes every item to L8, which never runs 6.4 | M15 (G5, X4, M2–M6), M17 (G3o) |
+| S7 Verify on the item page | **Built in M14.6**: the item page's Verify tab (V2 and above; `services/web/src/items/VerifyTab.tsx`, bff `GET /api/items/:id/verify`) with each check 7.1–7.6, its verdict, findings cut to the data class and the gate it raised; the Evidence Pack viewer (`/items/:id/evidence`: signed, head SHA, the signed bytes re-hashed to their object key, "verify offline" with `aisdlc-verify-pack`: the portal does not check the Notary signature itself); the gate-check runs (`GET /api/items/:id/gate-check`; unreachable or not configured reads unknown, never passing). Still thin: on the compose stack S7 runs over the fakes, so the checks have no findings or pack there | M14 (done), the real kits on compose with M14.3's verify service |
 | S8 and S9 | merge reconciliation (B15a clean rebase → S7, B15b conflict → S6), release and DeployMarker, RELHOLD, rollback B16 as a linked item, close-out record 9.3 | M15 |
 | Lifecycle states | explain screens for re-laning R1–R4, the R3 breaker, PARK and BLOCKED, the rework budget, MM-2 | M15 (before M21) |
 | Onboarding cards 2 and 3 | card 2 (Light: claims ≤50 with evidence, practices, instruction text with step-up, never affirmed in the proposing session) opens only as decided; card 3 (Full) absent | M16, M17 |
@@ -117,15 +120,19 @@ The prototype shows today's spec or contract behaviour for each of these. The re
 
 Each milestone from M14 on builds the screens for what it adds, using the prototype as the reference. M21 then closes what remains. The work in order:
 
-1. **Foundation.**
-   - Move the prototype's tokens and components into `services/web` as a small component library: page head, card, stats, table, pills, chips, gate tags, actor glyphs, tabs, timeline, steps, drawer, modal, toast, locked button.
-   - The vocabulary comes from `packages/contracts`, never re-listed.
-2. **Access from the server.**
-   - A bff route `GET /api/me/access` returns the person's bindings, view levels and data classes per project, and a batch of PDP decisions for the actions the current screen shows (from `access.explain`).
-   - `A.act` becomes a `<Guarded action resource>` component.
-   - Every write is still decided by the PDP on the server. The client hint only hides or locks buttons, and never grants.
+1. **Foundation.** Done (2026-11-12, branch `feat/portal-foundation`).
+   - `services/web/src/ui`: the prototype's tokens as CSS custom properties (`tokens.css`, dark theme; a light theme is one more block) and the components: PageHead, Card, Stat/Stats, KeyValue, Table, Pill, Chip, GateTag, ActorGlyph, Tabs, Timeline, Steps, Drawer, Modal, Toast, LockedButton, EmptyState, ErrorState (403 with the reason; one 404 for invisible and missing).
+   - Gates, lanes, steps and actors come from `packages/contracts` (a `Record<Value, look>` per vocabulary, so a new value fails the build until it has a look).
+   - The shell (`src/shell`): top bar, navigation grouped Work, Decide, Projects, Operate, Quality, Govern, Admin (an entry the person cannot open is not listed; a group with nothing to open is not shown), My access, sign-out. Every existing screen (projects, project, onboarding, S0, cards, gate cards, items, inbox, settings revision, readiness, ledger) runs in it; Badge is a library Pill and page loads use ErrorState.
+   - The configuration pattern (`src/config/ConfigConsole`): for any key registered in core's config registry, the effective value with its revision, M1 gate and ledger entry; a draft form generated from the key's JSON Schema; the diff; Propose (an ordinary revision with its M1 gate, `config.propose`); the open proposals with who decides; the history. Secret references are shown and edited as references. Govern > Configuration lists the keys. Proven on `sandbox.caps` and `sandbox.exec_allowed_repos`.
+2. **Access from the server.** Done (same branch).
+   - `GET /api/me/access`: the person's bindings (in force or not, with the reason), and per project the highest view level and data class of the roles in force there and what the PDP allows on the project. Only projects the person holds a binding on are listed.
+   - `POST /api/me/decisions`: up to 50 `{action, resource}` pairs decided by the real PDP as capability probes (not logged). A pair on a project the person cannot view answers `not_visible`, exactly like a project that does not exist.
+   - `AccessProvider`, `useCan(action, resource)` (batched per render) and `<Guarded action resource>` (hide, or a LockedButton with the PDP's reason and "Request access" to My access, which names the roles that would grant it). A pending, failed or mismatched answer is a deny.
+   - Every write is still decided by the PDP on the server; a bff test shows a write the hint called allowed refused once the PDP says no.
+   - Still open: the per-project matrix asks only project-level actions (gate, item and card actions need a resource the screen has); access requests have no API yet (My access says whom to ask); bootstrap grants (`liveBootstrap`) are not listed as bindings; the portal cannot decide a factory-layer M1 yet (no slot covers a fleet change, §5 item 5), so the console shows who holds the factory admin slot and the gate id.
 3. **Sign-in.** OIDC with the real IdP (the dev IdP in local-prod), the session policy from config, step-up as today (`SignedStepUp`), sign-out, ending sessions.
-4. **Screens, ported in this order:**
+4. **Screens, ported in this order** (the shell is done with step 1; each screen below is still to port onto the library):
    1. home and inbox;
    2. the item page and the gate screens (all gates, §3);
    3. the floor: live through the M19 read models, routes generated from the catalogue, so DM gap 12 never appears;

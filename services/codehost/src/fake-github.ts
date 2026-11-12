@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ServiceConfigError, requiredEnv, runService } from '@aisdlc/service-kit';
 import { FakeGitHubServer } from './fake-github-server.js';
+import { GATE_CHECK_APP_PERMISSIONS } from '@aisdlc/contracts';
 import { buildTestbed, testbedSeed } from './fake-github-testbed.js';
 import { GitHttpTestServer } from './git-server-testing.js';
 
@@ -19,6 +20,11 @@ import { GitHttpTestServer } from './git-server-testing.js';
 //   is where the codehost accepts a plain-http GitHub (it carries credentials), so this container
 //   shares the codehost's network namespace
 //   FAKE_GITHUB_DIR                   where the bare repository is built (default a temp dir)
+//   FAKE_GITHUB_CHECKS_APP_ID, FAKE_GITHUB_CHECKS_INSTALLATION_ID, FAKE_GITHUB_CHECKS_APP_PUBLIC_KEY_FILE
+//                                     (M14.5, optional) gate-check's own App on the same host: its key, its
+//                                     installation, its grant (`checks: write`, pull requests read)
+//   FAKE_GITHUB_GATE_CHECK_PORT       (M14.5, optional) a second API listener on 0.0.0.0 for gate-check, which runs
+//                                     in its own container and reaches this one on the `gatecheck-github` network
 //
 // Each request is one stdout line: `fake-github api {"method":"GET","path":...}` or `fake-github git ...`.
 
@@ -50,12 +56,48 @@ await runService('fake-github', async () => {
   const gitPort = port('FAKE_GITHUB_GIT_PORT', 8354);
   const root = env['FAKE_GITHUB_DIR'] || mkdtempSync(join(tmpdir(), 'aisdlc-fake-github-'));
   const head = buildTestbed(root, repo);
+  const checksId = env['FAKE_GITHUB_CHECKS_APP_ID'];
+  let checksApp:
+    | {
+        appId: string;
+        appPublicKeyPem: string;
+        installationId: number;
+        permissions: Record<string, string>;
+      }
+    | undefined;
+  if (checksId) {
+    const inst = Number(requiredEnv(env, 'FAKE_GITHUB_CHECKS_INSTALLATION_ID'));
+    if (!Number.isInteger(inst) || inst < 1 || inst === installationId) {
+      throw new ServiceConfigError(
+        'FAKE_GITHUB_CHECKS_INSTALLATION_ID must be a positive integer other than the main installation',
+      );
+    }
+    let pem: string;
+    try {
+      pem = readFileSync(requiredEnv(env, 'FAKE_GITHUB_CHECKS_APP_PUBLIC_KEY_FILE'), 'utf8');
+    } catch (cause) {
+      throw new ServiceConfigError('FAKE_GITHUB_CHECKS_APP_PUBLIC_KEY_FILE is not readable', {
+        cause,
+      });
+    }
+    checksApp = {
+      appId: checksId,
+      appPublicKeyPem: pem,
+      installationId: inst,
+      permissions: { ...GATE_CHECK_APP_PERMISSIONS },
+    };
+  }
+  const gcPort = env['FAKE_GITHUB_GATE_CHECK_PORT'];
   const api = await new FakeGitHubServer({
     appId: requiredEnv(env, 'FAKE_GITHUB_APP_ID'),
     appPublicKeyPem: publicKeyPem,
     seed: testbedSeed({ repo, head, installationId }),
     listenHost: '127.0.0.1',
     listenPort: apiPort,
+    ...(checksApp ? { checksApp } : {}),
+    ...(gcPort
+      ? { extraListen: { host: '0.0.0.0', port: port('FAKE_GITHUB_GATE_CHECK_PORT', 8355) } }
+      : {}),
     onRequest: (r) => console.log(`fake-github api ${JSON.stringify(r)}`),
   }).start();
   // The git server accepts exactly the installation tokens the REST side issued (Basic

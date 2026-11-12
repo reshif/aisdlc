@@ -8,6 +8,10 @@ import {
   GateCardDecideRequest,
   GateCardEvidenceRequest,
   GateCardView,
+  ConfigKeySummary,
+  ConfigKeyView,
+  ConfigProposeRequest,
+  ConfigProposeResult,
   CoreInboxItem,
   EvalRunsView,
   EvalSummaryView,
@@ -21,11 +25,18 @@ import {
   ItemAnswerRequest,
   ItemObserveRequest,
   ItemPlanRequest,
+  ItemHumanDoneRequest,
   ItemPlanResult,
   ItemReadyRequest,
   ItemView,
   PortalItemView,
   ProjectSummary,
+  EvidencePackView,
+  GateCardContext,
+  GateCheckRunsView,
+  ItemVerifyView,
+  cutGateContext,
+  cutVerifyView,
   RevisionDecideRequest,
   RevisionEvidenceRequest,
   S0Overview,
@@ -40,10 +51,12 @@ import {
   type PortalCardSummary,
 } from '@aisdlc/contracts';
 import type { Pdp } from '@aisdlc/pdp';
+import { canonicalJson, sha256Hex } from '@aisdlc/kernel';
 import { sendError, type CallResult } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CoreClient } from './core-client.js';
+import type { Levels } from './levels.js';
 
 // The portal's API (PLAN M8.1): the only thing the browser calls besides the sign-in routes. Each
 // route asks the PDP in this process for the signed-in principal (fail closed: no answer, an error
@@ -65,6 +78,12 @@ import type { CoreClient } from './core-client.js';
 //   POST /api/items/:id/answers           the answer to one S1 clarification question  (item.ready)
 //   POST /api/items/:id/observe           B4 or R2 while G3d is open                   (item.observe)
 //   POST /api/items/:id/plan              B5: the plan a person writes                 (item.plan)
+//   GET  /api/items/:id/verify[?head=]    S7: the checks 7.1-7.5 of a Unit head      (project.view, V2; cut to the data class)
+//   GET  /api/items/:id/evidence[?pack=]  the signed Evidence Pack(s) of 7.6          (project.view, V2)
+//   GET  /api/items/:id/evidence/:pack/signed  the signed bytes, for aisdlc-verify-pack (project.view, V2)
+//   GET  /api/items/:id/gate-check        gate-check's verdicts on the item's PRs     (item.view_floor, V2; unknown
+//                                         when gate-check is not configured or does not answer, never success)
+//   GET  /api/cards/:id/gate/context      what an exception or quarantine gate binds (project.view, V2; cut)
 //   GET  /api/agent-runs?item=            the agent runs of an item and their outcomes (project.view)
 //   GET  /api/agents/:id/stats            acceptance, back-edge rate, cost per run     (audit.read)
 //   GET  /api/agents/:id/scores           AgentScore per prompt, provider and model    (audit.read)
@@ -84,6 +103,10 @@ import type { CoreClient } from './core-client.js';
 //   POST /api/revisions/:gate/prepare|evidence|decide|publish                         (gate.decide on the M1 gate)
 //   GET  /api/projects/:id/prr            the project's readiness records             (project.view)
 //   GET  /api/projects/:id/ledger         the ledger entries of the project           (audit.read)
+//   GET  /api/config/keys                 the registered config keys, with may_propose (audit.read or
+//                                         config.propose on the fleet)
+//   GET  /api/config/keys/:key            one key: effective value and lineage, pending, history (same)
+//   POST /api/config/keys/:key/proposals  propose a value: a revision with its M1 gate   (config.propose)
 //
 // `may_decide` is the PDP's yes AND the person holding the slot core says decides (a card 5 also
 // needs the `m4` slot): the button is shown only when both hold; deciding asks core again.
@@ -96,6 +119,13 @@ export interface PortalDeps {
   readonly principalOf: (req: FastifyRequest) => string;
   /** Display names of principals, from the directory; an unknown principal is left out. */
   readonly namesOf?: (ids: readonly string[]) => Promise<Record<string, string>>;
+  /**
+   * The view level and data class the person reaches on a project (`levels.ts`); `null` or a throw: none (V1/D0
+   * is never assumed above what the roles give). The S7 reads (M14.6) need V2 and are cut to the data class.
+   */
+  readonly levelsOf?: (principal: string, project: string) => Promise<Levels | null>;
+  /** gate-check's read API (`GET /v1/verdicts`), scope `read`; without it the gate-check status reads `unknown`. */
+  readonly gateCheck?: CoreClient;
 }
 
 const uuid = z.uuid();
@@ -117,6 +147,8 @@ export const PortalObserveBody = z.discriminatedUnion('edge', [
   ItemObserveRequest.options[1].omit({ on_behalf_of: true }),
 ]);
 export const PortalPlanBody = ItemPlanRequest.omit({ on_behalf_of: true });
+export const PortalHumanDoneBody = ItemHumanDoneRequest.omit({ on_behalf_of: true });
+export const PortalConfigProposeBody = ConfigProposeRequest.omit({ on_behalf_of: true });
 const EmptyBody = z.strictObject({});
 
 export function registerPortalRoutes(d: PortalDeps): void {
@@ -131,6 +163,16 @@ export function registerPortalRoutes(d: PortalDeps): void {
       return (await d.pdp.decide({ principal, action, resource })).decision === 'allow';
     } catch {
       return false;
+    }
+  }
+
+  /** The PDP's answer with its reasons (a throw is a deny with `evaluator_error`). */
+  async function decideWithReasons(principal: string, action: ActionId, resource: PdpResource) {
+    try {
+      const out = await d.pdp.decide({ principal, action, resource });
+      return { allow: out.decision === 'allow', reasons: [...out.reasons] };
+    } catch {
+      return { allow: false, reasons: ['evaluator_error'] };
     }
   }
 
@@ -299,7 +341,7 @@ export function registerPortalRoutes(d: PortalDeps): void {
     req: FastifyRequest,
     reply: FastifyReply,
     schema: S,
-    verb: 'ready' | 'answers' | 'observe' | 'plan',
+    verb: 'ready' | 'answers' | 'observe' | 'plan' | 'human-done',
     action: ActionId,
   ) {
     const c = core(reply);
@@ -331,6 +373,272 @@ export function registerPortalRoutes(d: PortalDeps): void {
   app.post('/api/items/:id/plan', (req, reply) =>
     itemMove(req, reply, PortalPlanBody, 'plan', 'item.plan'),
   );
+  // M14.6: D5, the human-led work of an L8 item is done (no portal button yet: the compose e2e calls it)
+  app.post('/api/items/:id/human-done', (req, reply) =>
+    itemMove(req, reply, PortalHumanDoneBody, 'human-done', 'item.human_done'),
+  );
+
+  // ------------------------------------------------------------ configuration console
+
+  /** Reading the factory's configuration: an auditor or anyone who may propose a change. */
+  async function configReader(req: FastifyRequest, reply: FastifyReply) {
+    const c = core(reply);
+    if (!c) return null;
+    const who = d.principalOf(req);
+    const propose = await allowed(who, 'config.propose', pdpResource.fleet());
+    if (!propose && !(await allowed(who, 'audit.read', pdpResource.fleet()))) {
+      deny(reply, 'audit.read');
+      return null;
+    }
+    return { c, who, propose };
+  }
+  const configKey = (req: FastifyRequest, reply: FastifyReply): string | null => {
+    const k = (req.params as { key?: string }).key;
+    if (typeof k === 'string' && /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(k)) return k;
+    sendError(reply, 400, 'invalid_input', 'bad config key');
+    return null;
+  };
+
+  app.get('/api/config/keys', async (req, reply) => {
+    const r = await configReader(req, reply);
+    if (!r) return;
+    const got = upstream(reply, await r.c.call('GET', '/v1/config/keys'), (v) =>
+      z.array(ConfigKeySummary).parse(v),
+    );
+    return got ? { keys: got.value, may_propose: r.propose } : undefined;
+  });
+
+  app.get('/api/config/keys/:key', async (req, reply) => {
+    const r = await configReader(req, reply);
+    const key = r ? configKey(req, reply) : null;
+    if (!r || !key) return;
+    const got = upstream(reply, await r.c.call('GET', `/v1/config/keys/${key}`), (v) =>
+      ConfigKeyView.parse(v),
+    );
+    if (!got) return;
+    const ids = new Set<string>();
+    for (const h of got.value.history) ids.add(h.proposed_by);
+    for (const p of got.value.pending) for (const h of p.deciders.holders) ids.add(h);
+    return { ...got.value, may_propose: r.propose, principal_names: await names([...ids]) };
+  });
+
+  app.post('/api/config/keys/:key/proposals', async (req, reply) => {
+    const c = core(reply);
+    const key = c ? configKey(req, reply) : null;
+    if (!c || !key) return;
+    const body = PortalConfigProposeBody.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    const who = d.principalOf(req);
+    if (!(await allowed(who, 'config.propose', pdpResource.fleet()))) {
+      return deny(reply, 'config.propose');
+    }
+    const r = await c.call('POST', `/v1/config/keys/${key}/proposals`, {
+      ...body.data,
+      on_behalf_of: who,
+    });
+    const got = upstream(reply, r, (v) => ConfigProposeResult.parse(v));
+    if (!got) return;
+    return reply.code(201).send(got.value);
+  });
+
+  // ------------------------------------------------------------ S7 Verify and the Evidence Pack (M14.6)
+  //
+  // Content of the work: the PDP's `project.view` (core asks it too) AND view level V2 on the project, and the answer
+  // cut to the person's data class (finding text needs D1, tripwire evidence and secret findings D2). A level that
+  // cannot be read is no level: the read is refused.
+
+  /** The person's levels on the project, or the refusal sent (403 below V2). */
+  async function contentLevels(req: FastifyRequest, reply: FastifyReply, project: string) {
+    let lv: Levels | null;
+    try {
+      lv = (await d.levelsOf?.(d.principalOf(req), project)) ?? null;
+    } catch {
+      lv = null;
+    }
+    if (lv === null || lv.view_level === 'V1') {
+      sendError(
+        reply,
+        403,
+        'view_level',
+        'the S7 results and the Evidence Pack are content of the work: they need view level V2 on the project',
+      );
+      return null;
+    }
+    return lv;
+  }
+
+  /** `project.view` here as well as in core, on the project core's answer names. */
+  async function projectViewable(req: FastifyRequest, reply: FastifyReply, project: string) {
+    if (!(await allowed(d.principalOf(req), 'project.view', pdpResource.project(project)))) {
+      deny(reply, 'project.view');
+      return false;
+    }
+    return true;
+  }
+
+  const onBehalf = (req: FastifyRequest, extra: Record<string, string> = {}) =>
+    new URLSearchParams({ ...extra, on_behalf_of: d.principalOf(req) }).toString();
+
+  app.get('/api/items/:id/verify', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const q = z
+      .strictObject({
+        head: z
+          .string()
+          .regex(/^[0-9a-f]{40}$/)
+          .optional(),
+      })
+      .safeParse(req.query ?? {});
+    if (!q.success) return sendError(reply, 400, 'invalid_input', 'head is a commit sha');
+    const got = upstream(
+      reply,
+      await c.call(
+        'GET',
+        `/v1/items/${id}/verify?${onBehalf(req, q.data.head ? { head: q.data.head } : {})}`,
+      ),
+      (v) => ItemVerifyView.parse(v),
+    );
+    if (!got || !(await projectViewable(req, reply, got.value.project_id))) return;
+    const lv = await contentLevels(req, reply, got.value.project_id);
+    if (!lv) return;
+    return cutVerifyView(got.value, lv.data_class);
+  });
+
+  app.get('/api/items/:id/evidence', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const q = z
+      .strictObject({
+        pack: z
+          .string()
+          .regex(/^[0-9a-f]{64}$/)
+          .optional(),
+      })
+      .safeParse(req.query ?? {});
+    if (!q.success) return sendError(reply, 400, 'invalid_input', 'pack is a sha256');
+    const got = upstream(
+      reply,
+      await c.call(
+        'GET',
+        `/v1/items/${id}/evidence?${onBehalf(req, q.data.pack ? { pack: q.data.pack } : {})}`,
+      ),
+      (v) => EvidencePackView.parse(v),
+    );
+    if (!got || !(await projectViewable(req, reply, got.value.project_id))) return;
+    if (!(await contentLevels(req, reply, got.value.project_id))) return;
+    return got.value;
+  });
+
+  /**
+   * The signed bytes for offline checking. Core answers them as canonical JSON; they are written out again in
+   * canonical form here and must hash to the recorded object key, or nothing is sent.
+   */
+  app.get('/api/items/:id/evidence/:pack/signed', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const pack = (req.params as { pack?: string }).pack ?? '';
+    if (!/^[0-9a-f]{64}$/.test(pack)) return sendError(reply, 400, 'invalid_input', 'bad pack');
+    const view = upstream(
+      reply,
+      await c.call('GET', `/v1/items/${id}/evidence?${onBehalf(req, { pack })}`),
+      (v) => EvidencePackView.parse(v),
+    );
+    if (!view || !(await projectViewable(req, reply, view.value.project_id))) return;
+    if (!(await contentLevels(req, reply, view.value.project_id))) return;
+    const objectKey = view.value.pack?.object_key;
+    const got = upstream(
+      reply,
+      await c.call('GET', `/v1/items/${id}/evidence/${pack}/signed?${onBehalf(req)}`),
+    );
+    if (!got) return;
+    let bytes: Buffer;
+    try {
+      bytes = Buffer.from(canonicalJson(got.value as never), 'utf8');
+    } catch {
+      return sendError(reply, 502, 'core_error', 'the signed pack is not canonical JSON');
+    }
+    if (objectKey === undefined || sha256Hex(bytes) !== objectKey) {
+      return sendError(reply, 502, 'core_error', 'the signed pack does not hash to its object key');
+    }
+    return reply
+      .type('application/json')
+      .header('content-disposition', `attachment; filename="${objectKey}.json"`)
+      .send(bytes);
+  });
+
+  /** gate-check's verdicts on the item's PRs. Not configured, not reached, or an odd answer: `unknown`. */
+  app.get('/api/items/:id/gate-check', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const it = await itemOf(req, reply, c, id);
+    if (!it) return;
+    if (!(await contentLevels(req, reply, it.view.project_id))) return;
+    const unknown = GateCheckRunsView.parse({ item_id: id, status: 'unknown', verdicts: [] });
+    if (!d.gateCheck) return unknown;
+    const r = await d.gateCheck.call('GET', `/v1/verdicts?item=${id}`);
+    if (!r.reached || r.status !== 200) return unknown;
+    const rows = z
+      .strictObject({
+        verdicts: z.array(
+          z.looseObject({
+            seq: z.number(),
+            verdict: z.looseObject({}),
+            verdict_sha256: z.string(),
+            check_run_id: z.union([z.number(), z.string()]).nullable(),
+            recorded_at: z.string(),
+          }),
+        ),
+      })
+      .safeParse(r.json);
+    if (!rows.success) return unknown;
+    try {
+      return GateCheckRunsView.parse({
+        item_id: id,
+        status: 'ok',
+        verdicts: rows.data.verdicts.map((x) => {
+          const v = x.verdict as Record<string, unknown>;
+          return {
+            seq: x.seq,
+            recorded_at: new Date(x.recorded_at).toISOString(),
+            check_run_id: x.check_run_id === null ? null : Number(x.check_run_id),
+            verdict_sha256: x.verdict_sha256,
+            repo: v['repo'],
+            pr_number: v['pr_number'],
+            head_sha: v['head_sha'],
+            outcome: v['outcome'],
+            reason: v['reason'],
+            detail: v['detail'],
+            pack_sha256: v['pack_sha256'] ?? null,
+          };
+        }),
+      });
+    } catch {
+      return unknown;
+    }
+  });
+
+  /** What an exception or quarantine gate binds and decides, cut to the person's data class. */
+  app.get('/api/cards/:id/gate/context', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const got = upstream(reply, await c.call('GET', `/v1/cards/${id}/gate/context`), (v) =>
+      GateCardContext.parse(v),
+    );
+    if (!got || !(await projectViewable(req, reply, got.value.project_id))) return;
+    const lv = await contentLevels(req, reply, got.value.project_id);
+    if (!lv) return;
+    const ctx = cutGateContext(got.value, lv.data_class);
+    const ids = [
+      ...new Set([...ctx.decisions.map((x) => x.actor), ...(ctx.requester ? [ctx.requester] : [])]),
+    ];
+    return { ...ctx, principal_names: await names(ids) };
+  });
 
   // ------------------------------------------------------------ agent runs (M11.2)
 
@@ -562,20 +870,23 @@ export function registerPortalRoutes(d: PortalDeps): void {
     if (!(await allowed(who, 'project.view', pdpResource.project(got.value.project_id)))) {
       return deny(reply, 'project.view');
     }
-    const pdpYes = await allowed(
+    const pdpYes = await decideWithReasons(
       who,
       'card.decide',
       pdpResource.card(got.value.project_id, got.value.card_id),
     );
     const open = got.value.status === 'open' && got.value.gates.some((g) => g.status === 'pending');
+    const holder = (got.value.deciders.holders as readonly string[]).includes(who);
+    // Why not this person, in the PDP's words first: the hint the page shows (the kernel decides again on decide).
+    let why_not: { code: string; reasons: string[] } | null = null;
+    if (!open) why_not = { code: 'not_open', reasons: [] };
+    else if (!pdpYes.allow) why_not = { code: 'pdp_denied', reasons: pdpYes.reasons };
+    else if (!holder) why_not = { code: 'not_slot_holder', reasons: [] };
     return {
       ...got.value,
-      // never for a gate that needs a step-up: the portal does not decide those here
-      may_decide:
-        pdpYes &&
-        open &&
-        (got.value.deciders.holders as readonly string[]).includes(who) &&
-        got.value.gates.every((g) => !g.step_up_required),
+      // a gate that needs a step-up is decided with a proof bound to its hash (the page asks for it first)
+      may_decide: why_not === null,
+      why_not,
       principal_names: await names([...new Set([...got.value.deciders.holders, who])]),
     };
   });

@@ -253,3 +253,168 @@ export type SandboxExecAllowedRepos = z.infer<typeof SandboxExecAllowedRepos>;
 export const EXEC_NOT_ALLOWED = 'exec_not_allowed';
 /** Classes that run repo code, or whose session carries a repo's text into a model (B1 blocks them while a secret finding is open; K is exempt, fix #5). */
 export const B1_BLOCKED_CLASSES: readonly SandboxClass[] = ['P', 'W', 'O', 'V', 'K-exec'];
+
+// ---- the sandbox-controller (PLAN M14.2; ADR-0003 §6, §7): placement, the caps, and its HTTP vocabulary
+
+/** Why a session was refused or failed before it ran (the `SandboxPort`'s error codes, and the controller's on the wire). */
+export const SandboxErrorCode = z.enum([
+  'invalid_spec',
+  'exec_not_allowed',
+  /** B1: an open secret finding for the repo blocks P, W, O, V and K-exec sessions (K is exempt). */
+  'b1_blocked',
+  /** Over a cap: nothing was started, nothing was queued (admission queues, the sandbox refuses). */
+  'busy',
+  'unavailable',
+  'refused',
+  'driver_failure',
+]);
+export type SandboxErrorCode = z.infer<typeof SandboxErrorCode>;
+
+/** How a session ended. Everything but `exited` is a void run (no evidence). */
+export const SandboxRunStatus = z.enum([
+  /** The command ran to its own end (any exit code). */
+  'exited',
+  /** The time limit passed; the container was killed. */
+  'timed_out',
+  /** The kernel killed the session for memory. */
+  'oom_killed',
+  /** `/out` held more than the cap, or the log stream did. */
+  'out_oversized',
+  /** Anything else the driver could not account for (no exit marker, killed from outside). */
+  'killed',
+]);
+export type SandboxRunStatus = z.infer<typeof SandboxRunStatus>;
+
+/**
+ * The admission grant core recorded for the session (6.0: `unit.admitted`). The controller starts nothing without
+ * one, and only while the grant is active at exactly this lease epoch.
+ */
+export const SandboxGrantRef = z.strictObject({
+  grant_id: z.string().min(1).max(256),
+  item_id: z.string().min(1).max(128),
+  unit_id: z.string().min(1).max(256),
+  lease_epoch: z.number().int().positive(),
+});
+export type SandboxGrantRef = z.infer<typeof SandboxGrantRef>;
+
+/**
+ * The two caps of a runner host (ADR-0003 §7): a total across every class, and the coding cap (`CODING_CLASSES`,
+ * class W). Sessions over a cap wait in core's queue; the controller refuses them (`busy`) and never queues.
+ */
+export const SandboxCaps = z
+  .strictObject({
+    total: z.number().int().min(1).max(32),
+    coding: z.number().int().min(0).max(8),
+  })
+  .refine((c) => c.coding <= c.total, { message: 'the coding cap cannot be above the total' });
+export type SandboxCaps = z.infer<typeof SandboxCaps>;
+
+/** The defaults, and the fail-closed fallback when the published caps cannot be read (never higher). */
+export const DEFAULT_SANDBOX_CAPS: SandboxCaps = { total: 4, coding: CODING_SESSION_CAP };
+
+/** A runner host's name as the controller is told it (`SANDBOX_CONTROLLER_HOST_ID`). */
+export const RunnerHostId = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/);
+export type RunnerHostId = z.infer<typeof RunnerHostId>;
+
+/**
+ * The config key (factory layer only, M1-gated) of the caps: `total` and `coding` for every runner host, and
+ * `hosts` for a host that differs. Factory admin sets it (ADR-0003 §6 "People set the limits").
+ */
+export const SANDBOX_CAPS_KEY = 'sandbox.caps';
+export const SandboxCapsConfig = z
+  .strictObject({
+    total: z.number().int().min(1).max(32),
+    coding: z.number().int().min(0).max(8),
+    hosts: z.record(RunnerHostId, SandboxCaps).optional(),
+  })
+  .refine((c) => c.coding <= c.total, { message: 'the coding cap cannot be above the total' });
+export type SandboxCapsConfig = z.infer<typeof SandboxCapsConfig>;
+
+/** The caps of one host from the config value: its own row, else the fleet's; anything unreadable is the defaults. */
+export function sandboxCapsFor(value: unknown, host: string): SandboxCaps {
+  const p = SandboxCapsConfig.safeParse(value);
+  if (!p.success) return DEFAULT_SANDBOX_CAPS;
+  const own = p.data.hosts?.[host];
+  return own ?? { total: p.data.total, coding: p.data.coding };
+}
+
+/** One file of a repository copy on the wire: text stays text, bytes go as base64 (the type is kept). */
+export const SandboxRepoFileWire = z.strictObject({
+  path: z.string().min(1).max(1024),
+  encoding: z.enum(['utf8', 'base64']),
+  data: z.string(),
+  executable: z.boolean().optional(),
+});
+export type SandboxRepoFileWire = z.infer<typeof SandboxRepoFileWire>;
+
+export const SandboxSpecWire = z.strictObject({
+  repo_full_name: z.string().min(1).max(256).optional(),
+  session_id: z.string().min(1).max(64),
+  class: SandboxClass,
+  command: z.array(z.string()).min(1).max(64),
+  repo: z.array(SandboxRepoFileWire).max(50_000),
+  env: z.record(z.string(), z.string()).optional(),
+  gateway_key: z.string().min(1).max(512).optional(),
+  limits: SandboxLimits.partial().optional(),
+});
+export type SandboxSpecWire = z.infer<typeof SandboxSpecWire>;
+
+/** `POST /v1/sessions`: the spec and the grant core recorded for it. */
+export const SandboxSessionRequest = z.strictObject({
+  grant: SandboxGrantRef,
+  spec: SandboxSpecWire,
+});
+export type SandboxSessionRequest = z.infer<typeof SandboxSessionRequest>;
+
+export const SandboxOutFileWire = z.strictObject({
+  path: z.string().min(1).max(1024),
+  size: z.number().int().min(0),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  content_b64: z.string(),
+});
+
+/** What `POST /v1/sessions` answers when the session ran (to any end): the `SandboxRun`, `/out` as base64. */
+export const SandboxRunWire = z.strictObject({
+  session_id: z.string(),
+  class: SandboxClass,
+  status: SandboxRunStatus,
+  exit_code: z.number().int().nullable(),
+  stdout: z.string(),
+  stderr: z.string(),
+  logs_truncated: z.boolean(),
+  out: z.array(SandboxOutFileWire),
+  out_scan: z.strictObject({
+    clean: z.boolean(),
+    canary: z.boolean(),
+    findings: z.array(
+      z.strictObject({ path: z.string(), rule_id: z.string(), line: z.number().int() }),
+    ),
+  }),
+  quarantined: z.boolean(),
+  duration_ms: z.number().min(0),
+  detail: z.string().nullable(),
+  cleanup_errors: z.array(z.string()),
+  limits: SandboxLimits,
+  peers: z.array(z.string()),
+});
+export type SandboxRunWire = z.infer<typeof SandboxRunWire>;
+
+/** `GET /v1/slots`: what admission's H2 reads. `free` per class is under BOTH caps. */
+export const SandboxSlots = z.strictObject({
+  host_id: RunnerHostId,
+  caps: SandboxCaps,
+  /** `default`: the published caps could not be read (or none are published): the defaults apply. */
+  caps_source: z.enum(['config', 'default']),
+  used_total: z.number().int().min(0),
+  used: z.record(SandboxClass, z.number().int().min(0)),
+  free: z.record(SandboxClass, z.number().int().min(0)),
+  sessions: z.array(
+    z.strictObject({
+      session_id: z.string(),
+      class: SandboxClass,
+      grant_id: z.string(),
+      started_at: z.string(),
+    }),
+  ),
+});
+export type SandboxSlots = z.infer<typeof SandboxSlots>;

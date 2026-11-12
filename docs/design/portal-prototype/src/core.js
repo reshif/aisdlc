@@ -136,10 +136,10 @@
     I('W-25', 'L5', 'S4', '4.4', 'working', 'Payout batching for marketplaces', { size: 'L', risk: 'high', requester: 'pm', age: '5d', spend: [880, 8000] }),
     I('W-23', 'L4', 'S5', '5.3', 'working', 'Retry policy for card network timeouts', { age: '3d', spend: [512, 4000], units: [0, 3] }),
     I('W-27', 'L4', 'S5', '5.8', 'waiting', 'Saved payment methods: list and delete', { gate: 'G3', wait: ['ar'], age: '4d', spend: [640, 4000], units: [0, 4] }),
-    I('W-22', 'L3', 'S6', '6.0', 'scheduled', 'Paginate GET /payments with cursors', { type: 'change', size: 'S', risk: 'low', age: '1d', spend: [190, 1500], units: [0, 2], waitWhat: 'a coding pod (3 of 3 busy)' }),
+    I('W-22', 'L3', 'S6', '6.0', 'scheduled', 'Paginate GET /payments with cursors', { type: 'change', size: 'S', risk: 'low', age: '1d', spend: [190, 1500], units: [0, 2], waitWhat: 'the coding slot (1 of 1 busy; second in line)' }),
     I('W-31', 'L4', 'S6', '6.4', 'working', 'Strong customer authentication exemptions', { pod: 1, age: '6d', spend: [1840, 4000], units: [1, 3], backEdges: [{ id: 'X1', note: 'X1 approved: re-admit and reload saved work', at: '2h ago' }] }),
-    I('W-21', 'L2', 'S6', '6.5', 'working', 'Upgrade pg driver (CVE-2026-1183)', { pod: 2, type: 'remediation', size: 'S', requester: 'ks', age: '1d', spend: [260, 1500], units: [1, 1] }),
-    I('W-38', 'L7', 'S6', '6.4', 'working', 'Spike: can we drop the legacy FX cache?', { pod: 3, type: 'spike', size: 'S', risk: 'low', age: '7h', spend: [140, 1000], units: [0, 1] }),
+    I('W-21', 'L2', 'S6', '6.5', 'working', 'Upgrade pg driver (CVE-2026-1183)', { type: 'remediation', size: 'S', requester: 'ks', age: '1d', spend: [260, 1500], units: [1, 1] }),
+    I('W-38', 'L7', 'S6', '6.0', 'scheduled', 'Spike: can we drop the legacy FX cache?', { waitWhat: 'the coding slot (1 of 1 busy; first in line)', type: 'spike', size: 'S', risk: 'low', age: '7h', spend: [140, 1000], units: [0, 1] }),
     I('W-29', 'L4', 'S6', '6.4', 'held', 'Backfill merchant_category on old charges', { gate: 'X1', wait: ['jm'], waitWhat: 'X1 irreversible migration: waiting on a person, pod released', age: '3d', spend: [1210, 4000], units: [1, 2] }),
     I('W-19', 'L2', 'S6', '6.4', 'quarantined', 'Tighten CORS on the admin endpoints', { gate: 'SECT', wait: ['ks'], waitWhat: 'ET10: the session read ~/.aws/credentials (tripwire)', type: 'remediation', age: '2d', spend: [330, 1500] }),
     I('W-18', 'L4', 'S6', '6.4', 'handoff', 'Chargeback fee reporting', { gate: 'E4', wait: ['pm'], waitWhat: 'ET1: budget envelope spent (4,000¢ of 4,000¢)', age: '8d', spend: [4000, 4000], units: [2, 3] }),
@@ -165,26 +165,29 @@
    ['identity', 'I-12', 'L2', 'S5', '5.3', 'working', 'Short-lived signing keys for SAML assertions'], ['identity', 'I-11', 'L8', 'S7', '7.1', 'working', 'Remove the legacy LDAP bind fallback']].forEach(([p, k, l, s, st, state, t]) => ITEMS.push(I(k, l, s, st, state, t, { project: p, owner: PROJECTS.find((x) => x.id === p).owner, gate: state === 'waiting' && s === 'S4' ? 'G3d' : null })));
 
   /* ================================================================ agents and sessions */
+  // The agent registry as packages/agents/src/spec-data.ts has it (ids, names, steps, tools, data class, contract and prompt
+  // versions, prompt sha256 from prompts.lock.json). Scores are example data. `model` is what the prod route serves at the agent's
+  // data class (routes are (environment, data class) -> model, never per agent); `models` is the contract's allow-list (code).
+  const AG = (id, name, steps, o) => ({ id, name, steps, spec: [], tools: [], dc: 'D2', cv: '1.0.0', ver: '1.0.0', provider: 'anthropic', model: 'claude-sonnet-5-5', models: ['claude-sonnet-5-5'], score: null, delta: 0, ...o });
   const AGENTS = [
-    { id: 'A1', name: 'triage', steps: ['1.2', '1.3', '1.4'], tools: [], dc: 'internal', ver: '1.2.0', sha: 'a1c09e', score: 0.94, delta: +0.02, provider: 'anthropic', model: 'claude-sonnet-5-5' },
-    { id: 'A2', name: 'intent', steps: ['1.5'], tools: ['KnowledgeSearch'], dc: 'internal', ver: '1.1.0', sha: '9be210', score: 0.91, delta: 0, provider: 'anthropic', model: 'claude-sonnet-5-5' },
-    { id: 'A3', name: 'planner', steps: ['5.1', '5.2', '5.3', '5.4', '5.6'], tools: ['KnowledgeSearch'], dc: 'internal', ver: '1.3.0', sha: '44d7af', score: 0.86, delta: -0.03, provider: 'anthropic', model: 'claude-opus-5-5' },
-    { id: 'A4', name: 'coding (one-call)', steps: ['6.6'], tools: [], dc: 'internal', ver: '1.0.0', sha: '0e7c31', score: 0.89, delta: +0.01, provider: 'anthropic', model: 'claude-sonnet-5-5' },
-    { id: 'A5', name: 'review', steps: ['3.5', '4.5', '7.3', '7.5'], tools: ['KnowledgeSearch'], dc: 'internal', ver: '1.2.1', sha: 'c2f9d0', score: 0.92, delta: +0.04, provider: 'openai_compat', model: 'codex-2' },
-    { id: 'A6', name: 'test', steps: ['3.4', '6.3'], tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'], dc: 'internal', ver: '1.1.0', sha: '7a6b42', score: 0.88, delta: 0, provider: 'anthropic', model: 'claude-sonnet-5-5' },
-    { id: 'A7', name: 'spec writer', steps: ['3.1', '3.2'], tools: ['KnowledgeSearch'], dc: 'internal', ver: '1.0.2', sha: 'f01a9e', score: 0.9, delta: +0.01, provider: 'anthropic', model: 'claude-sonnet-5-5' },
-    { id: 'A8', name: 'design', steps: ['4.1', '4.2', '4.3', '4.4'], tools: ['KnowledgeSearch'], dc: 'internal', ver: '1.0.1', sha: '3d55c0', score: 0.83, delta: -0.05, provider: 'anthropic', model: 'claude-opus-5-5' },
-    { id: 'A9', name: 'reverse engineering', steps: ['0.2', '2.1b'], tools: ['KnowledgeSearch'], dc: 'internal', ver: '1.0.0', sha: 'b8e112', score: 0.87, delta: 0, provider: 'anthropic', model: 'claude-sonnet-5-5' },
-    { id: 'A10', name: 'shaping', steps: ['2.1', '2.2', '2.3', '2.4'], tools: ['KnowledgeSearch'], dc: 'internal', ver: '1.0.0', sha: '5c3e70', score: 0.9, delta: +0.02, provider: 'deepseek', model: 'deepseek-v4' },
-    { id: 'A11', name: 'handoff pack', steps: ['D1'], tools: [], dc: 'internal', ver: '1.0.0', sha: 'e4a0b9', score: 0.95, delta: 0, provider: 'anthropic', model: 'claude-haiku-5-5' },
-    { id: 'A12', name: 'extraction', steps: ['0.3'], tools: ['KnowledgeSearch'], dc: 'internal', ver: '1.0.0', sha: '61f2d4', score: 0.84, delta: -0.01, provider: 'anthropic', model: 'claude-sonnet-5-5' },
-    { id: 'coder', name: 'coder (sandbox)', steps: ['6.4'], tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash'], dc: 'internal', ver: '1.0.0', sha: '2aa7c8', score: 0.81, delta: +0.03, provider: 'anthropic', model: 'claude-opus-5-5' },
+    AG('A1', 'triage', ['1.2', '1.3', '1.4'], { dc: 'D1', cv: '1.1.0', prompt: 'a1_triage@1.0.0', sha: '9704be0802e5', schema: 'triage.v1', budget: [20000, 0.1, 1800], score: 0.94, delta: +0.02 }),
+    AG('A2', 'intent', ['1.5', '3.1', '3.2'], { tools: ['Read', 'Grep', 'Glob', 'KnowledgeSearch'], cv: '1.1.0', prompt: 'a2_intent@1.0.0', sha: '442d35c8056e', schema: 'intent.v1', budget: [60000, 0.5, 3600], score: 0.91, delta: 0 }),
+    AG('A3', 'planner', ['2.1', '2.2', '2.3', '2.4', '4.1', '4.2', '4.3', '4.4', '4.5', '5.1', '5.2', '5.3', '5.4', '5.6', '9.4'], { tools: ['Read', 'Grep', 'Glob', 'KnowledgeSearch'], cv: '1.2.0', prompt: 'a3_planner@1.0.0', sha: '6f9d6cb584a4', schema: 'planner.v1', models: ['claude-opus-5-5', 'claude-sonnet-5-5'], budget: [150000, 1.5, 7200], score: 0.86, delta: -0.03 }),
+    AG('A4', 'coding', ['6.4', '6.6'], { tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash'], prompt: 'a4_coding@1.0.0', sha: 'bbb471d2d51f', schema: 'implementation.v1', budget: [2000000, 25, 21600], note: 'Shares the S6 contract with coder; the work driver runs coder (STEP_PRIMARY_AGENT, DM §8 gap 17).' }),
+    AG('A5', 'review', ['3.5', '4.5', '7.3', '7.5'], { tools: ['Read', 'Grep', 'Glob'], cv: '1.1.0', prompt: 'a5_review@1.0.0', sha: '00aebd8c2391', schema: 'review.v1', budget: [80000, 0.5, 3600], score: 0.92, delta: +0.04 }),
+    AG('A6', 'test', ['3.4'], { spec: ['6.3'], tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'], cv: '1.1.0', ver: '1.1.0', prompt: 'a6_test@1.1.0', sha: 'f200024498ac', schema: 'oracle.v1', budget: [400000, 3, 3600], score: 0.88, delta: 0 }),
+    AG('A7', null, [], { dc: 'D0', prompt: 'unspecified@1.0.0', sha: 'cb5e251a5ccd', schema: 'unspecified.v1', budget: [1000, 0.001, 60], unbound: true }),
+    AG('A8', null, [], { dc: 'D0', prompt: 'unspecified@1.0.0', sha: 'cb5e251a5ccd', schema: 'unspecified.v1', budget: [1000, 0.001, 60], unbound: true }),
+    AG('A9', 'reverse engineering', ['0.1', '0.2', '0.3', '2.1b'], { tools: ['Read', 'Grep', 'Glob', 'KnowledgeSearch'], prompt: 'a9_reverse_engineering@1.0.0', sha: 'ad470f22d042', schema: 'reverse_engineering.v1', budget: [200000, 2, 7200], score: 0.87, delta: 0 }),
+    AG('A10', null, [], { dc: 'D0', prompt: 'unspecified@1.0.0', sha: 'cb5e251a5ccd', schema: 'unspecified.v1', budget: [1000, 0.001, 60], unbound: true }),
+    AG('A11', 'handoff pack', ['6.4', '7.3', '7.5'], { tools: ['Read'], prompt: 'a11_handoff_pack@1.0.0', sha: '69c9f8345c4d', schema: 'handoff_pack.v1', budget: [40000, 0.3, 1800], score: 0.95, delta: 0, note: 'Called at a handoff: D1 from 6.4, D2 from S7.' }),
+    AG('A12', 'extraction', ['0.3'], { tools: ['Read', 'Grep', 'Glob'], prompt: 'a12_extraction@1.0.0', sha: '7f3ce1179d1d', schema: 'extraction.v1', budget: [150000, 1.5, 7200], score: 0.84, delta: -0.01 }),
+    AG('coder', 'coder', ['6.4', '6.6'], { tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash'], prompt: 'coder@1.0.0', sha: '5251fad4bd10', schema: 'implementation.v1', budget: [2000000, 25, 21600], score: 0.81, delta: +0.03, note: 'The S6 implementer in the W sandbox: 6.4 task loop, 6.6 draft PR via the Push Broker.' }),
   ];
 
   const SESSIONS = [
     { id: 'ses-7f21', cls: 'W', item: 'W-31', unit: 'u2', agent: 'coder', pod: 1, state: 'running', since: '18m', cpu: 61, mem: 1.4, memCap: 4, calls: 37, tokens: '412k', spend: 214, tripwires: 0 },
-    { id: 'ses-7f19', cls: 'W', item: 'W-21', unit: 'main', agent: 'coder', pod: 2, state: 'running', since: '6m', cpu: 34, mem: 0.9, memCap: 4, calls: 12, tokens: '98k', spend: 51, tripwires: 0 },
-    { id: 'ses-7f22', cls: 'W', item: 'W-38', unit: 'main', agent: 'coder', pod: 3, state: 'running', since: '2m', cpu: 22, mem: 0.6, memCap: 4, calls: 4, tokens: '31k', spend: 12, tripwires: 0 },
+    { id: 'ses-7f19', cls: 'W', item: 'W-21', unit: 'main', agent: 'coder', pod: null, state: 'finished', since: '6m', cpu: 0, mem: 0, memCap: 4, calls: 12, tokens: '98k', spend: 51, tripwires: 0 },
     { id: 'ses-7f1d', cls: 'O', item: 'W-31', unit: 'u2', agent: null, pod: null, state: 'finished', since: '24m', cpu: 0, mem: 0, memCap: 2, calls: 0, tokens: '0', spend: 0, tripwires: 0 },
     { id: 'ses-7f12', cls: 'W', item: 'W-19', unit: 'main', agent: 'coder', pod: null, state: 'killed', since: '2d', cpu: 0, mem: 0, memCap: 4, calls: 22, tokens: '190k', spend: 120, tripwires: 1 },
     { id: 'ses-7f0a', cls: 'K', item: null, unit: null, agent: null, pod: null, state: 'finished', since: '1h', cpu: 0, mem: 0, memCap: 1, calls: 0, tokens: '0', spend: 0, tripwires: 0, note: 'Census of acme/mobile-app' },
@@ -212,6 +215,9 @@
   A.person = (id) => PEOPLE[id];
   A.project = (id) => PROJECTS.find((p) => p.id === id);
   A.agent = (id) => AGENTS.find((a) => a.id === id);
+  // the agent the work driver runs at a step (STEP_PRIMARY_AGENT): coder at S6, A5 at the review steps, A11 only at a handoff
+  const PRIMARY = { '6.4': 'coder', '6.6': 'coder', '4.5': 'A5', '7.3': 'A5', '7.5': 'A5' };
+  A.primaryAgent = (step) => A.agent(PRIMARY[step]) || AGENTS.find((a) => a.steps.includes(step) && !['A4', 'A11'].includes(a.id));
   A.stage = (id) => STAGES.find((s) => s.id === id);
   A.itemsOf = (projectId) => ITEMS.filter((i) => i.project === projectId);
   A.laneGroup = (lane) => (LANES[lane] || {}).group;
@@ -304,7 +310,7 @@
   /** cols: [{h, r: row => html, cls}] ; rows: array ; opts.href(row) makes rows clickable */
   A.table = (cols, rows, opts = {}) => `
     <div class="tbl-wrap"><table class="tbl"><thead><tr>${A.j(cols, (c) => `<th class="${c.cls || ''}">${c.h}</th>`)}</tr></thead>
-    <tbody>${A.j(rows, (r) => { const href = opts.href && opts.href(r); return `<tr ${href ? `class="click" data-go="${href}"` : ''}>${A.j(cols, (c) => `<td class="${c.cls || ''}">${c.r(r)}</td>`)}</tr>`; })}</tbody></table></div>`;
+    <tbody>${A.j(rows, (r) => { const href = opts.href && opts.href(r); return `<tr ${href ? `class="click" data-go="${href}" tabindex="0"` : ''}>${A.j(cols, (c) => `<td class="${c.cls || ''}">${c.r(r)}</td>`)}</tr>`; })}</tbody></table></div>`;
   A.meter = (used, cap, { warnAt = 0.75, badAt = 0.95 } = {}) => { const p = cap ? Math.min(1, used / cap) : 0; const t = p >= badAt ? 'bad' : p >= warnAt ? 'warn' : ''; return `<div class="meter ${t}" title="${Math.round(p * 100)}%"><i style="width:${(p * 100).toFixed(1)}%"></i></div>`; };
   A.cents = (c) => `${(c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`;
   A.spark = (vals, { w = 120, h = 30, color = 'var(--hand)' } = {}) => {
@@ -347,6 +353,7 @@
   const VIEWS = [];
   /** A.view(name, {label, group, icon, nav, badge(), match: RegExp, title, render(params) -> html, mount(root, params)}) */
   A.view = (name, def) => VIEWS.push({ name, nav: true, ...def });
+  A.viewDef = (name) => VIEWS.find((v) => v.name === name);
   A.go = (hash) => { location.hash = hash.startsWith('#') ? hash : '#' + hash; };
   const resolve = (hash) => {
     const h = hash.replace(/^#/, '') || 'home';
@@ -363,7 +370,7 @@
     const links = VIEWS.filter((v) => v.group === g && v.nav && (v.navAccess ? v.navAccess() : allowed(v).ok));
     if (!links.length) return '';
     return (g === 'Home' ? '' : `<div class="grp">${g}</div>`) + A.j(links, (v) => { const b = v.badge ? v.badge() : null; return `<a href="#${v.name}" ${active === v.name || active === v.parent ? 'aria-current="page"' : ''}>${A.icon(v.icon || v.name)}<span>${v.label}</span>${b && b.n ? `<span class="n ${b.hot ? 'hot' : ''}">${b.n}</span>` : ''}</a>`; });
-  }).join('') + `<div class="foot">catalogue 1.4.0 · 8c2e…f1<br>policy bundle 37 · roles-1.1.0<br>ledger head 18,422 ✓</div>`;
+  }).join('') + `<div class="foot">catalogue 1.3.0 · 8c2e…f1<br>policy bundle 37 · roles-1.1.0<br>ledger head 18,422 ✓</div>`;
   let current = null;
   const render = () => {
     if (current && current.unmount) try { current.unmount(); } catch (e) { console.error(e); }
@@ -395,12 +402,12 @@
       const [g] = t.dataset.tab.split(':');
       document.querySelectorAll(`[data-tab^="${g}:"]`).forEach((b) => b.setAttribute('aria-selected', String(b === t)));
       document.querySelectorAll(`[data-panel^="${g}:"]`).forEach((p) => { p.hidden = p.dataset.panel !== t.dataset.tab; });
-    } else if (t.dataset.go) { e.preventDefault(); A.go(t.dataset.go); }
+    } else if (t.dataset.go) { const inner = e.target.closest('a[href],button'); if (inner && inner !== t && t.contains(inner)) return; e.preventDefault(); A.go(t.dataset.go); }
     else if (t.dataset.toast) { e.preventDefault(); A.toast(t.dataset.toast); }
     else if (t.hasAttribute('data-close')) A.closeOverlay();
     else if (t.dataset.peek || (t.dataset.chip && t.closest('[data-peek-chips]'))) { e.preventDefault(); A.peek(t.dataset.peek || t.dataset.chip); }
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') A.closeOverlay(); if (e.key === '/' && document.activeElement === document.body) { e.preventDefault(); document.getElementById('q')?.focus(); } });
+  document.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-go]:not(a):not(button)')) { e.preventDefault(); A.go(e.target.dataset.go); return; } if (e.key === 'Escape') A.closeOverlay(); if (e.key === '/' && document.activeElement === document.body) { e.preventDefault(); document.getElementById('q')?.focus(); } });
 
   A.boot = (shellOnly) => {
     document.getElementById('app').innerHTML = `

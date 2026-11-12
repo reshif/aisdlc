@@ -65,10 +65,43 @@ export interface CoreWorkerConfig {
     readonly model: string;
   } | null;
   /**
+   * M14.2: S6's sessions through the sandbox-controller (`HttpSandbox`), which owns the driver, the class ceilings and
+   * the caps of its runner host; admission's H2 also reads its free slots. Exclusive with `sandbox` (the in-process
+   * driver). Needs `stagePorts: 'agents'`.
+   */
+  readonly sandboxController: {
+    readonly url: string;
+    /** This worker's bearer token at the controller (scopes `run`, `read`). */
+    readonly token: string;
+    readonly storeDir: string;
+    readonly model: string;
+  } | null;
+  /**
    * 6.6 through the Push Broker (PLAN M13.6): with `CORE_WORKER_PUSH_BROKER=1` (and a sandbox) the codehost's `push` route is
    * asked for the Unit's patch (this worker's codehost token needs the scope `push`). Off: 6.6 stays over the stage-port fake.
    */
   readonly pushBroker: boolean;
+  /**
+   * M14.3: S7 7.1 to 7.5 through the verify service (`CORE_WORKER_VERIFY_URL`, this worker's token there with the
+   * scopes `run` and `read`), and 7.6 (M14.4): the Evidence Pack signed by the Notary (this worker's Notary token needs
+   * the scope `evidence`) and stored in the object store. Needs `stagePorts: 'agents'`, the Notary and `objectStore`.
+   */
+  readonly verify: { readonly url: string; readonly token: string } | null;
+  /**
+   * M14.6: `exceptions` scripts the S7 fakes to raise the exception gates one after another (`scriptVerifyExceptions`:
+   * Q1, X2, E2 on the first item to reach S7, E6 on the second) for the compose e2e. Only with FACTORY_ENV=local, the
+   * stage-port fakes and no verify service.
+   */
+  readonly fakeVerify: 'default' | 'exceptions';
+  /**
+   * M14.4: the S3-compatible object store the Evidence Packs go to (`CORE_WORKER_OBJECT_STORE_URL`), with its
+   * credentials as `file:`/`env:` references, resolved by the adapter (never held in this config).
+   */
+  readonly objectStore: {
+    readonly endpoint: string;
+    readonly accessKeyRef: string;
+    readonly secretKeyRef: string;
+  } | null;
   readonly workDriverIntervalMs: number;
   readonly killHoldersIntervalMs: number;
   readonly killObserverIntervalMs: number;
@@ -133,10 +166,23 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   CORE_WORKER_SANDBOX_GATEWAY (the peers' container names), CORE_WORKER_SESSION_STORE (the workspace
  *                                   store), CORE_WORKER_CODER_MODEL (claude-sonnet-5-5). The owner allow-list is config
  *                                   `sandbox.exec_allowed_repos` (M1-gated): a repo not on it is BLOCKED, never run (DEC-18)
+ *   CORE_WORKER_SANDBOX_CONTROLLER_URL, CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF   (M14.2) the sandbox-controller: S6's
+ *                                   sessions go to it (it holds the proxy token, the ceilings and the caps) instead of a
+ *                                   driver in this process, and H2 reads its free slots. Not with CORE_WORKER_SANDBOX_PROXY_URL.
+ *                                   CORE_WORKER_SESSION_STORE and CORE_WORKER_CODER_MODEL as above
  *   CORE_WORKER_PUSH_BROKER         `1`: 6.6 asks the codehost's Push Broker (route `push`, scope `push`) to write the Unit's patch
  *                                   as a commit on agent/<item>/<unit> and a Draft PR; needs the sandbox. Default off
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
  *                                   deployment routes everything to `fake-model`); default none
+ *   CORE_WORKER_VERIFY_URL, CORE_WORKER_VERIFY_TOKEN_REF   (M14.3) the verify service (scopes `run`, `read`): S7's
+ *                                   7.1 to 7.5 run there and 7.6 signs and stores the Evidence Pack (M14.4). Needs
+ *                                   CORE_WORKER_STAGE_PORTS=agents, the Notary (scope `evidence`) and the object store;
+ *                                   without it S7 stays over the stage-port fakes
+ *   CORE_WORKER_FAKE_VERIFY (default | exceptions; default default) (M14.6) `exceptions` scripts S7's fakes to raise
+ *                                   Q1, X2, E2 (first item in S7) and E6 (second) for the compose e2e; FACTORY_ENV=local
+ *                                   only, with the stage ports and without CORE_WORKER_VERIFY_URL
+ *   CORE_WORKER_OBJECT_STORE_URL, CORE_WORKER_OBJECT_STORE_ACCESS_KEY_REF, CORE_WORKER_OBJECT_STORE_SECRET_KEY_REF
+ *                                   (M14.4) the S3-compatible object store of the Evidence Packs (write-once bucket)
  *   CORE_WORKER_STAGE_PORTS (none | fake | agents; default none): `fake` runs the `work_driver` loop over the
  *                                   deterministic stage-port fakes (needs the Notary); `agents` (M12) runs S2 and S3 with real agents
  *                                   (the planning port calls the gateway's `/v1/messages` under each run's own key; it also needs
@@ -235,12 +281,78 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_SANDBOX_PROXY_URL runs real coding sessions, which need CORE_WORKER_STAGE_PORTS=agents',
     );
   }
+  const controllerUrl = env['CORE_WORKER_SANDBOX_CONTROLLER_URL'];
+  const sandboxController =
+    controllerUrl === undefined || controllerUrl === ''
+      ? null
+      : {
+          url: httpUrlEnv(env, 'CORE_WORKER_SANDBOX_CONTROLLER_URL'),
+          token: resolveSecretRef(requiredEnv(env, 'CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF'), {
+            env,
+          }),
+          storeDir: dir('CORE_WORKER_SESSION_STORE', '/var/lib/aisdlc/sessions'),
+          model: env['CORE_WORKER_CODER_MODEL'] || 'claude-sonnet-5-5',
+        };
+  if (sandboxController !== null && sandbox !== null) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_SANDBOX_CONTROLLER_URL and CORE_WORKER_SANDBOX_PROXY_URL are exclusive: sessions go through the controller or an in-process driver',
+    );
+  }
+  if (sandboxController !== null && stagePorts !== 'agents') {
+    throw new ServiceConfigError(
+      'CORE_WORKER_SANDBOX_CONTROLLER_URL runs real coding sessions, which need CORE_WORKER_STAGE_PORTS=agents',
+    );
+  }
   const pushBroker = env['CORE_WORKER_PUSH_BROKER'] === '1';
-  if (pushBroker && sandbox === null) {
+  if (pushBroker && sandbox === null && sandboxController === null) {
     throw new ServiceConfigError(
       'CORE_WORKER_PUSH_BROKER=1 needs the sandbox (6.6 pushes what 6.1 to 6.5 built)',
     );
   }
+  const verifyUrl = env['CORE_WORKER_VERIFY_URL'];
+  const verify =
+    verifyUrl === undefined || verifyUrl === ''
+      ? null
+      : {
+          url: httpUrlEnv(env, 'CORE_WORKER_VERIFY_URL'),
+          token: resolveSecretRef(requiredEnv(env, 'CORE_WORKER_VERIFY_TOKEN_REF'), { env }),
+        };
+  if (verify !== null && stagePorts !== 'agents') {
+    throw new ServiceConfigError(
+      'CORE_WORKER_VERIFY_URL runs S7 with the verify service, which needs CORE_WORKER_STAGE_PORTS=agents',
+    );
+  }
+  const objUrl = env['CORE_WORKER_OBJECT_STORE_URL'];
+  const objectStore =
+    objUrl === undefined || objUrl === ''
+      ? null
+      : {
+          endpoint: httpUrlEnv(env, 'CORE_WORKER_OBJECT_STORE_URL'),
+          accessKeyRef: requiredEnv(env, 'CORE_WORKER_OBJECT_STORE_ACCESS_KEY_REF'),
+          secretKeyRef: requiredEnv(env, 'CORE_WORKER_OBJECT_STORE_SECRET_KEY_REF'),
+        };
+  if (verify !== null && (objectStore === null || ledger === null)) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_VERIFY_URL signs and stores the 7.6 Evidence Pack: it needs CORE_WORKER_NOTARY_URL and CORE_WORKER_OBJECT_STORE_URL',
+    );
+  }
+  const fv = env['CORE_WORKER_FAKE_VERIFY'] ?? 'default';
+  if (fv !== 'default' && fv !== 'exceptions') {
+    throw new ServiceConfigError('CORE_WORKER_FAKE_VERIFY must be `default` or `exceptions`');
+  }
+  if (fv === 'exceptions') {
+    if (env['FACTORY_ENV'] !== 'local') {
+      throw new ServiceConfigError(
+        'CORE_WORKER_FAKE_VERIFY=exceptions runs only with FACTORY_ENV=local',
+      );
+    }
+    if (stagePorts === 'none' || verify !== null) {
+      throw new ServiceConfigError(
+        'CORE_WORKER_FAKE_VERIFY=exceptions scripts the S7 fakes: it needs CORE_WORKER_STAGE_PORTS and no CORE_WORKER_VERIFY_URL',
+      );
+    }
+  }
+  const fakeVerify: 'default' | 'exceptions' = fv;
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),
     codehostUrl: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
@@ -253,7 +365,11 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     stagePorts,
     gateway,
     sandbox,
+    sandboxController,
     pushBroker,
+    verify,
+    fakeVerify,
+    objectStore,
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
       .split(',')
       .map((m) => m.trim())

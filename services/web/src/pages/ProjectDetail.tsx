@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
-import { ErrorNote, Loading } from '../components/Notice';
+import { PageError, Loading } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
 import { STATUS_TEXT, levelTitle } from '../vocab';
@@ -13,7 +13,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
     refetchInterval: 10_000,
   });
   if (q.isPending) return <Loading what="the project" />;
-  if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
+  if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const { project, repos, s0 } = q.data;
   const latest = s0[0];
   return (

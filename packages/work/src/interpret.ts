@@ -84,8 +84,33 @@ export class IllegalPhaseTransition extends Error {
 
 const MAX_IGNORED = 20;
 
-const routeOf = (s: ItemState, cat: CatalogueData): Station[] =>
-  buildRoute(cat.lanes[s.lane ?? s.proposed_lane], effectiveProfile(s.profile, s.tier));
+// The route is a pure function of the lane (an object of the pinned catalogue, which `catalogueFor`
+// caches per version) and of the item's profile and tier, and a fold asks for it at nearly every
+// event, so it is built once per (lane, profile, tier) and shared. Shared means read-only: the
+// stations are frozen (a write would throw, never change another item's route). The key is the
+// profile's JSON, so two profiles that print the same share a route and anything else builds its own.
+const ROUTE_CACHE_LIMIT = 256;
+const routeCache = new WeakMap<object, Map<string, readonly Station[]>>();
+
+const routeOf = (s: ItemState, cat: CatalogueData): readonly Station[] => {
+  const lane = cat.lanes[s.lane ?? s.proposed_lane];
+  const key = `${s.tier}\u0000${JSON.stringify(s.profile) ?? 'undefined'}`;
+  let byProfile = routeCache.get(lane);
+  if (byProfile === undefined) {
+    byProfile = new Map();
+    routeCache.set(lane, byProfile);
+  }
+  const hit = byProfile.get(key);
+  if (hit !== undefined) return hit;
+  const route = Object.freeze(
+    buildRoute(lane, effectiveProfile(s.profile, s.tier)).map((st) =>
+      Object.freeze(st.kind === 'gates' ? { ...st, gates: Object.freeze([...st.gates]) } : st),
+    ),
+  );
+  if (byProfile.size >= ROUTE_CACHE_LIMIT) byProfile.clear();
+  byProfile.set(key, route);
+  return route;
+};
 
 const held = (s: ItemState): boolean => s.holds.length > 0;
 

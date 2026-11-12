@@ -5,15 +5,16 @@ with mode 0600 and is mounted read-only at `/run/secrets/<name>` into the servic
 and into no others. Services read them through `file:` references (`KMS_TOKEN_REF=file:/run/secrets/tok-core-kms`);
 no secret is an environment variable and none is in the image.
 
-| File                              | Who mounts it                                                                                                                                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tok-<caller>-<callee>`           | the caller (to present) and the callee (to verify), nobody else                                                                                                                             |
-| `pg-superuser`                    | postgres, db-init                                                                                                                                                                           |
-| `pg-pass-<role>`, `db-url-<role>` | db-init (passwords); the services of that role (URLs): `aisdlc` for record services, `notary` for the Notary alone, `witness` for the Witness alone, `killswitch` for the kill switch alone |
-| `bff-oidc-client-secret`          | bff and dev-oidc                                                                                                                                                                            |
-| `anthropic-api-key`               | **gateway only** (the model vendor key; a placeholder until you give `init-secrets` a real one)                                                                                             |
-| `github-app.pem`                  | **codehost only** (the GitHub App private key)                                                                                                                                              |
-| `github-app.pub.pem`              | the fake GitHub only (its public half, to verify App JWTs)                                                                                                                                  |
+| File                                                 | Who mounts it                                                                                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tok-<caller>-<callee>`                              | the caller (to present) and the callee (to verify), nobody else                                                                                                                             |
+| `pg-superuser`                                       | postgres, db-init                                                                                                                                                                           |
+| `pg-pass-<role>`, `db-url-<role>`                    | db-init (passwords); the services of that role (URLs): `aisdlc` for record services, `notary` for the Notary alone, `witness` for the Witness alone, `killswitch` for the kill switch alone |
+| `bff-oidc-client-secret`                             | bff and dev-oidc                                                                                                                                                                            |
+| `anthropic-api-key`                                  | **gateway only** (the model vendor key; a placeholder until you give `init-secrets` a real one)                                                                                             |
+| `object-store-access-key`, `object-store-secret-key` | the object store (its root credentials) and, later, the services that use `S3ObjectStore` (through `file:` references)                                                                      |
+| `github-app.pem`                                     | **codehost only** (the GitHub App private key)                                                                                                                                              |
+| `github-app.pub.pem`                                 | the fake GitHub only (its public half, to verify App JWTs)                                                                                                                                  |
 
 ## The GitHub App key
 

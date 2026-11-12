@@ -4,6 +4,7 @@ import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { ErrorNote, Loading } from '../components/Notice';
 import { Link } from '../router';
+import { PageHead } from '../ui';
 import { STATUS_TEXT, levelTitle } from '../vocab';
 
 export function ProjectRow({ p }: { p: ProjectSummary }) {
@@ -48,14 +49,18 @@ export function ProjectListPage({ canOnboard }: { canOnboard: boolean }) {
   const q = useQuery({ queryKey: ['projects'], queryFn: api.projects, refetchInterval: 10_000 });
   return (
     <>
-      <div className="page-head">
-        <h1>Projects</h1>
-        {canOnboard ? (
-          <Link to="/onboard" className="btn">
-            Onboard a repo
-          </Link>
-        ) : null}
-      </div>
+      <PageHead
+        eyebrow="Projects"
+        title="Projects"
+        sub="The projects you may see, with their repos, level, tier and onboarding."
+        actions={
+          canOnboard ? (
+            <Link to="/onboard" className="btn">
+              Onboard a repo
+            </Link>
+          ) : null
+        }
+      />
       {q.isPending ? <Loading what="projects" /> : null}
       {q.isError ? <ErrorNote error={q.error} retry={() => void q.refetch()} /> : null}
       {q.data && q.data.length === 0 ? (

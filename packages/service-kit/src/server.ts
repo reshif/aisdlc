@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 
-/** A Fastify instance with no logging noise; services add their routes. */
-export function newApp(): FastifyInstance {
-  return Fastify({ logger: false, bodyLimit: 8 * 1024 * 1024 });
+/** A Fastify instance with no logging noise; services add their routes. Bodies up to 8 MiB unless a service says more. */
+export function newApp(opts: { bodyLimit?: number } = {}): FastifyInstance {
+  return Fastify({ logger: false, bodyLimit: opts.bodyLimit ?? 8 * 1024 * 1024 });
 }
 
 /** Listens on a loopback port (0 = any free port) and returns the base URL. */

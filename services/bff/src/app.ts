@@ -28,7 +28,9 @@ import {
   sha256b64,
   type SessionRow,
 } from './sessions.js';
+import { registerAccessRoutes } from './access.js';
 import { registerPortalRoutes } from './portal.js';
+import { levelsOn } from './levels.js';
 import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
 import { registerWebFiles } from './static.js';
 import type { StepUpIssuer } from './stepup/issuer.js';
@@ -41,6 +43,8 @@ import type { StepUpIssuer } from './stepup/issuer.js';
 //   GET  /auth/login        start a sign-in (authorization code + PKCE), redirect to the IdP
 //   GET  /auth/callback     finish it: verify, map the subject to a principal, open a session
 //   GET  /api/me            who am I, what may I do at the top level, the CSRF token
+//   GET  /api/me/access     the person's bindings, view level and data class per project (access.ts)
+//   POST /api/me/decisions  a batch of PDP capability probes for the screen (access.ts)
 //   POST /api/logout        revoke the session
 //   POST /api/step-up       start a step-up bound to a hash (re-authentication, or DEC-11(c-ii))
 //   GET  /api/step-up/:id   collect the proof once, after the re-authentication returned
@@ -75,6 +79,8 @@ export interface BffAppOptions {
   readonly clock?: Clock;
   /** Core, for the portal's `/api/*` routes; without it they answer 503 (after the session and CSRF checks). */
   readonly core?: CoreClient;
+  /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
+  readonly gateCheck?: CoreClient;
   /** The built web bundle (`index.html` and `assets/`) to serve; without it the bff serves only its API. */
   readonly webDir?: string;
   /** Overrides of `DEFAULT_RATE_LIMITS`. */
@@ -501,10 +507,24 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     return { status: 'ready', method: 'reauth', proof: got.token, bound_hash: got.bound_hash };
   });
 
+  registerAccessRoutes({
+    app,
+    pool: o.pool,
+    pdp: o.pdp,
+    clock,
+    principalOf: (req) => ctx(req).session.principal_id,
+    displayNameOf: async (id) => {
+      const caught = await runProjection(o.pool, directoryProjection);
+      if (!caught.ok) return null;
+      return (await getDirectoryPrincipal(o.pool, id))?.display_name ?? null;
+    },
+  });
   registerPortalRoutes({
     app,
     pdp: o.pdp,
     core: o.core,
+    ...(o.gateCheck ? { gateCheck: o.gateCheck } : {}),
+    levelsOf: (principal, project) => levelsOn(o.pool, principal, project, clock.now()),
     principalOf: (req) => ctx(req).session.principal_id,
     namesOf: async (ids) => {
       const out: Record<string, string> = {};

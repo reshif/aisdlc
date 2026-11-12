@@ -54,9 +54,11 @@ export type RecordEvent = z.infer<typeof RecordEvent>;
 
 /**
  * What a gate decides on: a work item, an S0 record (fix #32), or a config lineage (an M1 gate
- * decides a proposed `rev_hash` of one layer and scope; PLAN M3.5).
+ * decides a proposed `rev_hash` of one layer and scope; PLAN M3.5), an R3 breaker (its M5 reset), or a merge that
+ * gate-check observed without its check passing (M14.5: the X4 post-hoc review of a bypass merge; the subject id is
+ * the merge's id, `mergeSubjectId`).
  */
-export const SubjectKind = z.enum(['item', 's0_record', 'config', 'breaker']);
+export const SubjectKind = z.enum(['item', 's0_record', 'config', 'breaker', 'merge']);
 export type SubjectKind = z.infer<typeof SubjectKind>;
 export const SubjectKindValues: readonly SubjectKind[] = SubjectKind.options;
 

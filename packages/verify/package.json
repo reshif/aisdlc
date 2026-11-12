@@ -1,0 +1,32 @@
+{
+  "name": "@aisdlc/verify",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/bundle.mjs verify-pack",
+    "typecheck": "tsc -p tsconfig.check.json"
+  },
+  "dependencies": {
+    "@aisdlc/agents": "0.0.0",
+    "@aisdlc/build": "0.0.0",
+    "@aisdlc/contracts": "0.0.0",
+    "@aisdlc/kernel": "0.0.0",
+    "@aisdlc/ports": "0.0.0",
+    "@aisdlc/secrets-rules": "0.0.0",
+    "@aisdlc/tripwires": "0.0.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@aisdlc/catalogue": "1.0.0"
+  },
+  "bin": {
+    "aisdlc-verify-pack": "./dist/verify-pack.js"
+  }
+}

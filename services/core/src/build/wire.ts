@@ -9,6 +9,7 @@ import {
 } from '@aisdlc/build';
 import { err, ok } from '@aisdlc/kernel';
 import {
+  GuardedSandbox,
   type RunKeyLender,
   type SandboxPort,
   type SessionGuardDeps,
@@ -58,7 +59,7 @@ export function buildStagePorts(o: {
     },
   };
   const coding = new AgentCodingPort({
-    sandbox: o.sandbox,
+    sandbox: new GuardedSandbox(o.sandbox, guard),
     store,
     source: new CoreBuildSource({
       pool: o.pool,

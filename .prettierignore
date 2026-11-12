@@ -9,3 +9,4 @@ packages/contracts/generated
 services/knowledge/test/golden
 packages/agents/generated
 packages/agents/src/prompts
+.claude/worktrees

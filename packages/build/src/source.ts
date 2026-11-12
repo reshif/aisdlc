@@ -1,5 +1,5 @@
 import type { ContextRequest } from '@aisdlc/agents';
-import type { TaskContractName } from '@aisdlc/contracts';
+import type { SandboxGrantRef, TaskContractName } from '@aisdlc/contracts';
 import { taggedError, type Result, type TaggedError } from '@aisdlc/kernel';
 import type { RepoFile } from '@aisdlc/ports';
 
@@ -96,6 +96,12 @@ export interface BuildSourcePort {
     command_key: string;
     content: unknown;
   }): Promise<Result<{ sha256: string }, BuildSourceError>>;
+  /**
+   * M14.2: the item's live admission grant (active, with its lease epoch), sent with every session so the
+   * sandbox-controller starts only what core granted. `null`: no active grant (a controller refuses the session).
+   * Absent: sessions carry no grant (an in-process driver does not need one).
+   */
+  sessionGrant?(item_id: string): Promise<Result<SandboxGrantRef | null, BuildSourceError>>;
   contract(repo: string, sha: string, files: readonly RepoFile[]): TaskContract;
   context(req: {
     item_id: string;

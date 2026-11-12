@@ -169,7 +169,7 @@ describe('the S0 record page', () => {
     expect(m.calls.filter((c) => c.path === `/api/s0/${S0_ID}`).length).toBe(before);
   });
 
-  it('a record with no access is the refusal, a missing one is shown as such', async () => {
+  it('a missing record is the one 404 page, which never repeats what the server said', async () => {
     mockApi({
       'GET /api/me': { json: me() },
       [`GET /api/s0/${S0_ID}`]: {
@@ -178,7 +178,10 @@ describe('the S0 record page', () => {
       },
     });
     renderAt(`/s0/${S0_ID}`);
-    expect(await screen.findByRole('alert')).toHaveTextContent(/no such record/);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/Nothing here/);
+    // the same page for something invisible and something that does not exist: no server detail
+    expect(alert).not.toHaveTextContent(/no such record/);
     vi.unstubAllGlobals();
   });
 });

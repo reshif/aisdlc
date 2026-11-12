@@ -63,11 +63,14 @@ export const ADAPTER_KIND: Readonly<Record<IntegrationAdapter, IntegrationKind>>
 export const IntegrationStatus = z.enum(['draft', 'enabled', 'disabled', 'retired']);
 export type IntegrationStatus = z.infer<typeof IntegrationStatus>;
 
+/** The shape of a secret reference; its `source` is the `pattern` a JSON Schema of a SecretRef carries. */
+export const SECRET_REF_PATTERN = /^(file:\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$/;
+
 /** A reference to a secret: a `file:` path or an `env:` name. Never a value (the check is by shape). */
 export const SecretRef = z
   .string()
   .regex(
-    /^(file:\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$/,
+    SECRET_REF_PATTERN,
     'a secret reference: file:/absolute/path or env:NAME (never the secret itself)',
   );
 

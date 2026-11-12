@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { api } from '../api';
-import { ErrorNote, Loading } from '../components/Notice';
+import { PageError, Loading } from '../components/Notice';
 import { Hash } from '../cards/shared';
 import { shortTime } from '../format';
 import { Link } from '../router';
@@ -20,7 +20,7 @@ export function LedgerPage({ project, s0 }: { project: string; s0?: string }) {
     if (id !== '') document.getElementById(id)?.scrollIntoView?.({ block: 'center' });
   }, [loaded]);
   if (q.isPending) return <Loading what="the ledger entries" />;
-  if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
+  if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const { entries, head } = q.data;
   return (
     <>

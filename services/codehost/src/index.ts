@@ -10,6 +10,7 @@ export * from './boot.js';
 export * from './codeowners-sync.js';
 export * from './config.js';
 export * from './git-bundle.js';
+export * from './http.js';
 export * from './identity-client.js';
 export * from './jwt.js';
 export * from './push-guards.js';

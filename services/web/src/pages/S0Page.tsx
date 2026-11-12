@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { CardList } from '../components/CardList';
-import { Callout, ErrorNote, Loading } from '../components/Notice';
+import { Callout, ErrorNote, PageError, Loading } from '../components/Notice';
 import { StepList } from '../components/StepList';
 import { shortTime } from '../format';
 import { Link } from '../router';
@@ -42,7 +42,7 @@ export function S0Page({ id, pollMs = POLL_MS }: { id: string; pollMs?: number }
   });
 
   if (s0.isPending) return <Loading what="the onboarding" />;
-  if (s0.isError) return <ErrorNote error={s0.error} retry={() => void s0.refetch()} />;
+  if (s0.isError) return <PageError error={s0.error} retry={() => void s0.refetch()} />;
 
   const { record, steps, waiting } = s0.data;
   const status = STATUS_TEXT[record.status];

@@ -56,7 +56,8 @@ describe('the shell', () => {
       },
     });
     renderAt('/');
-    const rows = await screen.findAllByRole('listitem');
+    const list = await screen.findByRole('list', { name: 'Projects' });
+    const rows = within(list).getAllByRole('listitem');
     const first = within(rows[0] as HTMLElement);
     expect(first.getByText('reshif/asf-factory-testbed')).toBeInTheDocument();
     expect(first.getByText('Waiting for a decision')).toBeInTheDocument();

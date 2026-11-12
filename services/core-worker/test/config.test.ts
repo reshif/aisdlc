@@ -97,6 +97,39 @@ describe('core-worker config: real coding sessions (M13.3, M13.4)', () => {
       model: 'claude-sonnet-5-5',
     });
   });
+  it('M14.2: the sandbox-controller instead of an in-process driver (exclusive), with its token as a reference', () => {
+    const CTL = {
+      CORE_WORKER_SANDBOX_CONTROLLER_URL: 'http://sandbox-controller:8430',
+      CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF: 'env:T',
+    };
+    expect(coreWorkerConfigFromEnv(WITH_AGENTS).sandboxController).toBeNull();
+    const cfg = coreWorkerConfigFromEnv({ ...WITH_AGENTS, ...CTL });
+    expect(cfg.sandbox).toBeNull();
+    expect(cfg.sandboxController).toEqual({
+      url: 'http://sandbox-controller:8430',
+      token: 'x'.repeat(32),
+      storeDir: '/var/lib/aisdlc/sessions',
+      model: 'claude-sonnet-5-5',
+    });
+    expect(() => coreWorkerConfigFromEnv({ ...WITH_AGENTS, ...CTL, ...SANDBOX })).toThrow(
+      /exclusive/,
+    );
+    expect(() =>
+      coreWorkerConfigFromEnv({
+        ...WITH_AGENTS,
+        ...CTL,
+        CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF: 'literal-token',
+      }),
+    ).toThrow(/env:NAME or file:PATH/);
+    expect(() =>
+      coreWorkerConfigFromEnv({
+        ...BASE,
+        ...CTL,
+        CORE_WORKER_GATEWAY_URL: 'http://127.0.0.1:5',
+        CORE_WORKER_GATEWAY_TOKEN_REF: 'env:T',
+      }),
+    ).toThrow(/STAGE_PORTS=agents/);
+  });
   it('real sessions need the agents stage ports, a token reference (never a literal) and a plain scratch directory', () => {
     expect(() =>
       coreWorkerConfigFromEnv({
@@ -123,5 +156,27 @@ describe('core-worker config: real coding sessions (M13.3, M13.4)', () => {
         CORE_WORKER_SANDBOX_SCRATCH: '/a/../b',
       }),
     ).toThrow(/plain absolute/);
+  });
+});
+
+describe('core-worker config: the scripted S7 of the compose e2e (M14.6)', () => {
+  const ENV = {
+    ...BASE,
+    CORE_WORKER_GATEWAY_URL: 'http://127.0.0.1:5',
+    CORE_WORKER_GATEWAY_TOKEN_REF: 'env:T',
+  };
+  it('defaults to the plain fakes', () => {
+    expect(coreWorkerConfigFromEnv(ENV).fakeVerify).toBe('default');
+  });
+  it('`exceptions` only with FACTORY_ENV=local, the stage ports and no verify service', () => {
+    const on = { ...ENV, CORE_WORKER_FAKE_VERIFY: 'exceptions' };
+    expect(() => coreWorkerConfigFromEnv(on)).toThrow(/FACTORY_ENV=local/);
+    expect(coreWorkerConfigFromEnv({ ...on, FACTORY_ENV: 'local' }).fakeVerify).toBe('exceptions');
+    const rest: Record<string, string> = { ...on, FACTORY_ENV: 'local' };
+    delete rest['CORE_WORKER_STAGE_PORTS'];
+    expect(() => coreWorkerConfigFromEnv(rest)).toThrow(/needs CORE_WORKER_STAGE_PORTS/);
+    expect(() => coreWorkerConfigFromEnv({ ...ENV, CORE_WORKER_FAKE_VERIFY: 'yes' })).toThrow(
+      /`default` or `exceptions`/,
+    );
   });
 });

@@ -8,6 +8,7 @@ import {
   ItemAnswerRequest,
   ItemObserveRequest,
   ItemPlanRequest,
+  ItemHumanDoneRequest,
   ItemReadyRequest,
   CardDecideRequest,
   GateCardDecideRequest,
@@ -34,6 +35,7 @@ import {
   RevisionDecideRequest,
   RevisionEvidenceRequest,
   RevisionPrepareRequest,
+  ConfigProposeRequest,
   RoleMap,
   SubmitRequestBody,
   RepoFullName,
@@ -42,6 +44,7 @@ import {
   Level,
   pdpResource,
   projectOfScope,
+  SIGNED_EVIDENCE_PACK_CONTENT_TYPE,
   type ActionId,
   type PdpResource,
 } from '@aisdlc/contracts';
@@ -87,9 +90,17 @@ import { agentStatsOf, listAgentRuns } from './agent-runs.js';
 import { CorePushGuards } from './build/push.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
+import {
+  evidencePackView,
+  gateCardContext,
+  itemVerifyView,
+  signedPackBytes,
+} from './verify/portal.js';
+import type { ObjectStorePort } from '@aisdlc/ports';
 import { answerQuestion, decideReady, submitRequest } from './requests.js';
 import { observeRelane, requestRework } from './work-signals.js';
 import { submitHumanPlan } from './planning/human-plan.js';
+import { completeHumanWork } from './work-signals.js';
 import type { GroundingPort } from './planning/grounding.js';
 import { readItem, readItemEvents } from './work-items.js';
 import { loadProjectSettings, proposeProjectSettings } from './settings.js';
@@ -105,6 +116,7 @@ import {
   revisionOfS0,
   settingsRevision,
 } from './portal-reads.js';
+import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
   cardDetail,
   cardHeader,
@@ -160,6 +172,8 @@ export interface CoreAppOptions {
   readonly cards?: CardDeps;
   /** The merged head a hand-written plan is made against (B5, M12.5); without it that route answers `unavailable`. */
   readonly grounding?: GroundingPort;
+  /** The object store of the Evidence Packs (M14.6: the pack viewer reads them back); without it the contents are not shown. */
+  readonly objects?: ObjectStorePort;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -790,6 +804,29 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return { item: await view(it.id), ...r.value };
   });
 
+  /** D5 (M14.6): the developer says the human-led work of an L8 item is done; S7 checks it next. */
+  app.post('/v1/items/:id/human-done', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemHumanDoneRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.human_done');
+    if (!it) return;
+    // a retry of a signal that was taken (the item has moved on since) is the same signal, not a conflict
+    const taken = (await readItemEvents(o.pool, it.id)).some(
+      (e) => e.idempotency_key === `human_done:${b.value.key}`,
+    );
+    const w = it.state.waiting;
+    if (!taken && (w?.kind !== 'human' || w.what !== 'human_led')) {
+      return fail(reply, coreError('conflict', 'the item is not waiting for human-led work'));
+    }
+    if (await maintenanceOn()) {
+      return fail(reply, coreError('refused', 'maintenance mode MM-2: decisions are disabled'));
+    }
+    const r = await completeHumanWork(itemDeps, it.id, b.value.on_behalf_of, b.value.key);
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), duplicate: r.value.duplicate };
+  });
+
   /**
    * The agent runs of one item, each with what came of it (M11.2). Decided on the item's project
    * (`project.view`), like the item itself.
@@ -819,6 +856,93 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       };
     } catch {
       return fail(reply, coreError('unavailable', 'the agent runs could not be read'));
+    }
+  });
+
+  // ------------------------------------------------------------ S7 for the portal (PLAN M14.6)
+  //
+  // The checks 7.1 to 7.5 of a Unit head, the signed Evidence Pack and its bytes: built from the record alone and
+  // decided on the item's project (`project.view` for the person the bff acts for). Core answers uncut (D2); the bff
+  // asks for view level V2 and cuts finding text to the person's data class.
+
+  /** The item a read is about and the PDP's `project.view` on its project; or the refusal already sent. */
+  async function itemRead(req: FastifyRequest, reply: FastifyReply) {
+    if (!allowed(req, 'work')) {
+      sendError(reply, 403, 'forbidden', 'scope work is needed');
+      return null;
+    }
+    const id = params(req)['id'] as string;
+    if (!z.uuid().safeParse(id).success) {
+      fail(reply, coreError('invalid_input', 'bad id'));
+      return null;
+    }
+    const who = PrincipalId.safeParse((req.query as Record<string, string>)['on_behalf_of']);
+    if (!who.success) {
+      fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+      return null;
+    }
+    let item;
+    try {
+      item = await readItem(o.pool, id);
+    } catch {
+      fail(reply, coreError('unavailable', 'the item could not be read'));
+      return null;
+    }
+    if (!item) {
+      fail(reply, coreError('not_found', 'no such item'));
+      return null;
+    }
+    const project = item.state.project_id as ProjectId;
+    if (!(await guard(reply, who.data, 'project.view', pdpResource.project(project)))) return null;
+    return { id, project };
+  }
+  const shaQuery = (req: FastifyRequest, key: string, re: RegExp): string | undefined | null => {
+    const v = (req.query as Record<string, string | undefined>)[key];
+    if (v === undefined) return undefined;
+    return re.test(v) ? v : null;
+  };
+
+  app.get('/v1/items/:id/verify', async (req, reply) => {
+    const head = shaQuery(req, 'head', /^[0-9a-f]{40}$/);
+    if (head === null) return fail(reply, coreError('invalid_input', 'head is a commit sha'));
+    const it = await itemRead(req, reply);
+    if (!it) return;
+    try {
+      const r = await itemVerifyView(o.pool, it.id, head);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the S7 results could not be read'));
+    }
+  });
+
+  app.get('/v1/items/:id/evidence', async (req, reply) => {
+    const pack = shaQuery(req, 'pack', /^[0-9a-f]{64}$/);
+    if (pack === null) return fail(reply, coreError('invalid_input', 'pack is a sha256'));
+    const it = await itemRead(req, reply);
+    if (!it) return;
+    try {
+      const r = await evidencePackView(o.pool, o.objects, it.id, pack);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the Evidence Packs could not be read'));
+    }
+  });
+
+  /** The signed bytes exactly as stored (canonical JSON), for `aisdlc-verify-pack`. */
+  app.get('/v1/items/:id/evidence/:pack/signed', async (req, reply) => {
+    const pack = params(req)['pack'] as string;
+    if (!/^[0-9a-f]{64}$/.test(pack)) return fail(reply, coreError('invalid_input', 'bad pack'));
+    const it = await itemRead(req, reply);
+    if (!it) return;
+    try {
+      const r = await signedPackBytes(o.pool, o.objects, it.id, pack);
+      if (!r.ok) return fail(reply, r.error);
+      return reply
+        .type(SIGNED_EVIDENCE_PACK_CONTENT_TYPE)
+        .header('x-object-key', r.value.object_key)
+        .send(Buffer.from(r.value.bytes));
+    } catch {
+      return fail(reply, coreError('unavailable', 'the signed pack could not be read'));
     }
   });
 
@@ -1142,6 +1266,22 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   });
 
   /**
+   * The gate-specific facts of a work-item card (M14.6: Q1's SECT triage, E6, X2, X3, E2): what its subject hash binds,
+   * the S7 check that raised it, the decisions so far. Uncut; the bff asks `project.view` and cuts it.
+   */
+  app.get('/v1/cards/:cardId/gate/context', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const id = uuidParam(req, reply, 'cardId');
+    if (!id) return;
+    try {
+      const r = await gateCardContext(o.pool, id);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the card could not be read'));
+    }
+  });
+
+  /**
    * The PDP decides about the human FIRST: `card.decide` on the card and `gate.decide` on every gate it
    * carries (all must say yes); then the decision kernel checks the slot, two-person, own-request and step-up
    * rules and writes the ledger entries. Nothing here has a default decision.
@@ -1368,6 +1508,56 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   app.post('/v1/revisions/:gate/publish', (req, reply) =>
     revisionAction(req, reply, RevisionPrepareRequest, (d, gate) => publishRevision(d, gate)),
   );
+
+  // ------------------------------------------------------------ configuration console (portal)
+
+  // Factory-layer keys of this registry: read (scope read; the bff asks the PDP for the person) and
+  // propose (scope portal; the PDP's config.propose on the fleet for the person). A proposal is an
+  // ordinary revision with its M1 gate; nothing here publishes.
+  const keyParam = (req: FastifyRequest): string | null => {
+    const k = params(req)['key'];
+    return typeof k === 'string' && /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(k) ? k : null;
+  };
+
+  app.get('/v1/config/keys', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    if (!config) return;
+    return listConfigKeys(config);
+  });
+
+  app.get('/v1/config/keys/:key', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    const key = keyParam(req);
+    if (!config) return;
+    if (!key) return fail(reply, coreError('invalid_input', 'bad config key'));
+    try {
+      const r = await configKeyView(config, key);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the configuration could not be read'));
+    }
+  });
+
+  app.post('/v1/config/keys/:key/proposals', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    const config = configOr(reply);
+    const key = keyParam(req);
+    if (!config) return;
+    if (!key) return fail(reply, coreError('invalid_input', 'bad config key'));
+    const b = parse(ConfigProposeRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    if (!(await guard(reply, b.value.on_behalf_of, 'config.propose', pdpResource.fleet()))) return;
+    const r = await proposeConfigKey(config, {
+      key,
+      value: b.value.value,
+      principal: b.value.on_behalf_of,
+      parent_rev_hash: b.value.parent_rev_hash,
+    });
+    return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
 
   // ------------------------------------------------------------ readiness record and ledger (M8.4)
 

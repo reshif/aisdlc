@@ -1,0 +1,77 @@
+/*
+ * Design tokens of the portal, taken from the prototype (docs/design/portal-prototype/src/base.css).
+ * Components read only these custom properties, never a literal colour, so a light theme is one more
+ * block below (`:root[data-theme='light'] { ... }`) and nothing else. Dark is the only theme today.
+ */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  /* ground and surfaces */
+  --bg: #0f1216;
+  --panel: #181c22;
+  --panel-2: #1e232b;
+  --panel-3: #252b35;
+  --sunk: #13161b;
+  --line: #2a3039;
+  --line-2: #3a424f;
+  --belt: #343c48;
+  --belt-2: #454f5d;
+  /* text */
+  --fg: #e7eaef;
+  --fg-2: #c4cad3;
+  --muted: #949daa;
+  --faint: #6a7381;
+  /* semantic, from the floor legend */
+  --gate: #f2b51d;
+  --gate-ink: #2a1e00;
+  --back: #f39c34;
+  --hand: #4f9be8;
+  --quar: #e2574f;
+  --ok: #3faf6b;
+  --warn: #e6b23a;
+  --bad: #e2574f;
+  --agent: #8f80f7;
+  --det: #9aa5b4;
+  --human: #2fb7a6;
+  /* tinted grounds and their ink */
+  --ok-bg: #15301f;
+  --ok-fg: #7fe0a5;
+  --ok-line: #2b5e3e;
+  --warn-bg: #352a0c;
+  --warn-fg: #f2cf73;
+  --warn-line: #5d4a14;
+  --bad-bg: #3a1716;
+  --bad-fg: #ff9d96;
+  --bad-line: #6a2522;
+  --info-bg: #132a43;
+  --info-fg: #9cc8f5;
+  --info-line: #24476e;
+  --agent-bg: #241f45;
+  --agent-fg: #c0b6ff;
+  --agent-line: #463b85;
+  --human-bg: #10302c;
+  --human-fg: #7fe2d5;
+  --human-line: #1f5a53;
+  --gate-bg: #2c2309;
+  --gate-line: #6b5310;
+  --back-bg: #2f210c;
+  --back-fg: #ffc07a;
+  --back-line: #6b4615;
+  /* lanes (chip fills): L0, L1-L3, L4-L5, L6, L7, L8 as the floor draws them */
+  --lane-l0: #c8460f;
+  --lane-l13: #1f6fbf;
+  --lane-l45: #6a3fb8;
+  --lane-l6: #2e8b3e;
+  --lane-l7: #8a5a12;
+  --lane-l8: #22857d;
+  /* overlays */
+  --scrim: rgba(5, 7, 10, 0.6);
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  /* type: the fonts are not loaded (CSP default-src 'self'); the fallbacks are the design */
+  --display: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --r: 8px;
+  --top-h: 52px;
+  --rail-w: 224px;
+}

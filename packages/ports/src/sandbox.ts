@@ -5,6 +5,10 @@ import {
   SANDBOX_SESSION_ID,
   sandboxEnvViolations,
   type SandboxClass,
+  type SandboxErrorCode,
+  type SandboxGrantRef,
+  type SandboxRunStatus,
+  type SandboxSlots,
   type SandboxLimits,
   type SandboxProfile,
 } from '@aisdlc/contracts';
@@ -29,15 +33,8 @@ export const SandboxError = taggedError('SandboxError');
 export type SandboxError = TaggedError<
   'SandboxError',
   {
-    code:
-      | 'invalid_spec'
-      | 'exec_not_allowed'
-      /** B1: an open secret finding for the repo blocks P, W, O, V and K-exec sessions (K is exempt). */
-      | 'b1_blocked'
-      | 'busy'
-      | 'unavailable'
-      | 'refused'
-      | 'driver_failure';
+    /** `SandboxErrorCode` (contracts): b1_blocked is B1, busy is over a cap (nothing started, nothing queued). */
+    code: SandboxErrorCode;
     message: string;
   }
 >;
@@ -70,6 +67,11 @@ export interface SandboxSpec {
   readonly gateway_key?: string;
   /** Only ever lower than the class's profile. */
   readonly limits?: Partial<SandboxLimits>;
+  /**
+   * The admission grant core recorded for the session (M14.2). The in-process driver does not need it; the
+   * sandbox-controller (`HttpSandbox`) starts nothing without it.
+   */
+  readonly grant?: SandboxGrantRef;
 }
 
 export interface OutFile {
@@ -93,17 +95,8 @@ export interface OutScan {
   readonly findings: readonly OutScanFinding[];
 }
 
-export type SandboxStatus =
-  /** The command ran to its own end (any exit code). */
-  | 'exited'
-  /** The time limit passed; the container was killed. The run is void. */
-  | 'timed_out'
-  /** The kernel killed the session for memory. The run is void. */
-  | 'oom_killed'
-  /** `/out` held more than the cap, or the log stream did. The run is void. */
-  | 'out_oversized'
-  /** Anything else the driver could not account for (no exit marker, killed from outside). The run is void. */
-  | 'killed';
+/** How a session ended (`SandboxRunStatus` in contracts): anything but `exited` is a void run. */
+export type SandboxStatus = SandboxRunStatus;
 
 export interface SandboxRun {
   readonly session_id: string;
@@ -137,6 +130,14 @@ export interface SandboxPort {
    * with a void status, not an error: the caller treats a void run as no evidence.
    */
   run(spec: SandboxSpec): Promise<Result<SandboxRun, SandboxError>>;
+}
+
+/**
+ * The free and used sandbox slots of a runner host under its two caps (M14.2): what admission's H2 reads from the
+ * sandbox-controller. An error means "cannot tell": H2 counts no free slot (the item waits).
+ */
+export interface SandboxSlotsPort {
+  slots(): Promise<Result<SandboxSlots, SandboxError>>;
 }
 
 // ---------------------------------------------------------------------------------------------- shared rules

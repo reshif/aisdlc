@@ -12,10 +12,49 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# What `npm run check` and `npm run build` do, split into jobs that run side by side: the static
+# checks, the build, the tests that need no Docker in four shards (each with its own Postgres), and
+# the Docker tests (sandbox-driver, coding-runner: one file at a time, as their configs say). The
+# `check` job at the end is the one status to require: it fails unless every job above succeeded.
 jobs:
-  check:
+  static:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: node scripts/check-workspace-deps.mjs
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         image: postgres:16
@@ -39,5 +78,46 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run check
-      - run: npm run build
+      # The settings of the throwaway cluster the tests start locally (packages/db/src/test-cluster.ts):
+      # no fsync (a test server is never recovered from a crash) and room for 1.5 workers per CPU.
+      - name: configure postgres as the test cluster is
+        env:
+          PG: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$PG" psql -U postgres -c "ALTER SYSTEM SET fsync = off" -c "ALTER SYSTEM SET synchronous_commit = off" -c "ALTER SYSTEM SET full_page_writes = off" -c "ALTER SYSTEM SET max_connections = 200"
+          docker restart "$PG"
+          for _ in $(seq 1 60); do docker exec "$PG" pg_isready -U postgres -q && break; sleep 1; done
+          docker exec "$PG" psql -U postgres -Atc "SHOW fsync" -c "SHOW max_connections"
+      - run: npm run test:no-docker -- --shard=${{ matrix.shard }}/4
+
+  test-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run test:docker
+
+  check:
+    if: always()
+    needs: [static, build, test, test-docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != success ]; then
+              echo "a required job did not succeed"
+              exit 1
+            fi
+          done

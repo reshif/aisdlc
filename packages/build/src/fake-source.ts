@@ -1,5 +1,6 @@
 import { canonicalJson, err, ok, type Result } from '@aisdlc/kernel';
 import { createHash } from 'node:crypto';
+import type { SandboxGrantRef } from '@aisdlc/contracts';
 import type { RepoFile } from '@aisdlc/ports';
 import { taskContractOf } from './contract.js';
 import {
@@ -25,6 +26,8 @@ export class FakeBuildSource implements BuildSourcePort {
   readonly asked: string[] = [];
   private down = false;
   contractOverride: TaskContract | null = null;
+  /** M14.2: the grant `sessionGrant` names; `null` (the default): none, and a controller refuses the session. */
+  grant: SandboxGrantRef | null = null;
   context_inputs: BuildContextInputs = { policy: [{ text: CODER_POLICY }], intent: null };
 
   constructor(
@@ -80,6 +83,10 @@ export class FakeBuildSource implements BuildSourcePort {
   async oracleFiles(): Promise<Result<OracleFile[], BuildSourceError>> {
     if (this.down) return err(buildSourceError('unavailable', 'the source is down'));
     return ok(this.oracle_files);
+  }
+
+  async sessionGrant(): Promise<Result<SandboxGrantRef | null, BuildSourceError>> {
+    return ok(this.grant ?? null);
   }
 
   contract(_repo: string, _sha: string, files: readonly RepoFile[]): TaskContract {

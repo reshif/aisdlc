@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 const dir = new URL('./src/', import.meta.url);
 const read = (f) => readFileSync(new URL(f, dir), 'utf8');
-const order = ['access.js', 'shell.js', 'floor.js', 'views-work.js', 'views-decide.js', 'views-operate.js', 'views-govern.js', 'views-admin.js'];
+const order = ['access.js', 'shell.js', 'floor.js', 'views-work.js', 'views-decide.js', 'views-operate.js', 'views-govern.js', 'views-admin.js', 'cfg.js', 'views-config.js', 'views-quality.js', 'views-m14.js', 'views-onboard.js'];
 const extra = readdirSync(dir).filter((f) => f.endsWith('.js') && f !== 'core.js' && !order.includes(f));
 const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const views = [...order, ...extra].filter((f) => !only || only.includes(f)).filter((f) => { try { readFileSync(new URL(f, dir)); return true; } catch { return false; } });

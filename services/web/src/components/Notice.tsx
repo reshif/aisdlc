@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
+import { ApiError } from '../api';
 import { describeError } from '../format';
+import { Link } from '../router';
+import { ErrorState } from '../ui';
 
 export function ErrorNote({ error, retry }: { error: unknown; retry?: () => void }) {
   return (
@@ -37,4 +40,24 @@ export function Callout({
       {children}
     </section>
   );
+}
+
+/**
+ * A page that could not load: a refusal (403) says why; "not found" (404) is the same page whatever
+ * the cause, so an invisible thing and a missing one look alike; anything else is an alert with a retry.
+ */
+export function PageError({ error, retry }: { error: unknown; retry?: () => void }) {
+  if (error instanceof ApiError && error.status === 404) {
+    return <ErrorState status={404} action={<Link to="/">Back to projects</Link>} />;
+  }
+  if (error instanceof ApiError && error.status === 403) {
+    return (
+      <ErrorState
+        status={403}
+        reason={describeError(error)}
+        action={<Link to="/me/access">See my access</Link>}
+      />
+    );
+  }
+  return <ErrorNote error={error} {...(retry ? { retry } : {})} />;
 }

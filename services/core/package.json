@@ -49,6 +49,7 @@
     "@aisdlc/ports": "0.0.0",
     "@aisdlc/record": "0.0.0",
     "@aisdlc/service-kit": "0.0.0",
+    "@aisdlc/verify": "0.0.0",
     "@aisdlc/work": "0.0.0",
     "fastify": "5.12.8",
     "pg": "8.23.1",
@@ -57,6 +58,7 @@
   "devDependencies": {
     "@aisdlc/codehost": "0.0.0",
     "@aisdlc/gateway": "0.0.0",
-    "@aisdlc/knowledge": "0.0.0"
+    "@aisdlc/knowledge": "0.0.0",
+    "@aisdlc/verify-service": "0.0.0"
   }
 }

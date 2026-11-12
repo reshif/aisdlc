@@ -26,7 +26,8 @@
     DESK: ['Handoff desk (E4)', 'the owner of record chooses', 'room desk'],
     SCHED: ['Scheduler', 'lease, pod and envelope', 'room'],
   };
-  const PODS = [0, 1, 2].map((i) => ({ x: 880 + i * 180.7, y: 693, w: 170.7, h: 120 }));
+  // one coding slot: CODING_SESSION_CAP = 1 and sandbox.caps coding 1 (the floor draws as many as the caps allow)
+  const PODS = [0].map((i) => ({ x: 880 + i * 180.7, y: 693, w: 532, h: 120 }));
   const band = (y) => (y < 300 ? 'top' : y < 600 ? 'mid' : y < 880 ? 'bot' : 'done');
 
   /* ---------------------------------------------------------------- lane routes (from the catalogue) */
@@ -100,7 +101,7 @@
   }
 
   /* ---------------------------------------------------------------- agent score chips (DM §5.3 floor overlay) */
-  const agentsAt = (stage) => D.AGENTS.filter((a) => a.steps.some((st) => (D.STEPS[st] || [])[0] === stage));
+  const agentsAt = (stage) => D.AGENTS.filter((a) => a.score != null && a.steps.some((st) => (D.STEPS[st] || [])[0] === stage));
   const scoreChips = (stage) => A.j(agentsAt(stage).sort((a, b) => a.score - b.score).slice(0, 1), (a) => `<span class="fl-score ${a.score < 0.85 ? 'low' : ''}" title="${a.id} ${A.esc(a.name)}: eval score ${a.score.toFixed(2)} (${a.delta >= 0 ? '+' : ''}${a.delta.toFixed(2)} vs baseline)">${a.id} ${a.score.toFixed(2).slice(1)}</span>`);
 
   /* ---------------------------------------------------------------- controls that reach the floor */
@@ -291,7 +292,7 @@
       const el = document.querySelector(`[data-pod="${i + 1}"]`); if (!el) return;
       const it = items.find((x) => x.pod === i + 1 && x.stage === 'S6' && x.state === 'working');
       el.classList.toggle('busy', !!it);
-      el.querySelector('.fl-podlbl').textContent = it ? `pod ${i + 1}, ${it.key} · ${it.step}` : `pod ${i + 1}, free`;
+      el.querySelector('.fl-podlbl').textContent = it ? `coding slot ${i + 1} of 1, ${it.key} · ${it.step}` : `coding slot ${i + 1} of 1, free`;
     });
     const c = { working: 0, waiting: 0, held: 0, stuck: 0 };
     items.forEach((i) => { if (c[i.state] != null) c[i.state]++; });
@@ -441,7 +442,7 @@
       ${A.stats([{ k: 'Here now', v: items.length }, { k: 'Stuck', v: items.filter((i) => i.state === 'stuck').length, tone: items.some((i) => i.state === 'stuck') ? 'bad' : '' }, { k: 'Median time here', v: { S1: '3h', S2: '9h', S3: '7h', S4: '11h', S5: '6h', S6: '2.1h', S7: '38m', S8: '5h', S9: '1d' }[id] || '—' }])}
       ${A.card('Items', items.length ? `<div class="list">${A.j(items, (i) => `<div class="li" data-peek="${i.key}"><span>${A.chip(i)}</span><div><div class="ti">${A.dataClass(i.project) >= 1 ? A.esc(i.title) : '<span class="faint">Title hidden</span>'}</div><div class="me"><span class="mono">${i.step}</span> ${A.esc((D.STEPS[i.step] || [])[2] || '')}${i.wait.length ? ' · waits on ' + i.wait.map((w) => D.PEOPLE[w]?.initials).join(' ') : ''}</div></div>${A.statePill(i.state)}</div>`)}</div>` : '<p class="muted small" style="padding:12px 16px">Nothing here right now.</p>', { flush: true })}
       ${A.card('Steps', A.steps(id, null))}
-      ${ag.length ? A.card('Agents at this station', A.j(ag, (a) => `<div class="row between" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>${A.glyph('A', 16)} <b>${a.id}</b> ${A.esc(a.name)} <span class="tiny faint mono">${a.ver} · ${a.model}</span></span><span class="fl-score ${a.score < 0.85 ? 'low' : ''}">${a.score.toFixed(2)}</span></div>`) + (A.can('quality.read', { type: 'Fleet' }) ? '<a class="small" href="#evals">Eval board</a>' : '')) : ''}
+      ${ag.length ? A.card('Agents at this station', A.j(ag, (a) => `<div class="row between" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>${A.glyph('A', 16)} <b>${a.id}</b> ${A.esc(a.name)} <span class="tiny faint mono">${a.prompt} · ${a.model}</span></span><span class="fl-score ${a.score < 0.85 ? 'low' : ''}">${a.score.toFixed(2)}</span></div>`) + (A.can('quality.read', { type: 'Fleet' }) ? '<a class="small" href="#evals">Eval board</a>' : '')) : ''}
       <div class="row"><a class="btn" href="#board">Open the board</a></div>`);
   }
   function gateDrawer(g) {

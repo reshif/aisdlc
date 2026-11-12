@@ -1,4 +1,4 @@
-import type { Constitution } from '@aisdlc/contracts';
+import type { DesignFacts } from '@aisdlc/verify';
 
 // S4's deterministic halves (PLAN M12.3): 4.2's contract checker and 4.5's constitution rules. Both are pure:
 // the same design gives the same findings, with no model and no I/O.
@@ -213,76 +213,8 @@ export function checkContractFiles(files: readonly ContractFile[] | undefined): 
 
 // ---------------------------------------------------------------- 4.5 constitution
 
-/** What the design says, in the structured fields the constitution reads (the agent's claims, checked by rules). */
-export interface DesignFacts {
-  readonly network_calls: ReadonlyArray<{
-    host?: unknown;
-    purpose?: unknown;
-    approval_ref?: unknown;
-  }>;
-  readonly migrations: ReadonlyArray<{
-    name?: unknown;
-    reversible?: unknown;
-    irreversible_flagged?: unknown;
-  }>;
-}
-
-export interface ConstitutionFinding {
-  readonly rule_id: string;
-  readonly severity: 'high';
-  readonly location: { readonly path: string };
-  readonly message: string;
-}
-
-/** One line, bounded: the design's own words end up in a card, and a newline there could start a heading. */
-const say = (v: unknown, max = 80): string =>
-  (typeof v === 'string' ? v : '?').replace(/\s+/g, ' ').trim().slice(0, max);
-
-/**
- * The deterministic half of 4.5: each rule of the constitution run over the design's facts. A rule kind this
- * build does not know is a finding too (unknown means unmet). Pure; the order is the constitution's.
- */
-export function evaluateConstitution(c: Constitution, d: DesignFacts): ConstitutionFinding[] {
-  const out: ConstitutionFinding[] = [];
-  for (const rule of c.rules) {
-    switch (rule.kind) {
-      case 'no_unapproved_egress':
-        d.network_calls.forEach((n, i) => {
-          const host = say(n.host, 253).toLowerCase();
-          const approved = typeof n.approval_ref === 'string' && n.approval_ref.trim() !== '';
-          if (!approved && !rule.allow_hosts.includes(host)) {
-            out.push({
-              rule_id: rule.rule_id,
-              severity: 'high',
-              location: { path: `network_calls[${i}]` },
-              message: `${rule.title}: the design calls ${host || '?'} with no approval reference`,
-            });
-          }
-        });
-        break;
-      case 'migrations_reversible_or_flagged':
-        d.migrations.forEach((m, i) => {
-          if (m.reversible !== true && m.irreversible_flagged !== true) {
-            out.push({
-              rule_id: rule.rule_id,
-              severity: 'high',
-              location: { path: `migrations[${i}]` },
-              message: `${rule.title}: ${say(m.name)} is neither reversible nor flagged irreversible`,
-            });
-          }
-        });
-        break;
-      default:
-        out.push({
-          rule_id: (rule as { rule_id?: string }).rule_id ?? 'UNKNOWN',
-          severity: 'high',
-          location: { path: 'constitution' },
-          message: 'a rule of a kind this build cannot check',
-        });
-    }
-  }
-  return out;
-}
+// The constitution's ONE rule evaluator moved to `@aisdlc/verify` (M14.3): 7.5 runs the same rules over the code.
+export { evaluateConstitution, type ConstitutionFinding, type DesignFacts } from '@aisdlc/verify';
 
 /** The facts of the design from its stored artefacts' content (each may be absent). */
 export function designFactsOf(a: {

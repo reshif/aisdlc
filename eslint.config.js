@@ -9,6 +9,8 @@ export default tseslint.config(
       '**/node_modules/**',
       '.cache/**',
       '.pgdata/**',
+      // local agent worktrees: other checkouts of this repo, linted in their own run
+      '.claude/worktrees/**',
       '**/.tmp/**',
       // the portal prototype is a design artefact (plain browser JS), not part of the build
       'docs/design/**',

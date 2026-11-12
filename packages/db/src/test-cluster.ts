@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chownSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { chownSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -79,12 +80,20 @@ export async function startTestCluster(): Promise<TestCluster> {
     }
   };
 
+  // Password authentication, as on CI and in compose: a test that a wrong password is refused must mean it
+  // here too. The superuser's password is random per cluster and lives only in this process and the URL.
+  const password = randomBytes(18).toString('hex');
+  const pwfile = join(root, 'pw');
+  writeFileSync(pwfile, `${password}\n`, { mode: 0o600 });
+  if (user) execFileSync('chown', [user, pwfile]);
+
   try {
     run('initdb', [
       '-D',
       data,
       '-A',
-      'trust',
+      'scram-sha-256',
+      `--pwfile=${pwfile}`,
       '-U',
       'postgres',
       '-E',
@@ -107,7 +116,7 @@ export async function startTestCluster(): Promise<TestCluster> {
     run('pg_ctl', ['-D', data, '-o', opts, '-l', log, '-w', '-t', '60', 'start']);
     started = true;
     return {
-      url: `postgres://postgres@${encodeURIComponent(sock)}:${port}/postgres`,
+      url: `postgres://postgres:${password}@${encodeURIComponent(sock)}:${port}/postgres`,
       stop,
     };
   } catch (e) {

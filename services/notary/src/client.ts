@@ -4,6 +4,7 @@ import {
   ErrorEnvelope,
   NotaryCheckpointResponse,
   NotaryConfirmResponse,
+  NotaryEvidenceSignResponse,
   NotaryReserveResponse,
   NotarySignResponse,
   NotaryUnconfirmedResponse,
@@ -11,6 +12,8 @@ import {
   NOTARY_STATUS,
   notaryError,
   type CheckpointSignRequest,
+  type EvidenceSignRequest,
+  type EvidenceSignerPort,
   type NotaryError,
   type NotaryErrorCode,
   type NotaryPort,
@@ -32,7 +35,7 @@ export interface HttpNotaryOptions {
 const CODES = Object.keys(NOTARY_STATUS) as NotaryErrorCode[];
 
 /** `NotaryPort` over HTTP. A network or protocol failure is `unavailable`, never a success. */
-export class HttpNotary implements NotaryPort {
+export class HttpNotary implements NotaryPort, EvidenceSignerPort {
   constructor(private readonly o: HttpNotaryOptions) {}
 
   private async call<S extends z.ZodType>(
@@ -80,6 +83,11 @@ export class HttpNotary implements NotaryPort {
 
   signCheckpoint(req: CheckpointSignRequest): Promise<Result<SignedCheckpoint, NotaryError>> {
     return this.call('POST', '/v1/checkpoint', req, NotaryCheckpointResponse);
+  }
+
+  async signEvidencePack(req: EvidenceSignRequest) {
+    const r = await this.call('POST', '/v1/evidence/sign', req, NotaryEvidenceSignResponse);
+    return r.ok ? ok(r.value.signature) : r;
   }
 
   async verify(entry: LedgerEntry) {
