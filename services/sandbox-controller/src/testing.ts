@@ -23,6 +23,7 @@ export async function startTestController(o: {
   grants?: GrantVerifier;
   reload?: () => Promise<void>;
   scopes?: readonly ControllerScope[];
+  probeImage?: () => string | null;
 }): Promise<TestController> {
   const token = randomBytes(24).toString('hex');
   const caps = o.caps ?? new StaticCaps();
@@ -31,6 +32,7 @@ export async function startTestController(o: {
     caps,
     grants: o.grants ?? new FakeGrants(),
     hostId: 'test',
+    ...(o.probeImage ? { probeImage: o.probeImage } : {}),
   });
   const app = createControllerApp({
     controller,

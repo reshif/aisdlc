@@ -1,5 +1,6 @@
 import {
   CODING_CLASSES,
+  IMAGE_PINNED_CLASSES,
   SandboxClassValues,
   type SandboxClass,
   type SandboxSlots,
@@ -37,6 +38,11 @@ export interface ControllerDeps {
   readonly hostId: string;
   /** The driver's trusted commands (a class that runs no repo code may run only these). */
   readonly preflight?: PreflightOptions;
+  /**
+   * M16 (DEC-17 refined): the onboarding probe image approved in config (`onboarding.sandbox_image`, by digest). A
+   * K-exec session must name exactly this image; `null` or absent (none approved, or unreadable): no K-exec runs.
+   */
+  readonly probeImage?: () => string | null;
   readonly now?: () => Date;
 }
 
@@ -111,13 +117,31 @@ export class SandboxController {
   async run(spec: SandboxSpec): Promise<Result<SandboxRun, SandboxError>> {
     const pre = preflightSpec(spec, this.d.preflight);
     if (!pre.ok) return pre;
+    if (IMAGE_PINNED_CLASSES.includes(spec.class)) {
+      const approved = this.d.probeImage?.() ?? null;
+      if (approved === null) {
+        return err(
+          sandboxError('refused', `no ${spec.class} image is approved (onboarding.sandbox_image)`),
+        );
+      }
+      if (spec.image !== approved) {
+        return err(
+          sandboxError(
+            'refused',
+            `a ${spec.class} session runs the approved image only (onboarding.sandbox_image)`,
+          ),
+        );
+      }
+    } else if (spec.image !== undefined) {
+      return err(sandboxError('refused', `a ${spec.class} session runs the host's image`));
+    }
     const grant = spec.grant;
     if (grant === undefined) {
       return err(
         sandboxError('refused', 'no admission grant: nothing starts that core did not grant'),
       );
     }
-    const g = await this.d.grants.check(grant);
+    const g = await this.d.grants.check(grant, spec.class);
     if (!g.ok) {
       return err(sandboxError('unavailable', `the grant could not be checked: ${g.error.message}`));
     }

@@ -1,4 +1,9 @@
-import { DEFAULT_SANDBOX_CAPS, SANDBOX_CAPS_KEY, SandboxSlots } from '@aisdlc/contracts';
+import {
+  DEFAULT_SANDBOX_CAPS,
+  ONBOARDING_PROBE_UNIT,
+  SANDBOX_CAPS_KEY,
+  SandboxSlots,
+} from '@aisdlc/contracts';
 import { err } from '@aisdlc/kernel';
 import {
   FakeSandbox,
@@ -117,7 +122,12 @@ describe('the two caps of the host', () => {
     });
     const c = tc;
     const runs = ['ctl-a1', 'ctl-a2', 'ctl-a3', 'ctl-a4'].map((id, i) =>
-      c.client.run(spec({ session_id: id, class: i === 0 ? 'K-exec' : 'O' })),
+      c.client.run(
+        spec({
+          session_id: id,
+          ...(i === 0 ? { class: 'W' as const, gateway_key: KEY } : { class: 'O' as const }),
+        }),
+      ),
     );
     await until(() => d.started.length === 4);
     const s = await slots(c);
@@ -296,5 +306,73 @@ describe('the caps fall back closed', () => {
     const c2 = new ConfigCaps(readerOf(low), 'h');
     await c2.reload();
     expect(c2.current().caps).toEqual({ total: 2, coding: 0 });
+  });
+});
+
+describe('M16: the onboarding probe image and grant', () => {
+  const IMG = `aisdlc/sandbox-onboarding@sha256:${'1'.repeat(64)}`;
+  const PROBE_GRANT = {
+    grant_id: `probe-${'b'.repeat(32)}`,
+    item_id: '01930000-0000-7000-8000-0000000000dd',
+    unit_id: ONBOARDING_PROBE_UNIT,
+    lease_epoch: 1,
+  };
+  const probe = (over: Partial<SandboxSpec> = {}): SandboxSpec =>
+    spec({
+      class: 'K-exec',
+      session_id: 'probe-bbbbbbbb',
+      grant: PROBE_GRANT,
+      image: IMG,
+      ...over,
+    });
+
+  it('a K-exec session runs only the approved image; none approved: nothing runs', async () => {
+    const fake = new FakeSandbox();
+    let approved: string | null = null;
+    tc = await startTestController({
+      driver: fake,
+      grants: new FakeGrants().grant(PROBE_GRANT),
+      probeImage: () => approved,
+    });
+    const none = await tc.client.run(probe());
+    expect(none.ok ? null : none.error.code).toBe('refused');
+    approved = IMG;
+    const other = await tc.client.run(probe({ image: `sha256:${'2'.repeat(64)}` }));
+    expect(other.ok ? null : other.error.code).toBe('refused');
+    const { image: _drop, ...noImage } = probe();
+    const missing = await tc.client.run(noImage);
+    expect(missing.ok).toBe(false);
+    const good = await tc.client.run(probe());
+    expect(good.ok).toBe(true);
+    expect(fake.runs.map((r) => r.image)).toEqual([IMG]);
+  });
+
+  it('an image named by tag is invalid; another class may not name an image', async () => {
+    const fake = new FakeSandbox();
+    tc = await startTestController({
+      driver: fake,
+      grants: new FakeGrants().grant(CONTRACT_GRANT).grant(PROBE_GRANT),
+      probeImage: () => IMG,
+    });
+    const tag = await tc.client.run(probe({ image: 'aisdlc/sandbox-onboarding:local' }));
+    expect(tag.ok ? null : tag.error.code).toBe('invalid_spec');
+    const o = await tc.client.run(spec({ image: IMG }));
+    expect(o.ok ? null : o.error.code).toBe('refused');
+    expect(fake.runs).toEqual([]);
+  });
+
+  it('a probe grant starts a K-exec session and nothing else', async () => {
+    const fake = new FakeSandbox();
+    tc = await startTestController({
+      driver: fake,
+      grants: new FakeGrants().grant(PROBE_GRANT),
+      probeImage: () => IMG,
+    });
+    const o = await tc.client.run(
+      spec({ class: 'O', session_id: 'probe-cccccccc', grant: PROBE_GRANT }),
+    );
+    expect(o.ok ? null : o.error.code).toBe('refused');
+    expect(fake.runs).toEqual([]);
+    expect((await tc.client.run(probe())).ok).toBe(true);
   });
 });

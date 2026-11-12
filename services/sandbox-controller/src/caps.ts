@@ -47,6 +47,11 @@ export class ConfigCaps implements CapsReader {
     private readonly onError: (e: unknown) => void = () => undefined,
   ) {}
 
+  /** The last reload failed: what the reader holds may be out of date (the probe image reads `null` then). */
+  get isStale(): boolean {
+    return this.stale;
+  }
+
   current(): CapsNow {
     const c = this.reader.current();
     if (c.rejected.includes(SANDBOX_CAPS_KEY))
