@@ -42,10 +42,14 @@ const SKIP_DIRS = new Set([
 // test, while the README and the script that writes the files are still scanned.
 const GENERATED_SECRETS = join('platform', 'compose', 'secrets');
 
+// Local agent worktrees (git-ignored) are other checkouts of this repository; each scans itself.
+const WORKTREES = join('.claude', 'worktrees');
+
 function* walk(dir: string): Generator<string> {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (e.isDirectory()) {
-      if (!SKIP_DIRS.has(e.name)) yield* walk(join(dir, e.name));
+      if (SKIP_DIRS.has(e.name) || relative(root, join(dir, e.name)) === WORKTREES) continue;
+      yield* walk(join(dir, e.name));
     } else if (e.isFile()) {
       const rel = relative(root, join(dir, e.name));
       if (dirname(rel) === GENERATED_SECRETS && e.name !== 'README.md') continue;
