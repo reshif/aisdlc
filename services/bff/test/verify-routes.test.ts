@@ -124,6 +124,7 @@ const gateContext = () => ({
   patch: null,
   dependencies: [],
   constitution: null,
+  handoff: null,
   data_class: 'D2',
 });
 

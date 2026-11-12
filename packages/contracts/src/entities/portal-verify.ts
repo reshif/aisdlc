@@ -5,6 +5,7 @@ import { CatalogueRef } from './config.js';
 import { EvidenceGate, EvidenceStep, S7Disposition } from './evidence.js';
 import { GateCheckOutcome, GateCheckReason } from './gate-check.js';
 import { GitSha, IsoDateTime, PrincipalId, ProjectId, Sha256Hex, WorkItemId } from './ids.js';
+import { HandoffChoice, HandoffCode, HandoffPackRef, HandoffUuid } from './work-lifecycle.js';
 import {
   CheckVerdict,
   FindingKind,
@@ -271,6 +272,25 @@ export const GateCardContext = z.strictObject({
       sha256: Sha256Hex,
       intact: z.boolean(),
       markdown: z.string().nullable(),
+    })
+    .nullable(),
+  /**
+   * E4 (and E3/E5 of a handoff): the handoff the owner of record decides, as the gate opened with it (the subject
+   * hash binds it, the pack included), and the choices the flow allows once E4 is approved.
+   */
+  handoff: z
+    .strictObject({
+      handoff_id: HandoffUuid,
+      n: z.number().int().min(1),
+      code: HandoffCode,
+      trigger: z.string().min(1),
+      origin_phase: z.string().min(1),
+      origin_step: StepId.nullable(),
+      pack: HandoffPackRef,
+      /** The choices open when the gate opened (the item's page has the ones open now). */
+      valid_choices: z.array(HandoffChoice),
+      status: z.enum(['open', 'chosen']),
+      choice: HandoffChoice.nullable(),
     })
     .nullable(),
   data_class: DataClass,

@@ -283,6 +283,16 @@ export const Handoff = z.strictObject({
 });
 export type Handoff = z.infer<typeof Handoff>;
 
+/**
+ * D5 (L8): where the developer's work is, as a reference the factory can check against the code host: a pull
+ * request by number, or a commit by its full SHA. Data, never instructions; never free text.
+ */
+export const HumanWorkReference = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('pr'), number: z.number().int().min(1).max(1_000_000_000) }),
+  z.strictObject({ kind: z.literal('commit'), sha: GitSha }),
+]);
+export type HumanWorkReference = z.infer<typeof HumanWorkReference>;
+
 // ---------------------------------------------------------------- Assumption (one shape)
 
 /** The four places an assumption comes from today (DM §8 gap 4): thread, event, agent output, intent open questions. */
@@ -744,6 +754,8 @@ export const ItemEventPayloads = {
      */
     outputs: z.partialRecord(StepId, Sha256Hex).optional(),
     base_sha: GitSha.optional(),
+    /** D5 (L8): the pull request or commit the developer names as the work (absent: not named). */
+    reference: HumanWorkReference.optional(),
   }),
   [ITEM_EVENT.gates_opened]: z.strictObject({
     ...Answers,

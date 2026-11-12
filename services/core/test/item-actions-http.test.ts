@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   FixedGrounding,
   createCoreApp,
+  driveWork,
   listUnits,
   readItem,
   readItemEvents,
@@ -22,6 +23,7 @@ import {
   GATING_OFF,
   GATING_ON,
   approvers,
+  decideGate,
   driverOver,
   loadReports,
   runItem,
@@ -82,6 +84,12 @@ async function post(path: string, body: unknown, token = TOKENS.bff) {
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
+  const text = await res.text();
+  return { status: res.status, json: (text ? JSON.parse(text) : null) as Json };
+}
+
+async function get(path: string, token = TOKENS.bff) {
+  const res = await fetch(new URL(path, url), { headers: { authorization: `Bearer ${token}` } });
   const text = await res.text();
   return { status: res.status, json: (text ? JSON.parse(text) : null) as Json };
 }
@@ -436,8 +444,24 @@ describe('D5 over HTTP (M14.6): the human-led work of an L8 item is done', () =>
     const path = `/v1/items/${item}/human-done`;
     expect((await post(path, { on_behalf_of: 'dee', key: 'k1' }, TOKENS.reader)).status).toBe(403);
     expect((await post(path, { on_behalf_of: 'ria', key: 'k1' })).status).toBe(403);
-    const r = await post(path, { on_behalf_of: 'dee', key: 'k1' });
+    const sha = 'c'.repeat(40);
+    // a reference that is neither a PR number nor a full commit SHA is not the contract
+    expect(
+      (await post(path, { on_behalf_of: 'dee', key: 'k1', reference: { kind: 'commit', sha: 'x' } }))
+        .status,
+    ).toBe(400);
+    const r = await post(path, {
+      on_behalf_of: 'dee',
+      key: 'k1',
+      reference: { kind: 'commit', sha },
+    });
     expect(r.status, JSON.stringify(r.json)).toBe(200);
+    // the reference is recorded with the signal, and the handoff view lists it
+    const hv = await get(`/v1/items/${item}/handoff?on_behalf_of=dee`);
+    expect(hv.status).toBe(200);
+    expect(hv.json.done).toEqual([
+      { by: 'dee', at: expect.any(String), reference: { kind: 'commit', sha } },
+    ]);
     expect(r.json.duplicate).toBe(false);
     const again = await post(path, { on_behalf_of: 'dee', key: 'k1' });
     expect(again.json.duplicate).toBe(true);
@@ -447,5 +471,116 @@ describe('D5 over HTTP (M14.6): the human-led work of an L8 item is done', () =>
     expect(evs).toHaveLength(1);
     // a new key while the item is no longer waiting for the developer is a conflict
     expect((await post(path, { on_behalf_of: 'dee', key: 'k2' })).status).toBe(409);
+  });
+});
+
+describe('Handoffs over HTTP (P1-4): the E4 card facts, the owner of record\'s choice, D4 hand-back', () => {
+  let item: string;
+  let d: ReturnType<typeof driverOver>;
+  beforeAll(async () => {
+    const seeded = await seedActivePrr(s, { level: 'full', gating: GATING_OFF });
+    approvers(s, seeded.project, ['ivy']);
+    await bindProject(s.id, seeded.project, { requesters: ['ria'], design: ['dee'], x: ['ivy'] });
+    const ports = new FakeStagePorts();
+    // ET1 (budget) at 6.4, the first time only: D1, then E4
+    ports.coding.script((r) =>
+      r.step === '6.4' && r.attempt <= 1
+        ? { outcome: 'trigger', trigger: 'ET1', reason_code: 'p1-4' }
+        : undefined,
+    );
+    d = driverOver(s, { ports });
+    const sub = await submitRequest(s.deps, {
+      project_id: pid(seeded.project),
+      repo: seeded.repo,
+      lane: 'L3',
+      requester: pr('ria'),
+      channel: 'N1',
+      text: 'A change that runs out of budget.',
+    });
+    if (!sub.ok) throw new Error(sub.error.message);
+    item = sub.value.item_id as string;
+    await runItem(s, d, item, {
+      approver: 'ivy',
+      stop: (st) => st.waiting?.kind === 'handoff' && st.waiting.stage === 'e4',
+    });
+    expect((await state(item))?.waiting).toMatchObject({ kind: 'handoff', stage: 'e4' });
+  }, 200_000);
+
+  it('shows the handoff, its E4 card and the facts the card binds; no choice before E4 is decided', async () => {
+    expect((await get(`/v1/items/${item}/handoff?on_behalf_of=eve`)).status).toBe(403);
+    const v = await get(`/v1/items/${item}/handoff?on_behalf_of=ivy`);
+    expect(v.status, JSON.stringify(v.json)).toBe(200);
+    expect(v.json.handoff).toMatchObject({
+      code: 'D1',
+      trigger: 'ET1',
+      origin_phase: 'S6',
+      status: 'open',
+    });
+    expect(v.json.e4).toMatchObject({ status: 'pending', approvers: [] });
+    expect(v.json.e4.card_id).toEqual(expect.any(String));
+    expect(v.json.choices).toEqual([]);
+    expect(v.json.human_led).toBeNull();
+    // the E4 card says what it decides: the handoff, its pack bound by hash, the choices the flow allows
+    const ctx = await get(`/v1/cards/${v.json.e4.card_id}/gate/context`);
+    expect(ctx.status, JSON.stringify(ctx.json)).toBe(200);
+    expect(ctx.json.gate).toBe('E4');
+    expect(ctx.json.handoff).toMatchObject({
+      handoff_id: v.json.handoff.handoff_id,
+      code: 'D1',
+      trigger: 'ET1',
+      pack: v.json.handoff.pack,
+    });
+    expect(ctx.json.handoff.valid_choices).toEqual(expect.arrayContaining(['takeover', 'abandon']));
+    expect(ctx.json.binds).toContainEqual({
+      label: 'Handoff Pack',
+      value: v.json.handoff.pack.content_sha256,
+    });
+    const early = await post(`/v1/items/${item}/handoff/choose`, {
+      on_behalf_of: 'ivy',
+      handoff_id: v.json.handoff.handoff_id,
+      choice: 'takeover',
+    });
+    expect(early.status).toBe(409);
+  });
+
+  it('the owner who decided E4 chooses (PDP gate.decide on E4); a developer takes over, then hands back once', async () => {
+    const v0 = (await get(`/v1/items/${item}/handoff?on_behalf_of=ivy`)).json;
+    const hid = v0.handoff.handoff_id as string;
+    const decided = await decideGate(s, v0.e4.gate_instance_id, 'ivy', 'approve');
+    expect(decided.ok).toBe(true);
+    await driveWork(d);
+    const v1 = (await get(`/v1/items/${item}/handoff?on_behalf_of=ivy`)).json;
+    expect(v1.e4).toMatchObject({ status: 'decided', outcome: 'approve', approvers: ['ivy'] });
+    expect(v1.choices).toEqual(expect.arrayContaining(['resume', 'takeover', 'abandon']));
+    const choose = (who: string, choice: string, token = TOKENS.bff) =>
+      post(`/v1/items/${item}/handoff/choose`, { on_behalf_of: who, handoff_id: hid, choice }, token);
+    expect((await choose('ivy', 'takeover', TOKENS.reader)).status).toBe(403);
+    // the PDP: dee holds no x slot
+    expect((await choose('dee', 'takeover')).status).toBe(403);
+    // an extension that names no percent is refused before it spends the one key
+    expect((await choose('ivy', 'extend')).status).toBe(400);
+    const r = await choose('ivy', 'takeover');
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(r.json.item).toMatchObject({ lane: 'L8', waiting: 'human:human_led' });
+    const v2 = (await get(`/v1/items/${item}/handoff?on_behalf_of=dee`)).json;
+    expect(v2.human_led).toEqual({ taken_over: true, lane_before: 'L3', hand_backs_left: 1 });
+    expect(v2.handoff).toMatchObject({ status: 'chosen', choice: 'takeover', chosen_by: 'ivy' });
+
+    // D4: the design slot (who does the human-led work) hands it back, once
+    const back = (who: string, key: string, token = TOKENS.bff) =>
+      post(`/v1/items/${item}/hand-back`, { on_behalf_of: who, plan_changed: false, key }, token);
+    expect((await back('dee', 'hb1', TOKENS.reader)).status).toBe(403);
+    expect((await back('ria', 'hb1')).status).toBe(403);
+    const hb = await back('dee', 'hb1');
+    expect(hb.status, JSON.stringify(hb.json)).toBe(200);
+    expect(hb.json.duplicate).toBe(false);
+    expect(hb.json.item.lane).toBe('L3');
+    expect((await back('dee', 'hb1')).json.duplicate).toBe(true);
+    // no longer with a developer: another hand-back is a conflict
+    expect((await back('dee', 'hb2')).status).toBe(409);
+    const evs = (await readItemEvents(s.record.pool, item)).filter(
+      (e) => e.type === ITEM_EVENT.hand_back,
+    );
+    expect(evs).toHaveLength(1);
   });
 });

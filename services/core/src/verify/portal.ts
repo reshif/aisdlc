@@ -1,4 +1,5 @@
 import {
+  HandoffChoice,
   ITEM_EVENT,
   VERIFY_CHECK_OF_STEP,
   VERIFY_EVENT,
@@ -61,7 +62,7 @@ export async function recordedResults(pool: pg.Pool, itemId: string): Promise<Re
 }
 
 /** The card that carries each gate instance of an item (from its `gates_opened` events). */
-async function cardsOfGates(pool: pg.Pool, itemId: string): Promise<Map<string, string>> {
+export async function cardsOfGates(pool: pg.Pool, itemId: string): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   for (const e of await readItemEvents(pool, itemId)) {
     if (e.type !== ITEM_EVENT.gates_opened) continue;
@@ -359,6 +360,17 @@ const Facts = z.looseObject({
       pack_sha256: z.string().nullable(),
     })
     .optional(),
+  // E4 (and E3/E5 of a handoff): interpret.ts `openHandoff` puts the handoff and the choices open then in the facts
+  handoff: z
+    .looseObject({
+      handoff_id: z.string(),
+      code: z.string().optional(),
+      trigger: z.string().optional(),
+      origin_phase: z.string().optional(),
+      pack: z.looseObject({ pack_id: z.string(), content_sha256: z.string() }).optional(),
+    })
+    .optional(),
+  valid_choices: z.array(z.string()).optional(),
 });
 
 const VERIFY_STEP_SET = new Set<string>(VERIFY_STEPS);
@@ -395,6 +407,7 @@ export async function gateCardContext(
   if (f.quarantine?.pack_sha256) {
     binds.push({ label: 'quarantine evidence', value: f.quarantine.pack_sha256 });
   }
+  if (f.handoff?.pack) binds.push({ label: 'Handoff Pack', value: f.handoff.pack.content_sha256 });
   if (step !== null) {
     const approved = item.state.approved[step] ?? [];
     binds.push({
@@ -457,6 +470,25 @@ export async function gateCardContext(
     constitution = { sha256: report.sha256, intact: a !== null, markdown: a?.markdown ?? null };
   }
 
+  // E4, E3, E5: the handoff the gate is about, as the item holds it (the facts name it by its one id)
+  const h = f.handoff
+    ? item.state.handoffs.find((x) => x.handoff_id === f.handoff?.handoff_id)
+    : undefined;
+  const handoff: GateCardContext['handoff'] = h
+    ? {
+        handoff_id: h.handoff_id,
+        n: h.n,
+        code: h.code,
+        trigger: h.trigger,
+        origin_phase: h.origin_phase,
+        origin_step: h.origin_step,
+        pack: h.pack,
+        valid_choices: HandoffChoice.array().catch([]).parse(f.valid_choices ?? []),
+        status: h.status,
+        choice: h.choice,
+      }
+    : null;
+
   return ok({
     card_id: cardId,
     project_id: opened.open.project_id as never,
@@ -491,6 +523,7 @@ export async function gateCardContext(
     patch,
     dependencies,
     constitution,
+    handoff,
     data_class: 'D2',
   });
 }

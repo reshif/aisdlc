@@ -325,6 +325,7 @@ export const gateContext = (gate: string, over: Record<string, unknown> = {}) =>
           markdown: '# Constitution check\n\nC-EGRESS: violation',
         }
       : null,
+  handoff: null,
   data_class: 'D1',
   principal_names: { alice: 'Alice Admin', bob: 'Bob Builder', carol: 'Carol Customer' },
   ...over,

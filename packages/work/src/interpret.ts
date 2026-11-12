@@ -20,6 +20,7 @@ import {
   type BreakerSource,
   type GateId,
   type Handoff,
+  type HandoffChoice,
   type HandoffCode,
   type ItemCommand,
   type ItemEvent,
@@ -503,11 +504,11 @@ const openHandoffOf = (s: ItemState): Handoff | undefined =>
   s.handoffs.find((h) => h.status === 'open');
 
 /** The choices open to the owner now: the ones whose target the item has (fail closed: none is not an answer). */
-function validChoices(s: ItemState, cat: CatalogueData): string[] {
+function validChoices(s: ItemState, cat: CatalogueData): HandoffChoice[] {
   const route = routeOf(s, cat);
   const h = openHandoffOf(s);
   const has = (step: StepId) => stationOfStep(route, step) >= 0;
-  const out: string[] = [];
+  const out: HandoffChoice[] = [];
   const ran64 = (s.attempts['s:6.4'] ?? 0) > 0;
   if (ran64 && has('6.4')) out.push('resume');
   const ext = extensionRules(cat);
@@ -526,6 +527,18 @@ function validChoices(s: ItemState, cat: CatalogueData): string[] {
   if (l8 !== undefined) out.push('takeover');
   out.push('hand_over_close', 'abandon');
   return out;
+}
+
+/**
+ * The E4 choices the owner of record may record now (the portal's handoff panel): none unless a handoff is open
+ * and E4 is decided approve; then the ones whose target the item's pinned route has. Pure, like the interpreter
+ * that refuses any other.
+ */
+export function openHandoffChoices(s: ItemState, cat: CatalogueData): HandoffChoice[] {
+  const h = openHandoffOf(s);
+  const w = s.waiting;
+  if (h === undefined || !h.e4_decided || w?.kind !== 'handoff' || w.stage !== 'choice') return [];
+  return validChoices(s, cat);
 }
 
 /**
