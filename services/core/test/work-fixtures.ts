@@ -313,3 +313,23 @@ export async function decideGate(s: CoreStack, gate: string, principal: string, 
     ...(proof ? { step_up: { proof } } : {}),
   });
 }
+
+/** The card that carries a gate instance of an item (from the item's `gates_opened` events). */
+export async function cardOfGate(
+  s: CoreStack,
+  itemId: string,
+  gateInstanceId: string,
+): Promise<string> {
+  const q = await s.record.pool.query<{ body: { gates?: unknown; card_ids?: unknown } }>(
+    `SELECT body FROM record.record_event WHERE stream = $1 AND type = 'item.gates_opened' ORDER BY seq`,
+    [`item:${itemId}`],
+  );
+  for (const r of q.rows) {
+    const gates = (r.body.gates ?? []) as Array<{ gate_instance_id: string }>;
+    const cards = (r.body.card_ids ?? []) as string[];
+    if (gates.some((g) => g.gate_instance_id === gateInstanceId) && cards.length === 1) {
+      return cards[0] as string;
+    }
+  }
+  throw new Error(`no single card carries ${gateInstanceId}`);
+}
