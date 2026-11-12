@@ -339,3 +339,13 @@ export const IssueTwinRequestResult = z.strictObject({
   injection_suspected: z.boolean(),
 });
 export type IssueTwinRequestResult = z.infer<typeof IssueTwinRequestResult>;
+
+/**
+ * What the bff serves the portal: the view and what the person may do on it (the PDP's answers, as hints: every
+ * write is decided again on the server). `propose`: approve a batch or link a duplicate (`config.propose`);
+ * `request`: turn a twin into a remediation request (`work.request`).
+ */
+export const PortalIssueTwinView = IssueTwinView.extend({
+  may: z.strictObject({ propose: z.boolean(), request: z.boolean() }),
+});
+export type PortalIssueTwinView = z.infer<typeof PortalIssueTwinView>;
