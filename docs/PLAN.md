@@ -383,6 +383,7 @@ core-worker keeps one aggregated `/healthz` (503 while any loop is down or an ac
 | DEC-20 | (a) the issue is a twin and the record is the truth; built straight away; blocking, public-safe gaps by default; security findings never on public repos. Needs `issues:write` on the App |
 | DEC-15, DEC-19 | Accepted as written; each value stays a setting changeable by M1 |
 | L0, L7 eligibility | L0 (hotfix) from Light, L7 (spike) from Census. This is a catalogue change, so it needs a new `CATALOGUE_VERSION` |
+| Bootstrap grant and card 2 (2026-11-12) | On a project's first onboarding the bootstrap grantee (the requester) also decides card 2 (Light 0.2) of their own onboarding, as they do cards 1, 4 and 5 and the first M1. Only that record, only while the project has no published role map; never the security card, M4, card 3 or another project. The step-up stays required, and card 2 text is never affirmed in the session that proposed it. A grant keeps the cards it was recorded with (`BOOTSTRAP_CARDS` at the intake) |
 
 ## 7. Decisions still open for the user
 
