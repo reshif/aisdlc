@@ -21,6 +21,13 @@ import { AskPage } from './assistant/AskPage';
 import { HomePage } from './pages/HomePage';
 import { BoardPage, ItemsPage } from './pages/ItemsPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
+import {
+  ControlsPage,
+  HealthPage,
+  KillPage,
+  SandboxesPage,
+  SchedulerPage,
+} from './pages/OperatePages';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
 import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
@@ -150,6 +157,16 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <ModelsPage />;
     case 'integrations':
       return <IntegrationsPage />;
+    case 'scheduler':
+      return <SchedulerPage />;
+    case 'sandboxes':
+      return <SandboxesPage />;
+    case 'controls':
+      return <ControlsPage csrf={csrf} />;
+    case 'kill':
+      return <KillPage />;
+    case 'health':
+      return <HealthPage />;
     case 'onboard':
       return <OnboardPage csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':
