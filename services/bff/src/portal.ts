@@ -63,6 +63,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CoreClient } from './core-client.js';
 import { registerGovernancePortalRoutes } from './governance.js';
+import { accessInboxResource, registerAccessGrantPortalRoutes } from './access-grants.js';
 import type { Levels } from './levels.js';
 
 // The portal's API (PLAN M8.1): the only thing the browser calls besides the sign-in routes. Each
@@ -105,6 +106,7 @@ import type { Levels } from './levels.js';
 //   POST /api/cards/:id/gate/prepare|evidence|decide      deciding G0/G1, G1f, G2, G3d, G3 ...  (card.decide;
 //                                         core asks gate.decide for every gate of the card)
 //   GET  /api/inbox                       what waits for the person, and what they only see
+//                                         (an access grant: shown under access.manage on its scope, P1-6)
 //   GET  /api/s0/:id/revision             the settings revision card 4 proposed       (project.view)
 //   GET  /api/revisions/:gate             the same, by its gate                       (project.view)
 //   POST /api/revisions/:gate/prepare|evidence|decide|publish                         (gate.decide on the M1 gate)
@@ -1014,6 +1016,13 @@ export function registerPortalRoutes(d: PortalDeps): void {
     if (!got) return;
     const items: Array<Omit<PortalInboxItem, 'deciders'>> = [];
     for (const item of got.value) {
+      // P1-6: a grant or an access request is decided under `access.manage` on its scope (the fleet for the factory)
+      if (item.kind === 'access_grant') {
+        const yes = await allowed(who, 'access.manage', accessInboxResource(item.project_id));
+        if (!yes) continue;
+        items.push({ ...item, may_decide: item.holders.includes(who as never) });
+        continue;
+      }
       if (!(await allowed(who, 'project.view', pdpResource.project(item.project_id)))) continue;
       // M16 after onboarding: a re-affirm or a restore is `project.settings.edit`, a re-sign `project.onboard`
       const pdpYes =
@@ -1220,5 +1229,13 @@ export function registerPortalRoutes(d: PortalDeps): void {
     upstream,
     idParam,
     itemOf,
+  });
+  registerAccessGrantPortalRoutes({
+    app,
+    principalOf: d.principalOf,
+    core,
+    allowed,
+    deny,
+    upstream,
   });
 }
