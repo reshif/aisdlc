@@ -679,6 +679,177 @@ textarea {
   color: var(--accent);
 }
 
+/* ---- the assistant (M18): the onboarding assistant beside the S0 page and "Ask the factory" ---- */
+.s0-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 20px;
+  align-items: start;
+}
+.s0-side {
+  position: sticky;
+  top: 12px;
+}
+.asst-chat {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.asst-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .s0-layout,
+  .asst-chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .s0-side {
+    position: static;
+  }
+}
+.asst-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.asst-pad {
+  padding: 10px 14px;
+}
+.asst-fine {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+}
+.asst-error {
+  color: var(--bad-fg);
+  font-size: 0.875rem;
+  margin: 0;
+}
+.asst-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.asst-turn {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
+}
+.asst-me {
+  background: var(--sunk);
+  margin-left: 24px;
+}
+.asst-refusal {
+  border-color: var(--warn-line);
+}
+.asst-who {
+  font-size: 0.75rem;
+  color: var(--faint);
+  margin-bottom: 4px;
+}
+.asst-text {
+  white-space: pre-wrap;
+}
+.asst-cites,
+.asst-props,
+.asst-sugg,
+.asst-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+.asst-cite {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--fg-2);
+  text-decoration: none;
+}
+.asst-flags {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  color: var(--warn-fg);
+}
+.asst-draft {
+  margin-top: 8px;
+  border: 1px dashed var(--line-2);
+  border-radius: 8px;
+  padding: 8px;
+}
+.asst-draft-text {
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  margin: 6px 0;
+}
+.asst-composer {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+.asst-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--sunk);
+  color: var(--fg);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+.asst-input-line {
+  display: block;
+  max-width: 320px;
+  margin-top: 4px;
+}
+.asst-threads {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.asst-thread-btn {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+  padding: 8px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.asst-thread-btn[aria-current='true'] {
+  background: var(--panel-3);
+}
+.asst-thread-title {
+  font-weight: 600;
+}
+.asst-check {
+  display: block;
+  margin: 4px 0;
+}
+.asst-budget meter {
+  vertical-align: middle;
+  width: 120px;
+}
+
 /* ---- M14.6: S7 Verify, the Evidence Pack viewer and the exception/quarantine gate screens ---- */
 .s7 {
   display: flex;

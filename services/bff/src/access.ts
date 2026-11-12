@@ -55,6 +55,27 @@ export { projectOfScope } from './levels.js';
 const projectOfResource = (r: PdpResource): string | null =>
   r.type === 'Project' ? r.id : r.project;
 
+/**
+ * The highest data class of the roles in force for `principal` on `project` (a fleet role reaches every project), or
+ * `null` when no role in force reaches it. The same reading `GET /api/me/access` shows the person.
+ */
+export async function dataClassOn(
+  pool: pg.Pool,
+  principal: string,
+  project: string,
+  now: Date,
+): Promise<DataClass | null> {
+  let best: DataClass | null = null;
+  for (const g of await queryGrants(pool, { principal }, null, now)) {
+    if (g.blockers.length > 0) continue;
+    const def = roleDef(g.role_id as RoleId);
+    if (!def) continue;
+    if (g.scope.kind !== 'fleet' && projectOfScope(g.scope) !== project) continue;
+    best = higher(DataClass.options, best, def.data_class_default);
+  }
+  return best;
+}
+
 export function registerAccessRoutes(d: AccessDeps): void {
   const { app } = d;
 

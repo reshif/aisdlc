@@ -29,6 +29,8 @@ import {
   type SessionRow,
 } from './sessions.js';
 import { registerAccessRoutes } from './access.js';
+import { registerAssistantRoutes } from './assistant.js';
+import { registerNotificationRoutes } from './notifications.js';
 import { registerPortalRoutes } from './portal.js';
 import { levelsOn } from './levels.js';
 import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
@@ -44,6 +46,7 @@ import type { StepUpIssuer } from './stepup/issuer.js';
 //   GET  /auth/callback     finish it: verify, map the subject to a principal, open a session
 //   GET  /api/me            who am I, what may I do at the top level, the CSRF token
 //   GET  /api/me/access     the person's bindings, view level and data class per project (access.ts)
+//   /api/assistant/*        the onboarding assistant and "Ask the factory", in front of core (assistant.ts, M18)
 //   POST /api/me/decisions  a batch of PDP capability probes for the screen (access.ts)
 //   POST /api/logout        revoke the session
 //   POST /api/step-up       start a step-up bound to a hash (re-authentication, or DEC-11(c-ii))
@@ -79,6 +82,8 @@ export interface BffAppOptions {
   readonly clock?: Clock;
   /** Core, for the portal's `/api/*` routes; without it they answer 503 (after the session and CSRF checks). */
   readonly core?: CoreClient;
+  /** The notifier (M18), for `/api/me/notifications*`; without it they answer 503. Best effort: nothing else needs it. */
+  readonly notifier?: CoreClient;
   /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
   readonly gateCheck?: CoreClient;
   /** The built web bundle (`index.html` and `assets/`) to serve; without it the bff serves only its API. */
@@ -534,6 +539,20 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
       }
       return out;
     },
+  });
+  registerAssistantRoutes({
+    app,
+    pool: o.pool,
+    pdp: o.pdp,
+    clock,
+    core: o.core,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  registerNotificationRoutes({
+    app,
+    pdp: o.pdp,
+    notifier: o.notifier,
+    principalOf: (req) => ctx(req).session.principal_id,
   });
   if (o.webDir) registerWebFiles(app, o.webDir);
 

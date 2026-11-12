@@ -52,6 +52,10 @@
       {
         "scope": "gatecheck",
         "dir": "../../services/gate-check/migrations"
+      },
+      {
+        "scope": "notifier",
+        "dir": "../../services/notifier/migrations"
       }
     ],
     "notary": [

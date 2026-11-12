@@ -188,4 +188,31 @@ export const SAMPLE_OUTPUTS: Readonly<Record<AgentId, readonly Record<string, un
     },
   ],
   coder: implementation,
+  assistant: [
+    {
+      kind: 'answer',
+      text: 'Step 0.4 waits on card 4: it asks what the factory cannot read, then the role map.',
+      citations: [
+        { kind: 'record', ref: 's0:0190a000-0000-7000-8000-000000000002' },
+        { kind: 'file', path: 'AGENTS.md', commit_sha: SHA, line_from: 1, line_to: 4 },
+      ],
+      proposals: [
+        {
+          action: 'open_card',
+          target: '0190a000-0000-7000-8000-000000000003',
+          label: 'Open card 4',
+        },
+      ],
+      drafts: [],
+      noticed: [],
+    },
+    {
+      kind: 'refusal',
+      text: 'I never decide or affirm a card. I can open it; you decide it there.',
+      citations: [],
+      proposals: [],
+      drafts: [],
+      noticed: [],
+    },
+  ],
 };

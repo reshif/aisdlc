@@ -50,3 +50,36 @@ export function scanText(text: string, rules: readonly SecretRule[] = RULES): Ru
   }
   return out;
 }
+
+/** What `maskSecrets` did: the masked text and, per rule, how many values it replaced. Never a value. */
+export interface MaskedText {
+  readonly text: string;
+  readonly redactions: ReadonlyArray<{ readonly rule_id: string; readonly count: number }>;
+}
+
+/**
+ * Replaces every secret the rules find in `text` with `[REDACTED:<rule>]` (the gateway's mark), longest value first so
+ * a secret that contains another is replaced whole. Used where a person's own text is stored or sent on (M18: what a
+ * person types to the assistant is masked before it is stored or reaches a model).
+ */
+export function maskSecrets(text: string, rules: readonly SecretRule[] = RULES): MaskedText {
+  const found = scanText(text, rules);
+  if (found.length === 0) return { text, redactions: [] };
+  const byValue = new Map<string, string>();
+  for (const m of found) if (!byValue.has(m.value)) byValue.set(m.value, m.rule_id);
+  const counts = new Map<string, number>();
+  let out = text;
+  for (const [value, rule] of [...byValue].sort((a, b) => b[0].length - a[0].length)) {
+    const parts = out.split(value);
+    if (parts.length > 1) {
+      counts.set(rule, (counts.get(rule) ?? 0) + parts.length - 1);
+      out = parts.join(`[REDACTED:${rule}]`);
+    }
+  }
+  return {
+    text: out,
+    redactions: [...counts]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([rule_id, count]) => ({ rule_id, count })),
+  };
+}

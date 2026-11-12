@@ -13,7 +13,8 @@ import { JsonObject, Sha256Hex, WorkItemId } from './ids.js';
  * Every agent the specs name. A1 to A6 and `coder` are the ids of DM §3.5 (`AGENT_NAMES`); A9 and A12
  * are named by OB (S0 steps 0.2, 0.3) and A11 by the flow (the Handoff Pack at D1). A7, A8 and A10
  * appear nowhere else in the specs, so they are ids with no name and no role (`@aisdlc/agents`
- * records that, and gives them no step).
+ * records that, and gives them no step). `assistant` (M18) is the conversation agent: it has no step either, and
+ * runs only when a person asks it something.
  */
 export const AgentId = z.enum([
   'A1',
@@ -29,6 +30,9 @@ export const AgentId = z.enum([
   'A11',
   'A12',
   'coder',
+  // M18: the onboarding assistant and "Ask the factory" (docs/design/portal-config.md §4). It acts at no step of the
+  // lifecycle: it answers a person, read-only, and its key is minted per ask on the person's day budget.
+  'assistant',
 ]);
 export type AgentId = z.infer<typeof AgentId>;
 export const AgentIdValues: readonly AgentId[] = AgentId.options;
