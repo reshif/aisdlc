@@ -13,9 +13,10 @@
 # gate-relay 8470, audit 8480, fake GitHub 8353 api / 8354 git / 8355 gate-check's door / 8356 gate-relay's door). Only the bff and
 # dev-oidc are published, on 127.0.0.1.
 
-x-factory:
-  &factory # The one image, built by `migrate` below; every service picks its bundle with `command`.
-  image: aisdlc/factory:local
+x-factory: &factory
+  # The one image, built by `migrate` below; every service picks its bundle with `command`.
+  # AISDLC_IMAGE: another tag of the same image (e2e-pr.sh builds its own, so it never replaces another run's)
+  image: ${AISDLC_IMAGE:-aisdlc/factory:local}
   pull_policy: never
   user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
   init: true
@@ -228,6 +229,20 @@ networks:
   audit-core:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.42.0/24' }] }
     internal: true
+  # The Push Broker (M13.6; profile `push-broker`, and `full`): the codehost in CODEHOST_MODE=push with its OWN App (the one
+  # writer of the factory: a commit on agent/<item>/<unit> and a Draft PR). `pushbroker` is how core-worker asks it for a
+  # push and how it asks core (registered repos, scope `registry`; the Unit's lease and X2, scope `push_guard`) and identity
+  # (scope `read`); all four already share `app`, so it opens no path between them. `pushbroker-github` is where the fake
+  # GitHub (in the codehost's network namespace) answers it on its own port (8358); `pushbroker-egress` its own way out
+  # to GitHub. It shares no other network with the read codehost and holds none of its tokens.
+  pushbroker:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.44.0/24' }] }
+    internal: true
+  pushbroker-github:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.45.0/24' }] }
+    internal: true
+  pushbroker-egress:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.46.0/24' }] }
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
   # network with a route out), so it has no route to GitHub and gets repo content only as bundles
   # from the codehost.
@@ -238,6 +253,9 @@ volumes:
   pgdata: {}
   kms-state: {}
   codehost-work: {}
+  # core-worker's S6 session store (workspaces, oracle locks, snapshots, packs; content-addressed): the one thing it
+  # writes to disk, and only when the coding sessions are wired (CORE_WORKER_SANDBOX_CONTROLLER_URL)
+  core-worker-sessions: {}
   knowledge-work: {}
   objectstore-data: {}
 
@@ -326,6 +344,11 @@ secrets:
   tok-core-worker-verify: { file: ./secrets/tok-core-worker-verify }
   tok-verify-codehost: { file: ./secrets/tok-verify-codehost }
   tok-verify-sandbox-controller: { file: ./secrets/tok-verify-sandbox-controller }
+  push-broker-app.pem: { file: ./secrets/push-broker-app.pem }
+  push-broker-app.pub.pem: { file: ./secrets/push-broker-app.pub.pem }
+  tok-core-worker-push-broker: { file: ./secrets/tok-core-worker-push-broker }
+  tok-push-broker-core: { file: ./secrets/tok-push-broker-core }
+  tok-push-broker-identity: { file: ./secrets/tok-push-broker-identity }
   tok-smoke-docker-coding: { file: ./secrets/tok-smoke-docker-coding }
   tok-cvw-docker-cvw: { file: ./secrets/tok-cvw-docker-cvw }
   object-store-access-key: { file: ./secrets/object-store-access-key }
@@ -663,7 +686,8 @@ services:
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-identity","scopes":["reconcile"]},
         "codehost":{"token_ref":"file:/run/secrets/tok-codehost-identity","scopes":["read","codeowners"]},
         "knowledge":{"token_ref":"file:/run/secrets/tok-knowledge-identity","scopes":["read"]},
-        "seed":{"token_ref":"file:/run/secrets/tok-seed-identity","scopes":["read","write","sync"]}}
+        "seed":{"token_ref":"file:/run/secrets/tok-seed-identity","scopes":["read","write","sync"]},
+        "push-broker":{"token_ref":"file:/run/secrets/tok-push-broker-identity","scopes":["read"]}}
       NOTARY_URL: http://notary:8310
       IDENTITY_NOTARY_TOKEN_REF: file:/run/secrets/tok-identity-notary
       KMS_URL: http://kms-local:8300
@@ -686,6 +710,7 @@ services:
         tok-identity-notary,
         tok-identity-kms,
         tok-identity-core,
+        tok-push-broker-identity,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8330']
@@ -697,7 +722,7 @@ services:
       migrate: { condition: service_completed_successfully }
       notary: { condition: service_healthy }
       kms-local: { condition: service_healthy }
-    networks: [app, data-record, kms-clients, notary-api, telemetry]
+    networks: [app, data-record, kms-clients, notary-api, telemetry, pushbroker]
     mem_limit: 192m
 
   # First-run bootstrap, LOCAL ONLY (refuses unless FACTORY_ENV=local): makes the factory admin a
@@ -728,6 +753,14 @@ services:
       SEED_GITHUB_APP_KEY_REF: file:/run/secrets/github-app.pem
       SEED_GITHUB_API_URL: ${CODEHOST_GITHUB_API_URL:-}
       SEED_GITHUB_GIT_URL: ${CODEHOST_GIT_URL:-}
+      # The local sandbox settings, each published through its own M1 gate when set (e2e-pr.sh sets them; empty: the
+      # defaults, nothing runs): DEC-18's allow-list, the onboarding probe image and the W image LF4 is about (the
+      # sandbox-controller's SANDBOX_AGENT_IMAGE_ID must be the same image), and the fake provider's fixture set
+      SEED_EXEC_ALLOWED_REPOS: ${SEED_EXEC_ALLOWED_REPOS:-}
+      SEED_ONBOARDING_SANDBOX_IMAGE: ${SANDBOX_ONBOARDING_IMAGE:-}
+      SEED_ONBOARDING_LOCK_SHA256: ${SANDBOX_ONBOARDING_LOCK_SHA256:-}
+      SEED_WORKER_IMAGE: ${SANDBOX_AGENT_IMAGE_ID:-}
+      SEED_FAKE_FIXTURES: ${SEED_FAKE_FIXTURES:-planning}
     secrets: [db-url-aisdlc, tok-core-notary, tok-core-kms, tok-seed-identity]
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -751,7 +784,8 @@ services:
       CORE_CALLERS: >-
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
-        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal"]},
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal","ops"]},
+        "push-broker":{"token_ref":"file:/run/secrets/tok-push-broker-core","scopes":["registry","push_guard"]},
         "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops","settings"]},
         "sandbox-controller":{"token_ref":"file:/run/secrets/tok-sandbox-controller-core","scopes":["activity"]},
         "audit":{"token_ref":"file:/run/secrets/tok-audit-core","scopes":["erasure"]}}
@@ -792,6 +826,7 @@ services:
         tok-core-gateway,
         tok-sandbox-controller-core,
         tok-audit-core,
+        tok-push-broker-core,
         object-store-access-key,
         object-store-secret-key,
       ]
@@ -818,6 +853,7 @@ services:
         core-activity,
         telemetry,
         audit-core,
+        pushbroker,
       ]
     mem_limit: 256m
 
@@ -864,6 +900,14 @@ services:
       # class ceilings and the caps; H2 reads its free slots). Off unless the run sets it, with CORE_WORKER_STAGE_PORTS=agents.
       CORE_WORKER_SANDBOX_CONTROLLER_URL: ${CORE_WORKER_SANDBOX_CONTROLLER_URL:-}
       CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF: file:/run/secrets/tok-core-worker-sandbox-controller
+      # the S6 session store (a volume of its own) and the coder's model id at the gateway (local: the fake)
+      CORE_WORKER_SESSION_STORE: /var/lib/aisdlc/sessions
+      CORE_WORKER_CODER_MODEL: ${CORE_WORKER_CODER_MODEL:-fake-model}
+      # M13.6: 6.6 through the Push Broker (profile `push-broker`): its own codehost in push mode, its own App. Off unless
+      # the run sets CORE_WORKER_PUSH_BROKER=1 (with the sandbox-controller); e2e-pr.sh does
+      CORE_WORKER_PUSH_BROKER: ${CORE_WORKER_PUSH_BROKER:-}
+      CORE_WORKER_PUSH_BROKER_URL: ${CORE_WORKER_PUSH_BROKER_URL:-}
+      CORE_WORKER_PUSH_BROKER_TOKEN_REF: file:/run/secrets/tok-core-worker-push-broker
       # M14.3: S7 7.1 to 7.5 through the verify service (profile `sandbox`), and the 7.6 guard. Off unless the run sets
       # it, with CORE_WORKER_STAGE_PORTS=agents.
       CORE_WORKER_VERIFY_URL: ${CORE_WORKER_VERIFY_URL:-}
@@ -903,9 +947,12 @@ services:
         tok-core-worker-kms,
         tok-core-worker-sandbox-controller,
         tok-core-worker-verify,
+        tok-core-worker-push-broker,
         object-store-access-key,
         object-store-secret-key,
       ]
+    volumes:
+      - core-worker-sessions:/var/lib/aisdlc/sessions
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8360']
       interval: 10s
@@ -934,8 +981,9 @@ services:
         verify-api,
         objectstore-api,
         telemetry,
+        pushbroker,
       ]
-    mem_limit: 256m
+    mem_limit: 512m
 
   # ------------------------------------------------------------------ code and repo content
 
@@ -998,7 +1046,16 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [app, egress, verify-codehost, gatecheck-github, gaterelay-github, telemetry]
+    networks:
+      [
+        app,
+        egress,
+        verify-codehost,
+        gatecheck-github,
+        gaterelay-github,
+        pushbroker-github,
+        telemetry,
+      ]
     mem_limit: 192m
 
   # Boundary: repo content (untrusted) vs credentials. Analyses bundles it gets from the codehost;
@@ -1047,6 +1104,52 @@ services:
       codehost: { condition: service_healthy }
     networks: [app, data-record, kms-clients, telemetry]
     mem_limit: 256m
+
+  # Boundary: the factory's ONE writer (M13.6 Push Broker; ADR-0003 §1 Integration plane). The codehost image in
+  # CODEHOST_MODE=push with its OWN GitHub App (contents and pull requests write; the read App's key is not here and this
+  # one is in no other container): the Unit's patch as ONE commit on agent/<item>/<unit> (Git Data API, never a git push,
+  # never a force) and a Draft PR, only after its own checks (the agent/** ref, the lease epoch core answers for, the
+  # secret ruleset, the paths, X2 bound to the patch for a protected path, a fast-forward). It never merges, never marks
+  # a PR ready and has no database. core-worker is its one caller (scope `push`).
+  push-broker:
+    <<: *factory
+    profiles: [push-broker, full]
+    command: ['node', '--enable-source-maps', '/app/services/codehost/dist/main.js']
+    environment:
+      CODEHOST_MODE: push
+      CODEHOST_GITHUB_APP_ID: ${PUSH_BROKER_APP_ID:-987654}
+      CODEHOST_GITHUB_INSTALLATION_ID: ${PUSH_BROKER_INSTALLATION_ID:-5}
+      CODEHOST_GITHUB_APP_KEY_REF: file:/run/secrets/push-broker-app.pem
+      CODEHOST_GITHUB_API_URL: ${PUSH_BROKER_GITHUB_API_URL:-}
+      # the fake GitHub's door on `pushbroker-github` (the codehost's network namespace); nothing for GitHub itself
+      CODEHOST_GITHUB_PLAIN_HTTP_HOSTS: '["codehost"]'
+      CODEHOST_COMMITTER_NAME: ${PUSH_BROKER_LOGIN:-aisdlc[bot]}
+      CODEHOST_CALLERS: >-
+        {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-push-broker","scopes":["push"]}}
+      CODEHOST_IDENTITY_URL: http://identity:8330
+      CODEHOST_IDENTITY_TOKEN_REF: file:/run/secrets/tok-push-broker-identity
+      CODEHOST_CORE_URL: http://core:8380
+      CODEHOST_CORE_TOKEN_REF: file:/run/secrets/tok-push-broker-core
+      TMPDIR: /tmp
+      CODEHOST_HOST: 0.0.0.0
+      CODEHOST_PORT: '8350'
+    secrets:
+      [
+        push-broker-app.pem,
+        tok-core-worker-push-broker,
+        tok-push-broker-core,
+        tok-push-broker-identity,
+      ]
+    healthcheck:
+      test: ['CMD', 'node', '/app/healthcheck.mjs', '8350']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [pushbroker, pushbroker-github, pushbroker-egress]
+    mem_limit: 160m
 
   # ----------------------------------------------------------------------- browser edge
 
@@ -1174,7 +1277,7 @@ services:
   # aisdlc/sandbox:local platform/sandbox` first (smoke.sh does it).
   docker-proxy-cvw:
     <<: *factory
-    profiles: [sandbox]
+    profiles: [sandbox, full]
     command: ['node', '--enable-source-maps', '/app/services/docker-proxy/dist/main.js']
     group_add: ['${DOCKER_GID:-0}']
     environment:
@@ -1202,7 +1305,7 @@ services:
   # session at a time (also counted here, from the daemon).
   docker-proxy-coding:
     <<: *factory
-    profiles: [sandbox]
+    profiles: [sandbox, full]
     command: ['node', '--enable-source-maps', '/app/services/docker-proxy/dist/main.js']
     group_add: ['${DOCKER_GID:-0}']
     environment:
@@ -1237,7 +1340,7 @@ services:
   # The scratch directory is mounted at the SAME path the daemon sees (a session's read-only repo copy is a bind of it).
   sandbox-controller:
     <<: *factory
-    profiles: [sandbox]
+    profiles: [sandbox, full]
     command: ['node', '--enable-source-maps', '/app/services/sandbox-controller/dist/main.js']
     environment:
       # its own least-privilege role (db-init.sh; the config and core migrations grant it three relations: the
@@ -1299,7 +1402,7 @@ services:
   # `verify:` stream before it is answered. Its own database role (db-init.sh, the verify migration).
   verify:
     <<: *factory
-    profiles: [sandbox]
+    profiles: [sandbox, full]
     command: ['node', '--enable-source-maps', '/app/services/verify/dist/main.js']
     environment:
       VERIFY_DATABASE_URL: file:/run/secrets/db-url-verify
@@ -1338,7 +1441,7 @@ services:
   # own role and the packs from the object store; nothing of core's API is on its networks.
   gate-check:
     <<: *factory
-    profiles: [gate-check]
+    profiles: [gate-check, full]
     command: ['node', '--enable-source-maps', '/app/services/gate-check/dist/main.js']
     environment:
       GATE_CHECK_DATABASE_URL: file:/run/secrets/db-url-gate-check
@@ -1526,7 +1629,7 @@ services:
   # chosen (DEC-17), so a package manager pointed at it fails closed. A sandbox network peer, by label and name.
   package-mirror:
     <<: *factory
-    profiles: [sandbox]
+    profiles: [sandbox, full]
     container_name: ${COMPOSE_PROJECT_NAME:-aisdlc}-package-mirror
     labels:
       aisdlc.sandbox.peer: mirror
@@ -1673,8 +1776,24 @@ services:
       FAKE_GITHUB_TRACKER_INSTALLATION_ID: ${TRACKER_INSTALLATION_ID:-4}
       FAKE_GITHUB_TRACKER_APP_PUBLIC_KEY_FILE: /run/secrets/tracker-app.pub.pem
       FAKE_GITHUB_TRACKER_LOGIN: ${TRACKER_LOGIN:-aisdlc-tracker[bot]}
+      # the Push Broker's own App on the same fake host: its key, its installation (contents and pull requests write),
+      # its door on 0.0.0.0:8358 (`pushbroker-github`); what it writes is mirrored into the git server's repository
+      FAKE_GITHUB_PUSH_APP_ID: ${PUSH_BROKER_APP_ID:-987654}
+      FAKE_GITHUB_PUSH_INSTALLATION_ID: ${PUSH_BROKER_INSTALLATION_ID:-5}
+      FAKE_GITHUB_PUSH_APP_PUBLIC_KEY_FILE: /run/secrets/push-broker-app.pub.pem
+      FAKE_GITHUB_PUSH_BROKER_PORT: '8358'
+      # the people who may merge on the fake host (the repo's owner; e2e-pr.mjs merges as them), and the branch rule
+      # their merge needs: gate-check's `aisdlc/gate` passing on the head
+      FAKE_GITHUB_PEOPLE: ${FAKE_GITHUB_PEOPLE:-reshif}
+      FAKE_GITHUB_REQUIRED_CHECKS: aisdlc/gate
     secrets:
-      [github-app.pub.pem, gate-check-app.pub.pem, gate-relay-app.pub.pem, tracker-app.pub.pem]
+      [
+        github-app.pub.pem,
+        gate-check-app.pub.pem,
+        gate-relay-app.pub.pem,
+        tracker-app.pub.pem,
+        push-broker-app.pub.pem,
+      ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8353']
       interval: 5s
