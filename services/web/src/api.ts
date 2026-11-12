@@ -347,6 +347,15 @@ async function conditional<T>(path: string, etag: string | null): Promise<Condit
   return { kind: 'fresh', etag: res.headers.get('etag'), value: json as T };
 }
 
+/** A prepared M1 vote: the nonce, what it binds, and the step-up it needs (two people: RC-SEC-4). */
+export interface PreparedRevision {
+  nonce: string;
+  expires_at: string;
+  evidence_hash: string;
+  /** Absent from an older core: no step-up asked for (core still refuses a vote that needs one). */
+  step_up?: { required: boolean; bound_hash: string };
+}
+
 export const api = {
   me: () => request<Me>('GET', '/api/me'),
   /** M19: a project's floor, cut to the person; polled with the last ETag. */
@@ -460,7 +469,7 @@ export const api = {
       `/api/revisions/${encodeURIComponent(gate)}`,
     ),
   prepareRevision: (gate: string, csrf: string) =>
-    request<{ nonce: string; expires_at: string; evidence_hash: string }>(
+    request<PreparedRevision>(
       'POST',
       `/api/revisions/${encodeURIComponent(gate)}/prepare`,
       {},
@@ -473,7 +482,11 @@ export const api = {
       b,
       csrf,
     ),
-  decideRevision: (gate: string, b: { nonce: string; decision: string }, csrf: string) =>
+  decideRevision: (
+    gate: string,
+    b: { nonce: string; decision: string; step_up?: { proof: string } },
+    csrf: string,
+  ) =>
     request<RevisionDecision>('POST', `/api/revisions/${encodeURIComponent(gate)}/decide`, b, csrf),
   publishRevision: (gate: string, csrf: string) =>
     request<{ published: boolean }>(
@@ -732,7 +745,7 @@ export const api = {
       `/api/config/revisions/${encodeURIComponent(gate)}`,
     ),
   prepareFactoryRevision: (gate: string, csrf: string) =>
-    request<{ nonce: string; expires_at: string; evidence_hash: string }>(
+    request<PreparedRevision>(
       'POST',
       `/api/config/revisions/${encodeURIComponent(gate)}/prepare`,
       {},
@@ -746,7 +759,11 @@ export const api = {
     request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/evidence`, b, csrf),
   decideFactoryRevision: (
     gate: string,
-    b: { nonce: string; decision: 'approve' | 'reject' | 'request_changes' },
+    b: {
+      nonce: string;
+      decision: 'approve' | 'reject' | 'request_changes';
+      step_up?: { proof: string };
+    },
     csrf: string,
   ) =>
     request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/decide`, b, csrf),
