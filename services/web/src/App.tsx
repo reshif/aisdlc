@@ -20,6 +20,7 @@ import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsP
 import { AskPage } from './assistant/AskPage';
 import { HomePage } from './pages/HomePage';
 import { BoardPage, ItemsPage } from './pages/ItemsPage';
+import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
 import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
@@ -141,6 +142,14 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <ItemsPage />;
     case 'board':
       return <BoardPage />;
+    case 'agents':
+      return <AgentsPage />;
+    case 'evals':
+      return <EvalsPage />;
+    case 'models':
+      return <ModelsPage />;
+    case 'integrations':
+      return <IntegrationsPage />;
     case 'onboard':
       return <OnboardPage csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':

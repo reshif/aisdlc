@@ -84,6 +84,10 @@ export const NAV: readonly NavEntry[] = [
     { kind: 'fleet_action', action: 'project.onboard' },
     at('onboard'),
   ),
+  entry('Quality', '/agents', 'Agents', FLEET_AUDIT, at('agents')),
+  entry('Quality', '/evals', 'Evals', FLEET_AUDIT, at('evals')),
+  entry('Quality', '/models', 'Models and routes', FLEET_AUDIT, at('models')),
+  entry('Quality', '/integrations', 'Integrations', FLEET_AUDIT, at('integrations')),
   entry(
     'Govern',
     '/config',
