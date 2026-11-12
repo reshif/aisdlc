@@ -410,6 +410,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     now: () => clock.now(),
     eligibility: (o.config ?? o.cards?.decisions)?.eligibility,
     kill: o.kill,
+    registry: o.registry,
     allowed: (req, scope) => allowed(req, scope),
   });
   // M19: the fleet (counts per project, the bff cuts it) and the sessions' heartbeats

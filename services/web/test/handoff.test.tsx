@@ -35,6 +35,7 @@ const item = (over: Record<string, unknown> = {}) => ({
   catalogue_ref: { version: '1.0.0', hash: 'a'.repeat(64) },
   injection_suspected: false,
   dedupe_links: [],
+  profile_gates: null,
   may: { ready: false, answer: false, observe: false, plan: false },
   ...over,
 });

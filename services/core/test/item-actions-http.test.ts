@@ -523,6 +523,11 @@ describe("Handoffs over HTTP (P1-4): the E4 card facts, the owner of record's ch
     });
     expect(v.json.e4).toMatchObject({ status: 'pending', approvers: [] });
     expect(v.json.e4.card_id).toEqual(expect.any(String));
+    // P2-10: the item view says which gates its pinned profile has (all switchable ones off here) and which it has not
+    const iv = ItemView.parse((await get(`/v1/items/${item}?on_behalf_of=ivy`)).json);
+    expect(iv.profile_gates?.on).toContain('G4');
+    expect(iv.profile_gates?.off.length).toBeGreaterThan(0);
+    expect(iv.profile_gates?.off.some((g) => iv.profile_gates?.on.includes(g))).toBe(false);
     expect(v.json.choices).toEqual([]);
     expect(v.json.human_led).toBeNull();
     // the E4 card says what it decides: the handoff, its pack bound by hash, the choices the flow allows

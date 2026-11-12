@@ -183,6 +183,7 @@ const view = (o: Partial<FloorView> = {}): FloorView => ({
   kill: { state: 'clear', killed: false, kill_ids: [], message: null },
   liveness: { silence_minutes: 30, by_stage: {}, low_score: 0.85, source: 'default' },
   freshness: { as_of_seq: 40, head_seq: 40, stale: false, reason: null, read_at: T },
+  gates_off: [],
   view_level: 'V3',
   data_class: 'D2',
   ...o,
@@ -336,6 +337,19 @@ describe('the floor screen', () => {
     const g = await screen.findByRole('dialog', { name: 'Gate G0+G1' });
     expect(g).toHaveTextContent('On the route ofL3, L4');
     expect(g).toHaveTextContent('bob (BO)');
+  });
+
+  it("P2-10: a gate the project's gating profile has off is drawn and said off for this project", async () => {
+    floorApi(admin(), () => ({ json: view({ gates_off: ['G3+G3s'] }) }));
+    renderAt('/floor');
+    const plan = await screen.findByRole('region', { name: 'Floor plan' });
+    expect(plan.querySelector('[data-gate="G3+G3s"]')).toHaveAttribute('data-off', 'true');
+    expect(plan.querySelector('[data-gate="G0+G1"]')).not.toHaveAttribute('data-off');
+    await userEvent.click(
+      within(plan).getByRole('button', { name: /^Gate G3\+G3s \(off for this project\)/ }),
+    );
+    const g = await screen.findByRole('dialog', { name: 'Gate G3+G3s' });
+    expect(g).toHaveTextContent('off for this project');
   });
 
   it('filters by lane group: the other lanes dim, the button says it is pressed', async () => {

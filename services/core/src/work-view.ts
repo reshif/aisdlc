@@ -1,5 +1,25 @@
-import type { ItemView } from '@aisdlc/contracts';
-import type { ItemState } from '@aisdlc/work';
+import { GateIdValues, type GateId, type ItemView } from '@aisdlc/contracts';
+import {
+  effectiveProfile,
+  pinnedCatalogueResolver,
+  presentGates,
+  type ItemState,
+} from '@aisdlc/work';
+
+/** P2-10: the gates the item's pinned profile has on its lane, and the switchable ones it has off. */
+function profileGates(s: ItemState): ItemView['profile_gates'] {
+  const cat = pinnedCatalogueResolver(s.catalogue_ref);
+  const def = cat?.lanes[s.lane ?? s.proposed_lane];
+  if (!def) return null;
+  const present = presentGates(def, effectiveProfile(s.profile, s.tier));
+  const switchable = new Set<GateId>(
+    def.gates.filter((p) => p.presence === 'by_profile').map((p) => p.gate),
+  );
+  return {
+    on: GateIdValues.filter((g) => present.has(g)),
+    off: GateIdValues.filter((g) => switchable.has(g) && !present.has(g)),
+  };
+}
 
 /** An item for a reader (the portal, the floor): where it is, what it waits for; never request text. */
 export function itemView(s: ItemState): ItemView {
@@ -49,5 +69,6 @@ export function itemView(s: ItemState): ItemView {
     catalogue_ref: s.catalogue_ref,
     injection_suspected: s.intake.injection?.suspected ?? false,
     dedupe_links: s.intake.dedupe_links,
+    profile_gates: profileGates(s),
   };
 }

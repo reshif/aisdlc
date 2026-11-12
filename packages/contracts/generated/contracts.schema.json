@@ -46217,6 +46217,14 @@
           ],
           "additionalProperties": false
         },
+        "gates_off": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "view_level": {
           "type": "string",
           "enum": [
@@ -46247,6 +46255,7 @@
         "kill",
         "liveness",
         "freshness",
+        "gates_off",
         "view_level",
         "data_class"
       ],
@@ -60350,6 +60359,97 @@
                 "type": "string",
                 "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
               }
+            },
+            "profile_gates": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "on": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      }
+                    },
+                    "off": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "on",
+                    "off"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -60372,7 +60472,8 @@
             "assumptions",
             "catalogue_ref",
             "injection_suspected",
-            "dedupe_links"
+            "dedupe_links",
+            "profile_gates"
           ],
           "additionalProperties": false
         },
@@ -63786,6 +63887,97 @@
                 "type": "string",
                 "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
               }
+            },
+            "profile_gates": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "on": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      }
+                    },
+                    "off": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "on",
+                    "off"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -63808,7 +64000,8 @@
             "assumptions",
             "catalogue_ref",
             "injection_suspected",
-            "dedupe_links"
+            "dedupe_links",
+            "profile_gates"
           ],
           "additionalProperties": false
         },
@@ -65623,6 +65816,97 @@
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
+        },
+        "profile_gates": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "on": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  }
+                },
+                "off": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "on",
+                "off"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -65645,7 +65929,8 @@
         "assumptions",
         "catalogue_ref",
         "injection_suspected",
-        "dedupe_links"
+        "dedupe_links",
+        "profile_gates"
       ],
       "additionalProperties": false
     },
@@ -83989,6 +84274,97 @@
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         },
+        "profile_gates": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "on": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  }
+                },
+                "off": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "on",
+                "off"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "may": {
           "type": "object",
           "properties": {
@@ -84035,6 +84411,7 @@
         "catalogue_ref",
         "injection_suspected",
         "dedupe_links",
+        "profile_gates",
         "may"
       ],
       "additionalProperties": false

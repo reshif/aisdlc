@@ -933,5 +933,11 @@ export const ItemView = z.strictObject({
   /** B27: the request text was flagged (the card says which rules). */
   injection_suspected: z.boolean(),
   dedupe_links: z.array(WorkItemId),
+  /**
+   * P2-10: the human gates of the item's route under the catalogue and gating profile it pinned (`on`, catalogue
+   * order), and the gates its lane could have that the profile has off (`off`: off for this project when the item was
+   * pinned). Conditional gates (raised by a step) are in neither. `null`: the pinned catalogue cannot be read.
+   */
+  profile_gates: z.strictObject({ on: z.array(GateId), off: z.array(GateId) }).nullable(),
 });
 export type ItemView = z.infer<typeof ItemView>;
