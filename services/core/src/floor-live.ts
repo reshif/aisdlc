@@ -93,9 +93,7 @@ export async function recordHeartbeat(
 // ---------------------------------------------------------------- SessionActivity: the fold
 
 /** The activity an event says about an item, or `null`: (item, project, at, source, session). */
-function activityOf(
-  e: RecordEvent,
-): {
+function activityOf(e: RecordEvent): {
   item: string;
   project: string;
   at: Date;
