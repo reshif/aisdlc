@@ -793,3 +793,15 @@
     justify-items: start;
   }
 }
+.fl-legend .fl-lg-flag {
+  width: 18px;
+  height: 18px;
+  border-top: 0;
+}
+.fx-row > * {
+  min-width: 0;
+}
+.fx-g,
+.fx-st {
+  flex: none;
+}
