@@ -995,7 +995,11 @@ export function registerPortalRoutes(d: PortalDeps): void {
       const pdpYes =
         item.kind === 'onboarding_card'
           ? await allowed(who, 'card.decide', pdpResource.card(item.project_id, item.id))
-          : await allowed(who, 'gate.decide', pdpResource.gate(item.project_id, item.id, 'M1'));
+          : await allowed(
+              who,
+              'gate.decide',
+              pdpResource.gate(item.project_id, item.id, item.gate ?? 'M1'),
+            );
       items.push({ ...item, may_decide: pdpYes && item.holders.includes(who as never) });
     }
     const nameOf = await names([...new Set(items.flatMap((i) => i.holders))]);

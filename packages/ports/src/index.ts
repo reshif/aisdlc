@@ -36,3 +36,4 @@ export * from './gateway-messages.js';
 export * from './gate-check-host.js';
 export * from './gate-relay-host.js';
 export * from './notification-channel.js';
+export * from './erasable-payloads.js';

@@ -35,6 +35,8 @@ import type {
   ProjectSummary,
   S0Overview,
   EvidencePackView,
+  FleetView,
+  FloorView,
   GateCardContext,
   GateCheckRunsView,
   ItemVerifyView,
@@ -42,6 +44,13 @@ import type {
   AdmissionView,
   AgentRegistryView,
   AuditDecisionsView,
+  AuditExportRequest,
+  AuditExportView,
+  ErasureRequestInput,
+  ErasureView,
+  LegalHoldView,
+  PlaceHoldRequest,
+  RetentionView,
   CatalogueView,
   ControlKind,
   ControlsView,
@@ -294,8 +303,46 @@ async function request<T>(
   return json as T;
 }
 
+/** A conditional GET: with the last ETag, an unchanged answer is `not_modified` and carries no body. */
+export type Conditional<T> =
+  | { readonly kind: 'fresh'; readonly etag: string | null; readonly value: T }
+  | { readonly kind: 'not_modified' };
+
+async function conditional<T>(path: string, etag: string | null): Promise<Conditional<T>> {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (etag !== null) headers['if-none-match'] = etag;
+  let res: Response;
+  try {
+    res = await fetch(path, { method: 'GET', headers, credentials: 'same-origin' });
+  } catch {
+    throw new ApiError(0, 'network', 'The factory could not be reached.');
+  }
+  if (res.status === 304) return { kind: 'not_modified' };
+  const text = await res.text();
+  let json: unknown;
+  try {
+    json = text === '' ? null : JSON.parse(text);
+  } catch {
+    json = null;
+  }
+  if (!res.ok) {
+    const e = (json as { error?: { code?: string; message?: string } } | null)?.error;
+    throw new ApiError(
+      res.status,
+      e?.code ?? 'error',
+      e?.message ?? `The request failed (${res.status}).`,
+    );
+  }
+  return { kind: 'fresh', etag: res.headers.get('etag'), value: json as T };
+}
+
 export const api = {
   me: () => request<Me>('GET', '/api/me'),
+  /** M19: a project's floor, cut to the person; polled with the last ETag. */
+  floor: (project: string, etag: string | null) =>
+    conditional<FloorView>(`/api/floor/${encodeURIComponent(project)}`, etag),
+  /** M19: every project the person may see as one row (a confidential one without a role there collapsed). */
+  fleet: () => request<FleetView>('GET', '/api/fleet'),
   /** The person's bindings, view level and data class per project (hints only; the server decides). */
   myAccess: () => request<MyAccessView>('GET', '/api/me/access'),
   /** A batch of PDP capability probes; a POST because it carries a body, so it sends the CSRF token. */
@@ -535,6 +582,35 @@ export const api = {
       'GET',
       `/api/audit/decisions?limit=200${action ? `&action=${encodeURIComponent(action)}` : ''}`,
     ),
+  // ------------------------------------------------------------ M19: Govern › Audit (the audit service)
+  auditExports: () => request<{ exports: AuditExportView[] }>('GET', '/api/audit/exports'),
+  writeAuditExport: (b: AuditExportRequest, csrf: string) =>
+    request<AuditExportView>('POST', '/api/audit/exports', b, csrf),
+  /** The signed bytes, as a link the browser downloads (the bff re-hashes them to their object key). */
+  auditExportHref: (id: string) => `/api/audit/exports/${encodeURIComponent(id)}/signed`,
+  legalHolds: () => request<{ holds: LegalHoldView[] }>('GET', '/api/audit/holds'),
+  placeHold: (b: PlaceHoldRequest, csrf: string) =>
+    request<LegalHoldView>('POST', '/api/audit/holds', b, csrf),
+  releaseHold: (id: string, reason: string, csrf: string) =>
+    request<LegalHoldView>(
+      'POST',
+      `/api/audit/holds/${encodeURIComponent(id)}/release`,
+      { reason },
+      csrf,
+    ),
+  erasures: () => request<{ erasures: ErasureView[] }>('GET', '/api/audit/erasures'),
+  requestErasure: (b: ErasureRequestInput, csrf: string) =>
+    request<ErasureView>('POST', '/api/audit/erasures', b, csrf),
+  approveErasure: (id: string, b: { matter_ref: string; reason: string }, csrf: string) =>
+    request<ErasureView>('POST', `/api/audit/erasures/${encodeURIComponent(id)}/approve`, b, csrf),
+  rejectErasure: (id: string, reason: string, csrf: string) =>
+    request<ErasureView>(
+      'POST',
+      `/api/audit/erasures/${encodeURIComponent(id)}/reject`,
+      { reason },
+      csrf,
+    ),
+  retention: () => request<RetentionView>('GET', '/api/audit/retention'),
   directory: () => request<DirectoryView>('GET', '/api/directory'),
   explain: (project: string) =>
     request<AccessExplainView>('GET', `/api/projects/${encodeURIComponent(project)}/explain`),

@@ -51,6 +51,9 @@ const LANE_FILL: Readonly<Record<Lane, string>> = {
   L8: 'l8',
 };
 
+/** The fill group of a lane (L1 to L3 share one): the floor's lane filter groups lanes by it. */
+export const laneFill = (lane: Lane): string => LANE_FILL[lane];
+
 export const laneText = (lane: Lane): string => {
   const label = LANE_LABELS[lane];
   return label === null ? lane : `${lane} ${label}`;

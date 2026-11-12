@@ -32,9 +32,11 @@ import { registerAccessRoutes } from './access.js';
 import { registerAssistantRoutes } from './assistant.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
 import { registerNotificationRoutes } from './notifications.js';
+import { registerAuditRoutes } from './audit.js';
 import { registerPortalRoutes } from './portal.js';
 import { registerPortalListRoutes } from './portal-lists.js';
-import { levelsOn } from './levels.js';
+import { registerFloorRoutes } from './floor.js';
+import { levelsOn, rolesIn } from './levels.js';
 import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
 import { registerWebFiles } from './static.js';
 import type { StepUpIssuer } from './stepup/issuer.js';
@@ -87,6 +89,8 @@ export interface BffAppOptions {
   readonly core?: CoreClient;
   /** The notifier (M18), for `/api/me/notifications*`; without it they answer 503. Best effort: nothing else needs it. */
   readonly notifier?: CoreClient;
+  /** The audit service (M19), for `/api/audit/*`; without it they answer 503. */
+  readonly audit?: CoreClient;
   /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
   readonly gateCheck?: CoreClient;
   /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it the Sandboxes screen says so. */
@@ -538,6 +542,16 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     now: () => clock.now(),
     principalOf: (req) => ctx(req).session.principal_id,
   });
+  // M19: the floor, cut to the person's view level and data class, polled with an ETag
+  registerFloorRoutes({
+    app,
+    pdp: o.pdp,
+    core: o.core,
+    ...(o.sandboxController ? { sandboxController: o.sandboxController } : {}),
+    principalOf: (req) => ctx(req).session.principal_id,
+    levelsOf: (principal, project) => levelsOn(o.pool, principal, project, clock.now()),
+    rolesOf: (principal) => rolesIn(o.pool, principal, clock.now()),
+  });
   registerPortalRoutes({
     app,
     pdp: o.pdp,
@@ -572,6 +586,12 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     notifier: o.notifier,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  registerAuditRoutes({
+    app,
+    pdp: o.pdp,
+    audit: o.audit,
     principalOf: (req) => ctx(req).session.principal_id,
   });
   if (o.webDir) registerWebFiles(app, o.webDir);

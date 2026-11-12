@@ -31,13 +31,16 @@ export { onboardingImageFrom, registerSandboxConfig } from './sandbox.js';
 export { registerGateCheckConfig } from './gate-check.js';
 export { readReleaseSetting, registerReleaseConfig, type ReleaseRead } from './gate-relay.js';
 export { registerNotificationsConfig } from './notifications.js';
+export { registerAuditConfig } from './audit.js';
 export { findSecrets, registerIntegrationConfig } from './integrations.js';
 export {
   readAdmissionSettings,
   readFactoryM1Policy,
+  readFloorConfig,
   readLearnConfig,
   readSandboxCaps,
   registerAdmissionConfig,
+  registerFloorConfig,
   registerGovernanceConfig,
   type SettingRead,
 } from './learn.js';

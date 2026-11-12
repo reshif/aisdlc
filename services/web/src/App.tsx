@@ -25,6 +25,8 @@ import { CloseoutPage } from './pages/CloseoutPage';
 import { LearnPage } from './pages/LearnPage';
 import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
 import { BoardPage, ItemsPage } from './pages/ItemsPage';
+import { FloorPage } from './floor/FloorPage';
+import { FleetPage } from './floor/FleetPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
 import {
   ControlsPage,
@@ -158,6 +160,10 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <HomePage me={me} />;
     case 'projects':
       return <ProjectListPage canOnboard={mayOnboard} />;
+    case 'floor':
+      return <FloorPage me={me} />;
+    case 'fleet':
+      return <FleetPage />;
     case 'items':
       return <ItemsPage />;
     case 'board':
@@ -183,7 +189,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'fleetLedger':
       return <FleetLedgerPage me={me} />;
     case 'audit':
-      return <AuditPage />;
+      return <AuditPage csrf={csrf} />;
     case 'catalogue':
       return <CataloguePage />;
     case 'people':

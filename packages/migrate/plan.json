@@ -60,6 +60,10 @@
       {
         "scope": "notifier",
         "dir": "../../services/notifier/migrations"
+      },
+      {
+        "scope": "audit",
+        "dir": "../../services/audit/migrations"
       }
     ],
     "notary": [

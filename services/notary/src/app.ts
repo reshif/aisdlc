@@ -1,5 +1,6 @@
 import {
   NOTARY_STATUS,
+  NotaryAuditExportSignRequest,
   NotaryCheckpointRequest,
   NotaryConfirmRequest,
   NotaryEvidenceSignRequest,
@@ -7,6 +8,7 @@ import {
   NotarySignRequest,
   NotaryVerifyRequest,
   type NotaryError,
+  type AuditExportSignerPort,
   type EvidenceSignerPort,
   type NotaryErrorCode,
   type NotaryPort,
@@ -20,12 +22,12 @@ import type { z } from 'zod';
 
 /**
  * What a caller may do: `ledger` (reserve, sign, confirm, unconfirmed), `checkpoint`, `read` (verify), `evidence`
- * (sign an Evidence Pack id, PLAN M14.4).
+ * (sign an Evidence Pack id, PLAN M14.4), `audit_export` (sign an audit export id, PLAN M19).
  */
-export type NotaryScope = 'ledger' | 'checkpoint' | 'read' | 'evidence';
+export type NotaryScope = 'ledger' | 'checkpoint' | 'read' | 'evidence' | 'audit_export';
 
 export interface NotaryAppOptions {
-  service: NotaryPort & EvidenceSignerPort;
+  service: NotaryPort & EvidenceSignerPort & AuditExportSignerPort;
   auth: ServiceAuth;
   /** caller name -> scopes. A caller with no entry may do nothing. */
   callers: Record<string, readonly NotaryScope[]>;
@@ -130,6 +132,14 @@ export function createNotaryApp(opts: NotaryAppOptions): FastifyInstance {
     'evidence',
     NotaryEvidenceSignRequest,
     (b) => opts.service.signEvidencePack(b),
+    (signature) => ({ signature }),
+  );
+  route(
+    'post',
+    '/v1/audit-export/sign',
+    'audit_export',
+    NotaryAuditExportSignRequest,
+    (b) => opts.service.signAuditExport(b),
     (signature) => ({ signature }),
   );
   return app;

@@ -5,6 +5,9 @@ import {
   integrationEvents,
 } from './integration-api.js';
 import { registerPortalListRoutes } from './portal-lists.js';
+import { registerFloorRoutes } from './floor.js';
+import { registerFleetRoutes } from './fleet.js';
+import type { KillVerdictPort } from './floor-live.js';
 import {
   ItemAnswerRequest,
   ItemObserveRequest,
@@ -131,6 +134,7 @@ import {
 import type { AssistantDeps } from './conversation/assistant.js';
 import { registerAssistantRoutes } from './conversation/routes.js';
 import { registerIssueTwinRoutes } from './issue-twin/routes.js';
+import { registerErasableRoutes } from './conversation/erasable.js';
 import { registerGovernanceRoutes } from './governance-routes.js';
 import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
@@ -164,7 +168,9 @@ import {
  * tiles and events are `portal`), `evals` (M11.3: the eval tooling posts each finished run; reads of the
  * history are `work`, decided by the PDP for the human like the agent stats), `push_guard` (M13.6: the codehost's Push
  * Broker asks whether a Unit's lease is held at an epoch and whether an approved X2 is bound to a patch hash: core's own
- * word, read from the lease and the ledger).
+ * word, read from the lease and the ledger), `erasure` (M19: the audit service lists the payloads kept off the hash chain
+ * and erases one it has the `erasure.execute` entry for; no other caller has a reason to hold it),
+ * `activity` (M19: a session's reporter posts its heartbeat; nothing else).
  */
 export type CoreScope =
   | 'read'
@@ -176,7 +182,9 @@ export type CoreScope =
   | 'ops'
   | 'integrations'
   | 'evals'
-  | 'push_guard';
+  | 'push_guard'
+  | 'erasure'
+  | 'activity';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -197,6 +205,8 @@ export interface CoreAppOptions {
   readonly assistant?: AssistantDeps;
   /** The object store of the Evidence Packs (M14.6: the pack viewer reads them back); without it the contents are not shown. */
   readonly objects?: ObjectStorePort;
+  /** M19: the kill switch's verdict for the floor (core-worker's `/admission`); without it the floor shows killed (AR9). */
+  readonly kill?: KillVerdictPort;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -374,6 +384,27 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     pdp: o.pdp,
     now: () => clock.now(),
     allowed: (req, scope) => allowed(req, scope),
+  });
+
+  // M19: the floor's live read model (floor.read on the project, item.view_floor per item)
+  registerFloorRoutes({
+    app,
+    pool: o.pool,
+    pdp: o.pdp,
+    now: () => clock.now(),
+    eligibility: (o.config ?? o.cards?.decisions)?.eligibility,
+    kill: o.kill,
+    allowed: (req, scope) => allowed(req, scope),
+  });
+  // M19: the fleet (counts per project, the bff cuts it) and the sessions' heartbeats
+  registerFleetRoutes({
+    app,
+    pool: o.pool,
+    now: () => clock.now(),
+    eligibility: (o.config ?? o.cards?.decisions)?.eligibility,
+    kill: o.kill,
+    allowed: (req, scope) => allowed(req, scope),
+    core: deps,
   });
 
   /**
@@ -1768,6 +1799,10 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     allowed: (req, scope) => allowed(req, scope),
     guard,
   });
+
+  // ------------------------------------------------------------ the erasable payloads (M19, the audit service)
+
+  registerErasableRoutes({ app, deps, allowed: (req) => allowed(req, 'erasure') });
 
   // ------------------------------------------------------------ the assistant (M18)
 

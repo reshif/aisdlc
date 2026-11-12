@@ -12,6 +12,7 @@ import { Loading } from '../components/Notice';
 import { Read, ShortHash } from '../components/Read';
 import { shortTime } from '../format';
 import { Link } from '../router';
+import { ErasurePanel, ExportsPanel, HoldsPanel, RetentionPanel } from './AuditPanels';
 import {
   Card,
   EmptyState,
@@ -22,6 +23,7 @@ import {
   Stat,
   Stats,
   Table,
+  Tabs,
   laneText,
   type Column,
 } from '../ui';
@@ -184,7 +186,42 @@ const resourceText = (r: PdpResource): string =>
     ? 'fleet'
     : `${r.type.toLowerCase()} ${r.id}${r.project && r.type !== 'Project' ? ` (${r.project})` : ''}`;
 
-export function AuditPage() {
+const AUDIT_TABS = [
+  { id: 'exports', label: 'Exports' },
+  { id: 'erasure', label: 'Erasure' },
+  { id: 'holds', label: 'Legal holds' },
+  { id: 'retention', label: 'Retention' },
+  { id: 'decisions', label: 'Decision log' },
+] as const;
+
+/** Govern › Audit (prototype `audit`): exports, erasure, legal holds, retention (the audit service, M19), and the PDP's log. */
+export function AuditPage({ csrf }: { csrf: string }) {
+  const [tab, setTab] = useState<string>('exports');
+  return (
+    <>
+      <PageHead
+        eyebrow="Govern · audit"
+        title="Audit"
+        sub="Signed exports for auditors, erasure of what is kept off the hash chain, legal holds, what is kept and for how long, and the policy decision log. Every act here is a ledger entry."
+      />
+      <Tabs label="Audit" tabs={AUDIT_TABS} selected={tab} onSelect={setTab}>
+        {tab === 'exports' ? (
+          <ExportsPanel csrf={csrf} />
+        ) : tab === 'erasure' ? (
+          <ErasurePanel csrf={csrf} />
+        ) : tab === 'holds' ? (
+          <HoldsPanel csrf={csrf} />
+        ) : tab === 'retention' ? (
+          <RetentionPanel />
+        ) : (
+          <DecisionLog />
+        )}
+      </Tabs>
+    </>
+  );
+}
+
+function DecisionLog() {
   const [action, setAction] = useState('');
   const q = useQuery({
     queryKey: ['audit-decisions', action],
@@ -206,11 +243,10 @@ export function AuditPage() {
   ];
   return (
     <>
-      <PageHead
-        eyebrow="Govern"
-        title="Audit"
-        sub="The policy decision log: every deny, every allow of an action the catalogue logs, newest first. Capability probes for the portal's buttons are not logged."
-      />
+      <p className="muted">
+        The policy decision log: every deny, every allow of an action the catalogue logs, newest
+        first. Capability probes for the portal&rsquo;s buttons are not logged.
+      </p>
       <div className="pg-filters">
         <label>
           Action{' '}
@@ -238,12 +274,6 @@ export function AuditPage() {
           </Card>
         )}
       </Read>
-      <Card title="Not here yet">
-        <p className="muted">
-          Signed audit exports, pseudonym resolution, erasure and legal hold are the audit services
-          of M19 (audit-exporter, audit-backend).
-        </p>
-      </Card>
     </>
   );
 }
