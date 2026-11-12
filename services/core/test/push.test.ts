@@ -24,7 +24,9 @@ import {
   unitStream,
   type CodingSessionResult,
   type Lane,
+  type Level,
   type ProjectSettings,
+  type PrrGatingProfile,
 } from '@aisdlc/contracts';
 import { HttpPushGuards } from '@aisdlc/codehost';
 import { startTestCodeHost, type TestCodeHost } from '@aisdlc/codehost/testing';
@@ -46,6 +48,7 @@ import {
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   AdmissionCapacity,
+  approveBatch,
   CoreBuildSource,
   createCoreApp,
   CorePush,
@@ -53,8 +56,10 @@ import {
   listPullRequests,
   listPushReceipts,
   listUnits,
+  readGoverning,
   readItem,
   rebuildPushes,
+  requestFromTwin,
   storeArtefact,
   submitRequest,
   planUnits,
@@ -196,26 +201,36 @@ async function world(
     paths?: string[];
     withOracles?: boolean;
     laneOf?: (itemId: string) => Promise<string>;
+    level?: Level;
+    gating?: PrrGatingProfile;
+    /** Makes the item instead of a plain N1 request (the remediation path: a twin gap as an N6 request). */
+    submit?: (project: string, repo: string) => Promise<string>;
   } = {},
 ): Promise<World> {
   counter += 1;
   const project = `push${counter}`;
   const repo = `acme/${project}`;
-  const seeded = await seedActivePrr(s, { level: 'full', gating: GATING_OFF, project, repo });
+  const seeded = await seedActivePrr(s, {
+    level: o.level ?? 'full',
+    gating: o.gating ?? GATING_OFF,
+    project,
+    repo,
+  });
   approvers(s, seeded.project, ['bob']);
   const settings = new FakeProjectSettings();
   settings.set(settingsOf(project));
-  const sub = ok(
-    await submitRequest(s.deps, {
-      project_id: pid(project),
-      repo,
-      lane: o.lane ?? 'L3',
-      requester: pr('alice'),
-      channel: 'N1',
-      text: `push test ${counter}`,
-    }),
-  );
-  const itemId = sub.item_id as string;
+  const itemId = o.submit
+    ? await o.submit(project, repo)
+    : (ok(
+        await submitRequest(s.deps, {
+          project_id: pid(project),
+          repo,
+          lane: o.lane ?? 'L3',
+          requester: pr('alice'),
+          channel: 'N1',
+          text: `push test ${counter}`,
+        }),
+      ).item_id as string);
   const synth = synthRepo();
   const host = await startTestCodeHost({
     seed: seedFor(repo, [['README.md', '# hi\n']]),
@@ -532,6 +547,82 @@ describe('a full run: admitted Unit, 6.1 to 6.6, a Draft PR on the fake GitHub, 
     expect(await rebuildPushes(s.deps, w.itemId)).toBe(1);
     expect(await listPushReceipts(s.record.pool, w.itemId)).toEqual(before);
     expect(await listPullRequests(s.record.pool, w.itemId)).toHaveLength(1);
+  });
+});
+
+describe('R2b: the first N6 -> G0 -> L2 remediation PR (a twin gap, the normal intake, the engine, the Push Broker)', () => {
+  it('a gap becomes an N6 request, a person approves G0, L2 runs to a Draft PR through the broker; the factory never merges, a person does', async () => {
+    let gapId = '';
+    const w = await world({
+      lane: 'L2',
+      level: 'light',
+      // G0 on (the remediation enters S1 like any request and waits for G0), the rest off
+      gating: { ...GATING_OFF, gates: { ...GATING_OFF.gates, g0g1: 'on' } },
+      submit: async (project, repo) => {
+        const g = await readGoverning(s.record.pool, repo);
+        const gap = g?.governing?.prr.gaps.find(
+          (x) => x.status === 'open' && x.visibility_class !== 'private_only',
+        );
+        if (!gap) throw new Error('the seeded record has no open public-safe gap');
+        gapId = gap.gap_id;
+        // the gap is in an approved twin batch (a person, on the ledger) before it can be asked for
+        ok(
+          await approveBatch({ ...s.deps, ledger: s.config.ledger }, pid(project), {
+            repo: repo as never,
+            rows: [{ gap_id: gap.gap_id, disposition: 'track_only' }],
+            on_behalf_of: pr('alice'),
+          }),
+        );
+        const r = ok(
+          await requestFromTwin(s.deps, pid(project), {
+            repo: repo as never,
+            gap_id: gap.gap_id,
+            on_behalf_of: pr('alice'),
+          }),
+        );
+        if (!r.item_id) throw new Error('the remediation request made no item');
+        return r.item_id;
+      },
+    });
+
+    // the intake: N6, L2, origin issue, the twin's own text (never what GitHub says now)
+    const requested = await q<{ body: Record<string, unknown> }>(
+      `SELECT e.body FROM record.record_event e WHERE e.type = 'work.requested'
+          AND e.body -> 'request_text' ->> 'text' LIKE $1`,
+      [`%${gapId}%`],
+    );
+    expect(requested[0]?.body).toMatchObject({
+      lane: 'L2',
+      channel: 'N6',
+      request_text: { origin: 'issue', taint: 'untrusted' },
+    });
+
+    // the engine stops at G0 until a person decides it; then L2 runs S3, S5 (partial), S6 and the fake S7
+    const atMerge = (st: NonNullable<Awaited<ReturnType<typeof readItem>>>['state']) =>
+      (st.waiting as { kind?: string; what?: string } | null)?.what === 'merge';
+    const waiting = await runItem(s, w.d, w.itemId, { stop: atMerge });
+    expect(waiting?.state.lane).toBe('L2');
+    expect(waiting?.state.terminal).toBeNull();
+    expect(atMerge(waiting?.state as never)).toBe(true);
+    const g0 = await q<{ actor: string; decision: string }>(
+      `SELECT actor, decision FROM ledger.ledger_entry WHERE entry_type = 'decision' AND gate_id = 'G0'
+          AND subject_id = $1`,
+      [w.itemId],
+    );
+    expect(g0).toEqual([{ actor: 'bob', decision: 'approve' }]);
+
+    // the Draft PR the broker opened from the Unit's branch; nothing merged it
+    const pull = w.host.server.pulls[0];
+    expect(pull).toMatchObject({ draft: true, state: 'open', merged: false });
+    expect(pull?.head.ref).toBe(`agent/${w.itemId}/main`);
+    expect(writesOf(w).some((x) => /merge/i.test(x))).toBe(false);
+    const [receipt] = await listPushReceipts(s.record.pool, w.itemId);
+    expect(receipt).toMatchObject({ status: 'applied', pr_number: pull?.number });
+
+    // a person merges on GitHub (the factory observes it): the item ends Done
+    const done = await runItem(s, w.d, w.itemId);
+    expect(done?.state.terminal).toBe('Done');
+    expect(writesOf(w).some((x) => /merge/i.test(x))).toBe(false);
   });
 });
 
