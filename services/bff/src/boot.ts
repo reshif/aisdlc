@@ -62,6 +62,8 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                            (without them /api/me/notifications* answer 503; nothing else depends on it)
  *   BFF_SANDBOX_CONTROLLER_URL, BFF_SANDBOX_CONTROLLER_TOKEN_REF
  *                            optional: the sandbox-controller's slots for the portal's Sandboxes screen (scope read)
+ *   BFF_AUDIT_URL, BFF_AUDIT_TOKEN_REF   the audit service (M19, scopes read, export, govern): Govern › Audit;
+ *                                     optional (without it those routes answer 503)
  *   BFF_GATE_CHECK_URL, BFF_GATE_CHECK_TOKEN_REF
  *                            gate-check's read API and the bff's token there (scope read; M14.6: the item page's
  *                            run status); both or neither (without them that status reads `unknown`)
@@ -144,6 +146,21 @@ export async function bootBff(env: Env): Promise<RunningService> {
         token: resolveSecretRef(requiredEnv(env, 'BFF_GATE_CHECK_TOKEN_REF'), { env }),
       })
     : undefined;
+  const auditUrl = env['BFF_AUDIT_URL'];
+  const hasAudit = auditUrl !== undefined && auditUrl !== '';
+  if (
+    hasAudit !== (env['BFF_AUDIT_TOKEN_REF'] !== undefined && env['BFF_AUDIT_TOKEN_REF'] !== '')
+  ) {
+    throw new ServiceConfigError(
+      'BFF_AUDIT_URL and BFF_AUDIT_TOKEN_REF are set together or not at all',
+    );
+  }
+  const audit = hasAudit
+    ? new HttpCoreClient({
+        baseUrl: httpUrlEnv(env, 'BFF_AUDIT_URL'),
+        token: resolveSecretRef(requiredEnv(env, 'BFF_AUDIT_TOKEN_REF'), { env }),
+      })
+    : undefined;
   const scUrl = env['BFF_SANDBOX_CONTROLLER_URL'];
   const hasSc = scUrl !== undefined && scUrl !== '';
   if (
@@ -216,6 +233,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
       ...(core ? { core } : {}),
       ...(notifier ? { notifier } : {}),
       ...(gateCheck ? { gateCheck } : {}),
+      ...(audit ? { audit } : {}),
       ...(sandboxController ? { sandboxController } : {}),
       ...(webDir ? { webDir } : {}),
     });

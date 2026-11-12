@@ -43,6 +43,13 @@ import type {
   AdmissionView,
   AgentRegistryView,
   AuditDecisionsView,
+  AuditExportRequest,
+  AuditExportView,
+  ErasureRequestInput,
+  ErasureView,
+  LegalHoldView,
+  PlaceHoldRequest,
+  RetentionView,
   CatalogueView,
   ControlKind,
   ControlsView,
@@ -572,6 +579,35 @@ export const api = {
       'GET',
       `/api/audit/decisions?limit=200${action ? `&action=${encodeURIComponent(action)}` : ''}`,
     ),
+  // ------------------------------------------------------------ M19: Govern › Audit (the audit service)
+  auditExports: () => request<{ exports: AuditExportView[] }>('GET', '/api/audit/exports'),
+  writeAuditExport: (b: AuditExportRequest, csrf: string) =>
+    request<AuditExportView>('POST', '/api/audit/exports', b, csrf),
+  /** The signed bytes, as a link the browser downloads (the bff re-hashes them to their object key). */
+  auditExportHref: (id: string) => `/api/audit/exports/${encodeURIComponent(id)}/signed`,
+  legalHolds: () => request<{ holds: LegalHoldView[] }>('GET', '/api/audit/holds'),
+  placeHold: (b: PlaceHoldRequest, csrf: string) =>
+    request<LegalHoldView>('POST', '/api/audit/holds', b, csrf),
+  releaseHold: (id: string, reason: string, csrf: string) =>
+    request<LegalHoldView>(
+      'POST',
+      `/api/audit/holds/${encodeURIComponent(id)}/release`,
+      { reason },
+      csrf,
+    ),
+  erasures: () => request<{ erasures: ErasureView[] }>('GET', '/api/audit/erasures'),
+  requestErasure: (b: ErasureRequestInput, csrf: string) =>
+    request<ErasureView>('POST', '/api/audit/erasures', b, csrf),
+  approveErasure: (id: string, b: { matter_ref: string; reason: string }, csrf: string) =>
+    request<ErasureView>('POST', `/api/audit/erasures/${encodeURIComponent(id)}/approve`, b, csrf),
+  rejectErasure: (id: string, reason: string, csrf: string) =>
+    request<ErasureView>(
+      'POST',
+      `/api/audit/erasures/${encodeURIComponent(id)}/reject`,
+      { reason },
+      csrf,
+    ),
+  retention: () => request<RetentionView>('GET', '/api/audit/retention'),
   directory: () => request<DirectoryView>('GET', '/api/directory'),
   explain: (project: string) =>
     request<AccessExplainView>('GET', `/api/projects/${encodeURIComponent(project)}/explain`),

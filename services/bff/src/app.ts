@@ -32,6 +32,7 @@ import { registerAccessRoutes } from './access.js';
 import { registerAssistantRoutes } from './assistant.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
 import { registerNotificationRoutes } from './notifications.js';
+import { registerAuditRoutes } from './audit.js';
 import { registerPortalRoutes } from './portal.js';
 import { registerPortalListRoutes } from './portal-lists.js';
 import { registerFloorRoutes } from './floor.js';
@@ -88,6 +89,8 @@ export interface BffAppOptions {
   readonly core?: CoreClient;
   /** The notifier (M18), for `/api/me/notifications*`; without it they answer 503. Best effort: nothing else needs it. */
   readonly notifier?: CoreClient;
+  /** The audit service (M19), for `/api/audit/*`; without it they answer 503. */
+  readonly audit?: CoreClient;
   /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
   readonly gateCheck?: CoreClient;
   /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it the Sandboxes screen says so. */
@@ -583,6 +586,12 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     notifier: o.notifier,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  registerAuditRoutes({
+    app,
+    pdp: o.pdp,
+    audit: o.audit,
     principalOf: (req) => ctx(req).session.principal_id,
   });
   if (o.webDir) registerWebFiles(app, o.webDir);
