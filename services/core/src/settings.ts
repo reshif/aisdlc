@@ -4,6 +4,7 @@ import {
   proposeRevision,
   readLineage,
   registerGateCheckConfig,
+  registerReleaseConfig,
   registerSandboxConfig,
   type ConfigDeps,
   type ConfigRegistry,
@@ -23,6 +24,7 @@ import {
   KillDelegation,
   MAINTENANCE_FLAG_KEY,
   PROJECT_CONFIG_KEYS,
+  RELEASE_CONFIG_KEY,
   ProjectSettings,
   ProjectSettingsDoc,
   RoleMap,
@@ -39,6 +41,7 @@ import {
   type PrincipalId,
   type ProjectId,
   type ProjectSettingsWire,
+  type ReleaseSetting,
   type Tier,
 } from '@aisdlc/contracts';
 import type { Written } from '@aisdlc/decisions';
@@ -66,6 +69,8 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   registerSandboxConfig(registry);
   // M14.5: the per-repo merge bypass list is gate-check's to read; core's revisions must validate it
   registerGateCheckConfig(registry);
+  // M15.3: a project's release choice (off or a deploy target), part of its project layer like its other settings
+  registerReleaseConfig(registry);
   return registry
     .setting({
       key: PROJECT_CONFIG_KEYS.role_map,
@@ -268,6 +273,8 @@ export interface SettingsChange {
   readonly two_person?: TwoPerson | undefined;
   readonly gating_profile?: GatingProfile | undefined;
   readonly kill_delegations?: KillDelegation[] | undefined;
+  /** M15.3: the release choice (`project.release`); absent keeps the one in force. */
+  readonly release?: ReleaseSetting | null | undefined;
 }
 
 const mapConfigError = (e: { code: string; message: string }): CoreError =>
@@ -308,6 +315,9 @@ export async function proposeProjectSettings(
     [PROJECT_CONFIG_KEYS.kill_delegations]:
       input.change.kill_delegations ?? base[PROJECT_CONFIG_KEYS.kill_delegations] ?? [],
   };
+  // the release choice lives in the same project layer: a settings change keeps it unless it changes it
+  const release =
+    input.change.release !== undefined ? input.change.release : base[RELEASE_CONFIG_KEY];
   const parsed = ProjectSettingsDoc.safeParse(doc);
   if (!parsed.success) return err(coreError('invalid_input', parsed.error.message));
   const tier: Tier | null = state.project.tier ?? state.attestations.tier_floor ?? null;
@@ -329,7 +339,7 @@ export async function proposeProjectSettings(
   const r = await proposeRevision(deps, {
     layer: 'project',
     scope: { kind: 'project', ref: input.project },
-    doc,
+    doc: release === undefined ? doc : { ...doc, [RELEASE_CONFIG_KEY]: release },
     proposed_by: input.proposed_by,
   });
   return r.ok ? ok(r.value) : err(mapConfigError(r.error));

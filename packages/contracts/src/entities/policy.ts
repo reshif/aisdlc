@@ -222,6 +222,16 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'slots', slots: ['design'] }],
     log_allow: true,
   },
+  // M15.3: RELHOLD's exit. The release was held (G5 denied, or approved and not released); the release approvers ask
+  // for it again after the fix window, which opens G5 on a new instance (decided, with step-up, by the same slot).
+  'item.release': {
+    action_id: 'item.release',
+    description: 'Re-request a held release (RELHOLD) after the fix window: G5 opens again',
+    class: 'write',
+    resource_types: ['Item'],
+    grants: [{ kind: 'slots', slots: ['g5', 'admin'] }],
+    log_allow: true,
+  },
   'project.view': {
     action_id: 'project.view',
     description: 'See a project and its settings',

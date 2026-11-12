@@ -3,6 +3,7 @@ import {
   LedgerAuditView,
   PROJECT_CONFIG_KEYS,
   ProjectSettingsDoc,
+  RELEASE_CONFIG_KEY,
   S0_EVENT,
   SettingsRevisionView,
   s0Stream,
@@ -85,7 +86,11 @@ export async function settingsRevision(
   const lineage = await readLineage(deps.pool, lineageOf(p.project_id));
   const rev = lineage.proposed.get(p.subject_hash);
   if (!rev) return err(coreError('not_found', 'the revision this gate decides is gone'));
-  const doc = ProjectSettingsDoc.safeParse(rev.doc);
+  // the settings part of the project layer (M15.3: the release choice rides in the same document)
+  const settingsPart = Object.fromEntries(
+    Object.entries(rev.doc as Record<string, unknown>).filter(([k]) => k !== RELEASE_CONFIG_KEY),
+  );
+  const doc = ProjectSettingsDoc.safeParse(settingsPart);
   if (!doc.success)
     return err(coreError('conflict', 'the proposed revision is not a settings document'));
   const d = doc.data;

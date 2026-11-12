@@ -15,6 +15,7 @@ import {
   CorePush,
   buildStagePorts,
   verifyStagePorts,
+  releaseStagePorts,
   execAllowedReposFrom,
   cardDepsFrom,
   cardsLoop,
@@ -326,7 +327,7 @@ export async function bootCoreWorker(
       // M14.3: S7 7.1 to 7.5 through the verify service (its kits through the sandbox-controller); M14.4: 7.6 here, the
       // Evidence Pack signed by the Notary's evidence purpose and stored in the object store's write-once bucket
       const verifying = Boolean(cfg.verify && cfg.knowledge && cfg.objectStore && ledger);
-      const stagePorts =
+      const afterVerify =
         cfg.verify && cfg.knowledge && cfg.objectStore && ledger
           ? verifyStagePorts({
               pool,
@@ -349,6 +350,10 @@ export async function bootCoreWorker(
               ...(built ? { store: built.store } : {}),
             })
           : beforeVerify;
+      // M15.3: S8b through gate-relay's record (the deployment of an approved G5, its health; B16 on a rollback)
+      const stagePorts = cfg.releaseViaGateRelay
+        ? releaseStagePorts({ pool, base: afterVerify, deps: { pool } })
+        : afterVerify;
       // M13.1: 6.0 admission (a lease epoch, an approver slot, capacity, the envelope reserved in the gateway)
       // and the capacity port behind it, which frees the held items only when their next admission can succeed
       const admissionBase = cfg.gateway

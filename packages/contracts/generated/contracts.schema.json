@@ -239,6 +239,7 @@
         "item.ready",
         "item.observe",
         "item.plan",
+        "item.release",
         "project.view",
         "project.settings.edit",
         "floor.read",
@@ -20944,6 +20945,7 @@
             "item.ready",
             "item.observe",
             "item.plan",
+            "item.release",
             "project.view",
             "project.settings.edit",
             "floor.read",
@@ -21102,6 +21104,7 @@
                   "item.ready",
                   "item.observe",
                   "item.plan",
+                  "item.release",
                   "project.view",
                   "project.settings.edit",
                   "floor.read",
@@ -21254,6 +21257,7 @@
                   "item.ready",
                   "item.observe",
                   "item.plan",
+                  "item.release",
                   "project.view",
                   "project.settings.edit",
                   "floor.read",
@@ -21561,6 +21565,7 @@
             "item.ready",
             "item.observe",
             "item.plan",
+            "item.release",
             "project.view",
             "project.settings.edit",
             "floor.read",
@@ -21687,6 +21692,205 @@
       "required": [
         "action",
         "resource"
+      ],
+      "additionalProperties": false
+    },
+    "DeployHealthPayload": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "marker_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "deployment_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "queued",
+            "in_progress",
+            "success",
+            "failure",
+            "error",
+            "inactive"
+          ]
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "rollback_marker_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "item_id",
+        "marker_id",
+        "deployment_id",
+        "state",
+        "observed_at"
+      ],
+      "additionalProperties": false
+    },
+    "DeployMarker": {
+      "type": "object",
+      "properties": {
+        "marker_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "release",
+            "rollback"
+          ]
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "merged_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "pack_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "deployment_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "rollback_of": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "marker_id",
+        "kind",
+        "item_id",
+        "project_id",
+        "repo",
+        "environment",
+        "merged_sha",
+        "pack_sha256",
+        "gate_instance_id",
+        "binding_sha256",
+        "deployment_id",
+        "rollback_of",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "DeploymentState": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "queued",
+        "in_progress",
+        "success",
+        "failure",
+        "error",
+        "inactive"
+      ]
+    },
+    "DeploymentTag": {
+      "type": "object",
+      "properties": {
+        "aisdlc": {
+          "type": "object",
+          "properties": {
+            "item_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "gate_instance_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "release",
+                "rollback"
+              ]
+            },
+            "binding_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "item_id",
+            "gate_instance_id",
+            "kind",
+            "binding_sha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "aisdlc"
       ],
       "additionalProperties": false
     },
@@ -38574,6 +38778,25 @@
       ],
       "additionalProperties": false
     },
+    "ItemReleaseRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "key"
+      ],
+      "additionalProperties": false
+    },
     "ItemView": {
       "type": "object",
       "properties": {
@@ -47379,6 +47602,7 @@
                   "item.ready",
                   "item.observe",
                   "item.plan",
+                  "item.release",
                   "project.view",
                   "project.settings.edit",
                   "floor.read",
@@ -47450,6 +47674,7 @@
                     "item.ready",
                     "item.observe",
                     "item.plan",
+                    "item.release",
                     "project.view",
                     "project.settings.edit",
                     "floor.read",
@@ -47653,6 +47878,7 @@
               "item.ready",
               "item.observe",
               "item.plan",
+              "item.release",
               "project.view",
               "project.settings.edit",
               "floor.read",
@@ -65390,6 +65616,283 @@
           "type": "string",
           "const": "smaller_than_lane"
         }
+      ]
+    },
+    "ReleaseBinding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "bound"
+            },
+            "item_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "repo": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "pr_number": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "unit_key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "merged_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "pack_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "pack_head_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }
+          },
+          "required": [
+            "status",
+            "item_id",
+            "project_id",
+            "repo",
+            "pr_number",
+            "unit_key",
+            "merged_sha",
+            "pack_sha256",
+            "pack_head_sha",
+            "environment"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unbound"
+            },
+            "item_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "repo": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "no_merge_observed",
+                "no_passing_pack",
+                "no_pull_request",
+                "pack_head_not_pr_head",
+                "no_release_target"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "item_id",
+            "project_id",
+            "repo",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ReleaseEnvironment": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "ReleaseIntendedPayload": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "marker_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "release",
+            "rollback"
+          ]
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "merged_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "required": [
+        "item_id",
+        "gate_instance_id",
+        "binding_sha256",
+        "marker_id",
+        "kind",
+        "repo",
+        "environment",
+        "merged_sha"
+      ],
+      "additionalProperties": false
+    },
+    "ReleaseRefusal": {
+      "type": "string",
+      "enum": [
+        "unbound",
+        "subject_mismatch",
+        "no_step_up",
+        "target_changed",
+        "merged_content_mismatch",
+        "pack_invalid",
+        "host_refused"
+      ]
+    },
+    "ReleaseRefusedPayload": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "unbound",
+            "subject_mismatch",
+            "no_step_up",
+            "target_changed",
+            "merged_content_mismatch",
+            "pack_invalid",
+            "host_refused"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "refused_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "item_id",
+        "project_id",
+        "gate_instance_id",
+        "reason",
+        "detail",
+        "refused_at"
+      ],
+      "additionalProperties": false
+    },
+    "ReleaseSetting": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "off"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "target"
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }
+          },
+          "required": [
+            "mode",
+            "environment"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ReleaseUnboundReason": {
+      "type": "string",
+      "enum": [
+        "no_merge_observed",
+        "no_passing_pack",
+        "no_pull_request",
+        "pack_head_not_pr_head",
+        "no_release_target"
       ]
     },
     "RepairClass": {

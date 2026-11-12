@@ -37,7 +37,8 @@ psql -v ON_ERROR_STOP=1 \
   -v pw_gateway="$(cat /run/secrets/pg-pass-gateway)" \
   -v pw_sandbox_controller="$(cat /run/secrets/pg-pass-sandbox-controller)" \
   -v pw_verify="$(cat /run/secrets/pg-pass-verify)" \
-  -v pw_gate_check="$(cat /run/secrets/pg-pass-gate-check)" <<'SQL'
+  -v pw_gate_check="$(cat /run/secrets/pg-pass-gate-check)" \
+  -v pw_gate_relay="$(cat /run/secrets/pg-pass-gate-relay)" <<'SQL'
 SELECT 'CREATE ROLE aisdlc_app NOLOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_app') \gexec
 
@@ -74,6 +75,16 @@ SELECT 'CREATE ROLE gate_check LOGIN'
 SELECT format('ALTER ROLE gate_check PASSWORD %L', :'pw_gate_check') \gexec
 GRANT aisdlc_gatecheck TO gate_check;
 
+-- gate-relay's group role (its grants are the gate-relay migration's: its four tables and its own record streams,
+-- read-only the ledger, the release setting's config view, the packs' and gate-check's merges' read models) and its
+-- login role (M15.3).
+SELECT 'CREATE ROLE aisdlc_gaterelay NOLOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_gaterelay') \gexec
+SELECT 'CREATE ROLE gate_relay LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gate_relay') \gexec
+SELECT format('ALTER ROLE gate_relay PASSWORD %L', :'pw_gate_relay') \gexec
+GRANT aisdlc_gaterelay TO gate_relay;
+
 SELECT format('CREATE ROLE %I LOGIN', r)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS r
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r) \gexec
@@ -99,5 +110,6 @@ GRANT CONNECT ON DATABASE aisdlc TO gateway;
 GRANT CONNECT ON DATABASE aisdlc TO sandbox_controller;
 GRANT CONNECT ON DATABASE aisdlc TO verify;
 GRANT CONNECT ON DATABASE aisdlc TO gate_check;
+GRANT CONNECT ON DATABASE aisdlc TO gate_relay;
 SQL
 echo "db-init: roles and databases are in place"

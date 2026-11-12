@@ -9,6 +9,7 @@ import {
   ItemObserveRequest,
   ItemPlanRequest,
   ItemReadyRequest,
+  ItemReleaseRequest,
   CardDecideRequest,
   GateCardDecideRequest,
   GateCardEvidenceRequest,
@@ -28,6 +29,7 @@ import {
   IntegrationKind,
   IsoDateTime,
   KillDelegation,
+  ReleaseSetting,
   OnboardRequest,
   PrincipalId,
   ProjectId,
@@ -89,7 +91,7 @@ import { CorePushGuards } from './build/push.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
 import { answerQuestion, decideReady, submitRequest } from './requests.js';
-import { observeRelane, requestRework } from './work-signals.js';
+import { observeRelane, reRequestRelease, requestRework } from './work-signals.js';
 import { submitHumanPlan } from './planning/human-plan.js';
 import type { GroundingPort } from './planning/grounding.js';
 import { readItem, readItemEvents } from './work-items.js';
@@ -764,6 +766,28 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return { item: await view(it.id), duplicate: r.value.duplicate };
   });
 
+  /** RELHOLD (M15.3): the release approvers ask for the held release again after the fix window; G5 opens again. */
+  app.post('/v1/items/:id/release/re-request', async (req, reply) => {
+    if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
+    const b = parse(ItemReleaseRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    const it = await itemFor(req, reply, b.value.on_behalf_of, 'item.release');
+    if (!it) return;
+    const signalKey = `rerequest:${b.value.key}`;
+    const taken = (await readItemEvents(o.pool, it.id)).some(
+      (e) => e.idempotency_key === signalKey,
+    );
+    if (!taken && it.state.waiting?.kind !== 'release_held') {
+      return fail(reply, coreError('conflict', 'the release is not held'));
+    }
+    if (await maintenanceOn()) {
+      return fail(reply, coreError('refused', 'maintenance mode MM-2: decisions are disabled'));
+    }
+    const r = await reRequestRelease(itemDeps, it.id, b.value.on_behalf_of, b.value.key);
+    if (!r.ok) return fail(reply, r.error);
+    return { item: await view(it.id), duplicate: r.value.duplicate };
+  });
+
   /** B5: a person writes the plan (the four parts, the same checks as the agent's); G3 decides it. */
   app.post('/v1/items/:id/plan', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -1029,6 +1053,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         two_person: TwoPerson.optional(),
         gating_profile: GatingProfile.optional(),
         kill_delegations: z.array(KillDelegation).optional(),
+        // M15.3: the release choice, off or a deploy target (null: not chosen)
+        release: ReleaseSetting.nullable().optional(),
         on_behalf_of: PrincipalId,
       }),
       req.body,

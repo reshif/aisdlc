@@ -48,3 +48,5 @@ export * from './admission/index.js';
 export * from './build/index.js';
 export * from './verify/index.js';
 export * from './review/index.js';
+export * from './release/binding.js';
+export * from './release/port.js';

@@ -11,6 +11,7 @@ import {
   EXEC_NOT_ALLOWED,
   GATE_ARTEFACT_STEPS,
   ITEM_EVENT,
+  NOT_RELEASED_CODE_PREFIX,
   RELANE_SOURCES,
   SPAWN_RULES,
   STEP_ARTEFACT,
@@ -1419,6 +1420,13 @@ export function interpret(
       const c = takeOutstanding(s, p.command_key);
       if (c === null) {
         ignore(s, `stage_failed:${p.step}:stale`);
+        break;
+      }
+      // M15.3: the release step says "merged, not deployed" (gate-relay refused the approved G5, or the deployment
+      // was unhealthy and rolled back, or there is no release target): RELEASE HELD, as after a denied G5 (B26). A
+      // re-request opens G5 again on a new instance; "needs change" is a NEW linked item.
+      if (p.step === 'S8b' && p.code.startsWith(NOT_RELEASED_CODE_PREFIX)) {
+        s.waiting = { kind: 'release_held', since: s.at };
         break;
       }
       // A failure is not an edge of the flow: the item stops where it is. Nothing is retried,

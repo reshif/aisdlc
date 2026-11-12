@@ -44,6 +44,8 @@ describe('gate-check in the compose stack', () => {
     expect(secretsOf(compose.services['fake-github'] as Service)).toEqual([
       'github-app.pub.pem',
       'gate-check-app.pub.pem',
+      // M15.3: gate-relay's App is the host's third
+      'gate-relay-app.pub.pem',
     ]);
   });
 

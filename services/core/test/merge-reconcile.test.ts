@@ -1,6 +1,7 @@
 import {
   EVIDENCE_BUCKET,
   EVIDENCE_EVENT,
+  G5_FACTS_KEY,
   GATECHECK_EVENT,
   GATE_EVENT,
   G4Review,
@@ -15,11 +16,12 @@ import {
   type PrrGatingProfile,
 } from '@aisdlc/contracts';
 import { withTransaction } from '@aisdlc/db';
-import { readGateState } from '@aisdlc/decisions';
+import { configProjection } from '@aisdlc/config';
+import { readGateState, readOpened } from '@aisdlc/decisions';
 import { sha256Hex } from '@aisdlc/kernel';
 import { observeAgentPulls } from '@aisdlc/loops';
 import { FakeGitHub, emptySeed, readUnknown } from '@aisdlc/ports';
-import { appendEvents, type JsonObject } from '@aisdlc/record';
+import { appendEvents, runProjection, type JsonObject } from '@aisdlc/record';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   DbWatchedPulls,
@@ -40,7 +42,7 @@ import {
   type ReviewPorts,
   type WorkDriverDeps,
 } from '../src/index.js';
-import { pid, pr, startCoreStack, type CoreStack } from '../src/testing.js';
+import { pid, pr, publishSettings, startCoreStack, type CoreStack } from '../src/testing.js';
 import {
   GATING_OFF,
   approvers,
@@ -319,13 +321,22 @@ describe('8.2 the human merges the approved head: the item leaves S8', () => {
     expect(done?.state.terminal).toBe('Done');
   });
 
-  it('a project that releases: S8b with G5 after the merge', async () => {
+  it('a project that releases: S8b with G5 after the merge, bound to the merge commit the reconcile observed', async () => {
     const w = await world({
       gating: { ...GATING_OFF, gates: { ...GATING_OFF.gates, g5: 'on' }, project_deploys: true },
     });
-    await pushed(w, H1);
+    await publishSettings(
+      s,
+      w.project,
+      { release: { mode: 'target', environment: 'production' } },
+      'bob',
+      'alice',
+    );
+    await runProjection(s.record.pool, configProjection);
+    const p1 = await pushed(w, H1);
     await toMerge(w);
     w.gh.landPull(w.repo, w.pr, 'carol-gh');
+    const merge = w.gh.prOf(w.repo, w.pr)?.merge_commit_sha as string;
     expect((await observe(w)).r.completed).toBe(1);
     await driveWork(w.d);
     const st = await state(w);
@@ -334,6 +345,17 @@ describe('8.2 the human merges the approved head: the item leaves S8', () => {
       'G5',
     ]);
     expect(st.terminal).toBeNull();
+    // M15.2 and M15.3 agree: G5 binds the merge commit 8.2's reconcile recorded to the pack G4 approved
+    const g5 = st.gates.find((g) => g.gate === 'G5' && g.status === 'pending');
+    const opened = await readOpened(s.record.pool, g5?.gate_instance_id as string);
+    expect((opened?.payload.facts as Record<string, unknown>)[G5_FACTS_KEY]).toMatchObject({
+      status: 'bound',
+      merged_sha: merge,
+      pack_sha256: p1,
+      pack_head_sha: H1,
+      pr_number: w.pr,
+      environment: 'production',
+    });
   });
 });
 

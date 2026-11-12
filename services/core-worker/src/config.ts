@@ -88,6 +88,12 @@ export interface CoreWorkerConfig {
    */
   readonly verify: { readonly url: string; readonly token: string } | null;
   /**
+   * M15.3: S8b follows gate-relay's record (`CORE_WORKER_RELEASE=gate-relay`): a release is done only when gate-relay
+   * deployed the approved G5 and the deployment is healthy; refused or rolled back is RELHOLD (B16 adds the NEW linked
+   * rollback item). Off: S8b stays over the stage-port fake. Needs a stage-port mode other than `none`.
+   */
+  readonly releaseViaGateRelay: boolean;
+  /**
    * M14.4: the S3-compatible object store the Evidence Packs go to (`CORE_WORKER_OBJECT_STORE_URL`), with its
    * credentials as `file:`/`env:` references, resolved by the adapter (never held in this config).
    */
@@ -168,6 +174,8 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   as a commit on agent/<item>/<unit> and a Draft PR; needs the sandbox. Default off
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
  *                                   deployment routes everything to `fake-model`); default none
+ *   CORE_WORKER_RELEASE             `gate-relay` (M15.3): S8b reads gate-relay's record of the approved G5's deployment
+ *                                   (healthy: released; refused or rolled back: RELHOLD, B16's NEW item); default the fake
  *   CORE_WORKER_VERIFY_URL, CORE_WORKER_VERIFY_TOKEN_REF   (M14.3) the verify service (scopes `run`, `read`): S7's
  *                                   7.1 to 7.5 run there and 7.6 signs and stores the Evidence Pack (M14.4). Needs
  *                                   CORE_WORKER_STAGE_PORTS=agents, the Notary (scope `evidence`) and the object store;
@@ -313,6 +321,14 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_VERIFY_URL runs S7 with the verify service, which needs CORE_WORKER_STAGE_PORTS=agents',
     );
   }
+  const releaseMode = env['CORE_WORKER_RELEASE'] ?? '';
+  if (releaseMode !== '' && releaseMode !== 'gate-relay') {
+    throw new ServiceConfigError('CORE_WORKER_RELEASE is `gate-relay` or unset');
+  }
+  const releaseViaGateRelay = releaseMode === 'gate-relay';
+  if (releaseViaGateRelay && stagePorts === 'none') {
+    throw new ServiceConfigError('CORE_WORKER_RELEASE=gate-relay needs CORE_WORKER_STAGE_PORTS');
+  }
   const objUrl = env['CORE_WORKER_OBJECT_STORE_URL'];
   const objectStore =
     objUrl === undefined || objUrl === ''
@@ -342,6 +358,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     sandboxController,
     pushBroker,
     verify,
+    releaseViaGateRelay,
     objectStore,
     agentExtraModels: (env['CORE_WORKER_AGENT_EXTRA_MODELS'] ?? '')
       .split(',')
