@@ -106,7 +106,7 @@ networks:
   docker-coding:
     internal: true
   # The sandbox-controller (M14.2, ADR-0003 §6-7): `sandbox-controller-api` is how core-worker asks it for a session and
-  # for the free slots H2 reads (nobody else is on it); `data-sandbox-controller` is its own way to Postgres (its
+  # for the free slots H2 reads (and, 2026-11-12, the bff with a read-only token for the portal's Sandboxes screen); `data-sandbox-controller` is its own way to Postgres (its
   # least-privilege role reads the published caps and the admission grant, nothing else), shared with Postgres only.
   sandbox-controller-api:
     internal: true
@@ -202,6 +202,7 @@ secrets:
   tok-gate-relay-kms: { file: ./secrets/tok-gate-relay-kms }
   tok-operator-gate-relay: { file: ./secrets/tok-operator-gate-relay }
   tok-bff-gate-check: { file: ./secrets/tok-bff-gate-check }
+  tok-bff-sandbox-controller: { file: ./secrets/tok-bff-sandbox-controller }
   pg-pass-notifier: { file: ./secrets/pg-pass-notifier }
   db-url-notifier: { file: ./secrets/db-url-notifier }
   tok-bff-notifier: { file: ./secrets/tok-bff-notifier }
@@ -654,7 +655,7 @@ services:
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal"]},
-        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work"]}}
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops"]}}
       CORE_NOTARY_URL: http://notary:8310
       CORE_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-notary
       KMS_URL: http://kms-local:8300
@@ -934,6 +935,10 @@ services:
       # portal shows the runs as unknown, never as passing.
       BFF_GATE_CHECK_URL: http://gate-check:8450
       BFF_GATE_CHECK_TOKEN_REF: file:/run/secrets/tok-bff-gate-check
+      # 2026-11-12: the Sandboxes screen reads the controller's slots (scope read). The controller is in the
+      # `sandbox` profile: when it is not running the screen says the slots are unknown.
+      BFF_SANDBOX_CONTROLLER_URL: http://sandbox-controller:8430
+      BFF_SANDBOX_CONTROLLER_TOKEN_REF: file:/run/secrets/tok-bff-sandbox-controller
       # Plain http on localhost only; behind TLS this is true.
       BFF_COOKIE_SECURE: 'false'
       BFF_HOST: 0.0.0.0
@@ -948,6 +953,7 @@ services:
         tok-bff-core,
         tok-bff-gate-check,
         tok-bff-notifier,
+        tok-bff-sandbox-controller,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
@@ -961,7 +967,7 @@ services:
       kms-local: { condition: service_healthy }
       dev-oidc: { condition: service_healthy }
       core: { condition: service_healthy }
-    networks: [edge, data-record, kms-clients, gatecheck-api, notifier-api]
+    networks: [edge, data-record, kms-clients, gatecheck-api, notifier-api, sandbox-controller-api]
     mem_limit: 256m
 
   # The dev identity provider (FACTORY_ENV=local only: it refuses to start otherwise). The browser
@@ -1080,7 +1086,8 @@ services:
       SANDBOX_CONTROLLER_CALLERS: >-
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-sandbox-controller","scopes":["run","read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-sandbox-controller","scopes":["read","admin"]},
-        "verify":{"token_ref":"file:/run/secrets/tok-verify-sandbox-controller","scopes":["run"]}}
+        "verify":{"token_ref":"file:/run/secrets/tok-verify-sandbox-controller","scopes":["run"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-sandbox-controller","scopes":["read"]}}
       SANDBOX_CONTROLLER_HOST_ID: local
       SANDBOX_CONTROLLER_PROXY_URL: http://docker-proxy-coding:2375
       SANDBOX_CONTROLLER_PROXY_TOKEN_REF: file:/run/secrets/tok-sandbox-controller-docker-coding
@@ -1099,6 +1106,7 @@ services:
         tok-core-worker-sandbox-controller,
         tok-operator-sandbox-controller,
         tok-verify-sandbox-controller,
+        tok-bff-sandbox-controller,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8430']

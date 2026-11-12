@@ -26,6 +26,29 @@ const learnView = {
   earned_autonomy: null,
   mode_e_suspended: false,
 };
+/** A close-out view as core serves it (contracts `ItemCloseOutView`: the bff refuses anything else with a 502). */
+const closeoutView = {
+  closeout_sha256: SHA,
+  record: {
+    schema: 'aisdlc-closeout/1',
+    item_id: ITEM_ID,
+    project_id: 'acme',
+    repo: 'acme/web',
+    lane: 'L3',
+    requester: 'alice',
+    catalogue: { version: '1.3.0', hash: SHA },
+    gates: [],
+    merged_sha: null,
+    units: [],
+    g4: null,
+    release_output: null,
+    acceptance: { outcome: null, by: null },
+    break_glass: [],
+    rework: { total: 0, by_edge: {} },
+  },
+  escapes: [],
+  audit: null,
+};
 const revisionView = {
   gate_instance_id: GATE,
   rev_hash: SHA,
@@ -54,7 +77,7 @@ function route(method: string, path: string): { status: number; json: unknown } 
     return { status: 200, json: { duplicate: false } };
   if (p === `/v1/items/${ITEM_ID}/audit`)
     return { status: 200, json: { sampled: 1, missed: 0, suspended: false } };
-  if (p === `/v1/items/${ITEM_ID}/closeout`) return { status: 200, json: { closeout_sha256: SHA } };
+  if (p === `/v1/items/${ITEM_ID}/closeout`) return { status: 200, json: closeoutView };
   if (p === '/v1/projects/acme/learn') return { status: 200, json: learnView };
   if (p === '/v1/projects/acme/learn/run')
     return { status: 200, json: { proposed: [], settled: [] } };

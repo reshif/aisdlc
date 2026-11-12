@@ -34,6 +34,30 @@ import type {
   GateCardContext,
   GateCheckRunsView,
   ItemVerifyView,
+  AccessExplainView,
+  AdmissionView,
+  AgentRegistryView,
+  AuditDecisionsView,
+  CatalogueView,
+  ControlKind,
+  ControlsView,
+  DirectoryView,
+  EvalRunsView,
+  EvalSummaryView,
+  IntegrationsView,
+  ItemListView,
+  KillsView,
+  OpsPreview,
+  SandboxSlots,
+  Scope,
+  AuditOutcome,
+  AuditResultResult,
+  DuplicateResult,
+  FactoryRevisionView,
+  ItemCloseOutView,
+  LearnProposeResult,
+  LearnRunResult,
+  ProjectLearnView,
 } from '@aisdlc/contracts';
 import type { JsonSchema } from './lib/schema';
 
@@ -443,6 +467,104 @@ export const api = {
       { preferences },
       csrf,
     ),
+  // ------------------------------------------------------------ lists, quality, operate, govern, admin (2026-11-12)
+  items: (project?: string) =>
+    request<ItemListView>(
+      'GET',
+      `/api/items${project ? `?project=${encodeURIComponent(project)}` : ''}`,
+    ),
+  agents: () => request<AgentRegistryView>('GET', '/api/agents'),
+  evalSummary: () => request<EvalSummaryView>('GET', '/api/evals/summary'),
+  evalRuns: () => request<EvalRunsView>('GET', '/api/evals/runs?limit=50'),
+  integrations: () => request<IntegrationsView>('GET', '/api/integrations'),
+  catalogue: () => request<CatalogueView>('GET', '/api/catalogue'),
+  admission: () => request<AdmissionView>('GET', '/api/admission'),
+  slots: () => request<SandboxSlots>('GET', '/api/slots'),
+  controls: () => request<ControlsView>('GET', '/api/controls'),
+  previewControl: (b: { kind: ControlKind; scope: Scope }, csrf: string) =>
+    request<OpsPreview>('POST', '/api/controls/preview', b, csrf),
+  applyControl: (
+    b: { kind: ControlKind; scope: Scope; preview_id: string; nonce: string },
+    csrf: string,
+  ) => request<unknown>('POST', '/api/controls', b, csrf),
+  liftControl: (id: string, reason: string, csrf: string) =>
+    request<unknown>('POST', `/api/controls/${encodeURIComponent(id)}/lift`, { reason }, csrf),
+  kills: () => request<KillsView>('GET', '/api/kills'),
+  auditDecisions: (action?: string) =>
+    request<AuditDecisionsView>(
+      'GET',
+      `/api/audit/decisions?limit=200${action ? `&action=${encodeURIComponent(action)}` : ''}`,
+    ),
+  directory: () => request<DirectoryView>('GET', '/api/directory'),
+  explain: (project: string) =>
+    request<AccessExplainView>('GET', `/api/projects/${encodeURIComponent(project)}/explain`),
+  // ------------------------------------------------------------ M15: release, review, close-out, learn, factory M1
+  itemReRequestRelease: (id: string, key: string, csrf: string) =>
+    request<ItemActionResult>(
+      'POST',
+      `/api/items/${encodeURIComponent(id)}/release/re-request`,
+      { key },
+      csrf,
+    ),
+  itemUnsure: (id: string, key: string, csrf: string) =>
+    request<DuplicateResult>(
+      'POST',
+      `/api/items/${encodeURIComponent(id)}/review/unsure`,
+      { key },
+      csrf,
+    ),
+  itemEscape: (
+    id: string,
+    b: { lane: 'L0' | 'L1'; reason_code: string; key: string },
+    csrf: string,
+  ) => request<DuplicateResult>('POST', `/api/items/${encodeURIComponent(id)}/escape`, b, csrf),
+  itemCloseout: (id: string) =>
+    request<ItemCloseOutView>('GET', `/api/items/${encodeURIComponent(id)}/closeout`),
+  itemAudit: (id: string, b: { outcome: AuditOutcome; reason_code: string }, csrf: string) =>
+    request<AuditResultResult>('POST', `/api/items/${encodeURIComponent(id)}/audit`, b, csrf),
+  learn: (project: string) =>
+    request<ProjectLearnView & { may_propose: boolean }>(
+      'GET',
+      `/api/projects/${encodeURIComponent(project)}/learn`,
+    ),
+  learnRun: (project: string, csrf: string) =>
+    request<LearnRunResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/learn/run`,
+      {},
+      csrf,
+    ),
+  learnModeELift: (project: string, csrf: string) =>
+    request<LearnProposeResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/learn/mode-e-lift`,
+      {},
+      csrf,
+    ),
+  factoryRevision: (gate: string) =>
+    request<FactoryRevisionView & { may_decide: boolean }>(
+      'GET',
+      `/api/config/revisions/${encodeURIComponent(gate)}`,
+    ),
+  prepareFactoryRevision: (gate: string, csrf: string) =>
+    request<{ nonce: string; expires_at: string; evidence_hash: string }>(
+      'POST',
+      `/api/config/revisions/${encodeURIComponent(gate)}/prepare`,
+      {},
+      csrf,
+    ),
+  factoryRevisionEvidence: (
+    gate: string,
+    b: { nonce: string; evidence_hash: string },
+    csrf: string,
+  ) =>
+    request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/evidence`, b, csrf),
+  decideFactoryRevision: (
+    gate: string,
+    b: { nonce: string; decision: 'approve' | 'reject' | 'request_changes' },
+    csrf: string,
+  ) =>
+    request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/decide`, b, csrf),
   ledger: (project: string, s0?: string) =>
     request<LedgerAuditView>(
       'GET',

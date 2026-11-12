@@ -4,6 +4,7 @@ import {
   healthTiles,
   integrationEvents,
 } from './integration-api.js';
+import { registerPortalListRoutes } from './portal-lists.js';
 import {
   ItemAnswerRequest,
   ItemObserveRequest,
@@ -350,6 +351,16 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     } catch {
       return fail(reply, coreError('unavailable', 'the integration events could not be read'));
     }
+  });
+
+  // ------------------------------------------------------------ the portal's list reads (2026-11-12)
+
+  registerPortalListRoutes({
+    app,
+    pool: o.pool,
+    pdp: o.pdp,
+    now: () => clock.now(),
+    allowed: (req, scope) => allowed(req, scope),
   });
 
   /**

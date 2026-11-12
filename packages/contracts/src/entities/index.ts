@@ -48,3 +48,4 @@ export * from './notifications.js';
 export * from './conversation.js';
 export * from './learn.js';
 export * from './portal-verify.js';
+export * from './portal-lists.js';

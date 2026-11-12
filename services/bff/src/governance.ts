@@ -5,6 +5,7 @@ import {
   EscapeReportRequest,
   FactoryRevisionView,
   ItemActionResult,
+  ItemCloseOutView,
   ItemReleaseRequest,
   LearnProposeResult,
   LearnRunResult,
@@ -128,7 +129,7 @@ export function registerGovernancePortalRoutes(g: GovernancePortalDeps): void {
       'GET',
       `/v1/items/${id}/closeout?on_behalf_of=${encodeURIComponent(who)}`,
     );
-    return g.upstream(reply, r)?.value;
+    return g.upstream(reply, r, (v) => ItemCloseOutView.parse(v))?.value;
   });
 
   // ------------------------------------------------------------ 9.4
