@@ -22,6 +22,8 @@ import {
   OnboardingCardSummary,
   ProjectId,
   ProjectPrrView,
+  ProjectKnowledgeView,
+  cutKnowledgeView,
   ItemActionResult,
   ItemAnswerRequest,
   ItemObserveRequest,
@@ -104,6 +106,7 @@ import type { Levels } from './levels.js';
 //   GET  /api/revisions/:gate             the same, by its gate                       (project.view)
 //   POST /api/revisions/:gate/prepare|evidence|decide|publish                         (gate.decide on the M1 gate)
 //   GET  /api/projects/:id/prr            the project's readiness records             (project.view)
+//   GET  /api/projects/:id/knowledge      repo index, system map, code graph, seeds   (project.view, V2, cut)
 //   GET  /api/projects/:id/ledger         the ledger entries of the project           (audit.read)
 //   GET  /api/config/keys                 the registered config keys, with may_propose (audit.read or
 //                                         config.propose on the fleet)
@@ -1122,6 +1125,38 @@ export function registerPortalRoutes(d: PortalDeps): void {
     return upstream(reply, await c.call('GET', `/v1/projects/${id.data}/prr`), (v) =>
       ProjectPrrView.parse(v),
     )?.value;
+  });
+
+  // M17: the Knowledge screen (repo index, system map, code graph, seeds, golden tasks). Content of the work:
+  // `project.view` AND view level V2 on the project, the answer cut to the person's data class (paths and seed text
+  // need D1). A level that cannot be read is no level: refused.
+  app.get('/api/projects/:id/knowledge', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const id = ProjectId.safeParse((req.params as { id: string }).id);
+    if (!id.success) return sendError(reply, 400, 'invalid_input', 'bad project id');
+    if (!(await allowed(d.principalOf(req), 'project.view', pdpResource.project(id.data)))) {
+      return deny(reply, 'project.view');
+    }
+    let lv: Levels | null;
+    try {
+      lv = (await d.levelsOf?.(d.principalOf(req), id.data)) ?? null;
+    } catch {
+      lv = null;
+    }
+    if (lv === null || lv.view_level === 'V1') {
+      return sendError(
+        reply,
+        403,
+        'view_level',
+        'what the factory knows about the code is content of the work: it needs view level V2 on the project',
+      );
+    }
+    const got = upstream(reply, await c.call('GET', `/v1/projects/${id.data}/knowledge`), (v) =>
+      ProjectKnowledgeView.parse(v),
+    );
+    if (!got) return;
+    return cutKnowledgeView(got.value, lv.data_class);
   });
 
   app.get('/api/projects/:id/ledger', async (req, reply) => {

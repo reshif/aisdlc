@@ -122,7 +122,7 @@ describe('buildPrr: the record, golden', () => {
         readiness_cap: 'A0',
         posture_cap: null,
         effective: 'A0',
-        lanes_eligible: ['L8'],
+        lanes_eligible: ['L7', 'L8'],
         r3_zones: [],
         probation_until: '2026-12-07T10:00:00.000Z',
       },
@@ -178,13 +178,13 @@ describe('buildPrr: the record, golden', () => {
   it('Light: review_by +3 months, agent lanes L1-L3 open, writes agent; Full: +12 months and L4-L6', () => {
     const light = built(inputs({ level: 'light' }));
     expect(light.review_by).toBe('2027-02-09T10:00:00.000Z');
-    expect(light.autonomy.lanes_eligible).toEqual(['L1', 'L2', 'L3', 'L8']);
+    expect(light.autonomy.lanes_eligible).toEqual(['L0', 'L1', 'L2', 'L3', 'L7', 'L8']);
     expect(light.writes).toBe('agent');
     expect(light.autonomy.level_cap).toBe('A3'); // no level cap is stated above Census
     expect(light.autonomy.effective).toBe('A0'); // readiness RL1 binds
     const full = built(inputs({ level: 'full' }));
     expect(full.review_by).toBe('2027-11-09T10:00:00.000Z');
-    expect(full.autonomy.lanes_eligible).toEqual(['L1', 'L2', 'L3', 'L4', 'L6', 'L8']); // L5 needs FF2
+    expect(full.autonomy.lanes_eligible).toEqual(['L0', 'L1', 'L2', 'L3', 'L4', 'L6', 'L7', 'L8']); // L5 needs FF2
   });
 
   it('T2 needs Full for any agent-led lane, so a T2 Light record has docs writes and no agent lane', () => {
@@ -205,7 +205,7 @@ describe('buildPrr: the record, golden', () => {
     const red = built(inputs({ level: 'light', census: { golden: 'b' } }));
     expect(red.autonomy).toMatchObject({
       posture_cap: 'A0',
-      lanes_eligible: ['L8'],
+      lanes_eligible: ['L7', 'L8'],
       effective: 'A0',
     });
     expect(red.writes).toBe('docs');

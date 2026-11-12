@@ -392,6 +392,10 @@ export function c5View(c: C5Ctx): Record<string, unknown> {
     repo: `${p.repo.owner}/${p.repo.name}`,
     requested_level: p.level.requested,
     signed_level: p.level.signed,
+    // DEC-25(a): the per-area table M4 binds to (it is part of the record, so of its hash)
+    areas: p.level.areas ?? [
+      { area: '.', level: p.level.signed, floors: [], lanes: p.autonomy.lanes_eligible },
+    ],
     owners: c.owners,
     tier: { value: p.tier.value, floor: p.tier.floor, raised_by: p.tier.raised_by },
     m4_package: c.package,

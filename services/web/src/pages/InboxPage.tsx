@@ -11,7 +11,7 @@ import { DegradedBanners } from '../components/Degraded';
 const CARD_TITLE = {
   C1: 'Card 1: confirm the census',
   C2: 'Card 2',
-  C3: 'Card 3',
+  C3: 'Card 3: the Full baseline',
   C4: 'Card 4: controls and roles',
   C5: 'Card 5: sign-off and M4',
   SECR: 'Security card',

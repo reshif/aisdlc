@@ -1,6 +1,7 @@
 import {
   C1DecisionContent,
   C2DecisionContent,
+  C3DecisionContent,
   gatePolicy,
   C4DecisionContent,
   C5DecisionContent,
@@ -25,7 +26,8 @@ import {
   type CardDecisionResult,
 } from '@aisdlc/decisions';
 import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
-import { boundHashOf, defaultBoundHash, planC2 } from '@aisdlc/onboarding';
+import { boundHashOf, defaultBoundHash, planC2, planC3 } from '@aisdlc/onboarding';
+import { c3Context, c3View, type C3Ctx } from './full.js';
 import { c2View, editInstructionText, loadC2Context, type C2Ctx } from './light.js';
 import { z } from 'zod';
 import { prrByHash, recordControlsSeen } from '../m4.js';
@@ -68,6 +70,7 @@ import { clockOf } from '../journal.js';
 type Ctx =
   | { kind: 'C1'; c: C1Ctx }
   | { kind: 'C2'; c: C2Ctx }
+  | { kind: 'C3'; c: C3Ctx }
   | { kind: 'C4'; c: C4Ctx; reduced: boolean; requestedBy: PrincipalId }
   | { kind: 'C5'; c: C5Ctx }
   | { kind: 'SECR' };
@@ -117,6 +120,10 @@ async function contextOf(
       const c = await loadC2Context(deps, loaded, card);
       return c.ok ? ok({ ctx: { kind: 'C2', c: c.value }, view: c2View(c.value, loaded.s0) }) : c;
     }
+    case 'C3': {
+      const c = c3Context(loaded, card);
+      return c.ok ? ok({ ctx: { kind: 'C3', c: c.value }, view: c3View(c.value, loaded.s0) }) : c;
+    }
     case 'C4': {
       const raised = [...loaded.events]
         .reverse()
@@ -153,6 +160,7 @@ async function contextOf(
 const SCHEMAS: Readonly<Record<HandledCard, z.ZodType>> = {
   C1: C1DecisionContent,
   C2: C2DecisionContent,
+  C3: C3DecisionContent,
   C4: C4DecisionContent,
   C5: C5DecisionContent,
   SECR: SecrDecisionContent,
@@ -375,20 +383,22 @@ export async function decideOnboardingCard(
         ? planC1(ctx.c, input.content, now)
         : ctx.kind === 'C2'
           ? await planLight(deps, ctx.c, input)
-          : ctx.kind === 'C4'
-            ? planC4(ctx.c, input.content, {
-                project: card.state.open.project_id,
-                actor: input.principal,
-                now,
-              })
-            : ctx.kind === 'C5'
-              ? planC5(ctx.c, input.content)
-              : (() => {
-                  const s = planSecr(card.finding_id as string, input.content);
-                  if (!s.ok) return s;
-                  findingReason = s.value.reason;
-                  return ok(s.value.payload);
-                })();
+          : ctx.kind === 'C3'
+            ? planFull(ctx.c, input.content)
+            : ctx.kind === 'C4'
+              ? planC4(ctx.c, input.content, {
+                  project: card.state.open.project_id,
+                  actor: input.principal,
+                  now,
+                })
+              : ctx.kind === 'C5'
+                ? planC5(ctx.c, input.content)
+                : (() => {
+                    const s = planSecr(card.finding_id as string, input.content);
+                    if (!s.ok) return s;
+                    findingReason = s.value.reason;
+                    return ok(s.value.payload);
+                  })();
     if (!planned.ok) return planned;
     payload = planned.value;
   } else if (card.kind === 'SECR') {
@@ -523,6 +533,12 @@ async function planLight(
   const v = await deps.decisions.stepUp.verify(proof, bound as Sha256Hex, input.principal);
   if (!v.ok) return err(coreError('refused', `step_up_invalid: ${v.error.message}`));
   const planned = planC2(c, parsed.data, { step_up_ref: sha256Hex(proof) });
+  return planned.ok ? planned : err(coreError(planned.error.code, planned.error.message));
+}
+
+/** Card 3's approval (M17): the payload plan (FF1, the interview, the graded exam, the seeds, the golden tasks). */
+function planFull(c: C3Ctx, content: unknown): Result<CardPayloadItem[], CoreError> {
+  const planned = planC3(c, content);
   return planned.ok ? planned : err(coreError(planned.error.code, planned.error.message));
 }
 

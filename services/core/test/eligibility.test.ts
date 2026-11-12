@@ -7,10 +7,12 @@ import {
   type ProjectReadinessRecord,
   type ReadinessStatus,
 } from '@aisdlc/contracts';
+import { catalogueFor } from '@aisdlc/catalogue';
 import { ServiceAuth, listen } from '@aisdlc/service-kit';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  buildPrr,
   createCoreApp,
   fanOutHeld,
   inCoreTx,
@@ -91,7 +93,7 @@ describe('eligibility(repo, lane): the table (PLAN M7.6, DEC-8)', () => {
     expect(g.status).toBe('proposed');
   });
 
-  it('active at Census: L8 only; L1-L7 go to L8 (level too low), L0, L2 and L7 are unspecified', () => {
+  it('active at Census: L7 and L8; L0, L1, L3-L6 go to L8 (level too low), L2 is unspecified', () => {
     const t = table(version(built(inputs())));
     expect(t).toMatchObject({
       L8: 'normal:yes:eligible',
@@ -100,13 +102,13 @@ describe('eligibility(repo, lane): the table (PLAN M7.6, DEC-8)', () => {
       L4: 'l8:no:level_too_low',
       L5: 'l8:no:level_too_low',
       L6: 'l8:no:level_too_low',
-      L0: 'l8:no:lane_unspecified',
+      L0: 'l8:no:level_too_low', // L0 from Light (PLAN 7a, catalogue 1.4.0)
       L2: 'l8:no:lane_unspecified', // agent remediation chores at Census are DEC-16: unspecified
-      L7: 'l8:no:lane_unspecified',
+      L7: 'normal:yes:eligible', // L7 from Census
     });
   });
 
-  it('active at Light: L1-L3 and L8; L4-L6 too low; L0 and L7 unspecified', () => {
+  it('active at Light: L0-L3, L7 and L8; L4-L6 too low', () => {
     const t = table(version(built(inputs({ level: 'light' }))));
     expect(t).toMatchObject({
       L1: 'normal:yes:eligible',
@@ -115,19 +117,117 @@ describe('eligibility(repo, lane): the table (PLAN M7.6, DEC-8)', () => {
       L8: 'normal:yes:eligible',
       L4: 'l8:no:level_too_low',
       L6: 'l8:no:level_too_low',
-      L0: 'l8:no:lane_unspecified',
-      L7: 'l8:no:lane_unspecified',
+      L0: 'normal:yes:eligible',
+      L7: 'normal:yes:eligible',
     });
   });
 
-  it('active at Full: L1-L4, L6 and L8; L5 needs staging separation; L0 and L7 stay unspecified', () => {
+  it('an item pinned to catalogue 1.3.0 keeps its rule: L0 and L7 go to L8 even on a Light record', () => {
+    const old = catalogueFor({
+      version: '1.3.0',
+      hash: '601beaae85ea26e30b0f13349571b76d549871ea7020afbd2199fb313a86a123',
+    });
+    if (!old.ok) throw new Error('1.3.0 is released');
+    const g = version(built(inputs({ level: 'light' })));
+    expect(g.prr.autonomy.lanes_eligible).toContain('L0');
+    for (const lane of ['L0', 'L7'] as const) {
+      expect(routeLane('acme/x', lane, g, NOW, old.value.eligibility)).toMatchObject({
+        eligible: false,
+        route: 'l8',
+        reason: 'lane_unspecified',
+      });
+    }
+    expect(routeLane('acme/x', 'L1', g, NOW, old.value.eligibility).route).toBe('normal');
+  });
+
+  it('a record signed under catalogue 1.3.0 keeps its lanes: no L0 or L7 at Light', () => {
+    const i = inputs({ level: 'light' });
+    const b = buildPrr({
+      ...i,
+      s0: {
+        ...i.s0,
+        catalogue_ref: {
+          version: '1.3.0',
+          hash: '601beaae85ea26e30b0f13349571b76d549871ea7020afbd2199fb313a86a123',
+        },
+      },
+    } as never);
+    if (!b.ok) throw new Error(b.error.message);
+    expect(b.value.autonomy.lanes_eligible).toEqual(['L1', 'L2', 'L3', 'L8']);
+    const unknown = buildPrr({
+      ...i,
+      s0: { ...i.s0, catalogue_ref: { version: '9.9.9', hash: 'a'.repeat(64) } },
+    } as never);
+    expect(!unknown.ok && unknown.error.code).toBe('catalogue_unknown');
+  });
+
+  it('per area (DEC-25): each area opens the lanes of its own level; the repo as a whole the lowest', () => {
+    const area = (name: string, test_files: number) => ({
+      area: name,
+      manifest: `${name}/package.json`,
+      files: 3,
+      source_files: 2,
+      test_files,
+      languages: ['typescript' as const],
+      depends_on: [],
+      used_by: [],
+    });
+    const prr = built({
+      ...inputs({ level: 'full' }),
+      areas: {
+        system_map: {
+          graph_hash: 'a'.repeat(64),
+          map_hash: 'b'.repeat(64),
+          edges: [],
+          areas: [area('.', 1), area('docs', 0), area('lib', 1)],
+        },
+        seeded_areas: ['.', 'docs'],
+        graph_truncated: false,
+      },
+    });
+    expect(prr.level.by_area).toEqual({ '.': 'full', docs: 'census', lib: 'light' });
+    expect(prr.level.areas?.map((a) => [a.area, a.level, a.lanes])).toEqual([
+      ['.', 'full', ['L0', 'L1', 'L2', 'L3', 'L4', 'L6', 'L7', 'L8']],
+      ['docs', 'census', ['L7', 'L8']],
+      ['lib', 'light', ['L0', 'L1', 'L2', 'L3', 'L7', 'L8']],
+    ]);
+    // the repo as a whole runs only what its lowest area may
+    expect(prr.autonomy.lanes_eligible).toEqual(['L7', 'L8']);
+    const g = version(prr);
+    const at = (lane: Lane, a?: string) => {
+      const v = routeLane('acme/x', lane, g, NOW, undefined, a);
+      return `${v.route}:${v.reason}${v.area ? `@${v.area}` : ''}`;
+    };
+    expect(at('L4', '.')).toBe('normal:eligible@.');
+    expect(at('L4', 'lib')).toBe('l8:level_too_low@lib');
+    expect(at('L1', 'lib')).toBe('normal:eligible@lib');
+    expect(at('L1', 'docs')).toBe('l8:level_too_low@docs');
+    expect(at('L1')).toBe('l8:level_too_low');
+    // an area the record does not hold is unknown, and unknown is not eligible
+    expect(at('L8', 'services/nowhere')).toBe('l8:area_unknown@services/nowhere');
+    // a record with one repo-wide area holds every path
+    const one = version(built(inputs({ level: 'light' })));
+    expect(one.prr.level.areas).toEqual([
+      { area: '.', level: 'light', floors: [], lanes: ['L0', 'L1', 'L2', 'L3', 'L7', 'L8'] },
+    ]);
+    expect(routeLane('acme/x', 'L1', one, NOW, undefined, 'packages/any').route).toBe('normal');
+  });
+
+  it('a T2 repo needs Full for the hotfix and the spike too (R-OPK-3)', () => {
+    expect(table(version(built(inputs({ tier: 'T2', level: 'light' }))))).toMatchObject({
+      L0: 'l8:no:tier_requires_full',
+      L7: 'l8:no:tier_requires_full',
+    });
+  });
+
+  it('active at Full: L0-L4, L6-L8; L5 needs staging separation', () => {
     const t = table(version(built(inputs({ level: 'full' }))));
     expect(t).toMatchObject({
       L4: 'normal:yes:eligible',
       L6: 'normal:yes:eligible',
       L5: 'l8:no:staging_separation_not_attested',
-      L0: 'l8:no:lane_unspecified',
-      L7: 'l8:no:lane_unspecified',
+      L0: 'normal:yes:eligible',
+      L7: 'normal:yes:eligible',
     });
   });
 
@@ -252,8 +352,9 @@ describe('OB R1b exit: an L1 item is held; after a Census M4 it is not released,
       reason: 'level_too_low',
       prr_version: 1,
     });
+    // L0 opens at Light (catalogue 1.4.0): at Census it is too low, no longer unspecified
     expect((await events(l0.request_id)).at(-1)?.body).toMatchObject({
-      reason: 'lane_unspecified',
+      reason: 'level_too_low',
     });
     expect((await events(l8.request_id)).at(-1)).toMatchObject({
       type: WORK_EVENT.released,
@@ -369,7 +470,7 @@ describe('OB R1b exit: an L1 item is held; after a Census M4 it is not released,
 });
 
 describe('the fan-out releases only the lanes that became eligible', () => {
-  it('a Light record opens L1-L3 and L8: those are released, L4 and L0 are offered L8, and only the repo is touched', async () => {
+  it('a Light record opens L0-L3, L7 and L8: those are released, L4-L6 are offered L8, and only the repo is touched', async () => {
     const repo = 'acme/el-fan';
     const other = 'acme/el-fan-other';
     const lanes: Lane[] = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L0', 'L7', 'L8'];
@@ -404,15 +505,14 @@ describe('the fan-out releases only the lanes that became eligible', () => {
         }),
       ),
     ).value;
-    expect([...report.released].sort()).toEqual(
-      ['L1', 'L2', 'L3', 'L8'].map((l) => held.get(l as Lane)).sort(),
-    );
+    const opened = ['L0', 'L1', 'L2', 'L3', 'L7', 'L8'];
+    expect([...report.released].sort()).toEqual(opened.map((l) => held.get(l as Lane)).sort());
     expect([...report.l8_offered].sort()).toEqual(
-      ['L4', 'L5', 'L6', 'L0', 'L7'].map((l) => held.get(l as Lane)).sort(),
+      ['L4', 'L5', 'L6'].map((l) => held.get(l as Lane)).sort(),
     );
     for (const l of lanes) {
       expect((await readWork(s.record.pool, held.get(l) as string))?.state).toBe(
-        ['L1', 'L2', 'L3', 'L8'].includes(l) ? 'released' : 'l8_offered',
+        opened.includes(l) ? 'released' : 'l8_offered',
       );
     }
     expect((await readWork(s.record.pool, foreign.request_id))?.state).toBe('held');

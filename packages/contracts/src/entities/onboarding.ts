@@ -1,3 +1,4 @@
+import { Ff2State, ServiceEnv, StagingSeparation } from './service-env.js';
 import { z } from 'zod';
 import { ProbeId } from './onboarding-probe.js';
 import { ReleaseSetting } from './gate-relay.js';
@@ -30,6 +31,7 @@ import {
 } from './projects.js';
 import { CriterionId } from './criteria.js';
 import { FindingId, FindingState } from './knowledge.js';
+import { ExamGrade, SeedStatus, SeedVerdict, SPEC_SEED_MAX_CHARS } from './onboarding-full.js';
 
 // S0 onboarding records, steps and cards (DM §3.2, OB §6).
 
@@ -245,6 +247,66 @@ export const CardPayloadItem = z.discriminatedUnion('kind', [
     baseline_sha: z.string().regex(/^[0-9a-f]{40}$/),
     outcome: z.literal('passed'),
   }),
+  /** Card 3 (M17): the Full baseline the person decided on (recorded first, DEC-12(a)), by hash. */
+  z.strictObject({
+    kind: z.literal('full_baseline'),
+    baseline_hash: Sha256Hex,
+    census_hash: Sha256Hex,
+    graph_hash: Sha256Hex,
+    map_hash: Sha256Hex,
+    oracle_lock_hash: Sha256Hex,
+    /** The areas of the system map (DEC-25): what per-area levels are judged over. */
+    areas: z.array(z.string().min(1).max(256)).min(1),
+  }),
+  /** Card 3: the exam as graded. Measured, never a gate (DEC-15(a)): any score passes. */
+  z.strictObject({
+    kind: z.literal('exam_score'),
+    grades: z.array(z.strictObject({ question_id: z.string().min(1), grade: ExamGrade })),
+    questions: z.number().int().min(0),
+    correct: z.number().int().min(0),
+    incorrect: z.number().int().min(0),
+    unsure: z.number().int().min(0),
+    /** correct / (correct + incorrect); `null` when nothing was graded either way. */
+    score_pct: z.number().min(0).max(100).nullable(),
+    exam_hash: Sha256Hex,
+  }),
+  /**
+   * Card 3: one living-spec seed as decided: `affirm` and `correct` make it `intended` (a correction
+   * is the person's text, secret-scanned and linted before it is stored), `keep_observed` leaves it.
+   */
+  z.strictObject({
+    kind: z.literal('seed_verdict'),
+    seed_id: z.string().min(1),
+    area: z.string().min(1).max(256),
+    verdict: SeedVerdict,
+    status: SeedStatus,
+    /** The hash of the text now held: the factory's, or the correction. */
+    text_sha256: Sha256Hex,
+    correction: z.string().min(1).max(SPEC_SEED_MAX_CHARS).optional(),
+  }),
+  /** Card 3: the seeds as decided (FF1: seeds exist; `observed` until affirmed `intended`). */
+  z.strictObject({
+    kind: z.literal('seeds_summary'),
+    total: z.number().int().min(0),
+    intended: z.number().int().min(0),
+    observed: z.number().int().min(0),
+    seeds_hash: Sha256Hex,
+  }),
+  /** Card 3: the ServiceEnvs declared and the staging-separation attestation (FF2, L5 only). */
+  z.strictObject({
+    kind: z.literal('service_envs'),
+    envs: z.array(ServiceEnv),
+    staging_separation: StagingSeparation,
+    ff2: Ff2State,
+    envs_hash: Sha256Hex,
+  }),
+  /** Card 3: which golden-task candidates the person accepted (the rest are rejected). */
+  z.strictObject({
+    kind: z.literal('golden_selection'),
+    accepted: z.array(z.string().min(1)),
+    rejected: z.array(z.string().min(1)),
+    golden_hash: Sha256Hex,
+  }),
   /**
    * A work-item gate card (M12, Gap B): why the person rejected it or asked for changes (or said anything with
    * an approval). The payload's hash is bound into every ledger entry of the card's decision, so the reason
@@ -335,6 +397,8 @@ export function cardPayloadItemKey(item: CardPayloadItem): string {
       return `finding:${item.finding_id}`;
     case 'instruction_affirmation':
       return `instruction:${item.path}`;
+    case 'seed_verdict':
+      return `seed:${item.seed_id}`;
     default:
       return item.kind;
   }

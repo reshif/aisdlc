@@ -2,6 +2,9 @@ import {
   ONBOARDING_PACK_EPOCH,
   ONBOARDING_PACK_LANE,
   ONBOARDING_PACK_UNIT,
+  ONBOARDING_FULL_PACK_UNIT,
+  PACK_KINDS,
+  type PackKind,
   MERGE_EVENT,
   MergeReconciledPayload,
   PUSH_EVENT,
@@ -91,10 +94,14 @@ export async function x2BoundToPatch(
     if (!g || g.status !== 'decided' || g.outcome !== 'approve') continue;
     if (g.open.payload.subject_id !== itemId || g.open.payload.gate_id !== 'X2') continue;
     const facts = g.open.payload.facts as { artefacts?: unknown; kind?: unknown };
-    // an item's X2 binds its 6.6 patch; an S0 record's binds its onboarding pack (rendered at 0.2, M16 R2b)
+    // an item's X2 binds its 6.6 patch; an S0 record's binds one of its onboarding packs: card 2's (rendered at
+    // 0.2, M16 R2b) or card 3's oracle lock and seeds (0.3, M17)
     const s0 = g.open.payload.subject_kind === 's0_record';
-    if (s0 && facts.kind !== 'onboarding_pack') continue;
-    const step = s0 ? '0.2' : '6.6';
+    const pack = s0
+      ? Object.values(PACK_KINDS).find((k) => k.facts_kind === facts.kind)
+      : undefined;
+    if (s0 && pack === undefined) continue;
+    const step = pack?.step ?? '6.6';
     const arts = Array.isArray(facts.artefacts) ? facts.artefacts : [];
     if (
       arts.some(
@@ -119,8 +126,12 @@ export async function x2BoundToPatch(
 export async function packLeaseFacts(
   db: Pick<pg.Pool, 'query'>,
   s0Id: string,
+  kind: PackKind = 'light',
 ): Promise<PushLeaseFacts> {
-  const q = await db.query('SELECT 1 FROM core.onboarding_pack WHERE s0_id = $1 LIMIT 1', [s0Id]);
+  const q = await db.query(
+    'SELECT 1 FROM core.onboarding_pack WHERE s0_id = $1 AND kind = $2 LIMIT 1',
+    [s0Id, kind],
+  );
   return PushLeaseFacts.parse({
     held: (q.rowCount ?? 0) > 0,
     epoch: (q.rowCount ?? 0) > 0 ? ONBOARDING_PACK_EPOCH : 0,
@@ -145,7 +156,9 @@ export class CorePushGuards implements PushGuardsPort {
   async lease(item_id: string, unit_key: string) {
     try {
       if (unit_key === ONBOARDING_PACK_UNIT)
-        return readOk(await packLeaseFacts(this.pool, item_id));
+        return readOk(await packLeaseFacts(this.pool, item_id, 'light'));
+      if (unit_key === ONBOARDING_FULL_PACK_UNIT)
+        return readOk(await packLeaseFacts(this.pool, item_id, 'full'));
       return readOk(await unitLeaseFacts(this.pool, item_id, unit_key, () => this.lane(item_id)));
     } catch {
       return readUnknown('server_error', 'the lease could not be read');

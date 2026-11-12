@@ -352,6 +352,12 @@ describe('the readiness record page', () => {
     expect(screen.getByTestId('prr-composite')).toHaveTextContent('1');
     expect(screen.getByTestId('prr-effective')).toHaveTextContent('A1');
     expect(screen.getByTestId('prr-lanes')).toHaveTextContent('L2, L8');
+    // a record before the per-area table: one repo-wide area at the signed level
+    const areas = screen.getByRole('table', {
+      name: 'Per-area levels of reshif/asf-factory-testbed',
+    });
+    expect(areas).toHaveTextContent('the whole repository');
+    expect(areas).toHaveTextContent('judged for the whole repository');
     expect(screen.getByText(/Binding: level/)).toBeInTheDocument();
     expect(screen.getByText(RECORD_HASH)).toBeInTheDocument();
     expect(screen.getByText('2027-02-06 10:00 UTC')).toBeInTheDocument();
