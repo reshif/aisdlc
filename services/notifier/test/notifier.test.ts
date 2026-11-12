@@ -276,14 +276,22 @@ describe('the notifier role (least privilege)', () => {
     for (const t of ['ledger.ledger_entry', 'core.repo', 'decisions.inbox_card', 'record.outbox']) {
       await expect(q(`SELECT 1 FROM ${t} LIMIT 1`), t).rejects.toThrow(/permission denied/);
     }
-    // row-level security: no item stream is visible, a gate's votes neither
+    // row-level security: an item's stream is visible (the notifier folds it), a control's lift is not, nor a
+    // request's or a decision's stream
     await w.append(`item:${'0'.repeat(8)}-0000-7000-8000-000000000000`, 'item.created', { x: 1 });
+    await w.append(`control:${'0'.repeat(8)}-0000-7000-8000-000000000000`, 'control.lifted', {
+      x: 1,
+    });
+    await w.append(`request:${'0'.repeat(8)}-0000-7000-8000-000000000000`, 'work.requested', {
+      x: 1,
+    });
     const seen = await q(
       `SELECT DISTINCT split_part(stream, ':', 1) AS s FROM record.record_event`,
     );
     expect(seen.rows.map((r) => r.s).sort()).toEqual([
       'card',
       'gate',
+      'item',
       'kill',
       'notifier',
       'notifier-pref',

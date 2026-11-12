@@ -1,5 +1,17 @@
 import {
+  BREAKER_EVENT,
+  BreakerPayloads,
   CARD_EVENT,
+  CONTROL_EVENT,
+  DRIFT_EVENT,
+  DeployHealthPayload,
+  DriftSuspendedPayload,
+  GATERELAY_EVENT,
+  ItemEventTypeValues,
+  OPS_ALERT_EVENT,
+  OpsAlertRaisedPayload,
+  OpsControl,
+  ReleaseRefusedPayload,
   CardEscalatedPayload,
   CardOpenedPayload,
   GATES,
@@ -31,14 +43,31 @@ import { z } from 'zod';
 //   card.opened       an S0 step card with no gate (card 5's sign-off) waits on its role's holders
 //   card.escalated    B21: the backup slot's holders the escalation named, and the card's own slot holders again
 //   kill.observed     a kill engaged or released: the project's admin and kill slots, or the factory admins (fleet)
+//   item.*            what an item newly waits for from its requester, or that it ended (items.ts: the item's fold)
+//   control.applied   a halt: the project's admins, or the factory admins (fleet)
+//   breaker.tripped   R3: the project's admins
+//   drift.suspended   the governing record suspended (new items go to L8): the project's admins
+//   gaterelay.release_refused / deploy_unhealthy   a release refused, unhealthy or rolled back (B16): the admins
+//   ops.alert_raised  RC-NOT-3: a service or loop down, the ledger's checkpoint overdue: the factory admins
 
 /** The record events the raise loop reads (the notifier role's row-level security allows exactly these and its own). */
-export const SOURCE_TYPES = [
+export const SOURCE_TYPES: readonly string[] = [
   GATE_EVENT.opened,
   CARD_EVENT.opened,
   CARD_EVENT.escalated,
   KILL_OBSERVED_EVENT,
-] as const;
+  ...ItemEventTypeValues,
+  CONTROL_EVENT.control_applied,
+  BREAKER_EVENT.tripped,
+  DRIFT_EVENT.suspended,
+  GATERELAY_EVENT.release_refused,
+  GATERELAY_EVENT.deploy_unhealthy,
+  OPS_ALERT_EVENT.raised,
+];
+
+/** An item stream's event: folded (items.ts), not read on its own. */
+export const isItemSource = (e: Pick<SourceEvent, 'stream' | 'type'>): boolean =>
+  e.stream.startsWith('item:') && (ItemEventTypeValues as readonly string[]).includes(e.type);
 
 export interface SourceEvent {
   readonly event_id: string;
@@ -101,7 +130,11 @@ const content = (
  */
 export function intentOf(
   e: SourceEvent,
-  ctx: { readonly cardOpened?: CardOpenedPayload | null } = {},
+  ctx: {
+    readonly cardOpened?: CardOpenedPayload | null;
+    /** `gaterelay.deploy_unhealthy`: the item's project (its `item.created`), read by the caller. */
+    readonly itemProject?: string | null;
+  } = {},
 ): NotificationIntent | null {
   if (e.type === GATE_EVENT.opened && e.stream.startsWith('gate:')) {
     const p = GateOpenedPayload.safeParse(e.body);
@@ -205,6 +238,91 @@ export function intentOf(
             ],
       gate_instance_id: null,
     };
+  }
+  const admins = (project: string | null): Audience[] =>
+    project === null
+      ? [{ kind: 'fleet_role', role: 'factory.admin', reason: 'factory_admin' }]
+      : [{ kind: 'slot', project: project as ProjectId, slot: 'admin', reason: 'project_admin' }];
+  const plain = (
+    c: Partial<NotificationContent> & Pick<NotificationContent, 'kind'>,
+    a: Audience[],
+  ): NotificationIntent => ({ content: content(c), audiences: a, gate_instance_id: null });
+  if (e.type === CONTROL_EVENT.control_applied && e.stream.startsWith('control:')) {
+    const p = OpsControl.safeParse(e.body);
+    if (!p.success || p.data.kind !== 'halt') return null;
+    const project = projectOfScope(p.data.scope);
+    // a halt of a scope with no project (the fleet, a team, a release, a budget) is the factory admins'
+    return plain(
+      { kind: 'control_halt', project_id: project as ProjectId | null, link_path: '/controls' },
+      admins(project),
+    );
+  }
+  if (e.type === BREAKER_EVENT.tripped && e.stream.startsWith('breaker:')) {
+    const p = BreakerPayloads[BREAKER_EVENT.tripped].safeParse(e.body);
+    if (!p.success) return null;
+    return plain(
+      {
+        kind: 'breaker_tripped',
+        project_id: p.data.project_id,
+        lane: p.data.lane,
+        link_path: `/projects/${p.data.project_id}`,
+      },
+      admins(p.data.project_id),
+    );
+  }
+  if (e.type === DRIFT_EVENT.suspended && e.stream.startsWith('drift:')) {
+    const p = DriftSuspendedPayload.safeParse(e.body);
+    if (!p.success) return null;
+    return plain(
+      {
+        kind: 'drift_suspended',
+        project_id: p.data.project_id,
+        link_path: `/projects/${p.data.project_id}/drift`,
+      },
+      admins(p.data.project_id),
+    );
+  }
+  if (e.type === GATERELAY_EVENT.release_refused && e.stream.startsWith('gaterelay:')) {
+    const p = ReleaseRefusedPayload.safeParse(e.body);
+    if (!p.success) return null;
+    return plain(
+      {
+        kind: 'release_failed',
+        project_id: p.data.project_id,
+        item_id: p.data.item_id,
+        release: 'refused',
+        link_path: `/items/${p.data.item_id}`,
+      },
+      admins(p.data.project_id),
+    );
+  }
+  if (e.type === GATERELAY_EVENT.deploy_unhealthy && e.stream.startsWith('gaterelay:')) {
+    const p = DeployHealthPayload.safeParse(e.body);
+    const project = ctx.itemProject ?? null;
+    if (!p.success || project === null) return null;
+    return plain(
+      {
+        kind: 'release_failed',
+        project_id: project as ProjectId,
+        item_id: p.data.item_id,
+        release: p.data.rollback_marker_id ? 'rolled_back' : 'unhealthy',
+        link_path: `/items/${p.data.item_id}`,
+      },
+      admins(project),
+    );
+  }
+  if (e.type === OPS_ALERT_EVENT.raised && e.stream.startsWith('alert:')) {
+    const p = OpsAlertRaisedPayload.safeParse(e.body);
+    if (!p.success) return null;
+    return plain(
+      {
+        kind: 'factory_alert',
+        alert_kind: p.data.kind,
+        alert_subject: p.data.subject,
+        link_path: '/health',
+      },
+      admins(null),
+    );
   }
   return null;
 }
