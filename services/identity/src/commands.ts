@@ -26,6 +26,8 @@ import {
   roleDef,
   teamStream,
   ROLE_MAP_ORIGIN,
+  ACCESS_GRANT_ORIGIN,
+  isGrantGroup,
   Principal as PrincipalSchema,
   type RoleDef,
   type Scope,
@@ -381,12 +383,22 @@ export async function createGroupTx(
   j: Journal,
   input: unknown,
   actor: string,
-  opts: { generated?: boolean } = {},
+  opts: { generated?: boolean; grant?: boolean } = {},
 ): Promise<Result<Changed, IdentityError>> {
   const g = Group.safeParse(input);
   if (!g.success) return err(invalid(g.error.message));
   if (isRoleMapGroup(g.data.group_id) && opts.generated !== true) {
     return err(identityError('protected_group', `${g.data.group_id} is generated from a role map`));
+  }
+  if (isGrantGroup(g.data.group_id) !== (opts.grant === true)) {
+    return err(
+      identityError(
+        isGrantGroup(g.data.group_id) ? 'protected_group' : 'invalid_input',
+        isGrantGroup(g.data.group_id)
+          ? `${g.data.group_id} is a grant group: only a decided grant writes it`
+          : 'the grant path writes only grant groups',
+      ),
+    );
   }
   await lockKeys(j.tx, [`group:${g.data.group_id}`]);
   const cur = await j.group(g.data.group_id);
@@ -425,7 +437,8 @@ export async function updateGroupTx(
 ): Promise<Result<Changed, IdentityError>> {
   const u = GroupUpdatedPayload.safeParse(changes);
   if (!u.success) return err(invalid(u.error.message));
-  if (isRoleMapGroup(id)) return err(identityError('protected_group', `${id} is generated`));
+  if (isRoleMapGroup(id) || isGrantGroup(id))
+    return err(identityError('protected_group', `${id} is generated`));
   await lockKeys(j.tx, [`group:${id}`]);
   const cur = await j.group(id);
   if (!cur) return err(identityError('not_found', `no group ${id}`));
@@ -488,6 +501,15 @@ export async function addMemberTx(
   }
   if (source === 'role_map' && !group) {
     return err(identityError('invalid_input', 'source role_map is for generated groups'));
+  }
+  // P1-6: a person's grant group (`grant.<principal>`) changes only on the decided grant path, and holds only them
+  if (isGrantGroup(m.data.group_id) && (!internal || source !== 'access_grant')) {
+    return err(
+      identityError('protected_group', `${m.data.group_id} changes only with a decided grant`),
+    );
+  }
+  if (source === 'access_grant' && !isGrantGroup(m.data.group_id)) {
+    return err(identityError('invalid_input', 'source access_grant is for grant groups'));
   }
   // The one membership a role map does not generate: the g4 group of a project whose g4 slot is
   // `codeowners`, set by `setCodeownerMembers` (codeowners.ts) and by nothing else.
@@ -554,6 +576,9 @@ export async function removeMemberTx(
   if (isRoleMapGroup(group) && !internal) {
     return err(identityError('protected_group', `${group} is generated from a role map`));
   }
+  if (isGrantGroup(group) && !internal) {
+    return err(identityError('protected_group', `${group} changes only with a decided grant`));
+  }
   await lockKeys(j.tx, [`group:${group}`]);
   const g = await j.group(group);
   if (!g) return err(identityError('not_found', `no group ${group}`));
@@ -597,7 +622,7 @@ export async function createBindingTx(
   j: Journal,
   input: CreateBindingInput,
   actor: string,
-  opts: { generated?: boolean; catalogue?: readonly RoleDef[] } = {},
+  opts: { generated?: boolean; grant?: boolean; catalogue?: readonly RoleDef[] } = {},
 ): Promise<Result<Changed & { binding_id: string }, IdentityError>> {
   const catalogue = opts.catalogue ?? ROLE_CATALOGUE;
   const role = roleDef(input.role_id, catalogue);
@@ -640,6 +665,22 @@ export async function createBindingTx(
   if (!generated && b.data.constraints['origin'] === ROLE_MAP_ORIGIN) {
     return err(invalid('constraint origin "role_map" is reserved for generated bindings'));
   }
+  // P1-6: a binding on a grant group, or one that says it came from a grant, is written only by the decided grant path
+  const grant = opts.grant === true;
+  if (
+    !grant &&
+    (isGrantGroup(input.group_id) || b.data.constraints['origin'] === ACCESS_GRANT_ORIGIN)
+  ) {
+    return err(
+      identityError('protected_group', 'a grant binding is written only by a decided grant'),
+    );
+  }
+  if (
+    grant &&
+    (b.data.constraints['origin'] !== ACCESS_GRANT_ORIGIN || b.data.m_gate_ref === null)
+  ) {
+    return err(invalid('a decided grant carries origin access_grant and its M1 decision'));
+  }
   if (b.data.expiry !== null && Date.parse(b.data.expiry) <= now.getTime()) {
     return err(invalid('expiry is not in the future'));
   }
@@ -673,6 +714,8 @@ export async function revokeBindingTx(
   reason: string,
   actor: string,
   internal: boolean,
+  /** P1-6: the decided revoke path (identity scope `grant`), the only one that ends a grant's binding. */
+  grant = false,
 ): Promise<Result<Changed, IdentityError>> {
   if (reason.trim() === '') return err(invalid('a reason is required'));
   await lockKeys(j.tx, [`binding:${id}`]);
@@ -681,6 +724,9 @@ export async function revokeBindingTx(
   if (cur.revoked) return ok(unchanged);
   if (!internal && cur.binding.constraints['origin'] === ROLE_MAP_ORIGIN) {
     return err(identityError('generated_only', 'a generated binding changes with the role map'));
+  }
+  if (!grant && cur.binding.constraints['origin'] === ACCESS_GRANT_ORIGIN) {
+    return err(identityError('protected_group', 'a decided grant ends only with a decided revoke'));
   }
   const r = await emit(j, bindingStream(id), IDENTITY_EVENT.binding_revoked, { reason }, actor);
   return r.ok ? ok(changed) : r;

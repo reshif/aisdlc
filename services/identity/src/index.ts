@@ -8,6 +8,7 @@ export * from './tx.js';
 export * from './commands.js';
 export * from './reconcile.js';
 export * from './codeowners.js';
+export * from './grants.js';
 export * from './idp-sync.js';
 export * from './access-sync.js';
 export * from './app.js';

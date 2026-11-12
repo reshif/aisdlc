@@ -1,6 +1,8 @@
 import {
   GateId,
   GroupId,
+  IdentityGrantRequest,
+  IdentityRevokeRequest,
   IdentityLinkKind,
   LedgerEntryId,
   PrincipalId,
@@ -35,6 +37,7 @@ import {
   NewPrincipal,
 } from './commands.js';
 import { setCodeownerMembers } from './codeowners.js';
+import { grantAccess, revokeAccess } from './grants.js';
 import { explainGate, explainProject } from './explain.js';
 import { freshReadModel } from './eligibility.js';
 import { IDENTITY_STATUS, identityError, type IdentityError } from './errors.js';
@@ -43,10 +46,19 @@ import { effectiveBindings, getPrincipal, resolveGroups, resolveLink } from './q
 import { reconcileProject } from './reconcile.js';
 
 /**
- * What a caller may do: read the model, change principals/groups/bindings, reconcile, sync, and
- * (`codeowners`, the codehost only) set the members of a project's g4 group from CODEOWNERS.
+ * What a caller may do: read the model, change principals/groups/bindings, reconcile, sync,
+ * (`codeowners`, the codehost only) set the members of a project's g4 group from CODEOWNERS, and
+ * (`grant`, core only, P1-6) write or end the binding an approved M1 decided (`m_gate_ref` required).
  */
-export type IdentityScope = 'read' | 'write' | 'reconcile' | 'sync' | 'codeowners';
+export const IDENTITY_SCOPES = [
+  'read',
+  'write',
+  'reconcile',
+  'sync',
+  'codeowners',
+  'grant',
+] as const;
+export type IdentityScope = (typeof IDENTITY_SCOPES)[number];
 
 export interface IdentityAppOptions {
   readonly pool: pg.Pool;
@@ -414,6 +426,30 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
     async (req, caller) => {
       const b = parse(z.object({ team: Team, ...OnBehalf }), req.body);
       return b.ok ? createTeam(deps, b.value.team, actorOf(b.value, caller)) : b;
+    },
+    true,
+  );
+
+  // ------------------------------------------------------------ the decided grant path (P1-6, core only)
+
+  route(
+    'post',
+    '/v1/grants',
+    'grant',
+    async (req) => {
+      const b = parse(IdentityGrantRequest, req.body);
+      return b.ok ? grantAccess(deps, b.value) : b;
+    },
+    true,
+  );
+
+  route(
+    'post',
+    '/v1/grants/revoke',
+    'grant',
+    async (req) => {
+      const b = parse(IdentityRevokeRequest, req.body);
+      return b.ok ? revokeAccess(deps, b.value) : b;
     },
     true,
   );

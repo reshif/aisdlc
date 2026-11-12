@@ -28,14 +28,14 @@ import {
 } from '@aisdlc/service-kit';
 import { z } from 'zod';
 import { startAccessSyncLoop } from './access-sync.js';
-import { createIdentityApp, type IdentityScope } from './app.js';
+import { IDENTITY_SCOPES, createIdentityApp, type IdentityScope } from './app.js';
 import { migrateIdentity } from './migrations.js';
 
 const Callers = z.record(
   z.string(),
   z.strictObject({
     token_ref: z.string(),
-    scopes: z.array(z.enum(['read', 'write', 'reconcile', 'sync', 'codeowners'])),
+    scopes: z.array(z.enum(IDENTITY_SCOPES)),
   }),
 );
 
@@ -92,7 +92,8 @@ function settingsFromEnv(env: Env): ProjectSettingsPort {
  * Starts the identity service from the environment:
  *   IDENTITY_DATABASE_URL    the record database; the record and ledger schemas must already be migrated,
  *                            the identity schema is migrated at start
- *   IDENTITY_CALLERS         JSON {caller: {token_ref, scopes: [read|write|reconcile|sync|codeowners]}}
+ *   IDENTITY_CALLERS         JSON {caller: {token_ref, scopes: [read|write|reconcile|sync|codeowners|grant]}}
+ *                            (`grant`: core alone, the decided grant path of P1-6)
  *   IDENTITY_HOST / _PORT    default 127.0.0.1:8330
  *   NOTARY_URL, IDENTITY_NOTARY_TOKEN_REF, KMS_URL, KMS_TOKEN_REF
  *                            the access-sync loop's Notary client and key lookup (required unless
