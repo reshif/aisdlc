@@ -220,8 +220,9 @@ Why the Apps are separate:
    docker compose --profile fake-github down -v
    ```
 
-2. Remove the throwaway key first. `init-secrets --real-github` deletes `secrets/github-app.pem` when the marker
-   `secrets/.github-app-fake` exists, so a real key copied over the throwaway would be deleted:
+2. Remove the throwaway key from a fake-GitHub run, if you did one. `init-secrets --real-github` removes it by
+   itself only when it is still the exact key it generated, and keeps a key you copied over it, but removing it
+   yourself makes the state obvious:
 
    ```bash
    rm -f secrets/github-app.pem secrets/github-app.pub.pem secrets/.github-app-fake
@@ -259,10 +260,8 @@ Why the Apps are separate:
    docker compose up -d --wait
    ```
 
-   Do not use `./live-census.sh` to **start** the stack. It always passes `--profile fake-github`, and on a real run
-   that starts the `fake-github` container, after which the script stops with "the fake-github container is running
-   in a live run". This was checked with `docker compose --profile fake-github config --services`, which lists
-   `fake-github`. Its `--report` and `--down` modes are fine to use.
+   `./live-census.sh` (without `--fake-github`) does the same and then runs the Census checks; it passes the fake
+   profile only on a dry run.
 
 ### 4.2 Optional Apps
 
