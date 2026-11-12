@@ -47,6 +47,7 @@ const repoView = () => ({
     bypass: { logins: ['carol'], list_hash: bypassListHash(['carol']) },
   },
   level_up: ['full'],
+  krl: null,
   history: [],
 });
 

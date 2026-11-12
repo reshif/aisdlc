@@ -1012,6 +1012,7 @@ export const SCHEMAS = {
   BypassListShown: entities.BypassListShown,
   DriftRestoredPayload: entities.DriftRestoredPayload,
   DriftReaffirmedPayload: entities.DriftReaffirmedPayload,
+  DriftKrlLoweredPayload: entities.DriftKrlLoweredPayload,
   OnboardingVersionReason: entities.OnboardingVersionReason,
   DriftVersionRequestedPayload: entities.DriftVersionRequestedPayload,
   RestoreRequest: entities.RestoreRequest,

@@ -17,6 +17,7 @@ import { FakeGitHub, emptySeed, gitBlobSha, type CodeHostSeed } from '@aisdlc/po
 import { rawRules } from '@aisdlc/ports/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  autonomyNow,
   checkDrift,
   coreInbox,
   expireRecord,
@@ -108,7 +109,7 @@ interface World {
 }
 
 /** A Light repo with an ACTIVE readiness record whose AGENTS.md section was affirmed (drafted from `ORIGINAL`). */
-async function world(): Promise<World> {
+async function world(o: { pillarLevel?: number } = {}): Promise<World> {
   n += 1;
   const project = `dr-${n}`;
   const repo = `acme/dr-${n}`;
@@ -120,8 +121,17 @@ async function world(): Promise<World> {
     ),
   );
   const made = built(inputs({ tier: 'T1', level: 'light', over: { project_id: project } }));
+  const lv = o.pillarLevel;
   const withText = {
     ...made,
+    ...(lv === undefined
+      ? {}
+      : {
+          pillars: made.pillars.map((p) => ({ ...p, level: lv })),
+          composite: lv,
+          // green posture, RL2 -> A1 (on probation): the autonomy a lowered KRL can tighten
+          autonomy: { ...made.autonomy, readiness_cap: 'A1', posture_cap: null, effective: 'A1' },
+        }),
     affirmed: {
       ...made.affirmed,
       instructions: [
@@ -202,6 +212,13 @@ const poll = async (w: World) => {
   return okv(await checkDrift(w.d, w.repo));
 };
 const bypassShown = (logins: string[]) => ({ logins, list_hash: bypassListHash(logins) });
+/** The autonomy in force now (`autonomyNow`), as a Result for `okv`. */
+const reaffirmGuard = async (w: World) => {
+  const a = await autonomyNow(s.record.pool, w.repo);
+  return a
+    ? ({ ok: true, value: a } as const)
+    : ({ ok: false, error: { message: 'no record' } } as const);
+};
 const ATTEST = { bypass_matches_list: true, bypass_has_no_app: true } as const;
 
 describe('the files poll and the fold: record-first, deterministic', () => {
@@ -279,6 +296,98 @@ describe('the files poll and the fold: record-first, deterministic', () => {
       reasons: ['file_deleted'],
       observed: null,
     });
+  });
+});
+
+describe('KRL −1 on instruction drift (OB §4.2): recorded, ledgered, lifted only by re-affirming', () => {
+  it('a drifted AGENTS.md lowers KRL and the autonomy in force; once per path; a revert lifts nothing; the re-affirmation does', async () => {
+    const w = await world({ pillarLevel: 2 });
+    w.push({ sha: H2, files: { 'AGENTS.md': AFFIRMED, '.github/CODEOWNERS': CODEOWNERS } });
+    expect((await poll(w))?.krl_lowered).toBe(0);
+    const signed = okv(await reaffirmGuard(w));
+    expect(signed).toMatchObject({ signed: 2, current: 2, effective_now: signed.effective_signed });
+    expect(signed.effective_signed).toBe('A1');
+
+    const EDITED = `${AFFIRMED}\n## Notes\n\nUse pnpm.\n`;
+    w.push({ sha: H3, files: { 'AGENTS.md': EDITED, '.github/CODEOWNERS': CODEOWNERS } });
+    const c = await poll(w);
+    expect(c).toMatchObject({ krl_lowered: 1, suspended: false });
+    // recorded first, then ledgered (mechanical): the area, the path, both hashes and the levels
+    const ev = await q<{ body: Record<string, unknown> }>(
+      'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2',
+      [driftStream(w.repo), DRIFT_EVENT.krl_lowered],
+    );
+    expect(ev.map((e) => e.body)).toEqual([
+      expect.objectContaining({
+        area: '*',
+        path: 'AGENTS.md',
+        expected: sha256Hex(AFFIRMED),
+        observed: sha256Hex(EDITED),
+        krl_signed: 2,
+        krl_from: 2,
+        krl_to: 1,
+      }),
+    ]);
+    const led = await q<{ entry_type: string; subject_kind: string; actor: string }>(
+      'SELECT entry_type, subject_kind, actor FROM ledger.ledger_entry WHERE entry_id = $1',
+      [ev[0]?.body['ledger_entry_id']],
+    );
+    expect(led).toEqual([
+      { entry_type: 'prr.krl_lowered', subject_kind: 's0_record', actor: 'system.drift' },
+    ]);
+    // tighten only: the record as signed is unchanged; the autonomy in force is the lowered composite's cap
+    expect(await statusOf(w)).toBe('active');
+    expect(okv(await reaffirmGuard(w))).toMatchObject({
+      signed: 2,
+      current: 1,
+      effective_signed: 'A1',
+      effective_now: 'A0',
+    });
+    // the same drift lowers nothing twice
+    w.push({ sha: H4, files: { 'AGENTS.md': `${EDITED}x\n`, '.github/CODEOWNERS': CODEOWNERS } });
+    expect((await poll(w))?.krl_lowered).toBe(0);
+
+    // the file goes back to the affirmed bytes: the finding clears, the penalty does not (loosening needs a person)
+    const H5 = '5'.repeat(40);
+    w.push({ sha: H5, files: { 'AGENTS.md': AFFIRMED, '.github/CODEOWNERS': CODEOWNERS } });
+    expect((await poll(w))?.findings).toEqual([]);
+    expect(okv(await reaffirmGuard(w)).current).toBe(1);
+    const v = await projectDriftView(s.record.pool, pid(w.project), {
+      clock: s.clock,
+      bypass: w.d.bypass,
+    });
+    expect(v.repos[0]?.krl).toMatchObject({
+      signed: 2,
+      current: 1,
+      effective_now: 'A0',
+      lowered: [expect.objectContaining({ path: 'AGENTS.md', area: '*' })],
+    });
+    expect(v.repos[0]?.history.map((h) => h.type)).toContain('krl_lowered');
+    // the re-affirm card stays offered while the penalty is open
+    const inbox = await coreInbox({
+      cards: { pool: s.record.pool, decisions: s.config } as never,
+      clock: s.clock,
+    });
+    expect(inbox.filter((i) => i.id === w.repo).map((i) => i.kind)).toEqual(['drift_reaffirm']);
+
+    // the path the spec names: a person re-affirms it with the step-up; KRL is back as signed
+    const stepUp = s.config.stepUp as FakeStepUp;
+    okv(
+      await reaffirmInstruction(w.d, pid(w.project), {
+        repo: w.repo as never,
+        path: 'AGENTS.md',
+        text_sha256: sha256Hex(AFFIRMED) as never,
+        step_up: { proof: stepUp.issue(sha256Hex(AFFIRMED), 'alice') },
+        on_behalf_of: pr('alice'),
+      }),
+    );
+    expect(okv(await reaffirmGuard(w))).toMatchObject({ current: 2, effective_now: 'A1' });
+    expect((await poll(w))?.krl_lowered).toBe(0);
+    const after = await coreInbox({
+      cards: { pool: s.record.pool, decisions: s.config } as never,
+      clock: s.clock,
+    });
+    expect(after.filter((i) => i.id === w.repo)).toEqual([]);
   });
 });
 

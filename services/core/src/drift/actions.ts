@@ -60,6 +60,7 @@ import { repoIdentity } from '../prr-store.js';
 import { requestOnboarding } from '../s0.js';
 import { checkDrift, recheckRepo, type DriftDeps } from './check.js';
 import { baselineOf, evaluateDrift } from './evaluate.js';
+import { openKrl } from './krl.js';
 import { baselineFor, inputsOf, loadDrift, type LoadedDrift } from './state.js';
 
 // What a person does after onboarding (PLAN M16; OB §4.1 item 4, §4.2, §8; DEC-21(b), DEC-10 refined, DEC-11 refined):
@@ -320,7 +321,10 @@ export async function readDriftedText(
   const inputs = inputsOf(l);
   if (!g || !inputs) return err(coreError('conflict', 'no readiness record governs this repo'));
   const finding = evaluateDrift(inputs).find((f) => f.effect === 'reaffirm' && f.subject === path);
-  if (!finding)
+  // OB §4.2: a KRL penalty is lifted only by re-affirming its path, so the card stays while one is open, even when
+  // the file went back to the affirmed bytes (re-affirming the same text is then what lifts it)
+  const penalty = openKrl(l.drift, g.version).find((p) => p.path === path);
+  if (!finding && !penalty)
     return err(coreError('conflict', `${path} has not drifted: there is nothing to re-affirm`));
   const head = l.files?.value.sha;
   if (!head) return err(coreError('conflict', 'no files poll is recorded yet'));
@@ -342,7 +346,8 @@ export async function readDriftedText(
     text,
     blob_sha: read.value?.blob_sha ?? null,
     sha256: sha,
-    expected: finding.expected ?? '',
+    expected:
+      finding?.expected ?? inputs.tracked.find((t) => t.path === path)?.expected_sha256 ?? '',
   });
 }
 

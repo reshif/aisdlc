@@ -46,6 +46,20 @@ const repo = (o: Record<string, unknown> = {}) => ({
   suspension: { at: '2026-11-12T10:00:00.000Z', findings: [] },
   restore: { ready: true, why_not: null, bypass: { logins: ['carol'], list_hash: HASH } },
   level_up: ['full'],
+  krl: {
+    signed: 2,
+    current: 1,
+    effective_signed: 'A1',
+    effective_now: 'A0',
+    lowered: [
+      {
+        area: '*',
+        path: 'AGENTS.md',
+        at: '2026-11-12T10:00:00.000Z',
+        ledger_entry_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe45',
+      },
+    ],
+  },
   history: [
     {
       at: '2026-11-12T10:00:00.000Z',
@@ -102,6 +116,11 @@ describe('the drift page', () => {
     );
     expect(screen.getByTestId('prr-status')).toHaveAttribute('data-status', 'suspended');
     expect(screen.getByTestId('file-state-AGENTS.md')).toHaveAttribute('data-state', 'drift');
+    // OB §4.2: the drifted AGENTS.md lowered KRL by one, and the autonomy with it, until it is re-affirmed
+    const krl = screen.getByTestId('krl');
+    expect(krl).toHaveAttribute('data-krl', '1');
+    expect(krl).toHaveTextContent(/KRL 1 \(signed 2\)/);
+    expect(krl).toHaveTextContent(/autonomy A0 \(signed A1\)/);
     const findings = screen.getByRole('table', { name: 'What drifted in acme/web' });
     expect(within(findings).getByText('suspends the record')).toBeInTheDocument();
     expect(within(findings).getByRole('link', { name: 'Open the re-affirm card' })).toHaveAttribute(

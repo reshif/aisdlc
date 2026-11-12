@@ -32,6 +32,7 @@ import { catchUp } from '../queries.js';
 import { repoIdentity } from '../prr-store.js';
 import type { DriftDeps } from './check.js';
 import { evaluateDrift, servedFiles } from './evaluate.js';
+import { krlNow, openKrl } from './krl.js';
 import { inputsOf, loadDrift, reaffirmedOf, type LoadedDrift } from './state.js';
 
 // What the portal shows after onboarding (PLAN M16; the design reference's project "Drift" tab): per repo, the
@@ -125,6 +126,15 @@ function history(l: LoadedDrift): DriftHistoryRow[] {
           ledger_entry_id: ledger as never,
         });
         break;
+      case DRIFT_EVENT.krl_lowered:
+        out.push({
+          at: e.occurred_at,
+          type: 'krl_lowered',
+          summary: `KRL ${String(p['krl_from'])} -> ${String(p['krl_to'])}: ${String(p['path'])} (area ${String(p['area'])}) drifted from the affirmed text; re-affirm it to lift this`,
+          by: null,
+          ledger_entry_id: ledger as never,
+        });
+        break;
       case DRIFT_EVENT.version_requested:
         out.push({
           at: e.occurred_at,
@@ -190,6 +200,20 @@ export async function repoDriftView(
       bypass: shown ?? { logins: [], list_hash: bypassListHash([]) },
     },
     level_up: g && g.status !== 'expired' ? levelsAbove(g.prr.level.signed) : [],
+    krl: g
+      ? (() => {
+          const open = openKrl(l.drift, g.version);
+          return {
+            ...krlNow(g.prr, new Set(open.map((p) => p.area)).size),
+            lowered: open.map((p) => ({
+              area: p.area,
+              path: p.path,
+              at: p.at,
+              ledger_entry_id: p.ledger_entry_id,
+            })),
+          };
+        })()
+      : null,
     history: hist.slice(0, 50),
   });
 }
@@ -323,7 +347,10 @@ export async function driftInboxItems(
       const s = [...l.drift.suspensions].reverse().find((x) => x.prr_version === g.version);
       out.push(await item('prr_restore', s?.at ?? l.files?.at ?? g.prr.issued_at));
     }
-    if (evaluateDrift(inputs).some((f) => f.effect === 'reaffirm')) {
+    if (
+      evaluateDrift(inputs).some((f) => f.effect === 'reaffirm') ||
+      openKrl(l.drift, g.version).length > 0
+    ) {
       out.push(
         await item(
           'drift_reaffirm',

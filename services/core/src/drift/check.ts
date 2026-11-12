@@ -4,6 +4,7 @@ import {
   DRIFT_EVENT,
   DRIFT_LEDGER_ENTRY,
   DriftEvaluatedPayload,
+  DriftKrlLoweredPayload,
   DriftSuspendedPayload,
   INBOUND_FACT_EVENT,
   InboundFactPayload,
@@ -20,7 +21,7 @@ import {
   type RepoFullName,
 } from '@aisdlc/contracts';
 import { DEFAULT_POLICY_BUNDLE_VERSION } from '@aisdlc/decisions';
-import { deterministicId, err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
+import { deterministicId, err, hashCanonical, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import {
   appendLedgerEntryTx,
   importUnconfirmed,
@@ -37,6 +38,7 @@ import { readGoverning, repoIdentity } from '../prr-store.js';
 import { setPrrStatus } from '../prr-status.js';
 import { catchUp } from '../queries.js';
 import { evaluateDrift, suspending } from './evaluate.js';
+import { krlNow, openKrl } from './krl.js';
 import { inputsOf, loadDrift } from './state.js';
 
 // The drift loops' steps (PLAN M16; OB §4.2, §8; DEC-21, DEC-12(a)):
@@ -48,6 +50,9 @@ import { inputsOf, loadDrift } from './state.js';
 //                      changed, and for a `suspend` finding on an active (or stale) record, in ONE transaction: the
 //                      ledger lock before the first append, `prr.status_changed` (mechanical, tighten-only),
 //                      `drift.suspended`, and the `prr.suspended` ledger entry last. Never lifted here.
+//                      An affirmed instruction file that drifted gives its area KRL −1 in the same transaction:
+//                      `drift.krl_lowered` and its `prr.krl_lowered` ledger entry (OB §4.2), once per path until a
+//                      person re-affirms it.
 //   expireRecords      the `fresh_until` sweep: an active, stale or suspended record past it is `expired` (Census-only
 //                      behaviour; the re-sign card). Expiry never approves, and the 1.4 rule already reads it so.
 //   recheckRepo        a restore's re-check: the head, the rules and the files read NOW and recorded, then folded.
@@ -182,6 +187,8 @@ export interface CheckOutcome {
   readonly findings_hash: string;
   readonly recorded: boolean;
   readonly suspended: boolean;
+  /** Paths whose drift lowered their area's KRL in this check (OB §4.2). */
+  readonly krl_lowered: number;
 }
 
 /** Folds the newest facts for one repo and records what changed (see the header). */
@@ -207,13 +214,28 @@ export async function checkDrift(
     const last = loaded.drift.evaluated.get(g.version);
     const changed = last?.findings_hash !== hash;
     const susp = suspending(findings);
+    // OB §4.2: each drifted affirmed instruction file without an open penalty lowers its area's KRL
+    const open = openKrl(loaded.drift, g.version);
+    const lower = findings.filter(
+      (f) =>
+        f.kind === 'instruction_text' &&
+        f.subject !== null &&
+        f.expected !== null &&
+        !open.some((p) => p.path === f.subject),
+    );
     // an active record past `fresh_until` is already expired (the sweep writes it): no suspension on top of that
     const live = now.getTime() < Date.parse(g.prr.fresh_until);
     const suspend =
       susp.length > 0 && live && canTransitionReadinessBy('mechanical', g.status, 'suspended');
-    if (!changed && !suspend) {
+    if (!changed && !suspend && lower.length === 0) {
       return ok({
-        value: { findings, findings_hash: hash, recorded: false, suspended: false },
+        value: {
+          findings,
+          findings_hash: hash,
+          recorded: false,
+          suspended: false,
+          krl_lowered: 0,
+        },
         pending: [],
       });
     }
@@ -221,7 +243,7 @@ export async function checkDrift(
     const entryId = deterministicId<'LedgerEntry'>(
       `prr.suspended:${g.prr.record_hash}:${g.version}:${loaded.drift.restores.length}:${hash}`,
     );
-    if (suspend) {
+    if (suspend || lower.length > 0) {
       // the ledger lock before the first record append, the entry last (AGENTS.md lock order)
       await lockLedger(tx);
       const caught = await importUnconfirmed(tx, d.ledger);
@@ -249,6 +271,61 @@ export async function checkDrift(
         DRIFT_ACTOR,
       );
       if (!w.ok) return w;
+    }
+    // KRL −1: one event per path, each with its ledger entry (written after every record append below)
+    const krlEntries: LedgerEntryDraft[] = [];
+    const areaOf = new Map(g.prr.affirmed.instructions.map((i) => [i.path, i.area]));
+    const areas = new Set(open.map((p) => p.area));
+    for (const f of lower) {
+      const path = f.subject as string;
+      const before = krlNow(g.prr, areas.size).current;
+      const area = areaOf.get(path) ?? '.';
+      areas.add(area);
+      const after = krlNow(g.prr, areas.size).current;
+      const prior = loaded.drift.events.filter(
+        (e) =>
+          e.type === DRIFT_EVENT.krl_lowered &&
+          (e.payload as { path?: string; prr_version?: number }).path === path &&
+          (e.payload as { prr_version?: number }).prr_version === g.version,
+      ).length;
+      const kid = deterministicId<'LedgerEntry'>(
+        `prr.krl_lowered:${g.prr.record_hash}:${g.version}:${path}:${prior}`,
+      );
+      const body = DriftKrlLoweredPayload.parse({
+        ...facts,
+        area,
+        path,
+        expected: f.expected,
+        observed: f.observed,
+        krl_signed: krlNow(g.prr, 0).signed,
+        krl_from: before,
+        krl_to: after,
+        ledger_entry_id: kid,
+      });
+      const w = await j.emit(
+        driftStream(loaded.repo_ref),
+        DRIFT_EVENT.krl_lowered,
+        body,
+        DRIFT_ACTOR,
+      );
+      if (!w.ok) return w;
+      const { ledger_entry_id: _k, ...krlRest } = body;
+      void _k;
+      krlEntries.push({
+        entry_id: kid,
+        entry_type: DRIFT_LEDGER_ENTRY.krl_lowered,
+        gate_instance_id: null,
+        gate_id: null,
+        subject_kind: 's0_record',
+        subject_id: g.s0_id as never,
+        subject_hash: hashCanonical(krlRest) as never,
+        decision: null,
+        actor: DRIFT_ACTOR as never,
+        sod_waiver: false,
+        policy_bundle_version: DEFAULT_POLICY_BUNDLE_VERSION,
+        body: { kind: 'prr_krl_lowered', ...krlRest } as never,
+        created_at: now.toISOString() as never,
+      });
     }
     if (suspend) {
       const s = await j.emit(
@@ -300,8 +377,19 @@ export async function checkDrift(
       if (!l.ok) return err(coreError('unavailable', l.error.message));
       pending.push(...l.value.pending);
     }
+    for (const draft of krlEntries) {
+      const l = await appendLedgerEntryTx(tx, d.ledger, draft);
+      if (!l.ok) return err(coreError('unavailable', l.error.message));
+      pending.push(...l.value.pending);
+    }
     return ok({
-      value: { findings, findings_hash: hash, recorded: changed, suspended: suspend },
+      value: {
+        findings,
+        findings_hash: hash,
+        recorded: changed,
+        suspended: suspend,
+        krl_lowered: lower.length,
+      },
       pending,
     });
   });

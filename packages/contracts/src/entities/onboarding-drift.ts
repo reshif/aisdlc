@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Level } from '../values.js';
+import { Autonomy, Level } from '../values.js';
 import { ReadinessStatus } from '../states/readiness.js';
 import { RepoFullName } from './codehost.js';
 import { LintSeverity } from './detectors.js';
@@ -47,6 +47,12 @@ export const DRIFT_EVENT = {
   reaffirmed: 'drift.reaffirmed',
   /** A person asked for a new onboarding version: a level-up, or the re-sign of an expired record. */
   version_requested: 'drift.version_requested',
+  /**
+   * OB §4.2, §8 "Instruction text drift": an affirmed instruction file drifted, so its area gets KRL −1 (recorded AND
+   * ledgered; mechanical, tighten-only). Lifted only by re-affirming that path (`drift.reaffirmed`, a person with
+   * the step-up) or by a new version and its M4; a revert of the file alone lifts nothing.
+   */
+  krl_lowered: 'drift.krl_lowered',
 } as const;
 export type DriftEventType = (typeof DRIFT_EVENT)[keyof typeof DRIFT_EVENT];
 
@@ -55,6 +61,7 @@ export const DRIFT_LEDGER_ENTRY = {
   suspended: 'prr.suspended',
   restored: 'prr.restored',
   reaffirmed: 'instructions.reaffirmed',
+  krl_lowered: 'prr.krl_lowered',
 } as const;
 
 /** The cause codes the lifecycle writes on `prr.status_changed`. */
@@ -215,6 +222,22 @@ export const DriftRestoredPayload = z.strictObject({
 });
 export type DriftRestoredPayload = z.infer<typeof DriftRestoredPayload>;
 
+/** KRL −1 for the area of a drifted instruction file (OB §4.2). The levels are the repo's KRL before and after. */
+export const DriftKrlLoweredPayload = z.strictObject({
+  ...RepoFacts,
+  area: z.string().min(1).max(300),
+  path: z.string().min(1).max(300),
+  /** The affirmed text's sha256 and what the head shows (`null`: the file is gone). */
+  expected: Sha256Hex,
+  observed: Sha256Hex.nullable(),
+  /** The record's KRL pillar level as signed, and the repo's KRL before and after this event. */
+  krl_signed: z.number().int().min(0).max(4),
+  krl_from: z.number().int().min(0).max(4),
+  krl_to: z.number().int().min(0).max(4),
+  ledger_entry_id: LedgerEntryId,
+});
+export type DriftKrlLoweredPayload = z.infer<typeof DriftKrlLoweredPayload>;
+
 /** The largest instruction text a re-affirmation stores (the same bound as card 2's proposals). */
 export const REAFFIRM_TEXT_MAX = 65_536;
 
@@ -320,6 +343,7 @@ export const DriftHistoryRow = z.strictObject({
     'version_requested',
     'expired',
     'activated',
+    'krl_lowered',
   ]),
   summary: z.string().max(300),
   by: z.string().max(100).nullable(),
@@ -366,6 +390,26 @@ export const RepoDriftView = z.strictObject({
   }),
   /** Levels a level-up may ask for from the signed one (Full is M17's 0.3: the request runs as the spec says). */
   level_up: z.array(Level),
+  /**
+   * KRL after drift (OB §4.2): the signed pillar level, the level now (−1 while an area has an open penalty) and the
+   * effective autonomy it gives (the readiness cap of the lowered composite; tighten-only). `null`: no record.
+   */
+  krl: z
+    .strictObject({
+      signed: z.number().int().min(0).max(4),
+      current: z.number().int().min(0).max(4),
+      effective_signed: Autonomy,
+      effective_now: Autonomy,
+      lowered: z.array(
+        z.strictObject({
+          area: z.string().min(1).max(300),
+          path: z.string().min(1).max(300),
+          at: IsoDateTime,
+          ledger_entry_id: LedgerEntryId,
+        }),
+      ),
+    })
+    .nullable(),
   history: z.array(DriftHistoryRow),
 });
 export type RepoDriftView = z.infer<typeof RepoDriftView>;

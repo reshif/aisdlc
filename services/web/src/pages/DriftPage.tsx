@@ -8,7 +8,7 @@ import {
   type ServedFile,
 } from '@aisdlc/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Guarded } from '../access';
 import { api } from '../api';
 import { ErrorNote, Loading, PageError } from '../components/Notice';
@@ -356,6 +356,7 @@ const HISTORY_KIND: Record<DriftHistoryRow['type'], TimelineKind> = {
   version_requested: 'human',
   expired: 'det',
   activated: 'gate',
+  krl_lowered: 'bad',
 };
 
 function RepoDrift({
@@ -427,6 +428,27 @@ function RepoDrift({
                 repo.files_polled_at ? shortTime(repo.files_polled_at) : 'not yet',
               ],
               ['Rules polled', repo.rules_polled_at ? shortTime(repo.rules_polled_at) : 'not yet'],
+              ...(repo.krl
+                ? [
+                    [
+                      'Knowledge readiness (KRL)',
+                      <span key="k" data-testid="krl" data-krl={repo.krl.current}>
+                        {repo.krl.current === repo.krl.signed ? (
+                          `KRL ${repo.krl.signed} as signed · autonomy ${repo.krl.effective_now}`
+                        ) : (
+                          <>
+                            <Pill tone="bad">
+                              KRL {repo.krl.current} (signed {repo.krl.signed})
+                            </Pill>{' '}
+                            autonomy {repo.krl.effective_now} (signed {repo.krl.effective_signed}):{' '}
+                            {repo.krl.lowered.map((x) => x.path).join(', ')} drifted; re-affirming
+                            lifts it
+                          </>
+                        )}
+                      </span>,
+                    ] as [string, ReactNode],
+                  ]
+                : []),
             ]}
           />
           <Card title="What drifted" flush>

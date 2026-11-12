@@ -32976,7 +32976,8 @@
             "reaffirmed",
             "version_requested",
             "expired",
-            "activated"
+            "activated",
+            "krl_lowered"
           ]
         },
         "summary": {
@@ -33011,6 +33012,94 @@
         "type",
         "summary",
         "by",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DriftKrlLoweredPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "expected": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "krl_signed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "krl_from": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "krl_to": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "area",
+        "path",
+        "expected",
+        "observed",
+        "krl_signed",
+        "krl_from",
+        "krl_to",
         "ledger_entry_id"
       ],
       "additionalProperties": false
@@ -82853,6 +82942,88 @@
                   ]
                 }
               },
+              "krl": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "signed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "current": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "effective_signed": {
+                        "type": "string",
+                        "enum": [
+                          "A0",
+                          "A1",
+                          "A2",
+                          "A3"
+                        ]
+                      },
+                      "effective_now": {
+                        "type": "string",
+                        "enum": [
+                          "A0",
+                          "A1",
+                          "A2",
+                          "A3"
+                        ]
+                      },
+                      "lowered": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "area": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "path": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "ledger_entry_id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "required": [
+                            "area",
+                            "path",
+                            "at",
+                            "ledger_entry_id"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "signed",
+                      "current",
+                      "effective_signed",
+                      "effective_now",
+                      "lowered"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "history": {
                 "type": "array",
                 "items": {
@@ -82872,7 +83043,8 @@
                         "reaffirmed",
                         "version_requested",
                         "expired",
-                        "activated"
+                        "activated",
+                        "krl_lowered"
                       ]
                     },
                     "summary": {
@@ -82924,6 +83096,7 @@
               "suspension",
               "restore",
               "level_up",
+              "krl",
               "history"
             ],
             "additionalProperties": false
@@ -87001,6 +87174,88 @@
                   ]
                 }
               },
+              "krl": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "signed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "current": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "effective_signed": {
+                        "type": "string",
+                        "enum": [
+                          "A0",
+                          "A1",
+                          "A2",
+                          "A3"
+                        ]
+                      },
+                      "effective_now": {
+                        "type": "string",
+                        "enum": [
+                          "A0",
+                          "A1",
+                          "A2",
+                          "A3"
+                        ]
+                      },
+                      "lowered": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "area": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "path": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "ledger_entry_id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "required": [
+                            "area",
+                            "path",
+                            "at",
+                            "ledger_entry_id"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "signed",
+                      "current",
+                      "effective_signed",
+                      "effective_now",
+                      "lowered"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "history": {
                 "type": "array",
                 "items": {
@@ -87020,7 +87275,8 @@
                         "reaffirmed",
                         "version_requested",
                         "expired",
-                        "activated"
+                        "activated",
+                        "krl_lowered"
                       ]
                     },
                     "summary": {
@@ -87072,6 +87328,7 @@
               "suspension",
               "restore",
               "level_up",
+              "krl",
               "history"
             ],
             "additionalProperties": false
@@ -104504,6 +104761,88 @@
             ]
           }
         },
+        "krl": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "signed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4
+                },
+                "current": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4
+                },
+                "effective_signed": {
+                  "type": "string",
+                  "enum": [
+                    "A0",
+                    "A1",
+                    "A2",
+                    "A3"
+                  ]
+                },
+                "effective_now": {
+                  "type": "string",
+                  "enum": [
+                    "A0",
+                    "A1",
+                    "A2",
+                    "A3"
+                  ]
+                },
+                "lowered": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "ledger_entry_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "path",
+                      "at",
+                      "ledger_entry_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "signed",
+                "current",
+                "effective_signed",
+                "effective_now",
+                "lowered"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "history": {
           "type": "array",
           "items": {
@@ -104523,7 +104862,8 @@
                   "reaffirmed",
                   "version_requested",
                   "expired",
-                  "activated"
+                  "activated",
+                  "krl_lowered"
                 ]
               },
               "summary": {
@@ -104575,6 +104915,7 @@
         "suspension",
         "restore",
         "level_up",
+        "krl",
         "history"
       ],
       "additionalProperties": false
