@@ -23,7 +23,8 @@ Paused by the user after M13 (to resume: read this section, then start M14).
 - **First thing on resume — fix M13 CI:** run 25 hit the old 15-minute job limit (now 40); run 26 failed after 16 minutes with a test failure not yet identified (the log tail is only Postgres output; read the Vitest summary earlier in the job log). Most likely cause to check first: the Docker sandbox tests (`services/sandbox-driver`, `services/coding-runner`, `services/docker-proxy` stub tests) need the `aisdlc/sandbox` and agent images, which the GitHub runner does not have; they must either build them in CI or skip cleanly with a clear message when the images are absent. Then merge #12 once green.
 - **Next:** M14 (S7 verify, signed Evidence Pack, gate-check), then M15 (S8/S9), M16 (Light onboarding — first real agent lanes L1–L3), M17, M18, M19 (floor, audit), M20 (dogfood).
 - **How the build runs:** one task per agent, each reviewed; `npm run check` must exit 0 with `DATABASE_URL` pointing at the local CI-style cluster on 127.0.0.1:55433 (user and password `postgres`) (start that password Postgres from `/var/tmp/aisdlc-cipg` or the db test helper), then `timeout 600 npm run build`, `npm ci --dry-run`, and `npm run smoke:compose` (in a sandbox without apt, build the image from `aisdlc-sandbox-node-git:local` and run with `SMOKE_SKIP_BUILD=1`). PR per milestone; merge after GitHub CI is green (user authorised).
-- **Open follow-ups to carry:** M7.7 single-flight S0 driver; M8.0b non-local genesis; M9.7 kill signing timeout, portal kill/control screens, L0/L7 eligibility (user to decide; suggestion L0 from Light, L7 from Census); M10.6 response redaction for non-streamed calls, per-model prices to confirm before real spend, install-absent semantics; M13 follow-ups: Handoff Pack as an artefact type, self-heal for a crash between push and receipt, B15 rebase path, codehost push in registry mode, compose wiring of real coding sessions.
+- **Open follow-ups to carry:** M7.7 single-flight S0 driver; M8.0b non-local genesis; M9.7 kill signing timeout, portal kill/control screens, L0/L7 eligibility (decided 2026-11-11: L0 from Light, L7 from Census; needs a catalogue version); M10.6 response redaction for non-streamed calls, per-model prices to confirm before real spend, install-absent semantics; M13 follow-ups: Handoff Pack as an artefact type, self-heal for a crash between push and receipt, B15 rebase path, codehost push in registry mode, compose wiring of real coding sessions.
+- **Architecture:** ADR-0003 is the target (18 services, 22 containers locally, sandboxes on separate hosts); PLAN §5 lists what each milestone adds.
 - **Portal:** the full portal is designed as a prototype (`docs/design/portal-prototype/`); what it covers and what is missing is in `docs/design/portal-coverage.md`; M21 lifts `services/web` to it after M20, and each milestone from M14 builds its own screens on the way. Six decisions it exposed are in coverage §5.
 - **User actions pending:** live Census on their machine (`docs/runbooks/m8.5-live-census.md`); pin the real eval-store key (`aisdlc-evals pin`) before first eval; `issues:write` on the App at M16; share `floor.html` before M19 if available.
 
@@ -315,18 +316,31 @@ From M14 on, each milestone also builds the portal screens for what it adds (the
 
 Done when coverage §3 and §4 are empty or dropped by the user, §5 is decided, and the persona e2e is green in CI.
 
-## 5. Target local-prod topology (after M15)
+## 5. Target architecture (ADR-0003)
 
-| Group | Containers |
+[ADR-0003](adr/0003-target-architecture.md) is the target, and the build follows it exactly. It replaces the 25-container list of revision 2:
+- seven planes and 18 services, each with its reason to stand alone;
+- sandboxes on separate runner hosts (microVMs in production);
+- an object store for large content;
+- scheduling ownership: core decides admission, the sandbox-controller only places sessions, people set the limits;
+- two caps per runner host: a total (default 4) and coding sessions (default 1).
+
+| | Local | Production (one copy each) |
+|---|---|---|
+| Containers you run | 22: the 18 services + Postgres, MinIO, kms-local, dev-oidc | 19: the 18 services + an OpenTelemetry collector; Postgres, the object store, KMS and the IdP are managed |
+| Sandboxes | up to 4 at once | runner hosts that scale with the queue |
+
+What each milestone adds to reach it:
+
+| Milestone | Adds |
 |---|---|
-| Data | postgres (record, read models, config, queue), plus separate databases on the same server for notary, witness, kms-local, killswitch, gate-check, gate-relay |
-| Edge and identity | web, bff, oidc (dev IdP), identity |
-| Core | core, core-worker |
-| Trust plane | kms-local, notary, witness, killswitch, sandbox-origin, audit-exporter, audit-backend |
-| Code and gate plane | codehost, gate-check, gate-relay, cvw, docker-proxy-cvw, docker-proxy-coding, package-mirror |
-| Agents and models | workflow, coding-worker, gateway, knowledge |
+| M14 | the ADR's first task (this section), the object store, verify, gate-check, the sandbox-controller split and the total cap |
+| M15 | gate-relay |
+| M18 | notifier |
+| M19 | audit, the collector, the outage drills, a load test |
+| M19 or M20 | the microVM runner driver |
 
-That is 25 containers, against RV §8.2's 26: no temporal, postgres-temporal or temporal-ui (D-T), no minio until audit exports exist, one extra socket proxy. core-worker exposes one aggregated `/healthz` (503 while any loop is down or an access-sync alert is active), the access-sync lag metric, loop-prefixed logs, and per-loop supervision so a poison row in one loop cannot stall the others (RV §3.1).
+core-worker keeps one aggregated `/healthz` (503 while any loop is down or an access-sync alert is active), the access-sync lag metric, loop-prefixed logs and per-loop supervision (RV §3.1).
 
 ## 6. How the build runs
 
@@ -351,6 +365,20 @@ That is 25 containers, against RV §8.2's 26: no temporal, postgres-temporal or 
 | DEC-18 | Decided 2026-11-09 after the SEC-OB-3 evidence (`docs/evidence/sec-ob-3.md`: 74 attempts, 74 contained): container-class execution of repo code is allowed for repos the user owns (the testbed and the factory repo). Any repo the user did not write is re-decided before its code runs (with DEC-5's revisit); the factory must refuse execution for a repo not on the owner allow-list (config, M1-gated) |
 | DEC-10, 11, 12, 13, 16, 17, 20 | The roadmap's recommendations: 10(a) the human never pushes, the factory pushes under an L8 gate-check profile; 11(a) affirmed text is fenced guidance, never control, with (c-i) step-up falling back to (c-ii); 12(a) record-first; 13(a) S0 and L8 gate-check profiles, (i) wait for the X2 path; 16(b) agent chores on T0/T1 only, T2 needs Full; 17 mirror wheels first, each scanner approved one at a time; 20(a) record is truth, issue is a twin, timing (i) right after R1b, blocking public-safe gaps by default |
 | DEC-7 | Done by the user: `statuses:write` removed from the GitHub App |
+| Refined 2026-11-11 | The user went through the M14–M16 questions one at a time on 2026-11-11. These rows refine or add to the rows above. |
+| gate-check and gate-relay Apps (M14, M15) | Built and tested against the fake GitHub first; the user creates each narrow App (`checks:write`, `deployments:write`) only for the live test |
+| DEC-13 | (a): an S0 profile, an L8 profile, and for non-agent PRs a laundering check plus human review; (i) the testbed oracle-lock PR waits for the X2 path |
+| DEC-10 (refined) | The factory pushes by default: a human-led change is written on a card or as a patch and pushed as an `agent/*` PR under the L8 profile. **Plus a per-repo bypass list of named people**, which can be empty, can differ per repo, and never holds an App. Changing the list is an M1 config change on the ledger; gate-check records every bypass merge, which then gets an X4 review |
+| G5 release (M15) | Chosen per project at onboarding (card 4: off, or a deploy target such as a GitHub environment); G5 applies only where it is on; changing it later is an M1 config change. The release path is built against a fake target |
+| E4 | Decided by the item's owner of record, **and a factory admin may also decide it**. This is a deliberate exception to "admins decide no gate", recorded on the ledger as an admin decision. It is a contract change to `GATE_POLICIES` and the catalogue |
+| Factory-wide M1 | By default a factory admin other than the proposer approves. Which role decides and whether it takes one or two people is itself config, and changing that setting needs this same approval |
+| DEC-11 (refined) | Factory rules and defaults always win; a repo's AGENTS.md or CLAUDE.md can only add repo detail inside them. At onboarding each instruction file is checked against a **factory template** of what is taken (build and test commands, coding standards, architecture notes, conventions) and what never is (tools, permissions, network, rule-overrides, secrets). Card 2 shows each section as accepted or rejected, with the reason. Affirmed sections become fenced guidance. For rejected or missing sections the factory proposes edits to the file as a PR through X2 (a protected path) |
+| DEC-12 | (a) record-first |
+| DEC-16 | (b) T0/T1 only; T2 needs Full |
+| DEC-17 (refined) | A **dedicated onboarding sandbox image** is built ahead of time with the scanners and common libraries baked in, each at an exact version and checksum; the probe runs with no internet. An image update is a reviewed config change. A repo's own dependencies still come through the read-only package mirror |
+| DEC-20 | (a) the issue is a twin and the record is the truth; built straight away; blocking, public-safe gaps by default; security findings never on public repos. Needs `issues:write` on the App |
+| DEC-15, DEC-19 | Accepted as written; each value stays a setting changeable by M1 |
+| L0, L7 eligibility | L0 (hotfix) from Light, L7 (spike) from Census. This is a catalogue change, so it needs a new `CATALOGUE_VERSION` |
 
 ## 7. Decisions still open for the user
 
