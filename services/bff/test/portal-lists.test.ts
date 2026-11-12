@@ -160,6 +160,43 @@ describe('fleet audit reads', () => {
     expect(ok.status).toBe(200);
     expect(ok.json.health.tiles).toEqual([]);
   });
+
+  it('M19 health: the service and loop tiles, audit.read on the fleet; a broken answer is a 502', async () => {
+    const tiles = {
+      as_of: T,
+      overall: 'unknown',
+      counts: { ok: 1, degraded: 0, down: 0, unknown: 1 },
+      tiles: [
+        {
+          tile_id: 'service.notary',
+          domain: 'service',
+          label: 'notary',
+          state: 'ok',
+          detail_code: 'ok',
+          sli_value: 3,
+          as_of: T,
+          stale: false,
+        },
+        {
+          tile_id: 'service.core',
+          domain: 'service',
+          label: 'core',
+          state: 'unknown',
+          detail_code: 'no_report',
+          sli_value: null,
+          as_of: null,
+          stale: false,
+        },
+      ],
+    };
+    core.override.set('GET /v1/health', { status: 200, json: tiles });
+    expect((await api('alice', 'GET', '/api/health')).status).toBe(403);
+    const ok = await api('root', 'GET', '/api/health');
+    expect(ok.status).toBe(200);
+    expect(ok.json).toEqual(tiles);
+    core.override.set('GET /v1/health', { status: 200, json: { tiles: 'x' } });
+    expect((await api('root', 'GET', '/api/health')).status).toBe(502);
+  });
 });
 
 describe('items and the catalogue', () => {

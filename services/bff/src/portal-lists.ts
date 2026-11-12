@@ -10,6 +10,7 @@ import {
   DataClass,
   IntegrationEvent,
   IntegrationHealthTiles,
+  HealthView,
   ItemListView,
   KillsView,
   ProjectId,
@@ -52,6 +53,7 @@ import { higher } from './levels.js';
 //   GET  /api/kills                      the kill switch's journal as core observed it   (audit.read, fleet)
 //   GET  /api/audit/decisions            the PDP decision log                            (audit.read, fleet)
 //   GET  /api/integrations               health tiles and the ledgered registry events   (audit.read, fleet)
+//   GET  /api/health                     M19: the service and loop tiles (HealthSnapshot) (audit.read, fleet)
 //   GET  /api/directory                  principals and teams                            (audit.read, fleet)
 //   GET  /api/projects/:id/explain       who holds a role on the project, what the PDP allows them (access.explain)
 
@@ -228,6 +230,12 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     );
     if (!events) return;
     return { health, events };
+  });
+
+  app.get('/api/health', async (req, reply) => {
+    const c = await fleetAudit(req, reply);
+    if (!c) return;
+    return upstream(reply, await c.call('GET', '/v1/health'), (v) => HealthView.parse(v));
   });
 
   // ------------------------------------------------------------ operate
