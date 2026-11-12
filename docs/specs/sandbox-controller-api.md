@@ -11,6 +11,7 @@ Core reaches it only through `HttpSandbox` (`packages/ports/src/http-sandbox.ts`
 | core-worker (S6 sessions, H2) | service token (`Authorization: Bearer`, a `file:` reference at both ends) | `run`, `read` | `POST /v1/sessions`, `GET /v1/slots` |
 | operator | service token | `read`, `admin` | `GET /v1/slots`, `POST /v1/admin/reload` |
 | anyone | none | | `GET /healthz` |
+| the controller itself, calling core (M19) | service token `tok-sandbox-controller-core` (`SANDBOX_CONTROLLER_CORE_TOKEN_REF`) | `activity` on core | `POST /v1/sessions/heartbeat` on core |
 
 `SANDBOX_CONTROLLER_CALLERS` is `{caller: {token_ref, scopes}}`. A missing or unknown token is `401 unauthenticated`; a scope the caller lacks is `403 forbidden`. The controller holds the coding proxy's token (core-worker no longer does) and, for the length of a session, the session's gateway virtual key (passed to the driver, never stored or logged).
 
@@ -35,6 +36,10 @@ Errors: `{"error": {"code": <SandboxErrorCode>, "message": ...}}` (`invalid_spec
 `HttpSandbox` fails closed: a spec with no `grant` is refused before anything is sent; a transport error, the deadline (the session's `time_s` plus a margin, default 120 s) or a non-2xx is a `SandboxError` (a code it does not know reads `unavailable`); a body that does not parse, an answer for another session, or an `/out` file whose bytes do not match its size and sha256 is `driver_failure`. It uses `node:http` for this call, not `fetch`, so a 60-minute W session is not cut by a 300 s header timeout.
 
 The DEC-18 owner allow-list and B1 stay in front of the port in core (`GuardedSandbox`, `checkSessionAllowed`): the controller does not read knowledge's findings.
+
+## 2a. Heartbeats (M19)
+
+While a session holds its slot, the controller is its heartbeat reporter (DM Heartbeat; PLAN M19): it posts a `SessionHeartbeat` (`{item_id, project_id, session_id, unit_id, sandbox_class, at}`, content-free) to core's `POST /v1/sessions/heartbeat` when the session starts and every `SANDBOX_CONTROLLER_HEARTBEAT_MS` (default 30 000) until the driver returns. `project_id` is read from the grant's row of `core.admission_grant`; `unit_id` is the grant's Unit key (without the item prefix). An onboarding probe has no work item and never beats. A beat is best effort: core unreachable or refusing is counted and logged, never touches the session, and the floor then reads silence (stuck), never life. `SANDBOX_CONTROLLER_CORE_URL` and `SANDBOX_CONTROLLER_CORE_TOKEN_REF` are set together or not at all; without them nothing beats.
 
 ## 3. `GET /v1/slots`
 

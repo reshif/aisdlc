@@ -34,6 +34,19 @@ export const isProbeGrant = (ref: SandboxGrantRef): boolean =>
 export class RecordGrants implements GrantVerifier {
   constructor(private readonly pool: Pick<pg.Pool, 'query'>) {}
 
+  /** M19: the project an admission grant is for (a heartbeat names it). `null`: no such grant, or unreadable. */
+  async projectOf(grantId: string): Promise<string | null> {
+    try {
+      const q = await this.pool.query<{ project_id: string }>(
+        'SELECT project_id FROM core.admission_grant WHERE grant_id = $1',
+        [grantId],
+      );
+      return q.rows[0]?.project_id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   async check(
     ref: SandboxGrantRef,
     cls: SandboxClass,
@@ -91,12 +104,18 @@ export class RecordGrants implements GrantVerifier {
 /** Deterministic verifier for tests: the grants it was told are active (by id, with their item, Unit and epoch). */
 export class FakeGrants implements GrantVerifier {
   private readonly active = new Map<string, SandboxGrantRef>();
+  private readonly projects = new Map<string, string>();
   private down = false;
   readonly asked: SandboxGrantRef[] = [];
 
-  grant(ref: SandboxGrantRef): this {
+  grant(ref: SandboxGrantRef, projectId = 'proj-test'): this {
     this.active.set(ref.grant_id, ref);
+    this.projects.set(ref.grant_id, projectId);
     return this;
+  }
+
+  async projectOf(grantId: string): Promise<string | null> {
+    return this.down ? null : (this.projects.get(grantId) ?? null);
   }
   revoke(grantId: string): this {
     this.active.delete(grantId);

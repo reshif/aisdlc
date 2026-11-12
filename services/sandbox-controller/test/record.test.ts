@@ -32,7 +32,7 @@ import { startTestKms } from '@aisdlc/kms-local/testing';
 import { startTestNotary } from '@aisdlc/notary/testing';
 import { FakeSandbox, HttpSandbox, freeCodingSlots, type SandboxSpec } from '@aisdlc/ports';
 import { runProjection } from '@aisdlc/record';
-import type { RunningService } from '@aisdlc/service-kit';
+import { listen, newApp, type RunningService } from '@aisdlc/service-kit';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootSandboxController } from '../src/boot.js';
@@ -243,8 +243,11 @@ describe('the controller database role', () => {
   it('RecordGrants: active at the named item, Unit and epoch only', async () => {
     const g = new RecordGrants(rolePool);
     expect(await g.check(GRANT, 'W')).toEqual({ ok: true, value: 'not_active' });
+    expect(await g.projectOf(GRANT.grant_id)).toBeNull();
     await recordGrant(GRANT, 'active');
     expect(await g.check(GRANT, 'W')).toEqual({ ok: true, value: 'active' });
+    // M19: the heartbeat names the grant's project, read as this role
+    expect(await g.projectOf(GRANT.grant_id)).toBe('acme');
     expect(await g.check({ ...GRANT, lease_epoch: 1 }, 'W')).toEqual({
       ok: true,
       value: 'not_active',
@@ -257,6 +260,7 @@ describe('the controller database role', () => {
     expect(await g.check(GRANT, 'W')).toEqual({ ok: true, value: 'not_active' });
     const broken = createPool(roleUrl(db.url, role, 'wrong-password'), 1);
     expect((await new RecordGrants(broken).check(GRANT, 'W')).ok).toBe(false);
+    expect(await new RecordGrants(broken).projectOf(GRANT.grant_id)).toBeNull();
     await broken.end();
   });
 });
@@ -352,5 +356,61 @@ describe('the booted controller: caps from M1-gated config, grants from the reco
       doc: { [SANDBOX_CAPS_KEY]: { total: 2, coding: 5 } },
     });
     expect(p.ok).toBe(false);
+  });
+});
+
+describe('M19: the booted controller posts heartbeats to core with its activity token', () => {
+  it('a session beats at start; the grant project is read from the record; the env is both or neither', async () => {
+    const got: Array<{ auth: string | undefined; body: unknown }> = [];
+    const core = newApp();
+    core.post('/v1/sessions/heartbeat', async (req, reply) => {
+      got.push({ auth: req.headers.authorization, body: req.body });
+      return reply.code(201).send({ duplicate: false });
+    });
+    const coreUrl = await listen(core);
+    const token = randomBytes(24).toString('hex');
+    const env = {
+      SANDBOX_CONTROLLER_DATABASE_URL: 'env:SBC_DB',
+      SBC_DB: roleDbUrl,
+      SANDBOX_CONTROLLER_CALLERS: JSON.stringify({
+        'core-worker': { token_ref: 'env:SBC_TOKEN', scopes: ['run', 'read'] },
+      }),
+      SBC_TOKEN: token,
+      SANDBOX_CONTROLLER_PORT: '0',
+      SANDBOX_CONTROLLER_CORE_URL: coreUrl,
+      SANDBOX_CONTROLLER_CORE_TOKEN_REF: 'env:SBC_CORE_TOKEN',
+      SBC_CORE_TOKEN: 'tok-activity-0123456789',
+    };
+    await expect(
+      bootSandboxController(
+        { ...env, SANDBOX_CONTROLLER_CORE_TOKEN_REF: '' },
+        { driver: new FakeSandbox() },
+      ),
+    ).rejects.toThrow(/together or not at all/);
+    const svc = await bootSandboxController(env, { driver: new FakeSandbox() });
+    try {
+      await recordGrant(GRANT, 'active');
+      const client = new HttpSandbox({ baseUrl: svc.url, token });
+      const r = await client.run({
+        session_id: 'rec-hb-0001',
+        class: 'O',
+        command: ['npm', 'test'],
+        repo: [],
+        grant: GRANT,
+      });
+      expect(r.ok).toBe(true);
+      for (let i = 0; i < 50 && got.length === 0; i++) await new Promise((x) => setTimeout(x, 20));
+      expect(got[0]?.auth).toBe('Bearer tok-activity-0123456789');
+      expect(got[0]?.body).toMatchObject({
+        item_id: GRANT.item_id,
+        project_id: 'acme',
+        session_id: 'rec-hb-0001',
+        unit_id: 'unit-rec',
+        sandbox_class: 'O',
+      });
+    } finally {
+      await svc.close();
+      await core.close();
+    }
   });
 });

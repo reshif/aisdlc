@@ -112,6 +112,10 @@ networks:
     internal: true
   data-sandbox-controller:
     internal: true
+  # M19: the sandbox-controller's one route to core, for the heartbeats of its running sessions
+  # (`POST /v1/sessions/heartbeat`, token `tok-sandbox-controller-core`, scope `activity` and nothing else).
+  core-activity:
+    internal: true
   # The verify service (M14.3, the plan's `cvw`): `verify-api` is how core-worker asks it for a step's check (nobody
   # else is on it); `data-verify` is its own way to Postgres (its role writes its own table and its own `verify:`
   # record streams, nothing else); `verify-codehost` is its one link to the codehost (the bundle route: the repo at the
@@ -203,6 +207,7 @@ secrets:
   tok-operator-gate-relay: { file: ./secrets/tok-operator-gate-relay }
   tok-bff-gate-check: { file: ./secrets/tok-bff-gate-check }
   tok-bff-sandbox-controller: { file: ./secrets/tok-bff-sandbox-controller }
+  tok-sandbox-controller-core: { file: ./secrets/tok-sandbox-controller-core }
   pg-pass-notifier: { file: ./secrets/pg-pass-notifier }
   db-url-notifier: { file: ./secrets/db-url-notifier }
   tok-bff-notifier: { file: ./secrets/tok-bff-notifier }
@@ -655,7 +660,8 @@ services:
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal"]},
-        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops"]}}
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops"]},
+        "sandbox-controller":{"token_ref":"file:/run/secrets/tok-sandbox-controller-core","scopes":["activity"]}}
       CORE_NOTARY_URL: http://notary:8310
       CORE_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-notary
       KMS_URL: http://kms-local:8300
@@ -691,6 +697,7 @@ services:
         tok-core-knowledge,
         tok-core-codehost,
         tok-core-gateway,
+        tok-sandbox-controller-core,
         object-store-access-key,
         object-store-secret-key,
       ]
@@ -706,7 +713,8 @@ services:
       notary: { condition: service_healthy }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
-    networks: [app, data-record, kms-clients, notary-api, objectstore-api, gateway-api]
+    networks:
+      [app, data-record, kms-clients, notary-api, objectstore-api, gateway-api, core-activity]
     mem_limit: 256m
 
   # The one process that hosts every loop (code-host polls, S0 driver, role-map sync, cards,
@@ -1102,6 +1110,9 @@ services:
       SANDBOX_CONTROLLER_SCRATCH: ${SANDBOX_SCRATCH:-/var/lib/aisdlc/sandbox-scratch}
       SANDBOX_CONTROLLER_MIRROR: ${COMPOSE_PROJECT_NAME:-aisdlc}-package-mirror
       SANDBOX_CONTROLLER_GATEWAY: ${COMPOSE_PROJECT_NAME:-aisdlc}-gateway
+      # M19: the heartbeat of every running session to core (scope `activity` only), so a busy quiet session is not stuck
+      SANDBOX_CONTROLLER_CORE_URL: http://core:8380
+      SANDBOX_CONTROLLER_CORE_TOKEN_REF: file:/run/secrets/tok-sandbox-controller-core
       SANDBOX_CONTROLLER_HOST: 0.0.0.0
       SANDBOX_CONTROLLER_PORT: '8430'
     volumes:
@@ -1114,6 +1125,7 @@ services:
         tok-operator-sandbox-controller,
         tok-verify-sandbox-controller,
         tok-bff-sandbox-controller,
+        tok-sandbox-controller-core,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8430']
@@ -1124,7 +1136,7 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       docker-proxy-coding: { condition: service_healthy }
-    networks: [data-sandbox-controller, sandbox-controller-api, docker-coding]
+    networks: [data-sandbox-controller, sandbox-controller-api, docker-coding, core-activity]
     mem_limit: 512m
 
   # The verify service (M14.3; ADR-0003 §1 Control plane, the plan's `cvw`): S7's checks 7.1 to 7.5 over a Unit head.
