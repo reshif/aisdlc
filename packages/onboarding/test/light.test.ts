@@ -10,6 +10,7 @@ import {
   type Fact,
   type InstructionPath,
   type InstructionReview,
+  type ProbeResult,
 } from '@aisdlc/contracts';
 import { sha256Hex } from '@aisdlc/kernel';
 import { makeCanary, scanText } from '@aisdlc/secrets-rules';
@@ -21,7 +22,11 @@ import {
   buildLightProposal,
   cartographerClaims,
   defaultBoundHash,
+  notRunResult,
   planC2,
+  planProbe,
+  probeIdOf,
+  probeResultHash,
   reviewInstructionFile,
   splitSections,
   validateClaims,
@@ -306,9 +311,70 @@ describe('the proposal', () => {
   });
 });
 
+/** A passed probe recorded for the proposal's census head (LF3). */
+function passedProbe(p: LightProposal, over: Partial<ProbeResult> = {}) {
+  const result: ProbeResult = {
+    ...notRunResult(
+      {
+        probe_id: probeIdOf(p.s0_id, p.census_hash, 1),
+        s0_id: p.s0_id,
+        repo: p.repo,
+        census_hash: p.census_hash,
+        baseline_sha: p.baseline_sha,
+        image: `sha256:${'1'.repeat(64)}`,
+        recorded_at: '2026-11-12T10:00:00.000Z',
+      },
+      planProbe(nodeFacts()),
+      'passed',
+      'x',
+    ),
+    detail: null,
+    tests: { total: 3, passed: 3, failed: 0, skipped: 0, source: 'junit' },
+    ...over,
+  };
+  return { result, result_hash: probeResultHash(result) };
+}
+
+describe('planning the card 2 decision: LF3, the probe passed at the census head', () => {
+  const p = proposalOf();
+  const ref = sha256Hex('proof');
+  const content = () => contentFor(p, { verdict: () => 'affirm' });
+  it('binds the passed probe by hash', () => {
+    const probe = passedProbe(p);
+    const rows = planC2({ proposal: p, reviews: reviewsOf(p), probe }, content(), {
+      step_up_ref: ref,
+    });
+    if (!rows.ok) throw new Error(rows.error.message);
+    expect(rows.value.find((r) => r.kind === 'light_probe')).toEqual({
+      kind: 'light_probe',
+      probe_id: probe.result.probe_id,
+      result_hash: probe.result_hash,
+      baseline_sha: p.baseline_sha,
+      outcome: 'passed',
+    });
+  });
+  it('no probe, a failed or void one, or one of another head: refused (no waiver)', () => {
+    const cases = [
+      null,
+      passedProbe(p, { outcome: 'failed' }),
+      passedProbe(p, { outcome: 'void' }),
+      passedProbe(p, { outcome: 'not_allowed' }),
+      passedProbe(p, { baseline_sha: 'f'.repeat(40) }),
+      passedProbe(p, { tests: { total: 0, passed: 0, failed: 0, skipped: 0, source: 'junit' } }),
+    ];
+    for (const probe of cases) {
+      const r = planC2({ proposal: p, reviews: reviewsOf(p), probe }, content(), {
+        step_up_ref: ref,
+      });
+      expect(r.ok ? null : r.error.code).toBe('refused');
+      expect(r.ok ? '' : r.error.message).toMatch(/^LF3:/);
+    }
+  });
+});
+
 describe('planning the card 2 decision (LF5, LF6)', () => {
   const p = proposalOf();
-  const ctx = { proposal: p, reviews: reviewsOf(p) };
+  const ctx = { proposal: p, reviews: reviewsOf(p), probe: passedProbe(p) };
   const ref = sha256Hex('proof');
 
   it('an approval binds the proposal, every verdict, the answers and the affirmed text', () => {
@@ -380,7 +446,9 @@ describe('planning the card 2 decision (LF5, LF6)', () => {
       ...c2,
       instructions: c2.instructions.filter((x) => x.path === 'CLAUDE.md'),
     };
-    const r = planC2({ proposal: p2, reviews: reviewsOf(p2) }, onlyClaude, { step_up_ref: ref });
+    const r = planC2({ proposal: p2, reviews: reviewsOf(p2), probe: passedProbe(p2) }, onlyClaude, {
+      step_up_ref: ref,
+    });
     expect(!r.ok && r.error.message).toMatch(/LF5/);
   });
 
@@ -411,7 +479,9 @@ describe('planning the card 2 decision (LF5, LF6)', () => {
     const blocked = new Map(ctx.reviews);
     const r0 = blocked.get('AGENTS.md') as InstructionReview;
     blocked.set('AGENTS.md', { ...r0, proposed: { ...r0.proposed, blocked: 'not_clean' } });
-    const r = planC2({ proposal: p, reviews: blocked }, contentFor(p), { step_up_ref: ref });
+    const r = planC2({ proposal: p, reviews: blocked, probe: passedProbe(p) }, contentFor(p), {
+      step_up_ref: ref,
+    });
     expect(!r.ok && r.error.message).toMatch(/cannot be affirmed: not_clean/);
   });
 });

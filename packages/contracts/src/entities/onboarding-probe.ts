@@ -186,6 +186,7 @@ export const ProbeResult = z.strictObject({
 export type ProbeResult = z.infer<typeof ProbeResult>;
 
 export const ProbeRecordedPayload = z.strictObject({
+  project_id: z.string().min(1),
   result: ProbeResult,
   /** `hashCanonical(result)`: what card 2's approval binds. */
   result_hash: Sha256Hex,

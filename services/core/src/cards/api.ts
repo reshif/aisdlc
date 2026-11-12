@@ -26,7 +26,7 @@ import {
 } from '@aisdlc/decisions';
 import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import { boundHashOf, defaultBoundHash, planC2 } from '@aisdlc/onboarding';
-import { c2Context, c2View, editInstructionText, type C2Ctx } from './light.js';
+import { c2View, editInstructionText, loadC2Context, type C2Ctx } from './light.js';
 import { z } from 'zod';
 import { prrByHash, recordControlsSeen } from '../m4.js';
 import { coreError, type CoreError } from '../errors.js';
@@ -114,7 +114,7 @@ async function contextOf(
       return c.ok ? ok({ ctx: { kind: 'C1', c: c.value }, view: c1View(c.value, loaded.s0) }) : c;
     }
     case 'C2': {
-      const c = c2Context(loaded, card);
+      const c = await loadC2Context(deps.pool, loaded, card);
       return c.ok ? ok({ ctx: { kind: 'C2', c: c.value }, view: c2View(c.value, loaded.s0) }) : c;
     }
     case 'C4': {

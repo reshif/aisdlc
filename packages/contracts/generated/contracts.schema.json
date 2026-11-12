@@ -53858,6 +53858,10 @@
     "ProbeRecordedPayload": {
       "type": "object",
       "properties": {
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
         "result": {
           "type": "object",
           "properties": {
@@ -54307,6 +54311,7 @@
         }
       },
       "required": [
+        "project_id",
         "result",
         "result_hash"
       ],

@@ -1,4 +1,9 @@
-import { ConfigReader, ConfigRegistry, registerGatewayConfig } from '@aisdlc/config';
+import {
+  ConfigReader,
+  ConfigRegistry,
+  onboardingImageFrom,
+  registerGatewayConfig,
+} from '@aisdlc/config';
 import {
   AdmissionCapacity,
   DbProjectSettings,
@@ -29,6 +34,8 @@ import {
   maintenanceFrom,
   s0SettingsFrom,
   instructionTemplateFrom,
+  probeFilesOf,
+  probeLoop,
   workDriverLoop,
   workSettingsFrom,
 } from '@aisdlc/core/worker';
@@ -453,6 +460,32 @@ export async function bootCoreWorker(
                 if (o.action !== 'none') log(`s0_driver: ${o.s0_id}: ${o.action}`);
               },
             },
+          ),
+        );
+      }
+      if (cfg.knowledge && cfg.sandboxController) {
+        // M16: the onboarding probe (LF3) of every record waiting at card 2, in a K-exec session through the
+        // sandbox-controller only (it starts nothing without the probe grant core records first, and runs only the
+        // image `onboarding.sandbox_image` approves); DEC-18's allow-list and B1 are checked before anything runs
+        const sc = cfg.sandboxController;
+        supervisor.add(
+          probeLoop(
+            {
+              pool,
+              knowledge: new HttpKnowledge({
+                baseUrl: cfg.knowledge.url,
+                token: cfg.knowledge.token,
+              }),
+              probe: {
+                sandbox: new HttpSandbox({ baseUrl: sc.url, token: sc.token }),
+                files: probeFilesOf(
+                  new HttpBundleSource({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken }),
+                ),
+                image: () => onboardingImageFrom(rd.current()),
+                execAllowedRepos: execAllowedReposFrom(rd),
+              },
+            },
+            { intervalMs: cfg.cardsIntervalMs * 3, startDelayMs: 5_000 },
           ),
         );
       }

@@ -16,6 +16,7 @@ import {
 } from '../src/index.js';
 import { pr, startCoreStack, type CoreStack } from '../src/testing.js';
 import { makeHarness, type Json, type Scn } from './harness.js';
+import { passProbe } from './probe-fixtures.js';
 
 // Card 2, Light 0.2 (PLAN M16; OB §4, §6.2 row 0.2; DEC-11 refined, DEC-12(a)) on real Postgres
 // with the real decision kernel, ledger and Notary; knowledge and the code host are fakes behind
@@ -87,6 +88,7 @@ async function light(
     agents?: string | null;
     facts?: Fact[] | null;
     template?: () => InstructionTemplate | null;
+    probe?: boolean;
   } = {},
 ): Promise<Scn> {
   const files = o.agents === null ? [] : [{ path: 'AGENTS.md', content: o.agents ?? AGENTS_MD }];
@@ -99,6 +101,8 @@ async function light(
   const c = o.template ? { ...c0, deps: { ...c0.deps, instructionTemplate: o.template } } : c0;
   await h.throughC1(c);
   expect(await c.drive()).toBe('card');
+  // LF3 (M16): card 2 cannot be approved before the probe passed at the census head
+  if (o.probe !== false) await passProbe(c);
   return c;
 }
 
@@ -428,7 +432,7 @@ describe('card 2 (Light 0.2)', () => {
   });
 
   it('fails closed: no detector facts, or a template that does not read, opens no card', async () => {
-    const noFacts = await light({ facts: null });
+    const noFacts = await light({ facts: null, probe: false });
     const r = await syncCards(noFacts.deps, noFacts.s0);
     expect(r.ok && r.value.pending.join()).toMatch(/no detector facts/);
     expect(await events(noFacts, S0_EVENT.light_proposed)).toHaveLength(0);

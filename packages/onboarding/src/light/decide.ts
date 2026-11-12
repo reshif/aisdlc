@@ -7,10 +7,12 @@ import {
   type InstructionReview,
   type LightProposal,
   type LightQuestion,
+  type ProbeResult,
   type ProjectReadinessRecord,
 } from '@aisdlc/contracts';
 import { err, hashCanonical, ok, type Result } from '@aisdlc/kernel';
 import { scanText } from '@aisdlc/secrets-rules';
+import { lf3Of } from './floors.js';
 
 // What a person's card 2 approval becomes: the list payload of the ledger entry (SP-PROC-2). Every
 // rule is checked before anything is written, and a refusal says which one:
@@ -18,6 +20,8 @@ import { scanText } from '@aisdlc/secrets-rules';
 //   - every claim has a verdict, a correction only with `correct` (LF6: at least 90% affirmed or
 //     `unknown`);
 //   - every intent and practices question is answered as text, and the practices are attested;
+//   - LF3: the probe recorded for the proposal's census head passed (M16; no waiver, DEC-14): unmet or unknown
+//     (not run, another head, failed, no tests, uncounted, void, off the allow-list) refuses the approval;
 //   - AGENTS.md is affirmed (LF5), each file at the text hash shown, none blocked;
 //   - nothing a person typed holds a secret (the shared ruleset; no override: the record copy is
 //     served to every agent).
@@ -35,6 +39,8 @@ export interface C2Context {
   readonly proposal: LightProposal;
   /** The current review of each file: the proposal's, or the latest edit made on the card. */
   readonly reviews: ReadonlyMap<InstructionPath, InstructionReview>;
+  /** The latest probe recorded for this record at the proposal's census head (M16), or `null`. */
+  readonly probe: { readonly result: ProbeResult; readonly result_hash: string } | null;
 }
 
 /** The hash the step-up proof must be bound to for this decision (DEC-11(c-i)). */
@@ -43,7 +49,7 @@ export function boundHashOf(content: C2DecisionContent): string {
 }
 
 /** The hash a step-up binds to when every file that can be affirmed now is affirmed (the default). */
-export function defaultBoundHash(ctx: C2Context): string | null {
+export function defaultBoundHash(ctx: Pick<C2Context, 'reviews'>): string | null {
   const files = [...ctx.reviews.values()].flatMap((r) =>
     r.proposed.blocked === null && r.proposed.text_sha256 !== null
       ? [{ path: r.path, text_sha256: r.proposed.text_sha256 }]
@@ -91,6 +97,25 @@ export function planC2(
   if (d.proposal_hash !== proposal.proposal_hash) {
     return refuse('conflict', 'the proposal changed since you saw it: reopen the card');
   }
+
+  // ---- the probe (LF3)
+  const lf3 = lf3Of(ctx.probe?.result ?? null, {
+    census_hash: proposal.census_hash,
+    baseline_sha: proposal.baseline_sha,
+  });
+  if (lf3.state !== 'met' || ctx.probe === null) {
+    return refuse(
+      'refused',
+      `LF3: the probe has not passed at the census head (${lf3.state}: ${lf3.reasons.join(', ')}); card 2 cannot be approved`,
+    );
+  }
+  const probeRow: CardPayloadItem = {
+    kind: 'light_probe',
+    probe_id: ctx.probe.result.probe_id,
+    result_hash: ctx.probe.result_hash as never,
+    baseline_sha: ctx.probe.result.baseline_sha,
+    outcome: 'passed',
+  };
 
   // ---- claims (LF6)
   const want = proposal.claims.map((c) => c.claim_id);
@@ -177,6 +202,7 @@ export function planC2(
       census_hash: proposal.census_hash,
       template_hash: proposal.template_hash,
     },
+    probeRow,
     ...verdicts,
     {
       kind: 'claims_summary',

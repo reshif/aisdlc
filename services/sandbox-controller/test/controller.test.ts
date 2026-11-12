@@ -339,7 +339,8 @@ describe('M16: the onboarding probe image and grant', () => {
     approved = IMG;
     const other = await tc.client.run(probe({ image: `sha256:${'2'.repeat(64)}` }));
     expect(other.ok ? null : other.error.code).toBe('refused');
-    const { image: _drop, ...noImage } = probe();
+    const noImage: SandboxSpec = { ...probe() };
+    delete (noImage as { image?: string }).image;
     const missing = await tc.client.run(noImage);
     expect(missing.ok).toBe(false);
     const good = await tc.client.run(probe());

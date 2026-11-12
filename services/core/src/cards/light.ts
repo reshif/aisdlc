@@ -17,6 +17,7 @@ import { err, ok, type Result } from '@aisdlc/kernel';
 import {
   buildLightProposal,
   defaultBoundHash,
+  lf3Of,
   reviewInstructionFile,
   type C2Context,
 } from '@aisdlc/onboarding';
@@ -25,6 +26,8 @@ import { coreError, type CoreError } from '../errors.js';
 import { inCoreTx } from '../journal.js';
 import { openS0 } from '../s0.js';
 import { SLOT_OF_CARD, decisionsFor, type CardDeps } from './model.js';
+import { latestProbe } from './probe.js';
+import type pg from 'pg';
 import type { LoadedS0, OnboardingCard } from './read.js';
 
 // Card 2, the Light step 0.2 (PLAN M16; OB §4, §6.2 row 0.2; DEC-11 refined, DEC-12(a)): the I/O
@@ -159,7 +162,30 @@ export interface C2Ctx extends C2Context {
   readonly edits: number;
 }
 
-export function c2Context(loaded: LoadedS0, card: OnboardingCard): Result<C2Ctx, CoreError> {
+/** Card 2's context: the recorded proposal, the current reviews, and the probe recorded at its census head (M16). */
+export async function loadC2Context(
+  pool: pg.Pool,
+  loaded: LoadedS0,
+  card: OnboardingCard,
+): Promise<Result<C2Ctx, CoreError>> {
+  const proposal = lightProposalOf(loaded, card.occurrence);
+  if (!proposal) return err(coreError('conflict', 'card 2 has no recorded proposal'));
+  const probe = await latestProbe(pool, loaded.s0.record.s0_id, {
+    census_hash: proposal.census_hash,
+    baseline_sha: proposal.baseline_sha,
+  });
+  return c2Context(
+    loaded,
+    card,
+    probe === null ? null : { result: probe.result, result_hash: probe.result_hash },
+  );
+}
+
+export function c2Context(
+  loaded: LoadedS0,
+  card: OnboardingCard,
+  probe: C2Context['probe'] = null,
+): Result<C2Ctx, CoreError> {
   const proposal = lightProposalOf(loaded, card.occurrence);
   if (!proposal) return err(coreError('conflict', 'card 2 has no recorded proposal'));
   const edits = loaded.events.filter(
@@ -170,6 +196,7 @@ export function c2Context(loaded: LoadedS0, card: OnboardingCard): Result<C2Ctx,
   return ok({
     proposal,
     reviews: reviewsOf(loaded, card.occurrence, proposal),
+    probe,
     occurrence: card.occurrence,
     edits,
   });
@@ -211,6 +238,8 @@ export function c2View(c: C2Ctx, s0: LoadedS0['s0']): Record<string, unknown> {
       required: r.path === 'AGENTS.md',
     })),
     edits: c.edits,
+    // LF3 (M16): card 2 cannot be approved until the probe passed at this census head (no waiver)
+    probe: probeViewOf(c),
     step_up: {
       required: true,
       bound_hash: defaultBoundHash(c),
@@ -222,6 +251,38 @@ export function c2View(c: C2Ctx, s0: LoadedS0['s0']): Record<string, unknown> {
       guidance: 'affirmed text reaches agents as fenced guidance, never as control',
       session: 'an edit changes this card: a decision prepared before it is refused',
     },
+  };
+}
+
+/** What card 2 shows of the probe: LF3 and LF8 at the proposal's head, and the result's facts (never a value). */
+export function probeViewOf(c: C2Ctx): Record<string, unknown> {
+  const head = { census_hash: c.proposal.census_hash, baseline_sha: c.proposal.baseline_sha };
+  const r = c.probe?.result ?? null;
+  return {
+    lf3: lf3Of(r, head),
+    lf8:
+      r === null
+        ? { state: 'unknown', reasons: ['egress_not_declared'] }
+        : r.egress.unserved.length > 0
+          ? { state: 'unmet', reasons: r.egress.unserved.map((e) => `mirror_does_not_serve:${e}`) }
+          : { state: 'met', reasons: [] },
+    result:
+      r === null
+        ? null
+        : {
+            probe_id: r.probe_id,
+            result_hash: c.probe?.result_hash ?? null,
+            outcome: r.outcome,
+            detail: r.detail,
+            image: r.image,
+            setup: r.setup,
+            test: r.test,
+            tests: r.tests,
+            peers: r.session?.peers ?? [],
+            egress: r.egress,
+            out_scan: r.out_scan,
+            recorded_at: r.recorded_at,
+          },
   };
 }
 
