@@ -27,7 +27,7 @@ pattern, the onboarding agent console and the backend gaps) are specified in [`p
     - expiry never approves;
     - an active kill blocks approvals.
 - **One engine for every screen**: `A.why(action, resource)`, `A.can`, `A.decideCheck(gate, item)`, `A.act` (a locked button explains itself and offers "request access"), `A.visibleItems()`, `A.viewLevel`, `A.dataClass`. Route guards hide navigation the person cannot open; a direct link gives a 403 with the reason, and an invisible item gives the same 404 as a key that does not exist.
-- **Accounts** (dev IdP list):
+- **Accounts** (dev IdP list; since 2026-11-12 also the real dev IdP's and the local seed's, after `alice` and `bob`: `services/bff/src/dev-oidc/personas.ts`, `platform/compose/config/`; fleet, team and viewer roles are seeded, project slot roles come from each design project's role map once it is onboarded):
 
   | Account | Role |
   |---|---|
