@@ -770,6 +770,14 @@ services:
       CORE_WORKER_OBJECT_STORE_SECRET_KEY_REF: file:/run/secrets/object-store-secret-key
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-core-worker-kms
+      # M19: HealthSnapshot. The services this worker can reach have their /healthz read every 30 s (with its own loops)
+      # into the Operate › Health tiles. The profile services (sandbox-controller, verify, gate-check, gate-relay,
+      # notifier) are on networks it does not join for this, so they read unknown: never shown as healthy.
+      CORE_WORKER_HEALTH_TARGETS: >-
+        {"core":"http://core:8380","identity":"http://identity:8330","knowledge":"http://knowledge:8370",
+        "codehost":"http://codehost:8350","notary":"http://notary:8310","witness":"http://witness:8320",
+        "killswitch":"http://killswitch:8400","kms-local":"http://kms-local:8300","gateway":"http://gateway:8410",
+        "bff":"http://bff:8340","object-store":{"url":"http://object-store:9000","path":"/minio/health/live"}}
       CORE_WORKER_HOST: 0.0.0.0
       CORE_WORKER_PORT: '8360'
     secrets:

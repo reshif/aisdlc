@@ -49,6 +49,7 @@ import {
   lightTestsFrom,
   workDriverLoop,
   workSettingsFrom,
+  healthSnapshotLoop,
 } from '@aisdlc/core/worker';
 import { AppKey, GitHubIssueTracker } from '@aisdlc/codehost';
 import { createPool } from '@aisdlc/db';
@@ -204,6 +205,16 @@ export async function bootCoreWorker(
           setAlert: (k, a) => supervisor.setAlert(k, a),
         }),
       );
+    if (wantsCore) {
+      // M19: HealthSnapshot. This process's own loops and every configured service's liveness answer, every 30 s
+      // into `core.health_snapshot` (a reading, never a fact; the read applies the two-minute rule).
+      supervisor.add(
+        healthSnapshotLoop(
+          { pool, own: () => supervisor.health(), targets: cfg.healthTargets },
+          { intervalMs: cfg.healthIntervalMs, startDelayMs: 2_500 },
+        ),
+      );
+    }
     if (ledger && cfg.witness) {
       // PLAN M8.0b: the reconciler finishes what a crashed writer left (rows the Notary signed and the
       // record never saw), and the checkpointer has the Notary sign a tree head over the ledger and the

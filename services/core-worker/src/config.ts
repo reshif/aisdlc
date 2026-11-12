@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   ServiceConfigError,
   databaseUrl,
@@ -145,6 +146,58 @@ export interface CoreWorkerConfig {
   readonly rulesIdleIntervalMs: number;
   readonly rulesTickMs: number;
   readonly outboxWatchIntervalMs: number;
+  /** M19: the services whose `/healthz` the `health_snapshot` loop reads (name -> base URL and path). */
+  readonly healthTargets: Readonly<
+    Record<string, { readonly url: string; readonly path?: string }>
+  >;
+  readonly healthIntervalMs: number;
+}
+
+const HealthTargets = z.record(
+  z.string().regex(/^[a-z][a-z0-9-]{0,47}$/),
+  z.union([
+    z.string(),
+    z.strictObject({
+      url: z.string(),
+      path: z
+        .string()
+        .regex(/^\/[A-Za-z0-9/_.-]*$/)
+        .optional(),
+    }),
+  ]),
+);
+
+/** `CORE_WORKER_HEALTH_TARGETS`: JSON `{name: url | {url, path}}`; each URL plain http(s). */
+function healthTargetsEnv(env: Env): CoreWorkerConfig['healthTargets'] {
+  const raw = env['CORE_WORKER_HEALTH_TARGETS'];
+  if (raw === undefined || raw === '') return {};
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    throw new ServiceConfigError('CORE_WORKER_HEALTH_TARGETS must be JSON');
+  }
+  const p = HealthTargets.safeParse(json);
+  if (!p.success) {
+    throw new ServiceConfigError(
+      'CORE_WORKER_HEALTH_TARGETS is {name: url | {url, path}} with names [a-z0-9-]',
+    );
+  }
+  const out: Record<string, { url: string; path?: string }> = {};
+  for (const [name, t] of Object.entries(p.data)) {
+    const url = typeof t === 'string' ? t : t.url;
+    let u: URL;
+    try {
+      u = new URL(url);
+    } catch {
+      throw new ServiceConfigError(`CORE_WORKER_HEALTH_TARGETS.${name} is not a URL`);
+    }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      throw new ServiceConfigError(`CORE_WORKER_HEALTH_TARGETS.${name} must be http(s)`);
+    }
+    out[name] = typeof t === 'string' || t.path === undefined ? { url } : { url, path: t.path };
+  }
+  return out;
 }
 
 const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
@@ -228,6 +281,10 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   https://api.github.com), CORE_WORKER_TRACKER_PLAIN_HTTP_HOSTS (comma-separated, a fake
  *                                   GitHub only): (M16) the issue twin's OWN App, `issues:write` + `metadata:read`; with it
  *                                   and knowledge the `issue_twin` loop runs every CORE_WORKER_ISSUE_TWIN_INTERVAL_MS (600000)
+ *   CORE_WORKER_HEALTH_TARGETS      (M19) JSON {name: url | {url, path}}: the services whose liveness answer
+ *                                   (default path /healthz) the `health_snapshot` loop reads every
+ *                                   CORE_WORKER_HEALTH_INTERVAL_MS (30000), with this process's own loops, into
+ *                                   `core.health_snapshot` (the Operate › Health tiles). A service not named reads unknown
  *   CORE_WORKER_HOST / _PORT        the health and metrics endpoint, default 127.0.0.1:8360
  */
 export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
@@ -468,5 +525,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     rulesIdleIntervalMs: intEnv(env, 'CORE_WORKER_RULES_IDLE_INTERVAL_MS', 86_400_000, 100),
     rulesTickMs: intEnv(env, 'CORE_WORKER_RULES_TICK_MS', 300_000, 100),
     outboxWatchIntervalMs: intEnv(env, 'CORE_WORKER_OUTBOX_WATCH_INTERVAL_MS', 30_000, 100),
+    healthTargets: healthTargetsEnv(env),
+    healthIntervalMs: intEnv(env, 'CORE_WORKER_HEALTH_INTERVAL_MS', 30_000, 100),
   };
 }

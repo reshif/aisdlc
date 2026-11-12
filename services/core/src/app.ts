@@ -7,6 +7,7 @@ import {
 import { registerPortalListRoutes } from './portal-lists.js';
 import { registerFloorRoutes } from './floor.js';
 import { registerFleetRoutes } from './fleet.js';
+import { readHealthView } from './health.js';
 import type { KillVerdictPort } from './floor-live.js';
 import {
   ItemAnswerRequest,
@@ -398,6 +399,18 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     kill: o.kill,
     allowed: (req, scope) => allowed(req, scope),
     core: deps,
+  });
+
+  // M19: HealthTile / HealthSnapshot. The tiles of the Operate › Health screen, the HealthSnapshot rule applied at read
+  // time (older than two minutes: unknown). Scope `portal`: the bff asks the PDP (audit.read on the fleet) first.
+  app.get('/v1/health', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    try {
+      return await readHealthView(o.pool, clock.now());
+    } catch {
+      return fail(reply, coreError('unavailable', 'the health tiles could not be read'));
+    }
   });
 
   /**
