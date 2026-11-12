@@ -924,6 +924,151 @@
         "assistant.use"
       ]
     },
+    "ActiveKillsView": {
+      "type": "object",
+      "properties": {
+        "kills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kill_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "fleet"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "const": "*"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "enterprise",
+                          "org",
+                          "team",
+                          "project",
+                          "repo",
+                          "service_env",
+                          "environment",
+                          "lane",
+                          "session",
+                          "item",
+                          "role",
+                          "model",
+                          "release",
+                          "budget"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "release_pending",
+                  "released"
+                ]
+              },
+              "requested_by": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "release_required": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2
+              },
+              "release_approvals": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "released_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "may_release": {
+                "type": "boolean"
+              },
+              "approved_by_me": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kill_id",
+              "scope",
+              "state",
+              "requested_by",
+              "reason",
+              "requested_at",
+              "release_required",
+              "release_approvals",
+              "released_at",
+              "may_release",
+              "approved_by_me"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "kills"
+      ],
+      "additionalProperties": false
+    },
     "ActivitySource": {
       "type": "string",
       "enum": [
@@ -71662,6 +71807,19 @@
       },
       "additionalProperties": {}
     },
+    "KillActPrepared": {
+      "type": "object",
+      "properties": {
+        "bound_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "bound_hash"
+      ],
+      "additionalProperties": false
+    },
     "KillDelegation": {
       "type": "object",
       "properties": {
@@ -92201,6 +92359,184 @@
         "dedupe_links",
         "profile_gates",
         "may"
+      ],
+      "additionalProperties": false
+    },
+    "PortalKillPrepareRequest": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "scope",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "PortalKillReleaseRequest": {
+      "type": "object",
+      "properties": {
+        "step_up": {
+          "type": "object",
+          "properties": {
+            "proof": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "proof"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "step_up"
+      ],
+      "additionalProperties": false
+    },
+    "PortalKillRequest": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "step_up": {
+          "type": "object",
+          "properties": {
+            "proof": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "proof"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "scope",
+        "reason",
+        "step_up"
       ],
       "additionalProperties": false
     },
