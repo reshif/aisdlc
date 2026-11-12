@@ -6,6 +6,7 @@ import { PageError, Loading } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
 import { PageHead } from '../ui';
+import { DegradedBanners } from '../components/Degraded';
 
 const CARD_TITLE = {
   C1: 'Card 1: confirm the census',
@@ -37,7 +38,10 @@ export const hrefOf = (i: PortalInboxItem): string =>
   i.kind === 'settings_revision'
     ? `/revisions/${i.id}`
     : i.kind === 'work_gate'
-      ? `/items/${i.item_id ?? ''}`
+      ? // P1-2: a work gate opens the card it is decided on; the item page only when the record names no card
+        i.card_id !== null
+        ? `/cards/${i.card_id}`
+        : `/items/${i.item_id ?? ''}`
       : i.kind === 'onboarding_card'
         ? `/cards/${i.id}`
         : `/projects/${encodeURIComponent(i.project_id)}/drift`;
@@ -80,6 +84,14 @@ function Item({ i }: { i: PortalInboxItem }) {
             <Link to={`/projects/${i.project_id}`}>{i.project_id}</Link>
           </dd>
         </div>
+        {i.kind === 'work_gate' && i.item_id !== null ? (
+          <div>
+            <dt>Work item</dt>
+            <dd>
+              <Link to={`/items/${i.item_id}`}>{i.item_id.replace(/-/g, '').slice(0, 8)}</Link>
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt>Opened</dt>
           <dd>{shortTime(i.opened_at)}</dd>
@@ -103,7 +115,7 @@ function Item({ i }: { i: PortalInboxItem }) {
 
 /**
  * The inbox: the open cards the person may decide, with when an answer is due, and below them the
- * ones they can see but may not decide, with who does. Nothing is decided from this page.
+ * ones they can see but may not decide, with who does. Nothing is decided from this page: each entry opens its card.
  */
 export function InboxPage() {
   const q = useQuery({ queryKey: ['inbox'], queryFn: () => api.inbox(), refetchInterval: 15_000 });
@@ -116,6 +128,10 @@ export function InboxPage() {
         eyebrow="Decide"
         title="Inbox"
         sub="The open cards you may decide, with when an answer is due, then the ones you can only see."
+      />
+      <DegradedBanners
+        projects={[...decide, ...view].map((i) => i.project_id)}
+        readModels={['work_item']}
       />
       <h2>
         Waiting for you {decide.length > 0 ? <span className="count">{decide.length}</span> : null}

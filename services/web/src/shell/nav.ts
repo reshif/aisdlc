@@ -65,6 +65,14 @@ export const NAV: readonly NavEntry[] = [
   entry('Work', '/fleet', 'Fleet', SIGNED_IN, at('fleet')),
   entry('Work', '/board', 'Board', SIGNED_IN, at('board')),
   entry('Work', '/items', 'Items', SIGNED_IN, at('items', 'item', 'pack')),
+  // P1-1: a request to a project the person may ask for work on (work.request there)
+  entry(
+    'Work',
+    '/ask-for-work',
+    'Ask for work',
+    { kind: 'somewhere', action: 'work.request' },
+    at('askForWork'),
+  ),
   // M18: the assistant answers only from what the person can see; every thread is checked on its project
   entry(
     'Work',

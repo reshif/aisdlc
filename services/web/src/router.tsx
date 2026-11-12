@@ -30,6 +30,8 @@ export type Route =
   | { name: 'config' }
   | { name: 'configKey'; key: string }
   | { name: 'ask' }
+  /** P1-1: the Ask-for-work form, with a project chosen (`/ask-for-work/<project>`) or not. */
+  | { name: 'askForWork'; project: string | null }
   | { name: 'notifications' }
   | { name: 'notificationPrefs' }
   | { name: 'closeout'; id: string }
@@ -76,6 +78,9 @@ export function parseRoute(path: string): Route {
   if (p === '/inbox') return { name: 'inbox' };
   if (p === '/me/access') return { name: 'access' };
   if (p === '/config') return { name: 'config' };
+  if (p === '/ask-for-work') return { name: 'askForWork', project: null };
+  const askFor = /^\/ask-for-work\/([^/]+)$/.exec(p);
+  if (askFor) return { name: 'askForWork', project: decodeURIComponent(askFor[1] as string) };
   if (p === '/me/notifications') return { name: 'notifications' };
   if (p === '/me/notifications/preferences') return { name: 'notificationPrefs' };
   const cfg = /^\/config\/([^/]+)$/.exec(p);

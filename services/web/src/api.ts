@@ -18,6 +18,8 @@ import type {
   ItemPlanRequest,
   ItemPlanResult,
   PortalItemView,
+  PortalAskRequest,
+  PortalRequestReceipt,
   CardDeciders,
   LedgerAuditView,
   OnboardRequest,
@@ -67,6 +69,8 @@ import type {
   EvalRunsView,
   EvalSummaryView,
   IntegrationsView,
+  HealthView,
+  DegradedView,
   ItemListView,
   KillsView,
   OpsPreview,
@@ -480,6 +484,9 @@ export const api = {
       {},
       csrf,
     ),
+  /** P1-1 Ask for work: one request (portal channel N1), answered with intake's receipt. */
+  askForWork: (b: PortalAskRequest, csrf: string) =>
+    request<PortalRequestReceipt>('POST', '/api/requests', b, csrf),
   item: (id: string) => request<PortalItemView>('GET', `/api/items/${encodeURIComponent(id)}`),
   itemVerify: (id: string, head?: string) =>
     request<ItemVerifyView>(
@@ -625,6 +632,12 @@ export const api = {
   evalSummary: () => request<EvalSummaryView>('GET', '/api/evals/summary'),
   evalRuns: () => request<EvalRunsView>('GET', '/api/evals/runs?limit=50'),
   integrations: () => request<IntegrationsView>('GET', '/api/integrations'),
+  health: () => request<HealthView>('GET', '/api/health'),
+  degraded: (projects: readonly string[]) =>
+    request<DegradedView>(
+      'GET',
+      `/api/degraded?projects=${encodeURIComponent(projects.join(','))}`,
+    ),
   catalogue: () => request<CatalogueView>('GET', '/api/catalogue'),
   admission: () => request<AdmissionView>('GET', '/api/admission'),
   slots: () => request<SandboxSlots>('GET', '/api/slots'),

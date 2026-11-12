@@ -44,17 +44,22 @@ export interface ControllerDeps {
    */
   readonly probeImage?: () => string | null;
   readonly now?: () => Date;
+  /** M19: told when a session takes its slot (the heartbeat reporter beats it at once). Never awaited, never fails a run. */
+  readonly onStart?: (s: RunningSession) => void;
 }
 
-interface Running {
+/** A session this host is running, with the grant it runs under (what a heartbeat names). */
+export interface RunningSession {
   readonly session_id: string;
   readonly class: SandboxClass;
   readonly grant_id: string;
+  readonly item_id: string;
+  readonly unit_id: string;
   readonly started_at: string;
 }
 
 export class SandboxController {
-  private readonly running = new Map<string, Running>();
+  private readonly running = new Map<string, RunningSession>();
 
   constructor(private readonly d: ControllerDeps) {}
 
@@ -79,12 +84,25 @@ export class SandboxController {
       used_total: u.used_total,
       used,
       free: u.free,
-      sessions: [...this.running.values()].map((r) => ({ ...r })),
+      sessions: [...this.running.values()].map((r) => ({
+        session_id: r.session_id,
+        class: r.class,
+        grant_id: r.grant_id,
+        started_at: r.started_at,
+      })),
     };
   }
 
+  /** The sessions running now (M19: the heartbeat reporter beats each of them). */
+  sessions(): RunningSession[] {
+    return [...this.running.values()].map((r) => ({ ...r }));
+  }
+
   /** Takes a slot or says why not. Synchronous: no other session can slip in between the count and the take. */
-  private acquire(spec: SandboxSpec, grantId: string): Result<() => void, SandboxError> {
+  private acquire(
+    spec: SandboxSpec,
+    grant: NonNullable<SandboxSpec['grant']>,
+  ): Result<() => void, SandboxError> {
     if (this.running.has(spec.session_id)) {
       return err(sandboxError('refused', `session ${spec.session_id} is already running`));
     }
@@ -100,12 +118,20 @@ export class SandboxController {
         return err(sandboxError('busy', `the runner host is at its coding cap (${caps.coding})`));
       }
     }
-    this.running.set(spec.session_id, {
+    const r: RunningSession = {
       session_id: spec.session_id,
       class: spec.class,
-      grant_id: grantId,
+      grant_id: grant.grant_id,
+      item_id: grant.item_id,
+      unit_id: grant.unit_id,
       started_at: (this.d.now ?? (() => new Date()))().toISOString(),
-    });
+    };
+    this.running.set(spec.session_id, r);
+    try {
+      this.d.onStart?.({ ...r });
+    } catch {
+      // a reporter's fault never touches the session
+    }
     let released = false;
     return ok(() => {
       if (released) return;
@@ -153,7 +179,7 @@ export class SandboxController {
         ),
       );
     }
-    const slot = this.acquire(spec, grant.grant_id);
+    const slot = this.acquire(spec, grant);
     if (!slot.ok) return slot;
     try {
       return await this.d.driver.run(spec);

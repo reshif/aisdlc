@@ -10,6 +10,8 @@ import {
   DataClass,
   IntegrationEvent,
   IntegrationHealthTiles,
+  HealthView,
+  DegradedView,
   ItemListView,
   KillsView,
   ProjectId,
@@ -52,6 +54,9 @@ import { higher } from './levels.js';
 //   GET  /api/kills                      the kill switch's journal as core observed it   (ops.read, fleet)
 //   GET  /api/audit/decisions            the PDP decision log                            (audit.read, fleet)
 //   GET  /api/integrations               health tiles and the ledgered registry events   (quality.read or ops.read, fleet)
+//   GET  /api/health                     M19: the service and loop tiles (HealthSnapshot) (ops.read, fleet)
+//   GET  /api/degraded?projects=         M19: kill verdicts, the Notary, stale read models  (signed in; only the
+//                                        projects the person may view are asked about)
 //   GET  /api/directory                  principals and teams                            (audit.read, fleet)
 //   GET  /api/projects/:id/explain       who holds a role on the project, what the PDP allows them (access.explain)
 
@@ -87,6 +92,8 @@ const ApplyBody = z.strictObject({
   scope: ControlScope,
   params: z.record(z.string(), z.unknown()).optional(),
   expires_at: z.iso.datetime().nullable().optional(),
+  /** M19 (StepUpUse): a step-up proof bound to the preview's blast radius hash; core verifies and records it. */
+  step_up: z.strictObject({ proof: z.string().min(1).max(8192) }).optional(),
 });
 const LiftBody = z.strictObject({ reason: z.string().min(1).max(500) });
 
@@ -236,6 +243,31 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     );
     if (!events) return;
     return { health, events };
+  });
+
+  app.get('/api/degraded', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const raw = (req.query as { projects?: unknown }).projects;
+    const asked = (typeof raw === 'string' ? raw.split(',') : [])
+      .map((p) => p.trim())
+      .filter((p) => ProjectId.safeParse(p).success);
+    if (asked.length > 50) return sendError(reply, 400, 'invalid_input', 'at most 50 projects');
+    const who = d.principalOf(req);
+    // a project the person may not view is not asked about (and not named back)
+    const projects: string[] = [];
+    for (const p of [...new Set(asked)]) {
+      if (await allowed(who, 'project.view', pdpResource.project(p))) projects.push(p);
+    }
+    const qs = new URLSearchParams({ projects: projects.join(',') });
+    return upstream(reply, await c.call('GET', `/v1/degraded?${qs}`), (v) => DegradedView.parse(v));
+  });
+
+  // Operate › Health (PLAN §7a: ops.read)
+  app.get('/api/health', async (req, reply) => {
+    const c = await fleetReader(req, reply, 'ops.read');
+    if (!c) return;
+    return upstream(reply, await c.call('GET', '/v1/health'), (v) => HealthView.parse(v));
   });
 
   // ------------------------------------------------------------ operate

@@ -211,7 +211,22 @@ describe('operate: kill switch and health', () => {
     expect(screen.queryByRole('button', { name: /kill/i })).toBeNull();
   });
 
-  it('health: integration tiles now, service and loop tiles marked for M19', async () => {
+  it('health: service and loop tiles from the snapshots, integrations beside them; unknown is never ok', async () => {
+    const st = (
+      tile_id: string,
+      state: string,
+      over: Record<string, unknown> = {},
+    ): Record<string, unknown> => ({
+      tile_id,
+      domain: tile_id.startsWith('loop.') ? 'loop' : 'service',
+      label: tile_id.split('.').slice(1).join(' / '),
+      state,
+      detail_code: state === 'ok' ? 'ok' : 'unreachable',
+      sli_value: 4,
+      as_of: T,
+      stale: false,
+      ...over,
+    });
     mockApi({
       'GET /api/me': { json: AUDITOR() },
       'GET /api/integrations': {
@@ -220,10 +235,54 @@ describe('operate: kill switch and health', () => {
           events: [],
         },
       },
+      'GET /api/health': {
+        json: {
+          as_of: T,
+          overall: 'down',
+          counts: { ok: 1, degraded: 0, down: 1, unknown: 2 },
+          tiles: [
+            st('service.notary', 'ok'),
+            st('service.gateway', 'down'),
+            st('service.core', 'unknown', { detail_code: 'stale', stale: true, sli_value: null }),
+            st('service.verify', 'unknown', {
+              detail_code: 'no_report',
+              as_of: null,
+              sli_value: null,
+            }),
+            st('loop.core-worker.outbox_watch', 'ok', { label: 'core-worker / outbox_watch' }),
+          ],
+        },
+      },
     });
     renderAt('/health');
-    expect(await screen.findByRole('list', { name: 'Integrations' })).toHaveTextContent('down');
-    expect(screen.getByTestId('not-built')).toHaveTextContent('not built yet (M19)');
+    const services = await screen.findByRole('list', { name: 'Services' });
+    const card = (name: string) => within(services).getByText(name).closest('li') as HTMLElement;
+    expect(card('notary')).toHaveAttribute('data-state', 'ok');
+    expect(card('notary')).toHaveTextContent('4 ms');
+    expect(card('gateway')).toHaveTextContent('unreachable');
+    expect(card('core')).toHaveAttribute('data-state', 'unknown');
+    expect(card('core')).toHaveTextContent('reading older than two minutes');
+    expect(card('verify')).toHaveTextContent('nothing has read it');
+    expect(
+      within(screen.getByRole('list', { name: 'Loops' })).getByText('core-worker / outbox_watch'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent('Unknown is not healthy');
+    expect(screen.getByRole('list', { name: 'Health summary' })).toHaveTextContent('down');
+    expect(screen.getByRole('list', { name: 'Integrations' })).toHaveTextContent('down');
+    expect(screen.queryByTestId('not-built')).toBeNull();
+  });
+
+  it('health: the tiles that cannot be read say so (never an empty green page)', async () => {
+    mockApi({
+      'GET /api/me': { json: AUDITOR() },
+      'GET /api/integrations': {
+        json: { health: { as_of: T, registry_revision: null, tiles: [] }, events: [] },
+      },
+      'GET /api/health': { status: 502, json: { error: { code: 'upstream', message: 'x' } } },
+    });
+    renderAt('/health');
+    expect(await screen.findByText(/service and loop tiles/i)).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Services' })).toBeNull();
   });
 });
 

@@ -6,6 +6,7 @@ import { CatalogueRef } from './config.js';
 import { LintRuleId } from './detectors.js';
 import { PrrGatingProfile } from './readiness.js';
 import {
+  CardId,
   IsoDateTime,
   PrincipalId,
   ProjectId,
@@ -907,6 +908,10 @@ export const ItemView = z.strictObject({
       gate_instance_id: z.string(),
       status: z.enum(['pending', 'decided']),
       outcome: z.string().nullable(),
+      /** The decision card the gate is decided on (from the record's `card.opened`); `null` when none is known. */
+      card_id: CardId.nullable(),
+      /** The ledger entry of the decision; `null` while pending (or for a decision recorded without one). */
+      ledger_entry_id: z.string().min(1).nullable(),
     }),
   ),
   outstanding: z.number().int().min(0),

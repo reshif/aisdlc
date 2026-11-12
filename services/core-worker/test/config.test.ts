@@ -208,3 +208,33 @@ describe('core-worker config: the issue twin’s own App (PLAN M16)', () => {
     expect(() => coreWorkerConfigFromEnv(noKnowledge)).toThrow(/CORE_WORKER_KNOWLEDGE_URL/);
   });
 });
+
+describe('core-worker config: the health targets (M19)', () => {
+  const base = (): Record<string, string> => {
+    const rest: Record<string, string> = { ...BASE };
+    delete rest['CORE_WORKER_STAGE_PORTS'];
+    return rest;
+  };
+  it('none by default; a url or {url, path} per service', () => {
+    expect(coreWorkerConfigFromEnv(base()).healthTargets).toEqual({});
+    const cfg = coreWorkerConfigFromEnv({
+      ...base(),
+      CORE_WORKER_HEALTH_TARGETS: JSON.stringify({
+        notary: 'http://notary:8310',
+        'object-store': { url: 'http://object-store:9000', path: '/minio/health/live' },
+      }),
+    });
+    expect(cfg.healthTargets).toEqual({
+      notary: { url: 'http://notary:8310' },
+      'object-store': { url: 'http://object-store:9000', path: '/minio/health/live' },
+    });
+    expect(cfg.healthIntervalMs).toBe(30_000);
+  });
+  it('refuses what is not JSON, a bad name, or a URL that is not http(s)', () => {
+    for (const v of ['nope', '{"Bad":"http://x"}', '{"a":"ftp://x/y"}', '{"a":"x"}']) {
+      expect(() => coreWorkerConfigFromEnv({ ...base(), CORE_WORKER_HEALTH_TARGETS: v })).toThrow(
+        /CORE_WORKER_HEALTH_TARGETS/,
+      );
+    }
+  });
+});

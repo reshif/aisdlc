@@ -6,6 +6,7 @@ import {
   SandboxClassValues,
   pdpResource,
   type AdmissionGrant,
+  type HealthTile,
   type ControlKind,
   type OpsControl,
   type OpsPreview,
@@ -30,6 +31,7 @@ import {
   Table,
   useToast,
   type Column,
+  type PillTone,
 } from '../ui';
 import { IntegrationTiles } from './QualityPages';
 
@@ -619,10 +621,51 @@ export function KillPage() {
 
 // ---------------------------------------------------------------- health
 
+const TILE_TONE: Readonly<Record<HealthTile['state'], PillTone>> = {
+  ok: 'ok',
+  degraded: 'warn',
+  down: 'bad',
+  unknown: 'mute',
+};
+
+/** What a tile's reading says, in words: a stale or missing reading is said, never shown as healthy. */
+function readingOf(t: HealthTile): string {
+  if (t.stale) return 'reading older than two minutes';
+  if (t.as_of === null) return 'nothing has read it';
+  const sli =
+    t.sli_value !== null && t.domain === 'service' ? ` · ${Math.round(t.sli_value)} ms` : '';
+  return `as of ${shortTime(t.as_of)}${sli}`;
+}
+
+export function HealthTiles({ tiles, label }: { tiles: readonly HealthTile[]; label: string }) {
+  if (tiles.length === 0) return <p className="muted">Nothing to show.</p>;
+  return (
+    <ul className="pg-tiles" aria-label={label}>
+      {tiles.map((t) => (
+        <li key={t.tile_id} className="ui-card pg-tile" data-state={t.state}>
+          <div className="pg-tile-hd">
+            <b>{t.label}</b>
+            <Pill tone={TILE_TONE[t.state]}>{t.state}</Pill>
+          </div>
+          <div className="muted">
+            {readingOf(t)}
+            {t.detail_code && t.detail_code !== 'ok' ? ` · ${t.detail_code}` : ''}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function HealthPage() {
   const q = useQuery({
     queryKey: ['integrations'],
     queryFn: api.integrations,
+    refetchInterval: 30_000,
+  });
+  const h = useQuery({
+    queryKey: ['health'],
+    queryFn: api.health,
     refetchInterval: 30_000,
   });
   return (
@@ -630,8 +673,33 @@ export function HealthPage() {
       <PageHead
         eyebrow="Operate"
         title="Health"
-        sub="How the factory's integrations are doing, in one shared shape: a report older than two minutes reads unknown, never ok."
+        sub="How the factory's services, loops and integrations are doing, in one shared shape: a reading older than two minutes reads unknown, never ok."
       />
+      <Read q={h} what="the service and loop tiles">
+        {(v) => (
+          <>
+            <Stats label="Health summary">
+              <Stat label="Overall" value={v.overall} />
+              <Stat label="Ok" value={v.counts.ok} />
+              <Stat label="Degraded" value={v.counts.degraded} />
+              <Stat label="Down" value={v.counts.down} />
+              <Stat label="Unknown" value={v.counts.unknown} />
+            </Stats>
+            {v.overall !== 'ok' ? (
+              <p className="muted" role="note">
+                Unknown is not healthy: a service nobody has read, or whose reading is older than
+                two minutes, is shown as unknown.
+              </p>
+            ) : null}
+            <Card title="Services">
+              <HealthTiles tiles={v.tiles.filter((t) => t.domain === 'service')} label="Services" />
+            </Card>
+            <Card title="Loops">
+              <HealthTiles tiles={v.tiles.filter((t) => t.domain === 'loop')} label="Loops" />
+            </Card>
+          </>
+        )}
+      </Read>
       <Read q={q} what="the health tiles">
         {(v) => (
           <Card title="Integrations" actions={<Link to="/integrations">Integrations</Link>}>
@@ -639,11 +707,6 @@ export function HealthPage() {
           </Card>
         )}
       </Read>
-      <NotBuilt title="Service and loop tiles" milestone="M19">
-        Each service&rsquo;s health and core-worker&rsquo;s loops (HealthSnapshot, HealthTile,
-        Heartbeat) are M19 read models; until then core-worker&rsquo;s <code>/healthz</code> is the
-        one aggregated answer, read by the compose health checks.
-      </NotBuilt>
     </>
   );
 }

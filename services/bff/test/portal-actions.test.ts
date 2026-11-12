@@ -87,7 +87,13 @@ const refusedFor = (r: { status: number; json: Json }, action: string) => {
 
 describe('the switched routes ask the new action (PLAN §7a)', () => {
   it('Operate is ops.read: an auditor with audit.read but not ops.read is refused every Operate read', async () => {
-    for (const path of ['/api/admission', '/api/slots', '/api/controls', '/api/kills']) {
+    for (const path of [
+      '/api/admission',
+      '/api/slots',
+      '/api/controls',
+      '/api/kills',
+      '/api/health',
+    ]) {
       refusedFor(await api('carol', 'GET', path), 'ops.read');
     }
     // lifting a control first reads the controls: the same guard, before control.lift
