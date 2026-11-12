@@ -253,6 +253,11 @@ describe('6.3: A6 writes the oracle test files from the G2-approved specs', () =
         rec?.deviations.map((d) => d.kind),
         name,
       ).toContain(kind);
+      // P1-8: the same deviations go to the record with the gate (the portal's oracle diff)
+      expect((o as { detail?: unknown }).detail, name).toEqual({
+        kind: 'oracle_deviation',
+        deviations: rec?.deviations,
+      });
     }
   });
 

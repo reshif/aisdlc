@@ -43,7 +43,10 @@ import {
   RevisionDecideRequest,
   RevisionEvidenceRequest,
   S0Overview,
-  SubmitRequestBody,
+  ASK_LANE_WITHOUT_HINT,
+  PortalAskRequest,
+  SubmitRequestReceipt,
+  type PortalRequestReceipt,
   S0Revision,
   SettingsRevisionView,
   pdpResource,
@@ -138,7 +141,7 @@ const uuid = z.uuid();
 /** What the browser may send to start an onboarding: `on_behalf_of` is the session's, not a field. */
 export const PortalOnboardBody = OnboardRequest.omit({ on_behalf_of: true });
 /** Portal Ask: the channel is the portal's (N1) and `on_behalf_of` the session's, neither is a field. */
-export const PortalAskBody = SubmitRequestBody.omit({ on_behalf_of: true, channel: true });
+export const PortalAskBody = PortalAskRequest;
 export const PortalEvidenceBody = CardEvidenceRequest.omit({ on_behalf_of: true });
 export const PortalDecideBody = CardDecideRequest.omit({ on_behalf_of: true });
 /** Card 2 (M16): a person edits a file's proposed instruction text. */
@@ -298,12 +301,20 @@ export function registerPortalRoutes(d: PortalDeps): void {
     }
     const r = await c.call('POST', '/v1/requests', {
       ...body.data,
+      lane: body.data.lane ?? ASK_LANE_WITHOUT_HINT,
       channel: 'N1',
       on_behalf_of: who,
     });
-    const got = upstream(reply, r);
+    const got = upstream(reply, r, (v) => SubmitRequestReceipt.parse(v));
     if (!got) return;
-    return reply.code(r.reached && r.status === 201 ? 201 : 200).send(got.value);
+    // the receipt (P1-1): core's, with the name of each person who decides G0 and G1
+    const receipt: PortalRequestReceipt = {
+      ...got.value,
+      principal_names: await names([
+        ...new Set(got.value.deciders.flatMap((x) => x.holders ?? [])),
+      ]),
+    };
+    return reply.code(r.reached && r.status === 201 ? 201 : 200).send(receipt);
   });
 
   /** The item, read through core as the person (core asks the PDP too), and the bff's own yes on its project. */
@@ -641,8 +652,20 @@ export function registerPortalRoutes(d: PortalDeps): void {
     const lv = await contentLevels(req, reply, got.value.project_id);
     if (!lv) return;
     const ctx = cutGateContext(got.value, lv.data_class);
+    // the people the subject names (G4's path owners and authors, G6's requester) are named too
+    const sub = ctx.subject;
+    const named =
+      sub?.kind === 'merge_review'
+        ? [...sub.review.deciders.principals, ...sub.review.authors]
+        : sub?.kind === 'acceptance' && sub.acceptance
+          ? [sub.acceptance.requester]
+          : [];
     const ids = [
-      ...new Set([...ctx.decisions.map((x) => x.actor), ...(ctx.requester ? [ctx.requester] : [])]),
+      ...new Set([
+        ...ctx.decisions.map((x) => x.actor),
+        ...(ctx.requester ? [ctx.requester] : []),
+        ...named,
+      ]),
     ];
     return { ...ctx, principal_names: await names(ids) };
   });

@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { ServiceConfigError, resolveSecretRef, type SecretRefDeps } from './auth.js';
+import { telemetryFromEnv, type TelemetryConfig } from './telemetry.js';
 
 export type Env = Record<string, string | undefined>;
 
@@ -18,14 +19,20 @@ export function listenConfig(
   env: Env,
   prefix: string,
   defaultPort: number,
-): { host: string; port: number } {
+): { host: string; port: number; telemetry?: TelemetryConfig } {
   const raw = env[`${prefix}_PORT`];
   const port = raw === undefined || raw === '' ? defaultPort : Number(raw);
   if (!Number.isInteger(port) || port < 0 || port > 65_535) {
     throw new ServiceConfigError(`${prefix}_PORT must be an integer from 0 to 65535, got ${raw}`);
   }
   const host = env[`${prefix}_HOST`];
-  return { host: host === undefined || host === '' ? '127.0.0.1' : host, port };
+  // M19: the OTLP exporter, when OTEL_EXPORTER_OTLP_ENDPOINT is set (`listen` instruments the app with it)
+  const telemetry = telemetryFromEnv(env, prefix.toLowerCase().replace(/_/g, '-'));
+  return {
+    host: host === undefined || host === '' ? '127.0.0.1' : host,
+    port,
+    ...(telemetry ? { telemetry } : {}),
+  };
 }
 
 /** A required variable holding JSON that matches `schema`. Secrets in it are references only. */

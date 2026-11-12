@@ -278,6 +278,8 @@ const STATION: Record<string, string> = {
   X2: '7.4!X2',
   X3: '6.4!X3',
   E2: '4.5!E2',
+  X1: '6.4!X1',
+  G3o: '6.3!G3o',
 };
 
 /** `GET /api/cards/:id/gate/context`. */
@@ -328,6 +330,7 @@ export const gateContext = (gate: string, over: Record<string, unknown> = {}) =>
         }
       : null,
   onboarding_pack: null,
+  subject: null,
   data_class: 'D1',
   principal_names: { alice: 'Alice Admin', bob: 'Bob Builder', carol: 'Carol Customer' },
   ...over,

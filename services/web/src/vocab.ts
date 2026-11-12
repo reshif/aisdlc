@@ -1,5 +1,8 @@
 import {
   STEPS,
+  type EligibilityReason,
+  type EligibilityRoute,
+  type WorkIntakeState,
   type FloorItemStatus,
   type FloorRoom,
   type FloorStage,
@@ -162,4 +165,39 @@ export const FLOOR_STATUS_TEXT: Readonly<
   stuck: { label: 'stuck', tone: 'bad' },
   done: { label: 'done', tone: 'ok' },
   declined: { label: 'declined', tone: 'mute' },
+};
+
+/** 1.4's reason for a verdict on the asked lane, for the request receipt (P2-17). */
+export const ELIGIBILITY_REASON_TEXT: Readonly<Record<EligibilityReason, string>> = {
+  eligible: 'the repo is ready for the lane you asked for',
+  no_active_prr: 'the repo has no active readiness record yet',
+  prr_stale: 'the repo’s readiness record is stale',
+  prr_suspended: 'the repo’s readiness record is suspended (drift)',
+  prr_expired: 'the repo’s readiness record has expired',
+  level_too_low: 'the repo’s level does not open the lane you asked for',
+  lane_unspecified:
+    'the catalogue leaves this lane undecided at the repo’s level, so it is not open',
+  tier_requires_full: 'the project’s tier needs Full for an agent-led lane',
+  posture_red: 'the repo’s security posture is red',
+  staging_separation_not_attested: 'the lane needs staging separation attested, and it is not',
+  circuit_breaker: 'the lane’s circuit breaker is tripped for the project',
+  followup_overdue: 'a hotfix follow-up is overdue on the project',
+  area_unknown: 'the readiness record does not cover the area named',
+};
+
+/** Where 1.4 sends a request. */
+export const ELIGIBILITY_ROUTE_TEXT: Readonly<Record<EligibilityRoute, string>> = {
+  normal: 'runs in the lane',
+  n8_hold: 'held (N8) until a readiness record opens the lane',
+  l8: 'routed to L8: a person does the work, the factory checks it',
+};
+
+/** Where a request stands once intake ran. */
+export const INTAKE_STATE_TEXT: Readonly<Record<WorkIntakeState, string>> = {
+  requested: 'recorded',
+  held: 'held: no item until the lane opens',
+  admitted: 'admitted: a work item was made',
+  routed_l8: 'routed to L8: a work item was made',
+  released: 'released from its hold',
+  l8_offered: 'offered as L8',
 };

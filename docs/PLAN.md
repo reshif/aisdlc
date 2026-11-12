@@ -343,7 +343,13 @@ Built so far (`build/m19`, 2026-11-12):
 - **Score chips.** each station shows its lowest agent score (AgentScore under the current prompt, ScoreSignal counts), low under `factory.floor.low_score`.
 - **Kill banner.** core-worker's `/admission` verdict (`CORE_ADMISSION_URL`); unreachable or unconfigured reads killed (AR9).
 - **Fleet.** FloorProject per project (`GET /v1/fleet`, bff `GET /api/fleet` cut per person: confidential without a role collapsed), web `/fleet`.
-- **Still open in M19.** A reporter that posts heartbeats (the sandbox-controller or the runner: until one does, a session's model calls and dispatches are its only activity), HealthSnapshot/HealthTile on the floor, StepUpUse backfill, and the two audit services.
+Built (`build/m19b`, 2026-11-12):
+
+- **Heartbeats.** The sandbox-controller is the reporter: each running session beats at start and every 30 s to core's `POST /v1/sessions/heartbeat` with its own token (scope `activity` only, network `core-activity`); probes never beat; a failed beat never touches the session.
+- **HealthSnapshot / HealthTile.** core-worker's `health_snapshot` loop reads its own loops and every service in `CORE_WORKER_HEALTH_TARGETS` (`/healthz`; a loop host's answer gives its loops) every 30 s into `core.health_snapshot` (ephemeral, migration `0022_health.sql`); core `GET /v1/health`, bff `/api/health` (audit.read), the Operate › Health screen. Older than two minutes, or never read, is unknown.
+- **Telemetry.** `@aisdlc/service-kit` has a minimal OTLP/HTTP JSON exporter (no dependency): with `OTEL_EXPORTER_OTLP_ENDPOINT` set, `listen()` exports a content-free server span per request and the request duration histogram. Compose profile `telemetry`: `otel-collector` pinned by digest, hardened, no way out, on two networks that open no new path (`telemetry`, `telemetry-bff`).
+- **Degraded states and drills.** StepUpUse on ops actions (recorded with the action, carried into its ledger entry, also by the new `ops_backfill` loop after a Notary outage); `GET /v1/degraded` (bff `/api/degraded`) and the inbox and item page notices (kill or unreachable reads killed, the Notary down, stale read models); `createPool` and `withTransaction` survive a failover (they crashed the process before); `platform/compose/drill.sh postgres|notary|killswitch` with a runbook each in `docs/runbooks/`.
+- **Still open in M19.** The two audit services; the load test (last and separate); StepUpUse required (not only accepted) on R-tier actions once the portal has step-up on controls; the runner-killed-mid-session drill; telemetry from the services outside `app` (each needs its own network to the collector) and trace propagation on outbound calls; the health tiles of the profile services core-worker does not reach.
 
 ### M20 — Dogfood (OB R5, R7)
 

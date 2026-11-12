@@ -5,6 +5,7 @@ import {
   G5_FACTS_KEY,
   GATERELAY_EVENT,
   ITEM_EVENT,
+  cutGateContext,
   deployMarkerHash,
   deployMarkerId,
   g5SubjectHash,
@@ -13,17 +14,19 @@ import {
   type ReleaseBinding,
 } from '@aisdlc/contracts';
 import { readOpened } from '@aisdlc/decisions';
-import { sha256Hex } from '@aisdlc/kernel';
+import { hashCanonical, sha256Hex } from '@aisdlc/kernel';
 import { FakeStagePorts } from '@aisdlc/ports';
 import { appendEvents, runProjection, type JsonObject } from '@aisdlc/record';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
+  gateCardContext,
   ingestItem,
   readItem,
   readItemEvents,
   reRequestRelease,
   releaseBindingOf,
   releaseStagePorts,
+  storeArtefact,
   submitRequest,
   type WorkDriverDeps,
 } from '../src/index.js';
@@ -31,6 +34,8 @@ import { pid, pr, publishSettings, startCoreStack, type CoreStack } from '../src
 import {
   GATING_ON,
   approvers,
+  cardOfGate,
+  decideGate,
   driverOver,
   loadReports,
   runItem,
@@ -54,8 +59,8 @@ afterAll(async () => {
   await s.stop();
 });
 
-const ok = <T>(r: { ok: true; value: T } | { ok: false; error: { message: string } }): T => {
-  if (!r.ok) throw new Error(r.error.message);
+const ok = <T>(r: { ok: true; value: T } | { ok: false; error: unknown }): T => {
+  if (!r.ok) throw new Error(JSON.stringify(r.error));
   return r.value;
 };
 const MERGED = '1'.repeat(40);
@@ -103,7 +108,7 @@ async function pushedAndVerified(itemId: string, repo: string, prHead = HEAD) {
   await s.record.pool.query(
     `INSERT INTO core.evidence_pack (pack_sha256, command_key, item_id, unit_key, base_sha, head_sha, disposition,
        passing, detail, bucket, object_key, key_id, produced_at, event_gseq)
-     VALUES ($1, $2, $3, 'main', $4, $5, 'passed', true, '{}', 'evidence-packs', $1, 'dev:notary', now(), 1)`,
+     VALUES ($1, $2, $3, 'main', $4, $5, 'passed', true, '{"kind":"passed"}', 'evidence-packs', $1, 'dev:notary', now(), 1)`,
     [sha256Hex(`pack:${itemId}`), `cmd:${itemId}`, itemId, '0'.repeat(40), HEAD],
   );
 }
@@ -350,5 +355,154 @@ describe('not released is RELHOLD; a rollback is B16’s NEW linked item; a re-r
     expect(held?.state.waiting).toMatchObject({ kind: 'release_held' });
     expect(held?.state.spawns[0]).toMatchObject({ edge: 'B16', kind: 'rollback', lane: 'L0' });
     expect(held?.state.rework.by_edge['B16']).toBe(1);
+  });
+});
+
+describe('the G5 and G6 cards in the portal (P1-7): what the gate context says they decide', () => {
+  it('G5: the binding, the target now, the PR and the release evidence, gate-relay’s state; G6: the intent against what merged', async () => {
+    const p = await project({ mode: 'target', environment: 'production' });
+    const id = await newItem(p);
+    const intent = ok(
+      await storeArtefact(s.deps, {
+        item_id: id,
+        project_id: p.project,
+        type: 'intent_block',
+        step: '1.5',
+        command_key: `seed/1.5/${id}`,
+        run_id: null,
+        content: {
+          kind: 'intent_block',
+          goal: 'Admins can export orders',
+          non_goals: ['No PDF'],
+          acceptance_criteria: ['An admin can download a CSV', 'The CSV has one row per order'],
+          open_questions: [],
+          assumptions: [],
+        },
+      }),
+    );
+    const d = driver();
+    // 1.5 answers with the stored intent block: G0 and G1 bind it, and G6 shows what they approved
+    (d.ports as unknown as FakeStagePorts).planning.scriptStep('1.5', [
+      { outcome: 'completed', output_hash: intent.sha256 as never },
+    ]);
+    await toMerged(d, id, p.repo);
+    await runItem(s, d, id, {
+      decide: (g) => (g === 'G5' ? 'hold' : 'approve'),
+      stop: (st) => st.gates.some((g) => g.gate === 'G5'),
+    });
+    const g5 = (await g5Of(id))?.[0];
+    const g5card = await cardOfGate(s, id, g5?.gate_instance_id as string);
+    const c5 = ok(await gateCardContext(s.record.pool, g5card));
+    expect(c5).toMatchObject({ gate: 'G5', step_up: { required: true } });
+    const opened = await readOpened(s.record.pool, g5?.gate_instance_id as string);
+    expect(c5.binds).toContainEqual({
+      label: 'release binding',
+      value: hashCanonical(opened?.payload.facts[G5_FACTS_KEY] as never),
+    });
+    if (c5.subject?.kind !== 'release') throw new Error('not a release');
+    expect(c5.subject).toMatchObject({
+      binding: {
+        status: 'bound',
+        merged_sha: MERGED,
+        pack_head_sha: HEAD,
+        environment: 'production',
+      },
+      target_now: { state: 'ok', setting: { mode: 'target', environment: 'production' } },
+      target_changed: false,
+      pr: { repo: p.repo, number: n, url: `https://github.com/${p.repo}/pull/${n}` },
+      pack: { pack_sha256: sha256Hex(`pack:${id}`), passing: true },
+      deployment: { state: 'none', refusal: null, marker: null },
+    });
+    // approved; gate-relay deploys and the deploy system says healthy: the card shows it
+    ok(await decideGate(s, g5?.gate_instance_id as string, 'bob', 'approve'));
+    const marker = await relay(
+      id,
+      g5?.gate_instance_id as string,
+      opened?.payload.facts[G5_FACTS_KEY] as never,
+      'healthy',
+    );
+    const again = ok(await gateCardContext(s.record.pool, g5card));
+    expect(again.subject?.kind === 'release' && again.subject.deployment).toEqual({
+      state: 'healthy',
+      refusal: null,
+      marker: {
+        marker_id: marker.marker_id,
+        environment: 'production',
+        merged_sha: MERGED,
+        deployment_id: 7,
+        created_at: marker.created_at,
+      },
+      rollback_marker_id: null,
+    });
+
+    // S8b released: G6 opens for the requester, of the merged commit and the release
+    s.clock.advance(1000);
+    await runItem(s, d, id, {
+      decide: (g) => (g === 'G6' ? 'hold' : 'approve'),
+      stop: (st) => st.gates.some((g) => g.gate === 'G6' && g.status === 'pending'),
+    });
+    const g6 = (await state(id))?.gates.find((g) => g.gate === 'G6');
+    const c6 = ok(
+      await gateCardContext(s.record.pool, await cardOfGate(s, id, g6?.gate_instance_id as string)),
+    );
+    if (c6.subject?.kind !== 'acceptance') throw new Error('not an acceptance');
+    expect(c6.subject.acceptance).toEqual({
+      requester: 'alice',
+      merged_sha: MERGED,
+      release_output: deployMarkerHash(marker),
+    });
+    expect(c6.subject.intent).toMatchObject({
+      sha256: intent.sha256,
+      bound_by: expect.stringMatching(/^gate:/),
+      intact: true,
+      goal: 'Admins can export orders',
+      acceptance_criteria: ['An admin can download a CSV', 'The CSV has one row per order'],
+      non_goals: ['No PDF'],
+      withheld: false,
+    });
+    expect(c6.subject.merged).toEqual([
+      expect.objectContaining({
+        unit_key: 'main',
+        head_sha: HEAD,
+        pr: expect.objectContaining({ number: n }),
+        pack: expect.objectContaining({ passing: true }),
+      }),
+    ]);
+    expect(c6.subject.release).toEqual({ environment: 'production', state: 'healthy' });
+    // the intent's text is the content of the work: withheld below D1
+    const d0 = cutGateContext(c6, 'D0').subject;
+    expect(d0?.kind === 'acceptance' && d0.intent).toMatchObject({
+      goal: null,
+      acceptance_criteria: [],
+      withheld: true,
+    });
+  });
+
+  it('G5 when the project’s target moved since the card opened: target_changed (gate-relay would refuse)', async () => {
+    const p = await project({ mode: 'target', environment: 'production' });
+    const id = await newItem(p);
+    const d = driver();
+    await toMerged(d, id, p.repo);
+    await runItem(s, d, id, {
+      decide: (g) => (g === 'G5' ? 'hold' : 'approve'),
+      stop: (st) => st.gates.some((g) => g.gate === 'G5'),
+    });
+    await publishSettings(
+      s,
+      p.project,
+      { release: { mode: 'target', environment: 'staging' } },
+      'bob',
+      'alice',
+    );
+    await runProjection(s.record.pool, configProjection);
+    const g5 = (await g5Of(id))?.[0];
+    const c5 = ok(
+      await gateCardContext(s.record.pool, await cardOfGate(s, id, g5?.gate_instance_id as string)),
+    );
+    expect(c5.subject).toMatchObject({
+      kind: 'release',
+      target_now: { setting: { environment: 'staging' } },
+      target_changed: true,
+    });
   });
 });

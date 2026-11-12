@@ -93,6 +93,11 @@ function useAccessContext(): AccessContextValue {
   return c;
 }
 
+/** The signed-in person as `/api/me` told it (the per-project actions in it are hints, like every answer here). */
+export function useMe(): Me {
+  return useAccessContext().me;
+}
+
 /** GET /api/me/access for the signed-in person. */
 export function useAccess(): UseQueryResult<MyAccessView> {
   const { me } = useAccessContext();

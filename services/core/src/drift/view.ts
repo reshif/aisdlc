@@ -361,6 +361,7 @@ export async function driftInboxItems(
       holders: [...who.holders] as never,
       item_id: null,
       gate: null,
+      card_id: null,
       feasibility: who.error !== null ? 'unknown' : who.can_decide ? 'feasible' : 'infeasible',
       feasibility_reason:
         who.error !== null
