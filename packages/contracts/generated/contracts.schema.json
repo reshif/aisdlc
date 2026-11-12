@@ -1496,6 +1496,213 @@
         }
       ]
     },
+    "AgentPull": {
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "closed"
+          ]
+        },
+        "merged": {
+          "type": "boolean"
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "base_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "base_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mergeable": {
+          "type": "string",
+          "enum": [
+            "current",
+            "behind",
+            "conflict",
+            "unknown"
+          ]
+        },
+        "merge_commit_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "merged_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "merged_by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "number",
+        "state",
+        "merged",
+        "head_sha",
+        "base_ref",
+        "base_sha",
+        "mergeable",
+        "merge_commit_sha",
+        "merged_at",
+        "merged_by"
+      ],
+      "additionalProperties": false
+    },
+    "AgentPullsFact": {
+      "type": "object",
+      "properties": {
+        "pulls": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed"
+                ]
+              },
+              "merged": {
+                "type": "boolean"
+              },
+              "head_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "base_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "base_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "mergeable": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "behind",
+                  "conflict",
+                  "unknown"
+                ]
+              },
+              "merge_commit_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "merged_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "merged_by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "number",
+              "state",
+              "merged",
+              "head_sha",
+              "base_ref",
+              "base_sha",
+              "mergeable",
+              "merge_commit_sha",
+              "merged_at",
+              "merged_by"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "pulls"
+      ],
+      "additionalProperties": false
+    },
     "AgentRun": {
       "type": "object",
       "properties": {
@@ -31217,7 +31424,8 @@
       "enum": [
         "default_branch_head",
         "installation",
-        "effective_rules"
+        "effective_rules",
+        "agent_pulls"
       ]
     },
     "InboundFactPayload": {
@@ -31238,7 +31446,8 @@
           "enum": [
             "default_branch_head",
             "installation",
-            "effective_rules"
+            "effective_rules",
+            "agent_pulls"
           ]
         },
         "value": {
@@ -45661,6 +45870,207 @@
       ],
       "additionalProperties": false
     },
+    "MergeReconcileOutcome": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "post_hoc_review",
+        "rebased",
+        "conflict"
+      ]
+    },
+    "MergeReconcileReason": {
+      "type": "string",
+      "enum": [
+        "approved_head",
+        "no_approved_g4",
+        "head_not_approved",
+        "pack_not_bound",
+        "item_not_at_8_2",
+        "base_moved_clean_rebase",
+        "merge_conflict"
+      ]
+    },
+    "MergeReconciledPayload": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "post_hoc_review",
+            "rebased",
+            "conflict"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "approved_head",
+            "no_approved_g4",
+            "head_not_approved",
+            "pack_not_bound",
+            "item_not_at_8_2",
+            "base_moved_clean_rebase",
+            "merge_conflict"
+          ]
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "base_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "merge_commit_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "merged_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "merged_by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approved": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "gate_instance_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "head_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "pack_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "gate_instance_id",
+                "head_sha",
+                "pack_sha256"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "b15a": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taken": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "limit": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "taken",
+                "limit"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "item_id",
+        "repo",
+        "pr_number",
+        "unit_key",
+        "outcome",
+        "reason",
+        "head_sha",
+        "base_sha",
+        "merge_commit_sha",
+        "merged_at",
+        "merged_by",
+        "approved",
+        "b15a"
+      ],
+      "additionalProperties": false
+    },
     "ModelCallOutcome": {
       "type": "string",
       "enum": [
@@ -51071,6 +51481,15 @@
         "red",
         "amber",
         "green"
+      ]
+    },
+    "PrMergeability": {
+      "type": "string",
+      "enum": [
+        "current",
+        "behind",
+        "conflict",
+        "unknown"
       ]
     },
     "PresenceFact": {

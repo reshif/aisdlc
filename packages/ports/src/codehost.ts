@@ -18,6 +18,7 @@ import {
   type GitSha,
   type InstallationInfo,
   type InstallationRepo,
+  type PrMergeability,
   type RepoFullName,
   type RequiredCheck,
 } from '@aisdlc/contracts';
@@ -110,6 +111,15 @@ export interface PrStatus {
   readonly merged: boolean;
   readonly head_sha: GitSha;
   readonly draft: boolean;
+  /** M15.2: the base branch and its commit as the host reports it now (`null`: it did not say). */
+  readonly base_ref: string;
+  readonly base_sha: GitSha | null;
+  /** M15.2: can it merge onto the base as it is (the base moved, a conflict): GitHub's `mergeable_state`. */
+  readonly mergeable: PrMergeability;
+  /** M15.2: the merge, once a person merged it (all `null` before). */
+  readonly merge_commit_sha: GitSha | null;
+  readonly merged_at: string | null;
+  readonly merged_by: string | null;
   /** `false`: the check runs were not read (no token of the Push Broker can), so `checks` is empty and says nothing. */
   readonly checks_read: boolean;
   readonly checks: ReadonlyArray<{

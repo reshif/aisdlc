@@ -12,6 +12,7 @@ import {
   type GateCheckAuthor,
   type GitSha,
   type GithubPermissions,
+  type PrMergeability,
 } from '@aisdlc/contracts';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -134,6 +135,8 @@ interface FakePr {
   merged_by: string | null;
   merge_commit_sha: string | null;
   merged_at: string | null;
+  /** M15.2: what the host says of merging it onto its base (`setPullBaseState`); `current` by default. */
+  mergeable?: PrMergeability;
 }
 
 /** An App's credential on the fake host: its id and what its installation token carries. */
@@ -533,12 +536,21 @@ export class FakeGitHub implements CodeHostPort {
     if (!this.repoKnown(req.repo)) return this.missingRepo(req.repo);
     const pr = this.prs.get(repoKey(req.repo))?.find((p) => p.number === req.number);
     if (!pr) return readUnreadable('not_found', `no pull request ${req.number}`);
+    const base =
+      this.seed.heads.find((h) => repoKey(h.repo) === repoKey(req.repo) && h.branch === pr.base_ref)
+        ?.sha ?? null;
     return readOk({
       number: pr.number,
       state: pr.state,
       merged: pr.merged,
       head_sha: pr.head_sha,
       draft: pr.draft,
+      base_ref: pr.base_ref,
+      base_sha: base,
+      mergeable: pr.merged ? 'unknown' : (pr.mergeable ?? 'current'),
+      merge_commit_sha: pr.merged ? pr.merge_commit_sha : null,
+      merged_at: pr.merged ? pr.merged_at : null,
+      merged_by: pr.merged ? pr.merged_by : null,
       checks_read: false,
       checks: [],
     });
@@ -602,6 +614,14 @@ export class FakeGitHub implements CodeHostPort {
     pr.merged_by = by;
     pr.merged_at = at;
     pr.merge_commit_sha = createHash('sha1').update(`merge\0${pr.head_sha}\0${by}`).digest('hex');
+    return this;
+  }
+
+  /** M15.2: what the host reports of merging a PR onto its base (the base moved: `behind`; a conflict: `conflict`). */
+  setPullBaseState(repo: string, number: number, m: PrMergeability): this {
+    const pr = this.prOf(repo, number);
+    if (!pr) throw new Error(`no pull request ${number}`);
+    pr.mergeable = m;
     return this;
   }
 

@@ -48,6 +48,8 @@ export interface FakePull {
   merged_by: string | null;
   merge_commit_sha: string | null;
   merged_at: string | null;
+  /** M15.2: GitHub's `mergeable_state` (`clean` by default; `behind`, `dirty`: `setPullBaseState`). */
+  mergeable_state?: string;
 }
 
 /** A check run the fake holds (M14.5), with the App that wrote it. */
@@ -204,6 +206,12 @@ export class FakeGitHubServer {
     p.head.sha = sha;
     p.commits.push({ sha, message });
     return this.moveBranch(repo, p.head.ref, sha);
+  }
+
+  /** M15.2: what GitHub says of merging a PR onto its base (`behind`: the base moved; `dirty`: a conflict). */
+  setPullBaseState(repo: string, number: number, state: string): this {
+    this.pullOf(repo, number).mergeable_state = state;
+    return this;
   }
 
   /** A person merges a PR on the host (never the factory: the test's hand; no route of the API merges). */
@@ -718,7 +726,14 @@ export class FakeGitHubServer {
       title: p.title,
       body: p.body,
       head: { ref: p.head.ref, sha: p.head.sha, label: `${p.repo.split('/')[0]}:${p.head.ref}` },
-      base: { ref: p.base.ref },
+      base: {
+        ref: p.base.ref,
+        sha:
+          this.seed.heads.find(
+            (h) => repoKey(h.repo) === repoKey(p.repo) && h.branch === p.base.ref,
+          )?.sha ?? null,
+      },
+      mergeable_state: p.merged ? 'unknown' : (p.mergeable_state ?? 'clean'),
       user: { login: p.user.login, type: p.user.type },
       merged_by: p.merged_by === null ? null : { login: p.merged_by, type: 'User' },
       merge_commit_sha: p.merge_commit_sha,

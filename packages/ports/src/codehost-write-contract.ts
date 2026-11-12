@@ -24,6 +24,10 @@ export interface CodeHostWriteHarness {
   requests(): readonly LoggedRequest[];
   /** Somebody else moved the branch (a person pushed): the host's branch is now at `sha`. */
   moveBranch(repo: string, branch: string, sha: string): void;
+  /** M15.2: a person merges the PR on the host (the test's hand). */
+  landPull(repo: string, number: number, by: string): void;
+  /** M15.2: the host reports the PR's mergeability as GitHub's `mergeable_state` (`behind`, `dirty`, ...). */
+  setPullBaseState(repo: string, number: number, state: string): void;
   stop?: () => Promise<void>;
 }
 
@@ -180,7 +184,14 @@ export function codeHostWriteContract(
           merged: false,
           draft: true,
           head_sha: b.commit_sha,
+          // M15.2: the base as the host has it, nothing in the way of a merge, and no merge yet
+          base_ref: 'main',
+          mergeable: 'current',
+          merge_commit_sha: null,
+          merged_at: null,
+          merged_by: null,
         });
+        expect(s.base_sha).toMatch(/^[0-9a-f]{40}$/);
         expect(writes(h).filter((l) => l === 'POST /repos/acme/app/pulls')).toHaveLength(1);
         expect(
           writes(h).some((l) => l.startsWith('PATCH /repos/acme/app/git/refs/heads/agent/')),
@@ -382,6 +393,31 @@ export function codeHostWriteContract(
         const s = okValue(await h.port.pr_status({ repo: 'acme/app', number: a.pr.number }));
         expect(s.draft).toBe(true);
         expect(s.checks_read).toBe(false);
+      }));
+
+    it('pr_status says when the base moved, when it conflicts, and who merged it with which commit (M15.2)', () =>
+      withHost(async (h) => {
+        const a = okValue(await h.port.apply_patch(writeRequest([put('src/a.js', 'one\n')])));
+        const n = a.pr.number;
+        const read = async () => okValue(await h.port.pr_status({ repo: 'acme/app', number: n }));
+        h.setPullBaseState('acme/app', n, 'behind');
+        expect((await read()).mergeable).toBe('behind');
+        h.setPullBaseState('acme/app', n, 'dirty');
+        expect((await read()).mergeable).toBe('conflict');
+        h.setPullBaseState('acme/app', n, 'something_new');
+        expect((await read()).mergeable).toBe('unknown');
+        h.setPullBaseState('acme/app', n, 'clean');
+        h.landPull('acme/app', n, 'carol-gh');
+        const m = await read();
+        expect(m).toMatchObject({
+          state: 'closed',
+          merged: true,
+          head_sha: a.commit_sha,
+          merged_by: 'carol-gh',
+          mergeable: 'unknown',
+        });
+        expect(m.merge_commit_sha).toMatch(/^[0-9a-f]{40}$/);
+        expect(m.merged_at).not.toBeNull();
       }));
 
     it('pr_status of a pull request that is not there is unreadable/not_found', () =>
