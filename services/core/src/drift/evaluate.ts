@@ -4,11 +4,13 @@ import {
   type CodeownersObservation,
   type DriftBaseline,
   type DriftFinding,
+  type InstallationObservation,
   type Level,
   type PackFile,
   type ProjectReadinessRecord,
   type ServedFile,
 } from '@aisdlc/contracts';
+import { hashCanonical } from '@aisdlc/kernel';
 import { protectMain } from '../cards/controls.js';
 
 // The drift fold (PLAN M16; OB §4.2, §8; DEC-21): pure, deterministic, no clock and no I/O. It compares the newest
@@ -38,7 +40,40 @@ export interface DriftInputs {
   readonly files_history: readonly AffirmedFilesValue[];
   readonly files: AffirmedFilesValue | null;
   readonly rules: BranchRules | null;
+  /** OB §8: the installation the record (or the newest confirmation) accepted, and the newest poll's. */
+  readonly installation_base?: InstallationObservation | null;
+  readonly installation?: InstallationObservation | null;
+  /** OB §8: the open finding ids the record knew of (`null`: not known yet), and the newest poll's. */
+  readonly findings_base?: readonly string[] | null;
+  readonly open_findings?: readonly string[] | null;
 }
+
+const PERMISSION_RANK: Readonly<Record<string, number>> = { read: 1, write: 2, admin: 3 };
+
+/** How an installation is wider than its baseline (OB §8 "Installation scope widened or new permissions"). */
+export function installationWidened(
+  base: InstallationObservation,
+  now: InstallationObservation,
+): string[] {
+  const out: string[] = [];
+  if (now.installation_id !== base.installation_id) out.push('installation_changed');
+  if (base.repository_selection === 'selected' && now.repository_selection === 'all') {
+    out.push('selection_widened');
+  }
+  for (const [k, v] of Object.entries(now.permissions).sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const was = base.permissions[k];
+    if (was === undefined) out.push(`permission_added:${k}`.slice(0, 64));
+    else if ((PERMISSION_RANK[v] ?? 9) > (PERMISSION_RANK[was] ?? 0)) {
+      out.push(`permission_raised:${k}`.slice(0, 64));
+    }
+  }
+  return out.slice(0, 20);
+}
+
+/** The hash a confirmation is bound to: the installation exactly as shown. */
+export const installationHash = (i: InstallationObservation): string => hashCanonical(i);
+
+const MAX_SECRET_FINDINGS = 50;
 
 /** The paths the record tracks: the affirmed instruction files, then the pack's other files (one row per path). */
 export function trackedFiles(
@@ -178,6 +213,36 @@ export function evaluateDrift(i: DriftInputs): DriftFinding[] {
     }
   }
 
+  // OB §8: the installation wider than the record (or the last confirmation) saw is a security event
+  if (i.installation && i.installation_base) {
+    const reasons = installationWidened(i.installation_base, i.installation);
+    if (reasons.length > 0) {
+      out.push({
+        kind: 'installation',
+        effect: 'security',
+        subject: String(i.installation.installation_id),
+        reasons,
+        expected: installationHash(i.installation_base),
+        observed: installationHash(i.installation),
+      });
+    }
+  }
+  // OB §8: an open secret finding the record did not know of (B1 for the repo; agent jobs held)
+  if (i.open_findings && i.findings_base) {
+    const known = new Set(i.findings_base);
+    for (const id of [...i.open_findings].sort().slice(0, MAX_SECRET_FINDINGS)) {
+      if (known.has(id)) continue;
+      out.push({
+        kind: 'history_secret',
+        effect: 'security',
+        subject: id,
+        reasons: ['new_open_finding'],
+        expected: null,
+        observed: null,
+      });
+    }
+  }
+
   if (i.rules) {
     // the required checks the record saw (with the App each was pinned to): gone or unpinned suspends
     const base =
@@ -225,6 +290,10 @@ export function evaluateDrift(i: DriftInputs): DriftFinding[] {
   }
   return out.sort(BY_KEY);
 }
+
+/** Only the security events (OB §8). */
+export const securityFindings = (f: readonly DriftFinding[]): DriftFinding[] =>
+  f.filter((x) => x.effect === 'security');
 
 /** Only the findings that suspend. */
 export const suspending = (f: readonly DriftFinding[]): DriftFinding[] =>

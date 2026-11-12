@@ -31,7 +31,7 @@ import {
 import { catchUp } from '../queries.js';
 import { repoIdentity } from '../prr-store.js';
 import type { DriftDeps } from './check.js';
-import { evaluateDrift, servedFiles } from './evaluate.js';
+import { evaluateDrift, installationHash, securityFindings, servedFiles } from './evaluate.js';
 import { krlNow, openKrl } from './krl.js';
 import { inputsOf, loadDrift, reaffirmedOf, type LoadedDrift } from './state.js';
 
@@ -135,6 +135,26 @@ function history(l: LoadedDrift): DriftHistoryRow[] {
           ledger_entry_id: ledger as never,
         });
         break;
+      case DRIFT_EVENT.security_raised: {
+        const f = (p['findings'] as Array<Parameters<typeof describe>[0]>) ?? [];
+        out.push({
+          at: e.occurred_at,
+          type: 'security_raised',
+          summary: `security event: agent work held (${f.map(describe).join('; ')})`.slice(0, 300),
+          by: null,
+          ledger_entry_id: ledger as never,
+        });
+        break;
+      }
+      case DRIFT_EVENT.security_confirmed:
+        out.push({
+          at: e.occurred_at,
+          type: 'security_confirmed',
+          summary: `the installation was confirmed by the security slot (${String(p['installation_hash']).slice(0, 12)})`,
+          by: (p['by'] as string) ?? null,
+          ledger_entry_id: ledger as never,
+        });
+        break;
       case DRIFT_EVENT.version_requested:
         out.push({
           at: e.occurred_at,
@@ -200,6 +220,19 @@ export async function repoDriftView(
       bypass: shown ?? { logins: [], list_hash: bypassListHash([]) },
     },
     level_up: g && g.status !== 'expired' ? levelsAbove(g.prr.level.signed) : [],
+    security: g
+      ? {
+          held: securityFindings(findings).length > 0,
+          installation: l.installation
+            ? {
+                observed: l.installation.value,
+                hash: installationHash(l.installation.value),
+                widened: findings.some((f) => f.kind === 'installation'),
+              }
+            : null,
+          new_findings: findings.filter((f) => f.kind === 'history_secret').length,
+        }
+      : null,
     krl: g
       ? (() => {
           const open = openKrl(l.drift, g.version);
@@ -346,6 +379,12 @@ export async function driftInboxItems(
     if (g.status === 'suspended') {
       const s = [...l.drift.suspensions].reverse().find((x) => x.prr_version === g.version);
       out.push(await item('prr_restore', s?.at ?? l.files?.at ?? g.prr.issued_at));
+    }
+    if (evaluateDrift(inputs).some((f) => f.effect === 'security')) {
+      const raised = [...l.drift.security_raised]
+        .reverse()
+        .find((x) => x.prr_version === g.version);
+      out.push(await item('drift_security', raised?.at ?? l.files?.at ?? g.prr.issued_at));
     }
     if (
       evaluateDrift(inputs).some((f) => f.effect === 'reaffirm') ||

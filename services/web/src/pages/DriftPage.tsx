@@ -57,6 +57,8 @@ const KIND_TEXT: Record<DriftFinding['kind'], string> = {
   codeowners: 'CODEOWNERS',
   protect_main: 'protect-main',
   required_check: 'Required check',
+  installation: 'App installation',
+  history_secret: 'Secret in the history',
 };
 
 const short = (h: string | null) => (h ? h.slice(0, 12) : '—');
@@ -123,6 +125,8 @@ function Findings({ project, repo }: { project: string; repo: RepoDriftView }) {
       render: (f) =>
         f.effect === 'suspend' ? (
           <Pill tone="bad">suspends the record</Pill>
+        ) : f.effect === 'security' ? (
+          <Pill tone="bad">holds agent work</Pill>
         ) : (
           <Pill tone="warn">re-affirm</Pill>
         ),
@@ -348,6 +352,76 @@ function NewVersion({
   );
 }
 
+/** OB §8's security card: what holds the agent work, and the confirm of a widened installation (the security slot). */
+function Security({ project, repo, csrf }: { project: string; repo: RepoDriftView; csrf: string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const sec = repo.security;
+  const inst = sec?.installation ?? null;
+  const confirm = useMutation({
+    mutationFn: () =>
+      api.driftSecurityConfirm(
+        project,
+        { repo: repo.repo, installation_hash: inst?.hash ?? '' },
+        csrf,
+      ),
+    onSuccess: () => {
+      toast('Confirmed: the installation is the new baseline (ledgered).');
+      void qc.invalidateQueries({ queryKey: ['drift', project] });
+    },
+    onError: (e) => toast(describeError(e), 'bad'),
+  });
+  return (
+    <Card title="Security event" testId="drift-security">
+      <p className="notice notice-bad" role="alert">
+        <b>Agent work is held</b> on {repo.repo}: no session starts and one in flight waits
+        (HUMAN-WAIT) until this is dealt with.
+      </p>
+      {inst?.widened ? (
+        <>
+          <KeyValue
+            label="The installation the last poll saw"
+            rows={[
+              ['Installation', String(inst.observed.installation_id)],
+              ['Repositories', inst.observed.repository_selection],
+              [
+                'Permissions',
+                Object.entries(inst.observed.permissions)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(', '),
+              ],
+            ]}
+          />
+          <p className="muted">
+            No new reads of the repo&rsquo;s files until a holder of the security slot confirms this
+            installation.
+          </p>
+          <Guarded
+            action="project.settings.edit"
+            resource={pdpResource.project(project)}
+            label="Confirm the installation"
+          >
+            <button
+              type="button"
+              className="ui-btn ui-btn-primary"
+              disabled={confirm.isPending}
+              onClick={() => confirm.mutate()}
+            >
+              Confirm the installation
+            </button>
+          </Guarded>
+        </>
+      ) : null}
+      {sec && sec.new_findings > 0 ? (
+        <p data-testid="drift-security-secrets">
+          {sec.new_findings} open secret finding{sec.new_findings === 1 ? '' : 's'} the record did
+          not know of: B1 for the repo. It lifts once each finding is resolved on its security card.
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
 const HISTORY_KIND: Record<DriftHistoryRow['type'], TimelineKind> = {
   evaluated: 'det',
   suspended: 'bad',
@@ -357,6 +431,8 @@ const HISTORY_KIND: Record<DriftHistoryRow['type'], TimelineKind> = {
   expired: 'det',
   activated: 'gate',
   krl_lowered: 'bad',
+  security_raised: 'bad',
+  security_confirmed: 'human',
 };
 
 function RepoDrift({
@@ -460,6 +536,7 @@ function RepoDrift({
           {prr.status === 'suspended' && !prr.expired ? (
             <Restore project={project} repo={repo} csrf={csrf} />
           ) : null}
+          {repo.security?.held ? <Security project={project} repo={repo} csrf={csrf} /> : null}
           <NewVersion project={project} repo={repo} csrf={csrf} />
           <Card title="History">
             {repo.history.length === 0 ? (

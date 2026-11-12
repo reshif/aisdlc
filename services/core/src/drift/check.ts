@@ -5,7 +5,9 @@ import {
   DRIFT_LEDGER_ENTRY,
   DriftEvaluatedPayload,
   DriftKrlLoweredPayload,
+  DriftSecurityRaisedPayload,
   DriftSuspendedPayload,
+  OpenFindingsValue,
   INBOUND_FACT_EVENT,
   InboundFactPayload,
   PRR_EVENT,
@@ -37,7 +39,8 @@ import { clockOf, inCoreLedgerTx, lockKeys, type CoreDeps } from '../journal.js'
 import { readGoverning, repoIdentity } from '../prr-store.js';
 import { setPrrStatus } from '../prr-status.js';
 import { catchUp } from '../queries.js';
-import { evaluateDrift, suspending } from './evaluate.js';
+import type { KnowledgePort } from '../clients.js';
+import { evaluateDrift, securityFindings, suspending } from './evaluate.js';
 import { krlNow, openKrl } from './krl.js';
 import { inputsOf, loadDrift } from './state.js';
 
@@ -72,6 +75,8 @@ export type DriftSource = Pick<
 
 export interface DriftDeps extends CoreDeps {
   readonly source: DriftSource;
+  /** Knowledge's open secret findings (OB §8 "New history secret"); absent: the findings poll does not run. */
+  readonly findings?: Pick<KnowledgePort, 'openFindings'>;
 }
 
 const notOk = (what: string, r: { state: string; reason: string; message: string }): CoreError =>
@@ -103,6 +108,8 @@ export async function pollAffirmedFiles(
   const loaded = await loadDrift(d.pool, repo);
   const inputs = loaded ? inputsOf(loaded) : null;
   if (!loaded || !inputs) return ok('skipped');
+  // OB §8: an installation wider than the record saw means no new reads of the repo until a person confirms it
+  if (evaluateDrift(inputs).some((f) => f.kind === 'installation')) return ok('skipped');
   const head = await recordedHead(d.pool, loaded.repo_ref);
   if (!head) return ok('skipped');
   const full = loaded.repo_ref as RepoFullName;
@@ -135,6 +142,38 @@ export async function pollAffirmedFiles(
       kind: 'affirmed_files',
       repo: full,
       project_id: loaded.project_id as never,
+      value: value as unknown as Record<string, unknown>,
+      poll_interval_ms: o.intervalMs ?? TEN_MINUTES_MS,
+    },
+    clockOf(d),
+  );
+  return ok(out);
+}
+
+/**
+ * OB §8 "New history secret": the repo's open secret findings as knowledge reports them (ids only), recorded first as
+ * an `open_findings` fact (written only when it changed). Knowledge's own scans (each census job's history scan) find
+ * them; the fold says which are new to the governing record. A read that fails records nothing.
+ */
+export async function pollOpenFindings(
+  d: DriftDeps,
+  repo: string,
+  o: { intervalMs?: number } = {},
+): Promise<Result<'recorded' | 'unchanged' | 'skipped', CoreError>> {
+  if (!d.findings) return ok('skipped');
+  const id = await repoIdentity(d.pool, repo);
+  if (!id) return ok('skipped');
+  const r = await d.findings.openFindings(id.repo_ref);
+  if (!r.ok) return err(coreError('unavailable', `open findings: ${r.error.message}`));
+  const value = OpenFindingsValue.parse({
+    finding_ids: [...new Set(r.value.map((f) => f.finding_id))].sort(),
+  });
+  const out = await recordObservation(
+    d.pool,
+    {
+      kind: 'open_findings',
+      repo: id.repo_ref as RepoFullName,
+      project_id: id.project_id as never,
       value: value as unknown as Record<string, unknown>,
       poll_interval_ms: o.intervalMs ?? TEN_MINUTES_MS,
     },
@@ -189,6 +228,8 @@ export interface CheckOutcome {
   readonly suspended: boolean;
   /** Paths whose drift lowered their area's KRL in this check (OB §4.2). */
   readonly krl_lowered: number;
+  /** A security event (OB §8) was recorded in this check. */
+  readonly security_raised: boolean;
 }
 
 /** Folds the newest facts for one repo and records what changed (see the header). */
@@ -227,7 +268,12 @@ export async function checkDrift(
     const live = now.getTime() < Date.parse(g.prr.fresh_until);
     const suspend =
       susp.length > 0 && live && canTransitionReadinessBy('mechanical', g.status, 'suspended');
-    if (!changed && !suspend && lower.length === 0) {
+    // OB §8: a security event is recorded (and ledgered) when the security findings are new since the last fold
+    const sec = securityFindings(findings);
+    const secHash = driftFindingsHash(sec);
+    const lastSec = driftFindingsHash(securityFindings(last?.findings ?? []));
+    const raise = sec.length > 0 && (last === undefined || lastSec !== secHash);
+    if (!changed && !suspend && lower.length === 0 && !raise) {
       return ok({
         value: {
           findings,
@@ -235,6 +281,7 @@ export async function checkDrift(
           recorded: false,
           suspended: false,
           krl_lowered: 0,
+          security_raised: false,
         },
         pending: [],
       });
@@ -243,7 +290,7 @@ export async function checkDrift(
     const entryId = deterministicId<'LedgerEntry'>(
       `prr.suspended:${g.prr.record_hash}:${g.version}:${loaded.drift.restores.length}:${hash}`,
     );
-    if (suspend || lower.length > 0) {
+    if (suspend || lower.length > 0 || raise) {
       // the ledger lock before the first record append, the entry last (AGENTS.md lock order)
       await lockLedger(tx);
       const caught = await importUnconfirmed(tx, d.ledger);
@@ -273,7 +320,7 @@ export async function checkDrift(
       if (!w.ok) return w;
     }
     // KRL −1: one event per path, each with its ledger entry (written after every record append below)
-    const krlEntries: LedgerEntryDraft[] = [];
+    const ledgerEntries: LedgerEntryDraft[] = [];
     const areaOf = new Map(g.prr.affirmed.instructions.map((i) => [i.path, i.area]));
     const areas = new Set(open.map((p) => p.area));
     for (const f of lower) {
@@ -311,7 +358,7 @@ export async function checkDrift(
       if (!w.ok) return w;
       const { ledger_entry_id: _k, ...krlRest } = body;
       void _k;
-      krlEntries.push({
+      ledgerEntries.push({
         entry_id: kid,
         entry_type: DRIFT_LEDGER_ENTRY.krl_lowered,
         gate_instance_id: null,
@@ -377,7 +424,42 @@ export async function checkDrift(
       if (!l.ok) return err(coreError('unavailable', l.error.message));
       pending.push(...l.value.pending);
     }
-    for (const draft of krlEntries) {
+    if (raise) {
+      const sid = deterministicId<'LedgerEntry'>(
+        `prr.security_event:${g.prr.record_hash}:${g.version}:${secHash}:${loaded.drift.security_raised.length}`,
+      );
+      const body = DriftSecurityRaisedPayload.parse({
+        ...facts,
+        findings: sec,
+        findings_hash: secHash,
+        ledger_entry_id: sid,
+      });
+      const w = await j.emit(
+        driftStream(loaded.repo_ref),
+        DRIFT_EVENT.security_raised,
+        body,
+        DRIFT_ACTOR,
+      );
+      if (!w.ok) return w;
+      const { ledger_entry_id: _s, ...secRest } = body;
+      void _s;
+      ledgerEntries.push({
+        entry_id: sid,
+        entry_type: DRIFT_LEDGER_ENTRY.security_raised,
+        gate_instance_id: null,
+        gate_id: null,
+        subject_kind: 's0_record',
+        subject_id: g.s0_id as never,
+        subject_hash: secHash as never,
+        decision: null,
+        actor: DRIFT_ACTOR as never,
+        sod_waiver: false,
+        policy_bundle_version: DEFAULT_POLICY_BUNDLE_VERSION,
+        body: { kind: 'prr_security_event', ...secRest } as never,
+        created_at: now.toISOString() as never,
+      });
+    }
+    for (const draft of ledgerEntries) {
       const l = await appendLedgerEntryTx(tx, d.ledger, draft);
       if (!l.ok) return err(coreError('unavailable', l.error.message));
       pending.push(...l.value.pending);
@@ -389,6 +471,7 @@ export async function checkDrift(
         recorded: changed,
         suspended: suspend,
         krl_lowered: lower.length,
+        security_raised: raise,
       },
       pending,
     });
@@ -448,10 +531,12 @@ export function driftLoop(
           const e = await expireRecord(d, r);
           if (!e.ok) throw new Error(e.error.message);
           const p = await pollAffirmedFiles(d, r, { intervalMs });
+          const f = await pollOpenFindings(d, r, { intervalMs });
           // a files read that failed is this repo's failure, but the rules fact can still suspend it
           const c = await checkDrift(d, r);
           if (!c.ok) throw new Error(c.error.message);
           if (!p.ok) throw new Error(p.error.message);
+          if (!f.ok) throw new Error(f.error.message);
         },
       );
     },

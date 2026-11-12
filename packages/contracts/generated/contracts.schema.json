@@ -29231,7 +29231,8 @@
             "work_gate",
             "drift_reaffirm",
             "prr_restore",
-            "prr_resign"
+            "prr_resign",
+            "drift_security"
           ]
         },
         "id": {
@@ -32730,7 +32731,8 @@
       "type": "string",
       "enum": [
         "reaffirm",
-        "suspend"
+        "suspend",
+        "security"
       ]
     },
     "DriftEvaluatedPayload": {
@@ -32794,14 +32796,17 @@
                   "pack_file",
                   "codeowners",
                   "protect_main",
-                  "required_check"
+                  "required_check",
+                  "installation",
+                  "history_secret"
                 ]
               },
               "effect": {
                 "type": "string",
                 "enum": [
                   "reaffirm",
-                  "suspend"
+                  "suspend",
+                  "security"
                 ]
               },
               "subject": {
@@ -32886,14 +32891,17 @@
             "pack_file",
             "codeowners",
             "protect_main",
-            "required_check"
+            "required_check",
+            "installation",
+            "history_secret"
           ]
         },
         "effect": {
           "type": "string",
           "enum": [
             "reaffirm",
-            "suspend"
+            "suspend",
+            "security"
           ]
         },
         "subject": {
@@ -32956,7 +32964,9 @@
         "pack_file",
         "codeowners",
         "protect_main",
-        "required_check"
+        "required_check",
+        "installation",
+        "history_secret"
       ]
     },
     "DriftHistoryRow": {
@@ -32977,7 +32987,9 @@
             "version_requested",
             "expired",
             "activated",
-            "krl_lowered"
+            "krl_lowered",
+            "security_raised",
+            "security_confirmed"
           ]
         },
         "summary": {
@@ -33427,6 +33439,231 @@
       ],
       "additionalProperties": false
     },
+    "DriftSecurityConfirmedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "installation": {
+          "type": "object",
+          "properties": {
+            "installation_id": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "repository_selection": {
+              "type": "string",
+              "enum": [
+                "all",
+                "selected"
+              ]
+            },
+            "permissions": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write",
+                  "admin"
+                ]
+              }
+            }
+          },
+          "required": [
+            "installation_id",
+            "repository_selection",
+            "permissions"
+          ],
+          "additionalProperties": false
+        },
+        "installation_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "by",
+        "at",
+        "installation",
+        "installation_hash",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DriftSecurityRaisedPayload": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "findings": {
+          "minItems": 1,
+          "maxItems": 80,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instruction_text",
+                  "pack_file",
+                  "codeowners",
+                  "protect_main",
+                  "required_check",
+                  "installation",
+                  "history_secret"
+                ]
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "reaffirm",
+                  "suspend",
+                  "security"
+                ]
+              },
+              "subject": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reasons": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "expected": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "observed": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "effect",
+              "subject",
+              "reasons",
+              "expected",
+              "observed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "findings_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "repo",
+        "project_id",
+        "s0_id",
+        "prr_version",
+        "record_hash",
+        "findings",
+        "findings_hash",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
     "DriftSuspendedPayload": {
       "type": "object",
       "properties": {
@@ -33478,14 +33715,17 @@
                   "pack_file",
                   "codeowners",
                   "protect_main",
-                  "required_check"
+                  "required_check",
+                  "installation",
+                  "history_secret"
                 ]
               },
               "effect": {
                 "type": "string",
                 "enum": [
                   "reaffirm",
-                  "suspend"
+                  "suspend",
+                  "security"
                 ]
               },
               "subject": {
@@ -52076,7 +52316,8 @@
         "installation",
         "effective_rules",
         "agent_pulls",
-        "affirmed_files"
+        "affirmed_files",
+        "open_findings"
       ]
     },
     "InboundFactPayload": {
@@ -52099,7 +52340,8 @@
             "installation",
             "effective_rules",
             "agent_pulls",
-            "affirmed_files"
+            "affirmed_files",
+            "open_findings"
           ]
         },
         "value": {
@@ -52624,7 +52866,8 @@
         "work_gate",
         "drift_reaffirm",
         "prr_restore",
-        "prr_resign"
+        "prr_resign",
+        "drift_security"
       ]
     },
     "InjectionFlag": {
@@ -52754,6 +52997,44 @@
         "repository_selection",
         "permissions",
         "suspended"
+      ],
+      "additionalProperties": false
+    },
+    "InstallationObservation": {
+      "type": "object",
+      "properties": {
+        "installation_id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "repository_selection": {
+          "type": "string",
+          "enum": [
+            "all",
+            "selected"
+          ]
+        },
+        "permissions": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "admin"
+            ]
+          }
+        }
+      },
+      "required": [
+        "installation_id",
+        "repository_selection",
+        "permissions"
       ],
       "additionalProperties": false
     },
@@ -78864,6 +79145,24 @@
       ],
       "additionalProperties": false
     },
+    "OpenFindingsValue": {
+      "type": "object",
+      "properties": {
+        "finding_ids": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "required": [
+        "finding_ids"
+      ],
+      "additionalProperties": false
+    },
     "OpsAction": {
       "type": "object",
       "properties": {
@@ -80754,7 +81053,8 @@
                   "work_gate",
                   "drift_reaffirm",
                   "prr_restore",
-                  "prr_resign"
+                  "prr_resign",
+                  "drift_security"
                 ]
               },
               "id": {
@@ -80969,7 +81269,8 @@
                   "work_gate",
                   "drift_reaffirm",
                   "prr_restore",
-                  "prr_resign"
+                  "prr_resign",
+                  "drift_security"
                 ]
               },
               "id": {
@@ -81189,7 +81490,8 @@
             "work_gate",
             "drift_reaffirm",
             "prr_restore",
-            "prr_resign"
+            "prr_resign",
+            "drift_security"
           ]
         },
         "id": {
@@ -82678,14 +82980,17 @@
                         "pack_file",
                         "codeowners",
                         "protect_main",
-                        "required_check"
+                        "required_check",
+                        "installation",
+                        "history_secret"
                       ]
                     },
                     "effect": {
                       "type": "string",
                       "enum": [
                         "reaffirm",
-                        "suspend"
+                        "suspend",
+                        "security"
                       ]
                     },
                     "subject": {
@@ -82807,14 +83112,17 @@
                                 "pack_file",
                                 "codeowners",
                                 "protect_main",
-                                "required_check"
+                                "required_check",
+                                "installation",
+                                "history_secret"
                               ]
                             },
                             "effect": {
                               "type": "string",
                               "enum": [
                                 "reaffirm",
-                                "suspend"
+                                "suspend",
+                                "security"
                               ]
                             },
                             "subject": {
@@ -82942,6 +83250,95 @@
                   ]
                 }
               },
+              "security": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "held": {
+                        "type": "boolean"
+                      },
+                      "installation": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "observed": {
+                                "type": "object",
+                                "properties": {
+                                  "installation_id": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "repository_selection": {
+                                    "type": "string",
+                                    "enum": [
+                                      "all",
+                                      "selected"
+                                    ]
+                                  },
+                                  "permissions": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "additionalProperties": {
+                                      "type": "string",
+                                      "enum": [
+                                        "read",
+                                        "write",
+                                        "admin"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "installation_id",
+                                  "repository_selection",
+                                  "permissions"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "hash": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "widened": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "observed",
+                              "hash",
+                              "widened"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "new_findings": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "held",
+                      "installation",
+                      "new_findings"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "krl": {
                 "anyOf": [
                   {
@@ -83044,7 +83441,9 @@
                         "version_requested",
                         "expired",
                         "activated",
-                        "krl_lowered"
+                        "krl_lowered",
+                        "security_raised",
+                        "security_confirmed"
                       ]
                     },
                     "summary": {
@@ -83096,6 +83495,7 @@
               "suspension",
               "restore",
               "level_up",
+              "security",
               "krl",
               "history"
             ],
@@ -86910,14 +87310,17 @@
                         "pack_file",
                         "codeowners",
                         "protect_main",
-                        "required_check"
+                        "required_check",
+                        "installation",
+                        "history_secret"
                       ]
                     },
                     "effect": {
                       "type": "string",
                       "enum": [
                         "reaffirm",
-                        "suspend"
+                        "suspend",
+                        "security"
                       ]
                     },
                     "subject": {
@@ -87039,14 +87442,17 @@
                                 "pack_file",
                                 "codeowners",
                                 "protect_main",
-                                "required_check"
+                                "required_check",
+                                "installation",
+                                "history_secret"
                               ]
                             },
                             "effect": {
                               "type": "string",
                               "enum": [
                                 "reaffirm",
-                                "suspend"
+                                "suspend",
+                                "security"
                               ]
                             },
                             "subject": {
@@ -87174,6 +87580,95 @@
                   ]
                 }
               },
+              "security": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "held": {
+                        "type": "boolean"
+                      },
+                      "installation": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "observed": {
+                                "type": "object",
+                                "properties": {
+                                  "installation_id": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "repository_selection": {
+                                    "type": "string",
+                                    "enum": [
+                                      "all",
+                                      "selected"
+                                    ]
+                                  },
+                                  "permissions": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "additionalProperties": {
+                                      "type": "string",
+                                      "enum": [
+                                        "read",
+                                        "write",
+                                        "admin"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "installation_id",
+                                  "repository_selection",
+                                  "permissions"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "hash": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "widened": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "observed",
+                              "hash",
+                              "widened"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "new_findings": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "held",
+                      "installation",
+                      "new_findings"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "krl": {
                 "anyOf": [
                   {
@@ -87276,7 +87771,9 @@
                         "version_requested",
                         "expired",
                         "activated",
-                        "krl_lowered"
+                        "krl_lowered",
+                        "security_raised",
+                        "security_confirmed"
                       ]
                     },
                     "summary": {
@@ -87328,6 +87825,7 @@
               "suspension",
               "restore",
               "level_up",
+              "security",
               "krl",
               "history"
             ],
@@ -104497,14 +104995,17 @@
                   "pack_file",
                   "codeowners",
                   "protect_main",
-                  "required_check"
+                  "required_check",
+                  "installation",
+                  "history_secret"
                 ]
               },
               "effect": {
                 "type": "string",
                 "enum": [
                   "reaffirm",
-                  "suspend"
+                  "suspend",
+                  "security"
                 ]
               },
               "subject": {
@@ -104626,14 +105127,17 @@
                           "pack_file",
                           "codeowners",
                           "protect_main",
-                          "required_check"
+                          "required_check",
+                          "installation",
+                          "history_secret"
                         ]
                       },
                       "effect": {
                         "type": "string",
                         "enum": [
                           "reaffirm",
-                          "suspend"
+                          "suspend",
+                          "security"
                         ]
                       },
                       "subject": {
@@ -104761,6 +105265,95 @@
             ]
           }
         },
+        "security": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "held": {
+                  "type": "boolean"
+                },
+                "installation": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "observed": {
+                          "type": "object",
+                          "properties": {
+                            "installation_id": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "repository_selection": {
+                              "type": "string",
+                              "enum": [
+                                "all",
+                                "selected"
+                              ]
+                            },
+                            "permissions": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "additionalProperties": {
+                                "type": "string",
+                                "enum": [
+                                  "read",
+                                  "write",
+                                  "admin"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "installation_id",
+                            "repository_selection",
+                            "permissions"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "widened": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "observed",
+                        "hash",
+                        "widened"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "new_findings": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "held",
+                "installation",
+                "new_findings"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "krl": {
           "anyOf": [
             {
@@ -104863,7 +105456,9 @@
                   "version_requested",
                   "expired",
                   "activated",
-                  "krl_lowered"
+                  "krl_lowered",
+                  "security_raised",
+                  "security_confirmed"
                 ]
               },
               "summary": {
@@ -104915,6 +105510,7 @@
         "suspension",
         "restore",
         "level_up",
+        "security",
         "krl",
         "history"
       ],
@@ -111664,6 +112260,49 @@
     "SecretRef": {
       "type": "string",
       "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+    },
+    "SecurityConfirmRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "installation_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "repo",
+        "installation_hash",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "SecurityConfirmResult": {
+      "type": "object",
+      "properties": {
+        "installation_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "installation_hash",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
     },
     "SecurityFinding": {
       "type": "object",

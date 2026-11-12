@@ -46,6 +46,7 @@ const repo = (o: Record<string, unknown> = {}) => ({
   suspension: { at: '2026-11-12T10:00:00.000Z', findings: [] },
   restore: { ready: true, why_not: null, bypass: { logins: ['carol'], list_hash: HASH } },
   level_up: ['full'],
+  security: null,
   krl: {
     signed: 2,
     current: 1,
@@ -168,6 +169,66 @@ describe('the drift page', () => {
       ),
     );
     expect(screen.getByText('Nobody: an unchecked merge here is unauthorised')).toBeInTheDocument();
+  });
+
+  it('a security event (OB §8): the work is held; the security card confirms the installation shown by its hash', async () => {
+    const user = userEvent.setup();
+    const IHASH = 'e'.repeat(64);
+    const m = mockApi({
+      'GET /api/me': { json: me() },
+      'POST /api/me/decisions': allow('project.settings.edit', 'config.propose'),
+      [`GET ${PATH}`]: {
+        json: view(
+          repo({
+            prr: { ...repo().prr, status: 'active' },
+            findings: [
+              {
+                kind: 'installation',
+                effect: 'security',
+                subject: '4242',
+                reasons: ['selection_widened'],
+                expected: SHA_A,
+                observed: IHASH,
+              },
+            ],
+            security: {
+              held: true,
+              installation: {
+                observed: {
+                  installation_id: 4242,
+                  repository_selection: 'all',
+                  permissions: { contents: 'read', metadata: 'read' },
+                },
+                hash: IHASH,
+                widened: true,
+              },
+              new_findings: 1,
+            },
+          }),
+        ),
+      },
+      [`POST ${PATH}/security/confirm`]: {
+        status: 201,
+        json: { installation_hash: IHASH, ledger_entry_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77' },
+      },
+    });
+    renderAt('/projects/acme/drift');
+    const card = await screen.findByTestId('drift-security');
+    expect(card).toHaveTextContent(/Agent work is held/);
+    expect(card).toHaveTextContent(/Repositories\s*all/);
+    expect(screen.getByTestId('drift-security-secrets')).toHaveTextContent(/1 open secret finding/);
+    const findings = screen.getByRole('table', { name: 'What drifted in acme/web' });
+    expect(within(findings).getByText('holds agent work')).toBeInTheDocument();
+    const btn = await within(card).findByRole('button', { name: 'Confirm the installation' });
+    await waitFor(() => expect(btn).toBeEnabled());
+    await user.click(btn);
+    await waitFor(() =>
+      expect(m.calls.some((c) => c.path === `${PATH}/security/confirm`)).toBe(true),
+    );
+    expect(m.calls.find((c) => c.path === `${PATH}/security/confirm`)?.body).toEqual({
+      repo: 'acme/web',
+      installation_hash: IHASH,
+    });
   });
 
   it('an expired record offers the re-sign at its level, not a restore', async () => {

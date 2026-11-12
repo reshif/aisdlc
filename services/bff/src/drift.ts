@@ -11,6 +11,8 @@ import {
   RepoFullName,
   RestoreRequest,
   RestoreResult,
+  SecurityConfirmRequest,
+  SecurityConfirmResult,
   pdpResource,
   type ActionId,
   type PdpResource,
@@ -31,6 +33,7 @@ import type { CoreClient } from './core-client.js';
 //   POST /api/projects/:id/drift/recheck      {repo}      poll now                               (config.propose)
 //   POST /api/projects/:id/drift/restore      {repo, bypass, attestation}                       (project.settings.edit)
 //   POST /api/projects/:id/drift/reaffirm     {repo, path, text_sha256, step_up}                 (project.settings.edit)
+//   POST /api/projects/:id/drift/security/confirm {repo, installation_hash}  OB §8 security card  (project.settings.edit)
 //   POST /api/projects/:id/onboarding-versions {repo, reason, level}  level-up or re-sign      (project.onboard)
 
 export interface DriftRouteDeps {
@@ -44,6 +47,7 @@ export const PortalRecheckBody = RestoreRequest.pick({ repo: true });
 export const PortalRestoreBody = RestoreRequest.omit({ on_behalf_of: true });
 export const PortalReaffirmBody = ReaffirmRequest.omit({ on_behalf_of: true });
 export const PortalVersionBody = OnboardingVersionRequest.omit({ on_behalf_of: true });
+export const PortalSecurityConfirmBody = SecurityConfirmRequest.omit({ on_behalf_of: true });
 
 export function registerDriftRoutes(d: DriftRouteDeps): void {
   const { app } = d;
@@ -196,6 +200,14 @@ export function registerDriftRoutes(d: DriftRouteDeps): void {
       action: 'project.settings.edit',
       path: 'drift/reaffirm',
       parse: (v) => ReaffirmResult.parse(v),
+    }),
+  );
+  app.post('/api/projects/:id/drift/security/confirm', (req, reply) =>
+    write(req, reply, {
+      schema: PortalSecurityConfirmBody,
+      action: 'project.settings.edit',
+      path: 'drift/security/confirm',
+      parse: (v) => SecurityConfirmResult.parse(v),
     }),
   );
   app.post('/api/projects/:id/onboarding-versions', (req, reply) =>

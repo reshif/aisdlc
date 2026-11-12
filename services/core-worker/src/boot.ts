@@ -655,7 +655,20 @@ export async function bootCoreWorker(
         // and the `fresh_until` sweep
         supervisor.add(
           driftLoop(
-            { pool, source, ledger },
+            {
+              pool,
+              source,
+              ledger,
+              // OB §8 "New history secret": knowledge's open findings, recorded as `open_findings` facts
+              ...(cfg.knowledge
+                ? {
+                    findings: new HttpKnowledge({
+                      baseUrl: cfg.knowledge.url,
+                      token: cfg.knowledge.token,
+                    }),
+                  }
+                : {}),
+            },
             { intervalMs: cfg.headIntervalMs, startDelayMs: 8_000 },
           ),
         );
