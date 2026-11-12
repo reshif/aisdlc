@@ -33,6 +33,7 @@ import { registerAssistantRoutes } from './assistant.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerPortalRoutes } from './portal.js';
 import { registerPortalListRoutes } from './portal-lists.js';
+import { registerFloorRoutes } from './floor.js';
 import { levelsOn } from './levels.js';
 import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
 import { registerWebFiles } from './static.js';
@@ -536,6 +537,15 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     ...(o.sandboxController ? { sandboxController: o.sandboxController } : {}),
     now: () => clock.now(),
     principalOf: (req) => ctx(req).session.principal_id,
+  });
+  // M19: the floor, cut to the person's view level and data class, polled with an ETag
+  registerFloorRoutes({
+    app,
+    pdp: o.pdp,
+    core: o.core,
+    ...(o.sandboxController ? { sandboxController: o.sandboxController } : {}),
+    principalOf: (req) => ctx(req).session.principal_id,
+    levelsOf: (principal, project) => levelsOn(o.pool, principal, project, clock.now()),
   });
   registerPortalRoutes({
     app,
