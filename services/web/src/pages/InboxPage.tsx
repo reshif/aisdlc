@@ -15,7 +15,14 @@ const CARD_TITLE = {
   C5: 'Card 5: sign-off and M4',
   SECR: 'Security card',
   BATCH: 'Batch card',
-  X2: 'Exception card',
+  X2: 'X2: the onboarding pack PR',
+} as const;
+
+/** M16 after onboarding: one item per repo, decided on the project's drift page. */
+const AFTER_ONBOARDING_TITLE = {
+  drift_reaffirm: 'Re-affirm changed instruction text',
+  prr_restore: 'Restore a suspended readiness record',
+  prr_resign: 'Re-sign an expired readiness record',
 } as const;
 
 export const titleOf = (i: PortalInboxItem): string =>
@@ -23,13 +30,17 @@ export const titleOf = (i: PortalInboxItem): string =>
     ? 'Settings revision: publish the role map'
     : i.kind === 'work_gate'
       ? `Gate ${i.gate ?? ''}: item ${(i.item_id ?? '').replace(/-/g, '').slice(0, 8)}`
-      : (CARD_TITLE[i.label as keyof typeof CARD_TITLE] ?? 'Card');
+      : i.kind === 'onboarding_card'
+        ? (CARD_TITLE[i.label as keyof typeof CARD_TITLE] ?? 'Card')
+        : `${AFTER_ONBOARDING_TITLE[i.kind]}: ${i.id}`;
 export const hrefOf = (i: PortalInboxItem): string =>
   i.kind === 'settings_revision'
     ? `/revisions/${i.id}`
     : i.kind === 'work_gate'
       ? `/items/${i.item_id ?? ''}`
-      : `/cards/${i.id}`;
+      : i.kind === 'onboarding_card'
+        ? `/cards/${i.id}`
+        : `/projects/${encodeURIComponent(i.project_id)}/drift`;
 
 /** M19 GateFeasibility: an item nobody eligible can decide (or whose quorum cannot be met) is flagged, unknown too. */
 function Feasibility({ i }: { i: PortalInboxItem }) {

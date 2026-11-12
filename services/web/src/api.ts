@@ -30,6 +30,15 @@ import type {
   ProjectPrrView,
   ProjectKnowledgeView,
   PortalIssueTwinView,
+  PortalProjectDriftView,
+  ReaffirmView,
+  ReaffirmResult,
+  RestoreResult,
+  RepoDriftView,
+  OnboardingVersionResult,
+  BypassListShown,
+  Level,
+  OnboardingVersionReason,
   IssueTwinBatchResult,
   IssueTwinRequestResult,
   ProjectSummary,
@@ -517,6 +526,58 @@ export const api = {
     request<IssueTwinRequestResult>(
       'POST',
       `/api/projects/${encodeURIComponent(project)}/issue-twin/requests`,
+      b,
+      csrf,
+    ),
+  // ------------------------------------------------------------ after onboarding: drift, restore, re-affirm (M16)
+  drift: (project: string) =>
+    request<PortalProjectDriftView>('GET', `/api/projects/${encodeURIComponent(project)}/drift`),
+  driftReaffirmView: (project: string, repo: string, path: string) =>
+    request<ReaffirmView>(
+      'GET',
+      `/api/projects/${encodeURIComponent(project)}/drift/reaffirm?${new URLSearchParams({ repo, path })}`,
+    ),
+  driftRecheck: (project: string, repo: string, csrf: string) =>
+    request<RepoDriftView>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/drift/recheck`,
+      { repo },
+      csrf,
+    ),
+  driftRestore: (
+    project: string,
+    b: {
+      repo: string;
+      bypass: BypassListShown;
+      attestation: { bypass_matches_list: true; bypass_has_no_app: true };
+    },
+    csrf: string,
+  ) =>
+    request<RestoreResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/drift/restore`,
+      b,
+      csrf,
+    ),
+  driftReaffirm: (
+    project: string,
+    b: { repo: string; path: string; text_sha256: string; step_up: { proof: string } },
+    csrf: string,
+  ) =>
+    request<ReaffirmResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/drift/reaffirm`,
+      b,
+      csrf,
+    ),
+  onboardingVersion: (
+    project: string,
+    b: { repo: string; reason: OnboardingVersionReason; level: Level },
+    csrf: string,
+  ) =>
+    request<OnboardingVersionResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/onboarding-versions`,
       b,
       csrf,
     ),

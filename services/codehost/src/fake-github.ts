@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ServiceConfigError, requiredEnv, runService } from '@aisdlc/service-kit';
 import { FakeGitHubServer } from './fake-github-server.js';
-import { GATE_CHECK_APP_PERMISSIONS, GATE_RELAY_APP_PERMISSIONS } from '@aisdlc/contracts';
+import {
+  GATE_CHECK_APP_PERMISSIONS,
+  GATE_RELAY_APP_PERMISSIONS,
+  TRACKER_APP_PERMISSIONS,
+} from '@aisdlc/contracts';
 import { buildTestbed, testbedSeed } from './fake-github-testbed.js';
 import { GitHttpTestServer } from './git-server-testing.js';
 
@@ -29,6 +33,11 @@ import { GitHttpTestServer } from './git-server-testing.js';
 //                                     (M15.3, optional) gate-relay's own App: its key, its installation, its grant
 //                                     (`deployments: write`, metadata read)
 //   FAKE_GITHUB_GATE_RELAY_PORT       (M15.3, optional) a listener on 0.0.0.0 for gate-relay (`gaterelay-github`)
+//   FAKE_GITHUB_TRACKER_APP_ID, _INSTALLATION_ID, _APP_PUBLIC_KEY_FILE, _LOGIN
+//                                     (M16, optional) the issue twin's own App (`issues: write`, metadata read) and
+//                                     the login its issues are authored by (`<slug>[bot]`)
+//   FAKE_GITHUB_TRACKER_PORT          (M16, optional) another listener on 0.0.0.0; compose sets none: the codehost holds the tracker
+//                                     App and reaches the fake on loopback (core-worker has no route out, 2026-11-12)
 //
 // Each request is one stdout line: `fake-github api {"method":"GET","path":...}` or `fake-github git ...`.
 
@@ -121,8 +130,23 @@ await runService('fake-github', async () => {
   if (deployApp && checksApp && deployApp.installationId === checksApp.installationId) {
     throw new ServiceConfigError('the deploy and checks Apps need installations of their own');
   }
+  const tracker = secondApp(env, 'FAKE_GITHUB_TRACKER', installationId, {
+    ...TRACKER_APP_PERMISSIONS,
+  });
+  const trackerApp = tracker
+    ? { ...tracker, login: requiredEnv(env, 'FAKE_GITHUB_TRACKER_LOGIN') }
+    : undefined;
+  const others = [checksApp, deployApp].filter((a) => a !== undefined);
+  if (trackerApp && others.some((a) => a.installationId === trackerApp.installationId)) {
+    throw new ServiceConfigError('the tracker App needs an installation of its own');
+  }
   const gcPort = env['FAKE_GITHUB_GATE_CHECK_PORT'];
   const grPort = env['FAKE_GITHUB_GATE_RELAY_PORT'];
+  const trPort = env['FAKE_GITHUB_TRACKER_PORT'];
+  const doors = [
+    ...(grPort ? [{ host: '0.0.0.0', port: port('FAKE_GITHUB_GATE_RELAY_PORT', 8356) }] : []),
+    ...(trPort ? [{ host: '0.0.0.0', port: port('FAKE_GITHUB_TRACKER_PORT', 8357) }] : []),
+  ];
   const api = await new FakeGitHubServer({
     appId: requiredEnv(env, 'FAKE_GITHUB_APP_ID'),
     appPublicKeyPem: publicKeyPem,
@@ -131,9 +155,8 @@ await runService('fake-github', async () => {
     listenPort: apiPort,
     ...(checksApp ? { checksApp } : {}),
     ...(deployApp ? { deployApp } : {}),
-    ...(grPort
-      ? { extraListens: [{ host: '0.0.0.0', port: port('FAKE_GITHUB_GATE_RELAY_PORT', 8356) }] }
-      : {}),
+    ...(trackerApp ? { trackerApp } : {}),
+    ...(doors.length > 0 ? { extraListens: doors } : {}),
     ...(gcPort
       ? { extraListen: { host: '0.0.0.0', port: port('FAKE_GITHUB_GATE_CHECK_PORT', 8355) } }
       : {}),

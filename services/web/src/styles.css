@@ -1007,3 +1007,28 @@ section[aria-label] > .ui-eyebrow {
 .twin-repo-hd h2 {
   margin: 0;
 }
+
+/* M16 after onboarding: the drift page, the restore's attestation and the re-affirm card's two texts */
+.drift-page,
+.drift-repo {
+  display: grid;
+  gap: 1rem;
+}
+.drift-attest {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+}
+.drift-diff {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 1rem;
+}
+.drift-diff pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}

@@ -169,6 +169,13 @@ export async function preflightPush(
     return no('guards_unavailable', 'the Unit owner could not say who holds the lease');
   if (lease.value.lane === 'L7') return no('spike_lane', 'a spike never reaches the Push Broker');
   if (!lease.value.held) return no('no_lease', 'the Unit has no held lease');
+  // a suspended record closes the agent lanes (OB §8, DEC-21): in-flight work cannot push; human-led L8 can
+  if (lease.value.suspended === true && req.lane !== 'L8') {
+    return no(
+      'prr_suspended',
+      'the repo is suspended for drift: agent lanes are closed until a person restores it',
+    );
+  }
   if (lease.value.epoch !== req.lease_epoch) {
     return no(
       'stale_epoch',

@@ -24,6 +24,8 @@ export type Route =
   | { name: 'knowledge'; id: string }
   | { name: 'ledger'; id: string }
   | { name: 'issues'; id: string }
+  | { name: 'drift'; id: string }
+  | { name: 'reaffirm'; id: string; repo: string; path: string }
   | { name: 'access' }
   | { name: 'config' }
   | { name: 'configKey'; key: string }
@@ -85,6 +87,17 @@ export function parseRoute(path: string): Route {
   if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
   const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
   if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
+  const reaffirm = /^\/projects\/([^/]+)\/reaffirm\/([^/]+)\/([^/]+)$/.exec(p);
+  if (reaffirm) {
+    return {
+      name: 'reaffirm',
+      id: decodeURIComponent(reaffirm[1] as string),
+      repo: decodeURIComponent(reaffirm[2] as string),
+      path: decodeURIComponent(reaffirm[3] as string),
+    };
+  }
+  const drift = /^\/projects\/([^/]+)\/drift$/.exec(p);
+  if (drift) return { name: 'drift', id: decodeURIComponent(drift[1] as string) };
   const sub = /^\/projects\/([^/]+)\/(readiness|ledger|issues|knowledge)$/.exec(p);
   if (sub) {
     return {

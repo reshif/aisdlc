@@ -32,6 +32,9 @@ describe('Onboard a repo', () => {
     expect(screen.getByLabelText('Light')).toHaveAccessibleDescription(
       'Agents may do small work (L1 to L3).',
     );
+    // user decision 2026-11-12: Full is only a level-up of a Light repo, never asked for here
+    expect(screen.getByLabelText('Full')).toBeDisabled();
+    expect(screen.getByTestId('full-only-level-up')).toHaveTextContent(/only as a level-up/);
   });
 
   it('posts repo, level, slug and the raise-only attestations (no principal), then opens the S0 page', async () => {

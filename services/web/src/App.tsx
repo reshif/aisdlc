@@ -10,6 +10,7 @@ import { PackPage } from './pages/PackPage';
 import { LedgerPage } from './pages/LedgerPage';
 import { PrrPage } from './pages/PrrPage';
 import { IssueTwinPage } from './pages/IssueTwinPage';
+import { DriftPage, ReaffirmPage } from './pages/DriftPage';
 import { RevisionPage } from './pages/RevisionPage';
 import { OnboardPage } from './pages/Onboard';
 import { ProjectDetailPage } from './pages/ProjectDetail';
@@ -230,6 +231,12 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <KnowledgePage project={route.id} />;
     case 'issues':
       return <IssueTwinPage project={route.id} csrf={me.csrf_token} />;
+    case 'drift':
+      return <DriftPage project={route.id} csrf={me.csrf_token} />;
+    case 'reaffirm':
+      return (
+        <ReaffirmPage project={route.id} repo={route.repo} path={route.path} csrf={me.csrf_token} />
+      );
     case 'ledger':
       return (
         <LedgerPage

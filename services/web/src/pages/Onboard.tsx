@@ -146,12 +146,21 @@ export function OnboardPage({ csrf, mayOnboard }: { csrf: string; mayOnboard: bo
                 value={l}
                 checked={level === l}
                 onChange={() => setLevel(l)}
+                // user decision 2026-11-12: Full is only a level-up of a Light repo, never a first onboarding
+                disabled={l === 'full'}
                 aria-describedby={`${ids.level}-${l}-d`}
               />
               <label htmlFor={`${ids.level}-${l}`}>{LEVEL_TEXT[l].title}</label>
               <p className="muted" id={`${ids.level}-${l}-d`}>
                 {LEVEL_TEXT[l].blurb}
               </p>
+              {l === 'full' ? (
+                <p className="muted" data-testid="full-only-level-up">
+                  Reached only as a level-up after a Light onboarding: card 3 is decided by the
+                  intent slot, which exists only after card 4’s role map. Ask for it from the
+                  project’s drift page once it is signed at Light.
+                </p>
+              ) : null}
             </div>
           ))}
         </fieldset>

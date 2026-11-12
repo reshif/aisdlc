@@ -92,6 +92,8 @@ async function scenario(
   const r = await requestOnboarding(
     s.deps,
     request({ project_id: pid(`scn-${n}`), repo, level: o.level ?? 'census' }),
+    // Full is only a level-up of a Light repo (user decision 2026-11-12): a Full scenario stands for that path
+    o.level === 'full' ? { levelUp: { from_version: 1, from_level: 'light' } } : {},
   );
   if (!r.ok) throw new Error(r.error.message);
   const id = r.value.s0_id;

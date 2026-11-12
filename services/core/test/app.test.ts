@@ -205,7 +205,7 @@ describe('the owner moves on a record', () => {
       TOKENS.bff,
       'POST',
       '/v1/onboard',
-      onboardBody({ project_id: 'mv', repo: 'acme/mv', level: 'full' }),
+      onboardBody({ project_id: 'mv', repo: 'acme/mv', level: 'light' }),
     );
     const id = r.json?.['s0_id'];
     expect(
@@ -215,13 +215,13 @@ describe('the owner moves on a record', () => {
       (await call(TOKENS.bff, 'POST', `/v1/s0/${id}/withdraw`, { on_behalf_of: 'bob' })).status,
     ).toBe(403);
     const low = await call(TOKENS.bff, 'POST', `/v1/s0/${id}/signable-level`, {
-      level: 'light',
+      level: 'census',
       on_behalf_of: 'alice',
     });
     expect(low.status).toBe(200);
     expect(low.json?.['record']).toMatchObject({
-      requested_level: 'full',
-      signable_level: 'light',
+      requested_level: 'light',
+      signable_level: 'census',
     });
     const w = await call(TOKENS.bff, 'POST', `/v1/s0/${id}/withdraw`, {
       on_behalf_of: 'alice',

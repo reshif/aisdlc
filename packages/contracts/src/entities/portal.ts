@@ -43,16 +43,26 @@ export type CardDeciders = z.infer<typeof CardDeciders>;
 // ---------------------------------------------------------------- Inbox
 
 /**
- * `onboarding_card`: a card of an S0 record; `settings_revision`: the M1 gate that publishes card 4's settings;
- * `work_gate` (M19): a gate a work item waits at (from the floor's read model; decided on the item's page).
+ * `onboarding_card`: a card of an S0 record (C1, C2, C4, C5, SECR, and the X2 of its pack); `settings_revision`: the M1
+ * gate that publishes card 4's settings; `work_gate` (M19): a gate a work item waits at (from the floor's read model;
+ * decided on the item's page); M16 after onboarding (OB §8): `drift_reaffirm` (instruction or pack text drifted:
+ * re-affirm it), `prr_restore` (the record is suspended for drift: restore it once the re-check passes), `prr_resign`
+ * (the record expired: re-sign it as a new version). For these three `id` is the repo.
  */
-export const InboxItemKind = z.enum(['onboarding_card', 'settings_revision', 'work_gate']);
+export const InboxItemKind = z.enum([
+  'onboarding_card',
+  'settings_revision',
+  'work_gate',
+  'drift_reaffirm',
+  'prr_restore',
+  'prr_resign',
+]);
 export type InboxItemKind = z.infer<typeof InboxItemKind>;
 
 /** One open thing in the factory's inbox, as core knows it. */
 export const CoreInboxItem = z.strictObject({
   kind: InboxItemKind,
-  /** The card id, or the gate instance id of a settings revision. */
+  /** The card id, the gate instance id of a settings revision, or the repo of an after-onboarding item. */
   id: z.string().min(1),
   project_id: ProjectId,
   s0_id: S0RecordId.nullable(),

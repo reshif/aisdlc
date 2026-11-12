@@ -109,19 +109,14 @@ export interface CoreWorkerConfig {
     readonly secretKeyRef: string;
   } | null;
   /**
-   * M16: the GitHub issue twin's own credential (OB §6.5 "new `tracker` role, issues:write + metadata:read"): its App
-   * id, installation, key reference and the login it writes as, never the codehost's App (the Push Broker's) or
-   * gate-check's. With it (and knowledge, for the re-check) the `issue_twin` loop files approved batches and polls
-   * their twins. `null`: the loop does not run and approved twins stay `pending`.
+   * M16: the GitHub issue twin (OB §6.5 "new `tracker` role, issues:write + metadata:read"). Its OWN App is held by the
+   * codehost (user decision 2026-11-12: core-worker keeps no route out); core-worker calls the codehost's tracker routes.
+   * With it (and knowledge, for the re-check) the `issue_twin` loop files approved batches and polls their twins.
+   * `null`: the loop does not run and approved twins stay `pending`.
    */
   readonly tracker: {
-    readonly apiUrl: string;
-    readonly appId: string;
-    readonly installationId: number;
-    /** A `file:` reference to the tracker App's private key (read by the adapter, never held here). */
-    readonly appKeyRef: string;
+    /** The login the codehost's tracker App writes as; its calls go through the codehost (scope `tracker`). */
     readonly login: string;
-    readonly plainHttpHosts: readonly string[];
   } | null;
   readonly issueTwinIntervalMs: number;
   readonly workDriverIntervalMs: number;
@@ -223,11 +218,9 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   CORE_WORKER_HEAD_INTERVAL_MS (600000), CORE_WORKER_INSTALLATION_INTERVAL_MS (600000),
  *   CORE_WORKER_RULES_IN_FLIGHT_INTERVAL_MS (3600000), CORE_WORKER_RULES_IDLE_INTERVAL_MS (86400000),
  *   CORE_WORKER_RULES_TICK_MS (300000), CORE_WORKER_OUTBOX_WATCH_INTERVAL_MS (30000)
- *   CORE_WORKER_TRACKER_APP_ID, CORE_WORKER_TRACKER_INSTALLATION_ID, CORE_WORKER_TRACKER_APP_KEY_REF (`file:`),
- *                                   CORE_WORKER_TRACKER_LOGIN (`<slug>[bot]`), CORE_WORKER_TRACKER_API_URL (default
- *                                   https://api.github.com), CORE_WORKER_TRACKER_PLAIN_HTTP_HOSTS (comma-separated, a fake
- *                                   GitHub only): (M16) the issue twin's OWN App, `issues:write` + `metadata:read`; with it
- *                                   and knowledge the `issue_twin` loop runs every CORE_WORKER_ISSUE_TWIN_INTERVAL_MS (600000)
+ *   CORE_WORKER_TRACKER_LOGIN       (M16) the login the codehost's tracker App writes as: the `issue_twin` loop runs
+ *                                   through the codehost's tracker routes (scope `tracker`, the codehost token; core-worker
+ *                                   holds no GitHub credential and has no route out) every CORE_WORKER_ISSUE_TWIN_INTERVAL_MS (600000)
  *   CORE_WORKER_HOST / _PORT        the health and metrics endpoint, default 127.0.0.1:8360
  */
 export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
@@ -395,37 +388,20 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     }
   }
   const fakeVerify: 'default' | 'exceptions' = fv;
-  const trackerApp = env['CORE_WORKER_TRACKER_APP_ID'];
+  // M16 (user decision 2026-11-12): core-worker keeps NO route out; the tracker App is the codehost's to hold. The
+  // login is the one the codehost's tracker App writes as (`<slug>[bot]`): set, the loop runs through the codehost.
+  const trackerLogin = env['CORE_WORKER_TRACKER_LOGIN'];
   let tracker: CoreWorkerConfig['tracker'] = null;
-  if (trackerApp !== undefined && trackerApp !== '') {
-    if (!/^[1-9][0-9]*$/.test(trackerApp)) {
-      throw new ServiceConfigError('CORE_WORKER_TRACKER_APP_ID must be a positive integer');
-    }
-    const keyRef = requiredEnv(env, 'CORE_WORKER_TRACKER_APP_KEY_REF');
-    if (!keyRef.startsWith('file:')) {
-      throw new ServiceConfigError('CORE_WORKER_TRACKER_APP_KEY_REF must be a file: reference');
+  if (trackerLogin !== undefined && trackerLogin !== '') {
+    if (!/^[A-Za-z0-9-]+(\[bot\])?$/.test(trackerLogin)) {
+      throw new ServiceConfigError('CORE_WORKER_TRACKER_LOGIN is a GitHub login (`<slug>[bot]`)');
     }
     if (knowledge === null) {
       throw new ServiceConfigError(
-        'CORE_WORKER_TRACKER_APP_ID runs the issue twin, whose re-check needs CORE_WORKER_KNOWLEDGE_URL',
+        'CORE_WORKER_TRACKER_LOGIN runs the issue twin, whose re-check needs CORE_WORKER_KNOWLEDGE_URL',
       );
     }
-    tracker = {
-      apiUrl: env['CORE_WORKER_TRACKER_API_URL'] || 'https://api.github.com',
-      appId: trackerApp,
-      installationId: intEnv(
-        env,
-        'CORE_WORKER_TRACKER_INSTALLATION_ID',
-        Number(requiredEnv(env, 'CORE_WORKER_TRACKER_INSTALLATION_ID')),
-        1,
-      ),
-      appKeyRef: keyRef,
-      login: requiredEnv(env, 'CORE_WORKER_TRACKER_LOGIN'),
-      plainHttpHosts: (env['CORE_WORKER_TRACKER_PLAIN_HTTP_HOSTS'] ?? '')
-        .split(',')
-        .map((h) => h.trim())
-        .filter((h) => h !== ''),
-    };
+    tracker = { login: trackerLogin };
   }
   return {
     databaseUrl: databaseUrl(env, 'CORE_WORKER_DATABASE_URL'),

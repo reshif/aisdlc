@@ -46,6 +46,8 @@ describe('gate-check in the compose stack', () => {
       'gate-check-app.pub.pem',
       // M15.3: gate-relay's App is the host's third
       'gate-relay-app.pub.pem',
+      // M16: the issue twin's tracker App is its fourth
+      'tracker-app.pub.pem',
     ]);
   });
 

@@ -71,6 +71,23 @@ describe('POST /v1/repos/:owner/:name/push', () => {
     expect(s.gh.server.apiRequests.length).toBe(before);
   });
 
+  it('M16 (OB §8, DEC-21): a repo suspended for drift refuses an agent push (403 prr_suspended); a human-led L8 push is not stopped by it', async () => {
+    const { s, guards } = await start();
+    guards.setLease(WRITE_ITEM, WRITE_UNIT, { held: true, epoch: 3, lane: 'L4', suspended: true });
+    const r = await s.call(TOKENS.push, 'POST', '/v1/repos/acme/app/push', writeRequest([file]));
+    expect(r.status).toBe(403);
+    expect(r.json).toMatchObject({ code: 'prr_suspended' });
+    expect(s.gh.server.apiRequests.filter((x) => x.method !== 'GET')).toEqual([]);
+    guards.setLease(WRITE_ITEM, WRITE_UNIT, { held: true, epoch: 3, lane: 'L8', suspended: true });
+    const l8 = await s.call(
+      TOKENS.push,
+      'POST',
+      '/v1/repos/acme/app/push',
+      writeRequest([file], { lane: 'L8' }),
+    );
+    expect(l8.status).toBe(200);
+  });
+
   it('a refusal is not a 2xx and carries its code: stale epoch and a moved branch are 409, a secret or a path 403', async () => {
     const { s } = await start();
     const post = (b: unknown) => s.call(TOKENS.push, 'POST', '/v1/repos/acme/app/push', b);
