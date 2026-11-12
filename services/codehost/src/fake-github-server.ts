@@ -138,15 +138,34 @@ export interface FakeGitHubServerOptions {
   readonly trackerApp?: FakeTrackerApp;
   /** M15.3: gate-relay's App on the same host (`deployments: write`). */
   readonly deployApp?: FakeSecondApp;
+  /**
+   * The Push Broker's own App on the same host (the compose stack's `push-broker`): its key, its installation and its
+   * grant (`contents: write`, `pull_requests: write`, metadata read). Without it the main App is the broker's, as in the
+   * in-process tests (whose installation grant is then the union).
+   */
+  readonly pushApp?: FakeSecondApp;
   /** The login the Push Broker's PRs are authored by (default `aisdlc[bot]`). */
   readonly brokerLogin?: string;
+  /**
+   * Called (synchronously, before the answer is sent) after the Git Data API created or moved a branch, so a git
+   * server in front of a bare repository can serve the commits the API wrote (the compose stack's fake).
+   */
+  readonly onRefChanged?: (e: { repo: string; branch: string; sha: string }) => void;
+  /**
+   * People who act on the host with a personal token (`Authorization: Bearer ghp_fake_<login>`): the only writes they
+   * have are marking a PR ready and merging it (`PUT /repos/:o/:r/pulls/:n/merge`), as a person does on GitHub. The
+   * factory never holds such a token. Empty (the default): nobody.
+   */
+  readonly people?: readonly string[];
+  /** The check runs a person's merge needs to have concluded `success` on the PR head (branch protection). */
+  readonly requiredChecks?: readonly string[];
   /** A second listener (the compose stack: gate-check reaches the host from another container). */
   readonly extraListen?: { readonly host: string; readonly port: number };
   /** More listeners (M15.3: gate-relay's door, on its own network). */
   readonly extraListens?: ReadonlyArray<{ readonly host: string; readonly port: number }>;
 }
 
-type AppName = 'main' | 'checks' | 'deploys' | 'tracker';
+type AppName = 'main' | 'checks' | 'deploys' | 'tracker' | 'push';
 
 const ISO = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 const LEVEL: Record<string, number> = { read: 1, write: 2, admin: 3 };
@@ -444,6 +463,8 @@ export class FakeGitHubServer {
     if (d && this.verifyJwt(token, d.appId, d.appPublicKeyPem)) return 'deploys';
     const t = this.o.trackerApp;
     if (t && this.verifyJwt(token, t.appId, t.appPublicKeyPem)) return 'tracker';
+    const pa = this.o.pushApp;
+    if (pa && this.verifyJwt(token, pa.appId, pa.appPublicKeyPem)) return 'push';
     return null;
   }
 
@@ -496,6 +517,69 @@ export class FakeGitHubServer {
     return { kind: 'installation', perms: t.permissions, appId: t.app_id };
   }
 
+  /** A person's login from their personal token (`ghp_fake_<login>`), `false` for one not in `people`, else `null`. */
+  private personOf(req: IncomingMessage): string | false | null {
+    const m = /^Bearer ghp_fake_([A-Za-z0-9-]{1,39})$/.exec(req.headers.authorization ?? '');
+    if (!m) return null;
+    const login = m[1] as string;
+    return (this.o.people ?? []).includes(login) ? login : false;
+  }
+
+  /**
+   * What a person does on the host (the compose e2e's human): read a PR, mark it ready for review (on GitHub a GraphQL
+   * mutation; here `POST .../pulls/:n/ready_for_review`) and merge it (`PUT .../pulls/:n/merge`). A merge is refused as
+   * GitHub refuses it: a closed or draft PR (405), a conflict or a base that moved (405), a required check that has not
+   * concluded `success` on the head (405), a `sha` that is not the head (409).
+   */
+  private personRequest(res: ServerResponse, method: string, path: string, login: string): number {
+    const m = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)(\/merge|\/ready_for_review)?$/.exec(path);
+    if (!m) return this.json(res, 404, notFound);
+    const full = `${m[1]}/${m[2]}`;
+    const p = this.pulls.find(
+      (x) => repoKey(x.repo) === repoKey(full) && x.number === Number(m[3]),
+    );
+    if (!p) return this.json(res, 404, notFound);
+    const live = this.pullJson(p) as { head: { sha: string } };
+    const action = m[4] ?? '';
+    if (action === '' && method === 'GET') return this.json(res, 200, this.pullJson(p));
+    if (action === '/ready_for_review' && method === 'POST') {
+      if (p.state !== 'open') return this.json(res, 422, { message: 'Pull request is closed' });
+      p.draft = false;
+      return this.json(res, 200, this.pullJson(p));
+    }
+    if (action === '/merge' && method === 'PUT') {
+      const notMergeable = (message: string): number =>
+        this.json(res, 405, { message, documentation_url: 'https://docs.github.com/rest' });
+      if (p.state !== 'open' || p.merged) return notMergeable('Pull Request is not mergeable');
+      if (p.draft) return notMergeable('Pull Request is still a draft');
+      if ((p.mergeable_state ?? 'clean') !== 'clean')
+        return notMergeable(`Pull Request is not mergeable (${p.mergeable_state})`);
+      const head = live.head.sha;
+      for (const name of this.o.requiredChecks ?? []) {
+        // the check of gate-check's App when the host knows it (a rule names the integration that must write it)
+        const by = this.o.checksApp ? Number(this.o.checksApp.appId) || 2 : null;
+        const runs = this.checkRuns.filter(
+          (r) =>
+            repoKey(r.repo) === repoKey(full) &&
+            r.head_sha === head &&
+            r.name === name &&
+            (by === null || r.app_id === by),
+        );
+        const last = runs.at(-1);
+        if (!last || last.status !== 'completed' || last.conclusion !== 'success') {
+          return notMergeable(`Required status check "${name}" is expected.`);
+        }
+      }
+      this.landPull(full, p.number, login);
+      return this.json(res, 200, {
+        sha: p.merge_commit_sha,
+        merged: true,
+        message: 'Pull Request successfully merged',
+      });
+    }
+    return this.json(res, 405, { message: 'Method Not Allowed' });
+  }
+
   /** The numeric id of the main App (the Push Broker's), as GitHub reports `app.id`. */
   private get mainAppId(): number {
     return Number(this.o.appId) || 1;
@@ -533,18 +617,27 @@ export class FakeGitHubServer {
       const c = this.o.checksApp;
       const dep = this.o.deployApp;
       const t = this.o.trackerApp;
+      const pa = this.o.pushApp;
       const forChecks = c !== undefined && Number(mint[1]) === c.installationId;
       const forDeploys = !forChecks && dep !== undefined && Number(mint[1]) === dep.installationId;
       const forTracker =
         !forChecks && !forDeploys && t !== undefined && Number(mint[1]) === t.installationId;
-      const second = forChecks ? c : forDeploys ? dep : forTracker ? t : undefined;
+      const forPush =
+        !forChecks &&
+        !forDeploys &&
+        !forTracker &&
+        pa !== undefined &&
+        Number(mint[1]) === pa.installationId;
+      const second = forChecks ? c : forDeploys ? dep : forTracker ? t : forPush ? pa : undefined;
       const owner: AppName = forChecks
         ? 'checks'
         : forDeploys
           ? 'deploys'
           : forTracker
             ? 'tracker'
-            : 'main';
+            : forPush
+              ? 'push'
+              : 'main';
       if (who.app !== owner) {
         return void log(this.json(res, 404, notFound));
       }
@@ -579,7 +672,9 @@ export class FakeGitHubServer {
         token,
         permissions,
         expires_at: expires,
-        app_id: second ? Number(second.appId) || (forTracker ? 3 : 2) : this.mainAppId,
+        app_id: second
+          ? Number(second.appId) || (forPush ? 5 : forTracker ? 3 : 2)
+          : this.mainAppId,
       });
       return void log(
         this.json(res, 201, {
@@ -597,6 +692,9 @@ export class FakeGitHubServer {
         this.json(res, this.override.status, { message: 'overridden' }, this.override.headers),
       );
     }
+    const person = this.personOf(req);
+    if (person === false) return void log(this.json(res, 401, { message: 'Bad credentials' }));
+    if (person !== null) return void log(this.personRequest(res, method, path, person));
     if (!['GET', 'POST', 'PATCH'].includes(method)) {
       return void log(this.json(res, 405, { message: 'Method Not Allowed' }));
     }
@@ -1063,6 +1161,7 @@ export class FakeGitHubServer {
       const sha = String(j['sha'] ?? '');
       if (!this.objects.commit(full, sha)) return bad('Object does not exist');
       this.seed.heads.push({ repo: full, branch, sha });
+      this.o.onRefChanged?.({ repo: full, branch, sha });
       return this.json(res, 201, {
         ref,
         object: { sha, type: 'commit', url: `${this.baseUrl}/repos/${full}/git/commits/${sha}` },
@@ -1079,6 +1178,7 @@ export class FakeGitHubServer {
         return bad('Update is not a fast forward');
       }
       head.sha = sha;
+      this.o.onRefChanged?.({ repo: full, branch, sha });
       return this.json(res, 200, {
         ref: `refs/heads/${branch}`,
         object: { sha, type: 'commit', url: `${this.baseUrl}/repos/${full}/git/commits/${sha}` },
