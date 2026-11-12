@@ -996,6 +996,14 @@ export const SCHEMAS = {
   ExplainHolder: entities.ExplainHolder,
   AccessExplainView: entities.AccessExplainView,
   ItemCloseOutView: entities.ItemCloseOutView,
+  HealthDomain: entities.HealthDomain,
+  HealthTileId: entities.HealthTileId,
+  HealthDetailCode: entities.HealthDetailCode,
+  FactoryService: entities.FactoryService,
+  HealthSnapshot: entities.HealthSnapshot,
+  HealthTile: entities.HealthTile,
+  HealthCounts: entities.HealthCounts,
+  HealthView: entities.HealthView,
 } as const satisfies Record<string, z.ZodType>;
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
