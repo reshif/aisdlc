@@ -29,6 +29,7 @@ import { ReadinessActor, ReadinessStatus } from '../states/readiness.js';
 import { Lane } from '../values.js';
 import { ControlsReport } from './onboarding-cards.js';
 import { InstructionPath, InstructionReview, LightProposal } from './onboarding-light.js';
+import { FullBaseline } from './onboarding-full.js';
 import {
   GatingProfile,
   Project,
@@ -120,6 +121,8 @@ export const S0_EVENT = {
   light_proposed: 's0.light_proposed',
   /** A person edited the proposed instruction text on card 2 (secret-scanned before it is stored). */
   instruction_edited: 's0.instruction_edited',
+  /** Card 3's Full baseline (M17), recorded before the card opens and secret-scanned before it is stored. */
+  full_proposed: 's0.full_proposed',
 } as const;
 
 /** The events of a PRR stream (`prr:<project>:<repo_id>`). */
@@ -457,6 +460,13 @@ export const S0LightProposedPayload = z.strictObject({
   proposal: LightProposal,
 });
 export type S0LightProposedPayload = z.infer<typeof S0LightProposedPayload>;
+
+/** Card 3's Full baseline for the n-th raising of card 3 (M17): the record copy the card binds to. */
+export const S0FullProposedPayload = z.strictObject({
+  occurrence: z.number().int().min(1),
+  baseline: FullBaseline,
+});
+export type S0FullProposedPayload = z.infer<typeof S0FullProposedPayload>;
 
 /**
  * A person edited one file's proposed text on card 2. The review is the factory template's over the

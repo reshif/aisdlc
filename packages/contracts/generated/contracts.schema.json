@@ -10101,6 +10101,127 @@
       ],
       "additionalProperties": false
     },
+    "C3DecisionContent": {
+      "type": "object",
+      "properties": {
+        "baseline_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "intent_answers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "answer": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "question_id",
+              "answer"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "exam": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "grade": {
+                "type": "string",
+                "enum": [
+                  "correct",
+                  "incorrect",
+                  "unsure"
+                ]
+              }
+            },
+            "required": [
+              "question_id",
+              "grade"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "seeds": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seed_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "affirm",
+                  "correct",
+                  "keep_observed"
+                ]
+              },
+              "correction": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              }
+            },
+            "required": [
+              "seed_id",
+              "verdict"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "golden": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "candidate_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "reject"
+                ]
+              }
+            },
+            "required": [
+              "candidate_id",
+              "verdict"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "baseline_hash",
+        "intent_answers",
+        "exam",
+        "seeds",
+        "golden"
+      ],
+      "additionalProperties": false
+    },
     "C4DecisionContent": {
       "type": "object",
       "properties": {
@@ -11002,6 +11123,256 @@
                   "result_hash",
                   "baseline_sha",
                   "outcome"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "full_baseline"
+                  },
+                  "baseline_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "census_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "graph_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "map_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "oracle_lock_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "areas": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "baseline_hash",
+                  "census_hash",
+                  "graph_hash",
+                  "map_hash",
+                  "oracle_lock_hash",
+                  "areas"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "exam_score"
+                  },
+                  "grades": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question_id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "grade": {
+                          "type": "string",
+                          "enum": [
+                            "correct",
+                            "incorrect",
+                            "unsure"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "question_id",
+                        "grade"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "questions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "correct": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "incorrect": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "unsure": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "score_pct": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "exam_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "grades",
+                  "questions",
+                  "correct",
+                  "incorrect",
+                  "unsure",
+                  "score_pct",
+                  "exam_hash"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "seed_verdict"
+                  },
+                  "seed_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "affirm",
+                      "correct",
+                      "keep_observed"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "observed",
+                      "intended"
+                    ]
+                  },
+                  "text_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "correction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "seed_id",
+                  "area",
+                  "verdict",
+                  "status",
+                  "text_sha256"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "seeds_summary"
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "intended": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "observed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "seeds_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "total",
+                  "intended",
+                  "observed",
+                  "seeds_hash"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "golden_selection"
+                  },
+                  "accepted": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "rejected": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "golden_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "accepted",
+                  "rejected",
+                  "golden_hash"
                 ],
                 "additionalProperties": false
               },
@@ -12876,6 +13247,256 @@
           "properties": {
             "kind": {
               "type": "string",
+              "const": "full_baseline"
+            },
+            "baseline_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "census_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "graph_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "map_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "oracle_lock_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "areas": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "baseline_hash",
+            "census_hash",
+            "graph_hash",
+            "map_hash",
+            "oracle_lock_hash",
+            "areas"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "exam_score"
+            },
+            "grades": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "question_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "grade": {
+                    "type": "string",
+                    "enum": [
+                      "correct",
+                      "incorrect",
+                      "unsure"
+                    ]
+                  }
+                },
+                "required": [
+                  "question_id",
+                  "grade"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "questions": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "correct": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "incorrect": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "unsure": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "score_pct": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "exam_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "kind",
+            "grades",
+            "questions",
+            "correct",
+            "incorrect",
+            "unsure",
+            "score_pct",
+            "exam_hash"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "seed_verdict"
+            },
+            "seed_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "area": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "affirm",
+                "correct",
+                "keep_observed"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "observed",
+                "intended"
+              ]
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "correction": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            }
+          },
+          "required": [
+            "kind",
+            "seed_id",
+            "area",
+            "verdict",
+            "status",
+            "text_sha256"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "seeds_summary"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "intended": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "observed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "seeds_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "kind",
+            "total",
+            "intended",
+            "observed",
+            "seeds_hash"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "golden_selection"
+            },
+            "accepted": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "rejected": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "golden_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "kind",
+            "accepted",
+            "rejected",
+            "golden_hash"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
               "const": "decision_reason"
             },
             "text": {
@@ -13862,6 +14483,256 @@
                   "result_hash",
                   "baseline_sha",
                   "outcome"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "full_baseline"
+                  },
+                  "baseline_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "census_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "graph_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "map_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "oracle_lock_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "areas": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "baseline_hash",
+                  "census_hash",
+                  "graph_hash",
+                  "map_hash",
+                  "oracle_lock_hash",
+                  "areas"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "exam_score"
+                  },
+                  "grades": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question_id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "grade": {
+                          "type": "string",
+                          "enum": [
+                            "correct",
+                            "incorrect",
+                            "unsure"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "question_id",
+                        "grade"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "questions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "correct": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "incorrect": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "unsure": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "score_pct": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "exam_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "grades",
+                  "questions",
+                  "correct",
+                  "incorrect",
+                  "unsure",
+                  "score_pct",
+                  "exam_hash"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "seed_verdict"
+                  },
+                  "seed_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "affirm",
+                      "correct",
+                      "keep_observed"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "observed",
+                      "intended"
+                    ]
+                  },
+                  "text_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "correction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "seed_id",
+                  "area",
+                  "verdict",
+                  "status",
+                  "text_sha256"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "seeds_summary"
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "intended": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "observed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "seeds_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "total",
+                  "intended",
+                  "observed",
+                  "seeds_hash"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "golden_selection"
+                  },
+                  "accepted": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "rejected": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "golden_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "accepted",
+                  "rejected",
+                  "golden_hash"
                 ],
                 "additionalProperties": false
               },
@@ -23017,6 +23888,245 @@
       ],
       "additionalProperties": false
     },
+    "CodeEdge": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "line"
+      ],
+      "additionalProperties": false
+    },
+    "CodeFileNode": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "blob": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "language": {
+          "type": "string",
+          "enum": [
+            "typescript",
+            "javascript",
+            "python",
+            "other"
+          ]
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "source",
+            "test",
+            "config",
+            "doc",
+            "other"
+          ]
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "exports": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,63}$"
+          }
+        }
+      },
+      "required": [
+        "path",
+        "blob",
+        "language",
+        "role",
+        "area",
+        "lines",
+        "exports"
+      ],
+      "additionalProperties": false
+    },
+    "CodeFileRole": {
+      "type": "string",
+      "enum": [
+        "source",
+        "test",
+        "config",
+        "doc",
+        "other"
+      ]
+    },
+    "CodeGraph": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "code-graph/1"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "commit_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "files": {
+          "maxItems": 2000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "blob": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "language": {
+                "type": "string",
+                "enum": [
+                  "typescript",
+                  "javascript",
+                  "python",
+                  "other"
+                ]
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "test",
+                  "config",
+                  "doc",
+                  "other"
+                ]
+              },
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "lines": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "exports": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,63}$"
+                }
+              }
+            },
+            "required": [
+              "path",
+              "blob",
+              "language",
+              "role",
+              "area",
+              "lines",
+              "exports"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "edges": {
+          "maxItems": 20000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "to": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "line"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "external_imports": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "skipped_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "graph_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "repo",
+        "commit_sha",
+        "files",
+        "edges",
+        "external_imports",
+        "skipped_index",
+        "truncated",
+        "graph_hash"
+      ],
+      "additionalProperties": false
+    },
     "CodeHostForbiddenVerb": {
       "type": "string",
       "enum": [
@@ -23115,6 +24225,19 @@
         "posture",
         "docs",
         "tracker"
+      ]
+    },
+    "CodeIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,63}$"
+    },
+    "CodeLanguage": {
+      "type": "string",
+      "enum": [
+        "typescript",
+        "javascript",
+        "python",
+        "other"
       ]
     },
     "CodeownersError": {
@@ -35455,6 +36578,150 @@
       ],
       "additionalProperties": false
     },
+    "ExamGrade": {
+      "type": "string",
+      "enum": [
+        "correct",
+        "incorrect",
+        "unsure"
+      ]
+    },
+    "ExamQuestion": {
+      "type": "object",
+      "properties": {
+        "question_id": {
+          "type": "string",
+          "pattern": "^exam-\\d{2}$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "answer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "evidence": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "blob": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "path",
+              "blob",
+              "line"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "question_id",
+        "text",
+        "answer",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "ExclusionManifest": {
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "protected_path",
+                  "sensitive_path",
+                  "generated_or_vendored"
+                ]
+              },
+              "globs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": [
+              "reason",
+              "globs"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "excluded": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "protected_path",
+                  "sensitive_path",
+                  "generated_or_vendored"
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "excluded_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "not_indexed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "manifest_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "rules",
+        "excluded",
+        "excluded_count",
+        "not_indexed",
+        "manifest_hash"
+      ],
+      "additionalProperties": false
+    },
     "ExplainHolder": {
       "type": "object",
       "properties": {
@@ -37223,6 +38490,599 @@
         "unknown",
         "not_evaluated"
       ]
+    },
+    "FullBaseline": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "full-baseline/1"
+        },
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "census_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "baseline_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "graph": {
+          "type": "object",
+          "properties": {
+            "graph_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "edges": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "external_imports": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "skipped_index": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "graph_hash",
+            "files",
+            "edges",
+            "external_imports",
+            "skipped_index",
+            "truncated"
+          ],
+          "additionalProperties": false
+        },
+        "system_map": {
+          "type": "object",
+          "properties": {
+            "graph_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "areas": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "manifest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "files": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "source_files": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "test_files": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "languages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "typescript",
+                        "javascript",
+                        "python",
+                        "other"
+                      ]
+                    }
+                  },
+                  "depends_on": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  },
+                  "used_by": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": [
+                  "area",
+                  "manifest",
+                  "files",
+                  "source_files",
+                  "test_files",
+                  "languages",
+                  "depends_on",
+                  "used_by"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "edges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "to": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "imports": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "imports"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "map_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "graph_hash",
+            "areas",
+            "edges",
+            "map_hash"
+          ],
+          "additionalProperties": false
+        },
+        "question_set": {
+          "type": "string",
+          "const": "full-questions/1"
+        },
+        "intent_questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question_id": {
+                "type": "string",
+                "pattern": "^[a-z]{2,8}-\\d{2}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "question_id",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "exam": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question_id": {
+                "type": "string",
+                "pattern": "^exam-\\d{2}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "answer": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600
+              },
+              "evidence": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "blob": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "blob",
+                    "line"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "question_id",
+              "text",
+              "answer",
+              "evidence"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "seeds": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seed_id": {
+                "type": "string",
+                "pattern": "^seed-[0-9a-f]{16}$"
+              },
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "status": {
+                "type": "string",
+                "const": "observed"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "text_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "evidence": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "blob": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "blob",
+                    "line"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "seed_id",
+              "area",
+              "path",
+              "status",
+              "text",
+              "text_sha256",
+              "evidence"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "seeds_dropped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "exclusion": {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "protected_path",
+                      "sensitive_path",
+                      "generated_or_vendored"
+                    ]
+                  },
+                  "globs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": [
+                  "reason",
+                  "globs"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "excluded": {
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "protected_path",
+                      "sensitive_path",
+                      "generated_or_vendored"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "excluded_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "not_indexed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "manifest_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "rules",
+            "excluded",
+            "excluded_count",
+            "not_indexed",
+            "manifest_hash"
+          ],
+          "additionalProperties": false
+        },
+        "golden_candidates": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "candidate_id": {
+                "type": "string",
+                "pattern": "^gt-[0-9a-f]{16}$"
+              },
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "test": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "blob": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  }
+                },
+                "required": [
+                  "path",
+                  "blob"
+                ],
+                "additionalProperties": false
+              },
+              "subjects": {
+                "minItems": 1,
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    },
+                    "blob": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "blob"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "candidate_id",
+              "area",
+              "test",
+              "subjects"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "oracle_lock": {
+          "type": "object",
+          "properties": {
+            "tests": {
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "blob": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  }
+                },
+                "required": [
+                  "path",
+                  "blob"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "lock_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tests",
+            "truncated",
+            "lock_hash"
+          ],
+          "additionalProperties": false
+        },
+        "baseline_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "s0_id",
+        "repo",
+        "census_hash",
+        "baseline_sha",
+        "graph",
+        "system_map",
+        "question_set",
+        "intent_questions",
+        "exam",
+        "seeds",
+        "seeds_dropped",
+        "exclusion",
+        "golden_candidates",
+        "oracle_lock",
+        "baseline_hash"
+      ],
+      "additionalProperties": false
+    },
+    "FullQuestion": {
+      "type": "object",
+      "properties": {
+        "question_id": {
+          "type": "string",
+          "pattern": "^[a-z]{2,8}-\\d{2}$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "question_id",
+        "text"
+      ],
+      "additionalProperties": false
     },
     "G4DecidersBasis": {
       "type": "string",
@@ -41013,6 +42873,77 @@
         ]
       }
     },
+    "GoldenTaskCandidate": {
+      "type": "object",
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^gt-[0-9a-f]{16}$"
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "test": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "blob": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          },
+          "required": [
+            "path",
+            "blob"
+          ],
+          "additionalProperties": false
+        },
+        "subjects": {
+          "minItems": 1,
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "blob": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            },
+            "required": [
+              "path",
+              "blob"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "candidate_id",
+        "area",
+        "test",
+        "subjects"
+      ],
+      "additionalProperties": false
+    },
+    "GoldenVerdict": {
+      "type": "string",
+      "enum": [
+        "accept",
+        "reject"
+      ]
+    },
     "GrantEnvelope": {
       "type": "object",
       "properties": {
@@ -41562,6 +43493,14 @@
     "HandoffUuid": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "HarvestExclusion": {
+      "type": "string",
+      "enum": [
+        "protected_path",
+        "sensitive_path",
+        "generated_or_vendored"
+      ]
     },
     "HealthState": {
       "type": "string",
@@ -67811,6 +69750,47 @@
         "banner.publish"
       ]
     },
+    "OracleLockProposal": {
+      "type": "object",
+      "properties": {
+        "tests": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "blob": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            },
+            "required": [
+              "path",
+              "blob"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "lock_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "tests",
+        "truncated",
+        "lock_hash"
+      ],
+      "additionalProperties": false
+    },
     "PackFile": {
       "type": "object",
       "properties": {
@@ -75724,6 +77704,167 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "full": {
+                          "type": "object",
+                          "properties": {
+                            "baseline_hash": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "graph_hash": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "map_hash": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "areas": {
+                              "minItems": 1,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 256
+                              }
+                            },
+                            "intent": {
+                              "type": "object",
+                              "properties": {
+                                "answers_hash": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{64}$"
+                                },
+                                "attested_by": {
+                                  "type": "string",
+                                  "maxLength": 128,
+                                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                                }
+                              },
+                              "required": [
+                                "answers_hash",
+                                "attested_by"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "seeds": {
+                              "type": "object",
+                              "properties": {
+                                "total": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "intended": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "observed": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "seeds_hash": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{64}$"
+                                }
+                              },
+                              "required": [
+                                "total",
+                                "intended",
+                                "observed",
+                                "seeds_hash"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "exam": {
+                              "type": "object",
+                              "properties": {
+                                "questions": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "correct": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "incorrect": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "unsure": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "score_pct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number",
+                                      "minimum": 0,
+                                      "maximum": 100
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "exam_hash": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{64}$"
+                                }
+                              },
+                              "required": [
+                                "questions",
+                                "correct",
+                                "incorrect",
+                                "unsure",
+                                "score_pct",
+                                "exam_hash"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "golden": {
+                              "type": "object",
+                              "properties": {
+                                "accepted": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "golden_hash": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{64}$"
+                                }
+                              },
+                              "required": [
+                                "accepted",
+                                "golden_hash"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "oracle_lock_hash": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            }
+                          },
+                          "required": [
+                            "baseline_hash",
+                            "graph_hash",
+                            "map_hash",
+                            "areas",
+                            "intent",
+                            "seeds",
+                            "exam",
+                            "golden",
+                            "oracle_lock_hash"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -77433,6 +79574,167 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "full": {
+                                "type": "object",
+                                "properties": {
+                                  "baseline_hash": {
+                                    "type": "string",
+                                    "pattern": "^[0-9a-f]{64}$"
+                                  },
+                                  "graph_hash": {
+                                    "type": "string",
+                                    "pattern": "^[0-9a-f]{64}$"
+                                  },
+                                  "map_hash": {
+                                    "type": "string",
+                                    "pattern": "^[0-9a-f]{64}$"
+                                  },
+                                  "areas": {
+                                    "minItems": 1,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 256
+                                    }
+                                  },
+                                  "intent": {
+                                    "type": "object",
+                                    "properties": {
+                                      "answers_hash": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "attested_by": {
+                                        "type": "string",
+                                        "maxLength": 128,
+                                        "pattern": "^[A-Za-z0-9_.@-]+$"
+                                      }
+                                    },
+                                    "required": [
+                                      "answers_hash",
+                                      "attested_by"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "seeds": {
+                                    "type": "object",
+                                    "properties": {
+                                      "total": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "intended": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "observed": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "seeds_hash": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "total",
+                                      "intended",
+                                      "observed",
+                                      "seeds_hash"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "exam": {
+                                    "type": "object",
+                                    "properties": {
+                                      "questions": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "correct": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "incorrect": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "unsure": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "score_pct": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number",
+                                            "minimum": 0,
+                                            "maximum": 100
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "exam_hash": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "questions",
+                                      "correct",
+                                      "incorrect",
+                                      "unsure",
+                                      "score_pct",
+                                      "exam_hash"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "golden": {
+                                    "type": "object",
+                                    "properties": {
+                                      "accepted": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "golden_hash": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "accepted",
+                                      "golden_hash"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "oracle_lock_hash": {
+                                    "type": "string",
+                                    "pattern": "^[0-9a-f]{64}$"
+                                  }
+                                },
+                                "required": [
+                                  "baseline_hash",
+                                  "graph_hash",
+                                  "map_hash",
+                                  "areas",
+                                  "intent",
+                                  "seeds",
+                                  "exam",
+                                  "golden",
+                                  "oracle_lock_hash"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -79079,6 +81381,167 @@
                   "type": "null"
                 }
               ]
+            },
+            "full": {
+              "type": "object",
+              "properties": {
+                "baseline_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "graph_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "map_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "areas": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                },
+                "intent": {
+                  "type": "object",
+                  "properties": {
+                    "answers_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "attested_by": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    }
+                  },
+                  "required": [
+                    "answers_hash",
+                    "attested_by"
+                  ],
+                  "additionalProperties": false
+                },
+                "seeds": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "intended": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "observed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "seeds_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "intended",
+                    "observed",
+                    "seeds_hash"
+                  ],
+                  "additionalProperties": false
+                },
+                "exam": {
+                  "type": "object",
+                  "properties": {
+                    "questions": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "correct": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "incorrect": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "unsure": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "score_pct": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "exam_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "questions",
+                    "correct",
+                    "incorrect",
+                    "unsure",
+                    "score_pct",
+                    "exam_hash"
+                  ],
+                  "additionalProperties": false
+                },
+                "golden": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "golden_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "accepted",
+                    "golden_hash"
+                  ],
+                  "additionalProperties": false
+                },
+                "oracle_lock_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "baseline_hash",
+                "graph_hash",
+                "map_hash",
+                "areas",
+                "intent",
+                "seeds",
+                "exam",
+                "golden",
+                "oracle_lock_hash"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -81779,6 +84242,167 @@
               "type": "null"
             }
           ]
+        },
+        "full": {
+          "type": "object",
+          "properties": {
+            "baseline_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "graph_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "map_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "areas": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            },
+            "intent": {
+              "type": "object",
+              "properties": {
+                "answers_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "attested_by": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "required": [
+                "answers_hash",
+                "attested_by"
+              ],
+              "additionalProperties": false
+            },
+            "seeds": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "intended": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "observed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "seeds_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "total",
+                "intended",
+                "observed",
+                "seeds_hash"
+              ],
+              "additionalProperties": false
+            },
+            "exam": {
+              "type": "object",
+              "properties": {
+                "questions": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "correct": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "incorrect": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "unsure": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "score_pct": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "exam_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "questions",
+                "correct",
+                "incorrect",
+                "unsure",
+                "score_pct",
+                "exam_hash"
+              ],
+              "additionalProperties": false
+            },
+            "golden": {
+              "type": "object",
+              "properties": {
+                "accepted": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "golden_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "accepted",
+                "golden_hash"
+              ],
+              "additionalProperties": false
+            },
+            "oracle_lock_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "baseline_hash",
+            "graph_hash",
+            "map_hash",
+            "areas",
+            "intent",
+            "seeds",
+            "exam",
+            "golden",
+            "oracle_lock_hash"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -81786,6 +84410,167 @@
         "claims",
         "intent",
         "operations"
+      ],
+      "additionalProperties": false
+    },
+    "PrrAffirmedFull": {
+      "type": "object",
+      "properties": {
+        "baseline_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "graph_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "map_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "areas": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "intent": {
+          "type": "object",
+          "properties": {
+            "answers_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "attested_by": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            }
+          },
+          "required": [
+            "answers_hash",
+            "attested_by"
+          ],
+          "additionalProperties": false
+        },
+        "seeds": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "intended": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "observed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "seeds_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "total",
+            "intended",
+            "observed",
+            "seeds_hash"
+          ],
+          "additionalProperties": false
+        },
+        "exam": {
+          "type": "object",
+          "properties": {
+            "questions": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "correct": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "incorrect": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "unsure": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "score_pct": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "exam_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "questions",
+            "correct",
+            "incorrect",
+            "unsure",
+            "score_pct",
+            "exam_hash"
+          ],
+          "additionalProperties": false
+        },
+        "golden": {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "golden_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "accepted",
+            "golden_hash"
+          ],
+          "additionalProperties": false
+        },
+        "oracle_lock_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "baseline_hash",
+        "graph_hash",
+        "map_hash",
+        "areas",
+        "intent",
+        "seeds",
+        "exam",
+        "golden",
+        "oracle_lock_hash"
       ],
       "additionalProperties": false
     },
@@ -83573,6 +86358,167 @@
                       "type": "null"
                     }
                   ]
+                },
+                "full": {
+                  "type": "object",
+                  "properties": {
+                    "baseline_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "graph_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "map_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "areas": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "intent": {
+                      "type": "object",
+                      "properties": {
+                        "answers_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "attested_by": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[A-Za-z0-9_.@-]+$"
+                        }
+                      },
+                      "required": [
+                        "answers_hash",
+                        "attested_by"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "seeds": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "intended": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "observed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "seeds_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "intended",
+                        "observed",
+                        "seeds_hash"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "exam": {
+                      "type": "object",
+                      "properties": {
+                        "questions": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "correct": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "incorrect": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unsure": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "score_pct": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "exam_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "questions",
+                        "correct",
+                        "incorrect",
+                        "unsure",
+                        "score_pct",
+                        "exam_hash"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "golden": {
+                      "type": "object",
+                      "properties": {
+                        "accepted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "golden_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "accepted",
+                        "golden_hash"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "oracle_lock_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "baseline_hash",
+                    "graph_hash",
+                    "map_hash",
+                    "areas",
+                    "intent",
+                    "seeds",
+                    "exam",
+                    "golden",
+                    "oracle_lock_hash"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -85722,6 +88668,167 @@
                       "type": "null"
                     }
                   ]
+                },
+                "full": {
+                  "type": "object",
+                  "properties": {
+                    "baseline_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "graph_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "map_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "areas": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "intent": {
+                      "type": "object",
+                      "properties": {
+                        "answers_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "attested_by": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[A-Za-z0-9_.@-]+$"
+                        }
+                      },
+                      "required": [
+                        "answers_hash",
+                        "attested_by"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "seeds": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "intended": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "observed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "seeds_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "intended",
+                        "observed",
+                        "seeds_hash"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "exam": {
+                      "type": "object",
+                      "properties": {
+                        "questions": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "correct": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "incorrect": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unsure": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "score_pct": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "exam_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "questions",
+                        "correct",
+                        "incorrect",
+                        "unsure",
+                        "score_pct",
+                        "exam_hash"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "golden": {
+                      "type": "object",
+                      "properties": {
+                        "accepted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "golden_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "accepted",
+                        "golden_hash"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "oracle_lock_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "baseline_hash",
+                    "graph_hash",
+                    "map_hash",
+                    "areas",
+                    "intent",
+                    "seeds",
+                    "exam",
+                    "golden",
+                    "oracle_lock_hash"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -89872,6 +92979,595 @@
       ],
       "additionalProperties": false
     },
+    "S0FullProposedPayload": {
+      "type": "object",
+      "properties": {
+        "occurrence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "baseline": {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "type": "string",
+              "const": "full-baseline/1"
+            },
+            "s0_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "repo": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "census_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "baseline_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "graph": {
+              "type": "object",
+              "properties": {
+                "graph_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "files": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "edges": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "external_imports": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "skipped_index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "graph_hash",
+                "files",
+                "edges",
+                "external_imports",
+                "skipped_index",
+                "truncated"
+              ],
+              "additionalProperties": false
+            },
+            "system_map": {
+              "type": "object",
+              "properties": {
+                "graph_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "areas": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "manifest": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 512
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "files": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "source_files": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "test_files": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "languages": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "typescript",
+                            "javascript",
+                            "python",
+                            "other"
+                          ]
+                        }
+                      },
+                      "depends_on": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        }
+                      },
+                      "used_by": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        }
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "manifest",
+                      "files",
+                      "source_files",
+                      "test_files",
+                      "languages",
+                      "depends_on",
+                      "used_by"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "edges": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "to": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "imports": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "from",
+                      "to",
+                      "imports"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "map_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "graph_hash",
+                "areas",
+                "edges",
+                "map_hash"
+              ],
+              "additionalProperties": false
+            },
+            "question_set": {
+              "type": "string",
+              "const": "full-questions/1"
+            },
+            "intent_questions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "question_id": {
+                    "type": "string",
+                    "pattern": "^[a-z]{2,8}-\\d{2}$"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "question_id",
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "exam": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "question_id": {
+                    "type": "string",
+                    "pattern": "^exam-\\d{2}$"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "answer": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 600
+                  },
+                  "evidence": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "blob": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "line": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "blob",
+                        "line"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "question_id",
+                  "text",
+                  "answer",
+                  "evidence"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "seeds": {
+              "maxItems": 30,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "seed_id": {
+                    "type": "string",
+                    "pattern": "^seed-[0-9a-f]{16}$"
+                  },
+                  "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "status": {
+                    "type": "string",
+                    "const": "observed"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "text_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "evidence": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "blob": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "line": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "blob",
+                        "line"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "seed_id",
+                  "area",
+                  "path",
+                  "status",
+                  "text",
+                  "text_sha256",
+                  "evidence"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "seeds_dropped": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "exclusion": {
+              "type": "object",
+              "properties": {
+                "rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "protected_path",
+                          "sensitive_path",
+                          "generated_or_vendored"
+                        ]
+                      },
+                      "globs": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    },
+                    "required": [
+                      "reason",
+                      "globs"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "excluded": {
+                  "maxItems": 500,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "protected_path",
+                          "sensitive_path",
+                          "generated_or_vendored"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "excluded_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "not_indexed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "manifest_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "rules",
+                "excluded",
+                "excluded_count",
+                "not_indexed",
+                "manifest_hash"
+              ],
+              "additionalProperties": false
+            },
+            "golden_candidates": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "candidate_id": {
+                    "type": "string",
+                    "pattern": "^gt-[0-9a-f]{16}$"
+                  },
+                  "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "test": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "blob": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "blob"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "subjects": {
+                    "minItems": 1,
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 512
+                        },
+                        "blob": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "blob"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "candidate_id",
+                  "area",
+                  "test",
+                  "subjects"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "oracle_lock": {
+              "type": "object",
+              "properties": {
+                "tests": {
+                  "maxItems": 500,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "blob": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "blob"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "lock_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "tests",
+                "truncated",
+                "lock_hash"
+              ],
+              "additionalProperties": false
+            },
+            "baseline_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "s0_id",
+            "repo",
+            "census_hash",
+            "baseline_sha",
+            "graph",
+            "system_map",
+            "question_set",
+            "intent_questions",
+            "exam",
+            "seeds",
+            "seeds_dropped",
+            "exclusion",
+            "golden_candidates",
+            "oracle_lock",
+            "baseline_hash"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "occurrence",
+        "baseline"
+      ],
+      "additionalProperties": false
+    },
     "S0InstructionEditedPayload": {
       "type": "object",
       "properties": {
@@ -93917,6 +97613,21 @@
       ],
       "additionalProperties": false
     },
+    "SeedStatus": {
+      "type": "string",
+      "enum": [
+        "observed",
+        "intended"
+      ]
+    },
+    "SeedVerdict": {
+      "type": "string",
+      "enum": [
+        "affirm",
+        "correct",
+        "keep_observed"
+      ]
+    },
     "SessionChange": {
       "type": "object",
       "properties": {
@@ -95755,6 +99466,77 @@
         "index",
         "edge",
         "kind"
+      ],
+      "additionalProperties": false
+    },
+    "SpecSeed": {
+      "type": "object",
+      "properties": {
+        "seed_id": {
+          "type": "string",
+          "pattern": "^seed-[0-9a-f]{16}$"
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "status": {
+          "type": "string",
+          "const": "observed"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "evidence": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "blob": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "path",
+              "blob",
+              "line"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "seed_id",
+        "area",
+        "path",
+        "status",
+        "text",
+        "text_sha256",
+        "evidence"
       ],
       "additionalProperties": false
     },
@@ -97693,6 +101475,237 @@
         "channel",
         "text",
         "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "SystemMap": {
+      "type": "object",
+      "properties": {
+        "graph_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "areas": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "manifest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "source_files": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "test_files": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "typescript",
+                    "javascript",
+                    "python",
+                    "other"
+                  ]
+                }
+              },
+              "depends_on": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "used_by": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              }
+            },
+            "required": [
+              "area",
+              "manifest",
+              "files",
+              "source_files",
+              "test_files",
+              "languages",
+              "depends_on",
+              "used_by"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "to": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "imports": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "imports"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "map_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "graph_hash",
+        "areas",
+        "edges",
+        "map_hash"
+      ],
+      "additionalProperties": false
+    },
+    "SystemMapArea": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "manifest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "source_files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "test_files": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "typescript",
+              "javascript",
+              "python",
+              "other"
+            ]
+          }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "used_by": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "required": [
+        "area",
+        "manifest",
+        "files",
+        "source_files",
+        "test_files",
+        "languages",
+        "depends_on",
+        "used_by"
+      ],
+      "additionalProperties": false
+    },
+    "SystemMapEdge": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "imports": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "imports"
       ],
       "additionalProperties": false
     },

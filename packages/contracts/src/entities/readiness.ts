@@ -3,6 +3,7 @@ import { hashCanonical } from '@aisdlc/kernel';
 import { ReadinessStatus } from '../states/readiness.js';
 import { Autonomy, AutonomyValues, Lane, Level, LevelValues, Tier, TierValues } from '../values.js';
 import { CatalogueRef } from './config.js';
+import { PrrAffirmedFull } from './onboarding-full.js';
 import { CRITERIA_SET_ID, CriterionClass, CriterionId } from './criteria.js';
 import {
   AreaId,
@@ -282,6 +283,8 @@ export const PrrAffirmed = z.strictObject({
   claims: PrrClaims,
   intent: z.strictObject({ answers_hash: Sha256Hex, attested_by: PrincipalId }),
   operations: z.strictObject({ text_sha256: Sha256Hex, attested_by: PrincipalId }).nullable(),
+  /** Full (M17): what card 3 decided, by hash and count. Absent below Full. */
+  full: PrrAffirmedFull.optional(),
 });
 
 /** Observed at 0.4, never the factory's wishes. `null` where it could not be read (unknown). */
