@@ -5,12 +5,20 @@ import { PageError, Loading } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
 import { STATUS_TEXT, levelTitle } from '../vocab';
+import { DriftBanner } from './DriftPage';
 
 export function ProjectDetailPage({ id }: { id: string }) {
   const q = useQuery({
     queryKey: ['project', id],
     queryFn: () => api.project(id),
     refetchInterval: 10_000,
+  });
+  // the after-onboarding banner (M16): a read the person may not have; then there is simply no banner
+  const drift = useQuery({
+    queryKey: ['drift', id],
+    queryFn: () => api.drift(id),
+    refetchInterval: 30_000,
+    retry: false,
   });
   if (q.isPending) return <Loading what="the project" />;
   if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
@@ -22,6 +30,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
         <Link to="/">Projects</Link>
       </p>
       <h1>{project.name}</h1>
+      {drift.data ? <DriftBanner project={project.project_id} repos={drift.data.repos} /> : null}
       <dl className="facts facts-wide">
         <div>
           <dt>Project id</dt>
@@ -58,6 +67,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
         <Link to={`/projects/${project.project_id}/readiness`}>Readiness record</Link>
         <Link to={`/projects/${project.project_id}/ledger`}>Ledger entries</Link>
         <Link to={`/projects/${project.project_id}/issues`}>Issue twin</Link>
+        <Link to={`/projects/${project.project_id}/drift`}>Drift and readiness</Link>
         <Link to={`/projects/${project.project_id}/learn`}>What it has learned (9.4)</Link>
       </p>
 

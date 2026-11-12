@@ -15,15 +15,28 @@ const CARD_TITLE = {
   C5: 'Card 5: sign-off and M4',
   SECR: 'Security card',
   BATCH: 'Batch card',
-  X2: 'Exception card',
+  X2: 'X2: the onboarding pack PR',
+} as const;
+
+/** M16 after onboarding: one item per repo, decided on the project's drift page. */
+const AFTER_ONBOARDING_TITLE = {
+  drift_reaffirm: 'Re-affirm changed instruction text',
+  prr_restore: 'Restore a suspended readiness record',
+  prr_resign: 'Re-sign an expired readiness record',
 } as const;
 
 export const titleOf = (i: PortalInboxItem): string =>
   i.kind === 'settings_revision'
     ? 'Settings revision: publish the role map'
-    : (CARD_TITLE[i.label as keyof typeof CARD_TITLE] ?? 'Card');
+    : i.kind === 'onboarding_card'
+      ? (CARD_TITLE[i.label as keyof typeof CARD_TITLE] ?? 'Card')
+      : `${AFTER_ONBOARDING_TITLE[i.kind]}: ${i.id}`;
 export const hrefOf = (i: PortalInboxItem): string =>
-  i.kind === 'settings_revision' ? `/revisions/${i.id}` : `/cards/${i.id}`;
+  i.kind === 'settings_revision'
+    ? `/revisions/${i.id}`
+    : i.kind === 'onboarding_card'
+      ? `/cards/${i.id}`
+      : `/projects/${encodeURIComponent(i.project_id)}/drift`;
 
 function Item({ i }: { i: PortalInboxItem }) {
   const due = i.sla_due_at ? new Date(i.sla_due_at).getTime() : null;
