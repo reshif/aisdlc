@@ -45,6 +45,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-smoke}"
+# its own subnets (docker-compose.yml: every network has a /24 under this prefix), so it can run beside another stack
+export AISDLC_SUBNET_PREFIX="${AISDLC_SUBNET_PREFIX:-10.232}"
 # The checkpointer runs every 5 minutes by default; a smoke test cannot wait that long.
 export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
 # core-worker records the kill switch's journal every few seconds; a smoke test cannot wait for the default.

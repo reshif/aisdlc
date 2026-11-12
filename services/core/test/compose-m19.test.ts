@@ -24,7 +24,10 @@ interface Service {
 }
 const compose = parse(readFileSync(join(dir, 'docker-compose.yml'), 'utf8'), { merge: true }) as {
   services: Record<string, Service>;
-  networks: Record<string, { internal?: boolean } | null>;
+  networks: Record<
+    string,
+    { internal?: boolean; ipam?: { config?: Array<{ subnet?: string }> } } | null
+  >;
 };
 const netsOf = (s: Service): string[] =>
   Array.isArray(s.networks) ? s.networks : Object.keys(s.networks ?? {});
@@ -108,5 +111,17 @@ describe('M19 the OpenTelemetry collector', () => {
         );
       }
     }
+  });
+});
+
+describe('M19 the networks fit any Docker daemon', () => {
+  it('every network has its own /24 under AISDLC_SUBNET_PREFIX (the default address pools hold about 30)', () => {
+    const subnets = Object.entries(compose.networks).map(([name, n]) => {
+      const s = n?.ipam?.config?.[0]?.subnet ?? '';
+      expect(s, name).toMatch(/^\$\{AISDLC_SUBNET_PREFIX:-10\.231\}\.\d{1,3}\.0\/24$/);
+      return s;
+    });
+    expect(new Set(subnets).size).toBe(subnets.length);
+    expect(subnets.length).toBeLessThanOrEqual(254);
   });
 });

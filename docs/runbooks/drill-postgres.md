@@ -50,3 +50,16 @@ back, and `verify-ledger.sh` passes.
 `packages/db/test/failover.test.ts` terminates every backend of a real test database (what a failover does to the
 clients): idle connections killed do not crash the process and the next query reconnects; a transaction cut in the
 middle fails to its caller, leaves nothing behind and lands once when retried.
+
+## 5. Results
+
+2026-11-12, Stack: `aisdlc/factory:local` built from `build/m19b`, `docker compose --profile fake-github --profile telemetry up -d --wait` (project `aisdlc-m19b`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318`), Docker 29.9.2.
+
+| Run | Result |
+|---|---|
+| `./drill.sh postgres` | **every check held.** Ledger head 5 before and after; no factory container restarted (all ten at 0); core-worker healthy again; `verify-ledger` OK (5 entries, checkpoint 1 covers the head). |
+| `./drill.sh postgres --hard` | **every check held**, the same. The pools logged the drops instead of crashing: `db pool: idle connection lost` in core 3, core-worker 2, identity 2, bff 2, notary 2, killswitch 2, witness 1 (each of those would have been an uncaught exception before the `@aisdlc/db` fix). |
+
+The first `up` of this stack failed before the drill could start: the compose file declares 43 networks and Docker's
+default address pools hold about 30 (`all predefined address pools have been fully subnetted`). Every network now has
+its own /24 under `AISDLC_SUBNET_PREFIX` (default `10.231`; smoke.sh uses `10.232`, e2e.sh `10.233`).

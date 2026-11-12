@@ -34,41 +34,56 @@ x-factory:
 # scopes stand between them). The networks below are cut so that the paths the specs forbid do not
 # exist at all, and the ones that must exist are as narrow as the topology allows.
 networks:
+  # Every network has its own /24 under AISDLC_SUBNET_PREFIX (default 10.231): the stack has more networks than
+  # Docker's default address pools hold (about 30), and the sandbox sessions' own networks still take theirs from
+  # those pools. Two stacks at once need two prefixes (smoke.sh and e2e.sh set their own).
   # Browser edge: the only network with published ports (bff, dev-oidc). Not internal, because a
   # published port needs a route in; neither service needs one out.
-  edge: {}
+  edge:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.1.0/24' }] }
   # The services that call each other: core, core-worker, identity, knowledge, codehost (and seed).
   app:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.2.0/24' }] }
     internal: true
   # Postgres reached by each database's own clients and nobody else. The Notary's and the Witness's
   # databases are on networks the record services never join (their roles also cannot connect to
   # each other's database, see db-init.sh).
   data-record:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.3.0/24' }] }
     internal: true
   data-notary:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.4.0/24' }] }
     internal: true
   data-witness:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.5.0/24' }] }
     internal: true
   # The kill switch's own database network (AR9): nothing but the kill switch and Postgres is on it.
   data-killswitch:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.6.0/24' }] }
     internal: true
   # kms-local reached by its callers. Three networks so that the Notary and the Witness, the two
   # independent signers (AR9, C33), have no route to each other or to the other callers through it.
   kms-notary:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.7.0/24' }] }
     internal: true
   kms-witness:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.8.0/24' }] }
     internal: true
   kms-clients:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.9.0/24' }] }
     internal: true
   # The kill switch's own signer link: it has its own key (`dev:killswitch`) and no other caller of
   # kms-local can see it from here.
   kms-killswitch:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.10.0/24' }] }
     internal: true
   # The Notary's API: its callers (core, core-worker, identity, seed). Knowledge, codehost, the bff
   # and the dev IdP are not on it. The Witness's API: its caller (core-worker, for the checkpointer).
   notary-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.11.0/24' }] }
     internal: true
   witness-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.12.0/24' }] }
     internal: true
   # The kill switch's API (AR9): its readers and pushers (core-worker) and the operator path. Core, the
   # Notary, the codehost, the bff and every other service are not on it, and the kill switch is on no
@@ -76,6 +91,7 @@ networks:
   # core-side member is core-worker, whose HTTP surface is /healthz, /metrics and /admission (nothing
   # writes); the kill switch has no client that calls it.
   killswitch-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.13.0/24' }] }
     internal: true
   # The model gateway (RV §2 "Model key custody"): the one container that holds a vendor key. Three
   # networks and no more. `gateway-api` is its HTTP surface (the admin API for the work engine, the
@@ -85,43 +101,55 @@ networks:
   # from there, and the gateway is on no kms, notary or witness network). `gateway-egress` is its own
   # way out (the model vendor's API) and nobody else is on it.
   gateway-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.14.0/24' }] }
     internal: true
   # The gateway's own way to Postgres. It shares the record database (the aisdlc role) but NOT the
   # data-record network, so it has no route to identity, core, the bff or the rest of the record
   # services that sit there: only Postgres is on it besides the gateway.
   data-gateway:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.15.0/24' }] }
     internal: true
   killswitch-gateway:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.16.0/24' }] }
     internal: true
-  gateway-egress: {}
+  gateway-egress:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.17.0/24' }] }
   # The sandbox plane (profile `sandbox`, PLAN M13.2). None of these has a route out.
   #   - `sandbox-mirror`: the package mirror's own network. Each sandbox session gets a per-session internal
   #     network (created and removed by the sandbox driver through the coding proxy) and the mirror and the
   #     gateway are attached to it under fixed aliases: those two are the only peers a session ever has.
   #   - `docker-cvw` and `docker-coding`: the way each client reaches ITS Docker socket proxy and nothing else.
   sandbox-mirror:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.18.0/24' }] }
     internal: true
   docker-cvw:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.19.0/24' }] }
     internal: true
   docker-coding:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.20.0/24' }] }
     internal: true
   # The sandbox-controller (M14.2, ADR-0003 §6-7): `sandbox-controller-api` is how core-worker asks it for a session and
   # for the free slots H2 reads (and, 2026-11-12, the bff with a read-only token for the portal's Sandboxes screen); `data-sandbox-controller` is its own way to Postgres (its
   # least-privilege role reads the published caps and the admission grant, nothing else), shared with Postgres only.
   sandbox-controller-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.21.0/24' }] }
     internal: true
   data-sandbox-controller:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.22.0/24' }] }
     internal: true
   # M19: the sandbox-controller's one route to core, for the heartbeats of its running sessions
   # (`POST /v1/sessions/heartbeat`, token `tok-sandbox-controller-core`, scope `activity` and nothing else).
   core-activity:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.23.0/24' }] }
     internal: true
   # M19: the OpenTelemetry collector's inbound networks (profile `telemetry`). `telemetry` is shared by the services that
   # already share `app` (core, core-worker, identity, knowledge, codehost), so it opens no path between them that did
   # not exist; the bff has its own (`telemetry-bff`). The collector joins only these and has no way out.
   telemetry:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.24.0/24' }] }
     internal: true
   telemetry-bff:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.25.0/24' }] }
     internal: true
   # The verify service (M14.3, the plan's `cvw`): `verify-api` is how core-worker asks it for a step's check (nobody
   # else is on it); `data-verify` is its own way to Postgres (its role writes its own table and its own `verify:`
@@ -129,15 +157,19 @@ networks:
   # base commit and the Unit head). Its kits reach the sandbox-controller on `sandbox-controller-api`, its reviewer the
   # gateway on `gateway-api` (under the run's own key).
   verify-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.26.0/24' }] }
     internal: true
   data-verify:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.27.0/24' }] }
     internal: true
   verify-codehost:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.28.0/24' }] }
     internal: true
   # The object store's API (M14.1). core-worker writes (M14.4: 7.6 stores the signed Evidence Packs in the
   # write-once bucket), core reads them for the portal (M14.6), gate-check reads them (M14.5); the store has no
   # other network and no route out.
   objectstore-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.29.0/24' }] }
     internal: true
   # gate-check (M14.5, ADR-0003 §1 Integration plane, profile `gate-check`): `data-gatecheck` is its own way to Postgres
   # (its role: its own tables and record streams, read-only the ledger, the bypass list's config view and four of
@@ -146,47 +178,61 @@ networks:
   # namespace, answers gate-check on its own port (8355; only the fake profile listens there). gate-check holds no
   # token of the codehost, so the codehost's API on the same network refuses it.
   data-gatecheck:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.30.0/24' }] }
     internal: true
   # M14.6: how the bff reads gate-check's verdicts for the portal (scope read); nobody else is on it.
   gatecheck-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.31.0/24' }] }
     internal: true
   gatecheck-github:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.32.0/24' }] }
     internal: true
-  gatecheck-egress: {}
+  gatecheck-egress:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.33.0/24' }] }
   # gate-relay (M15.3, profile `gate-relay`): the same shape as gate-check's, its own: `data-gaterelay` to Postgres (its
   # role: its own tables and record streams, read-only the ledger, the release setting's config view, the packs' and
   # gate-check's merges' read models), `gaterelay-egress` to GitHub (its App is neither the codehost's nor
   # gate-check's), `gaterelay-github` where the fake GitHub answers it on its own port (8356).
   data-gaterelay:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.34.0/24' }] }
     internal: true
   gaterelay-github:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.35.0/24' }] }
     internal: true
-  gaterelay-egress: {}
+  gaterelay-egress:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.36.0/24' }] }
   # The notifier (M18, ADR-0003 §1 Integration plane, profile `notifier`): `data-notifier` is its own way to Postgres
   # (its role: its own tables and `notifier:` record streams, read-only the gate, card and kill events it notifies
   # about, identity's read model and the channel rows' config view); `notifier-api` is the bff's way to it (its only
   # caller); `notifier-egress` is its own way out, to Slack's webhooks and the SMTP relay. It holds the channel
   # credentials, and nothing else holds them.
   data-notifier:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.37.0/24' }] }
     internal: true
   notifier-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.38.0/24' }] }
     internal: true
-  notifier-egress: {}
+  notifier-egress:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.39.0/24' }] }
   # The audit service (M19, ADR-0003 §1 Trust plane, profile `audit`): `data-audit` is its own way to Postgres (its
   # role: its read models, its own `audit-` streams and four ledger entry types, read-only the record, the checkpoints,
   # identity's read model and the config view); `audit-api` is the bff's way to it (its only caller); `audit-core` is
   # its one link to core (the erasable payloads, scope `erasure`): nothing else of core's is reachable from there and
   # core holds no token of the audit service. No route out.
   data-audit:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.40.0/24' }] }
     internal: true
   audit-api:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.41.0/24' }] }
     internal: true
   audit-core:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.42.0/24' }] }
     internal: true
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
   # network with a route out), so it has no route to GitHub and gets repo content only as bundles
   # from the codehost.
-  egress: {}
+  egress:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.43.0/24' }] }
 
 volumes:
   pgdata: {}

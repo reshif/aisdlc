@@ -55,3 +55,12 @@ to be ledgered, then checks that no factory container restarted, core-worker is 
 `services/core/test/drill-notary.test.ts` runs the same drill on a real Postgres and a real Notary behind a switch:
 the gate decision refused and later decided, the halt with its step-up in force, pending, then backfilled once with
 its StepUpUse.
+
+## 6. Results
+
+2026-11-12, Stack: `aisdlc/factory:local` built from `build/m19b`, `docker compose --profile fake-github --profile telemetry up -d --wait` (project `aisdlc-m19b`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318`), Docker 29.9.2.
+
+`./drill.sh notary`: **every check held.** The Notary's tile read `down` while it was stopped and `ok` after the start;
+the ledger head stayed at 5 for the whole outage; no operator action was pending (none was taken during this run, the
+pending-then-backfilled path is the test in §5); no factory container restarted; core-worker healthy; `verify-ledger`
+OK. Note: `docker compose start notary` also re-runs its dependencies (`migrate` exits 0 again), which is harmless.
