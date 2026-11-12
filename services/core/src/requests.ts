@@ -1,6 +1,13 @@
+import { laneEligibility as catalogueEligibility } from '@aisdlc/catalogue';
 import {
   ITEM_EVENT,
+  LevelValues,
   OPEN_INTAKE_CHANNELS,
+  gatePolicy,
+  type GateId,
+  type Level,
+  type RequestGateDeciders,
+  type SubmitRequestReceipt,
   type EntryChannel,
   type InjectionReport,
   type Lane,
@@ -9,6 +16,7 @@ import {
   type ProjectId,
   type TaintedText,
 } from '@aisdlc/contracts';
+import type { EligibilityPort } from '@aisdlc/decisions';
 import { deterministicId, err, ok, type Result } from '@aisdlc/kernel';
 import { injectionReportOf, taintMark } from '@aisdlc/work';
 import { coreError, type CoreError } from './errors.js';
@@ -44,6 +52,9 @@ export interface SubmitRequestResult {
   readonly dedupe_links: readonly string[];
   /** B27: the scan of the text (`suspected` means it is fenced and the G0 card is flagged). */
   readonly injection: InjectionReport;
+  /** 1.1: the text as kept, with its taint mark and provenance. */
+  readonly request_text: TaintedText;
+  readonly asked_lane: Lane;
 }
 
 export async function submitRequest(
@@ -80,7 +91,74 @@ export async function submitRequest(
     duplicate: r.value.duplicate,
     dedupe_links: r.value.dedupe_links ?? [],
     injection: injectionReportOf(text),
+    request_text: text,
+    asked_lane: input.lane,
   });
+}
+
+/** The gates a new item meets first, whose deciders the receipt names (FL: G0 and G1 on one card). */
+const FIRST_GATES: readonly GateId[] = ['G0', 'G1'];
+
+/** The lowest level whose catalogue row opens `lane` (the current catalogue: the one a new item pins). */
+export const laneOpensAt = (lane: Lane): Level | null =>
+  LevelValues.find((l) => catalogueEligibility(l, lane) === 'eligible') ?? null;
+
+/**
+ * The receipt of a request (P1-1, P2-17): what intake did, the lane it runs as and why, the lowest level that opens
+ * the asked lane, and who decides G0 and G1 on the project now. Who decides is read from the role map; an error is
+ * `null` holders with the reason (unknown, never "anyone"), and a held request (no item yet) names nobody.
+ */
+export async function requestReceipt(
+  r: SubmitRequestResult,
+  project: ProjectId,
+  eligibility: EligibilityPort | undefined,
+): Promise<SubmitRequestReceipt> {
+  const deciders: RequestGateDeciders[] = [];
+  if (r.item_id !== null) {
+    for (const gate of FIRST_GATES) {
+      const slot = gatePolicy(gate).slot;
+      if (!eligibility) {
+        deciders.push({ gate, slot, holders: null, reason: 'no identity is configured' });
+        continue;
+      }
+      let h: Awaited<ReturnType<EligibilityPort['holders']>>;
+      try {
+        h = await eligibility.holders(project, slot);
+      } catch (e) {
+        deciders.push({
+          gate,
+          slot,
+          holders: null,
+          reason: `who holds ${slot} could not be read: ${e instanceof Error ? e.message : String(e)}`,
+        });
+        continue;
+      }
+      deciders.push(
+        h.ok
+          ? { gate, slot, holders: [...h.value].sort(), reason: null }
+          : {
+              gate,
+              slot,
+              holders: null,
+              reason: `who holds ${slot} is unknown: ${h.error.message}`,
+            },
+      );
+    }
+  }
+  return {
+    request_id: r.request_id as never,
+    item_id: r.item_id as never,
+    state: r.state,
+    verdict: r.verdict,
+    duplicate: r.duplicate,
+    dedupe_links: [...r.dedupe_links] as never,
+    injection: r.injection,
+    asked_lane: r.asked_lane,
+    proposed_lane: r.verdict.route === 'l8' ? 'L8' : r.asked_lane,
+    lane_opens_at: laneOpensAt(r.asked_lane),
+    request_text: r.request_text,
+    deciders,
+  };
 }
 
 // ---------------------------------------------------------------- Human signals into an item

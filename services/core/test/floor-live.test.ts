@@ -4,6 +4,7 @@ import {
   EvalRunRecord,
   FleetView,
   FloorView,
+  ItemView,
   SESSION_EVENT,
   collapseFleetRow,
   evalStream,
@@ -258,6 +259,56 @@ describe('GateFeasibility', () => {
       ]);
     } finally {
       s.elig.breakProject(lonely.project as never, false);
+    }
+  });
+});
+
+describe('P1-2: where a work gate is decided', () => {
+  it('the inbox and the item name the card each gate is decided on, and a decided gate its ledger entry', async () => {
+    const all = await inboxWorkGates({ cards: { pool: s.record.pool } as never, config: s.config });
+    const mine = all.filter((i) => i.item_id === orphan);
+    const card = mine[0]?.card_id ?? null;
+    expect(card).toMatch(/^[0-9a-f-]{36}$/);
+    // G0 and G1 are opened on one card, and the record says so
+    expect(mine.map((i) => [i.gate, i.card_id])).toEqual([
+      ['G0', card],
+      ['G1', card],
+    ]);
+    const opened = await s.record.pool.query(
+      `SELECT body -> 'targets' AS targets FROM record.record_event WHERE stream = $1 AND type = 'card.opened'`,
+      [`card:${card}`],
+    );
+    expect(opened.rows[0].targets.map((t: Json) => t.gate_instance_id)).toEqual(
+      mine.map((i) => i.id),
+    );
+
+    const pending = await call(TOKENS.bff, 'GET', `/v1/items/${orphan}?on_behalf_of=ria`);
+    expect(pending.status).toBe(200);
+    expect(
+      ItemView.parse(pending.json).gates.map((g) => [
+        g.gate,
+        g.status,
+        g.card_id,
+        g.ledger_entry_id,
+      ]),
+    ).toEqual([
+      ['G0', 'pending', card, null],
+      ['G1', 'pending', card, null],
+    ]);
+
+    // the item that went on to S6: every gate it passed is decided, on a card, with its ledger entry
+    const done = ItemView.parse(
+      (await call(TOKENS.bff, 'GET', `/v1/items/${coding}?on_behalf_of=ria`)).json,
+    );
+    const decided = done.gates.filter((g) => g.status === 'decided');
+    expect(decided.map((g) => g.gate)).toEqual(expect.arrayContaining(['G0', 'G1']));
+    for (const g of decided) {
+      expect(g.card_id).not.toBeNull();
+      const entry = await s.record.pool.query(
+        'SELECT 1 FROM ledger.ledger_entry WHERE entry_id = $1',
+        [g.ledger_entry_id],
+      );
+      expect(entry.rowCount).toBe(1);
     }
   });
 });

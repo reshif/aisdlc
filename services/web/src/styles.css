@@ -1032,3 +1032,16 @@ section[aria-label] > .ui-eyebrow {
   overflow-wrap: anywhere;
   margin: 0;
 }
+
+/* P1-1: the request text as the factory keeps it, on the receipt (data: shown as text, never rendered) */
+.ask-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 20rem;
+  overflow: auto;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}

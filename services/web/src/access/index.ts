@@ -6,6 +6,7 @@ export {
   resourceKey,
   useAccess,
   useCan,
+  useMe,
   type Can,
 } from './AccessProvider';
 export { reasonText, rolesThatGrant } from './reasons';
