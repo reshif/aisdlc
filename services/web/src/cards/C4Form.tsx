@@ -165,6 +165,9 @@ export function C4Form({ card, csrf, me }: { card: CardDetailWire; csrf: string;
       lane: d.scope.kind === 'lane' ? (d.scope.ref.split('/')[1] ?? 'L4') : 'L4',
     })),
   );
+  // M15.5: the G5 release choice (PLAN §7a): not chosen, off, or a deploy target (a GitHub environment)
+  const [release, setRelease] = useState<'unset' | 'off' | 'target'>('unset');
+  const [environment, setEnvironment] = useState('');
   const project = card.summary.project_id;
 
   const needsOps = v.attestations.required.includes('operations_md');
@@ -256,6 +259,12 @@ export function C4Form({ card, csrf, me }: { card: CardDetailWire; csrf: string;
           ? { kind: 'lane', ref: `${project}/${k.lane}` }
           : { kind: 'project', ref: project },
     })),
+    release:
+      release === 'unset'
+        ? null
+        : release === 'off'
+          ? { mode: 'off' as const }
+          : { mode: 'target' as const, environment: environment.trim() },
   };
 
   async function recheck() {
@@ -499,6 +508,38 @@ export function C4Form({ card, csrf, me }: { card: CardDetailWire; csrf: string;
             </label>
           ))}
         </fieldset>
+      </Section>
+
+      <Section title="Release (G5)" id="c4-release">
+        <p className="muted">
+          Whether the factory releases merged work, and where. Off: no release and no G5. A target:
+          an approved G5 deploys the merged commit to that GitHub environment. Not chosen: nothing
+          is released until a settings change chooses. Changing it later is a settings change with
+          its own approval.
+        </p>
+        <fieldset className="options">
+          <legend>Release</legend>
+          {(
+            [
+              ['unset', 'Not chosen yet'],
+              ['off', 'Off: this project does not release'],
+              ['target', 'Deploy to a GitHub environment'],
+            ] as const
+          ).map(([m, label]) => (
+            <label key={m} className="radio">
+              <input
+                type="radio"
+                name="release"
+                checked={release === m}
+                onChange={() => setRelease(m)}
+              />{' '}
+              {label}
+            </label>
+          ))}
+        </fieldset>
+        {release === 'target' ? (
+          <TextField label="Environment name" value={environment} onChange={setEnvironment} />
+        ) : null}
       </Section>
 
       <Section title="Kill delegations" id="c4-kill">
