@@ -212,6 +212,44 @@ describe('BLOCKED (B6)', () => {
   });
 });
 
+describe('RELHOLD after an approved G5 that was not released (M15.3)', () => {
+  const failRelease = (code: string) => (step: string) =>
+    step === 'S8b' ? ({ outcome: 'failed', code } as const) : undefined;
+
+  it('S8b "not released" holds the release; a re-request opens G5 again and a release then completes', () => {
+    const s = newSim('relhold-s8b', { lane: 'L4' });
+    s.run({ script: failRelease('not_released:rolled_back') });
+    expect(s.state).toMatchObject({
+      phase: 'S8b',
+      terminal: null,
+      waiting: { kind: 'release_held' },
+    });
+    expect(s.gateLog.filter((g) => g.gates.includes('G5'))).toHaveLength(1);
+    s.apply(ITEM_EVENT.release_re_requested, { by: 'alice' });
+    s.run();
+    expect(s.state.terminal).toBe('Done');
+    expect(s.gateLog.filter((g) => g.gates.includes('G5'))).toHaveLength(2);
+  });
+
+  it('a held release takes "needs change" (B26) as a NEW linked item', () => {
+    const s = newSim('relhold-s8b-change', { lane: 'L4' });
+    s.run({ script: failRelease('not_released:unbound') });
+    const st = s.apply(ITEM_EVENT.spawn_requested, {
+      edge: 'B26',
+      kind: 'release_change',
+      lane: 'L1',
+      index: 0,
+    });
+    expect(st.commands).toMatchObject([{ type: 'spawn_item', edge: 'B26' }]);
+  });
+
+  it('any other S8b failure stops the item (never released, never skipped)', () => {
+    const s = newSim('relhold-s8b-other', { lane: 'L4' });
+    s.run({ script: failRelease('host_down') });
+    expect(s.state.waiting).toMatchObject({ kind: 'stuck', reason: 'stage_failed:host_down' });
+  });
+});
+
 describe('RELHOLD (B26): release held', () => {
   const held = (name: string) => {
     const s = newSim(name, { lane: 'L4' });
