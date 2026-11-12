@@ -51,6 +51,12 @@ const IRREVERSIBLE: Array<{ re: RegExp; what: string }> = [
     what: 'recursive removal of the root, home, the repository or everything',
   },
   { re: /\bgit\s+push\b[^|;&]*(--force\b|--force-with-lease|\s-f\b|\s\+\S)/, what: 'a force push' },
+  // SP-STD-1 (M16): a planted "push to main" acted on. The Push Broker is the only writer to a code host; a session
+  // that pushes at all (to any remote, forced or not) is stopped before the command runs
+  {
+    re: /\bgit\s+(-c\s+\S+\s+)*push\b/,
+    what: 'a push from the session (only the Push Broker writes to a code host)',
+  },
   { re: /\bgit\s+reset\s+--hard\b/, what: 'git reset --hard' },
   { re: /\bgit\s+clean\b[^|;&]*-[a-zA-Z]*f/, what: 'git clean -f' },
   {
