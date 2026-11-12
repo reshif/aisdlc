@@ -60904,6 +60904,11 @@
             "L8"
           ]
         },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
         "intake": {
           "type": "object",
           "properties": {
@@ -116657,6 +116662,11 @@
             "L8"
           ]
         },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
         "channel": {
           "type": "string",
           "enum": [
@@ -124314,6 +124324,11 @@
             "hash"
           ],
           "additionalProperties": false
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
         },
         "request_text": {
           "anyOf": [

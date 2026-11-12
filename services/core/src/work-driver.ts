@@ -201,7 +201,7 @@ export async function ensureItems(d: WorkDriverDeps): Promise<{ created: string[
           prr,
           clockOf(d).now(),
           undefined,
-          undefined,
+          request.area,
           prr ? await unresolvedR3(tx, request.repo, prr.version) : [],
         ),
         await projectGuard(tx, {
@@ -518,12 +518,14 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
     }
 
     case 'check_eligibility': {
+      // DEC-25: an item whose request named an area asks that area's lanes (absent: the repo as a whole)
       const base = await laneEligibility(
         d.pool,
         s.repo,
         c.lane,
         clockOf(d),
         catalogueOfItem(s).eligibility,
+        s.area,
       );
       // R3 and R4: a tripped breaker or an overdue hotfix follow-up sends a NEW item to L8. The same
       // check also answers R1 ("may this project run the lane the work needs"), which is no new item.

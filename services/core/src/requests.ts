@@ -16,7 +16,7 @@ import { clockOf, maintenanceRefusal, type CoreDeps } from './journal.js';
 import { ingestItem, readItem } from './work-items.js';
 import { requestWork, type WorkState } from './work.js';
 
-// Request intake (PLAN M9.1; FL REQ and S1 1.1, 1.2, 1.4). A person or a system asks for work on an
+// Request intake (PLAN M9.1; FL REQ and S1 1.1, 1.2, 1.4; M17: a request may name an area of the repo, DEC-25). A person or a system asks for work on an
 // entry channel; the factory normalises and taint-marks the text (1.1), scans for duplicates and
 // conflicts (1.2), checks the repo's readiness for the lane (1.4: N8 hold, or L8 through the 1.4
 // rule) and, if the request is not held, makes the work item. Everything is deterministic; the
@@ -27,6 +27,8 @@ export interface SubmitRequestInput {
   readonly repo: string;
   /** The lane asked for or proposed (1.3 may change it; G0 binds it). */
   readonly lane: Lane;
+  /** M17 (DEC-25): the area of the repo (its system map's); 1.4 asks that area's lanes. Absent: the whole repo. */
+  readonly area?: string;
   readonly requester: PrincipalId;
   /** N1 portal Ask and N3 API are open; the other channels are contract values (`OPEN_INTAKE_CHANNELS`). */
   readonly channel: EntryChannel;
@@ -65,6 +67,7 @@ export async function submitRequest(
     project_id: input.project_id,
     repo: input.repo,
     lane: input.lane,
+    ...(input.area === undefined ? {} : { area: input.area }),
     requester: input.requester,
     channel: input.channel,
     ...(input.request_id ? { request_id: input.request_id } : {}),

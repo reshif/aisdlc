@@ -536,6 +536,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       project_id: b.value.project_id,
       repo: b.value.repo,
       lane: b.value.lane,
+      ...(b.value.area === undefined ? {} : { area: b.value.area }),
       requester: b.value.on_behalf_of,
       channel: b.value.channel,
       text: b.value.text,

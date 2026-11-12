@@ -6,6 +6,7 @@ import { CatalogueRef } from './config.js';
 import { LintRuleId } from './detectors.js';
 import { PrrGatingProfile } from './readiness.js';
 import {
+  AreaId,
   IsoDateTime,
   PrincipalId,
   ProjectId,
@@ -662,6 +663,8 @@ export const ItemCreatedPayload = z.strictObject({
   prr: z.strictObject({ version: z.number().int().min(1), record_hash: Sha256Hex }),
   /** The lane the request asked for, or 1.3 proposes. Nothing is bound until G0 (FIX 7). */
   proposed_lane: Lane,
+  /** M17 (DEC-25): the area the request named; 1.4 asks its lanes. Absent: the repo as a whole. */
+  area: AreaId.optional(),
   intake: ItemIntake,
   origin: SpawnOrigin.nullable(),
 });
@@ -877,6 +880,11 @@ export const SubmitRequestBody = z.strictObject({
   repo: RepoFullName,
   /** The lane asked for or proposed (1.3 may change it; G0 binds it). */
   lane: Lane,
+  /**
+   * M17 (DEC-25): the area of the repo the work is in, as its system map names it; an area the governing record does
+   * not hold is refused. Absent: the repo as a whole, which runs only what its lowest area may.
+   */
+  area: AreaId.optional(),
   /** N1 portal Ask and N3 API are open (`OPEN_INTAKE_CHANNELS`). */
   channel: EntryChannel,
   text: z.string().min(1).max(100_000),

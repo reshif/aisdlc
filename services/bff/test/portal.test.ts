@@ -123,6 +123,21 @@ const CASES: RouteCase[] = [
     forwards: 'POST /v1/requests',
   },
   {
+    name: 'ask for work in one area of the repo (M17, DEC-25)',
+    method: 'POST',
+    path: '/api/requests',
+    body: {
+      project_id: 'acme',
+      repo: 'acme/web',
+      lane: 'L3',
+      area: 'packages/money',
+      text: 'Round the totals in the ledger.',
+    },
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: 'POST /v1/requests',
+  },
+  {
     name: 'a work item',
     method: 'GET',
     path: `/api/items/${ITEM_ID}`,
@@ -483,6 +498,8 @@ describe.each(CASES)('$name ($method $path)', (c) => {
     }
     if (c.method === 'POST') {
       expect((sent?.body as Json).on_behalf_of).toBe(c.allowed);
+      // what the person sent reaches core as sent (an Ask's area included)
+      expect(sent?.body).toMatchObject(c.body as object);
     }
   });
 
