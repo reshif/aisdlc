@@ -51890,6 +51890,14 @@
       ],
       "additionalProperties": false
     },
+    "HumanWaitCause": {
+      "type": "string",
+      "enum": [
+        "gate",
+        "prr_suspended",
+        "security_hold"
+      ]
+    },
     "HumanWaitGate": {
       "type": "string",
       "enum": [
@@ -119739,18 +119747,45 @@
           "type": "string",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         },
-        "gate": {
+        "cause": {
           "type": "string",
           "enum": [
-            "G3o",
-            "X1",
-            "X3",
-            "E6"
+            "gate",
+            "prr_suspended",
+            "security_hold"
+          ]
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "G3o",
+                "X1",
+                "X3",
+                "E6"
+              ]
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "gate_instance_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hold_ref": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 200
         },
         "lease_epoch": {
           "type": "integer",

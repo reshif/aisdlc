@@ -143,6 +143,7 @@ export const SCHEMAS = {
   GrantStatus: entities.GrantStatus,
   GrantReleaseCause: entities.GrantReleaseCause,
   HumanWaitGate: entities.HumanWaitGate,
+  HumanWaitCause: entities.HumanWaitCause,
   AdmissionSlot: entities.AdmissionSlot,
   GrantEnvelope: entities.GrantEnvelope,
   SnapshotRef: entities.SnapshotRef,

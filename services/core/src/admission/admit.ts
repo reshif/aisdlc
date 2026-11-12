@@ -23,6 +23,7 @@ import {
 } from '@aisdlc/ports';
 import type { ItemState } from '@aisdlc/work';
 import type pg from 'pg';
+import { itemWorkHold } from '../drift/hold.js';
 import { coreError, type CoreError } from '../errors.js';
 import { inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
 import { budgetEnvelope } from '../planning/plan.js';
@@ -391,6 +392,12 @@ export async function admitUnit(
 ): Promise<Result<Admission, CoreError>> {
   const again = await recordedAdmission(d.pool, s.item_id, command_key);
   if (again) return ok(answerOf(again));
+  // M16 part 3 (OB §8): no session starts on a repo whose agent work is held (a suspended readiness record)
+  const hold = await itemWorkHold(d.pool, s);
+  if (hold) {
+    d.attempted?.(s.project_id);
+    return held('WIP', hold.why);
+  }
   const units = await ensureUnits(d, s);
   if (!units.ok) return units;
   const u = nextUnit(units.value);
