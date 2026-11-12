@@ -9,6 +9,7 @@ import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { Callout, PageError, Loading } from '../components/Notice';
 import { describeError } from '../format';
+import { ItemGates } from '../items/ItemGates';
 import { PlanForm } from '../items/PlanForm';
 import { newKey, waitingText } from '../items/waiting';
 import { Link } from '../router';
@@ -77,6 +78,8 @@ export function ItemPage({ id, csrf }: { id: string; csrf: string }) {
           <p>It is treated as data and was not obeyed.</p>
         </Callout>
       ) : null}
+
+      <ItemGates item={it} />
 
       <ItemTabs item={it}>
         <Questions item={it} csrf={csrf} />
