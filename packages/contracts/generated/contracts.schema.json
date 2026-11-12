@@ -475,6 +475,498 @@
       ],
       "additionalProperties": false
     },
+    "AccessBindingList": {
+      "type": "object",
+      "properties": {
+        "bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "binding_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "group_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "role_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "fleet"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "const": "*"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "enterprise",
+                          "org",
+                          "team",
+                          "project",
+                          "repo",
+                          "service_env",
+                          "environment",
+                          "lane",
+                          "session",
+                          "item",
+                          "role",
+                          "model",
+                          "release",
+                          "budget"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "expiry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "role_map",
+                  "access_grant",
+                  "other"
+                ]
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              }
+            },
+            "required": [
+              "binding_id",
+              "group_id",
+              "role_id",
+              "scope",
+              "expiry",
+              "origin",
+              "members"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "bindings"
+      ],
+      "additionalProperties": false
+    },
+    "AccessBindingRow": {
+      "type": "object",
+      "properties": {
+        "binding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "group_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "role_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "expiry": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "role_map",
+            "access_grant",
+            "other"
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        }
+      },
+      "required": [
+        "binding_id",
+        "group_id",
+        "role_id",
+        "scope",
+        "expiry",
+        "origin",
+        "members"
+      ],
+      "additionalProperties": false
+    },
+    "AccessChange": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "grant"
+            },
+            "target": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "principal"
+                    },
+                    "principal_id": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "principal_id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "team"
+                    },
+                    "team_id": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "team_id"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "role_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z][a-z0-9_.-]*$"
+            },
+            "scope": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "fleet"
+                    },
+                    "ref": {
+                      "type": "string",
+                      "const": "*"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "project"
+                    },
+                    "ref": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "expiry": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "target",
+            "role_id",
+            "scope",
+            "expiry"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "revoke"
+            },
+            "binding_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "group_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            "role_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z][a-z0-9_.-]*$"
+            },
+            "scope": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "fleet"
+                    },
+                    "ref": {
+                      "type": "string",
+                      "const": "*"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "enterprise",
+                        "org",
+                        "team",
+                        "project",
+                        "repo",
+                        "service_env",
+                        "environment",
+                        "lane",
+                        "session",
+                        "item",
+                        "role",
+                        "model",
+                        "release",
+                        "budget"
+                      ]
+                    },
+                    "ref": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "binding_id",
+            "group_id",
+            "role_id",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "AccessDecideResult": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "request_changes",
+                "supersede",
+                "expire",
+                "withdraw"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "applied",
+            "rejected",
+            "ended"
+          ]
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "apply_error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "outcome",
+        "status",
+        "applied",
+        "apply_error"
+      ],
+      "additionalProperties": false
+    },
     "AccessExplainView": {
       "type": "object",
       "properties": {
@@ -662,6 +1154,1079 @@
       ],
       "additionalProperties": false
     },
+    "AccessGrantAppliedPayload": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "decision_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "binding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "group_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "grant_id",
+        "gate_instance_id",
+        "decision_entry_id",
+        "binding_id",
+        "group_id",
+        "changed",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "AccessGrantList": {
+      "type": "object",
+      "properties": {
+        "grants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "grant_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "change": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "const": "grant"
+                      },
+                      "target": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "principal"
+                              },
+                              "principal_id": {
+                                "type": "string",
+                                "maxLength": 128,
+                                "pattern": "^[A-Za-z0-9_.@-]+$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "principal_id"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "team"
+                              },
+                              "team_id": {
+                                "type": "string",
+                                "maxLength": 128,
+                                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "team_id"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "role_id": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[a-z][a-z0-9_.-]*$"
+                      },
+                      "scope": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "fleet"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "const": "*"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "ref"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "project"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "maxLength": 128,
+                                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "ref"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "expiry": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "target",
+                      "role_id",
+                      "scope",
+                      "expiry"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "const": "revoke"
+                      },
+                      "binding_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "group_id": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[A-Za-z0-9_.@-]+$"
+                      },
+                      "role_id": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[a-z][a-z0-9_.-]*$"
+                      },
+                      "scope": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "fleet"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "const": "*"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "ref"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "enterprise",
+                                  "org",
+                                  "team",
+                                  "project",
+                                  "repo",
+                                  "service_env",
+                                  "environment",
+                                  "lane",
+                                  "session",
+                                  "item",
+                                  "role",
+                                  "model",
+                                  "release",
+                                  "budget"
+                                ]
+                              },
+                              "ref": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "ref"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "binding_id",
+                      "group_id",
+                      "role_id",
+                      "scope"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "request"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "proposed_by": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "project_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "gate_instance_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "subject_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "gate_status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "decided",
+                  "superseded",
+                  "expired",
+                  "closed"
+                ]
+              },
+              "outcome": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject",
+                      "request_changes",
+                      "supersede",
+                      "expire",
+                      "withdraw"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "approved",
+                  "applied",
+                  "rejected",
+                  "ended"
+                ]
+              },
+              "deciders": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "quorum": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "proposed_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "applied": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "grant_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "gate_instance_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "decision_entry_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "binding_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "group_id": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[A-Za-z0-9_.@-]+$"
+                      },
+                      "changed": {
+                        "type": "boolean"
+                      },
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      }
+                    },
+                    "required": [
+                      "grant_id",
+                      "gate_instance_id",
+                      "decision_entry_id",
+                      "binding_id",
+                      "group_id",
+                      "changed",
+                      "at"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "grant_id",
+              "change",
+              "origin",
+              "reason",
+              "proposed_by",
+              "project_id",
+              "gate_instance_id",
+              "subject_hash",
+              "gate_status",
+              "outcome",
+              "status",
+              "deciders",
+              "quorum",
+              "proposed_at",
+              "applied"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "grants"
+      ],
+      "additionalProperties": false
+    },
+    "AccessGrantProposedPayload": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "change": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "grant"
+                },
+                "target": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "principal"
+                        },
+                        "principal_id": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[A-Za-z0-9_.@-]+$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "principal_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "team"
+                        },
+                        "team_id": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "team_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "role_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_.-]*$"
+                },
+                "scope": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "fleet"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "const": "*"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "project"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "expiry": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "target",
+                "role_id",
+                "scope",
+                "expiry"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "revoke"
+                },
+                "binding_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "group_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                "role_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_.-]*$"
+                },
+                "scope": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "fleet"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "const": "*"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "enterprise",
+                            "org",
+                            "team",
+                            "project",
+                            "repo",
+                            "service_env",
+                            "environment",
+                            "lane",
+                            "session",
+                            "item",
+                            "role",
+                            "model",
+                            "release",
+                            "budget"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "binding_id",
+                "group_id",
+                "role_id",
+                "scope"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "request"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "proposed_by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "subject_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "grant_id",
+        "change",
+        "origin",
+        "reason",
+        "proposed_by",
+        "subject_hash",
+        "gate_instance_id",
+        "project_id",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "AccessGrantStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "applied",
+        "rejected",
+        "ended"
+      ]
+    },
+    "AccessGrantView": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "change": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "grant"
+                },
+                "target": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "principal"
+                        },
+                        "principal_id": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[A-Za-z0-9_.@-]+$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "principal_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "team"
+                        },
+                        "team_id": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "team_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "role_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_.-]*$"
+                },
+                "scope": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "fleet"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "const": "*"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "project"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "expiry": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "target",
+                "role_id",
+                "scope",
+                "expiry"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "revoke"
+                },
+                "binding_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "group_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                "role_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_.-]*$"
+                },
+                "scope": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "fleet"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "const": "*"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "enterprise",
+                            "org",
+                            "team",
+                            "project",
+                            "repo",
+                            "service_env",
+                            "environment",
+                            "lane",
+                            "session",
+                            "item",
+                            "role",
+                            "model",
+                            "release",
+                            "budget"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "binding_id",
+                "group_id",
+                "role_id",
+                "scope"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "request"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "proposed_by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "subject_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "gate_status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "decided",
+            "superseded",
+            "expired",
+            "closed"
+          ]
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "request_changes",
+                "supersede",
+                "expire",
+                "withdraw"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "applied",
+            "rejected",
+            "ended"
+          ]
+        },
+        "deciders": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        },
+        "quorum": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "proposed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "applied": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "grant_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "gate_instance_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "decision_entry_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "binding_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "group_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                "changed": {
+                  "type": "boolean"
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "grant_id",
+                "gate_instance_id",
+                "decision_entry_id",
+                "binding_id",
+                "group_id",
+                "changed",
+                "at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "grant_id",
+        "change",
+        "origin",
+        "reason",
+        "proposed_by",
+        "project_id",
+        "gate_instance_id",
+        "subject_hash",
+        "gate_status",
+        "outcome",
+        "status",
+        "deciders",
+        "quorum",
+        "proposed_at",
+        "applied"
+      ],
+      "additionalProperties": false
+    },
     "AccessLedgerBody": {
       "type": "object",
       "properties": {
@@ -708,6 +2273,350 @@
         "event_type",
         "occurred_at",
         "change"
+      ],
+      "additionalProperties": false
+    },
+    "AccessOrigin": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "request"
+      ]
+    },
+    "AccessProposeRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "change": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "grant"
+                },
+                "target": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "principal"
+                        },
+                        "principal_id": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[A-Za-z0-9_.@-]+$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "principal_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "team"
+                        },
+                        "team_id": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "team_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "role_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_.-]*$"
+                },
+                "scope": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "fleet"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "const": "*"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "project"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "expiry": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "target",
+                "role_id",
+                "scope",
+                "expiry"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "const": "revoke"
+                },
+                "binding_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "group_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                "role_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z][a-z0-9_.-]*$"
+                },
+                "scope": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "fleet"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "const": "*"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "enterprise",
+                            "org",
+                            "team",
+                            "project",
+                            "repo",
+                            "service_env",
+                            "environment",
+                            "lane",
+                            "session",
+                            "item",
+                            "role",
+                            "model",
+                            "release",
+                            "budget"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "op",
+                "binding_id",
+                "group_id",
+                "role_id",
+                "scope"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "change",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "AccessProposeResult": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "deciders": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        }
+      },
+      "required": [
+        "grant_id",
+        "gate_instance_id",
+        "deciders"
+      ],
+      "additionalProperties": false
+    },
+    "AccessRequestCreate": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "role_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "project"
+                },
+                "ref": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "expiry": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "role_id",
+        "scope",
+        "expiry",
+        "reason"
       ],
       "additionalProperties": false
     },
@@ -9370,7 +11279,8 @@
                           "config",
                           "breaker",
                           "merge",
-                          "learn"
+                          "learn",
+                          "access"
                         ]
                       },
                       {
@@ -14419,7 +16329,8 @@
             "config",
             "breaker",
             "merge",
-            "learn"
+            "learn",
+            "access"
           ]
         },
         "subject_id": {
@@ -29742,7 +31653,8 @@
             "work_gate",
             "drift_reaffirm",
             "prr_restore",
-            "prr_resign"
+            "prr_resign",
+            "access_grant"
           ]
         },
         "id": {
@@ -52616,7 +54528,8 @@
             "config",
             "breaker",
             "merge",
-            "learn"
+            "learn",
+            "access"
           ]
         },
         "subject_id": {
@@ -52881,7 +54794,8 @@
             "config",
             "breaker",
             "merge",
-            "learn"
+            "learn",
+            "access"
           ]
         },
         "subject_id": {
@@ -55724,12 +57638,102 @@
         }
       ]
     },
+    "GrantScope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "fleet"
+            },
+            "ref": {
+              "type": "string",
+              "const": "*"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "project"
+            },
+            "ref": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "GrantScopeKind": {
+      "type": "string",
+      "enum": [
+        "fleet",
+        "project"
+      ]
+    },
     "GrantStatus": {
       "type": "string",
       "enum": [
         "active",
         "waiting",
         "released"
+      ]
+    },
+    "GrantTarget": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "principal"
+            },
+            "principal_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            }
+          },
+          "required": [
+            "kind",
+            "principal_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "team"
+            },
+            "team_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            }
+          },
+          "required": [
+            "kind",
+            "team_id"
+          ],
+          "additionalProperties": false
+        }
       ]
     },
     "Group": {
@@ -56740,6 +58744,158 @@
         "identity_link.unlinked"
       ]
     },
+    "IdentityGrantRequest": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "target": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "principal"
+                },
+                "principal_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "required": [
+                "kind",
+                "principal_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "team"
+                },
+                "team_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "required": [
+                "kind",
+                "team_id"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "role_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "project"
+                },
+                "ref": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "expiry": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "m_gate_ref": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "grant_id",
+        "target",
+        "role_id",
+        "scope",
+        "expiry",
+        "m_gate_ref",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "IdentityGrantResult": {
+      "type": "object",
+      "properties": {
+        "binding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "group_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "changed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "binding_id",
+        "group_id",
+        "changed"
+      ],
+      "additionalProperties": false
+    },
     "IdentityLink": {
       "type": "object",
       "properties": {
@@ -56787,6 +58943,41 @@
         "github_login",
         "email"
       ]
+    },
+    "IdentityRevokeRequest": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "binding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "m_gate_ref": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "grant_id",
+        "binding_id",
+        "m_gate_ref",
+        "reason",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
     },
     "InboundFactEventType": {
       "type": "string",
@@ -56884,7 +59075,8 @@
             "config",
             "breaker",
             "merge",
-            "learn"
+            "learn",
+            "access"
           ]
         },
         "subject_id": {
@@ -57347,7 +59539,8 @@
         "work_gate",
         "drift_reaffirm",
         "prr_restore",
-        "prr_resign"
+        "prr_resign",
+        "access_grant"
       ]
     },
     "InjectionFlag": {
@@ -77567,7 +79760,8 @@
                 "config",
                 "breaker",
                 "merge",
-                "learn"
+                "learn",
+                "access"
               ]
             },
             {
@@ -77784,7 +79978,8 @@
                 "config",
                 "breaker",
                 "merge",
-                "learn"
+                "learn",
+                "access"
               ]
             },
             {
@@ -79551,7 +81746,8 @@
             "sync",
             "oidc_token_dev",
             "role_map",
-            "codeowners"
+            "codeowners",
+            "access_grant"
           ]
         }
       },
@@ -79627,7 +81823,8 @@
             "sync",
             "oidc_token_dev",
             "role_map",
-            "codeowners"
+            "codeowners",
+            "access_grant"
           ]
         }
       },
@@ -79647,7 +81844,8 @@
         "sync",
         "oidc_token_dev",
         "role_map",
-        "codeowners"
+        "codeowners",
+        "access_grant"
       ]
     },
     "MembershipVia": {
@@ -87154,7 +89352,8 @@
                   "work_gate",
                   "drift_reaffirm",
                   "prr_restore",
-                  "prr_resign"
+                  "prr_resign",
+                  "access_grant"
                 ]
               },
               "id": {
@@ -87381,7 +89580,8 @@
                   "work_gate",
                   "drift_reaffirm",
                   "prr_restore",
-                  "prr_resign"
+                  "prr_resign",
+                  "access_grant"
                 ]
               },
               "id": {
@@ -87613,7 +89813,8 @@
             "work_gate",
             "drift_reaffirm",
             "prr_restore",
-            "prr_resign"
+            "prr_resign",
+            "access_grant"
           ]
         },
         "id": {
@@ -120265,7 +122466,8 @@
                               "config",
                               "breaker",
                               "merge",
-                              "learn"
+                              "learn",
+                              "access"
                             ]
                           },
                           {
@@ -123823,7 +126025,8 @@
         "config",
         "breaker",
         "merge",
-        "learn"
+        "learn",
+        "access"
       ]
     },
     "SubmitRequestBody": {

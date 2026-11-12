@@ -57,6 +57,8 @@ export const InboxItemKind = z.enum([
   'drift_reaffirm',
   'prr_restore',
   'prr_resign',
+  // P1-6: a role-binding grant or revoke (or an access request) waiting for its M1; `id` is the grant's id
+  'access_grant',
 ]);
 export type InboxItemKind = z.infer<typeof InboxItemKind>;
 
