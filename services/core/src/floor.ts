@@ -19,7 +19,12 @@ import {
   type Lane,
   type RecordEvent,
 } from '@aisdlc/contracts';
-import { gateHolders, readOpened, type EligibilityPort } from '@aisdlc/decisions';
+import {
+  gateFeasibility,
+  gateHolders,
+  readGateState,
+  type EligibilityPort,
+} from '@aisdlc/decisions';
 import type { Pdp } from '@aisdlc/pdp';
 import {
   EVENT_COLUMNS,
@@ -45,6 +50,15 @@ import {
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { activeControls } from './controls.js';
+import {
+  catchUpSessionActivity,
+  floorKillOf,
+  floorLiveness,
+  floorScoreChips,
+  livenessOf,
+  readActivity,
+  type KillVerdictPort,
+} from './floor-live.js';
 import { itemView } from './work-view.js';
 
 // The floor's live read model (PLAN M19, DM §3.10 ItemPosition and FlowWindow). `core.floor_position` is one row per
@@ -103,6 +117,8 @@ function nodeOfText(t: string): FloorNode {
 
 interface Prior {
   node: string;
+  in_session: boolean;
+  in_session_since: Date | null;
   rework: Record<string, number>;
   relanes: number;
   title: string | null;
@@ -168,7 +184,7 @@ export const floorProjection: Projection<FloorSnapshot> = {
     if (!first || first.type !== ITEM_EVENT.created) return;
     const created = ItemCreatedPayload.parse(first.payload);
     const q = await tx.query<Prior>(
-      `SELECT node, rework, relanes, title FROM core.floor_position WHERE item_id = $1`,
+      `SELECT node, in_session, in_session_since, rework, relanes, title FROM core.floor_position WHERE item_id = $1`,
       [created.item_id],
     );
     const prior = q.rows[0] ?? null;
@@ -212,6 +228,12 @@ export const floorProjection: Projection<FloorSnapshot> = {
       if (row.relanes > prior.relanes) moves.push({ kind: 'R', edge: relaneEdge });
       if (moves.length === 0 && prior.node !== row.node) moves.push({ kind: 'F', edge: null });
     }
+    // when the item entered the session it is in: the silence clock of SessionActivity starts there
+    const inSessionSince = !row.in_session
+      ? null
+      : prior?.in_session && prior.in_session_since
+        ? prior.in_session_since
+        : new Date(e.occurred_at);
     for (const [ord, m] of moves.entries()) {
       await tx.query(
         `INSERT INTO core.floor_move (item_id, seq, ord, project_id, lane, kind, edge, from_node, to_node, at)
@@ -233,14 +255,16 @@ export const floorProjection: Projection<FloorSnapshot> = {
     await tx.query(
       `INSERT INTO core.floor_position
          (item_id, project_id, lane, lane_bound, node, stage, step, phase, status, waiting, waiting_gates, holds,
-          in_session, route, requester, title, rework, relanes, catalogue_version, pin_unavailable, seq, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+          in_session, route, requester, title, rework, relanes, catalogue_version, pin_unavailable, seq, updated_at,
+          in_session_since)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
        ON CONFLICT (item_id) DO UPDATE SET
          lane = EXCLUDED.lane, lane_bound = EXCLUDED.lane_bound, node = EXCLUDED.node, stage = EXCLUDED.stage,
          step = EXCLUDED.step, phase = EXCLUDED.phase, status = EXCLUDED.status, waiting = EXCLUDED.waiting,
          waiting_gates = EXCLUDED.waiting_gates, holds = EXCLUDED.holds, in_session = EXCLUDED.in_session,
          route = EXCLUDED.route, rework = EXCLUDED.rework, relanes = EXCLUDED.relanes,
-         pin_unavailable = EXCLUDED.pin_unavailable, seq = EXCLUDED.seq, updated_at = EXCLUDED.updated_at`,
+         pin_unavailable = EXCLUDED.pin_unavailable, seq = EXCLUDED.seq, updated_at = EXCLUDED.updated_at,
+         in_session_since = EXCLUDED.in_session_since`,
       [
         created.item_id,
         created.project_id,
@@ -264,6 +288,7 @@ export const floorProjection: Projection<FloorSnapshot> = {
         row.pin_unavailable,
         e.stream_seq,
         e.occurred_at,
+        inSessionSince,
       ],
     );
   },
@@ -276,7 +301,8 @@ export const floorProjection: Projection<FloorSnapshot> = {
   async snapshot(db: Executor) {
     const p = await db.query(
       `SELECT item_id, project_id, lane, lane_bound, node, stage, step, phase, status, waiting, waiting_gates, holds,
-              in_session, route, requester, title, rework, relanes, catalogue_version, pin_unavailable, seq, updated_at
+              in_session, route, requester, title, rework, relanes, catalogue_version, pin_unavailable, seq, updated_at,
+              in_session_since
          FROM core.floor_position ORDER BY item_id`,
     );
     const m = await db.query(
@@ -300,6 +326,8 @@ export interface FloorReadDeps {
   readonly now: () => Date;
   /** Who holds a slot (identity's role map); without it the deciders are unknown. */
   readonly eligibility?: EligibilityPort | undefined;
+  /** The kill switch's verdict (core-worker's `/admission`); without it the floor shows the project killed (AR9). */
+  readonly kill?: KillVerdictPort | undefined;
 }
 
 interface PositionRow {
@@ -320,28 +348,60 @@ interface PositionRow {
   title: string | null;
   catalogue_version: string;
   updated_at: Date;
+  in_session_since: Date | null;
 }
 
 /** Who may decide a waiting gate now: the slot's holders, narrowed by the gate's own deciders; `null` when unknown. */
-async function decidersOf(
-  d: FloorReadDeps,
+export async function waitingGateOf(
+  d: Pick<FloorReadDeps, 'pool' | 'eligibility'>,
   project: string,
   gate: GateId,
   instance: string,
-): Promise<readonly string[] | null> {
-  if (!d.eligibility) return null;
+): Promise<FloorWaitingGate> {
+  const slot = gatePolicy(gate).slot;
+  const unknown = (why: string): FloorWaitingGate => ({
+    gate,
+    gate_instance_id: instance,
+    slot,
+    deciders: null,
+    feasibility: 'unknown',
+    feasibility_reason: why,
+  });
+  if (!d.eligibility) return unknown('who decides is unknown: no identity is configured');
   try {
-    const opened = await readOpened(d.pool, instance);
-    const h = await gateHolders(
-      d.eligibility,
-      project as never,
-      gatePolicy(gate).slot,
-      opened?.payload.deciders,
-    );
-    return h.ok ? [...h.value].sort() : null;
-  } catch {
-    return null;
+    const state = await readGateState(d.pool, instance);
+    if (!state) return unknown('the gate instance is not on the record');
+    const h = await gateHolders(d.eligibility, project as never, slot, state.open.payload.deciders);
+    const f = await gateFeasibility(d.eligibility, state.open.payload, state.approvers as never);
+    return {
+      gate,
+      gate_instance_id: instance,
+      slot,
+      deciders: h.ok ? ([...h.value].sort() as never) : null,
+      feasibility: f.state,
+      feasibility_reason: f.reason,
+    };
+  } catch (e) {
+    return unknown(`who decides could not be read: ${e instanceof Error ? e.message : String(e)}`);
   }
+}
+
+/**
+ * The status an item is drawn with at `now`: one in a session (S6, S7) that has been silent past its station's
+ * threshold is `stuck` (`stuck:silent`), whatever the fold said it was doing; held, done and declined stay.
+ */
+export function livePlace(
+  r: Pick<PositionRow, 'status' | 'waiting' | 'in_session' | 'in_session_since' | 'stage'>,
+  act: Parameters<typeof livenessOf>[1],
+  liveness: Parameters<typeof livenessOf>[3],
+  now: Date,
+): { status: string; waiting: string | null; activity: FloorItem['activity'] } {
+  if (!r.in_session) return { status: r.status, waiting: r.waiting, activity: null };
+  const activity = livenessOf(r.in_session_since, act, r.stage as never, liveness, now);
+  if (activity.silent && r.status === 'working') {
+    return { status: 'stuck', waiting: 'stuck:silent', activity };
+  }
+  return { status: r.status, waiting: r.waiting, activity };
 }
 
 export const shortKey = (itemId: string): string => itemId.replace(/-/g, '').slice(0, 8);
@@ -359,10 +419,13 @@ export async function readFloor(
   let stale: string | null = null;
   try {
     if (!(await catchUpFloor(d.pool))) stale = 'the floor read model needs a rebuild';
+    else if (!(await catchUpSessionActivity(d.pool)))
+      stale = 'the session activity read model needs a rebuild';
   } catch {
     stale = 'the floor read model could not catch up with the record';
   }
   const now = d.now();
+  const liveness = await floorLiveness(d.pool);
   const since = new Date(now.getTime() - FLOOR_WINDOW_MS);
   const cp = await readCheckpoint(d.pool, FLOOR_PROJECTION);
   const head = await d.pool.query<{ head: string }>(
@@ -370,7 +433,7 @@ export async function readFloor(
   );
   const rows = await d.pool.query<PositionRow>(
     `SELECT item_id, lane, lane_bound, node, stage, step, phase, status, waiting, waiting_gates, holds, in_session,
-            route, requester, title, catalogue_version, updated_at
+            route, requester, title, catalogue_version, updated_at, in_session_since
        FROM core.floor_position
       WHERE project_id = $1 AND (status NOT IN ('done', 'declined') OR updated_at >= $2)
       ORDER BY updated_at, item_id
@@ -379,19 +442,18 @@ export async function readFloor(
   );
   const items: FloorItem[] = [];
   const shown = new Set<string>();
+  const acts = await readActivity(
+    d.pool,
+    rows.rows.filter((r) => r.in_session).map((r) => r.item_id),
+  );
   for (const r of rows.rows) {
     if (!(await visible(r.item_id, r.lane))) continue;
     shown.add(r.item_id);
     const gates: FloorWaitingGate[] = [];
     for (const g of r.waiting_gates) {
-      const who = await decidersOf(d, project, g.gate, g.gate_instance_id);
-      gates.push({
-        gate: g.gate,
-        gate_instance_id: g.gate_instance_id,
-        slot: gatePolicy(g.gate).slot,
-        deciders: who === null ? null : (who as never),
-      });
+      gates.push(await waitingGateOf(d, project, g.gate, g.gate_instance_id));
     }
+    const live = livePlace(r, acts.get(r.item_id), liveness, now);
     const waitsOnMe = gates.some((g) => g.deciders?.includes(principal as never) ?? false);
     items.push({
       item_id: r.item_id as never,
@@ -402,11 +464,12 @@ export async function readFloor(
       stage: r.stage as never,
       step: r.step as never,
       phase: r.phase as never,
-      status: r.status as never,
-      waiting: r.waiting,
+      status: live.status as never,
+      waiting: live.waiting,
       waiting_gates: gates,
       holds: r.holds,
       in_session: r.in_session,
+      activity: live.activity,
       route: r.route,
       catalogue_version: r.catalogue_version,
       title: r.title,
@@ -470,6 +533,13 @@ export async function readFloor(
       expires_at: c.expires_at,
     }));
   const asOf = cp?.last_global_seq ?? 0;
+  let scores: FloorView['scores'];
+  try {
+    scores = await floorScoreChips(d.pool, liveness.low_score);
+  } catch {
+    // no chips rather than no floor: a chip that cannot be read is not drawn (never as fine)
+    scores = [];
+  }
   return {
     project_id: project as never,
     plan: floorPlanOf(CATALOGUE, currentCatalogueRef()),
@@ -478,6 +548,9 @@ export async function readFloor(
     flow,
     controls,
     sessions: null,
+    scores,
+    kill: await floorKillOf(d.kill, { project_id: project }),
+    liveness,
     freshness: {
       as_of_seq: asOf,
       head_seq: Number(head.rows[0]?.head ?? 0),

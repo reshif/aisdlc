@@ -29,6 +29,7 @@ const Callers = z.record(
           'integrations',
           'evals',
           'push_guard',
+          'activity',
         ]),
       )
       .min(1),
@@ -64,6 +65,8 @@ export interface CoreConfig {
     readonly accessKeyRef: string;
     readonly secretKeyRef: string;
   } | null;
+  /** M19: core-worker's read-only `/admission` (the kill switch's verdict, for the floor's kill banner). */
+  readonly admissionUrl: string | null;
 }
 
 /**
@@ -87,6 +90,8 @@ export interface CoreConfig {
  *   CORE_OBJECT_STORE_URL, CORE_OBJECT_STORE_ACCESS_KEY_REF, CORE_OBJECT_STORE_SECRET_KEY_REF   (M14.6) the
  *                            S3-compatible store of the signed Evidence Packs: the portal's pack viewer reads them
  *                            back (and checks them); without it the viewer shows the record's facts only
+ *   CORE_ADMISSION_URL       (M19) core-worker's read-only `/admission`: the kill switch's verdict the floor shows
+ *                            (core has no route to the kill switch); without it the floor reads killed (AR9)
  * Every secret is an `env:NAME` or `file:PATH` reference.
  */
 export function coreConfigFromEnv(env: Env): CoreConfig {
@@ -149,6 +154,10 @@ export function coreConfigFromEnv(env: Env): CoreConfig {
             accessKeyRef: requiredEnv(env, 'CORE_OBJECT_STORE_ACCESS_KEY_REF'),
             secretKeyRef: requiredEnv(env, 'CORE_OBJECT_STORE_SECRET_KEY_REF'),
           },
+    admissionUrl:
+      env['CORE_ADMISSION_URL'] === undefined || env['CORE_ADMISSION_URL'] === ''
+        ? null
+        : httpUrlEnv(env, 'CORE_ADMISSION_URL'),
   };
 }
 
