@@ -11,7 +11,9 @@
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
 # killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, notifier 8460,
 # gate-relay 8470, audit 8480, fake GitHub 8353 api / 8354 git / 8355 gate-check's door / 8356 gate-relay's door). Only the bff and
-# dev-oidc are published, on 127.0.0.1.
+# dev-oidc are published, on 127.0.0.1 (AISDLC_BFF_PORT and AISDLC_OIDC_PORT move both, inside and out, so two stacks
+# can run on one host: the issuer and the redirect URI are the same name and port for the browser and the bff).
+# The Push Broker's door on the fake GitHub is 8358.
 
 x-factory: &factory
   # The one image, built by `migrate` below; every service picks its bundle with `command`.
@@ -699,7 +701,8 @@ services:
       IDENTITY_HOST: 0.0.0.0
       IDENTITY_PORT: '8330'
     volumes:
-      - ./config/idp-seed.json:/config/idp-seed.json:ro
+      # the IdP seed names the dev IdP as issuer by name and port: a stack on another AISDLC_OIDC_PORT mounts its own copy
+      - ${AISDLC_IDP_SEED_FILE:-./config/idp-seed.json}:/config/idp-seed.json:ro
     secrets:
       [
         db-url-aisdlc,
@@ -927,7 +930,7 @@ services:
         {"core":"http://core:8380","identity":"http://identity:8330","knowledge":"http://knowledge:8370",
         "codehost":"http://codehost:8350","notary":"http://notary:8310","witness":"http://witness:8320",
         "killswitch":"http://killswitch:8400","kms-local":"http://kms-local:8300","gateway":"http://gateway:8410",
-        "bff":"http://bff:8340","object-store":{"url":"http://object-store:9000","path":"/minio/health/live"}}
+        "bff":"http://bff:${AISDLC_BFF_PORT:-8340}","object-store":{"url":"http://object-store:9000","path":"/minio/health/live"}}
       # M16: the issue twin (DEC-20(a)) through the codehost's tracker routes (scope `tracker`): the tracker's OWN App is
       # the codehost's to hold; core-worker holds no GitHub credential and has no route out (user decision 2026-11-12).
       # Empty TRACKER_LOGIN: the `issue_twin` loop does not run.
@@ -1162,8 +1165,8 @@ services:
       # M19: OTLP/HTTP export to the collector (profile `telemetry`): set OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       BFF_DATABASE_URL: file:/run/secrets/db-url-aisdlc
-      BFF_PUBLIC_URL: http://localhost:8340
-      BFF_OIDC_ISSUER: http://dev-oidc.localhost:8390
+      BFF_PUBLIC_URL: http://localhost:${AISDLC_BFF_PORT:-8340}
+      BFF_OIDC_ISSUER: http://dev-oidc.localhost:${AISDLC_OIDC_PORT:-8390}
       BFF_OIDC_CLIENT_ID: aisdlc-bff
       BFF_OIDC_CLIENT_SECRET_REF: file:/run/secrets/bff-oidc-client-secret
       KMS_URL: http://kms-local:8300
@@ -1192,9 +1195,9 @@ services:
       # Plain http on localhost only; behind TLS this is true.
       BFF_COOKIE_SECURE: 'false'
       BFF_HOST: 0.0.0.0
-      BFF_PORT: '8340'
+      BFF_PORT: '${AISDLC_BFF_PORT:-8340}'
     ports:
-      - '127.0.0.1:8340:8340'
+      - '127.0.0.1:${AISDLC_BFF_PORT:-8340}:${AISDLC_BFF_PORT:-8340}'
     secrets:
       [
         db-url-aisdlc,
@@ -1207,7 +1210,7 @@ services:
         tok-bff-audit,
       ]
     healthcheck:
-      test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
+      test: ['CMD', 'node', '/app/healthcheck.mjs', '${AISDLC_BFF_PORT:-8340}']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -1243,17 +1246,24 @@ services:
       DEV_OIDC_USERS_FILE: /config/dev-oidc-users.json
       DEV_OIDC_CLIENT_ID: aisdlc-bff
       DEV_OIDC_CLIENT_SECRET_REF: file:/run/secrets/bff-oidc-client-secret
-      DEV_OIDC_REDIRECT_URIS: http://localhost:8340/auth/callback
-      DEV_OIDC_ISSUER: http://dev-oidc.localhost:8390
+      DEV_OIDC_REDIRECT_URIS: http://localhost:${AISDLC_BFF_PORT:-8340}/auth/callback
+      DEV_OIDC_ISSUER: http://dev-oidc.localhost:${AISDLC_OIDC_PORT:-8390}
       DEV_OIDC_HOST: 0.0.0.0
-      DEV_OIDC_PORT: '8390'
+      DEV_OIDC_PORT: '${AISDLC_OIDC_PORT:-8390}'
     ports:
-      - '127.0.0.1:8390:8390'
+      - '127.0.0.1:${AISDLC_OIDC_PORT:-8390}:${AISDLC_OIDC_PORT:-8390}'
     volumes:
       - ./config/dev-oidc-users.json:/config/dev-oidc-users.json:ro
     secrets: [bff-oidc-client-secret]
     healthcheck:
-      test: ['CMD', 'node', '/app/healthcheck.mjs', '8390', '/.well-known/openid-configuration']
+      test:
+        [
+          'CMD',
+          'node',
+          '/app/healthcheck.mjs',
+          '${AISDLC_OIDC_PORT:-8390}',
+          '/.well-known/openid-configuration',
+        ]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -1559,7 +1569,7 @@ services:
       NOTIFIER_DATABASE_URL: file:/run/secrets/db-url-notifier
       NOTIFIER_CALLERS: >-
         {"bff":{"token_ref":"file:/run/secrets/tok-bff-notifier","scopes":["people"]}}
-      NOTIFIER_PORTAL_URL: ${NOTIFIER_PORTAL_URL:-http://localhost:8340}
+      NOTIFIER_PORTAL_URL: ${NOTIFIER_PORTAL_URL:-http://localhost:${AISDLC_BFF_PORT:-8340}}
       NOTIFIER_SECRET_REFS: ${NOTIFIER_SECRET_REFS:-[]}
       NOTIFIER_EGRESS_HOSTS: ${NOTIFIER_EGRESS_HOSTS:-["hooks.slack.com"]}
       NOTIFIER_HOST: 0.0.0.0
