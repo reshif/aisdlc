@@ -5,7 +5,8 @@
 // `npm run check:changed [-- <base>]`: the same steps over what changed against <base> (default
 // origin/main, else main; or $CHECK_BASE), counting commits since the merge base, staged, unstaged
 // and untracked files. The Vitest projects run are the workspaces that changed plus every workspace
-// that depends on them (the workspace graph of the package.json files, transitively), plus the
+// that depends on them (the workspace graph of the package.json files, transitively; a change only
+// under a workspace's test/ does not reach its dependents), plus the
 // projects that read the whole tree (secrets-rules' self-test, evals' import-graph walk), plus
 // migrate and gateway when a migration changed. A change outside packages/* and services/* (root
 // config, scripts/, platform/, docs/, the lockfile) runs every project. Typecheck runs the same
@@ -104,26 +105,30 @@ function selection() {
   if (files.size === 0) return { files, workspaces: [] };
   const all = workspaces();
   const byDir = new Map(all.map((w) => [w.dir.split(sep).join('/'), w]));
-  const hit = new Set();
+  // A change under a workspace's test/ concerns that workspace only (no package exports or imports
+  // another workspace's test/); any other change there concerns its dependents too.
+  const spread = new Set();
+  const own = new Set();
   for (const f of files) {
-    const dir = f.split('/').slice(0, 2).join('/');
-    const w = byDir.get(dir);
+    const parts = f.split('/');
+    const w = byDir.get(parts.slice(0, 2).join('/'));
     if (!w) {
       console.log(`check:changed: ${f} is outside the workspaces: everything runs`);
       return null;
     }
-    hit.add(w.name);
+    (parts[2] === 'test' ? own : spread).add(w.name);
   }
   // Dependents, transitively.
   for (let grew = true; grew;) {
     grew = false;
     for (const w of all) {
-      if (!hit.has(w.name) && w.deps.some((d) => hit.has(d))) {
-        hit.add(w.name);
+      if (!spread.has(w.name) && w.deps.some((d) => spread.has(d))) {
+        spread.add(w.name);
         grew = true;
       }
     }
   }
+  const hit = new Set([...spread, ...own]);
   hit.add('@aisdlc/secrets-rules');
   hit.add('@aisdlc/evals');
   if ([...files].some((f) => f.includes('/migrations/'))) {
