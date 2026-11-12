@@ -1320,6 +1320,7 @@ export function interpret(
       project_id: p.project_id,
       request_id: p.request_id,
       repo: p.repo,
+      ...(p.area === undefined ? {} : { area: p.area }),
       requester: p.requester,
       channel: p.channel,
       catalogue_ref: p.catalogue_ref,

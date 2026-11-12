@@ -180,11 +180,13 @@ export const PrrPins = z.strictObject({
 });
 
 /**
- * The floors judged per area (DEC-25(a)): an area reaches Light only where it holds tests the factory can run
- * (LF3 in that area), and Full only where FF1 holds for it (the area is on the system map and has a spec seed).
- * The repo-wide floors (LF1-LF8, FF2) were judged for the whole repo before M4; these only lower an area.
+ * The floors judged per area (DEC-25(a); OB §3.2 "Light floors (LF), per area"): an area reaches Light only where it
+ * holds tests the factory can run (LF3 in that area), affirmed instruction text covers it (LF5) and at least 90% of
+ * the card 2 claims about it are affirmed or unknown (LF6; no claim about it is unknown), and Full only where FF1
+ * holds for it (the area is on the system map and has a spec seed). The repo-wide floors (LF1-LF8, FF2) were judged
+ * for the whole repo before M4; these only lower an area. Unknown is unmet.
  */
-export const AreaFloorId = z.enum(['LF3', 'FF1']);
+export const AreaFloorId = z.enum(['LF3', 'LF5', 'LF6', 'FF1']);
 export type AreaFloorId = z.infer<typeof AreaFloorId>;
 export const AreaFloorState = z.enum(['met', 'unmet', 'unknown']);
 export type AreaFloorState = z.infer<typeof AreaFloorState>;
@@ -266,6 +268,29 @@ export const PrrRoleMap = z.strictObject({
   }),
 });
 
+/**
+ * R3 zones (OB §2.4 `r3_zones: [<area globs with a critical unknown>]`, OB §8 "R3 circuit breaker: the PRR projects R3
+ * state read-only. ≥3 knowledge-defect trips in an area become a re-onboarding trigger. R3 never raises a level"). An
+ * area is a zone while a knowledge-defect re-onboarding proposal about it is unresolved when the record is built (open,
+ * or accepted for another onboarding than the one this record signs): the baseline there is known to be wrong. A zone
+ * opens only the Census lanes (human-led L8 and what Census allows), the 1.4 rule says `r3_zone`, and G4 reviews a
+ * change that touches it in mode C. The root area `.` is the glob `**` (it cannot be told apart from its subareas by
+ * one glob: fail closed); any other area is `<area>/**`.
+ */
+export const R3ZoneTrigger = z.enum(['knowledge_defects']);
+export type R3ZoneTrigger = z.infer<typeof R3ZoneTrigger>;
+export const PrrR3Zone = z.strictObject({
+  area: AreaId,
+  glob: z.string().min(1),
+  trigger: R3ZoneTrigger,
+  /** The re-onboarding proposals that make it a zone. */
+  proposal_ids: z.array(Sha256Hex).min(1),
+});
+export type PrrR3Zone = z.infer<typeof PrrR3Zone>;
+
+/** The glob of an area's zone: the root is everything (fail closed). */
+export const r3GlobOf = (area: string): string => (area === '.' ? '**' : `${area}/**`);
+
 export const PrrAutonomy = z.strictObject({
   tier_cap: Autonomy,
   level_cap: Autonomy,
@@ -275,8 +300,10 @@ export const PrrAutonomy = z.strictObject({
   probation_until: IsoDateTime.nullable(),
   effective: Autonomy,
   lanes_eligible: z.array(Lane),
-  /** Area globs with a critical unknown. */
+  /** Area globs with a critical unknown (R3 zones), sorted. */
   r3_zones: z.array(z.string().min(1)),
+  /** Why each zone is one (M17). Absent on records before it, whose `r3_zones` are empty. */
+  r3_sources: z.array(PrrR3Zone).optional(),
 });
 
 export const PrrWrites = z.enum(['none', 'docs', 'agent']);

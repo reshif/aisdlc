@@ -3,6 +3,7 @@ import { Autonomy, Level } from '../values.js';
 import { ReadinessStatus } from '../states/readiness.js';
 import { GithubPermissions, RepoFullName } from './codehost.js';
 import { LintSeverity } from './detectors.js';
+import { ReonboardProposalView } from './knowledge-defects.js';
 import {
   GitSha,
   IsoDateTime,
@@ -459,10 +460,6 @@ export const RepoDriftView = z.strictObject({
   /** Levels a level-up may ask for from the signed one (Full is M17's 0.3: the request runs as the spec says). */
   level_up: z.array(Level),
   /**
-   * KRL after drift (OB §4.2): the signed pillar level, the level now (−1 while an area has an open penalty) and the
-   * effective autonomy it gives (the readiness cap of the lowered composite; tighten-only). `null`: no record.
-   */
-  /**
    * OB §8 security events: the agent work held (`held`), the installation a confirmation would accept (by hash), and
    * whether the open findings are new. `null`: no record governs the repo.
    */
@@ -475,6 +472,10 @@ export const RepoDriftView = z.strictObject({
       new_findings: z.number().int().min(0),
     })
     .nullable(),
+  /**
+   * KRL after drift (OB §4.2): the signed pillar level, the level now (−1 while an area has an open penalty) and the
+   * effective autonomy it gives (the readiness cap of the lowered composite; tighten-only). `null`: no record.
+   */
   krl: z
     .strictObject({
       signed: z.number().int().min(0).max(4),
@@ -491,6 +492,8 @@ export const RepoDriftView = z.strictObject({
       ),
     })
     .nullable(),
+  /** M17: the re-onboarding proposals knowledge defects raised (open first is the card; decided ones with the decision). */
+  reonboarding: z.array(ReonboardProposalView),
   history: z.array(DriftHistoryRow),
 });
 export type RepoDriftView = z.infer<typeof RepoDriftView>;
@@ -538,6 +541,8 @@ export const PortalProjectDriftView = ProjectDriftView.extend({
     recheck: z.boolean(),
     /** `project.onboard` (a level-up or a re-sign is an onboarding request). */
     request_version: z.boolean(),
+    /** `project.settings.edit` (accept or decline a re-onboarding proposal; core also requires the admin slot). */
+    reonboard: z.boolean(),
   }),
 });
 export type PortalProjectDriftView = z.infer<typeof PortalProjectDriftView>;

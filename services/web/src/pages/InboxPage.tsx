@@ -25,6 +25,7 @@ const AFTER_ONBOARDING_TITLE = {
   prr_restore: 'Restore a suspended readiness record',
   prr_resign: 'Re-sign an expired readiness record',
   drift_security: 'Security event: agent work held',
+  reonboard: 'Re-onboarding proposed',
 } as const;
 
 export const titleOf = (i: PortalInboxItem): string =>

@@ -183,6 +183,8 @@ export const ELIGIBILITY_REASON_TEXT: Readonly<Record<EligibilityReason, string>
   circuit_breaker: 'the lane’s circuit breaker is tripped for the project',
   followup_overdue: 'a hotfix follow-up is overdue on the project',
   area_unknown: 'the readiness record does not cover the area named',
+  r3_zone:
+    'knowledge defects put the area under re-onboarding (an R3 zone): only human-led work runs there',
 };
 
 /** Where 1.4 sends a request. */

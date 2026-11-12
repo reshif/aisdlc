@@ -48,7 +48,8 @@ export type CardDeciders = z.infer<typeof CardDeciders>;
  * gate that publishes card 4's settings; `work_gate` (M19): a gate a work item waits at (from the floor's read model;
  * decided on the item's page); M16 after onboarding (OB §8): `drift_reaffirm` (instruction or pack text drifted:
  * re-affirm it), `prr_restore` (the record is suspended for drift: restore it once the re-check passes), `prr_resign`
- * (the record expired: re-sign it as a new version). For these three `id` is the repo.
+ * (the record expired: re-sign it as a new version), `reonboard` (M17: knowledge defects proposed re-onboarding an area:
+ * accept it, a new S0 from 0.1, or decline it). For these four `id` is the repo.
  */
 export const InboxItemKind = z.enum([
   'onboarding_card',
@@ -59,6 +60,7 @@ export const InboxItemKind = z.enum([
   'prr_resign',
   /** M16 part 3 (OB §8): a security event holds the repo's agent work (installation widened, new history secret). */
   'drift_security',
+  'reonboard',
 ]);
 export type InboxItemKind = z.infer<typeof InboxItemKind>;
 

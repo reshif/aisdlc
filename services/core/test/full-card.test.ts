@@ -30,10 +30,12 @@ import {
   projectFullPack,
   projectKnowledge,
   projectPack,
+  readItem,
   rebuildPacks,
+  submitRequest,
   syncCards,
 } from '../src/index.js';
-import { startCoreStack, type CoreStack } from '../src/testing.js';
+import { pid, pr, startCoreStack, type CoreStack } from '../src/testing.js';
 import { BASELINE_A } from './cards-fixtures.js';
 import { makeHarness, type Json, type Scn } from './harness.js';
 import { passProbe } from './probe-fixtures.js';
@@ -72,6 +74,14 @@ const FACTS: Fact[] = [
     runner: 'npm',
     invocation: 'npm test',
     source: 'package.json#scripts',
+  },
+  // a fact about packages/money, so card 2 holds a claim about that area too (LF6 per area, DEC-25)
+  {
+    kind: 'stack',
+    detector: 'stack',
+    evidence: [{ path: 'packages/money/package.json', blob: B('2'), line: 1 }],
+    category: 'manifest',
+    name: 'npm',
   },
 ];
 
@@ -273,9 +283,11 @@ describe('card 3 (Full 0.3)', () => {
     expect(prr.autonomy.lanes_eligible).toEqual(expect.arrayContaining(['L4', 'L6']));
     // DEC-25: the levels per area of the system map, the table M4 binds to (in the record, so its hash)
     expect(prr.level.by_area).toEqual({ '.': 'full', 'packages/money': 'full' });
-    expect(prr.level.areas.map((a: Json) => [a.area, a.floors.map((f: Json) => f.state)])).toEqual([
-      ['.', ['met', 'met']],
-      ['packages/money', ['met', 'met']],
+    expect(
+      prr.level.areas.map((a: Json) => [a.area, a.floors.map((f: Json) => `${f.id}:${f.state}`)]),
+    ).toEqual([
+      ['.', ['LF3:met', 'LF5:met', 'LF6:met', 'FF1:met']],
+      ['packages/money', ['LF3:met', 'LF5:met', 'LF6:met', 'FF1:met']],
     ]);
     const kn7 = (prr.gaps as Json[]).filter((g) => g.criterion === 'RS-KN-7');
     expect(kn7.map((g) => g.status)).toEqual(['closed_verified']);
@@ -739,6 +751,16 @@ describe('knowledge defects as a re-onboarding trigger (M17, OB §8)', () => {
       [reonboardStream(c.repo)],
     );
     expect(rec.rows.map((r) => r.type)).toEqual([REONBOARD_EVENT.proposed]);
+    // R3 (OB §8, read-only): while it is open the area is a zone, only the Census lanes run there; the rest of the
+    // repo keeps its lanes, and the repo as a whole is confined
+    const lane = (l: 'L1' | 'L4' | 'L8', area?: string) =>
+      laneEligibility(s.record.pool, c.repo, l, s.clock, undefined, area).then(
+        (v) => `${v.route}:${v.reason}`,
+      );
+    expect(await lane('L1', 'packages/money')).toBe('l8:r3_zone');
+    expect(await lane('L8', 'packages/money')).toBe('normal:eligible');
+    expect(await lane('L4', '.')).toBe('normal:eligible');
+    expect(await lane('L1')).toBe('l8:r3_zone');
     // while it is open, more defects in the area propose nothing new
     const fourth = await recordKnowledgeDefects(deps, {
       repo: c.repo,
@@ -770,5 +792,67 @@ describe('knowledge defects as a re-onboarding trigger (M17, OB §8)', () => {
       source: src(5),
     });
     expect(late.ok && late.value).toMatchObject({ recorded: 2, proposals: [] });
+  });
+
+  it('a work request may name an area (DEC-25): validated against the system map, and 1.4 asks that area', async () => {
+    const c = await signedFull();
+    // R3 makes packages/money a zone (one defect, the threshold as config): its agent lanes go to L8
+    const tripped = await recordKnowledgeDefects(
+      {
+        pool: s.record.pool,
+        clock: s.clock,
+        reonboardTriggers: () => ({ knowledge_defects: { count: 1, window_days: 30 } }),
+      },
+      {
+        repo: c.repo,
+        defects: [defect('packages/money/README.md')],
+        source: { kind: 'other', ref: 'area-requests' },
+      },
+    );
+    expect(tripped.ok && tripped.value.proposals.map((p) => p.area)).toEqual(['packages/money']);
+    let n = 0;
+    const ask = (lane: 'L1' | 'L4', area?: string) =>
+      submitRequest(s.deps, {
+        project_id: pid(c.project),
+        repo: c.repo,
+        lane,
+        ...(area === undefined ? {} : { area }),
+        requester: pr('alice'),
+        channel: 'N3',
+        text: `area request ${(n += 1)}`,
+      });
+    // the root area keeps its lanes: admitted, and the item carries the area into its own 1.4
+    const root = ok(await ask('L4', '.'));
+    expect(root.value).toMatchObject({ state: 'admitted', verdict: { area: '.', eligible: true } });
+    const item = await readItem(s.record.pool, root.value.item_id as string);
+    expect(item?.state.area).toBe('.');
+    const created = await s.record.pool.query<{ body: Json }>(
+      "SELECT body FROM record.record_event WHERE stream = $1 AND type = 'item.created'",
+      [`item:${root.value.item_id}`],
+    );
+    expect(created.rows[0]?.body.area).toBe('.');
+    const asked = await s.record.pool.query<{ body: Json }>(
+      "SELECT body FROM record.record_event WHERE type = 'work.requested' AND body ->> 'request_id' = $1",
+      [root.value.request_id],
+    );
+    expect(asked.rows[0]?.body.area).toBe('.');
+    // the zone: L8 through the 1.4 rule; the repo as a whole is confined too
+    const money = ok(await ask('L1', 'packages/money'));
+    expect(money.value).toMatchObject({
+      state: 'routed_l8',
+      verdict: { area: 'packages/money', reason: 'r3_zone' },
+    });
+    expect(ok(await ask('L1')).value.verdict.reason).toBe('r3_zone');
+    // an area the system map does not hold is refused, and nothing is recorded
+    const before = await s.record.pool.query(
+      "SELECT 1 FROM record.record_event WHERE type = 'work.requested'",
+    );
+    const nowhere = await ask('L1', 'services/nowhere');
+    expect(nowhere.ok ? null : nowhere.error).toMatchObject({ code: 'invalid_input' });
+    expect(nowhere.ok ? '' : nowhere.error.message).toContain('area_unknown');
+    const after = await s.record.pool.query(
+      "SELECT 1 FROM record.record_event WHERE type = 'work.requested'",
+    );
+    expect(after.rowCount).toBe(before.rowCount);
   });
 });
