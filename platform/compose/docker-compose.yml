@@ -487,8 +487,8 @@ services:
   # API, the kill switch's read link, Postgres (a network of its own) and its egress. Egress is a whole network
   # here; the cloud target is a security group or proxy that allows api.anthropic.com only.
   # Local-prod routes D0-D2 to the deterministic fake provider (the seed publishes that table); a
-  # gated config revision points a route at Claude. `core` mounts tok-core-gateway when the work
-  # engine mints per-Unit keys (M11); the operator token is how a person (or smoke.sh) reaches it now.
+  # gated config revision points a route at Claude. `core-worker` mints the agents' per-Unit and per-job keys
+  # (M11, M12), `core` the assistant's per-ask keys (M18); the operator token is how a person (or smoke.sh) reaches it.
   gateway:
     <<: *factory
     # A sandbox network peer (M13.2): the coding proxy attaches a container to a session network only if it
@@ -647,6 +647,13 @@ services:
       CORE_OBJECT_STORE_URL: http://object-store:9000
       CORE_OBJECT_STORE_ACCESS_KEY_REF: file:/run/secrets/object-store-access-key
       CORE_OBJECT_STORE_SECRET_KEY_REF: file:/run/secrets/object-store-secret-key
+      # M18: the onboarding assistant and "Ask the factory". The gateway's admin API (scopes admin, read: the person's
+      # day budget group, a per-ask key with exactly the assistant contract's tools) and its /v1/messages under that
+      # key; the knowledge token above carries `search` (the KnowledgeSearch tool). Local routes serve `fake-model`.
+      # Reached per ask: while the gateway is down an ask is refused, nothing else in core waits for it.
+      CORE_GATEWAY_URL: http://gateway:8410
+      CORE_GATEWAY_TOKEN_REF: file:/run/secrets/tok-core-gateway
+      CORE_ASSISTANT_EXTRA_MODELS: fake-model
       CORE_HOST: 0.0.0.0
       CORE_PORT: '8380'
     secrets:
@@ -660,6 +667,7 @@ services:
         tok-core-kms,
         tok-core-knowledge,
         tok-core-codehost,
+        tok-core-gateway,
         object-store-access-key,
         object-store-secret-key,
       ]
@@ -675,7 +683,7 @@ services:
       notary: { condition: service_healthy }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
-    networks: [app, data-record, kms-clients, notary-api, objectstore-api]
+    networks: [app, data-record, kms-clients, notary-api, objectstore-api, gateway-api]
     mem_limit: 256m
 
   # The one process that hosts every loop (code-host polls, S0 driver, role-map sync, cards,
@@ -842,7 +850,7 @@ services:
     environment:
       KNOWLEDGE_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       KNOWLEDGE_CALLERS: >-
-        {"core":{"token_ref":"file:/run/secrets/tok-core-knowledge","scopes":["census","security"]},
+        {"core":{"token_ref":"file:/run/secrets/tok-core-knowledge","scopes":["census","security","search"]},
         "core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-knowledge","scopes":["census","security","search"]}}
       KNOWLEDGE_CODEHOST_URL: http://codehost:8350
       KNOWLEDGE_CODEHOST_TOKEN_REF: file:/run/secrets/tok-knowledge-codehost
