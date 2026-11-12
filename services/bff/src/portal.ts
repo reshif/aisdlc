@@ -29,6 +29,10 @@ import {
   ItemObserveRequest,
   ItemPlanRequest,
   ItemHumanDoneRequest,
+  ItemHandBackRequest,
+  ItemHandoffChooseRequest,
+  ItemHandoffView,
+  PortalItemHandoffView,
   ItemPlanResult,
   ItemReadyRequest,
   ItemView,
@@ -155,6 +159,8 @@ export const PortalObserveBody = z.discriminatedUnion('edge', [
 ]);
 export const PortalPlanBody = ItemPlanRequest.omit({ on_behalf_of: true });
 export const PortalHumanDoneBody = ItemHumanDoneRequest.omit({ on_behalf_of: true });
+export const PortalHandBackBody = ItemHandBackRequest.omit({ on_behalf_of: true });
+export const PortalHandoffChooseBody = ItemHandoffChooseRequest.omit({ on_behalf_of: true });
 export const PortalConfigProposeBody = ConfigProposeRequest.omit({ on_behalf_of: true });
 const EmptyBody = z.strictObject({});
 
@@ -348,7 +354,7 @@ export function registerPortalRoutes(d: PortalDeps): void {
     req: FastifyRequest,
     reply: FastifyReply,
     schema: S,
-    verb: 'ready' | 'answers' | 'observe' | 'plan' | 'human-done',
+    verb: 'ready' | 'answers' | 'observe' | 'plan' | 'human-done' | 'hand-back',
     action: ActionId,
   ) {
     const c = core(reply);
@@ -380,10 +386,87 @@ export function registerPortalRoutes(d: PortalDeps): void {
   app.post('/api/items/:id/plan', (req, reply) =>
     itemMove(req, reply, PortalPlanBody, 'plan', 'item.plan'),
   );
-  // M14.6: D5, the human-led work of an L8 item is done (no portal button yet: the compose e2e calls it)
+  // M14.6: D5, the human-led work of an L8 item is done, with the PR or commit that holds it (P1-4: the handoff panel)
   app.post('/api/items/:id/human-done', (req, reply) =>
     itemMove(req, reply, PortalHumanDoneBody, 'human-done', 'item.human_done'),
   );
+  // P1-4: D4, the developer who took the item over hands it back (once); the slot that says D5
+  app.post('/api/items/:id/hand-back', (req, reply) =>
+    itemMove(req, reply, PortalHandBackBody, 'hand-back', 'item.human_done'),
+  );
+
+  /** The E4 gate of an item's handoff as a PDP resource (the slot that decides E4 also records the choice). */
+  const e4Resource = (
+    v: { project_id: string; item_id: string; lane: string | null },
+    gate: string,
+  ) => pdpResource.gate(v.project_id, gate, 'E4', { item: v.item_id, lane: v.lane });
+
+  /**
+   * P1-4: the handoff panel. What was handed off and why, its E4 card, the choices the flow allows now, and what the
+   * signed-in person may do: decide E4 (`gate.decide`), record the choice (`gate.decide` AND they approved E4 in the
+   * ledger), hand back (D4) or say the work is done (D5) (`item.human_done`, where the item is).
+   */
+  app.get('/api/items/:id/handoff', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const it = await itemOf(req, reply, c, id);
+    if (!it) return;
+    const who = d.principalOf(req);
+    const got = upstream(
+      reply,
+      await c.call('GET', `/v1/items/${id}/handoff?on_behalf_of=${encodeURIComponent(who)}`),
+      (v) => ItemHandoffView.parse(v),
+    );
+    if (!got) return;
+    const v = got.value;
+    const lane = {
+      project_id: v.project_id,
+      item_id: v.item_id,
+      lane: v.lane ?? it.view.proposed_lane,
+    };
+    const decidesE4 =
+      v.e4 !== null && (await allowed(who, 'gate.decide', e4Resource(lane, v.e4.gate_instance_id)));
+    const humanLed = v.waiting === 'human:human_led';
+    const dev = humanLed && (await allowed(who, 'item.human_done', it.resource));
+    const may = {
+      decide_e4: decidesE4 && v.e4?.status === 'pending' && v.e4.card_id !== null,
+      choose:
+        decidesE4 && v.choices.length > 0 && (v.e4?.approvers.includes(who as never) ?? false),
+      hand_back:
+        dev && v.human_led !== null && v.human_led.taken_over && v.human_led.hand_backs_left > 0,
+      human_done: dev,
+    };
+    return PortalItemHandoffView.parse({ ...v, may });
+  });
+
+  /** P1-4: E4, the owner of record's choice. The PDP's `gate.decide` on the item's E4; core checks the ledger. */
+  app.post('/api/items/:id/handoff/choose', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const body = PortalHandoffChooseBody.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    const who = d.principalOf(req);
+    const it = await itemOf(req, reply, c, id);
+    if (!it) return;
+    const h = it.view.handoff;
+    if (!h || h.handoff_id !== body.data.handoff_id || h.e4_gate_instance_id === null) {
+      return sendError(reply, 409, 'conflict', 'no such open handoff with an E4');
+    }
+    const v = it.view;
+    const res = e4Resource(
+      { project_id: v.project_id, item_id: v.item_id, lane: v.lane ?? v.proposed_lane },
+      h.e4_gate_instance_id,
+    );
+    if (!(await allowed(who, 'gate.decide', res))) return deny(reply, 'gate.decide');
+    const got = upstream(
+      reply,
+      await c.call('POST', `/v1/items/${id}/handoff/choose`, { ...body.data, on_behalf_of: who }),
+      (x) => ItemActionResult.parse(x),
+    );
+    return got?.value;
+  });
 
   // ------------------------------------------------------------ configuration console
 

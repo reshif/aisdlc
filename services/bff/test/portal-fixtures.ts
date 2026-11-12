@@ -47,6 +47,54 @@ export function itemViewFixture() {
   };
 }
 
+export const HANDOFF_ID = '55555555-6666-4777-8888-999999999999';
+export const E4_GATE = '66666666-7777-4888-8999-aaaaaaaaaaaa';
+export const E4_CARD = '77777777-8888-4999-8aaa-bbbbbbbbbbbb';
+
+/** An item handed off from S6 (D1, ET1) whose E4 is open. */
+export function handoffFixture() {
+  return {
+    handoff_id: HANDOFF_ID,
+    item_id: ITEM_ID,
+    n: 1,
+    code: 'D1',
+    trigger: 'ET1',
+    origin_phase: 'S6',
+    origin_step: null,
+    pack: { pack_id: `handoff-pack:${HANDOFF_ID}`, content_sha256: 'd'.repeat(64) },
+    e4_gate_instance_id: E4_GATE,
+    e4_decided: false,
+    status: 'open',
+    choice: null,
+    chosen_by: null,
+    extension: null,
+    opened_at: '2026-11-09T10:00:00.000Z',
+    chosen_at: null,
+  };
+}
+
+export function handoffViewFixture() {
+  return {
+    item_id: ITEM_ID,
+    project_id: 'acme',
+    lane: 'L3',
+    phase: 'Handoff',
+    waiting: 'handoff:e4',
+    handoff: handoffFixture(),
+    e4: {
+      gate_instance_id: E4_GATE,
+      card_id: E4_CARD,
+      status: 'pending',
+      outcome: null,
+      approvers: [],
+    },
+    choices: [],
+    extension_max_percent: 50,
+    human_led: null,
+    done: [],
+  };
+}
+
 export function agentRunsFixture() {
   return {
     item_id: ITEM_ID,
@@ -436,6 +484,9 @@ export async function startFakeCore(): Promise<FakeCore> {
       if (method === 'GET' && path.startsWith(`/v1/items/${ITEM_ID}?on_behalf_of=`)) {
         return reply(200, itemViewFixture());
       }
+      if (method === 'GET' && path.startsWith(`/v1/items/${ITEM_ID}/handoff?on_behalf_of=`)) {
+        return reply(200, handoffViewFixture());
+      }
       if (method === 'POST' && path === `/v1/items/${ITEM_ID}/plan`) {
         return reply(200, {
           item: itemViewFixture(),
@@ -446,7 +497,9 @@ export async function startFakeCore(): Promise<FakeCore> {
       }
       if (
         method === 'POST' &&
-        /^\/v1\/items\/[0-9a-f-]+\/(ready|answers|observe|human-done)$/.test(path)
+        /^\/v1\/items\/[0-9a-f-]+\/(ready|answers|observe|human-done|hand-back|handoff\/choose)$/.test(
+          path,
+        )
       ) {
         return reply(200, { item: itemViewFixture(), duplicate: false });
       }

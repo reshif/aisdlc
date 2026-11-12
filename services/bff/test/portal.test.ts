@@ -6,7 +6,10 @@ import {
   CORE_TOKEN,
   GATE_ID,
   ITEM_ID,
+  HANDOFF_ID,
   agentRunsFixture,
+  handoffFixture,
+  handoffViewFixture,
   itemViewFixture,
   S0_ID,
   startFakeCore,
@@ -64,6 +67,7 @@ beforeAll(async () => {
     intent: ['bob'],
     kill: ['carol'],
     design: ['bob'],
+    x: ['bob'],
   });
   await grantFleetRole(s.identity.deps, 'root', 'factory.admin');
 });
@@ -183,6 +187,23 @@ const CASES: RouteCase[] = [
     allowed: 'bob',
     denied: 'alice',
     forwards: `POST /v1/items/${ITEM_ID}/human-done`,
+  },
+  {
+    name: 'D4: the developer hands the item back (P1-4)',
+    method: 'POST',
+    path: `/api/items/${ITEM_ID}/hand-back`,
+    body: { plan_changed: false, key: 'h1' },
+    allowed: 'bob',
+    denied: 'alice',
+    forwards: `POST /v1/items/${ITEM_ID}/hand-back`,
+  },
+  {
+    name: 'the handoff panel of an item (P1-4)',
+    method: 'GET',
+    path: `/api/items/${ITEM_ID}/handoff`,
+    allowed: 'alice',
+    denied: 'dora',
+    forwards: `GET /v1/items/${ITEM_ID}/handoff?on_behalf_of=alice`,
   },
   {
     name: 'the agent runs of an item',
@@ -818,5 +839,75 @@ describe('what the person may do with an item (M12.5): the PDP and where the ite
     });
     expect(await may('bob', { waiting: 'human:plan' })).toMatchObject({ plan: true });
     expect(await may('alice', { waiting: 'human:plan' })).toMatchObject({ plan: false });
+  });
+});
+
+describe('the handoff panel (P1-4): what the person may do, and the E4 choice', () => {
+  const itemKey = (who: string) => `GET /v1/items/${ITEM_ID}?on_behalf_of=${who}`;
+  const viewKey = (who: string) => `GET /v1/items/${ITEM_ID}/handoff?on_behalf_of=${who}`;
+  const may = async (who: 'alice' | 'bob', over: Record<string, unknown>) => {
+    core.override.set(viewKey(who), { status: 200, json: { ...handoffViewFixture(), ...over } });
+    const r = await api(who, 'GET', `/api/items/${ITEM_ID}/handoff`);
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    return r.json.may as Record<string, boolean>;
+  };
+  const e4 = handoffViewFixture().e4;
+
+  it('decide E4 and choose: the x slot only; choose also only for who approved E4 in the ledger', async () => {
+    expect(await may('bob', {})).toEqual({
+      decide_e4: true,
+      choose: false,
+      hand_back: false,
+      human_done: false,
+    });
+    expect(await may('alice', {})).toMatchObject({ decide_e4: false });
+    const decided = {
+      e4: { ...e4, status: 'decided', outcome: 'approve', approvers: ['bob'] },
+      choices: ['resume', 'takeover', 'abandon'],
+    };
+    expect(await may('bob', decided)).toMatchObject({ decide_e4: false, choose: true });
+    expect(
+      await may('bob', { ...decided, e4: { ...decided.e4, approvers: ['someone-else'] } }),
+    ).toMatchObject({ choose: false });
+  });
+
+  it('D4 and D5: the design slot, only while a developer has the work (D4: taken over, a hand-back left)', async () => {
+    const dev = {
+      waiting: 'human:human_led',
+      lane: 'L8',
+      human_led: { taken_over: true, lane_before: 'L3', hand_backs_left: 1 },
+    };
+    expect(await may('bob', dev)).toMatchObject({ hand_back: true, human_done: true });
+    expect(await may('alice', dev)).toMatchObject({ hand_back: false, human_done: false });
+    expect(
+      await may('bob', { ...dev, human_led: { ...dev.human_led, hand_backs_left: 0 } }),
+    ).toMatchObject({ hand_back: false, human_done: true });
+  });
+
+  it("the choice: the PDP on the item's E4 gate first, then core with the principal from the session", async () => {
+    const withHandoff = { ...itemViewFixture(), phase: 'Handoff', handoff: handoffFixture() };
+    const body = { handoff_id: HANDOFF_ID, choice: 'takeover' };
+    core.override.set(itemKey('alice'), { status: 200, json: withHandoff });
+    const denied = await api('alice', 'POST', `/api/items/${ITEM_ID}/handoff/choose`, body);
+    expect(denied.status).toBe(403);
+    expect(core.seen.filter((x) => x.method === 'POST')).toHaveLength(0);
+    core.override.set(itemKey('bob'), { status: 200, json: withHandoff });
+    // another handoff than the open one is a conflict, and nothing is forwarded
+    const other = await api('bob', 'POST', `/api/items/${ITEM_ID}/handoff/choose`, {
+      ...body,
+      handoff_id: ITEM_ID,
+    });
+    expect(other.status).toBe(409);
+    // the browser cannot name who chooses
+    const named = await api('bob', 'POST', `/api/items/${ITEM_ID}/handoff/choose`, {
+      ...body,
+      on_behalf_of: 'root',
+    });
+    expect(named.status).toBe(400);
+    const r = await api('bob', 'POST', `/api/items/${ITEM_ID}/handoff/choose`, body);
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    const sent = core.seen.find((x) => x.method === 'POST');
+    expect(sent?.path).toBe(`/v1/items/${ITEM_ID}/handoff/choose`);
+    expect(sent?.body).toEqual({ ...body, on_behalf_of: 'bob' });
   });
 });
