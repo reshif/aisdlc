@@ -1,13 +1,30 @@
-import { CARD_STEP_ENTRY_TYPE, S0_EVENT, type Fact } from '@aisdlc/contracts';
+import {
+  CARD_STEP_ENTRY_TYPE,
+  ORACLE_LOCK_PATH,
+  PACK_EVENT,
+  S0_EVENT,
+  packStream,
+  type Fact,
+} from '@aisdlc/contracts';
+import { startTestCodeHost } from '@aisdlc/codehost/testing';
 import { readCardState } from '@aisdlc/decisions';
 import { buildCodeGraph } from '@aisdlc/knowledge';
+import { emptySeed } from '@aisdlc/ports';
 import { makeCanary } from '@aisdlc/secrets-rules';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { syncCards } from '../src/index.js';
+import {
+  CorePushGuards,
+  listPushReceipts,
+  projectFullPack,
+  projectPack,
+  rebuildPacks,
+  syncCards,
+} from '../src/index.js';
 import { startCoreStack, type CoreStack } from '../src/testing.js';
 import { BASELINE_A } from './cards-fixtures.js';
 import { makeHarness, type Json, type Scn } from './harness.js';
 import { passProbe } from './probe-fixtures.js';
+import { decideGate } from './work-fixtures.js';
 
 // Card 3, Full 0.3 (PLAN M17; OB §6.2 row 0.3; FF1; DEC-15(a)) on real Postgres with the real decision kernel,
 // ledger and Notary; knowledge (its code graph) and the code host are fakes behind their ports. The baseline is
@@ -313,5 +330,166 @@ describe('card 3 (Full 0.3)', () => {
     expect(await allRecordText()).not.toContain(canary);
     // a send-back is still possible, and the card is still open
     expect((await stateOf(c)).steps.get('0.3')?.state).toBe('card');
+  });
+});
+
+describe('the oracle lock through X2 (M17)', () => {
+  const CORRECTED = '# packages/money\n\nThe ledger keeps every balance in integer cents.\n';
+
+  async function approveC3(c: Scn) {
+    await sync(c);
+    const card = await actionable(c, 'C3');
+    const d = await detail(c, card.card_id);
+    const seeds = d.view.seeds.map((x: Json) =>
+      x.area === 'packages/money'
+        ? { seed_id: x.seed_id, verdict: 'correct', correction: CORRECTED }
+        : { seed_id: x.seed_id, verdict: 'keep_observed' },
+    );
+    ok(await decideAs(c, card.card_id, 'alice', 'approve', c3Content(d.view, { seeds })));
+    return d.view;
+  }
+
+  it('renders the lock and the intended seeds from the record, records first, X2 on the S0 record bound to the patch, then a draft PR', async () => {
+    const c = await toFull();
+    s.elig.setHolders(c.project as never, 'x', ['bob' as never]);
+    const host = await startTestCodeHost({
+      seed: emptySeed({
+        installation: {
+          installation_id: 4244,
+          account_login: 'acme',
+          repository_selection: 'selected',
+          permissions: { contents: 'write', pull_requests: 'write', metadata: 'read' },
+          suspended: false,
+        },
+        repos: [{ full_name: c.repo, default_branch: 'main', private: true, archived: false }],
+        heads: [{ repo: c.repo, branch: 'main', sha: BASELINE_A }],
+        files: [{ repo: c.repo, sha: BASELINE_A, path: 'AGENTS.md', content: AGENTS_MD }],
+      }),
+      mode: 'push',
+      guards: new CorePushGuards(s.record.pool),
+    });
+    try {
+      const deps = {
+        cards: c.deps,
+        push: { pool: s.record.pool, clock: s.clock, ledger: s.deps.ledger as never },
+        broker: host.rest,
+      };
+      // card 3 not decided yet: nothing to render, nothing recorded
+      expect(await projectFullPack(deps, c.s0)).toMatchObject({
+        ok: true,
+        value: { kind: 'full', state: 'waiting_for_c2' },
+      });
+      const view = await approveC3(c);
+
+      const v = await projectFullPack(deps, c.s0);
+      if (!v.ok) throw new Error(v.error.message);
+      expect(v.value).toMatchObject({ kind: 'full', state: 'x2_pending' });
+      const money = view.seeds.find((x: Json) => x.area === 'packages/money');
+      expect(v.value.files.map((f) => [f.path, f.source])).toEqual([
+        ['.factory/knowledge/full-pack.json', 'manifest'],
+        [ORACLE_LOCK_PATH, 'oracle_lock'],
+        [money.path, 'seed'],
+      ]);
+      // the seed kept `observed` is not written
+      const kept = view.seeds.find((x: Json) => x.area === '.');
+      expect(v.value.files.some((f) => f.path === kept.path)).toBe(false);
+
+      // record first: rendered, then X2; nothing reached the host
+      const ev = await s.record.pool.query<{ type: string; body: Json }>(
+        'SELECT type, body FROM record.record_event WHERE stream = $1 ORDER BY seq',
+        [packStream(c.s0)],
+      );
+      // card 2's pack (light) is a projection of its own; the Full one is rendered, then its X2 opened
+      expect(
+        ev.rows
+          .filter((r) => r.body.kind === 'full' || r.body.patch_hash === v.value.patch_hash)
+          .map((r) => r.type),
+      ).toEqual([PACK_EVENT.rendered, PACK_EVENT.x2_opened]);
+      const full = ev.rows.filter((r) => r.type === PACK_EVENT.rendered && r.body.kind === 'full');
+      expect(full).toHaveLength(1);
+      expect(full[0]?.body).toMatchObject({ patch_hash: v.value.patch_hash, base_sha: BASELINE_A });
+      expect(host.server.apiRequests.filter((r) => r.method !== 'GET')).toEqual([]);
+
+      // X2 on the S0 record, its subject hash the patch hash, the pack a 0.3 artefact
+      const x2 = await readCardState(s.record.pool, v.value.x2_card_id as string);
+      expect(x2?.open).toMatchObject({ subject_kind: 's0_record', subject_id: c.s0, label: 'X2' });
+      const gate = x2?.gates[0]?.state.open.payload;
+      expect(gate).toMatchObject({
+        gate_id: 'X2',
+        subject_hash: v.value.patch_hash,
+        facts: {
+          kind: 'onboarding_full_pack',
+          branch: `agent/${c.s0}/onboarding-full-pack`,
+          artefacts: [{ step: '0.3', sha256: v.value.patch_hash }],
+        },
+      });
+      // idempotent
+      const again = await projectFullPack(deps, c.s0);
+      expect(again.ok && again.value.x2_card_id).toBe(v.value.x2_card_id);
+
+      // the guards: the Full pack has its own lease; the X2 binds only its own patch
+      const guards = new CorePushGuards(s.record.pool);
+      expect(await guards.lease(c.s0, 'onboarding-full-pack')).toEqual({
+        state: 'ok',
+        value: { held: true, epoch: 1, lane: 'S0' },
+      });
+      expect(await guards.x2Bound(c.s0, v.value.patch_hash as string)).toEqual({
+        state: 'ok',
+        value: false,
+      });
+      const dec = await decideGate(s, x2?.gates[0]?.gate_instance_id as string, 'bob', 'approve');
+      expect(dec.ok, JSON.stringify(dec)).toBe(true);
+      expect(await guards.x2Bound(c.s0, v.value.patch_hash as string)).toEqual({
+        state: 'ok',
+        value: true,
+      });
+
+      const pushed = await projectFullPack(deps, c.s0);
+      if (!pushed.ok) throw new Error(pushed.error.message);
+      expect(pushed.value).toMatchObject({ kind: 'full', state: 'pushed' });
+      const pull = host.server.pulls.find(
+        (p) => p.head.ref === `agent/${c.s0}/onboarding-full-pack`,
+      );
+      expect(pull).toMatchObject({ draft: true });
+      const at = (path: string) =>
+        host.server.objects.fileAt(c.repo, pull?.head.sha ?? '', path)?.toString() ?? '';
+      const lock = JSON.parse(at(ORACLE_LOCK_PATH));
+      expect(lock).toMatchObject({
+        schema: 'oracle-lock/1',
+        s0_record: c.s0,
+        base_sha: BASELINE_A,
+        lock_hash: view.oracle_lock.lock_hash,
+      });
+      expect(lock.tests.map((t: Json) => t.path)).toEqual(
+        view.oracle_lock.tests.map((t: Json) => t.path).sort(),
+      );
+      const seed = at(money.path);
+      expect(seed).toContain('status: intended');
+      expect(seed).toContain('integer cents');
+      // the factory never merges
+      expect(
+        host.server.apiRequests.some((r) => r.method !== 'GET' && r.path.includes('merge')),
+      ).toBe(false);
+      const receipts = (await listPushReceipts(s.record.pool, c.s0)).filter(
+        (r) => r.unit_key === 'onboarding-full-pack',
+      );
+      expect(receipts.map((r) => r.status)).toEqual(['applied']);
+
+      // the Light pack is a separate projection: its own row, its own X2 and branch
+      const light = await projectPack({ ...deps, broker: undefined } as never, c.s0);
+      expect(light.ok && light.value.kind).toBeUndefined();
+      expect(light.ok && light.value.x2_card_id).not.toBe(v.value.x2_card_id);
+
+      // rebuilt from the events alone
+      await s.record.pool.query('DELETE FROM core.onboarding_pack WHERE s0_id = $1', [c.s0]);
+      await rebuildPacks({ pool: s.record.pool }, c.s0);
+      const back = await projectFullPack(deps, c.s0);
+      expect(back.ok && back.value).toMatchObject({
+        state: 'pushed',
+        x2_card_id: v.value.x2_card_id,
+      });
+    } finally {
+      await host.stop();
+    }
   });
 });

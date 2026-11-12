@@ -69806,7 +69806,9 @@
             "claims",
             "unknowns",
             "intent",
-            "manifest"
+            "manifest",
+            "oracle_lock",
+            "seed"
           ]
         },
         "sha256": {
@@ -69846,7 +69848,16 @@
         "claims",
         "unknowns",
         "intent",
-        "manifest"
+        "manifest",
+        "oracle_lock",
+        "seed"
+      ]
+    },
+    "PackKind": {
+      "type": "string",
+      "enum": [
+        "light",
+        "full"
       ]
     },
     "PackProjectionState": {
@@ -69866,6 +69877,13 @@
         "s0_id": {
           "type": "string",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "light",
+            "full"
+          ]
         },
         "state": {
           "type": "string",
@@ -69906,7 +69924,9 @@
                   "claims",
                   "unknowns",
                   "intent",
-                  "manifest"
+                  "manifest",
+                  "oracle_lock",
+                  "seed"
                 ]
               },
               "sha256": {
@@ -70019,6 +70039,13 @@
           "type": "string",
           "pattern": "^[0-9a-f]{40}$"
         },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "light",
+            "full"
+          ]
+        },
         "c2_card_id": {
           "type": "string",
           "format": "uuid",
@@ -70051,7 +70078,9 @@
                   "claims",
                   "unknowns",
                   "intent",
-                  "manifest"
+                  "manifest",
+                  "oracle_lock",
+                  "seed"
                 ]
               },
               "sha256": {

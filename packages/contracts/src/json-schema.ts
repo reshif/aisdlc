@@ -801,6 +801,7 @@ export const SCHEMAS = {
   PackRenderedPayload: entities.PackRenderedPayload,
   PackX2OpenedPayload: entities.PackX2OpenedPayload,
   PackProjectionView: entities.PackProjectionView,
+  PackKind: entities.PackKind,
   GapDispositionInput: entities.GapDispositionInput,
   C1DecisionContent: entities.C1DecisionContent,
   KillDelegationInput: entities.KillDelegationInput,

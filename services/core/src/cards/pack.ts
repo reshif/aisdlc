@@ -1,8 +1,8 @@
 import {
   ONBOARDING_PACK_EPOCH,
   ONBOARDING_PACK_LANE,
-  ONBOARDING_PACK_UNIT,
   PACK_EVENT,
+  PACK_KINDS,
   PackRenderedPayload,
   PackX2OpenedPayload,
   PushIntendedPayload,
@@ -10,13 +10,22 @@ import {
   PushRefusalCode,
   packStream,
   unitBranchOf,
+  type CardPayloadItem,
+  type PackKind,
   type PackProjectionView,
   type PatchSet,
 } from '@aisdlc/contracts';
 import { openCard, readGateState } from '@aisdlc/decisions';
-import { err, ok, type Result } from '@aisdlc/kernel';
+import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import type { LoopContext, LoopSpec } from '@aisdlc/loops';
-import { renderOnboardingPack, type PackClaim, type PackInstruction } from '@aisdlc/onboarding';
+import {
+  renderFullPack,
+  renderOnboardingPack,
+  type FullPackSeed,
+  type PackClaim,
+  type PackInstruction,
+  type RenderedPack,
+} from '@aisdlc/onboarding';
 import type { CodeHostPort } from '@aisdlc/ports';
 import type { Tx } from '@aisdlc/record';
 import { scanText } from '@aisdlc/secrets-rules';
@@ -29,6 +38,7 @@ import {
   type CorePushDeps,
 } from '../build/push.js';
 import { coreError, type CoreError } from '../errors.js';
+import { fullBaselineOf } from './full.js';
 import { clockOf, inCoreTx, lockKeys } from '../journal.js';
 import { activeS0Ids } from '../queries.js';
 import { lightProposalOf, reviewsOf } from './light.js';
@@ -70,8 +80,8 @@ export async function applyPackEvent(
     const p = PackRenderedPayload.parse(e.payload);
     await tx.query(
       `INSERT INTO core.onboarding_pack
-         (patch_hash, s0_id, project_id, repo, base_sha, c2_card_id, files, rendered_at, event_gseq)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (s0_id, patch_hash) DO NOTHING`,
+         (patch_hash, s0_id, project_id, repo, base_sha, c2_card_id, files, rendered_at, event_gseq, kind)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (s0_id, patch_hash) DO NOTHING`,
       [
         p.patch_hash,
         p.s0_id,
@@ -82,6 +92,7 @@ export async function applyPackEvent(
         JSON.stringify(p.files),
         p.rendered_at,
         e.global_seq,
+        p.kind ?? 'light',
       ],
     );
     return;
@@ -124,11 +135,15 @@ interface PackRow {
   x2_gate_instance_id: string | null;
 }
 
-async function latestPack(db: Pick<pg.Pool, 'query'>, s0Id: string): Promise<PackRow | null> {
+async function latestPack(
+  db: Pick<pg.Pool, 'query'>,
+  s0Id: string,
+  kind: PackKind,
+): Promise<PackRow | null> {
   const q = await db.query<PackRow>(
     `SELECT patch_hash, base_sha, repo, project_id, files, x2_card_id, x2_gate_instance_id
-       FROM core.onboarding_pack WHERE s0_id = $1 ORDER BY event_gseq DESC LIMIT 1`,
-    [s0Id],
+       FROM core.onboarding_pack WHERE s0_id = $1 AND kind = $2 ORDER BY event_gseq DESC LIMIT 1`,
+    [s0Id, kind],
   );
   return q.rows[0] ?? null;
 }
@@ -218,11 +233,13 @@ export function affirmedOf(
 
 const view = (
   s0Id: string,
+  kind: PackKind,
   state: PackProjectionView['state'],
   row: PackRow | null,
   extra: Partial<PackProjectionView> = {},
 ): PackProjectionView => ({
   s0_id: s0Id as never,
+  ...(kind === 'light' ? {} : { kind }),
   state,
   patch_hash: (row?.patch_hash ?? null) as never,
   files: row?.files ?? [],
@@ -233,10 +250,18 @@ const view = (
   ...extra,
 });
 
+/** What a decided card gives a pack: the card, its payload hash, the base commit and the rendered patch. */
+interface PackSource {
+  readonly card_id: string;
+  readonly payload_hash: string;
+  readonly base_sha: string;
+  readonly rendered: RenderedPack;
+}
+
 /**
- * Moves an S0 record's pack projection as far as it can go now, and says where it stands. Idempotent: each step is
- * recorded once (the pack by its patch hash, X2 by its card, the push by its receipt), and a step that already
- * happened is read back, never repeated.
+ * Moves an S0 record's Light pack projection (card 2's) as far as it can go now, and says where it stands. Idempotent:
+ * each step is recorded once (the pack by its patch hash, X2 by its card, the push by its receipt), and a step that
+ * already happened is read back, never repeated.
  */
 export async function projectPack(
   d: PackDeps,
@@ -248,7 +273,7 @@ export async function projectPack(
   const cards = await s0Cards(pool, s0Id);
   const aff = affirmedOf(loaded, cards);
   if (!aff.ok) return aff;
-  if (aff.value === null) return ok(view(s0Id, 'waiting_for_c2', null));
+  if (aff.value === null) return ok(view(s0Id, 'light', 'waiting_for_c2', null));
   const a = aff.value;
   let rendered;
   try {
@@ -265,6 +290,116 @@ export async function projectPack(
     return err(coreError('conflict', (e as Error).message));
   }
   if (rendered === null) return err(coreError('conflict', 'card 2 affirmed nothing to write'));
+  return advancePack(d, loaded, 'light', { ...a, rendered });
+}
+
+interface AffirmedFull {
+  readonly card_id: string;
+  readonly payload_hash: string;
+  readonly base_sha: string;
+  readonly rendered: RenderedPack | null;
+}
+
+/** Card 3's newest approved AND applied decision, read back from the record: the oracle lock and the intended seeds. */
+export function affirmedFullOf(
+  loaded: LoadedS0,
+  cards: Awaited<ReturnType<typeof s0Cards>>,
+): Result<AffirmedFull | null, CoreError> {
+  const applied = appliedCards(loaded);
+  const c3 = [...cards]
+    .filter(
+      (c) =>
+        c.kind === 'C3' &&
+        c.state.status === 'decided' &&
+        c.state.steps[0]?.decision === 'approve' &&
+        applied.has(c.card_id),
+    )
+    .sort((a, b) => b.occurrence - a.occurrence)[0];
+  if (!c3) return ok(null);
+  const payload: readonly CardPayloadItem[] = c3.state.payload?.payload ?? [];
+  const payloadHash = c3.state.payload?.payload_hash ?? c3.state.decided[0]?.payload_hash;
+  if (!payloadHash) return err(coreError('conflict', 'card 3 was decided without a payload hash'));
+  const baseline = fullBaselineOf(loaded, c3.occurrence);
+  if (!baseline) return err(coreError('conflict', 'card 3 has no recorded baseline'));
+  const row = payload.find((r) => r.kind === 'full_baseline');
+  if (
+    row?.kind !== 'full_baseline' ||
+    row.baseline_hash !== baseline.baseline_hash ||
+    row.oracle_lock_hash !== baseline.oracle_lock.lock_hash
+  ) {
+    return err(coreError('conflict', 'card 3 was not decided on the recorded baseline'));
+  }
+  const byId = new Map(baseline.seeds.map((x) => [x.seed_id, x]));
+  const seeds: FullPackSeed[] = [];
+  for (const r of payload) {
+    if (r.kind !== 'seed_verdict' || r.status !== 'intended') continue;
+    const seed = byId.get(r.seed_id);
+    if (!seed) return err(coreError('conflict', `the seed ${r.seed_id} is not in the baseline`));
+    const text = r.verdict === 'correct' ? r.correction : seed.text;
+    if (text === undefined || sha256Hex(text) !== r.text_sha256) {
+      return err(coreError('conflict', `the text of the seed ${r.seed_id} is not on the record`));
+    }
+    seeds.push({
+      seed_id: seed.seed_id,
+      area: seed.area,
+      path: seed.path,
+      text,
+      text_sha256: r.text_sha256,
+    });
+  }
+  let rendered: RenderedPack | null;
+  try {
+    rendered = renderFullPack({
+      s0_id: loaded.s0.record.s0_id,
+      repo: loaded.s0.repo,
+      base_sha: baseline.baseline_sha,
+      c3_card_id: c3.card_id,
+      c3_payload_hash: payloadHash,
+      oracle_lock: baseline.oracle_lock,
+      seeds,
+    });
+  } catch (e) {
+    return err(coreError('conflict', (e as Error).message));
+  }
+  return ok({
+    card_id: c3.card_id,
+    payload_hash: payloadHash,
+    base_sha: baseline.baseline_sha,
+    rendered,
+  });
+}
+
+/**
+ * The oracle lock through X2 (PLAN M17): once card 3 is applied, its oracle lock and the seeds it made `intended` are
+ * rendered from the record, recorded first, bound to their own X2 on the S0 record (step 0.3's artefact) and, once X2
+ * is approved in the ledger, pushed by the Push Broker as a draft PR on `agent/<s0>/onboarding-full-pack`. The same
+ * path as card 2's pack; the factory never merges.
+ */
+export async function projectFullPack(
+  d: PackDeps,
+  s0Id: string,
+): Promise<Result<PackProjectionView, CoreError>> {
+  const pool = d.cards.pool;
+  const loaded = await loadS0(pool, s0Id);
+  if (!loaded) return err(coreError('not_found', `no S0 record ${s0Id}`));
+  const aff = affirmedFullOf(loaded, await s0Cards(pool, s0Id));
+  if (!aff.ok) return aff;
+  if (aff.value === null) return ok(view(s0Id, 'full', 'waiting_for_c2', null));
+  const { rendered } = aff.value;
+  if (rendered === null) return err(coreError('conflict', 'card 3 approved nothing to write'));
+  return advancePack(d, loaded, 'full', { ...aff.value, rendered });
+}
+
+async function advancePack(
+  d: PackDeps,
+  loaded: LoadedS0,
+  kind: PackKind,
+  a: PackSource,
+): Promise<Result<PackProjectionView, CoreError>> {
+  const pool = d.cards.pool;
+  const s0Id = loaded.s0.record.s0_id;
+  const k = PACK_KINDS[kind];
+  const { rendered } = a;
 
   // 1. record first: the pack, by its patch hash (secret-scanned before it is stored or offered)
   for (const f of rendered.patch.files) {
@@ -274,10 +409,11 @@ export async function projectPack(
       );
     }
   }
-  let row = await latestPack(pool, s0Id);
+  let row = await latestPack(pool, s0Id, kind);
   if (row?.patch_hash !== rendered.patch_hash) {
     const payload = PackRenderedPayload.parse({
       s0_id: s0Id,
+      ...(kind === 'light' ? {} : { kind }),
       project_id: loaded.s0.record.project_id,
       repo: loaded.s0.repo,
       base_sha: a.base_sha,
@@ -296,12 +432,13 @@ export async function projectPack(
       return ok(true);
     });
     if (!w.ok) return w;
-    row = await latestPack(pool, s0Id);
+    row = await latestPack(pool, s0Id, kind);
   }
   if (!row) return err(coreError('database', 'the pack row was not written'));
 
   // 2. X2 on the S0 record, bound to exactly this patch
   if (row.x2_gate_instance_id === null) {
+    const deciding = kind === 'light' ? 'card_2' : 'card_3';
     const opened = await openCard(decisionsFor(d.cards, s0Id), {
       project_id: loaded.s0.record.project_id as never,
       subject_kind: 's0_record',
@@ -311,12 +448,12 @@ export async function projectPack(
           gate_id: 'X2',
           subject_hash: rendered.patch_hash as never,
           facts: {
-            kind: 'onboarding_pack',
+            kind: k.facts_kind,
             repo: loaded.s0.repo,
             base_sha: a.base_sha,
-            branch: unitBranchOf(s0Id, ONBOARDING_PACK_UNIT),
-            card_2: { card_id: a.card_id, payload_hash: a.payload_hash },
-            artefacts: [{ step: '0.2', type: 'onboarding_pack', sha256: rendered.patch_hash }],
+            branch: unitBranchOf(s0Id, k.unit),
+            [deciding]: { card_id: a.card_id, payload_hash: a.payload_hash },
+            artefacts: [{ step: k.step, type: k.facts_kind, sha256: rendered.patch_hash }],
             files: rendered.files,
           } as never,
         },
@@ -347,40 +484,46 @@ export async function projectPack(
 
   // 3. the decision, from the ledger
   const gate = await readGateState(pool, row.x2_gate_instance_id as string);
-  if (!gate || gate.status === 'pending') return ok(view(s0Id, 'x2_pending', row));
+  if (!gate || gate.status === 'pending') return ok(view(s0Id, kind, 'x2_pending', row));
   if (gate.status !== 'decided' || gate.outcome !== 'approve') {
-    return ok(view(s0Id, 'x2_rejected', row));
+    return ok(view(s0Id, kind, 'x2_rejected', row));
   }
+  const patchHash = row.patch_hash;
   const receipts = (await listPushReceipts(pool, s0Id)).filter(
-    (r) => r.unit_key === ONBOARDING_PACK_UNIT && r.patch_hash === row.patch_hash,
+    (r) => r.unit_key === k.unit && r.patch_hash === patchHash,
   );
   const applied = receipts.find((r) => r.status === 'applied');
   if (applied) {
     return ok(
-      view(s0Id, 'pushed', row, { pr_number: applied.pr_number, head_sha: applied.head_sha }),
+      view(s0Id, kind, 'pushed', row, {
+        pr_number: applied.pr_number,
+        head_sha: applied.head_sha,
+      }),
     );
   }
   const refused = receipts.find((r) => r.status !== 'applied');
-  if (refused) return ok(view(s0Id, 'refused', row, { refusal: refused.code }));
-  if (!d.broker) return ok(view(s0Id, 'x2_approved', row));
-  return pushPack(d, s0Id, row, rendered.patch);
+  if (refused) return ok(view(s0Id, kind, 'refused', row, { refusal: refused.code }));
+  if (!d.broker) return ok(view(s0Id, kind, 'x2_approved', row));
+  return pushPack(d, s0Id, kind, row, rendered.patch);
 }
 
 async function pushPack(
   d: PackDeps & { broker?: Pick<CodeHostPort, 'apply_patch'> },
   s0Id: string,
+  kind: PackKind,
   row: PackRow,
   patch: PatchSet,
 ): Promise<Result<PackProjectionView, CoreError>> {
   const broker = d.broker;
-  if (!broker) return ok(view(s0Id, 'x2_approved', row));
-  const branch = unitBranchOf(s0Id, ONBOARDING_PACK_UNIT);
+  if (!broker) return ok(view(s0Id, kind, 'x2_approved', row));
+  const UNIT = PACK_KINDS[kind].unit;
+  const branch = unitBranchOf(s0Id, UNIT);
   const prior = (await listPushReceipts(d.cards.pool, s0Id)).filter(
-    (r) => r.unit_key === ONBOARDING_PACK_UNIT && r.status === 'applied',
+    (r) => r.unit_key === UNIT && r.status === 'applied',
   );
   const intent = PushIntendedPayload.parse({
     item_id: s0Id,
-    unit_key: ONBOARDING_PACK_UNIT,
+    unit_key: UNIT,
     repo: row.repo,
     branch,
     lease_epoch: ONBOARDING_PACK_EPOCH,
@@ -402,16 +545,22 @@ async function pushPack(
   const r = await broker.apply_patch({
     repo: row.repo,
     item_id: s0Id,
-    unit_key: ONBOARDING_PACK_UNIT,
+    unit_key: UNIT,
     lane: ONBOARDING_PACK_LANE,
     lease_epoch: ONBOARDING_PACK_EPOCH,
     branch,
     base_sha: row.base_sha,
     expected_head: prior.at(-1)?.head_sha ?? null,
     patch,
-    message: 'Onboarding pack: the affirmed instruction text and knowledge',
+    message:
+      kind === 'light'
+        ? 'Onboarding pack: the affirmed instruction text and knowledge'
+        : 'Onboarding pack: the oracle lock and the intended spec seeds',
     evidence: {
-      title: 'Onboarding pack (Light, card 2 affirmed)',
+      title:
+        kind === 'light'
+          ? 'Onboarding pack (Light, card 2 affirmed)'
+          : 'Onboarding pack (Full, card 3 affirmed: oracle lock and seeds)',
       lane: ONBOARDING_PACK_LANE,
       base_sha: row.base_sha,
       oracles: [],
@@ -428,7 +577,7 @@ async function pushPack(
   const at = clockOf(d.cards).now().toISOString();
   const base = {
     item_id: s0Id,
-    unit_key: ONBOARDING_PACK_UNIT,
+    unit_key: UNIT,
     repo: row.repo,
     branch,
     lease_epoch: ONBOARDING_PACK_EPOCH,
@@ -440,7 +589,7 @@ async function pushPack(
   if (r.state === 'ok') {
     const receipt = PushReceipt.parse({
       ...base,
-      receipt_id: receiptIdOf(s0Id, ONBOARDING_PACK_UNIT, row.patch_hash, 1, 'applied', null),
+      receipt_id: receiptIdOf(s0Id, UNIT, row.patch_hash, 1, 'applied', null),
       status: 'applied',
       code: null,
       head_sha: r.value.commit_sha,
@@ -449,7 +598,10 @@ async function pushPack(
     const rec = await recordPushReceipt(d.push, receipt, 's0_record');
     if (!rec.ok) return rec;
     return ok(
-      view(s0Id, 'pushed', row, { pr_number: r.value.pr.number, head_sha: r.value.commit_sha }),
+      view(s0Id, kind, 'pushed', row, {
+        pr_number: r.value.pr.number,
+        head_sha: r.value.commit_sha,
+      }),
     );
   }
   const code = r.code ? PushRefusalCode.safeParse(r.code) : null;
@@ -467,7 +619,7 @@ async function pushPack(
         : 'refused';
   const receipt = PushReceipt.parse({
     ...base,
-    receipt_id: receiptIdOf(s0Id, ONBOARDING_PACK_UNIT, row.patch_hash, 1, status, code.data),
+    receipt_id: receiptIdOf(s0Id, UNIT, row.patch_hash, 1, status, code.data),
     status,
     code: code.data,
     head_sha: null,
@@ -475,14 +627,14 @@ async function pushPack(
   });
   const rec = await recordPushReceipt(d.push, receipt, 's0_record');
   if (!rec.ok) return rec;
-  return ok(view(s0Id, 'refused', row, { refusal: code.data }));
+  return ok(view(s0Id, kind, 'refused', row, { refusal: code.data }));
 }
 
 // ---------------------------------------------------------------- the loop
 
 /**
- * `onboarding_pack`: the pack projection of every S0 record whose card 2 is applied and whose pack is not pushed yet.
- * A record still waiting for card 2 is a no-op.
+ * `onboarding_pack`: the pack projections of every active S0 record: card 2's (Light) and card 3's (Full: the oracle
+ * lock and the intended seeds). A record still waiting for its card is a no-op.
  */
 export function packLoop(
   d: PackDeps,
@@ -502,6 +654,8 @@ export function packLoop(
         async (id) => {
           const r = await projectPack(d, id);
           if (!r.ok && r.error.code !== 'conflict') throw new Error(r.error.message);
+          const f = await projectFullPack(d, id);
+          if (!f.ok && f.error.code !== 'conflict') throw new Error(f.error.message);
         },
       );
     },
