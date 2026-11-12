@@ -19,7 +19,9 @@ const Callers = z.record(
   z.string().min(1),
   z.strictObject({
     token_ref: z.string().min(1),
-    scopes: z.array(z.enum(['census', 'posture', 'codeowners_sync', 'reload', 'push'])).min(1),
+    scopes: z
+      .array(z.enum(['census', 'posture', 'codeowners_sync', 'reload', 'push', 'tracker']))
+      .min(1),
   }),
 );
 
@@ -223,5 +225,58 @@ export function codeHostRegistryConfigFromEnv(env: Env): CodeHostRegistryConfig 
     healthIntervalMs: intEnv(env, 'CODEHOST_HEALTH_INTERVAL_MS', 30_000, 100),
     bundleCapBytes: intEnv(env, 'CODEHOST_BUNDLE_CAP_BYTES', BUNDLE_DEFAULT_CAP_BYTES, 1),
     bundleTimeoutMs: intEnv(env, 'CODEHOST_BUNDLE_TIMEOUT_MS', BUNDLE_DEFAULT_TIMEOUT_MS, 1000),
+  };
+}
+
+/**
+ * M16 (user decision 2026-11-12): the issue twin's tracker App, held by the codehost like every GitHub credential
+ * (core-worker keeps no route out). Its OWN App, never the read App or the Push Broker's (`TRACKER_APP_PERMISSIONS`:
+ * issues write, metadata read). Read in both modes:
+ *   CODEHOST_TRACKER_APP_ID            empty or absent: no tracker (the `tracker` routes answer not_implemented)
+ *   CODEHOST_TRACKER_INSTALLATION_ID   its installation
+ *   CODEHOST_TRACKER_APP_KEY_REF       `file:` reference to its private key (never the codehost App's key)
+ *   CODEHOST_TRACKER_LOGIN             the login it writes as (`<slug>[bot]`)
+ *   CODEHOST_TRACKER_API_URL           default https://api.github.com; plain http only to loopback (the fake GitHub)
+ */
+export interface CodeHostTrackerConfig {
+  readonly appId: string;
+  readonly installationId: number;
+  readonly appKeyRef: string;
+  readonly login: string;
+  readonly apiUrl: string;
+}
+
+export function trackerConfigFromEnv(env: Env): CodeHostTrackerConfig | null {
+  const appId = env['CODEHOST_TRACKER_APP_ID'];
+  if (appId === undefined || appId === '') return null;
+  if (!/^[1-9][0-9]*$/.test(appId)) {
+    throw new ServiceConfigError('CODEHOST_TRACKER_APP_ID must be a positive integer');
+  }
+  const installationId = Number(requiredEnv(env, 'CODEHOST_TRACKER_INSTALLATION_ID'));
+  if (!Number.isInteger(installationId) || installationId < 1) {
+    throw new ServiceConfigError('CODEHOST_TRACKER_INSTALLATION_ID must be a positive integer');
+  }
+  const appKeyRef = requiredEnv(env, 'CODEHOST_TRACKER_APP_KEY_REF');
+  if (!appKeyRef.startsWith('file:')) {
+    throw new ServiceConfigError('CODEHOST_TRACKER_APP_KEY_REF must be a file: reference');
+  }
+  if (env['CODEHOST_GITHUB_APP_KEY_REF'] === appKeyRef) {
+    throw new ServiceConfigError("the tracker App has its own key, never the codehost App's");
+  }
+  const apiUrl = env['CODEHOST_TRACKER_API_URL']
+    ? httpUrlEnv(env, 'CODEHOST_TRACKER_API_URL')
+    : 'https://api.github.com';
+  const u = new URL(apiUrl);
+  if (u.protocol !== 'https:' && !LOOPBACK.has(u.hostname)) {
+    throw new ServiceConfigError(
+      'CODEHOST_TRACKER_API_URL must be https (plain http only to loopback): it carries credentials',
+    );
+  }
+  return {
+    appId,
+    installationId,
+    appKeyRef,
+    login: requiredEnv(env, 'CODEHOST_TRACKER_LOGIN'),
+    apiUrl,
   };
 }

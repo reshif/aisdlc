@@ -36,7 +36,8 @@ import { GitHttpTestServer } from './git-server-testing.js';
 //   FAKE_GITHUB_TRACKER_APP_ID, _INSTALLATION_ID, _APP_PUBLIC_KEY_FILE, _LOGIN
 //                                     (M16, optional) the issue twin's own App (`issues: write`, metadata read) and
 //                                     the login its issues are authored by (`<slug>[bot]`)
-//   FAKE_GITHUB_TRACKER_PORT          (M16, optional) a listener on 0.0.0.0 for core-worker's tracker (`tracker-github`)
+//   FAKE_GITHUB_TRACKER_PORT          (M16, optional) another listener on 0.0.0.0; compose sets none: the codehost holds the tracker
+//                                     App and reaches the fake on loopback (core-worker has no route out, 2026-11-12)
 //
 // Each request is one stdout line: `fake-github api {"method":"GET","path":...}` or `fake-github git ...`.
 

@@ -51,11 +51,11 @@ import {
   workDriverLoop,
   workSettingsFrom,
 } from '@aisdlc/core/worker';
-import { AppKey, GitHubIssueTracker } from '@aisdlc/codehost';
 import { createPool } from '@aisdlc/db';
 import {
   HttpBundleSource,
   HttpCodeHostPush,
+  HttpIssueTracker,
   HttpSandbox,
   S3ObjectStore,
   type SandboxPort,
@@ -449,21 +449,18 @@ export async function bootCoreWorker(
       );
     }
     if (cfg.tracker && cfg.knowledge) {
-      // M16: the GitHub issue twin, through its OWN App (issues:write, metadata:read): files the approved batches
-      // and polls their twins; the re-check is knowledge's census at exactly the head the poll recorded.
+      // M16: the GitHub issue twin, through the codehost's tracker routes (its OWN App, issues:write, metadata:read):
+      // files the approved batches and polls their twins; the re-check is knowledge's census at the recorded head.
       const t = cfg.tracker;
       supervisor.add(
         issueTwinLoop(
           {
             pool,
-            tracker: new GitHubIssueTracker({
-              baseUrl: t.apiUrl,
-              appId: t.appId,
-              installationId: t.installationId,
-              appKey: AppKey.fromRef(t.appKeyRef),
+            // through the codehost: it holds the tracker's own App; core-worker has no route out (2026-11-12)
+            tracker: new HttpIssueTracker({
+              baseUrl: cfg.codehostUrl,
+              token: cfg.codehostToken,
               login: t.login,
-              plainHttpHosts: t.plainHttpHosts,
-              log: (line) => log(`issue_twin: ${line}`),
             }),
             recheck: new CensusGapRecheck({
               pool,

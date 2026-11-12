@@ -190,38 +190,19 @@ describe('core-worker config: the issue twin’s own App (PLAN M16)', () => {
     CORE_WORKER_KNOWLEDGE_URL: 'http://127.0.0.1:2',
     CORE_WORKER_KNOWLEDGE_TOKEN_REF: 'env:T',
   };
-  const TRACKER = {
-    CORE_WORKER_TRACKER_APP_ID: '777001',
-    CORE_WORKER_TRACKER_INSTALLATION_ID: '33',
-    CORE_WORKER_TRACKER_APP_KEY_REF: 'file:/run/secrets/tracker.pem',
-    CORE_WORKER_TRACKER_LOGIN: 'aisdlc-tracker[bot]',
-  };
+  const TRACKER = { CORE_WORKER_TRACKER_LOGIN: 'aisdlc-tracker[bot]' };
 
-  it('off unless its App is named; on, it reads its own credential reference and login', () => {
+  it('off unless the login is named; on, only the login: the App and its key are the codehost’s (2026-11-12)', () => {
     expect(coreWorkerConfigFromEnv(PLAIN).tracker).toBeNull();
-    const cfg = coreWorkerConfigFromEnv({
-      ...PLAIN,
-      ...TRACKER,
-      CORE_WORKER_TRACKER_PLAIN_HTTP_HOSTS: 'codehost',
-    });
-    expect(cfg.tracker).toEqual({
-      apiUrl: 'https://api.github.com',
-      appId: '777001',
-      installationId: 33,
-      appKeyRef: 'file:/run/secrets/tracker.pem',
-      login: 'aisdlc-tracker[bot]',
-      plainHttpHosts: ['codehost'],
-    });
+    const cfg = coreWorkerConfigFromEnv({ ...PLAIN, ...TRACKER });
+    expect(cfg.tracker).toEqual({ login: 'aisdlc-tracker[bot]' });
     expect(cfg.issueTwinIntervalMs).toBe(600_000);
   });
 
-  it('a key that is not a file reference, a missing installation and no knowledge are refused', () => {
+  it('a login that is not one and no knowledge are refused', () => {
     expect(() =>
-      coreWorkerConfigFromEnv({ ...PLAIN, ...TRACKER, CORE_WORKER_TRACKER_APP_KEY_REF: 'env:K' }),
-    ).toThrow(/file: reference/);
-    const noInst: Record<string, string> = { ...PLAIN, ...TRACKER };
-    delete noInst['CORE_WORKER_TRACKER_INSTALLATION_ID'];
-    expect(() => coreWorkerConfigFromEnv(noInst)).toThrow(/CORE_WORKER_TRACKER_INSTALLATION_ID/);
+      coreWorkerConfigFromEnv({ ...PLAIN, CORE_WORKER_TRACKER_LOGIN: 'not a login' }),
+    ).toThrow(/GitHub login/);
     const noKnowledge: Record<string, string> = { ...PLAIN, ...TRACKER };
     delete noKnowledge['CORE_WORKER_KNOWLEDGE_URL'];
     expect(() => coreWorkerConfigFromEnv(noKnowledge)).toThrow(/CORE_WORKER_KNOWLEDGE_URL/);
