@@ -9,7 +9,7 @@
 #
 # Ports: every service has its own (postgres 5432, kms-local 8300, notary 8310, witness 8320,
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
-# killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, fake GitHub 8353 api /
+# killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, notifier 8460, fake GitHub 8353 api /
 # 8354 git / 8355 gate-check's door). Only the bff and dev-oidc are published, on 127.0.0.1.
 
 x-factory:
@@ -137,6 +137,16 @@ networks:
   gatecheck-github:
     internal: true
   gatecheck-egress: {}
+  # The notifier (M18, ADR-0003 §1 Integration plane, profile `notifier`): `data-notifier` is its own way to Postgres
+  # (its role: its own tables and `notifier:` record streams, read-only the gate, card and kill events it notifies
+  # about, identity's read model and the channel rows' config view); `notifier-api` is the bff's way to it (its only
+  # caller); `notifier-egress` is its own way out, to Slack's webhooks and the SMTP relay. It holds the channel
+  # credentials, and nothing else holds them.
+  data-notifier:
+    internal: true
+  notifier-api:
+    internal: true
+  notifier-egress: {}
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
   # network with a route out), so it has no route to GitHub and gets repo content only as bundles
   # from the codehost.
@@ -171,6 +181,9 @@ secrets:
   gate-check-app.pub.pem: { file: ./secrets/gate-check-app.pub.pem }
   tok-gate-check-kms: { file: ./secrets/tok-gate-check-kms }
   tok-operator-gate-check: { file: ./secrets/tok-operator-gate-check }
+  pg-pass-notifier: { file: ./secrets/pg-pass-notifier }
+  db-url-notifier: { file: ./secrets/db-url-notifier }
+  tok-bff-notifier: { file: ./secrets/tok-bff-notifier }
   bff-oidc-client-secret: { file: ./secrets/bff-oidc-client-secret }
   anthropic-api-key: { file: ./secrets/anthropic-api-key }
   github-app.pem: { file: ./secrets/github-app.pem }
@@ -248,6 +261,7 @@ services:
         data-sandbox-controller,
         data-verify,
         data-gatecheck,
+        data-notifier,
       ]
     mem_limit: 512m
     shm_size: 64m
@@ -277,6 +291,7 @@ services:
         pg-pass-sandbox-controller,
         pg-pass-verify,
         pg-pass-gate-check,
+        pg-pass-notifier,
       ]
     depends_on:
       postgres: { condition: service_healthy }
@@ -867,6 +882,10 @@ services:
       # web bundle the image carries, served same-origin with a strict CSP.
       BFF_CORE_URL: http://core:8380
       BFF_CORE_TOKEN_REF: file:/run/secrets/tok-bff-core
+      # M18: the notifier (profile `notifier`), scope people. Best effort: while it is not running only the
+      # /api/me/notifications routes answer 502; nothing else in the portal waits for it.
+      BFF_NOTIFIER_URL: http://notifier:8460
+      BFF_NOTIFIER_TOKEN_REF: file:/run/secrets/tok-bff-notifier
       BFF_WEB_DIR: /app/services/web/dist
       # Plain http on localhost only; behind TLS this is true.
       BFF_COOKIE_SECURE: 'false'
@@ -874,7 +893,7 @@ services:
       BFF_PORT: '8340'
     ports:
       - '127.0.0.1:8340:8340'
-    secrets: [db-url-aisdlc, bff-oidc-client-secret, tok-bff-kms, tok-bff-core]
+    secrets: [db-url-aisdlc, bff-oidc-client-secret, tok-bff-kms, tok-bff-core, tok-bff-notifier]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
       interval: 5s
@@ -887,7 +906,7 @@ services:
       kms-local: { condition: service_healthy }
       dev-oidc: { condition: service_healthy }
       core: { condition: service_healthy }
-    networks: [edge, data-record, kms-clients]
+    networks: [edge, data-record, kms-clients, notifier-api]
     mem_limit: 256m
 
   # The dev identity provider (FACTORY_ENV=local only: it refuses to start otherwise). The browser
@@ -1126,6 +1145,38 @@ services:
       object-store: { condition: service_healthy }
     networks: [data-gatecheck, kms-clients, objectstore-api, gatecheck-github, gatecheck-egress]
     mem_limit: 192m
+
+  # The notifier (M18; ADR-0003 §1 Integration plane): Slack (incoming webhook) and email (SMTP) delivery of what waits
+  # for a person (a gate on their slot, B21, a quarantine, a handoff, a kill), read from the record as its own
+  # least-privilege role. The portal inbox stays the authoritative channel: the notifier decides nothing, and a channel
+  # that is down only delays its own deliveries (retries with backoff, then given up). Its channel rows are config
+  # (`notifications.channels`, M1-gated, empty by default: no channel until a factory revision adds one); the key files
+  # a row may name and the hosts it may reach are bounded here, by the deployment. Mount a webhook URL or an SMTP
+  # password as a secret and list its path in NOTIFIER_SECRET_REFS; nothing is mounted by default.
+  notifier:
+    <<: *factory
+    profiles: [notifier]
+    command: ['node', '--enable-source-maps', '/app/services/notifier/dist/main.js']
+    environment:
+      NOTIFIER_DATABASE_URL: file:/run/secrets/db-url-notifier
+      NOTIFIER_CALLERS: >-
+        {"bff":{"token_ref":"file:/run/secrets/tok-bff-notifier","scopes":["people"]}}
+      NOTIFIER_PORTAL_URL: ${NOTIFIER_PORTAL_URL:-http://localhost:8340}
+      NOTIFIER_SECRET_REFS: ${NOTIFIER_SECRET_REFS:-[]}
+      NOTIFIER_EGRESS_HOSTS: ${NOTIFIER_EGRESS_HOSTS:-["hooks.slack.com"]}
+      NOTIFIER_HOST: 0.0.0.0
+      NOTIFIER_PORT: '8460'
+    secrets: [db-url-notifier, tok-bff-notifier]
+    healthcheck:
+      test: ['CMD', 'node', '/app/healthcheck.mjs', '8460']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [data-notifier, notifier-api, notifier-egress]
+    mem_limit: 160m
 
   # The package mirror (RV §2: with the gateway, the ONLY thing a sandbox reaches): a read-only HTTP server over
   # a fixed directory, on an internal network, no upstream. The fixture set is empty until the real wheels are
