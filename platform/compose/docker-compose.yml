@@ -10,7 +10,7 @@
 # Ports: every service has its own (postgres 5432, kms-local 8300, notary 8310, witness 8320,
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
 # killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, notifier 8460,
-# gate-relay 8470, fake GitHub 8353 api / 8354 git / 8355 gate-check's door / 8356 gate-relay's door). Only the bff and
+# gate-relay 8470, fake GitHub 8353 api / 8354 git / 8355 gate-check's door / 8356 gate-relay's door / 8357 the tracker's). Only the bff and
 # dev-oidc are published, on 127.0.0.1.
 
 x-factory:
@@ -151,6 +151,12 @@ networks:
   gaterelay-github:
     internal: true
   gaterelay-egress: {}
+  # The issue twin's tracker (M16, DEC-20(a)): core-worker's `issue_twin` loop holds the tracker's OWN App (`issues:
+  # write`, metadata read; neither the codehost's nor gate-check's). `tracker-github` is where the fake GitHub answers it
+  # on its own port (8357); `tracker-egress` is core-worker's one way out, used only by that client, for the live App.
+  tracker-github:
+    internal: true
+  tracker-egress: {}
   # The notifier (M18, ADR-0003 §1 Integration plane, profile `notifier`): `data-notifier` is its own way to Postgres
   # (its role: its own tables and `notifier:` record streams, read-only the gate, card and kill events it notifies
   # about, identity's read model and the channel rows' config view); `notifier-api` is the bff's way to it (its only
@@ -199,6 +205,8 @@ secrets:
   db-url-gate-relay: { file: ./secrets/db-url-gate-relay }
   gate-relay-app.pem: { file: ./secrets/gate-relay-app.pem }
   gate-relay-app.pub.pem: { file: ./secrets/gate-relay-app.pub.pem }
+  tracker-app.pem: { file: ./secrets/tracker-app.pem }
+  tracker-app.pub.pem: { file: ./secrets/tracker-app.pub.pem }
   tok-gate-relay-kms: { file: ./secrets/tok-gate-relay-kms }
   tok-operator-gate-relay: { file: ./secrets/tok-operator-gate-relay }
   tok-bff-gate-check: { file: ./secrets/tok-bff-gate-check }
@@ -760,6 +768,14 @@ services:
       CORE_WORKER_OBJECT_STORE_SECRET_KEY_REF: file:/run/secrets/object-store-secret-key
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-core-worker-kms
+      # M16: the issue twin's own App (DEC-20(a)). Empty TRACKER_APP_ID: the `issue_twin` loop does not run. ./init-secrets
+      # --fake points it at the fake GitHub's tracker door; the live App is a user action (`issues: write`).
+      CORE_WORKER_TRACKER_APP_ID: ${TRACKER_APP_ID:-}
+      CORE_WORKER_TRACKER_INSTALLATION_ID: ${TRACKER_INSTALLATION_ID:-4}
+      CORE_WORKER_TRACKER_APP_KEY_REF: file:/run/secrets/tracker-app.pem
+      CORE_WORKER_TRACKER_LOGIN: ${TRACKER_LOGIN:-aisdlc-tracker[bot]}
+      CORE_WORKER_TRACKER_API_URL: ${TRACKER_GITHUB_API_URL:-https://api.github.com}
+      CORE_WORKER_TRACKER_PLAIN_HTTP_HOSTS: ${TRACKER_GITHUB_PLAIN_HTTP_HOSTS:-}
       CORE_WORKER_HOST: 0.0.0.0
       CORE_WORKER_PORT: '8360'
     secrets:
@@ -777,6 +793,7 @@ services:
         tok-core-worker-verify,
         object-store-access-key,
         object-store-secret-key,
+        tracker-app.pem,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8360']
@@ -805,6 +822,8 @@ services:
         sandbox-controller-api,
         verify-api,
         objectstore-api,
+        tracker-github,
+        tracker-egress,
       ]
     mem_limit: 256m
 
@@ -859,7 +878,7 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [app, egress, verify-codehost, gatecheck-github, gaterelay-github]
+    networks: [app, egress, verify-codehost, gatecheck-github, gaterelay-github, tracker-github]
     mem_limit: 192m
 
   # Boundary: repo content (untrusted) vs credentials. Analyses bundles it gets from the codehost;
@@ -1425,7 +1444,13 @@ services:
       FAKE_GITHUB_DEPLOY_INSTALLATION_ID: ${GATE_RELAY_INSTALLATION_ID:-3}
       FAKE_GITHUB_DEPLOY_APP_PUBLIC_KEY_FILE: /run/secrets/gate-relay-app.pub.pem
       FAKE_GITHUB_GATE_RELAY_PORT: '8356'
-    secrets: [github-app.pub.pem, gate-check-app.pub.pem, gate-relay-app.pub.pem]
+      # the issue twin's tracker App on the same fake host (M16): its key, its installation, its door on 0.0.0.0:8357
+      FAKE_GITHUB_TRACKER_APP_ID: ${TRACKER_APP_ID:-876543}
+      FAKE_GITHUB_TRACKER_INSTALLATION_ID: ${TRACKER_INSTALLATION_ID:-4}
+      FAKE_GITHUB_TRACKER_APP_PUBLIC_KEY_FILE: /run/secrets/tracker-app.pub.pem
+      FAKE_GITHUB_TRACKER_LOGIN: ${TRACKER_LOGIN:-aisdlc-tracker[bot]}
+      FAKE_GITHUB_TRACKER_PORT: '8357'
+    secrets: [github-app.pub.pem, gate-check-app.pub.pem, gate-relay-app.pub.pem, tracker-app.pub.pem]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8353']
       interval: 5s
