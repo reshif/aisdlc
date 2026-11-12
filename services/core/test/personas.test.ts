@@ -85,13 +85,22 @@ beforeAll(async () => {
 afterAll(async () => {
   await identity?.stop();
   await s?.stop();
-});
+}, 120_000);
 
-async function meOf(subject: string) {
-  const { browser } = await signInSubject(s, subject);
-  const me = (await (await browser.request(`${s.base}/api/me`)).json()) as Json;
-  const access = (await (await browser.request(`${s.base}/api/me/access`)).json()) as Json;
-  return { me, access };
+/** One sign-in per subject for the whole file (each is the full OIDC dance), then its `/api/me` and access. */
+const signedIn = new Map<string, Promise<{ me: Json; access: Json }>>();
+function meOf(subject: string): Promise<{ me: Json; access: Json }> {
+  let got = signedIn.get(subject);
+  if (!got) {
+    got = (async () => {
+      const { browser } = await signInSubject(s, subject);
+      const me = (await (await browser.request(`${s.base}/api/me`)).json()) as Json;
+      const access = (await (await browser.request(`${s.base}/api/me/access`)).json()) as Json;
+      return { me, access };
+    })();
+    signedIn.set(subject, got);
+  }
+  return got;
 }
 
 const bindingsOf = (access: Json): string[] =>
@@ -151,16 +160,20 @@ describe('the design personas (portal-coverage §1)', () => {
   });
 
   for (const p of PERSONAS) {
-    it(`${p.principal_id} (${p.persona}) signs in on the dev IdP and holds the design's bindings`, async () => {
-      const { me, access } = await meOf(p.subject);
-      expect(me.principal.principal_id).toBe(p.principal_id);
-      expect(me.principal.display_name).toBe(p.name);
-      expect(bindingsOf(access)).toEqual(expectedOf(p.principal_id));
-      expect(expectedOf(p.principal_id).length).toBeGreaterThan(0);
-    });
+    it(
+      `${p.principal_id} (${p.persona}) signs in on the dev IdP and holds the design's bindings`,
+      { timeout: 60_000 },
+      async () => {
+        const { me, access } = await meOf(p.subject);
+        expect(me.principal.principal_id).toBe(p.principal_id);
+        expect(me.principal.display_name).toBe(p.name);
+        expect(bindingsOf(access)).toEqual(expectedOf(p.principal_id));
+        expect(expectedOf(p.principal_id).length).toBeGreaterThan(0);
+      },
+    );
   }
 
-  it('what the design says each kind of persona sees', async () => {
+  it('what the design says each kind of persona sees', { timeout: 120_000 }, async () => {
     const lt = await meOf('00000000-0000-4000-8000-000000000003');
     expect(lt.me.actions.fleet).toEqual(
       expect.arrayContaining(['project.onboard', 'identity.admin', 'ops.read', 'quality.read']),
@@ -195,12 +208,16 @@ describe('the design personas (portal-coverage §1)', () => {
     expect(bindingsOf(mw.access)).toContain('factory.onboarder@team:web');
   });
 
-  it('alice and bob still sign in (the compose e2e): alice is the factory admin, bob holds nothing yet', async () => {
-    const alice = await meOf(DEV_IDP_BASE_USERS[0].subject);
-    expect(alice.me.principal.principal_id).toBe('alice');
-    expect(bindingsOf(alice.access)).toEqual(['factory.admin@fleet:*']);
-    const bob = await meOf(DEV_IDP_BASE_USERS[1].subject);
-    expect(bob.me.principal.principal_id).toBe('bob');
-    expect(bindingsOf(bob.access)).toEqual([]);
-  });
+  it(
+    'alice and bob still sign in (the compose e2e): alice is the factory admin, bob holds nothing yet',
+    { timeout: 60_000 },
+    async () => {
+      const alice = await meOf(DEV_IDP_BASE_USERS[0].subject);
+      expect(alice.me.principal.principal_id).toBe('alice');
+      expect(bindingsOf(alice.access)).toEqual(['factory.admin@fleet:*']);
+      const bob = await meOf(DEV_IDP_BASE_USERS[1].subject);
+      expect(bob.me.principal.principal_id).toBe('bob');
+      expect(bindingsOf(bob.access)).toEqual([]);
+    },
+  );
 });
