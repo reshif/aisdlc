@@ -13,9 +13,10 @@
 # gate-relay 8470, audit 8480, fake GitHub 8353 api / 8354 git / 8355 gate-check's door / 8356 gate-relay's door). Only the bff and
 # dev-oidc are published, on 127.0.0.1.
 
-x-factory:
-  &factory # The one image, built by `migrate` below; every service picks its bundle with `command`.
-  image: aisdlc/factory:local
+x-factory: &factory
+  # The one image, built by `migrate` below; every service picks its bundle with `command`.
+  # M19: AISDLC_FACTORY_IMAGE names another tag of the same image (two stacks of different branches on one daemon)
+  image: ${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local}
   pull_policy: never
   user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
   init: true
@@ -233,6 +234,41 @@ networks:
   # from the codehost.
   egress:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.43.0/24' }] }
+  # M19: the collector's network of each service that shares no network with it yet (profile `telemetry`): one per
+  # service, with that service and the collector on it and nobody else, so telemetry opens no path between services.
+  telemetry-notary:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.44.0/24' }] }
+    internal: true
+  telemetry-witness:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.45.0/24' }] }
+    internal: true
+  telemetry-killswitch:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.46.0/24' }] }
+    internal: true
+  telemetry-kms-local:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.47.0/24' }] }
+    internal: true
+  telemetry-gateway:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.48.0/24' }] }
+    internal: true
+  telemetry-sandbox-controller:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.49.0/24' }] }
+    internal: true
+  telemetry-verify:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.50.0/24' }] }
+    internal: true
+  telemetry-gate-check:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.51.0/24' }] }
+    internal: true
+  telemetry-gate-relay:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.52.0/24' }] }
+    internal: true
+  telemetry-notifier:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.53.0/24' }] }
+    internal: true
+  telemetry-audit:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.54.0/24' }] }
+    internal: true
 
 volumes:
   pgdata: {}
@@ -440,6 +476,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/kms-local/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-kms-local`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       FACTORY_ENV: local
       KMS_DIR: /kms
       KMS_HOST: 0.0.0.0
@@ -481,7 +519,7 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [kms-notary, kms-witness, kms-killswitch, kms-clients]
+    networks: [kms-notary, kms-witness, kms-killswitch, kms-clients, telemetry-kms-local]
     mem_limit: 128m
 
   # Boundary: ledger signer (C08n "the only signer", AR1). Its own database and role.
@@ -489,6 +527,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/notary/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-notary`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       NOTARY_DATABASE_URL: file:/run/secrets/db-url-notary
       NOTARY_CALLERS: >-
         {"core":{"token_ref":"file:/run/secrets/tok-core-notary","scopes":["ledger","read"]},
@@ -517,7 +557,7 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
-    networks: [kms-notary, notary-api, data-notary]
+    networks: [kms-notary, notary-api, data-notary, telemetry-notary]
     mem_limit: 128m
 
   # Boundary: AR9 independence. The second signer of every checkpoint, with a database, a role and a
@@ -527,6 +567,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/witness/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-witness`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       WITNESS_DATABASE_URL: file:/run/secrets/db-url-witness
       WITNESS_CALLERS: >-
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-witness"}}
@@ -544,7 +586,7 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
-    networks: [kms-witness, witness-api, data-witness]
+    networks: [kms-witness, witness-api, data-witness, telemetry-witness]
     mem_limit: 128m
 
   # Boundary: AR9 independence. The kill switch has its own database and role, its own key
@@ -557,6 +599,8 @@ services:
     <<: *factory
     command: ['node', '--enable-source-maps', '/app/services/killswitch/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-killswitch`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       KILLSWITCH_DATABASE_URL: file:/run/secrets/db-url-killswitch
       KILLSWITCH_CALLERS: >-
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-killswitch","scopes":["read","sync"]},
@@ -584,7 +628,8 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
-    networks: [kms-killswitch, killswitch-api, killswitch-gateway, data-killswitch]
+    networks:
+      [kms-killswitch, killswitch-api, killswitch-gateway, data-killswitch, telemetry-killswitch]
     mem_limit: 128m
 
   # Boundary: model key custody (RV §2, AR5, AR7). EVERY model call of the factory goes through here and
@@ -610,6 +655,8 @@ services:
       aisdlc.sandbox.peer: gateway
     command: ['node', '--enable-source-maps', '/app/services/gateway/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-gateway`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # The least-privilege role `gateway` (db-init.sh, the gateway migration), NOT the `aisdlc` owner.
       GATEWAY_DATABASE_URL: file:/run/secrets/db-url-gateway
       GATEWAY_ENVIRONMENT: local
@@ -645,7 +692,7 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       killswitch: { condition: service_healthy }
-    networks: [data-gateway, gateway-api, killswitch-gateway, gateway-egress]
+    networks: [data-gateway, gateway-api, killswitch-gateway, gateway-egress, telemetry-gateway]
     mem_limit: 192m
 
   # ------------------------------------------------------------------- identity and the seed
@@ -735,6 +782,46 @@ services:
       notary: { condition: service_healthy }
     networks: [app, data-record, kms-clients, notary-api]
     mem_limit: 192m
+
+  # M19, the load test (profile `load`; platform/compose/load.sh runs it, never `up`): a one-shot client of the stack, not
+  # a service. `seed` writes the load projects (FACTORY_ENV=local only: an active PRR no onboarding decided, the first
+  # settings decided under a genesis eligibility, as `seed` above does for the factory); `run` submits the items through
+  # core's API with the bff's token (the person in `on_behalf_of`, decided by the PDP), acts for the people, signs in at
+  # the bff through the dev IdP like a browser, and reads the floor, the fleet and the inbox while the engine runs.
+  # Its networks are the ones those callers already use: data-record (Postgres, core, the bff), notary-api and
+  # kms-clients (the seed's decisions), edge (the dev IdP, as a browser reaches it). It is a test client: it is not
+  # started by `up`, and it holds the tokens of the callers it stands in for (the seed's and the bff's).
+  load:
+    <<: *factory
+    profiles: [load]
+    restart: 'no'
+    command: ['node', '--enable-source-maps', '/app/services/core/dist/aisdlc-load.js', 'run']
+    environment:
+      FACTORY_ENV: local
+      LOAD_DATABASE_URL: file:/run/secrets/db-url-aisdlc
+      LOAD_NOTARY_URL: http://notary:8310
+      LOAD_NOTARY_TOKEN_REF: file:/run/secrets/tok-core-notary
+      KMS_URL: http://kms-local:8300
+      KMS_TOKEN_REF: file:/run/secrets/tok-core-kms
+      LOAD_CORE_URL: http://core:8380
+      LOAD_CORE_TOKEN_REF: file:/run/secrets/tok-bff-core
+      LOAD_BFF_URL: http://bff:8340
+      LOAD_BFF_PUBLIC_URL: http://localhost:8340
+      LOAD_OIDC_URL: http://dev-oidc.localhost:8390
+      LOAD_OIDC_PUBLIC_URL: http://dev-oidc.localhost:8390
+      LOAD_PROJECTS: ${LOAD_PROJECTS:-4}
+      LOAD_ITEMS: ${LOAD_ITEMS:-30}
+      LOAD_CODING_CAP: ${LOAD_CODING_CAP:-4}
+      LOAD_CONCURRENCY: ${LOAD_CONCURRENCY:-8}
+      LOAD_DEADLINE_S: ${LOAD_DEADLINE_S:-2400}
+      LOAD_SAMPLE_MS: ${LOAD_SAMPLE_MS:-2000}
+      LOAD_BURST: ${LOAD_BURST:-5}
+    secrets: [db-url-aisdlc, tok-core-notary, tok-core-kms, tok-bff-core]
+    depends_on:
+      core: { condition: service_healthy }
+      bff: { condition: service_healthy }
+    networks: [data-record, notary-api, kms-clients, edge]
+    mem_limit: 256m
 
   # ------------------------------------------------------------------------------- core
 
@@ -877,17 +964,27 @@ services:
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-core-worker-kms
       # M19: HealthSnapshot. The services this worker can reach have their /healthz read every 30 s (with its own loops)
-      # into the Operate › Health tiles. The profile services (sandbox-controller, verify, gate-check, gate-relay,
-      # notifier) are on networks it does not join for this, so they read unknown: never shown as healthy.
+      # into the Operate › Health tiles. The profile services (`profile: true`: not answering reads unknown, never down
+      # or ok, as a stack may not run them) are read over networks this worker already shares with them
+      # (sandbox-controller-api, verify-api, kms-clients for gate-check, gate-relay and audit); the notifier, which only
+      # the bff reaches, through the bff's relay (`/healthz/peer/notifier`): no network is added for health.
       CORE_WORKER_HEALTH_TARGETS: >-
         {"core":"http://core:8380","identity":"http://identity:8330","knowledge":"http://knowledge:8370",
         "codehost":"http://codehost:8350","notary":"http://notary:8310","witness":"http://witness:8320",
         "killswitch":"http://killswitch:8400","kms-local":"http://kms-local:8300","gateway":"http://gateway:8410",
-        "bff":"http://bff:8340","object-store":{"url":"http://object-store:9000","path":"/minio/health/live"}}
+        "bff":"http://bff:8340","object-store":{"url":"http://object-store:9000","path":"/minio/health/live"},
+        "sandbox-controller":{"url":"http://sandbox-controller:8430","profile":true},
+        "verify":{"url":"http://verify:8440","profile":true},
+        "gate-check":{"url":"http://gate-check:8450","profile":true},
+        "gate-relay":{"url":"http://gate-relay:8470","profile":true},
+        "audit":{"url":"http://audit:8480","profile":true},
+        "notifier":{"url":"http://bff:8340","path":"/healthz/peer/notifier","profile":true}}
       # M16: the issue twin (DEC-20(a)) through the codehost's tracker routes (scope `tracker`): the tracker's OWN App is
       # the codehost's to hold; core-worker holds no GitHub credential and has no route out (user decision 2026-11-12).
       # Empty TRACKER_LOGIN: the `issue_twin` loop does not run.
       CORE_WORKER_TRACKER_LOGIN: ${TRACKER_LOGIN:-}
+      # M19: the work driver's poll (default 5000 ms); load.sh sets it to what the load run measures under
+      CORE_WORKER_WORK_DRIVER_INTERVAL_MS: ${WORK_DRIVER_INTERVAL_MS:-5000}
       CORE_WORKER_HOST: 0.0.0.0
       CORE_WORKER_PORT: '8360'
     secrets:
@@ -1086,12 +1183,15 @@ services:
       # the /api/audit/* routes answer 502; nothing else in the portal waits for it.
       BFF_AUDIT_URL: http://audit:8480
       BFF_AUDIT_TOKEN_REF: file:/run/secrets/tok-bff-audit
+      # M19: the notifier's liveness answer, relayed for core-worker's health tile (the bff is the one that reaches it)
+      BFF_HEALTH_PEERS: '{"notifier":"http://notifier:8460"}'
       # Plain http on localhost only; behind TLS this is true.
       BFF_COOKIE_SECURE: 'false'
       BFF_HOST: 0.0.0.0
       BFF_PORT: '8340'
     ports:
-      - '127.0.0.1:8340:8340'
+      # M19: the HOST port can move (BFF_HOST_PORT) so two stacks run side by side; the browser URL stays localhost:8340
+      - '127.0.0.1:${BFF_HOST_PORT:-8340}:8340'
     secrets:
       [
         db-url-aisdlc,
@@ -1145,7 +1245,7 @@ services:
       DEV_OIDC_HOST: 0.0.0.0
       DEV_OIDC_PORT: '8390'
     ports:
-      - '127.0.0.1:8390:8390'
+      - '127.0.0.1:${DEV_OIDC_HOST_PORT:-8390}:8390'
     volumes:
       - ./config/dev-oidc-users.json:/config/dev-oidc-users.json:ro
     secrets: [bff-oidc-client-secret]
@@ -1179,6 +1279,8 @@ services:
     group_add: ['${DOCKER_GID:-0}']
     environment:
       DOCKER_PROXY_MODE: cvw
+      # M19: this instance's owner label: it lists, inspects and removes only the sandboxes it labelled itself
+      DOCKER_PROXY_OWNER: ${COMPOSE_PROJECT_NAME:-aisdlc}-cvw
       # the internal network is not an identity: every TCP caller presents its own bearer token (file: references)
       DOCKER_PROXY_CALLERS: cvw=file:/run/secrets/tok-cvw-docker-cvw
       DOCKER_PROXY_IMAGES: ${SANDBOX_IMAGE:-aisdlc/sandbox:local},${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
@@ -1195,7 +1297,8 @@ services:
       start_period: 3s
     secrets: [tok-cvw-docker-cvw]
     networks: [docker-cvw]
-    mem_limit: 64m
+    # M19: 96m: the proxy (about 50 MiB at start) and its node healthcheck share one cgroup; 64m OOM-killed it
+    mem_limit: 96m
 
   # The wider instance, for the coding worker: the same list plus the per-session internal networks and the
   # attach of the gateway and the mirror to them. Still no exec, no build, no pull, no volume, one coding
@@ -1207,6 +1310,8 @@ services:
     group_add: ['${DOCKER_GID:-0}']
     environment:
       DOCKER_PROXY_MODE: coding
+      # M19: this runner host's owner label: the sandbox-controller's sweep (at boot, after a crash) removes only these
+      DOCKER_PROXY_OWNER: ${COMPOSE_PROJECT_NAME:-aisdlc}-coding
       # M14.2: the sandbox-controller is the one service that drives it (core-worker no longer holds a token here)
       DOCKER_PROXY_CALLERS: sandbox-controller=file:/run/secrets/tok-sandbox-controller-docker-coding,smoke=file:/run/secrets/tok-smoke-docker-coding
       # M16: plus the onboarding probe image by digest (platform/sandbox/onboarding/build.sh prints it), when built
@@ -1226,7 +1331,7 @@ services:
       start_period: 3s
     secrets: [tok-sandbox-controller-docker-coding, tok-smoke-docker-coding]
     networks: [docker-coding]
-    mem_limit: 64m
+    mem_limit: 96m
 
   # The sandbox-controller (M14.2; ADR-0003 §6 "Placement", §7 caps): the one client of the coding proxy. It owns the
   # sandbox driver, the class ceilings and the two caps of this runner host (`sandbox.caps`, M1-gated config: a total,
@@ -1240,6 +1345,8 @@ services:
     profiles: [sandbox]
     command: ['node', '--enable-source-maps', '/app/services/sandbox-controller/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-sandbox-controller`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # its own least-privilege role (db-init.sh; the config and core migrations grant it three relations: the
       # effective config, `core.admission_grant` and, M16, the probe grants `core.probe_grant`)
       SANDBOX_CONTROLLER_DATABASE_URL: file:/run/secrets/db-url-sandbox-controller
@@ -1288,7 +1395,14 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       docker-proxy-coding: { condition: service_healthy }
-    networks: [data-sandbox-controller, sandbox-controller-api, docker-coding, core-activity]
+    networks:
+      [
+        data-sandbox-controller,
+        sandbox-controller-api,
+        docker-coding,
+        core-activity,
+        telemetry-sandbox-controller,
+      ]
     mem_limit: 512m
 
   # The verify service (M14.3; ADR-0003 §1 Control plane, the plan's `cvw`): S7's checks 7.1 to 7.5 over a Unit head.
@@ -1302,6 +1416,8 @@ services:
     profiles: [sandbox]
     command: ['node', '--enable-source-maps', '/app/services/verify/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-verify`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       VERIFY_DATABASE_URL: file:/run/secrets/db-url-verify
       VERIFY_CALLERS: >-
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-verify","scopes":["run","read"]}}
@@ -1326,7 +1442,15 @@ services:
       sandbox-controller: { condition: service_healthy }
       codehost: { condition: service_healthy }
       gateway: { condition: service_healthy }
-    networks: [data-verify, verify-api, verify-codehost, sandbox-controller-api, gateway-api]
+    networks:
+      [
+        data-verify,
+        verify-api,
+        verify-codehost,
+        sandbox-controller-api,
+        gateway-api,
+        telemetry-verify,
+      ]
     mem_limit: 256m
 
   # gate-check (M14.5; ADR-0003 §1 Integration plane, AR9 gate plane): the check run `aisdlc/gate` on every PR of a
@@ -1341,6 +1465,8 @@ services:
     profiles: [gate-check]
     command: ['node', '--enable-source-maps', '/app/services/gate-check/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-gate-check`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       GATE_CHECK_DATABASE_URL: file:/run/secrets/db-url-gate-check
       GATE_CHECK_CALLERS: >-
         {"operator":{"token_ref":"file:/run/secrets/tok-operator-gate-check","scopes":["read"]},
@@ -1387,6 +1513,7 @@ services:
         gatecheck-github,
         gatecheck-egress,
         gatecheck-api,
+        telemetry-gate-check,
       ]
     mem_limit: 192m
 
@@ -1402,6 +1529,8 @@ services:
     profiles: [gate-relay]
     command: ['node', '--enable-source-maps', '/app/services/gate-relay/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-gate-relay`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       GATE_RELAY_DATABASE_URL: file:/run/secrets/db-url-gate-relay
       GATE_RELAY_CALLERS: >-
         {"operator":{"token_ref":"file:/run/secrets/tok-operator-gate-relay","scopes":["read"]}}
@@ -1436,7 +1565,15 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
-    networks: [data-gaterelay, kms-clients, objectstore-api, gaterelay-github, gaterelay-egress]
+    networks:
+      [
+        data-gaterelay,
+        kms-clients,
+        objectstore-api,
+        gaterelay-github,
+        gaterelay-egress,
+        telemetry-gate-relay,
+      ]
     mem_limit: 192m
 
   # The notifier (M18; ADR-0003 §1 Integration plane): Slack (incoming webhook) and email (SMTP) delivery of what waits
@@ -1451,6 +1588,8 @@ services:
     profiles: [notifier]
     command: ['node', '--enable-source-maps', '/app/services/notifier/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-notifier`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       NOTIFIER_DATABASE_URL: file:/run/secrets/db-url-notifier
       NOTIFIER_CALLERS: >-
         {"bff":{"token_ref":"file:/run/secrets/tok-bff-notifier","scopes":["people"]}}
@@ -1468,7 +1607,7 @@ services:
       start_period: 15s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [data-notifier, notifier-api, notifier-egress]
+    networks: [data-notifier, notifier-api, notifier-egress, telemetry-notifier]
     mem_limit: 160m
 
   # The audit service (M19; ADR-0003 §1 Trust plane "audit", one service): signed exports of the ledger and the record
@@ -1483,6 +1622,8 @@ services:
     profiles: [audit]
     command: ['node', '--enable-source-maps', '/app/services/audit/dist/main.js']
     environment:
+      # M19: OTLP/HTTP export to the collector (profile `telemetry`) on its own network `telemetry-audit`
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       AUDIT_DATABASE_URL: file:/run/secrets/db-url-audit
       AUDIT_CALLERS: >-
         {"bff":{"token_ref":"file:/run/secrets/tok-bff-audit","scopes":["read","export","govern"]}}
@@ -1518,7 +1659,8 @@ services:
       kms-local: { condition: service_healthy }
       notary: { condition: service_healthy }
       object-store: { condition: service_healthy }
-    networks: [data-audit, audit-api, audit-core, notary-api, kms-clients, objectstore-api]
+    networks:
+      [data-audit, audit-api, audit-core, notary-api, kms-clients, objectstore-api, telemetry-audit]
     mem_limit: 192m
 
   # The package mirror (RV §2: with the gateway, the ONLY thing a sandbox reaches): a read-only HTTP server over
@@ -1634,7 +1776,22 @@ services:
     logging:
       driver: json-file
       options: { max-size: 10m, max-file: '3' }
-    networks: [telemetry, telemetry-bff]
+    networks:
+      [
+        telemetry,
+        telemetry-bff,
+        telemetry-notary,
+        telemetry-witness,
+        telemetry-killswitch,
+        telemetry-kms-local,
+        telemetry-gateway,
+        telemetry-sandbox-controller,
+        telemetry-verify,
+        telemetry-gate-check,
+        telemetry-gate-relay,
+        telemetry-notifier,
+        telemetry-audit,
+      ]
     mem_limit: 128m
     pids_limit: 128
 

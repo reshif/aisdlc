@@ -41,6 +41,29 @@ The DEC-18 owner allow-list and B1 stay in front of the port in core (`GuardedSa
 
 While a session holds its slot, the controller is its heartbeat reporter (DM Heartbeat; PLAN M19): it posts a `SessionHeartbeat` (`{item_id, project_id, session_id, unit_id, sandbox_class, at}`, content-free) to core's `POST /v1/sessions/heartbeat` when the session starts and every `SANDBOX_CONTROLLER_HEARTBEAT_MS` (default 30 000) until the driver returns. `project_id` is read from the grant's row of `core.admission_grant`; `unit_id` is the grant's Unit key (without the item prefix). An onboarding probe has no work item and never beats. A beat is best effort: core unreachable or refusing is counted and logged, never touches the session, and the floor then reads silence (stuck), never life. `SANDBOX_CONTROLLER_CORE_URL` and `SANDBOX_CONTROLLER_CORE_TOKEN_REF` are set together or not at all; without them nothing beats.
 
+## 2b. A runner killed mid-session, and the sweep (M19)
+
+A session's container that dies (killed, OOM, a crashed shim) is a void run: the driver answers `200` with
+`status: killed` (no end marker, so no `/out` and no exit code), removes the container, its network and its repo copy,
+and the slot is released. The coding port treats a void coding session as not answered (`the coding session was
+void`): the stage command is delivered again with the same key, under the same grant and lease epoch.
+
+A controller that dies mid-session never answers: core's call is cut (`unavailable`) and the command is delivered
+again the same way. Its session's container does NOT die with it: the daemon runs it on, with its network and repo
+copy, and the coding proxy counts it against the caps. So the controller sweeps (`DockerSandboxDriver.sweep`):
+
+- at boot, before the API listens, with nothing to keep: every sandbox of this host's proxy owner goes (each was a dead
+  predecessor's session);
+- every `SANDBOX_CONTROLLER_SWEEP_MS` (default 60 000) after, keeping the sessions it runs (a slot is taken before
+  its container is made, so a sweep never races a session it keeps).
+
+The owner is the socket proxy's (`DOCKER_PROXY_OWNER`; compose `<project>-coding`): the proxy labels every container
+and network it creates with `aisdlc.sandbox.owner=<owner>` (a client may not set it), answers `GET /containers/json`
+and `GET /networks` with its own filter (the sandbox label and its owner) and a minimal list (`{id, name, session,
+class, state}`), and inspects, stops and removes only what carries its owner. Another runner host's sandboxes on the
+same daemon are never listed or touched. A sweep never throws: what would not go is logged and retried by the next.
+The drill is `platform/compose/drill.sh runner` (docs/runbooks/drill-runner.md).
+
 ## 3. `GET /v1/slots`
 
 `200 SandboxSlots`:

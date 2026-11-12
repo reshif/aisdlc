@@ -24,6 +24,7 @@ import {
 } from './app.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { HttpCoreClient } from './core-client.js';
 import { migrateBff } from './migrations.js';
 import { HttpOidcClient } from './oidc/http-client.js';
@@ -39,6 +40,28 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
   }
   return n;
 };
+
+/** `BFF_HEALTH_PEERS` (M19): `{name: http(s) base URL}`; empty or unset: none. */
+function healthPeersEnv(env: Env): Record<string, string> {
+  const raw = env['BFF_HEALTH_PEERS'];
+  if (raw === undefined || raw === '') return {};
+  const p = z.record(z.string().regex(/^[a-z][a-z0-9-]{0,47}$/), z.url()).safeParse(
+    (() => {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    })(),
+  );
+  if (!p.success) throw new ServiceConfigError('BFF_HEALTH_PEERS is JSON {name: http(s) URL}');
+  for (const [k, v] of Object.entries(p.data)) {
+    if (!/^https?:$/.test(new URL(v).protocol)) {
+      throw new ServiceConfigError(`BFF_HEALTH_PEERS.${k} must be http(s)`);
+    }
+  }
+  return p.data;
+}
 
 /**
  * Starts the bff from the environment:
@@ -64,6 +87,8 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                            optional: the sandbox-controller's slots for the portal's Sandboxes screen (scope read)
  *   BFF_AUDIT_URL, BFF_AUDIT_TOKEN_REF   the audit service (M19, scopes read, export, govern): Govern › Audit;
  *                                     optional (without it those routes answer 503)
+ *   BFF_HEALTH_PEERS         M19: JSON {name: base URL} of the services only the bff reaches whose liveness answer
+ *                            `GET /healthz/peer/:name` relays for core-worker's health tiles (the notifier)
  *   BFF_GATE_CHECK_URL, BFF_GATE_CHECK_TOKEN_REF
  *                            gate-check's read API and the bff's token there (scope read; M14.6: the item page's
  *                            run status); both or neither (without them that status reads `unknown`)
@@ -236,6 +261,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
       ...(audit ? { audit } : {}),
       ...(sandboxController ? { sandboxController } : {}),
       ...(webDir ? { webDir } : {}),
+      healthPeers: healthPeersEnv(env),
     });
     const url = await listen(app, listenOpts);
     const r = reader;

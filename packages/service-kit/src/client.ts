@@ -1,3 +1,5 @@
+import { traceHeaders } from './telemetry.js';
+
 export interface CallOptions {
   baseUrl: string;
   token: string;
@@ -18,6 +20,8 @@ export async function callJson(o: CallOptions): Promise<CallResult> {
     const res = await f(new URL(o.path, o.baseUrl), {
       method: o.method,
       headers: {
+        // M19: the W3C trace context of the request being served (none outside a request)
+        ...traceHeaders(),
         authorization: `Bearer ${o.token}`,
         ...(o.body === undefined ? {} : { 'content-type': 'application/json' }),
       },

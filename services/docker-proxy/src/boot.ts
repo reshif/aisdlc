@@ -6,7 +6,7 @@ import {
   requiredEnv,
   type RunningService,
 } from '@aisdlc/service-kit';
-import type { PolicyConfig } from './policy.js';
+import { validOwner, type PolicyConfig } from './policy.js';
 import { DockerProxy } from './proxy.js';
 
 export type ProxyMode = 'cvw' | 'coding';
@@ -24,7 +24,8 @@ const csv = (v: string | undefined): string[] =>
  * internal networks). `DOCKER_PROXY_UPSTREAM` is the daemon socket (default /var/run/docker.sock; this is
  * the only process of the stack that mounts it). `DOCKER_PROXY_IMAGES` and `DOCKER_PROXY_SCRATCH_ROOT` say
  * which image and which host directory a create may name. Listens on `DOCKER_PROXY_SOCKET` (a unix socket)
- * or on `DOCKER_PROXY_HOST`:`DOCKER_PROXY_PORT` (an internal network).
+ * or on `DOCKER_PROXY_HOST`:`DOCKER_PROXY_PORT` (an internal network). `DOCKER_PROXY_OWNER` (M19, default `local`) names
+ * this instance: it labels what it creates with it and lists, inspects and removes only what carries it.
  */
 export function policyFromEnv(env: Record<string, string | undefined>): {
   mode: ProxyMode;
@@ -46,6 +47,11 @@ export function policyFromEnv(env: Record<string, string | undefined>): {
       'DOCKER_PROXY_SCRATCH_ROOT must be a plain absolute directory, not /',
     );
   }
+  // M19: what this instance labels its sandboxes with, and the only ones it answers for
+  const owner = env['DOCKER_PROXY_OWNER'] || 'local';
+  if (!validOwner(owner)) {
+    throw new ServiceConfigError('DOCKER_PROXY_OWNER must be [a-z0-9.-], 1 to 63 characters');
+  }
   const num = (name: string, d: number): number => {
     const v = env[name];
     if (v === undefined || v === '') return d;
@@ -66,6 +72,7 @@ export function policyFromEnv(env: Record<string, string | undefined>): {
       archiveGet: [],
       archivePut: [],
       maxArchiveBytes: 256 * 1024 * 1024,
+      owner,
     },
   };
 }
