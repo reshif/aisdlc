@@ -717,6 +717,13 @@ export const SCHEMAS = {
   DecisionBatchRequest: entities.DecisionBatchRequest,
   DecisionAnswer: entities.DecisionAnswer,
   DecisionBatchView: entities.DecisionBatchView,
+  ConfigKeyKind: entities.ConfigKeyKind,
+  ConfigKeySummary: entities.ConfigKeySummary,
+  ConfigKeyRevision: entities.ConfigKeyRevision,
+  ConfigPending: entities.ConfigPending,
+  ConfigKeyView: entities.ConfigKeyView,
+  ConfigProposeRequest: entities.ConfigProposeRequest,
+  ConfigProposeResult: entities.ConfigProposeResult,
 } as const satisfies Record<string, z.ZodType>;
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
