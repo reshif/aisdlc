@@ -106,6 +106,8 @@ import {
   revisionOfS0,
   settingsRevision,
 } from './portal-reads.js';
+import type { AssistantDeps } from './conversation/assistant.js';
+import { registerAssistantRoutes } from './conversation/routes.js';
 import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
 import {
   cardDetail,
@@ -162,6 +164,8 @@ export interface CoreAppOptions {
   readonly cards?: CardDeps;
   /** The merged head a hand-written plan is made against (B5, M12.5); without it that route answers `unavailable`. */
   readonly grounding?: GroundingPort;
+  /** The assistant (M18): the onboarding assistant and "Ask the factory"; without it those routes answer `unavailable`. */
+  readonly assistant?: AssistantDeps;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -1456,6 +1460,23 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     } catch {
       return fail(reply, coreError('unavailable', 'the ledger entries could not be read'));
     }
+  });
+
+  // ------------------------------------------------------------ the assistant (M18)
+
+  registerAssistantRoutes({
+    app,
+    assistant: o.assistant,
+    allowed: (req) => allowed(req, 'work'),
+    guard,
+    decide: async (principal, action, resource) => {
+      if (!o.pdp) return false;
+      try {
+        return (await o.pdp.decide({ principal, action, resource })).decision === 'allow';
+      } catch {
+        return false;
+      }
+    },
   });
 
   return app;

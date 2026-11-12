@@ -18,6 +18,7 @@ import { createCoreApp } from './app.js';
 import { BootstrapEligibility } from './bootstrap.js';
 import { cardDepsFrom, identityEligibility } from './card-wiring.js';
 import { HttpKnowledge } from './clients.js';
+import { assistantDepsFrom } from './conversation/wire.js';
 import { CensusGrounding } from './planning/grounding.js';
 import { coreConfigFromEnv } from './config.js';
 import { s0SettingsFrom } from './driver.js';
@@ -130,6 +131,17 @@ export async function bootCore(env: Env): Promise<RunningService> {
             maintenance: maintenanceFrom(reader),
           })
         : undefined;
+    // the assistant (M18): knowledge's census and search, the gateway's admin API and messages, the code host's head
+    const assistant =
+      cfg.assistant && cfg.cards
+        ? assistantDepsFrom({
+            pool,
+            knowledge: cfg.cards.knowledge,
+            codehost: cfg.cards.codehost,
+            gateway: cfg.assistant.gateway,
+            extraModels: cfg.assistant.extraModels,
+          })
+        : undefined;
     const app = createCoreApp({
       pool,
       auth: cfg.auth,
@@ -138,6 +150,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
       registry,
       ...(config ? { config } : {}),
       ...(cards ? { cards } : {}),
+      ...(assistant ? { assistant } : {}),
       // B5 (M12.5): a hand-written plan is made against the merged head knowledge's census names
       ...(cfg.cards
         ? {
