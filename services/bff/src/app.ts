@@ -35,7 +35,7 @@ import { registerNotificationRoutes } from './notifications.js';
 import { registerPortalRoutes } from './portal.js';
 import { registerPortalListRoutes } from './portal-lists.js';
 import { registerFloorRoutes } from './floor.js';
-import { levelsOn } from './levels.js';
+import { levelsOn, rolesIn } from './levels.js';
 import { DEFAULT_RATE_LIMITS, TokenBuckets, type RateLimits } from './rate-limit.js';
 import { registerWebFiles } from './static.js';
 import type { StepUpIssuer } from './stepup/issuer.js';
@@ -547,6 +547,7 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     ...(o.sandboxController ? { sandboxController: o.sandboxController } : {}),
     principalOf: (req) => ctx(req).session.principal_id,
     levelsOf: (principal, project) => levelsOn(o.pool, principal, project, clock.now()),
+    rolesOf: (principal) => rolesIn(o.pool, principal, clock.now()),
   });
   registerPortalRoutes({
     app,
