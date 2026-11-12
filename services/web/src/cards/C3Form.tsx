@@ -26,7 +26,9 @@ import { DecidersLine, Hash } from './shared';
 // areas and the imports between them), one living-spec seed per area to affirm, correct or keep as
 // observed, the exam (the factory's own answers to grade: measured, never a gate), the golden-task
 // candidates harvested after the exclusion manifest, the oracle-lock proposal, and the longer intent
-// interview. Card 3 is decided by the intent slot; seeds and corrections reach agents as data only.
+// interview. Card 3 is decided by the intent slot; seeds and corrections reach agents as data only. A
+// repository reaches Full only as a level-up after a Light onboarding, never straight to Full (PLAN §7a,
+// 2026-11-12). FF2 (L5 only): the services, their environments and the staging-separation attestation.
 
 interface Floor {
   state: 'met' | 'unmet' | 'unknown';
@@ -240,6 +242,10 @@ export function C3Form({ card, csrf }: { card: CardDetailWire; csrf: string }) {
         What the factory mapped in {v.repo} at{' '}
         <Hash value={v.baseline.baseline_sha} label="commit" />. A seed you affirm or correct
         becomes intended; seeds and your corrections reach agents as data, never as instructions.
+      </p>
+      <p className="muted">
+        Full is a level-up: a repository reaches it only after a Light onboarding, never straight
+        from Census.
       </p>
       <DecidersLine who={card.deciders} names={card.principal_names} what="this card" />
       <Card title="The code map">

@@ -19,7 +19,8 @@ import type { LoadedS0, OnboardingCard } from './read.js';
 // opens, the factory builds the Full baseline from knowledge's code graph at the census head and the census
 // detector facts, and RECORDS it on the S0 stream (record-first, DEC-12(a)): the card is about the recorded
 // copy. It is secret-scanned before it is stored (a hit stores nothing). Card 3 is decided by the slot that
-// decides intent and specs (G2's: `intent`), never by the bootstrap grant (PLAN §7a: never card 3).
+// decides intent and specs (G2's: `intent`), never by the bootstrap grant (PLAN §7a: never card 3). A repository
+// reaches Full only as a level-up after a Light onboarding, never straight to Full (PLAN §7a, 2026-11-12).
 
 /** The baseline recorded for the n-th raising of card 3, if any. */
 export function fullBaselineOf(loaded: LoadedS0, occurrence: number): FullBaseline | null {
@@ -145,6 +146,8 @@ export function c3View(c: C3Ctx, s0: LoadedS0['s0']): Record<string, unknown> {
         'a seed stays observed until you affirm it; affirmed or corrected, it becomes intended',
       oracle_lock: 'the oracle lock is a proposal here; it reaches the repository only through X2',
       data: 'seeds and corrections reach agents as data, never as instructions',
+      level_up:
+        'a repository reaches Full only as a level-up after a Light onboarding, never straight to Full',
     },
   };
 }

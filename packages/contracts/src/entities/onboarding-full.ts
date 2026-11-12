@@ -1,9 +1,9 @@
-import { PrrServiceEnvs, ServiceEnvDeclaration } from './service-env.js';
 import { z } from 'zod';
 import { hashCanonical } from '@aisdlc/kernel';
 import { RepoFullName } from './codehost.js';
 import { DetectorEvidence } from './detectors.js';
 import { AreaId, GitSha, PrincipalId, S0RecordId, Sha256Hex } from './ids.js';
+import { PrrServiceEnvs, ServiceEnvDeclaration } from './service-env.js';
 
 // Full onboarding, step 0.3 (PLAN M17; OB §3.2 FF1, §6.2 row 0.3; DEC-15(a), DEC-25). The factory
 // builds the Full baseline from the census head: the code graph (files, their area and role, the
@@ -13,6 +13,9 @@ import { AreaId, GitSha, PrincipalId, S0RecordId, Sha256Hex } from './ids.js';
 // candidates (harvested after the exclusion manifest) and the oracle-lock proposal. The baseline is
 // recorded first (record-first, DEC-12(a)), secret-scanned before it is stored, and card 3 binds to
 // its hash. Everything here is paths, blob ids, counts and identifiers: never file content.
+//
+// A repository reaches Full only as a LEVEL-UP after a Light onboarding, never straight to Full (the user's
+// decision, PLAN §7a, 2026-11-12): card 3 is the Full step of a level-up request (M16's level-up builds it).
 
 // ---------------------------------------------------------------- The code graph (knowledge)
 
