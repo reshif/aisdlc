@@ -78,6 +78,16 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # The settings of the throwaway cluster the tests start locally (packages/db/src/test-cluster.ts):
+      # no fsync (a test server is never recovered from a crash) and room for 1.5 workers per CPU.
+      - name: configure postgres as the test cluster is
+        env:
+          PG: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$PG" psql -U postgres -c "ALTER SYSTEM SET fsync = off" -c "ALTER SYSTEM SET synchronous_commit = off" -c "ALTER SYSTEM SET full_page_writes = off" -c "ALTER SYSTEM SET max_connections = 200"
+          docker restart "$PG"
+          for _ in $(seq 1 60); do docker exec "$PG" pg_isready -U postgres -q && break; sleep 1; done
+          docker exec "$PG" psql -U postgres -Atc "SHOW fsync" -c "SHOW max_connections"
       - run: npm run test:no-docker -- --shard=${{ matrix.shard }}/4
 
   test-docker:
