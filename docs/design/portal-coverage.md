@@ -78,7 +78,7 @@ pattern, the onboarding agent console and the backend gaps) are specified in [`p
 | S8 and S9 | **Built (2026-11-12, `build/portal`)**: G5's decisions and RELHOLD's re-request and B14 on the item page (`items/Governance.tsx`), the 9.3 close-out record with B17 escapes (`/items/:id/closeout`). Still thin: merge reconciliation (B15a, B15b), DeployMarker and rollback B16 as a linked item have no screen of their own | M15 (done), the rest with the floor (M19) |
 | Lifecycle states | explain screens for re-laning R1–R4, the R3 breaker, PARK and BLOCKED, the rework budget, MM-2 | M15 |
 | Onboarding cards 2 and 3 | card 2 (Light: claims ≤50 with evidence, practices, instruction text with step-up, never affirmed in the proposing session) opens only as decided; card 3 (Full: the code map, seeds, the exam measured, golden candidates, the oracle-lock proposal, the interview) built in M17.1 (`cards/C3Form.tsx`) | M16, M17 |
-| After onboarding | per-area level editing (DEC-25), level-up, re-affirm card, drift suspension → L8 and one-click restore with bypass re-attestation (DEC-21), expiry | M16, M17 |
+| After onboarding | per-area level editing (DEC-25), level-up, re-affirm card, drift suspension → L8 and one-click restore with bypass re-attestation (DEC-21), expiry; the re-onboarding card (M17 part 2: a knowledge-defect proposal in the admin slot's inbox, kind `reonboard`, accepted or declined with a reason on the project's Drift page, `DriftPage.tsx` `Reonboarding`; bff `POST /api/projects/:id/reonboarding/decide`) | M16, M17 |
 | Notifications | real-time delivery; Slack and email adapter settings per channel | M18 |
 
 ## 4. Missing: no screen yet
