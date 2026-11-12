@@ -30,8 +30,9 @@ export async function startTestNotary(opts: {
   const callers = opts.callers ?? {
     core: ['ledger', 'read', 'evidence'],
     checkpointer: ['checkpoint', 'read'],
+    audit: ['ledger', 'read', 'audit_export'],
     /** Every scope, for conformance tests only. */
-    tester: ['ledger', 'checkpoint', 'read', 'evidence'],
+    tester: ['ledger', 'checkpoint', 'read', 'evidence', 'audit_export'],
   };
   const tokens = Object.fromEntries(
     Object.keys(callers).map((c) => [c, randomBytes(24).toString('hex')]),

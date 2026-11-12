@@ -95,6 +95,7 @@ describe('govern: audit and catalogue', () => {
     });
     const m = mockApi({
       'GET /api/me': { json: me(['audit.read']) },
+      'GET /api/audit/exports': { json: { exports: [] } },
       'GET /api/audit/decisions?limit=200': { json: { decisions: [row({})] } },
       'GET /api/audit/decisions?limit=200&action=kill.request': {
         json: {
@@ -110,6 +111,7 @@ describe('govern: audit and catalogue', () => {
       },
     });
     renderAt('/audit');
+    await user.click(await screen.findByRole('tab', { name: 'Decision log' }));
     const t = await screen.findByRole('table', { name: 'Policy decisions' });
     expect(within(t).getAllByText('deny')).toHaveLength(2);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Action' }), 'kill.request');

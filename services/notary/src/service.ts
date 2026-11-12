@@ -6,6 +6,7 @@ import {
   checkpointDigestHex,
   Signature,
   computeLedgerEntryHash,
+  auditExportSigningDigest,
   evidencePackSigningDigest,
   ledgerDraftHash,
   type CheckpointCore,
@@ -23,9 +24,12 @@ import {
 } from '@aisdlc/kernel';
 import {
   assembleLedgerEntry,
+  badAuditExportSignRequest,
   badEvidenceSignRequest,
   hexBytes,
   notaryError,
+  type AuditExportSignRequest,
+  type AuditExportSignerPort,
   type CheckpointSignRequest,
   type EvidenceSignRequest,
   type EvidenceSignerPort,
@@ -72,7 +76,7 @@ interface JournalRow {
  * is gap-free in signing order. The KMS call happens while the row lock is held; a failed
  * signature rolls the transaction back and the reservation stays `reserved`.
  */
-export class NotaryService implements NotaryPort, EvidenceSignerPort {
+export class NotaryService implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort {
   private readonly keyId: string;
   private readonly clock: Clock;
   private publicKey: Jwk | undefined;
@@ -313,6 +317,58 @@ export class NotaryService implements NotaryPort, EvidenceSignerPort {
             req.pack_sha256,
             req.item_id,
             req.head_sha,
+            this.keyId,
+            JSON.stringify(signature),
+            this.clock.now(),
+          ],
+        );
+        return ok(signature);
+      }),
+    );
+  }
+
+  /**
+   * PLAN M19: signs an audit export id under the domain-separated export message, journalled once per export (the
+   * same id asked again gets its first signature; another scope for it is refused). Under the state lock.
+   */
+  async signAuditExport(
+    req: AuditExportSignRequest,
+  ): Promise<Result<z.infer<typeof Signature>, NotaryError>> {
+    const bad = badAuditExportSignRequest(req);
+    if (bad) return err(notaryError('invalid_request', bad));
+    return this.guard(() =>
+      withTransaction(this.o.pool, async (tx) => {
+        await this.lockState(tx);
+        const have = await tx.query<{ scope_ref: string; signature: unknown }>(
+          'SELECT scope_ref, signature FROM notary.audit_export_signature WHERE export_sha256 = $1',
+          [req.export_sha256],
+        );
+        const row = have.rows[0];
+        if (row) {
+          if (row.scope_ref !== req.scope_ref) {
+            return err(notaryError('invalid_request', 'this export was signed for another scope'));
+          }
+          const sig = Signature.safeParse(row.signature);
+          return sig.success
+            ? ok(sig.data)
+            : err(notaryError('internal', 'the journal holds an invalid signature'));
+        }
+        const raw = await this.o.custody.sign(
+          this.keyId,
+          hexBytes(auditExportSigningDigest(req.export_sha256)),
+        );
+        if (!raw.ok) return err(notaryError('signer_unavailable', raw.error.message));
+        const signature = {
+          key_id: this.keyId,
+          alg: LEDGER_SIGNATURE_ALG,
+          value: b64urlEncode(raw.value),
+        };
+        await tx.query(
+          `INSERT INTO notary.audit_export_signature (export_sha256, scope_ref, key_id, signature, signed_at)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            req.export_sha256,
+            req.scope_ref,
             this.keyId,
             JSON.stringify(signature),
             this.clock.now(),

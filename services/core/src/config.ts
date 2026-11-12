@@ -29,6 +29,7 @@ const Callers = z.record(
           'integrations',
           'evals',
           'push_guard',
+          'erasure',
           'activity',
         ]),
       )

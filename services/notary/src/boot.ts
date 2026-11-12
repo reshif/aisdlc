@@ -18,7 +18,7 @@ const Callers = z.record(
   z.string(),
   z.strictObject({
     token_ref: z.string(),
-    scopes: z.array(z.enum(['ledger', 'checkpoint', 'read', 'evidence'])),
+    scopes: z.array(z.enum(['ledger', 'checkpoint', 'read', 'evidence', 'audit_export'])),
   }),
 );
 

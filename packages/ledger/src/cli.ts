@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import type { Jwk } from '@aisdlc/kernel';
+import { checkSignedAuditExport } from '@aisdlc/contracts';
+import { sha256Hex, type Jwk } from '@aisdlc/kernel';
 import pg from 'pg';
 import { verifyLedger } from './verify.js';
 
@@ -19,7 +20,15 @@ or the database could not be read.
   --db            connection URL (or env AISDLC_LEDGER_DB_URL); the session is read-only
   --notary-key    public JWK of the Notary key
   --witness-key   public JWK of the Witness key
-  --allow-tail    accept entries newer than the latest checkpoint (a live ledger)`;
+  --allow-tail    accept entries newer than the latest checkpoint (a live ledger)
+
+usage: aisdlc verify-export --file <signed-export.json> --notary-key <jwk-file> --witness-key <jwk-file> [--object-key <sha256>]
+
+Verifies a signed audit export (PLAN M19) offline, from the file alone: canonical bytes, the export id
+and its Notary signature, the checkpoint's Merkle root over every entry hash and both its signatures,
+each exported ledger entry's hash, signature and place in the chain, each record event's hash and link.
+  --file          the signed export as downloaded (its sha256 is its object key)
+  --object-key    the object key it was stored under, checked against the bytes`;
 
 class UsageError extends Error {}
 
@@ -57,6 +66,7 @@ export async function main(
       io.out(USAGE);
       return cmd === undefined ? 2 : 0;
     }
+    if (cmd === 'verify-export') return await verifyExport(rest, io);
     if (cmd !== 'verify-ledger') throw new UsageError(`unknown command ${cmd}`);
     const { values } = parseArgs({
       args: [...rest],
@@ -126,4 +136,57 @@ export async function main(
     io.err(`verify-ledger could not run: ${e instanceof Error ? e.message : String(e)}`);
     return 2;
   }
+}
+
+async function verifyExport(rest: readonly string[], io: CliIo): Promise<number> {
+  const { values } = parseArgs({
+    args: [...rest],
+    options: {
+      file: { type: 'string' },
+      'notary-key': { type: 'string' },
+      'witness-key': { type: 'string' },
+      'object-key': { type: 'string' },
+    },
+    strict: true,
+  });
+  if (!values.file) throw new UsageError('--file is required');
+  if (!values['notary-key'] || !values['witness-key']) {
+    throw new UsageError('--notary-key and --witness-key are required');
+  }
+  const keys = {
+    notary: readPublicJwk(values['notary-key'], 'notary key'),
+    witness: readPublicJwk(values['witness-key'], 'witness key'),
+  };
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(readFileSync(values.file));
+  } catch (e) {
+    throw new UsageError(
+      `cannot read ${values.file}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  const r = await checkSignedAuditExport(
+    bytes,
+    keys,
+    values['object-key'] ? { object_key: values['object-key'] } : {},
+  );
+  if (!r.ok) {
+    io.err(`verify-export FAILED [${r.code}]: ${r.message}`);
+    return 1;
+  }
+  const p = r.signed.package;
+  io.out(
+    `export OK: ${r.signed.export_sha256} (object key ${sha256Hex(bytes)}), signed by ${r.signed.signature.key_id}`,
+  );
+  io.out(
+    `scope ${p.scope.kind === 'fleet' ? 'fleet' : `project ${p.scope.project_id}`}, ${p.from} to ${p.to}: ${r.entries} ledger entries and ${r.events} record events, every hash, link and signature valid`,
+  );
+  io.out(
+    `checkpoint ${p.ledger.checkpoint.cp_seq} OK: covers entries 1..${r.covered_to}, Merkle root and both signatures valid${
+      p.ledger.uncovered > 0
+        ? `; ${p.ledger.uncovered} entries of the range are after it and not in this export`
+        : ''
+    }`,
+  );
+  return 0;
 }
