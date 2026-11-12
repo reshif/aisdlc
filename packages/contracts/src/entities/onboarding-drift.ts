@@ -248,6 +248,12 @@ export const DriftVersionRequestedPayload = z.strictObject({
   level: Level,
   /** The S0 record the request made (0.1 re-runs mechanically at the current head). */
   new_s0_id: S0RecordId,
+  /**
+   * What the new record opens beyond Light's steps. A level-up to Full (the ONLY path to Full, user decision
+   * 2026-11-12) opens the Full baseline (step 0.3) and card 3, decided by the intent slot the Light record's card 4
+   * published; their content is M17.1's. Empty for any other request.
+   */
+  opens: z.array(z.enum(['0.3', 'C3'])).max(2),
   by: PrincipalId,
 });
 export type DriftVersionRequestedPayload = z.infer<typeof DriftVersionRequestedPayload>;

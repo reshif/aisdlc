@@ -503,6 +503,13 @@ export async function requestVersion(
     if (rank(req.level) <= rank(signed)) {
       return err(coreError('invalid_input', `a level-up asks for a level above ${signed}`));
     }
+    // user decision 2026-11-12: Full only as a level-up of a repo signed at LIGHT (card 3 needs the intent slot that
+    // card 4's role map publishes); a Census repo is onboarded at Light first
+    if (req.level === 'full' && signed !== 'light') {
+      return err(
+        coreError('refused', 'Full is a level-up of a Light repo: raise it to Light first'),
+      );
+    }
   } else {
     if (!expired)
       return err(coreError('refused', 'the record has not expired: nothing to re-sign'));
@@ -519,13 +526,24 @@ export async function requestVersion(
   const requestId = deterministicId<'Request'>(
     `drift.version:${repoKeyOf(r.value.repo_ref)}:${g.version}:${req.reason}:${req.level}`,
   );
-  const made = await requestOnboarding(d, {
-    project_id: project,
-    repo: r.value.repo_ref as RepoFullName,
-    level: req.level,
-    request_id: requestId,
-    on_behalf_of: req.on_behalf_of,
-  });
+  const toFull = req.reason === 'level_up' && req.level === 'full';
+  const made = await requestOnboarding(
+    d,
+    {
+      project_id: project,
+      repo: r.value.repo_ref as RepoFullName,
+      level: req.level,
+      request_id: requestId,
+      on_behalf_of: req.on_behalf_of,
+    },
+    // THE path to Full: the S0 driver raises 0.3 and card 3 for this record. SEAM (M17.1): the Full baseline's content
+    // and card 3's view are built there; this request, its decision and its recording are complete here.
+    toFull
+      ? { levelUp: { from_version: g.version, from_level: 'light' } }
+      : req.level === 'full'
+        ? { levelUp: { from_version: g.version, from_level: 'full' } } // the re-sign of a Full record
+        : {},
+  );
   if (!made.ok) return made;
   const w = await inCoreTx(d, async (j, tx) => {
     await lockRepo(tx, project, r.value.repo_ref);
@@ -542,6 +560,7 @@ export async function requestVersion(
           from_level: signed,
           level: req.level,
           new_s0_id: made.value.s0_id,
+          opens: toFull ? ['0.3', 'C3'] : [],
           by: req.on_behalf_of,
         }) as unknown as Record<string, unknown>,
         actor: req.on_behalf_of,

@@ -31073,6 +31073,17 @@
           "type": "string",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         },
+        "opens": {
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "0.3",
+              "C3"
+            ]
+          }
+        },
         "by": {
           "type": "string",
           "maxLength": 128,
@@ -31089,6 +31100,7 @@
         "from_level",
         "level",
         "new_s0_id",
+        "opens",
         "by"
       ],
       "additionalProperties": false

@@ -567,6 +567,19 @@ describe('expiry, re-sign and level-up (OB §8)', () => {
       [`s0:${r.s0_id}`],
     );
     expect(JSON.stringify(s0[0]?.body)).toContain('full');
+    // the ONE path to Full (user decision 2026-11-12): the new record opens the Full baseline and card 3
+    const asked = await q<{ body: { opens: string[]; from_level: string; level: string } }>(
+      'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2',
+      [driftStream(w.repo), DRIFT_EVENT.version_requested],
+    );
+    expect(asked.map((e) => e.body)).toEqual([
+      expect.objectContaining({ from_level: 'light', level: 'full', opens: ['0.3', 'C3'] }),
+    ]);
+    const steps = await q<{ body: { step: string; state: string } }>(
+      "SELECT body FROM record.record_event WHERE stream = $1 AND type = 's0.requested'",
+      [`s0:${r.s0_id}`],
+    );
+    expect(JSON.stringify(steps[0]?.body)).not.toContain('"0.3":"skip"');
     expect(await statusOf(w)).toBe('active');
     // not a level-up: the same level, or a re-sign of a record that has not expired
     expect(

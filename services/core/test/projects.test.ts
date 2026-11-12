@@ -40,6 +40,11 @@ afterAll(async () => {
 });
 
 const req = (over: Parameters<typeof request>[0] = {}) => requestOnboarding(s.deps, request(over));
+/** A Full request stands for the level-up of a Light repo (user decision 2026-11-12: the only path to Full). */
+const reqUp = (over: Parameters<typeof request>[0] = {}) =>
+  requestOnboarding(s.deps, request({ ...over, level: 'full' }), {
+    levelUp: { from_version: 1, from_level: 'light' },
+  });
 
 async function must<T>(
   p: Promise<{ ok: true; value: T } | { ok: false; error: { message: string } }>,
@@ -92,7 +97,8 @@ describe('project.onboard intake (DEC-2)', () => {
 
   it('records 0.2 and 0.3 as not requested unless the level asks for them (DEC-3)', async () => {
     const skips = async (level: 'census' | 'light' | 'full', n: string) => {
-      const r = await must(req({ project_id: pid(`p-${n}`), repo: `acme/${n}`, level }));
+      const over = { project_id: pid(`p-${n}`), repo: `acme/${n}`, level };
+      const r = await must(level === 'full' ? reqUp(over) : req(over));
       const o = (await getS0Overview(s.record.pool, r.s0_id))!;
       return Object.fromEntries(o.steps.map((x) => [x.step, x.state]));
     };
@@ -168,6 +174,13 @@ describe('project.onboard intake (DEC-2)', () => {
       deploys: true,
     });
     expect(st.project).toMatchObject({ classification: 'confidential', deploys: true, tier: null });
+  });
+
+  it('a first request for Full is refused with the reason (user decision 2026-11-12: Full only as a level-up)', async () => {
+    const r = await req({ project_id: pid('p-full'), repo: 'acme/full', level: 'full' });
+    expect(r).toMatchObject({ ok: false, error: { code: 'refused' } });
+    expect(!r.ok && r.error.message).toMatch(/only as a level-up after a Light onboarding/);
+    expect(await listS0ForRepo(s.record.pool, 'acme/full')).toEqual([]);
   });
 
   it('a request_id makes a retry the same record', async () => {
@@ -267,7 +280,7 @@ describe('S0 state machine (contracts states/onboarding.ts, exactly)', () => {
   });
 
   it('signable level is recorded next to the requested one, never above it', async () => {
-    const a = await must(req({ project_id: pid('p-sign'), repo: 'acme/sign', level: 'full' }));
+    const a = await must(reqUp({ project_id: pid('p-sign'), repo: 'acme/sign' }));
     const low = await must(
       setSignableLevel(s.deps, a.s0_id, 'light', { actor: 'alice', reason: 'human' }),
     );
@@ -305,10 +318,9 @@ describe('S0 state machine (contracts states/onboarding.ts, exactly)', () => {
 describe('what M4 signs (written by M7.5)', () => {
   it('records the project tier and level and the repo level; never above the signable level, never below an attested floor', async () => {
     const a = await must(
-      req({
+      reqUp({
         project_id: pid('p-signed'),
         repo: 'acme/signed',
-        level: 'full',
         attestations: { tier_floor: 'T1' },
       }),
     );
