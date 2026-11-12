@@ -254,6 +254,36 @@ describe('the onboarding card routes', () => {
     expect(allows.rows[0].n).toBeGreaterThan(0);
   });
 
+  it('card 2 edit route (M16): PDP card.decide first, body checked, and only card 2 has instruction text', async () => {
+    const list = await call(TOKENS.reader, 'GET', `/v1/s0/${s0}/cards`);
+    const any = list.json[0];
+    expect(any).toBeDefined();
+    const body = { path: 'AGENTS.md', text: '# app\n', base_text_sha256: null };
+    const bob = await call(TOKENS.bff, 'POST', `/v1/cards/${any.card_id}/instructions`, {
+      ...body,
+      on_behalf_of: 'bob',
+    });
+    expect(bob.status).toBe(403);
+    const bad = await call(TOKENS.bff, 'POST', `/v1/cards/${any.card_id}/instructions`, {
+      on_behalf_of: 'alice',
+      path: '.mcp.json',
+      text: 'x',
+      base_text_sha256: null,
+    });
+    expect(bad.status).toBe(400);
+    const notC2 = await call(TOKENS.bff, 'POST', `/v1/cards/${any.card_id}/instructions`, {
+      ...body,
+      on_behalf_of: 'alice',
+    });
+    expect(notC2.status).toBe(400);
+    expect(JSON.stringify(notC2.json)).toMatch(/only card 2/);
+    const reader = await call(TOKENS.reader, 'POST', `/v1/cards/${any.card_id}/instructions`, {
+      ...body,
+      on_behalf_of: 'alice',
+    });
+    expect(reader.status).toBe(403);
+  });
+
   it('card 4 over HTTP: re-check, then decide; the settings are proposed as an M1 revision', async () => {
     const d = driverDeps(s, cards.source as never, cards.knowledge);
     for (let i = 0; i < 3; i++) await driveS0(d, s0);
