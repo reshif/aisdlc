@@ -59,8 +59,8 @@ afterAll(async () => {
   await s.stop();
 });
 
-const ok = <T>(r: { ok: true; value: T } | { ok: false; error: { message: string } }): T => {
-  if (!r.ok) throw new Error(r.error.message);
+const ok = <T>(r: { ok: true; value: T } | { ok: false; error: unknown }): T => {
+  if (!r.ok) throw new Error(JSON.stringify(r.error));
   return r.value;
 };
 const MERGED = '1'.repeat(40);
