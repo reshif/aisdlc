@@ -132,7 +132,7 @@ export const nodeKey = (n: FloorNode): string =>
 export const inPod = (i: FloorItem): boolean =>
   i.node.kind === 'station' && i.node.stage === 'S6' && i.in_session && i.status === 'working';
 
-const CHIP_W = 48;
+const CHIP_W = 56;
 const CHIP_H = 32;
 
 /** Where each item's chip is: in a grid inside its station or room, in a column below its gate, or in a pod. */
@@ -171,7 +171,7 @@ export function layoutChips(
       const box = n.kind === 'station' ? STATIONS[n.stage] : ROOMS[n.room];
       const s6 = n.kind === 'station' && n.stage === 'S6';
       const left = s6 ? 250 : 14;
-      const top = n.kind === 'room' ? (n.room === 'DONE' ? 44 : 66) : s6 ? 16 : 86;
+      const top = n.kind === 'room' ? (n.room === 'DONE' ? 44 : 86) : s6 ? 16 : 86;
       const cols = Math.max(1, Math.floor((box.w - left - 10) / CHIP_W));
       out.set(it.item_id, {
         x: box.x + left + (i % cols) * CHIP_W,

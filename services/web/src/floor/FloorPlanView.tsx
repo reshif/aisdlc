@@ -336,7 +336,7 @@ export function FloorPlanView(p: FloorPlanProps) {
               <div
                 key={s.skips}
                 className="fl-tag fl-tag-short"
-                style={{ left: 450 + i * 520, top: Y1 + (i % 2 === 0 ? -4 : 4) }}
+                style={{ left: 420 + i * 400, top: Y1 + (i % 2 === 0 ? -4 : 4) }}
               >
                 {s.lanes.join(', ')}: skips {s.skips}
               </div>
