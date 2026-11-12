@@ -166,7 +166,8 @@ export function approvers(
     project,
     {
       admin: who,
-      requesters: who,
+      // the requester ('alice' in these tests) holds the slot too: G6 is theirs to decide
+      requesters: [...new Set([...who, 'alice'])],
       intent: who,
       design: who,
       g4: who,
@@ -256,7 +257,9 @@ export async function actFor(
   for (const g of st.gates.filter((x) => x.status === 'pending')) {
     const how = o.decide?.(g.gate) ?? 'approve';
     if (how === 'hold') continue;
-    const r = await decideGate(s, g.gate_instance_id, o.approver ?? 'bob', how);
+    // G6 (M15.4) is the requester's own acceptance: only they decide it
+    const who = g.gate === 'G6' ? st.requester : (o.approver ?? 'bob');
+    const r = await decideGate(s, g.gate_instance_id, who, how);
     if (!r.ok) throw new Error(`decide ${g.gate}: ${JSON.stringify(r.error)}`);
     acted = true;
   }

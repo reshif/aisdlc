@@ -24,6 +24,7 @@ import type pg from 'pg';
 import { applyPushEvent, listPushReceipts, pushLockKey } from '../build/push.js';
 import { coreError, type CoreError } from '../errors.js';
 import { inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
+import type { MergerLinksPort } from '../clients.js';
 import { openMergeX4Once } from '../merge-review.js';
 import { passingPackFor } from '../verify/evidence.js';
 import { ingestItem, readItem } from '../work-items.js';
@@ -59,6 +60,8 @@ export interface MergeReconcileDeps {
   readonly clock?: CoreDeps['clock'];
   /** The decision kernel, for X4. */
   readonly decisions: DecisionDeps;
+  /** M15.4: the merger's principal (barred from their X4) or, unmapped, the factory admins who decide it. */
+  readonly links: MergerLinksPort;
 }
 
 export interface MergeReconcileReport {
@@ -331,6 +334,7 @@ async function reconcilePull(
         opened_by: ACTOR,
         subject_hash: hashCanonical(p as never),
         facts: reconcileX4Facts(p),
+        merger: { links: d.links, login: p.merged_by, known: null },
       });
       if (!x4.ok) return x4;
       if (x4.value.opened) steps.push('x4');

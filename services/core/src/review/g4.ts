@@ -29,6 +29,7 @@ import { readGoverning } from '../prr-store.js';
 import { passingPackFor } from '../verify/evidence.js';
 import { readItem, readItemEvents } from '../work-items.js';
 import { requestRework } from '../work-signals.js';
+import { readModeESuspension } from '../closeout/audit.js';
 import { decideReviewMode, type ReviewModeDecision } from './mode.js';
 
 // G4 review (FL 8.1, PLAN M15.1): what core adds to the G4 card the engine asks for. When G4 opens, core reads the
@@ -132,6 +133,8 @@ export async function g4ReviewOf(
     : null;
   const authors = await humanAuthors(d.pool, s);
   const lane = s.lane ?? s.proposed_lane;
+  // B19 (M15.4): a project whose mode-E audit sample tripped reviews in mode C, with the reason
+  const suspended = (await readModeESuspension(d.pool, s.project_id)) !== null;
 
   for (const pr of [...prs].sort((x, y) => x.unit_key.localeCompare(y.unit_key))) {
     const pack = await passingPackFor(d.pool, s.item_id, pr.head_sha);
@@ -174,6 +177,7 @@ export async function g4ReviewOf(
         codeowners,
         prr,
         mode_c_posture_caps: caps,
+        mode_e_suspended: suspended,
       }),
     );
   }

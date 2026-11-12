@@ -1,5 +1,6 @@
 import {
   EVIDENCE_BUCKET,
+  AUDIT_EVENT,
   EVIDENCE_EVENT,
   G5_FACTS_KEY,
   GATECHECK_EVENT,
@@ -9,6 +10,7 @@ import {
   ITEM_EVENT,
   MergeObservedPayload,
   PUSH_EVENT,
+  auditStream,
   evidenceStream,
   gateCheckStream,
   mergeSubjectId,
@@ -35,6 +37,7 @@ import {
   readG4Standing,
   readItem,
   readItemEvents,
+  rebuildAudits,
   rebuildEvidencePacks,
   rebuildPushes,
   reconcileMerges,
@@ -91,6 +94,8 @@ interface World {
   readonly gh: FakeGitHub;
   /** The agent PR's number on the host (and in core's record). */
   pr: number;
+  /** Identity links (and the factory admins) for who decides an X4 (M15.4). */
+  readonly links: FakePrincipalLinks;
 }
 
 let n = 0;
@@ -128,13 +133,16 @@ async function world(o: { gating?: PrrGatingProfile } = {}): Promise<World> {
       files: [{ repo: seeded.repo, sha: BASE, path: '.github/CODEOWNERS', content: '* @evan\n' }],
     }),
   );
-  const review: ReviewPorts = { source: gh, links: new FakePrincipalLinks().link('evan', 'evan') };
+  // bob is the factory admin: a merger nobody can map to a principal leaves X4 to him (M15.4)
+  const links = new FakePrincipalLinks().link('evan', 'evan').admin('bob');
+  const review: ReviewPorts = { source: gh, links };
   return {
     ...seeded,
     itemId: sub.item_id as string,
     d: { ...driverOver(s), review } as WorkDriverDeps,
     gh,
     pr: 0,
+    links,
   };
 }
 
@@ -253,7 +261,14 @@ async function observe(w: World) {
     source: w.gh,
     watched: new DbWatchedPulls(s.record.pool),
   });
-  const r = ok(await reconcileMerges({ pool: s.record.pool, clock: s.clock, decisions: s.config }));
+  const r = ok(
+    await reconcileMerges({
+      pool: s.record.pool,
+      clock: s.clock,
+      decisions: s.config,
+      links: w.links,
+    }),
+  );
   return { seen, r };
 }
 
@@ -490,6 +505,112 @@ describe('no double X4 with gate-check (one per repo, PR and merge commit)', () 
   });
 });
 
+describe('X4 of a merge the reconcile found: the merger never decides it (M15.4)', () => {
+  it('a merger linked to a principal is the requester and left out of the deciders', async () => {
+    const w = await world();
+    s.elig.setHolders(pid(w.project), 'x', [pr('bob'), pr('dan')]);
+    w.links.link('dan-gh', 'dan');
+    await pushed(w, H1);
+    await runItem(s, w.d, w.itemId, { stop: g4Open });
+    w.gh.landPull(w.repo, w.pr, 'dan-gh');
+    expect((await observe(w)).r.x4_opened).toBe(1);
+    const [x4] = await x4s(w.repo, w.pr);
+    expect(x4?.open.payload).toMatchObject({
+      requester: 'dan',
+      deciders: ['bob'],
+      facts: {
+        merger: { login: 'dan-gh', principal_id: 'dan', mapping: 'linked' },
+        deciders_basis: 'x_slot_without_merger',
+      },
+    });
+    // dan holds the x slot, but not for his own merge
+    expect((await decideGate(s, x4?.open.gate_instance_id as string, 'dan', 'approve')).ok).toBe(
+      false,
+    );
+    ok(await decideGate(s, x4?.open.gate_instance_id as string, 'bob', 'approve'));
+  });
+
+  it('a merger nobody can map: recorded, and only a factory admin decides; none: no X4, the reconcile retries', async () => {
+    const w = await world();
+    const none = new FakePrincipalLinks();
+    s.elig.setHolders(pid(w.project), 'x', [pr('bob'), pr('dan')]);
+    await pushed(w, H1);
+    await runItem(s, w.d, w.itemId, { stop: g4Open });
+    w.gh.landPull(w.repo, w.pr, 'zed-gh');
+    await observeAgentPulls({
+      pool: s.record.pool,
+      source: w.gh,
+      watched: new DbWatchedPulls(s.record.pool),
+    });
+    // no factory admin holds the x slot: refused, never opened for anyone else
+    const refused = await reconcileMerges({
+      pool: s.record.pool,
+      clock: s.clock,
+      decisions: s.config,
+      links: none,
+    });
+    expect(refused.ok).toBe(false);
+    expect(await x4s(w.repo, w.pr)).toEqual([]);
+    // with the factory admin (bob) known, the X4 opens for him alone
+    expect((await observe(w)).r.x4_opened).toBe(1);
+    const [x4] = await x4s(w.repo, w.pr);
+    expect(x4?.open.payload).toMatchObject({
+      requester: null,
+      deciders: ['bob'],
+      facts: {
+        merger: { login: 'zed-gh', principal_id: null, mapping: 'unmapped' },
+        deciders_basis: 'factory_admin',
+      },
+    });
+    expect((await decideGate(s, x4?.open.gate_instance_id as string, 'dan', 'approve')).ok).toBe(
+      false,
+    );
+  });
+});
+
+describe('B19 suspends mode E: G4 opens in mode C (M15.4)', () => {
+  it('the same item reviews in mode E, and in mode C with mode_e_suspended once the project is suspended', async () => {
+    const reviewOf = async (w: World) => {
+      await pushed(w, H1);
+      await runItem(s, w.d, w.itemId, { stop: g4Open });
+      const g4 = (await state(w)).gates.find((g) => g.gate === 'G4' && g.status === 'pending');
+      const open = await readGateState(s.record.pool, g4?.gate_instance_id as string);
+      return G4Review.parse((open?.open.payload.facts as Record<string, unknown>)[G4_REVIEW_FACT]);
+    };
+    const a = await world();
+    expect((await reviewOf(a)).mode).toBe('E');
+
+    const b = await world();
+    // mode C narrows G4 to the path owners (evan), who must hold the slot
+    s.elig.setHolders(pid(b.project), 'g4', [pr('bob'), pr('evan')]);
+    const cat = (await state(b)).catalogue_ref;
+    // the suspension as 9.5 records it (its own test is closeout.test.ts), then the read model rebuilt from it
+    await withTransaction(s.record.pool, async (tx) => {
+      const w = await appendEvents(tx, auditStream(b.project), 0, [
+        {
+          type: AUDIT_EVENT.mode_e_suspended,
+          body: {
+            project_id: b.project,
+            sampled: 20,
+            missed: 3,
+            limits: { miss_rate: 10, min_sample: 20 },
+            catalogue: cat,
+            item_id: a.itemId,
+            at: '2026-11-12T12:00:00.000Z',
+          } as unknown as JsonObject,
+          actor: 'system.closeout',
+        },
+      ]);
+      if (!w.ok) throw new Error(w.error._tag);
+    });
+    await rebuildAudits(deps(), b.project);
+    const r = await reviewOf(b);
+    expect(r.mode).toBe('C');
+    expect(r.reasons).toEqual(['mode_e_suspended']);
+    expect(r.deciders).toEqual({ basis: 'path_owners', principals: ['evan'] });
+  });
+});
+
 describe('B15: the base moved before the merge', () => {
   it('B15a a clean rebase on the host: S7 again on the rebased head, a new pack and a new G4, then the merge', async () => {
     const w = await world();
@@ -572,7 +693,12 @@ describe('B15: the base moved before the merge', () => {
     // S6 resolves the conflict and pushes; the stale fact of the old head (still in conflict) changes nothing
     await pushed(w, H3);
     const again = ok(
-      await reconcileMerges({ pool: s.record.pool, clock: s.clock, decisions: s.config }),
+      await reconcileMerges({
+        pool: s.record.pool,
+        clock: s.clock,
+        decisions: s.config,
+        links: w.links,
+      }),
     );
     expect(again).toMatchObject({ recorded: 0, rework: 0 });
   });

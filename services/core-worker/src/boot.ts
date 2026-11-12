@@ -24,6 +24,8 @@ import {
   gatewayTriggersLoop,
   killObserverLoop,
   mergeReviewLoop,
+  auditSampleLoop,
+  closeOutStagePorts,
   mergeReconcileLoop,
   DbWatchedPulls,
   registerCoreConfig,
@@ -351,9 +353,11 @@ export async function bootCoreWorker(
             })
           : beforeVerify;
       // M15.3: S8b through gate-relay's record (the deployment of an approved G5, its health; B16 on a rollback)
-      const stagePorts = cfg.releaseViaGateRelay
+      const released = cfg.releaseViaGateRelay
         ? releaseStagePorts({ pool, base: afterVerify, deps: { pool } })
         : afterVerify;
+      // M15.4: 9.3 records the close-out (record + ledger) wherever the ledger is
+      const stagePorts = ledger ? closeOutStagePorts({ pool, ledger, base: released }) : released;
       // M13.1: 6.0 admission (a lease epoch, an approver slot, capacity, the envelope reserved in the gateway)
       // and the capacity port behind it, which frees the held items only when their next admission can succeed
       const admissionBase = cfg.gateway
@@ -434,7 +438,12 @@ export async function bootCoreWorker(
         stepUp: new RefusingStepUp(),
         maintenance: maintenanceFrom(rd),
       };
-      supervisor.add(mergeReviewLoop({ decisions }, { startDelayMs: 3_500 }));
+      const links = new DbPrincipalLinks(readPool);
+      supervisor.add(mergeReviewLoop({ decisions, links }, { startDelayMs: 3_500 }));
+      // M15.4 9.5: the mode-E audit sample, drawn from the close-out records off the closing chain
+      supervisor.add(
+        auditSampleLoop({ pool, sampleOneIn: cfg.auditSampleOneIn }, { startDelayMs: 5_000 }),
+      );
       if (cfg.pushBroker) {
         // M15.2 8.2: a person merges an agent PR on the host. The poll records what the host says of every agent PR
         // of an item in flight (record first, the Push Broker's read-only `pr_status`); the reconcile then completes
@@ -453,7 +462,7 @@ export async function bootCoreWorker(
               { startDelayMs: 4_000 },
             ),
           )
-          .add(mergeReconcileLoop({ pool, decisions }, { startDelayMs: 4_500 }));
+          .add(mergeReconcileLoop({ pool, decisions, links }, { startDelayMs: 4_500 }));
       }
     }
     if (cfg.knowledge || cfg.identity) {

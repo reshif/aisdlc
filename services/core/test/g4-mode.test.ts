@@ -25,6 +25,7 @@ const base: ReviewModeInput = {
   codeowners: { read: 'ok', parsed: CODEOWNERS },
   prr: { effective: 'A2', posture_cap: null, r3_zones: [] },
   mode_c_posture_caps: caps,
+  mode_e_suspended: false,
 };
 
 describe('G4 review mode (FL 8.1)', () => {
@@ -102,6 +103,14 @@ describe('G4 review mode (FL 8.1)', () => {
 
   it('a change a human wrote (L8, a takeover) goes to a codeowner', () => {
     expect(decideReviewMode({ ...base, human_authored: true }).reasons).toEqual(['human_led']);
+  });
+
+  it('B19: a project whose mode-E audit sample tripped reviews in mode C, with the reason and no step-up', () => {
+    expect(decideReviewMode({ ...base, mode_e_suspended: true })).toMatchObject({
+      mode: 'C',
+      reasons: ['mode_e_suspended'],
+      step_up: false,
+    });
   });
 
   it('several reasons are all reported, in a fixed order; owners are the CODEOWNERS rule of each changed path', () => {

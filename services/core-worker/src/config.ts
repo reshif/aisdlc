@@ -103,6 +103,11 @@ export interface CoreWorkerConfig {
     readonly secretKeyRef: string;
   } | null;
   readonly workDriverIntervalMs: number;
+  /**
+   * M15.4 9.5: one in how many mode-E merges the audit sample draws (`CORE_WORKER_AUDIT_SAMPLE_ONE_IN`, default 1: every
+   * one, until a catalogue release names a rate; more audit, never less).
+   */
+  readonly auditSampleOneIn: number;
   readonly killHoldersIntervalMs: number;
   readonly killObserverIntervalMs: number;
   /** How often the gateway's ET1 events become item triggers (M10.3). */
@@ -365,6 +370,7 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       .map((m) => m.trim())
       .filter((m) => m !== ''),
     workDriverIntervalMs: intEnv(env, 'CORE_WORKER_WORK_DRIVER_INTERVAL_MS', 5_000, 100),
+    auditSampleOneIn: intEnv(env, 'CORE_WORKER_AUDIT_SAMPLE_ONE_IN', 1, 1),
     killHoldersIntervalMs: intEnv(env, 'CORE_WORKER_KILL_HOLDERS_INTERVAL_MS', 10_000, 100),
     killObserverIntervalMs: intEnv(env, 'CORE_WORKER_KILL_OBSERVER_INTERVAL_MS', 5_000, 100),
     gatewayTriggersIntervalMs: intEnv(env, 'CORE_WORKER_GATEWAY_TRIGGERS_INTERVAL_MS', 2_000, 100),

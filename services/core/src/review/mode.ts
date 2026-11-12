@@ -37,6 +37,8 @@ export interface ReviewModeInput {
   readonly prr: ReviewPrrFacts | null;
   /** The posture caps the pinned catalogue says put G4 in mode C on every PR (`autonomy.posture[*].g4_mode_c`). */
   readonly mode_c_posture_caps: readonly Autonomy[];
+  /** B19 (M15.4): the project's mode-E audit sample suspended mode E. */
+  readonly mode_e_suspended: boolean;
 }
 
 export interface ReviewModeDecision {
@@ -62,6 +64,7 @@ const ORDER: readonly ReviewReason[] = [
   'autonomy_a0',
   'r3_zone',
   'human_led',
+  'mode_e_suspended',
 ];
 
 export function decideReviewMode(i: ReviewModeInput): ReviewModeDecision {
@@ -80,6 +83,7 @@ export function decideReviewMode(i: ReviewModeInput): ReviewModeDecision {
     if ((paths ?? []).some((p) => matchesAny(p, i.prr?.r3_zones ?? []))) why.add('r3_zone');
   }
   if (i.human_authored) why.add('human_led');
+  if (i.mode_e_suspended) why.add('mode_e_suspended');
 
   const users = new Set<string>();
   const others = new Set<string>();

@@ -7,6 +7,7 @@ import {
 } from '@aisdlc/contracts';
 import { openCards, type DecisionDeps } from '@aisdlc/decisions';
 import { err, hashCanonical, ok, type Result } from '@aisdlc/kernel';
+import type { MergerLinksPort } from './clients.js';
 import type { LoopSpec } from '@aisdlc/loops';
 import { EVENT_COLUMNS, toRecordEvent, type EventRow, type Executor } from '@aisdlc/record';
 import { coreError, type CoreError } from './errors.js';
@@ -32,6 +33,12 @@ const TYPES = [GATECHECK_EVENT.bypass_merge, GATECHECK_EVENT.unauthorised_merge]
 
 export interface MergeReviewDeps {
   readonly decisions: DecisionDeps;
+  /**
+   * M15.4: maps a merger who is not on the bypass list (an unauthorised merge) to their principal through identity
+   * links, so they are barred from their own X4; unmapped, only a factory admin decides it. Absent: the merge's X4 has
+   * no requester (as M14.5 opened it).
+   */
+  readonly links?: MergerLinksPort;
 }
 
 export interface MergeReviewReport {
@@ -78,6 +85,79 @@ export interface MergeX4 {
   readonly opened_by: string;
   readonly subject_hash: string;
   readonly facts: Record<string, unknown>;
+  /**
+   * M15.4: who merged, for who may decide: the bypass list's principal (`known`) or the login mapped through identity
+   * links. Mapped: the merger is the requester and is left out of the deciders (barred even as the slot's only
+   * holder). Unmapped: recorded in the facts, and only a factory admin who holds the `x` slot decides.
+   */
+  readonly merger?: {
+    readonly links: MergerLinksPort;
+    readonly login: string | null;
+    readonly known: string | null;
+  };
+}
+
+/** How X4 was told who merged. */
+export type X4MergerMapping = 'bypass_list' | 'linked' | 'unmapped';
+
+/**
+ * Who decides a merge's X4 (M15.4). Fail closed: identity or the slot not answering is an error (the open is tried
+ * again), and nobody left to decide is a refusal, never the merger.
+ */
+export async function x4DecidersFor(
+  decisions: DecisionDeps,
+  links: MergerLinksPort,
+  m: { readonly project_id: string; readonly login: string | null; readonly known: string | null },
+): Promise<
+  Result<
+    {
+      requester: string | null;
+      deciders: string[];
+      facts: Record<string, unknown>;
+    },
+    CoreError
+  >
+> {
+  let principal: string | null = m.known;
+  let mapping: X4MergerMapping = m.known !== null ? 'bypass_list' : 'unmapped';
+  if (principal === null && m.login !== null) {
+    const l = await links.githubLogins([m.login]);
+    if (!l.ok) return err(coreError('unavailable', `identity links: ${l.error.message}`));
+    principal = l.value[m.login.toLowerCase()] ?? null;
+    if (principal !== null) mapping = 'linked';
+  }
+  const holders = await decisions.eligibility.holders(m.project_id as never, 'x');
+  if (!holders.ok) return err(coreError('unavailable', holders.error.message));
+  let deciders: string[];
+  let basis: 'x_slot_without_merger' | 'factory_admin';
+  if (principal !== null) {
+    deciders = holders.value.filter((h) => h !== principal);
+    basis = 'x_slot_without_merger';
+  } else {
+    const admins = await links.factoryAdmins();
+    if (!admins.ok) return err(coreError('unavailable', `factory admins: ${admins.error.message}`));
+    const a = new Set<string>(admins.value);
+    deciders = holders.value.filter((h) => a.has(h));
+    basis = 'factory_admin';
+  }
+  if (deciders.length === 0) {
+    return err(
+      coreError(
+        'refused',
+        basis === 'factory_admin'
+          ? 'X4: the merger is not linked to a principal and no factory admin holds the x slot'
+          : 'X4: nobody but the merger holds the x slot',
+      ),
+    );
+  }
+  return ok({
+    requester: principal,
+    deciders: [...new Set(deciders)].sort(),
+    facts: {
+      merger: { login: m.login, principal_id: principal, mapping },
+      deciders_basis: basis,
+    },
+  });
 }
 
 /**
@@ -119,13 +199,28 @@ export async function openMergeX4Once(
     try {
       if (await mergeX4Exists(c, m)) return ok({ opened: false });
       const mergeId = mergeSubjectId(m.repo, m.pr_number, m.head_sha);
+      const who = m.merger
+        ? await x4DecidersFor(decisions, m.merger.links, {
+            project_id: m.project_id,
+            login: m.merger.login,
+            known: m.merger.known,
+          })
+        : null;
+      if (who && !who.ok) return who;
       const cards = await openCards(decisions, {
         project_id: m.project_id as never,
-        requester: m.requester as never,
+        requester: (who ? who.value.requester : m.requester) as never,
         subject_kind: 'merge',
         subject_id: mergeId,
         opened_by: m.opened_by,
-        gates: [{ gate_id: 'X4', subject_hash: m.subject_hash, facts: m.facts as never }],
+        gates: [
+          {
+            gate_id: 'X4',
+            subject_hash: m.subject_hash,
+            facts: { ...m.facts, ...(who ? who.value.facts : {}) } as never,
+            ...(who ? { deciders: who.value.deciders as never } : {}),
+          },
+        ],
       });
       if (!cards.ok) {
         return err(coreError('unavailable', `X4 for ${mergeId}: ${cards.error.message}`));
@@ -170,6 +265,15 @@ export async function observeBypassMerges(
       opened_by: 'system.gate-check',
       subject_hash: hashCanonical(p.data as never),
       facts: x4FactsOf(p.data),
+      ...(d.links
+        ? {
+            merger: {
+              links: d.links,
+              login: p.data.merged_by,
+              known: p.data.bypass_person?.principal_id ?? null,
+            },
+          }
+        : {}),
     });
     if (!cards.ok) return cards;
     if (cards.value.opened) opened += 1;
