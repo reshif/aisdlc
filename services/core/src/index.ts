@@ -52,5 +52,6 @@ export * from './closeout/index.js';
 export * from './release/binding.js';
 export * from './release/port.js';
 export * from './conversation/index.js';
+export * from './issue-twin/index.js';
 export * from './factory-m1.js';
 export * from './config-console.js';

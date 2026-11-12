@@ -9,7 +9,7 @@ import { getProjectState } from './queries.js';
 // The bootstrap decider (PLAN M7.4; user decision 2026-11-08). A project that has never published
 // a role map has nobody who holds any slot, so nobody could decide its first onboarding. On that
 // first onboarding the requester, who passed the `project.onboard` PDP check, is the provisional
-// admin of THAT S0 record's cards 1, 4 and 5 (and of the M1 gate that publishes card 4's own
+// admin of THAT S0 record's cards 1, 2, 4 and 5 (card 2 by the user decision of 2026-11-12; and of the M1 gate that publishes card 4's own
 // revision, which the same admin slot decides). Rules, all enforced here:
 //
 //   - recorded at the intake: an `s0.bootstrap_granted` event on the S0 record and a ledger entry
@@ -21,7 +21,7 @@ import { getProjectState } from './queries.js';
 //   - only for the S0 record that holds the grant, and only while that record has not ended;
 //   - at most one live grant per project: a second onboarding of the same project gets none.
 
-/** The slot the provisional grant resolves. Card 4's M1 gate and cards 1, 4 and 5 all use it. */
+/** The slot the provisional grant resolves. Card 4's M1 gate and cards 1, 2, 4 and 5 all use it. */
 export const BOOTSTRAP_SLOT: RoleSlot = 'admin';
 
 export { hasPublishedSettings, liveBootstrap, type LiveBootstrap };

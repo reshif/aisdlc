@@ -63,7 +63,7 @@ describe('the grant at the intake', () => {
       project_id: c.project,
       grantee: 'alice',
       slot: 'admin',
-      cards: ['C1', 'C4', 'C5'],
+      cards: ['C1', 'C2', 'C4', 'C5'],
       basis: 'first_onboarding_no_role_map',
       ledger_entry_id: c.intake.value.bootstrap?.ledger_entry_id,
     });
@@ -83,7 +83,7 @@ describe('the grant at the intake', () => {
         kind: 'bootstrap_grant',
         grantee: 'alice',
         slot: 'admin',
-        cards: ['C1', 'C4', 'C5'],
+        cards: ['C1', 'C2', 'C4', 'C5'],
         project_id: c.project,
       },
     });
@@ -92,6 +92,7 @@ describe('the grant at the intake', () => {
     expect(await liveBootstrap(s.record.pool, c.project)).toEqual({
       s0_id: c.s0,
       grantee: 'alice',
+      cards: ['C1', 'C2', 'C4', 'C5'],
     });
   });
 
@@ -116,6 +117,7 @@ describe('the grant at the intake', () => {
     expect(await liveBootstrap(s.record.pool, c.project)).toEqual({
       s0_id: c.s0,
       grantee: 'alice',
+      cards: ['C1', 'C2', 'C4', 'C5'],
     });
 
     // a project whose role map is published: a later onboarding gets none
@@ -156,6 +158,7 @@ describe('the grant at the intake', () => {
     expect(await liveBootstrap(s.record.pool, c.project)).toEqual({
       s0_id: again.value.s0_id,
       grantee: 'alice',
+      cards: ['C1', 'C2', 'C4', 'C5'],
     });
   });
 

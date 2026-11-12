@@ -98,6 +98,27 @@ export interface FakeSecondApp {
   readonly permissions: Record<string, string>;
 }
 
+/** M16: the issue tracker's App on the same host (`issues: write`); the issues it files are authored by `login`. */
+export interface FakeTrackerApp extends FakeSecondApp {
+  readonly login: string;
+}
+
+/** An issue on the fake host (M16). Issues and pull requests share one number sequence per repo, as on GitHub. */
+export interface FakeIssueRecord {
+  readonly repo: string;
+  readonly number: number;
+  title: string;
+  body: string;
+  state: 'open' | 'closed';
+  state_reason: string | null;
+  labels: string[];
+  readonly user: { login: string; type: 'User' | 'Bot' };
+  closed_by: string | null;
+  /** `deleted` answers 410 Gone, `transferred` 301 Moved Permanently, as GitHub does. */
+  gone: 'deleted' | 'transferred' | null;
+  readonly comments: Array<{ id: number; by: string; body: string }>;
+}
+
 export interface FakeGitHubServerOptions {
   readonly appId: string;
   /** PEM of the App's PUBLIC key; the server verifies JWTs with it. */
@@ -113,6 +134,8 @@ export interface FakeGitHubServerOptions {
   readonly onRequest?: (r: FakeGitHubRequest) => void;
   /** M14.5: gate-check's App on the same host. */
   readonly checksApp?: FakeSecondApp;
+  /** M16: the issue tracker's App on the same host. */
+  readonly trackerApp?: FakeTrackerApp;
   /** M15.3: gate-relay's App on the same host (`deployments: write`). */
   readonly deployApp?: FakeSecondApp;
   /** The login the Push Broker's PRs are authored by (default `aisdlc[bot]`). */
@@ -123,7 +146,7 @@ export interface FakeGitHubServerOptions {
   readonly extraListens?: ReadonlyArray<{ readonly host: string; readonly port: number }>;
 }
 
-type AppName = 'main' | 'checks' | 'deploys';
+type AppName = 'main' | 'checks' | 'deploys' | 'tracker';
 
 const ISO = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 const LEVEL: Record<string, number> = { read: 1, write: 2, admin: 3 };
@@ -153,6 +176,9 @@ export class FakeGitHubServer {
   readonly objects: GitObjects;
   readonly pulls: FakePull[] = [];
   readonly checkRuns: FakeCheckRun[] = [];
+  readonly issues: FakeIssueRecord[] = [];
+  /** The fields every issue write (POST or PATCH) carried, in order: what the tracker asked GitHub to change. */
+  readonly issueWrites: Array<{ method: string; path: string; keys: string[] }> = [];
   readonly deployments: FakeDeployment[] = [];
   private server: Server | null = null;
   private extra: Server[] = [];
@@ -178,7 +204,64 @@ export class FakeGitHubServer {
     this.objects.load(seed);
     this.pulls.length = 0;
     this.checkRuns.length = 0;
+    this.issues.length = 0;
+    this.issueWrites.length = 0;
     this.deployments.length = 0;
+    return this;
+  }
+
+  /** The next issue or pull request number of a repo: GitHub numbers both in one sequence. */
+  private nextNumber(repo: string): number {
+    const same = (r: string) => repoKey(r) === repoKey(repo);
+    return (
+      Math.max(
+        0,
+        ...this.pulls.filter((x) => same(x.repo)).map((x) => x.number),
+        ...this.issues.filter((x) => same(x.repo)).map((x) => x.number),
+      ) + 1
+    );
+  }
+
+  /** M16: a person files an issue (the test's hand). */
+  openIssue(
+    repo: string,
+    o: { title: string; body?: string; labels?: readonly string[]; author: string },
+  ): number {
+    const i: FakeIssueRecord = {
+      repo,
+      number: this.nextNumber(repo),
+      title: o.title,
+      body: o.body ?? '',
+      state: 'open',
+      state_reason: null,
+      labels: [...(o.labels ?? [])],
+      user: { login: o.author, type: 'User' },
+      closed_by: null,
+      gone: null,
+      comments: [],
+    };
+    this.issues.push(i);
+    return i.number;
+  }
+
+  issueOf(repo: string, number: number): FakeIssueRecord {
+    const i = this.issues.find((x) => repoKey(x.repo) === repoKey(repo) && x.number === number);
+    if (!i) throw new Error(`no issue ${number}`);
+    return i;
+  }
+
+  /** A person closes an issue on the host. */
+  closeIssueAs(repo: string, number: number, by: string): this {
+    const i = this.issueOf(repo, number);
+    i.state = 'closed';
+    i.state_reason = 'completed';
+    i.closed_by = by;
+    return this;
+  }
+
+  /** The issue is deleted (410) or transferred to another repo (301). */
+  removeIssue(repo: string, number: number, how: 'deleted' | 'transferred' = 'deleted'): this {
+    this.issueOf(repo, number).gone = how;
     return this;
   }
 
@@ -205,7 +288,7 @@ export class FakeGitHubServer {
     this.moveBranch(repo, o.head_ref, o.head_sha);
     const r = this.seed.repos.find((x) => repoKey(x.full_name) === repoKey(repo));
     const p: FakePull = {
-      number: this.pulls.filter((x) => repoKey(x.repo) === repoKey(repo)).length + 1,
+      number: this.nextNumber(repo),
       repo,
       title: o.title ?? 'A change',
       body: o.body ?? '',
@@ -351,13 +434,16 @@ export class FakeGitHubServer {
     return status;
   }
 
-  /** The App a JWT is from (`main`, `checks` for gate-check's, `deploys` for gate-relay's), or `null`. */
+  /** The App a JWT is from (`main`, `checks` for gate-check's, `deploys` for gate-relay's, `tracker` for the issue
+   * tracker's), or `null` when it verifies for none. */
   private jwtApp(token: string): AppName | null {
     if (this.verifyJwt(token, this.o.appId, this.o.appPublicKeyPem)) return 'main';
     const c = this.o.checksApp;
     if (c && this.verifyJwt(token, c.appId, c.appPublicKeyPem)) return 'checks';
     const d = this.o.deployApp;
     if (d && this.verifyJwt(token, d.appId, d.appPublicKeyPem)) return 'deploys';
+    const t = this.o.trackerApp;
+    if (t && this.verifyJwt(token, t.appId, t.appPublicKeyPem)) return 'tracker';
     return null;
   }
 
@@ -446,10 +532,19 @@ export class FakeGitHubServer {
       // each App mints tokens for its own installation only
       const c = this.o.checksApp;
       const dep = this.o.deployApp;
+      const t = this.o.trackerApp;
       const forChecks = c !== undefined && Number(mint[1]) === c.installationId;
-      const forDeploys = dep !== undefined && Number(mint[1]) === dep.installationId;
-      const second = forChecks ? c : forDeploys ? dep : undefined;
-      const owner: AppName = forChecks ? 'checks' : forDeploys ? 'deploys' : 'main';
+      const forDeploys = !forChecks && dep !== undefined && Number(mint[1]) === dep.installationId;
+      const forTracker =
+        !forChecks && !forDeploys && t !== undefined && Number(mint[1]) === t.installationId;
+      const second = forChecks ? c : forDeploys ? dep : forTracker ? t : undefined;
+      const owner: AppName = forChecks
+        ? 'checks'
+        : forDeploys
+          ? 'deploys'
+          : forTracker
+            ? 'tracker'
+            : 'main';
       if (who.app !== owner) {
         return void log(this.json(res, 404, notFound));
       }
@@ -484,7 +579,7 @@ export class FakeGitHubServer {
         token,
         permissions,
         expires_at: expires,
-        app_id: second ? Number(second.appId) || 2 : this.mainAppId,
+        app_id: second ? Number(second.appId) || (forTracker ? 3 : 2) : this.mainAppId,
       });
       return void log(
         this.json(res, 201, {
@@ -581,6 +676,35 @@ export class FakeGitHubServer {
         .filter((p) => head === '' || `${full.split('/')[0]}:${p.head.ref}` === head)
         .map((p) => this.pullJson(p));
       return void log(this.page(res, url, list, (items) => items));
+    }
+    if (rest === 'issues') {
+      // M16: the issues of a repo (GitHub lists pull requests here too, marked `pull_request`; none carry labels here)
+      if (!needs('issues')) return void log(forbidden());
+      const state = url.searchParams.get('state') ?? 'open';
+      const labels = (url.searchParams.get('labels') ?? '').split(',').filter((x) => x !== '');
+      const list = this.issues
+        .filter((i) => same(i.repo) && i.gone === null)
+        .filter((i) => state === 'all' || i.state === state)
+        .filter((i) => labels.every((l) => i.labels.includes(l)))
+        .map((i) => this.issueJson(i, false));
+      return void log(this.page(res, url, list, (items) => items));
+    }
+    if ((c = /^issues\/(\d+)$/.exec(rest))) {
+      if (!needs('issues')) return void log(forbidden());
+      const i = this.issues.find((x) => same(x.repo) && x.number === Number(c![1]));
+      if (!i) return void log(this.json(res, 404, notFound));
+      if (i.gone === 'deleted')
+        return void log(this.json(res, 410, { message: 'This issue was deleted', status: '410' }));
+      if (i.gone === 'transferred')
+        return void log(
+          this.json(
+            res,
+            301,
+            { message: 'Moved Permanently', url: `${this.baseUrl}/repos/acme/elsewhere/issues/1` },
+            { location: `${this.baseUrl}/repos/acme/elsewhere/issues/1` },
+          ),
+        );
+      return void log(this.json(res, 200, this.issueJson(i, true)));
     }
     if ((c = /^pulls\/(\d+)\/commits$/.exec(rest))) {
       if (!needs('pull_requests')) return void log(forbidden());
@@ -768,6 +892,32 @@ export class FakeGitHubServer {
     return void log(this.json(res, 404, notFound));
   }
 
+  /** An issue as GitHub's REST API shows it; `closed_by` only on the single issue, as GitHub. */
+  private issueJson(i: FakeIssueRecord, single: boolean): Record<string, unknown> {
+    return {
+      url: `${this.baseUrl}/repos/${i.repo}/issues/${i.number}`,
+      html_url: `https://github.example/${i.repo}/issues/${i.number}`,
+      number: i.number,
+      state: i.state,
+      state_reason: i.state_reason,
+      title: i.title,
+      body: i.body,
+      labels: i.labels.map((name, k) => ({ id: k + 1, name })),
+      user: { login: i.user.login, type: i.user.type },
+      comments: i.comments.length,
+      ...(single
+        ? { closed_by: i.closed_by === null ? null : { login: i.closed_by, type: 'User' } }
+        : {}),
+    };
+  }
+
+  /** The login an App writes as on this host (an App's issues and PRs are authored by its bot). */
+  private loginOf(appId: number): string {
+    const t = this.o.trackerApp;
+    if (t && appId === (Number(t.appId) || 3)) return t.login;
+    return this.o.brokerLogin ?? 'aisdlc[bot]';
+  }
+
   private pullJson(p: FakePull): Record<string, unknown> {
     // a pull request's head follows its branch, as on GitHub
     const live = this.seed.heads.find(
@@ -947,7 +1097,7 @@ export class FakeGitHubServer {
         return bad('A pull request already exists for this head');
       }
       const p: FakePull = {
-        number: this.pulls.filter((x) => same(x.repo)).length + 1,
+        number: this.nextNumber(full),
         repo: full,
         title: String(j['title'] ?? ''),
         body: String(j['body'] ?? ''),
@@ -1029,6 +1179,55 @@ export class FakeGitHubServer {
         conclusion: run.conclusion,
         app: { id: appId },
       });
+    }
+    if ((c = /^issues(?:\/(\d+)(\/comments)?)?$/.exec(rest))) {
+      // M16: what the tracker writes. GitHub needs `issues: write`; an App's issue is authored by its bot.
+      if (!canWrite('issues')) return denied();
+      this.issueWrites.push({ method, path: rest, keys: Object.keys(j).sort() });
+      const login = this.loginOf(appId);
+      if (method === 'POST' && c[1] === undefined) {
+        if (typeof j['title'] !== 'string' || j['title'] === '') return bad('title is required');
+        const labels = Array.isArray(j['labels']) ? (j['labels'] as unknown[]).map(String) : [];
+        const i: FakeIssueRecord = {
+          repo: full,
+          number: this.nextNumber(full),
+          title: j['title'],
+          body: typeof j['body'] === 'string' ? j['body'] : '',
+          state: 'open',
+          state_reason: null,
+          labels,
+          user: { login, type: 'Bot' },
+          closed_by: null,
+          gone: null,
+          comments: [],
+        };
+        this.issues.push(i);
+        return this.json(res, 201, this.issueJson(i, true));
+      }
+      const i = this.issues.find((x) => same(x.repo) && x.number === Number(c![1]));
+      if (!i || i.gone !== null) return this.json(res, 404, notFound);
+      if (method === 'POST' && c[2] === '/comments') {
+        if (typeof j['body'] !== 'string' || j['body'] === '') return bad('body is required');
+        const id = this.issues.reduce((n, x) => n + x.comments.length, 0) + 1;
+        i.comments.push({ id, by: login, body: j['body'] });
+        return this.json(res, 201, { id, body: j['body'], user: { login, type: 'Bot' } });
+      }
+      if (method === 'PATCH' && c[2] === undefined) {
+        if (typeof j['title'] === 'string') i.title = j['title'];
+        if (typeof j['body'] === 'string') i.body = j['body'];
+        if (Array.isArray(j['labels'])) i.labels = (j['labels'] as unknown[]).map(String);
+        if (j['state'] === 'closed' && i.state !== 'closed') {
+          i.state = 'closed';
+          i.closed_by = login;
+          i.state_reason = typeof j['state_reason'] === 'string' ? j['state_reason'] : 'completed';
+        } else if (j['state'] === 'open') {
+          i.state = 'open';
+          i.closed_by = null;
+          i.state_reason = 'reopened';
+        }
+        return this.json(res, 200, this.issueJson(i, true));
+      }
+      return this.json(res, 404, notFound);
     }
     if (method === 'PATCH' && (c = /^pulls\/(\d+)$/.exec(rest))) {
       if (!canWrite('pull_requests')) return denied();

@@ -28,6 +28,9 @@ import type {
   PortalSettingsRevision,
   ProjectDetail,
   ProjectPrrView,
+  PortalIssueTwinView,
+  IssueTwinBatchResult,
+  IssueTwinRequestResult,
   ProjectSummary,
   S0Overview,
   EvidencePackView,
@@ -409,6 +412,16 @@ export const api = {
     request<CardDecision>('POST', `/api/cards/${encodeURIComponent(id)}/decide`, b, csrf),
   recheck: (id: string, csrf: string) =>
     request<unknown>('POST', `/api/cards/${encodeURIComponent(id)}/recheck`, {}, csrf),
+  /** Card 2 (M16): ask for the onboarding probe again (only when it ran nothing; the factory records the request). */
+  retryProbe: (id: string, csrf: string) =>
+    request<unknown>('POST', `/api/cards/${encodeURIComponent(id)}/probe/retry`, {}, csrf),
+  /** Card 2: edit one file's proposed instruction text (secret-scanned by the factory before it is stored). */
+  editInstructions: (
+    id: string,
+    b: { path: string; text: string; base_text_sha256: string | null },
+    csrf: string,
+  ) =>
+    request<CardDetailWire>('POST', `/api/cards/${encodeURIComponent(id)}/instructions`, b, csrf),
   stepUpStart: (b: { subject_hash: string; return_to: string }, csrf: string) =>
     request<StepUpStart>('POST', '/api/step-up', b, csrf),
   stepUpCollect: (attempt: string) =>
@@ -470,6 +483,30 @@ export const api = {
     request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
+  // ------------------------------------------------------------ the GitHub issue twin (M16)
+  issueTwin: (project: string) =>
+    request<PortalIssueTwinView>('GET', `/api/projects/${encodeURIComponent(project)}/issue-twin`),
+  issueTwinBatch: (
+    project: string,
+    b: {
+      repo: string;
+      rows: ReadonlyArray<{ gap_id: string; disposition: 'file_issue' | 'track_only' }>;
+    },
+    csrf: string,
+  ) =>
+    request<IssueTwinBatchResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/issue-twin/batches`,
+      b,
+      csrf,
+    ),
+  issueTwinRequest: (project: string, b: { repo: string; gap_id: string }, csrf: string) =>
+    request<IssueTwinRequestResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/issue-twin/requests`,
+      b,
+      csrf,
+    ),
   // ------------------------------------------------------------ the assistant (M18)
   ask: (input: AskInput, csrf: string) =>
     request<AskResult>('POST', '/api/assistant/ask', input, csrf),

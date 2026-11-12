@@ -1,4 +1,10 @@
-import type { SandboxGrantRef } from '@aisdlc/contracts';
+import {
+  ONBOARDING_PROBE_UNIT,
+  PROBE_GRANT_LEASE_EPOCH,
+  PROBE_GRANT_TTL_S,
+  type SandboxClass,
+  type SandboxGrantRef,
+} from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import type pg from 'pg';
 
@@ -7,18 +13,32 @@ import type pg from 'pg';
 // then asks for a session naming it. Before a session the controller reads that row and refuses unless the grant is
 // ACTIVE, for exactly the item, Unit and lease epoch named (a waiting grant released its slot in HUMAN-WAIT; a
 // released one, or a stale epoch, has no session). The database answering nothing is "cannot tell": refused.
+//
+// M16: an onboarding probe has no work item. Its grant names the Unit `onboarding-probe` and the S0 record as the
+// item, and is read from core's probe grants (`core.probe_grant`, a view of the `probe.granted` events' read model):
+// active only for class K-exec, at lease epoch 1, while it is `granted` (not yet recorded) and younger than
+// `PROBE_GRANT_TTL_S`. A probe grant never starts any other class, and an admission grant never names that Unit.
 
 export type GrantCheck = 'active' | 'not_active';
 
 export interface GrantVerifier {
-  check(ref: SandboxGrantRef): Promise<Result<GrantCheck, { message: string }>>;
+  /** `cls` is the class of the session asked for: a probe grant is for K-exec only. */
+  check(ref: SandboxGrantRef, cls: SandboxClass): Promise<Result<GrantCheck, { message: string }>>;
 }
+
+/** The grant names an onboarding probe (not a work item's Unit). */
+export const isProbeGrant = (ref: SandboxGrantRef): boolean =>
+  ref.unit_id === ONBOARDING_PROBE_UNIT;
 
 /** Reads `core.admission_grant` (the controller's role has SELECT on that one table of core). */
 export class RecordGrants implements GrantVerifier {
   constructor(private readonly pool: Pick<pg.Pool, 'query'>) {}
 
-  async check(ref: SandboxGrantRef): Promise<Result<GrantCheck, { message: string }>> {
+  async check(
+    ref: SandboxGrantRef,
+    cls: SandboxClass,
+  ): Promise<Result<GrantCheck, { message: string }>> {
+    if (isProbeGrant(ref)) return this.checkProbe(ref, cls);
     try {
       const q = await this.pool.query<{
         item_id: string;
@@ -43,6 +63,29 @@ export class RecordGrants implements GrantVerifier {
       });
     }
   }
+
+  private async checkProbe(
+    ref: SandboxGrantRef,
+    cls: SandboxClass,
+  ): Promise<Result<GrantCheck, { message: string }>> {
+    if (cls !== 'K-exec' || ref.lease_epoch !== PROBE_GRANT_LEASE_EPOCH) return ok('not_active');
+    try {
+      const q = await this.pool.query<{ s0_id: string; status: string; fresh: boolean }>(
+        `SELECT s0_id::text AS s0_id, status,
+                granted_at > now() - make_interval(secs => $2) AS fresh
+           FROM core.probe_grant WHERE probe_id = $1`,
+        [ref.grant_id, PROBE_GRANT_TTL_S],
+      );
+      const g = q.rows[0];
+      const active =
+        g !== undefined && g.status === 'granted' && g.fresh === true && g.s0_id === ref.item_id;
+      return ok(active ? 'active' : 'not_active');
+    } catch (e) {
+      return err({
+        message: e instanceof Error ? e.constructor.name : 'the probe grant could not be read',
+      });
+    }
+  }
 }
 
 /** Deterministic verifier for tests: the grants it was told are active (by id, with their item, Unit and epoch). */
@@ -64,9 +107,16 @@ export class FakeGrants implements GrantVerifier {
     return this;
   }
 
-  async check(ref: SandboxGrantRef): Promise<Result<GrantCheck, { message: string }>> {
+  async check(
+    ref: SandboxGrantRef,
+    cls: SandboxClass,
+  ): Promise<Result<GrantCheck, { message: string }>> {
     this.asked.push(ref);
     if (this.down) return err({ message: 'the record is unreachable' });
+    // the same class rule as the record's: a probe grant starts K-exec only, at epoch 1
+    if (isProbeGrant(ref) && (cls !== 'K-exec' || ref.lease_epoch !== PROBE_GRANT_LEASE_EPOCH)) {
+      return ok('not_active');
+    }
     const g = this.active.get(ref.grant_id);
     const same =
       g !== undefined &&

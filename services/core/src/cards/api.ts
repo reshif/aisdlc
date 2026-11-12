@@ -1,5 +1,6 @@
 import {
   C1DecisionContent,
+  C2DecisionContent,
   gatePolicy,
   C4DecisionContent,
   C5DecisionContent,
@@ -11,6 +12,7 @@ import {
   VoteDecision,
   s0Stream,
   type CardPayloadItem,
+  type InstructionPath,
   type OnboardingCardSummary,
   type PrincipalId,
   type Sha256Hex,
@@ -22,7 +24,9 @@ import {
   readCardOpened,
   type CardDecisionResult,
 } from '@aisdlc/decisions';
-import { err, ok, type Result } from '@aisdlc/kernel';
+import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
+import { boundHashOf, defaultBoundHash, planC2 } from '@aisdlc/onboarding';
+import { c2View, editInstructionText, loadC2Context, type C2Ctx } from './light.js';
 import { z } from 'zod';
 import { prrByHash, recordControlsSeen } from '../m4.js';
 import { coreError, type CoreError } from '../errors.js';
@@ -63,6 +67,7 @@ import { clockOf } from '../journal.js';
 
 type Ctx =
   | { kind: 'C1'; c: C1Ctx }
+  | { kind: 'C2'; c: C2Ctx }
   | { kind: 'C4'; c: C4Ctx; reduced: boolean; requestedBy: PrincipalId }
   | { kind: 'C5'; c: C5Ctx }
   | { kind: 'SECR' };
@@ -108,6 +113,10 @@ async function contextOf(
       const c = await c1Context(deps, loaded);
       return c.ok ? ok({ ctx: { kind: 'C1', c: c.value }, view: c1View(c.value, loaded.s0) }) : c;
     }
+    case 'C2': {
+      const c = await loadC2Context(deps, loaded, card);
+      return c.ok ? ok({ ctx: { kind: 'C2', c: c.value }, view: c2View(c.value, loaded.s0) }) : c;
+    }
     case 'C4': {
       const raised = [...loaded.events]
         .reverse()
@@ -143,6 +152,7 @@ async function contextOf(
 
 const SCHEMAS: Readonly<Record<HandledCard, z.ZodType>> = {
   C1: C1DecisionContent,
+  C2: C2DecisionContent,
   C4: C4DecisionContent,
   C5: C5DecisionContent,
   SECR: SecrDecisionContent,
@@ -287,7 +297,16 @@ export async function prepareOnboardingCard(
   }
   const n = p.value.step_nonce;
   if (!n) return err(coreError('conflict', 'the card has no step to decide'));
-  return ok({ nonce: n.nonce, expires_at: n.expires_at, evidence_hash: evidence, step_up: null });
+  // Card 2: affirming instruction text needs the D37 step-up, bound to the files and their text
+  // hashes (DEC-11(c-i)). This is the hash when every affirmable file is affirmed; `null`: none is.
+  const ctx = built.value.ctx;
+  const bound = ctx.kind === 'C2' ? defaultBoundHash(ctx.c) : null;
+  return ok({
+    nonce: n.nonce,
+    expires_at: n.expires_at,
+    evidence_hash: evidence,
+    step_up: bound === null ? null : { required: true, bound_hash: bound },
+  });
 }
 
 export async function recordOnboardingEvidence(
@@ -354,20 +373,22 @@ export async function decideOnboardingCard(
     const planned =
       ctx.kind === 'C1'
         ? planC1(ctx.c, input.content, now)
-        : ctx.kind === 'C4'
-          ? planC4(ctx.c, input.content, {
-              project: card.state.open.project_id,
-              actor: input.principal,
-              now,
-            })
-          : ctx.kind === 'C5'
-            ? planC5(ctx.c, input.content)
-            : (() => {
-                const s = planSecr(card.finding_id as string, input.content);
-                if (!s.ok) return s;
-                findingReason = s.value.reason;
-                return ok(s.value.payload);
-              })();
+        : ctx.kind === 'C2'
+          ? await planLight(deps, ctx.c, input)
+          : ctx.kind === 'C4'
+            ? planC4(ctx.c, input.content, {
+                project: card.state.open.project_id,
+                actor: input.principal,
+                now,
+              })
+            : ctx.kind === 'C5'
+              ? planC5(ctx.c, input.content)
+              : (() => {
+                  const s = planSecr(card.finding_id as string, input.content);
+                  if (!s.ok) return s;
+                  findingReason = s.value.reason;
+                  return ok(s.value.payload);
+                })();
     if (!planned.ok) return planned;
     payload = planned.value;
   } else if (card.kind === 'SECR') {
@@ -477,5 +498,62 @@ export async function recheckControls(
     );
   });
   if (!w.ok) return w;
+  return cardDetail(deps, input.card_id);
+}
+
+/**
+ * Card 2's approval: the D37 step-up first (bound to exactly the files affirmed and their text
+ * hashes; a missing or wrong proof is refused before anything is written), then the payload plan
+ * (LF5, LF6, secrets). The proof's hash is the affirmation's `step_up_ref`; the proof is not kept.
+ */
+async function planLight(
+  deps: CardDeps,
+  c: C2Ctx,
+  input: { principal: PrincipalId; content?: unknown; step_up?: { proof: string } },
+): Promise<Result<CardPayloadItem[], CoreError>> {
+  const parsed = C2DecisionContent.safeParse(input.content ?? {});
+  if (!parsed.success) return err(coreError('invalid_input', parsed.error.message));
+  const proof = input.step_up?.proof;
+  if (!proof) {
+    return err(
+      coreError('refused', 'step_up_required: affirming instruction text needs the step-up (D37)'),
+    );
+  }
+  const bound = boundHashOf(parsed.data);
+  const v = await deps.decisions.stepUp.verify(proof, bound as Sha256Hex, input.principal);
+  if (!v.ok) return err(coreError('refused', `step_up_invalid: ${v.error.message}`));
+  const planned = planC2(c, parsed.data, { step_up_ref: sha256Hex(proof) });
+  return planned.ok ? planned : err(coreError(planned.error.code, planned.error.message));
+}
+
+/**
+ * Card 2: a person edits one file's proposed text (OB §4.1 item 3). Secret-scanned before it is
+ * stored, reviewed against the factory template, recorded; returns the card as it reads now (its
+ * evidence hash changed: a decision prepared before the edit is refused).
+ */
+export async function editOnboardingInstructions(
+  deps: CardDeps,
+  input: {
+    card_id: string;
+    principal: PrincipalId;
+    path: InstructionPath;
+    text: string;
+    base_text_sha256: string | null;
+  },
+): Promise<Result<CardDetail, CoreError>> {
+  const r = await resolve(deps, input.card_id);
+  if (!r.ok) return r;
+  if (r.value.card.kind !== 'C2') {
+    return err(coreError('invalid_input', 'only card 2 has instruction text to edit'));
+  }
+  const refused = needsOpenLive(r.value);
+  if (refused) return err(refused);
+  const e = await editInstructionText(deps, r.value.loaded, r.value.card, {
+    principal: input.principal,
+    path: input.path,
+    text: input.text,
+    base_text_sha256: input.base_text_sha256,
+  });
+  if (!e.ok) return e;
   return cardDetail(deps, input.card_id);
 }

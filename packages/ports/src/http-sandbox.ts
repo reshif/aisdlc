@@ -53,6 +53,7 @@ export interface HttpSandboxOptions {
 export function sandboxSpecToWire(spec: SandboxSpec): SandboxSpecWire {
   return {
     ...(spec.repo_full_name !== undefined ? { repo_full_name: spec.repo_full_name } : {}),
+    ...(spec.image !== undefined ? { image: spec.image } : {}),
     session_id: spec.session_id,
     class: spec.class,
     command: [...spec.command],
@@ -82,6 +83,7 @@ export function sandboxSpecFromWire(req: SandboxSessionRequest): SandboxSpec {
     : undefined;
   return {
     ...(w.repo_full_name !== undefined ? { repo_full_name: w.repo_full_name } : {}),
+    ...(w.image !== undefined ? { image: w.image } : {}),
     session_id: w.session_id,
     class: w.class,
     command: w.command,

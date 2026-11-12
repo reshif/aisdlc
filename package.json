@@ -25,10 +25,12 @@
     "check:changed": "node scripts/check.mjs --changed",
     "demo:ledger": "npm run build && node scripts/demo-ledger.mjs",
     "evidence:sec-ob-3": "SEC_OB_3_EVIDENCE_DIR=docs/evidence vitest run --project sandbox-driver sec-ob-3",
+    "evidence:sp-std-1": "SP_STD_1_EVIDENCE_DIR=docs/evidence vitest run --project coding-runner isolation",
+    "evidence:sp-std-3": "SP_STD_3_EVIDENCE_DIR=docs/evidence vitest run --project text-lint precision",
     "smoke:compose": "bash platform/compose/smoke.sh",
     "e2e:compose": "bash platform/compose/e2e.sh",
     "live:census": "bash platform/compose/live-census.sh",
-    "lint:shell": "bash -n platform/compose/smoke.sh platform/compose/e2e.sh platform/compose/live-census.sh platform/compose/verify-ledger.sh && (command -v shellcheck >/dev/null && shellcheck -x platform/compose/*.sh platform/compose/init-secrets || echo shellcheck not installed: syntax checked only)"
+    "lint:shell": "bash -n platform/compose/smoke.sh platform/compose/e2e.sh platform/compose/live-census.sh platform/compose/verify-ledger.sh platform/sandbox/onboarding/build.sh && (command -v shellcheck >/dev/null && shellcheck -x platform/compose/*.sh platform/compose/init-secrets || echo shellcheck not installed: syntax checked only)"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

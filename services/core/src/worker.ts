@@ -6,6 +6,10 @@ export * from './clients.js';
 export * from './registry.js';
 export * from './settings.js';
 export { cardsLoop, type CardsLoopOptions } from './cards/loop.js';
+export { instructionTemplateFrom } from './cards/light.js';
+export { probeFilesOf, probeLoop, runOnboardingProbe, type ProbeDeps } from './cards/probe.js';
+export { packLoop, projectPack, type PackDeps } from './cards/pack.js';
+export { lightTestsFrom } from './cards/spikes.js';
 export * from './card-wiring.js';
 export {
   DbWorkInFlight,
@@ -44,3 +48,10 @@ export {
   observeBypassMerges,
   type MergeReviewDeps,
 } from './merge-review.js';
+export {
+  CensusGapRecheck,
+  issueTwinLoop,
+  syncIssueTwins,
+  type IssueTwinSyncDeps,
+  type IssueTwinSyncReport,
+} from './issue-twin/index.js';

@@ -27,7 +27,7 @@ export {
   type EffectiveConfig,
 } from './reader.js';
 export { registerGatewayConfig } from './gateway.js';
-export { registerSandboxConfig } from './sandbox.js';
+export { onboardingImageFrom, registerSandboxConfig } from './sandbox.js';
 export { registerGateCheckConfig } from './gate-check.js';
 export { readReleaseSetting, registerReleaseConfig, type ReleaseRead } from './gate-relay.js';
 export { registerNotificationsConfig } from './notifications.js';

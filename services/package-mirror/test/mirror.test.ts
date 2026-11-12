@@ -19,6 +19,11 @@ beforeAll(async () => {
   mkdirSync(root);
   mkdirSync(join(root, 'simple'));
   writeFileSync(join(root, 'simple', 'pkg-1.0-py3-none-any.whl'), 'wheel-bytes');
+  mkdirSync(join(root, 'simple', 'pkg'));
+  writeFileSync(
+    join(root, 'simple', 'pkg', 'index.html'),
+    '<a href="../pkg-1.0-py3-none-any.whl">pkg-1.0-py3-none-any.whl</a>',
+  );
   symlinkSync(join(dir, 'secret-outside.txt'), join(root, 'link.txt'));
   symlinkSync(dir, join(root, 'dirlink'));
   server = createMirror({ root });
@@ -38,7 +43,17 @@ describe('package mirror', () => {
     const idx = (await (await get('/index.json')).json()) as {
       files: Array<{ path: string; size: number }>;
     };
-    expect(idx.files.map((f) => f.path)).toEqual(['simple/pkg-1.0-py3-none-any.whl']);
+    expect(idx.files.map((f) => f.path)).toEqual([
+      'simple/pkg-1.0-py3-none-any.whl',
+      'simple/pkg/index.html',
+    ]);
+  });
+  it('serves a PEP 503 project page from its index.html; a directory without one is still 404', async () => {
+    const r = await get('/simple/pkg/');
+    expect([r.status, r.headers.get('content-type')]).toEqual([200, 'text/html; charset=utf-8']);
+    expect(await r.text()).toContain('pkg-1.0-py3-none-any.whl');
+    expect((await get('/simple/none/')).status).toBe(404);
+    expect((await get('/simple/')).status).toBe(404);
   });
   it('is read-only: any method but GET and HEAD is 405', async () => {
     for (const method of ['POST', 'PUT', 'DELETE', 'PATCH']) {

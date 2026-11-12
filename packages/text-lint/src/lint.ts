@@ -52,7 +52,7 @@ export const DEFAULT_URL_ALLOW_LIST: readonly string[] = [
 
 export const LONG_PARAGRAPH_CHARS = 600;
 /** Bump when a rule's meaning changes; the detector version embeds it. */
-export const LINT_RULES_REVISION = 1;
+export const LINT_RULES_REVISION = 2;
 
 const finding = (rule: LintRuleId, line: number): LintFinding => ({
   rule,
@@ -149,6 +149,13 @@ const LINE_RULES: readonly LineRule[] = [
   {
     rule: 'L-DIRECTIVE',
     re: /\b(?:exfiltrate|send|upload|post|leak)\b[^\n.]{0,30}\b(?:secrets?|credentials?|tokens?|env(?:ironment)? variables?|\.env|api keys?|private keys?|ssh keys?)\b[^\n.]{0,30}\b(?:to|at|via)\b/i,
+    negatable: true,
+  },
+  // the same with a dotfile: `.env` starts with a dot, so neither a word boundary nor the no-dot run above reaches it
+  // (SP-STD-3 found "send the API keys in .env to ..." missed)
+  {
+    rule: 'L-DIRECTIVE',
+    re: /\b(?:exfiltrate|send|upload|post|leak)\b[^\n]{0,40}(?:^|[\s(`'"])\.(?:env|npmrc|pypirc|netrc|aws\/credentials|ssh\/)[\w./-]*[^\n]{0,30}\b(?:to|at|via)\b/i,
     negatable: true,
   },
   {

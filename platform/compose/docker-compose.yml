@@ -1051,7 +1051,8 @@ services:
       DOCKER_PROXY_MODE: coding
       # M14.2: the sandbox-controller is the one service that drives it (core-worker no longer holds a token here)
       DOCKER_PROXY_CALLERS: sandbox-controller=file:/run/secrets/tok-sandbox-controller-docker-coding,smoke=file:/run/secrets/tok-smoke-docker-coding
-      DOCKER_PROXY_IMAGES: ${SANDBOX_IMAGE:-aisdlc/sandbox:local},${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
+      # M16: plus the onboarding probe image by digest (platform/sandbox/onboarding/build.sh prints it), when built
+      DOCKER_PROXY_IMAGES: ${SANDBOX_IMAGE:-aisdlc/sandbox:local},${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local},${SANDBOX_ONBOARDING_IMAGE:-}
       DOCKER_PROXY_SCRATCH_ROOT: ${SANDBOX_SCRATCH:-/var/lib/aisdlc/sandbox-scratch}
       DOCKER_PROXY_MAX_SANDBOXES: '4'
       DOCKER_PROXY_CODING_CAP: '1'
@@ -1081,7 +1082,8 @@ services:
     profiles: [sandbox]
     command: ['node', '--enable-source-maps', '/app/services/sandbox-controller/dist/main.js']
     environment:
-      # its own least-privilege role (db-init.sh; the config and core migrations grant it two relations)
+      # its own least-privilege role (db-init.sh; the config and core migrations grant it three relations: the
+      # effective config, `core.admission_grant` and, M16, the probe grants `core.probe_grant`)
       SANDBOX_CONTROLLER_DATABASE_URL: file:/run/secrets/db-url-sandbox-controller
       SANDBOX_CONTROLLER_CALLERS: >-
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-sandbox-controller","scopes":["run","read"]},
@@ -1092,6 +1094,9 @@ services:
       SANDBOX_CONTROLLER_PROXY_URL: http://docker-proxy-coding:2375
       SANDBOX_CONTROLLER_PROXY_TOKEN_REF: file:/run/secrets/tok-sandbox-controller-docker-coding
       SANDBOX_CONTROLLER_IMAGE: ${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
+      # M16: the onboarding probe image (a digest) the driver may run; a K-exec session must ALSO name the image the
+      # M1-approved config `onboarding.sandbox_image` names, under a probe grant core recorded (`core.probe_grant`)
+      SANDBOX_CONTROLLER_PROBE_IMAGES: ${SANDBOX_ONBOARDING_IMAGE:-}
       SANDBOX_CONTROLLER_SCRATCH: ${SANDBOX_SCRATCH:-/var/lib/aisdlc/sandbox-scratch}
       SANDBOX_CONTROLLER_MIRROR: ${COMPOSE_PROJECT_NAME:-aisdlc}-package-mirror
       SANDBOX_CONTROLLER_GATEWAY: ${COMPOSE_PROJECT_NAME:-aisdlc}-gateway

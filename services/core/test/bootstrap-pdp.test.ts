@@ -153,7 +153,13 @@ describe('the bootstrap grant in the PDP', () => {
     expect(await decideCard(plain, 'alice', c.project, c5)).toBe(false);
     expect(await decideCard(withGrant, 'alice', c.project, c5)).toBe(true);
     expect(await decideCard(withGrant, 'bob', c.project, c5)).toBe(false);
-    for (const label of ['SECR', 'C2', 'C3', 'BATCH']) {
+    // card 2 (user decision 2026-11-12): the grantee's own onboarding only
+    const c2 = await opened('C2');
+    expect(await decideCard(plain, 'alice', c.project, c2)).toBe(false);
+    expect(await decideCard(withGrant, 'alice', c.project, c2)).toBe(true);
+    expect(await decideCard(withGrant, 'bob', c.project, c2)).toBe(false);
+    expect(await decideCard(withGrant, 'alice', 'some-other-project', c2)).toBe(false);
+    for (const label of ['SECR', 'C3', 'BATCH', 'X2']) {
       expect(await decideCard(withGrant, 'alice', c.project, await opened(label))).toBe(false);
     }
   });

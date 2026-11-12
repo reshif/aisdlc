@@ -90,9 +90,10 @@ beforeAll(async () => {
   await grantFleetRole(s.identity.deps, 'root', 'factory.admin');
 });
 afterAll(async () => {
-  await s.stop();
-  await core.stop();
-  await sc.stop();
+  // a failed beforeAll leaves these unset: report that failure, not a second one here
+  await s?.stop();
+  await core?.stop();
+  await sc?.stop();
 });
 beforeEach(() => {
   core.seen.length = 0;
