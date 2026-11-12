@@ -1450,7 +1450,8 @@ services:
       FAKE_GITHUB_TRACKER_APP_PUBLIC_KEY_FILE: /run/secrets/tracker-app.pub.pem
       FAKE_GITHUB_TRACKER_LOGIN: ${TRACKER_LOGIN:-aisdlc-tracker[bot]}
       FAKE_GITHUB_TRACKER_PORT: '8357'
-    secrets: [github-app.pub.pem, gate-check-app.pub.pem, gate-relay-app.pub.pem, tracker-app.pub.pem]
+    secrets:
+      [github-app.pub.pem, gate-check-app.pub.pem, gate-relay-app.pub.pem, tracker-app.pub.pem]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8353']
       interval: 5s
