@@ -1,4 +1,5 @@
 import {
+  ASSISTANT_ACTIONS,
   AskRequest,
   AskResult,
   PrincipalId,
@@ -20,20 +21,15 @@ import { listThreads, readThread, threadHead } from './store.js';
 
 // The assistant's routes (PLAN M18), for the bff acting for a signed-in person (scope `work`). The person is always
 // `on_behalf_of`; a thread is theirs alone (anybody else's thread reads as missing, the same as no thread). Every route
-// asks the PDP for `project.view` on the subject's project, every time: a person who lost the project loses its
-// threads with it.
-//
-// PDP ACTION. The design reference names `assistant.use`; the action catalogue has no such action, and none is added
-// here (a catalogue action is a policy change with its own review). The nearest existing action is `project.view`
-// (V1 on the subject's project): the assistant answers only from what that person can already see, and what they may
-// DO through a proposal button is decided again by the PDP action of the route the button calls.
+// asks the PDP for `project.view` AND `assistant.use` on the subject's project (`ASSISTANT_ACTIONS`, PLAN §7a), every
+// time: a person who lost the project, or the assistant, loses its threads with it. The assistant answers only from
+// what that person can already see, and what they may DO through a proposal button is decided again by the PDP action
+// of the route the button calls.
 //
 //   POST /v1/assistant/ask                          AskRequest -> AskResult (a new thread, or a turn on one)
 //   GET  /v1/assistant/threads?on_behalf_of=&s0=&project=   the person's threads (one S0 record's, or a project's Ask threads)
 //   GET  /v1/assistant/threads/:id?on_behalf_of=    ThreadView: the turns, the grounding now, the budget left
 //   GET  /v1/assistant/budget?on_behalf_of=         the person's day budget (`assistant_user_day`)
-
-export const ASSISTANT_ACTION: ActionId = 'project.view';
 
 export interface AssistantRouteDeps {
   readonly app: FastifyInstance;
@@ -60,6 +56,21 @@ export function registerAssistantRoutes(r: AssistantRouteDeps): void {
   const { app } = r;
   const fail = (reply: FastifyReply, e: CoreError) =>
     sendError(reply, CORE_STATUS[e.code], e.code, e.message);
+
+  /** Every one of `ASSISTANT_ACTIONS` on the project, in order; the first refusal answers the request. */
+  const guardAll = async (reply: FastifyReply, who: string, project: string) => {
+    for (const a of ASSISTANT_ACTIONS) {
+      if (!(await r.guard(reply, who, a, pdpResource.project(project)))) return false;
+    }
+    return true;
+  };
+  /** The same without answering (filtering a list); any error is a no. */
+  const decideAll = async (who: string, project: string) => {
+    for (const a of ASSISTANT_ACTIONS) {
+      if (!(await r.decide(who, a, pdpResource.project(project)).catch(() => false))) return false;
+    }
+    return true;
+  };
 
   /** The scope, then the deps: an unconfigured assistant answers 503 and nothing else. */
   const pre = (req: FastifyRequest, reply: FastifyReply): AssistantDeps | null => {
@@ -106,9 +117,7 @@ export function registerAssistantRoutes(r: AssistantRouteDeps): void {
     } catch {
       return fail(reply, coreError('unavailable', 'the thread could not be read'));
     }
-    if (!(await r.guard(reply, who, ASSISTANT_ACTION, pdpResource.project(subject.project_id)))) {
-      return;
-    }
+    if (!(await guardAll(reply, who, subject.project_id))) return;
     const done = await ask(d, {
       principal: who,
       thread_id: b.data.thread_id ?? null,
@@ -148,10 +157,7 @@ export function registerAssistantRoutes(r: AssistantRouteDeps): void {
       for (const t of threads) {
         const p = t.subject.project_id;
         if (!seen.has(p)) {
-          seen.set(
-            p,
-            await r.decide(who, ASSISTANT_ACTION, pdpResource.project(p)).catch(() => false),
-          );
+          seen.set(p, await decideAll(who, p));
         }
         if (seen.get(p)) keep.push(t);
       }
@@ -172,11 +178,7 @@ export function registerAssistantRoutes(r: AssistantRouteDeps): void {
     const who = q.data.on_behalf_of;
     const head = await threadHead(d.pool, id as string);
     if (!head || head.owner !== who) return fail(reply, coreError('not_found', 'no such thread'));
-    if (
-      !(await r.guard(reply, who, ASSISTANT_ACTION, pdpResource.project(head.subject.project_id)))
-    ) {
-      return;
-    }
+    if (!(await guardAll(reply, who, head.subject.project_id))) return;
     const v = await threadView(d, who, id as string);
     if (!v) return fail(reply, coreError('not_found', 'no such thread'));
     return ThreadView.parse(v);

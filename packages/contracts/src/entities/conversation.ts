@@ -359,6 +359,16 @@ export type PayloadErasedPayload = z.infer<typeof PayloadErasedPayload>;
 
 export const ASSISTANT_QUESTION_MAX = 2000;
 
+/**
+ * What the PDP must allow on the subject's project before the assistant is asked or a thread is shown (PLAN §7a,
+ * 2026-11-12): seeing the project AND using the assistant. Core and the bff ask both, every time, and the portal's
+ * hint asks both too.
+ */
+export const ASSISTANT_ACTIONS = [
+  'project.view',
+  'assistant.use',
+] as const satisfies readonly ActionId[];
+
 /** `POST /v1/assistant/ask`: a new thread (`subject`) or a turn on an existing one (`thread_id`). */
 export const AskRequest = z
   .strictObject({

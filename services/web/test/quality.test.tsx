@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { me, mockApi, renderAt } from './helpers';
 import { SHA_A, SHA_B, T, agentRow, evalRun, tile } from './screenFixtures';
 
-const AUDITOR = () => me(['audit.read']);
+/** PLAN §7a: Quality is `quality.read` on the fleet. */
+const AUDITOR = () => me(['quality.read']);
 
 const configKey = (key: string, value: unknown) => ({
   key: { key, kind: 'factory', description: key, m1_gated: true },
@@ -77,12 +78,16 @@ describe('quality: agents', () => {
     expect(screen.getByTestId('not-built')).toHaveTextContent('Switching an agent off');
   });
 
-  it('a direct link without audit.read is the 403 page and asks nothing of the API', async () => {
-    const { calls } = mockApi({ 'GET /api/me': { json: me([]) } });
+  it('a direct link without quality.read (audit.read alone) is the 403 page and asks nothing of the API', async () => {
+    const { calls } = mockApi({ 'GET /api/me': { json: me(['audit.read']) } });
     renderAt('/agents');
     await waitFor(() => expect(document.querySelector('[data-status="403"]')).not.toBeNull());
     expect(calls.map((c) => c.path)).not.toContain('/api/agents');
     expect(screen.queryByRole('link', { name: 'Agents' })).toBeNull();
+    expect(document.querySelector('[data-status="403"]')).toHaveTextContent('See Quality');
+    for (const name of ['Evals', 'Models and routes', 'Integrations']) {
+      expect(screen.queryByRole('link', { name })).toBeNull();
+    }
   });
 });
 

@@ -38,6 +38,7 @@ import { loadS0, s0Cards } from './cards/read.js';
 import { decidersFrom, decidersOf } from './cards/views.js';
 import { coreError, type CoreError } from './errors.js';
 import { activeS0Ids, catchUp } from './queries.js';
+import { cardsOfGates } from './item-gates.js';
 import { catchUpFloor, waitingGateOf } from './floor.js';
 import { governingPrr } from '@aisdlc/onboarding/fold';
 import { readPrrState } from './prr-store.js';
@@ -267,6 +268,7 @@ export async function coreInbox(deps: {
         holders: [...who.holders],
         item_id: null,
         gate: null,
+        card_id: CardId.parse(card.card_id),
         // a card is decided by the holders of its slot: none (or T2 with a sole holder) can never decide it
         feasibility: who.error !== null ? 'unknown' : who.can_decide ? 'feasible' : 'infeasible',
         feasibility_reason:
@@ -304,6 +306,7 @@ export async function coreInbox(deps: {
           holders: [...who.holders],
           item_id: null,
           gate: 'M1',
+          card_id: null,
           feasibility: f.state,
           feasibility_reason: f.reason,
         });
@@ -338,6 +341,7 @@ export async function coreInbox(deps: {
       holders: [...who.holders],
       item_id: null,
       gate: null,
+      card_id: CardId.parse(card_id),
       feasibility: who.error !== null ? 'unknown' : who.can_decide ? 'feasible' : 'infeasible',
       feasibility_reason:
         who.error !== null
@@ -373,7 +377,7 @@ export async function coreInbox(deps: {
 
 /**
  * M19: the gates work items wait at, from the floor's read model (a read, never a write path), each with who decides
- * it and whether its quorum is still feasible (`waitingGateOf`: the vote's own rules). Decided on the item's page.
+ * it and whether its quorum is still feasible (`waitingGateOf`: the vote's own rules), and the card it is decided on.
  */
 export async function inboxWorkGates(deps: {
   cards: CardDeps;
@@ -395,6 +399,11 @@ export async function inboxWorkGates(deps: {
       ORDER BY updated_at, item_id LIMIT 500`,
   );
   const eligibility = (deps.config ?? deps.cards.decisions).eligibility;
+  // P1-2: the card each gate is decided on, so the inbox links to it (from the record's `card.opened`)
+  const cards = await cardsOfGates(
+    pool,
+    q.rows.flatMap((r) => r.waiting_gates.map((g) => g.gate_instance_id)),
+  );
   const out: CoreInboxItem[] = [];
   for (const r of q.rows) {
     for (const g of r.waiting_gates) {
@@ -420,6 +429,7 @@ export async function inboxWorkGates(deps: {
         holders: [...(w.deciders ?? [])],
         item_id: r.item_id as never,
         gate: g.gate,
+        card_id: (cards.get(g.gate_instance_id) ?? null) as CoreInboxItem['card_id'],
         feasibility: w.feasibility,
         feasibility_reason: w.feasibility_reason,
       });

@@ -84,7 +84,8 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
 }
 
 /**
- * A work-item gate card: an exception or quarantine gate (Q1 through SECT, E6, X2, X3, E2; M14.6) on its own screen,
+ * A work-item gate card: an exception or quarantine gate (Q1 through SECT, E6, X2, X3, E2; M14.6), X1 and G3o, or the
+ * merge review, release and acceptance (G4, G5, G6; portal review P1-3, P1-7, P1-8) on its own screen,
  * any other (G0 and G1, G1f, G2, G3d, G3, E1) on the artefacts it decides.
  */
 function WorkGateCard({ id, csrf, me }: { id: string; csrf: string; me: string }) {

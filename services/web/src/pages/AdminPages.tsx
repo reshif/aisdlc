@@ -62,9 +62,9 @@ export function PeoplePage() {
         )}
       </Read>
       <NotBuilt title="Suspend, erase, legal hold" milestone="M19">
-        Changing a person (suspension, erasure, legal hold) is the audit backend&rsquo;s and the
-        proposed <code>identity.admin</code> action&rsquo;s (coverage §5 item 6); the portal reads
-        only.
+        Erasure and legal hold are on Govern › Audit under <code>identity.admin</code>; suspending a
+        person and the sign-in settings have no backend route yet, and role bindings change through
+        the role map (<code>access.manage</code> has no route either). The portal reads only here.
       </NotBuilt>
     </>
   );

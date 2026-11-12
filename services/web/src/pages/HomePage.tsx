@@ -5,6 +5,7 @@ import { useAccess } from '../access';
 import { ErrorNote, Loading } from '../components/Notice';
 import { itemKey } from '../components/Read';
 import { shortTime } from '../format';
+import { AskForWorkButton } from '../items/AskForWorkButton';
 import { Link } from '../router';
 import { Card, Chip, EmptyState, PageHead, Pill, Stat, Stats } from '../ui';
 import { levelTitle } from '../vocab';
@@ -61,6 +62,7 @@ export function HomePage({ me }: { me: Me }) {
         }
         actions={
           <>
+            <AskForWorkButton />
             <Link to="/ask" className="ui-btn">
               Ask the factory
             </Link>

@@ -219,7 +219,11 @@ export function proposalButton(
             action_id: p.action,
             label,
             kind: 'navigate',
-            route: { method: 'GET', path: `/projects/${p.target}` },
+            // the portal's Ask-for-work form, with the project chosen (P1-1)
+            route: {
+              method: 'GET',
+              path: `/ask-for-work/${p.target}`,
+            },
             pdp_action: 'work.request',
             resource: pdpResource.project(p.target),
           }

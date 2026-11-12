@@ -5,7 +5,7 @@ import { me, mockApi, renderAt, type Call } from './helpers';
 
 // PLAN M19: Govern › Audit over the audit service. Exports are listed with their anchor and a download of the signed
 // file, and written from a form; erasure and legal holds are guarded by the action the server decides them under
-// (`config.decide` on the fleet: a factory admin's), so an auditor sees them locked; the retention classes are read
+// (`identity.admin` on the fleet: a factory admin's), so an auditor sees them locked; the retention classes are read
 // from the published config with a link to change them there.
 
 const T = '2026-11-12T10:00:00.000Z';
@@ -72,14 +72,14 @@ const HOLD = {
   release_entry_seq: null,
 };
 
-/** The PDP's capability probes: `config.decide` only when `admin`. */
+/** The PDP's capability probes: `identity.admin` only when `admin`. */
 const decide = (admin: boolean) => (c: Call) => ({
   json: {
     decisions: (
       (c.body as { queries?: Array<{ action: string; resource: unknown }> }).queries ?? []
     ).map((q) => ({
       ...q,
-      allow: q.action === 'audit.read' || (admin && q.action === 'config.decide'),
+      allow: q.action === 'audit.read' || (admin && q.action === 'identity.admin'),
       reasons: [],
     })),
   },
@@ -140,7 +140,7 @@ describe('govern: audit (M19)', () => {
     view.unmount();
 
     const m = mockApi({
-      'GET /api/me': { json: me(['audit.read', 'config.decide']) },
+      'GET /api/me': { json: me(['audit.read', 'identity.admin']) },
       'POST /api/me/decisions': decide(true),
       'GET /api/audit/exports': { json: { exports: [] } },
       'GET /api/audit/erasures': { json: { erasures: [ERASURE] } },
@@ -180,7 +180,7 @@ describe('govern: audit (M19)', () => {
   it('shows a refusal from the server where the person acted (a hold blocks the erasure)', async () => {
     const user = userEvent.setup();
     mockApi({
-      'GET /api/me': { json: me(['audit.read', 'config.decide']) },
+      'GET /api/me': { json: me(['audit.read', 'identity.admin']) },
       'POST /api/me/decisions': decide(true),
       'GET /api/audit/exports': { json: { exports: [] } },
       'GET /api/audit/erasures': { json: { erasures: [ERASURE] } },

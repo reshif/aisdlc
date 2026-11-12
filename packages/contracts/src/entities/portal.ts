@@ -5,6 +5,7 @@ import { RepoFullName } from './codehost.js';
 import { VoteDecision } from './decisions.js';
 import { GateStatus } from '../states/gate-instance.js';
 import {
+  CardId,
   GateInstanceId,
   IsoDateTime,
   PrincipalId,
@@ -80,6 +81,11 @@ export const CoreInboxItem = z.strictObject({
   /** A `work_gate`'s item and gate; `null` for the other kinds. */
   item_id: WorkItemId.nullable(),
   gate: GateId.nullable(),
+  /**
+   * The card it is decided on: the card itself for an `onboarding_card`, the decision card a `work_gate` was opened
+   * on (from the record); `null` for the other kinds, and for a work gate whose card the record does not name.
+   */
+  card_id: CardId.nullable(),
   /** M19 GateFeasibility: `infeasible` or `unknown` is flagged (fail closed), never shown as on its way. */
   feasibility: GateFeasibilityState,
   feasibility_reason: z.string().nullable(),

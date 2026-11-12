@@ -1,4 +1,5 @@
 import {
+  ASSISTANT_ACTIONS,
   ASSISTANT_QUESTION_MAX,
   AskResult,
   AssistantBudgetView,
@@ -30,7 +31,7 @@ import type { CoreClient } from './core-client.js';
 //
 // The person is ALWAYS the session's (`on_behalf_of`), never the body's. Their data class on the subject's project is
 // read here from their roles (the same reading as `/api/me/access`) and sent along; core caps it at the assistant's
-// D1. The PDP is asked here (`project.view` on the subject's project: the catalogue has no `assistant.use`) and again
+// D1. The PDP is asked here (`project.view` and `assistant.use` on the subject's project, `ASSISTANT_ACTIONS`) and again
 // by core. The assistant answers; it never decides. A ProposalButton it returns names the normal route and the PDP
 // action, and the portal calls that route under this same session when the person clicks it.
 
@@ -68,6 +69,14 @@ export function registerAssistantRoutes(d: AssistantRouteDeps): void {
     } catch {
       return false;
     }
+  }
+
+  /** The first of `ASSISTANT_ACTIONS` the PDP refuses on the project, or `null` when it allows them all. */
+  async function refusedOn(principal: string, project: string): Promise<ActionId | null> {
+    for (const a of ASSISTANT_ACTIONS) {
+      if (!(await allowed(principal, a, pdpResource.project(project)))) return a;
+    }
+    return null;
   }
 
   const core = (reply: FastifyReply): CoreClient | null => {
@@ -139,9 +148,8 @@ export function registerAssistantRoutes(d: AssistantRouteDeps): void {
     const who = d.principalOf(req);
     const project = await projectOf(reply, c, who, body.data);
     if (!project) return;
-    if (!(await allowed(who, 'project.view', pdpResource.project(project)))) {
-      return sendError(reply, 403, 'forbidden', 'project.view denied');
-    }
+    const refused = await refusedOn(who, project);
+    if (refused) return sendError(reply, 403, 'forbidden', `${refused} denied`);
     const dc = await dataClassOn(d.pool, who, project, d.clock.now()).catch(() => null);
     const r = await c.call('POST', '/v1/assistant/ask', {
       ...body.data,
@@ -183,9 +191,8 @@ export function registerAssistantRoutes(d: AssistantRouteDeps): void {
       (x) => ThreadView.parse(x),
     );
     if (!v) return;
-    if (!(await allowed(who, 'project.view', pdpResource.project(v.thread.subject.project_id)))) {
-      return sendError(reply, 403, 'forbidden', 'project.view denied');
-    }
+    const refused = await refusedOn(who, v.thread.subject.project_id);
+    if (refused) return sendError(reply, 403, 'forbidden', `${refused} denied`);
     return v;
   });
 

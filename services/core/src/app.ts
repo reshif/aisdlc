@@ -108,6 +108,8 @@ import { agentStatsOf, listAgentRuns } from './agent-runs.js';
 import { CorePushGuards } from './build/push.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
+import { itemGateLinks } from './item-gates.js';
+import type { ItemState } from '@aisdlc/work';
 import {
   evidencePackView,
   gateCardContext,
@@ -115,7 +117,7 @@ import {
   signedPackBytes,
 } from './verify/portal.js';
 import type { ObjectStorePort } from '@aisdlc/ports';
-import { answerQuestion, decideReady, submitRequest } from './requests.js';
+import { answerQuestion, decideReady, requestReceipt, submitRequest } from './requests.js';
 import { observeRelane, reRequestRelease, requestRework } from './work-signals.js';
 import { submitHumanPlan } from './planning/human-plan.js';
 import { completeHumanWork } from './work-signals.js';
@@ -414,7 +416,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   });
 
   // M19: HealthTile / HealthSnapshot. The tiles of the Operate › Health screen, the HealthSnapshot rule applied at read
-  // time (older than two minutes: unknown). Scope `portal`: the bff asks the PDP (audit.read on the fleet) first.
+  // time (older than two minutes: unknown). Scope `portal`: the bff asks the PDP (ops.read on the fleet) first.
   app.get('/v1/health', async (req, reply) => {
     if (!allowed(req, 'portal'))
       return sendError(reply, 403, 'forbidden', 'scope portal is needed');
@@ -573,7 +575,12 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       ...(b.value.request_id ? { request_id: b.value.request_id } : {}),
     });
     if (!r.ok) return fail(reply, r.error);
-    return reply.code(r.value.duplicate ? 200 : 201).send(r.value);
+    const receipt = await requestReceipt(
+      r.value,
+      b.value.project_id,
+      (o.config ?? o.cards?.decisions)?.eligibility,
+    );
+    return reply.code(r.value.duplicate ? 200 : 201).send(receipt);
   });
 
   // ------------------------------------------------------------ the R3 circuit breaker (PLAN M9.5)
@@ -745,6 +752,14 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
   });
 
+  /** The card and ledger entry of each of the item's gates (P1-2), from the record. */
+  const gateLinksOf = (st: ItemState) =>
+    itemGateLinks(
+      o.pool,
+      st.item_id,
+      st.gates.map((g) => g.gate_instance_id),
+    );
+
   app.get('/v1/items/:id', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
     const id = params(req)['id'] as string;
@@ -769,7 +784,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     ) {
       return;
     }
-    return itemView(s);
+    return itemView(s, await gateLinksOf(s));
   });
 
   // ------------------------------------------------------------ the portal's actions on an item (PLAN M12.5)
@@ -815,7 +830,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   const maintenanceOn = async (): Promise<boolean> => (await o.config?.maintenance?.()) === true;
   const view = async (id: string) => {
     const again = await readItem(o.pool, id);
-    return again ? itemView(again.state) : null;
+    return again ? itemView(again.state, await gateLinksOf(again.state)) : null;
   };
 
   /** 1.6: the Ready decision. */
@@ -1082,8 +1097,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   });
 
   /**
-   * Acceptance rate, back-edge rate and cost per run of an agent (M11.2), over the fleet (`audit.read`
-   * on the fleet) or one project (`?project=`, `audit.read` on it).
+   * Acceptance rate, back-edge rate and cost per run of an agent (M11.2), over the fleet (`quality.read`
+   * on the fleet) or one project (`?project=`, `quality.read` on it; PLAN §7a).
    */
   app.get('/v1/agents/:id/stats', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -1101,7 +1116,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       !(await guard(
         reply,
         who.data,
-        'audit.read',
+        'quality.read',
         scope === null ? pdpResource.fleet() : pdpResource.project(scope),
       ))
     ) {
@@ -1126,7 +1141,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     return { recorded: !r.value.duplicate };
   });
 
-  /** Who may read the eval history and scores: `audit.read` on the fleet, or on the project tag asked for. */
+  /** Who may read the eval history and scores: `quality.read` on the fleet, or the project tag asked for (PLAN §7a). */
   async function evalReadGuard(req: FastifyRequest, reply: FastifyReply) {
     if (!allowed(req, 'work')) {
       sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -1148,7 +1163,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       !(await guard(
         reply,
         who.data,
-        'audit.read',
+        'quality.read',
         tag === null ? pdpResource.fleet() : pdpResource.project(tag),
       ))
     ) {
