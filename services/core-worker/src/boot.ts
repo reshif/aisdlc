@@ -27,6 +27,8 @@ import {
   gatewayTriggersLoop,
   killObserverLoop,
   mergeReviewLoop,
+  issueTwinLoop,
+  CensusGapRecheck,
   registerCoreConfig,
   constitutionFrom,
   roleMapSyncLoop,
@@ -41,6 +43,7 @@ import {
   workDriverLoop,
   workSettingsFrom,
 } from '@aisdlc/core/worker';
+import { AppKey, GitHubIssueTracker } from '@aisdlc/codehost';
 import { createPool } from '@aisdlc/db';
 import {
   HttpBundleSource,
@@ -423,6 +426,45 @@ export async function bootCoreWorker(
         gatewayTriggersLoop(
           { pool },
           { startDelayMs: 3_000, intervalMs: cfg.gatewayTriggersIntervalMs },
+        ),
+      );
+    }
+    if (cfg.tracker && cfg.knowledge) {
+      // M16: the GitHub issue twin, through its OWN App (issues:write, metadata:read): files the approved batches
+      // and polls their twins; the re-check is knowledge's census at exactly the head the poll recorded.
+      const t = cfg.tracker;
+      supervisor.add(
+        issueTwinLoop(
+          {
+            pool,
+            tracker: new GitHubIssueTracker({
+              baseUrl: t.apiUrl,
+              appId: t.appId,
+              installationId: t.installationId,
+              appKey: AppKey.fromRef(t.appKeyRef),
+              login: t.login,
+              plainHttpHosts: t.plainHttpHosts,
+              log: (line) => log(`issue_twin: ${line}`),
+            }),
+            recheck: new CensusGapRecheck({
+              pool,
+              knowledge: new HttpKnowledge({
+                baseUrl: cfg.knowledge.url,
+                token: cfg.knowledge.token,
+              }),
+            }),
+          },
+          {
+            intervalMs: cfg.issueTwinIntervalMs,
+            startDelayMs: 4_000,
+            onReport: (r) => {
+              if (r.filed + r.reconciled + r.verified + r.unverified + r.lost > 0) {
+                log(
+                  `issue_twin: filed ${r.filed}, reconciled ${r.reconciled}, verified ${r.verified}, unverified ${r.unverified}, lost ${r.lost}`,
+                );
+              }
+            },
+          },
         ),
       );
     }

@@ -46,6 +46,13 @@ import {
   type PullCommit,
 } from './gate-check-host.js';
 import {
+  FakeTrackerView,
+  type FakeIssue,
+  type FakeIssueHost,
+  type FakeTrackerIdentity,
+} from './fake-issue-tracker.js';
+import type { IssueTrackerPort } from './issue-tracker.js';
+import {
   NO_PUSH_GUARDS,
   commitMessage,
   preflightPush,
@@ -175,6 +182,8 @@ export class FakeGitHub implements CodeHostPort {
   private nextCheckRunId = 1;
   private readonly brokerLogin: string;
   private brokenChecks: CodeHostNotOk | null = null;
+  private issuesByRepo = new Map<string, FakeIssue[]>();
+  private nextCommentId = 1;
   /** The Push Broker's App as a credential on this host (its token carries the installation's grant). */
   get pushApp(): FakeAppIdentity {
     return { app_id: FAKE_PUSH_APP_ID, permissions: { ...this.seed.installation.permissions } };
@@ -205,6 +214,7 @@ export class FakeGitHub implements CodeHostPort {
     this.commits = new Map();
     this.prs = new Map();
     this.checkRunsByRepo = new Map();
+    this.issuesByRepo = new Map();
     return this;
   }
 
@@ -564,7 +574,7 @@ export class FakeGitHub implements CodeHostPort {
     const list = this.prs.get(repoKey(repo)) ?? [];
     this.prs.set(repoKey(repo), list);
     this.moveBranch(repo, o.head_ref, o.head_sha);
-    const number = list.length + 1;
+    const number = this.nextNumberOf(repo);
     list.push({
       number,
       head_ref: o.head_ref,
@@ -623,6 +633,100 @@ export class FakeGitHub implements CodeHostPort {
    */
   asApp(app: FakeAppIdentity): GateCheckHostPort {
     return new FakeAppView(this, app);
+  }
+
+  // ---------------------------------------------------------------- M16: issues and the tracker
+
+  /** The next issue or pull request number of a repo: GitHub numbers both in one sequence. */
+  private nextNumberOf(repo: string): number {
+    const prs = this.prs.get(repoKey(repo)) ?? [];
+    const issues = this.issuesByRepo.get(repoKey(repo)) ?? [];
+    return Math.max(0, ...prs.map((p) => p.number), ...issues.map((i) => i.number)) + 1;
+  }
+
+  /** A person files an issue (the test's hand). */
+  openIssue(
+    repo: string,
+    o: { title: string; body?: string; labels?: readonly string[]; author: string },
+  ): number {
+    if (!this.repoKnown(repo)) throw new Error(`no repo ${repo}`);
+    const list = this.issuesByRepo.get(repoKey(repo)) ?? [];
+    this.issuesByRepo.set(repoKey(repo), list);
+    const number = this.nextNumberOf(repo);
+    list.push({
+      number,
+      state: 'open',
+      title: o.title,
+      body: o.body ?? '',
+      labels: [...(o.labels ?? [])],
+      author: { login: o.author, type: 'User' },
+      closed_by: null,
+      gone: false,
+      comments: [],
+    });
+    return number;
+  }
+
+  private issueOf(repo: string, number: number): FakeIssue {
+    const i = this.issuesByRepo.get(repoKey(repo))?.find((x) => x.number === number);
+    if (!i) throw new Error(`no issue ${number}`);
+    return i;
+  }
+
+  /** A person closes an issue on the host. */
+  closeIssueAs(repo: string, number: number, by: string): this {
+    const i = this.issueOf(repo, number);
+    i.state = 'closed';
+    i.closed_by = by;
+    return this;
+  }
+
+  /** A person reopens an issue. */
+  reopenIssueAs(repo: string, number: number): this {
+    const i = this.issueOf(repo, number);
+    i.state = 'open';
+    i.closed_by = null;
+    return this;
+  }
+
+  /** A person edits an issue's title or labels (the twin ignores both). */
+  editIssueAs(repo: string, number: number, o: { title?: string; labels?: string[] }): this {
+    const i = this.issueOf(repo, number);
+    if (o.title !== undefined) i.title = o.title;
+    if (o.labels !== undefined) i.labels = [...o.labels];
+    return this;
+  }
+
+  /** An issue is deleted or transferred away: it reads as not found from now on. */
+  removeIssue(repo: string, number: number): this {
+    this.issueOf(repo, number).gone = true;
+    return this;
+  }
+
+  /** Every issue of a repo with its comments, as a person would see them (tests). */
+  issuesOf(repo: string): readonly FakeIssue[] {
+    return (this.issuesByRepo.get(repoKey(repo)) ?? []).map((i) => ({
+      ...i,
+      labels: [...i.labels],
+      comments: [...i.comments],
+    }));
+  }
+
+  /** The host as the issue tracker's credential sees it (M16): issues only, its own to write to. */
+  asTracker(id: FakeTrackerIdentity): IssueTrackerPort {
+    return new FakeTrackerView(() => this._issues(), id);
+  }
+
+  /** @internal the tracker view's access to the host's state. */
+  _issues(): FakeIssueHost {
+    return {
+      issues: this.issuesByRepo,
+      repoKnown: (repo) => this.repoKnown(repo),
+      log: (method, path) => this.requests.push({ method, path }),
+      broken: () => this.brokenChecks,
+      nextNumber: (repo) => this.nextNumberOf(repo),
+      nextCommentId: () => this.nextCommentId++,
+    };
   }
 
   /** @internal the App views' access to the host's state. */

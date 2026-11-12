@@ -57,6 +57,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
       <p className="actions">
         <Link to={`/projects/${project.project_id}/readiness`}>Readiness record</Link>
         <Link to={`/projects/${project.project_id}/ledger`}>Ledger entries</Link>
+        <Link to={`/projects/${project.project_id}/issues`}>Issue twin</Link>
       </p>
 
       <h2>Repos</h2>
