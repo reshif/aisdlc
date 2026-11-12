@@ -1,5 +1,6 @@
 import {
   ONBOARDING_PACK_RENDERER,
+  PACK_CODEOWNERS_PATH,
   patchHashOf,
   patchSetOf,
   protectedPushPath,
@@ -21,8 +22,11 @@ import { sha256Hex } from '@aisdlc/kernel';
 //   .factory/knowledge/unknowns.yaml the claims the person said they do not know (what the factory must not assume)
 //   .factory/knowledge/pack.json    the manifest: the S0 record, card 2's payload hash, each file's sha256
 //
+//   .github/CODEOWNERS             only when the record resolved owners (the admin slot as linked GitHub logins) and
+//                                   the repo has none: every path owned by them
+//
 // Left out on purpose: the intent and practices answers (a person's words about risk and data, kept in the record and
-// never pushed to a repository that may be public) and CODEOWNERS (the record does not hold owners as logins).
+// never pushed to a repository that may be public).
 // The YAML files are JSON documents (JSON is YAML 1.2), so nothing here needs a YAML writer.
 
 export interface PackInstruction {
@@ -51,6 +55,8 @@ export interface PackInput {
   readonly c2_payload_hash: string;
   readonly instructions: readonly PackInstruction[];
   readonly claims: readonly PackClaim[];
+  /** The GitHub logins the record resolved as owners (`pack.codeowners_resolved`); empty or absent: no CODEOWNERS. */
+  readonly codeowners?: readonly string[];
 }
 
 export interface RenderedPack {
@@ -99,6 +105,19 @@ export function renderOnboardingPack(i: PackInput): RenderedPack | null {
         .map((c) => ({ id: c.id, category: c.category, text: c.text })),
     }),
   });
+  const owners = [...new Set((i.codeowners ?? []).map((l) => l.toLowerCase()))].sort();
+  if (owners.length > 0) {
+    out.push({
+      path: PACK_CODEOWNERS_PATH,
+      source: 'codeowners',
+      content: [
+        `# ${HEADER}`,
+        "# The owners are the project's admin slot, as the GitHub logins linked to their factory principals.",
+        `* ${owners.map((l) => `@${l}`).join(' ')}`,
+        '',
+      ].join('\n'),
+    });
+  }
   if (!out.some((f) => f.source === 'affirmed_instructions') && claims.length === 0) return null;
   const files = out.map((f) => ({
     path: f.path,

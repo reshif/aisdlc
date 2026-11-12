@@ -34,7 +34,8 @@ import {
   runOnboardingProbe,
   type CardDeps,
 } from '../src/index.js';
-import { startCoreStack, type CoreStack } from '../src/testing.js';
+import { publishSettings, startCoreStack, type CoreStack } from '../src/testing.js';
+import { settingsOf } from '@aisdlc/identity/testing';
 import { makeHarness, type Json, type Scn } from './harness.js';
 import { passProbe, probeRig } from './probe-fixtures.js';
 import { decideGate } from './work-fixtures.js';
@@ -479,8 +480,19 @@ describe('R2b: the affirmed pack, record-first, through X2 and the Push Broker',
         'SELECT type, body FROM record.record_event WHERE stream = $1 ORDER BY seq',
         [packStream(c.s0)],
       );
-      expect(packEv.rows.map((r) => r.type)).toEqual([PACK_EVENT.rendered, PACK_EVENT.x2_opened]);
-      expect(packEv.rows[0]?.body).toMatchObject({
+      expect(packEv.rows.map((r) => r.type)).toEqual([
+        PACK_EVENT.codeowners_resolved,
+        PACK_EVENT.rendered,
+        PACK_EVENT.x2_opened,
+      ]);
+      // CODEOWNERS: who it would name is recorded before the first render (here: no role map is published yet)
+      expect(packEv.rows[0]?.body).toEqual({
+        s0_id: c.s0,
+        outcome: 'role_map_unpublished',
+        owners: [],
+      });
+      expect(paths).not.toContain('.github/CODEOWNERS');
+      expect(packEv.rows[1]?.body).toMatchObject({
         c2_card_id: c2,
         patch_hash: v.value.patch_hash,
       });
@@ -558,7 +570,7 @@ describe('R2b: the affirmed pack, record-first, through X2 and the Push Broker',
       expect(await listPushReceipts(s.record.pool, c.s0)).toHaveLength(n);
       // the pack rows are rebuilt from the events alone
       await s.record.pool.query('DELETE FROM core.onboarding_pack WHERE s0_id = $1', [c.s0]);
-      expect(await rebuildPacks({ pool: s.record.pool }, c.s0)).toBe(2);
+      expect(await rebuildPacks({ pool: s.record.pool }, c.s0)).toBe(3);
       const back = await projectPack(deps, c.s0);
       expect(back.ok && back.value).toMatchObject({
         state: 'pushed',
@@ -567,6 +579,56 @@ describe('R2b: the affirmed pack, record-first, through X2 and the Push Broker',
     } finally {
       await host.stop();
     }
+  });
+
+  it('CODEOWNERS: with a published role map, the admin slot as linked logins with write access; the unmapped stay out, recorded', async () => {
+    tests = DEFAULT_LIGHT_TESTS;
+    const c = await atCard2();
+    // the M1 of the settings is decided by an admin other than the proposer
+    s.elig.setHolders(c.project as never, 'admin', ['alice' as never, 'bob' as never]);
+    s.elig.setHolders(c.project as never, 'x', ['bob' as never]);
+    // alice and bob are linked to alice-gh and bob-gh (collaborators with write access); carol has no login
+    await publishSettings(
+      s,
+      c.project,
+      { role_map: settingsOf('x', { admin: ['alice', 'carol'] }).role_map },
+      'bob',
+      'alice',
+    );
+    const deps = {
+      cards: c.deps,
+      push: { pool: s.record.pool, clock: s.clock, ledger: s.deps.ledger as never },
+    };
+    await affirmC2(c);
+    const v = await projectPack(deps, c.s0);
+    if (!v.ok) throw new Error(v.error.message);
+    const co = v.value.files.find((f) => f.path === '.github/CODEOWNERS');
+    expect(co).toMatchObject({ source: 'codeowners' });
+    expect(co?.protected_rule).not.toBeNull();
+    const ev = await s.record.pool.query<{ body: Json }>(
+      'SELECT body FROM record.record_event WHERE stream = $1 AND type = $2',
+      [packStream(c.s0), PACK_EVENT.codeowners_resolved],
+    );
+    expect(ev.rows.map((r) => r.body)).toEqual([
+      {
+        s0_id: c.s0,
+        outcome: 'rendered',
+        owners: [
+          { principal_id: 'alice', login: 'alice-gh', reason: 'mapped' },
+          { principal_id: 'carol', login: null, reason: 'no_linked_login' },
+        ],
+      },
+    ]);
+    // resolved once: a later change to the role map does not change this pack
+    await publishSettings(
+      s,
+      c.project,
+      { role_map: settingsOf('x', { admin: ['bob'] }).role_map },
+      'bob',
+      'alice',
+    );
+    const again = await projectPack(deps, c.s0);
+    expect(again.ok && again.value.patch_hash).toBe(v.value.patch_hash);
   });
 
   it('X2 rejected: nothing is pushed; without a broker an approved pack waits', async () => {

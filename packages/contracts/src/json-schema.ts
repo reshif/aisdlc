@@ -976,6 +976,8 @@ export const SCHEMAS = {
   RepoDriftView: entities.RepoDriftView,
   ProjectDriftView: entities.ProjectDriftView,
   ReaffirmView: entities.ReaffirmView,
+  PackCodeownersOutcome: entities.PackCodeownersOutcome,
+  PackCodeownersResolvedPayload: entities.PackCodeownersResolvedPayload,
   PortalProjectDriftView: entities.PortalProjectDriftView,
   ItemListRow: entities.ItemListRow,
   ItemListView: entities.ItemListView,

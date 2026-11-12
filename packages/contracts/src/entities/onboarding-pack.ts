@@ -19,8 +19,10 @@ import { GitSha, S0RecordId, Sha256Hex } from './ids.js';
 //      different patch); the intent and the receipt are recorded as for every push (`push:<s0>`, record + ledger);
 //   4. a person merges the PR, or does not. The factory never merges; gate-check's `s0` profile never passes it.
 //
-// CODEOWNERS is not rendered: who owns which path is the role map's people as GitHub logins, which the record does
-// not hold yet (a later M16 task), and the proposal never invents owners.
+// CODEOWNERS (M16): rendered only when the repo has none at the census head, from the project's PUBLISHED role map: the
+// admin slot's people as the GitHub logins identity links them to among the repo's collaborators. Who resolved to
+// which login, and who stayed out and why, is RECORDED once before the first render (`pack.codeowners_resolved`), so
+// the render stays a pure function of the record; the factory never invents an owner.
 
 /** The Unit key of an onboarding pack push: its branch is `agent/<s0 id>/onboarding-pack`. */
 export const ONBOARDING_PACK_UNIT = 'onboarding-pack';
@@ -32,6 +34,8 @@ export const ONBOARDING_PACK_RENDERER = 'onboarding-pack/1';
 
 export const packStream = (s0Id: string): string => `pack:${s0Id}`;
 export const PACK_EVENT = {
+  /** Who the pack's CODEOWNERS names (or why it has none): recorded once, before the first render. */
+  codeowners_resolved: 'pack.codeowners_resolved',
   rendered: 'pack.rendered',
   x2_opened: 'pack.x2_opened',
 } as const;
@@ -43,8 +47,40 @@ export const PackFileSource = z.enum([
   'unknowns',
   'intent',
   'manifest',
+  'codeowners',
 ]);
 export type PackFileSource = z.infer<typeof PackFileSource>;
+
+/** Where the pack's CODEOWNERS goes (GitHub's first location). */
+export const PACK_CODEOWNERS_PATH = '.github/CODEOWNERS';
+
+/** Why the pack does (`rendered`) or does not hold a CODEOWNERS. */
+export const PackCodeownersOutcome = z.enum([
+  'rendered',
+  /** The repo already has one at the census head: the factory never replaces a person's file. */
+  'repo_has_codeowners',
+  /** No role map is published for the project yet (a first onboarding publishes it at card 4's M1). */
+  'role_map_unpublished',
+  /** The admin slot names nobody, or nobody in it is linked to a login with access to the repo. */
+  'no_owner_mapped',
+]);
+export type PackCodeownersOutcome = z.infer<typeof PackCodeownersOutcome>;
+
+export const PackCodeownersResolvedPayload = z.strictObject({
+  s0_id: S0RecordId,
+  outcome: PackCodeownersOutcome,
+  /** Each person of the admin slot: the login it maps to, or why it stays out. */
+  owners: z
+    .array(
+      z.strictObject({
+        principal_id: z.string().min(1).max(200),
+        login: z.string().min(1).max(39).nullable(),
+        reason: z.enum(['mapped', 'no_linked_login']),
+      }),
+    )
+    .max(50),
+});
+export type PackCodeownersResolvedPayload = z.infer<typeof PackCodeownersResolvedPayload>;
 
 export const PackFile = z.strictObject({
   path: z.string().min(1).max(300),

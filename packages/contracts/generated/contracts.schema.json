@@ -69012,6 +69012,78 @@
         "banner.publish"
       ]
     },
+    "PackCodeownersOutcome": {
+      "type": "string",
+      "enum": [
+        "rendered",
+        "repo_has_codeowners",
+        "role_map_unpublished",
+        "no_owner_mapped"
+      ]
+    },
+    "PackCodeownersResolvedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "rendered",
+            "repo_has_codeowners",
+            "role_map_unpublished",
+            "no_owner_mapped"
+          ]
+        },
+        "owners": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "login": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 39
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "mapped",
+                  "no_linked_login"
+                ]
+              }
+            },
+            "required": [
+              "principal_id",
+              "login",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "s0_id",
+        "outcome",
+        "owners"
+      ],
+      "additionalProperties": false
+    },
     "PackFile": {
       "type": "object",
       "properties": {
@@ -69027,7 +69099,8 @@
             "claims",
             "unknowns",
             "intent",
-            "manifest"
+            "manifest",
+            "codeowners"
           ]
         },
         "sha256": {
@@ -69067,7 +69140,8 @@
         "claims",
         "unknowns",
         "intent",
-        "manifest"
+        "manifest",
+        "codeowners"
       ]
     },
     "PackProjectionState": {
@@ -69127,7 +69201,8 @@
                   "claims",
                   "unknowns",
                   "intent",
-                  "manifest"
+                  "manifest",
+                  "codeowners"
                 ]
               },
               "sha256": {
@@ -69272,7 +69347,8 @@
                   "claims",
                   "unknowns",
                   "intent",
-                  "manifest"
+                  "manifest",
+                  "codeowners"
                 ]
               },
               "sha256": {
@@ -71798,6 +71874,495 @@
     "PortalPath": {
       "type": "string",
       "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+    },
+    "PortalProjectDriftView": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+              },
+              "prr": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "proposed",
+                          "active",
+                          "stale",
+                          "suspended",
+                          "expired",
+                          "superseded"
+                        ]
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "census",
+                          "light",
+                          "full"
+                        ]
+                      },
+                      "fresh_until": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "expired": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "status",
+                      "level",
+                      "fresh_until",
+                      "expired"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "head_sha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files_polled_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "rules_polled_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "instruction_text",
+                        "pack_file",
+                        "codeowners",
+                        "protect_main",
+                        "required_check"
+                      ]
+                    },
+                    "effect": {
+                      "type": "string",
+                      "enum": [
+                        "reaffirm",
+                        "suspend"
+                      ]
+                    },
+                    "subject": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reasons": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      }
+                    },
+                    "expected": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "observed": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "effect",
+                    "subject",
+                    "reasons",
+                    "expected",
+                    "observed"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "affirmed",
+                        "pending_projection",
+                        "drift",
+                        "absent"
+                      ]
+                    },
+                    "served_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "observed_sha256": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "state",
+                    "served_sha256",
+                    "observed_sha256"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "suspension": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "findings": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "instruction_text",
+                                "pack_file",
+                                "codeowners",
+                                "protect_main",
+                                "required_check"
+                              ]
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "reaffirm",
+                                "suspend"
+                              ]
+                            },
+                            "subject": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 300
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reasons": {
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              }
+                            },
+                            "expected": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 80
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "observed": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 80
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "effect",
+                            "subject",
+                            "reasons",
+                            "expected",
+                            "observed"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "at",
+                      "findings"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "restore": {
+                "type": "object",
+                "properties": {
+                  "ready": {
+                    "type": "boolean"
+                  },
+                  "why_not": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bypass": {
+                    "type": "object",
+                    "properties": {
+                      "logins": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "list_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "required": [
+                      "logins",
+                      "list_hash"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "ready",
+                  "why_not",
+                  "bypass"
+                ],
+                "additionalProperties": false
+              },
+              "level_up": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                }
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "evaluated",
+                        "suspended",
+                        "restored",
+                        "reaffirmed",
+                        "version_requested",
+                        "expired",
+                        "activated"
+                      ]
+                    },
+                    "summary": {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "by": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "ledger_entry_id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "type",
+                    "summary",
+                    "by",
+                    "ledger_entry_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "repo",
+              "prr",
+              "head_sha",
+              "files_polled_at",
+              "rules_polled_at",
+              "findings",
+              "files",
+              "suspension",
+              "restore",
+              "level_up",
+              "history"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "may": {
+          "type": "object",
+          "properties": {
+            "restore": {
+              "type": "boolean"
+            },
+            "reaffirm": {
+              "type": "boolean"
+            },
+            "recheck": {
+              "type": "boolean"
+            },
+            "request_version": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "restore",
+            "reaffirm",
+            "recheck",
+            "request_version"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "project_id",
+        "repos",
+        "may"
+      ],
+      "additionalProperties": false
     },
     "PortalS0Revision": {
       "type": "object",
