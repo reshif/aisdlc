@@ -242,6 +242,59 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'slots', slots: ['design'] }],
     log_allow: true,
   },
+  // M15.5: B14, the mode-E G4 approver is unsure. Only a G4 decider (the kernel checks the gate's deciders).
+  'item.unsure': {
+    action_id: 'item.unsure',
+    description: 'Say you are unsure of a mode-E G4 review (B14): a codeowner reviews it (mode C)',
+    class: 'write',
+    resource_types: ['Item'],
+    grants: [{ kind: 'slots', slots: ['g4'] }],
+    log_allow: true,
+  },
+  // M15.5: B17, an escape found after the merge of a closed-out item: a NEW L0/L1 item (ET13).
+  'item.escape': {
+    action_id: 'item.escape',
+    description:
+      'Report an escape found after the merge of a closed-out item (B17): a new L0/L1 item',
+    class: 'write',
+    resource_types: ['Item'],
+    grants: [
+      { kind: 'slots', slots: ['requesters', 'g4', 'x', 'admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  // M15.5: 9.5, a person's audit of a drawn mode-E merge (the kernel bars its G4 approver and its requester).
+  'audit.record': {
+    action_id: 'audit.record',
+    description: 'Record the audit of a drawn mode-E merge (9.5): ok or a gate miss (B19)',
+    class: 'write',
+    resource_types: ['Item'],
+    grants: [{ kind: 'slots', slots: ['g4'] }],
+    log_allow: true,
+  },
+  // M15.5: the 9.3 close-out record of an item.
+  'closeout.read': {
+    action_id: 'closeout.read',
+    description: 'Read the close-out record of an item (9.3), its escapes and its audit',
+    class: 'read',
+    resource_types: ['Item'],
+    grants: [{ kind: 'view_level', min: 'V2' }],
+    log_allow: false,
+  },
+  // M15.5: 9.4 Learn. Proposals go into META gates that the project admins decide; asking for one decides nothing.
+  'learn.propose': {
+    action_id: 'learn.propose',
+    description:
+      'Run 9.4 Learn for a project, or ask for the lift of a mode-E suspension: a META gate (M1, M2, M3, M5, M6) to decide',
+    class: 'config',
+    resource_types: ['Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
   'project.view': {
     action_id: 'project.view',
     description: 'See a project and its settings',
@@ -335,6 +388,16 @@ export const ACTION_CATALOGUE = {
     ],
     log_allow: true,
   },
+  // M15.5 (PLAN §7a "Factory-wide M1"): deciding a factory-layer revision. The PDP admits the factory admins; the
+  // decision kernel then applies `factory.m1_policy` (its role, never the proposer, one or two approvers).
+  'config.decide': {
+    action_id: 'config.decide',
+    description: 'Decide a factory-layer configuration revision (its M1), under factory.m1_policy',
+    class: 'decide',
+    resource_types: ['Fleet'],
+    grants: [{ kind: 'roles', roles: [...ADMINS] }],
+    log_allow: true,
+  },
   'audit.read': {
     action_id: 'audit.read',
     description: 'Read the audit views of a project or of the whole factory',
@@ -400,7 +463,7 @@ export const LOGGED_ALLOW_ACTIONS: readonly ActionId[] = ACTION_IDS.filter(
 );
 
 /** Bump with any change to the actions, their grants, the entity model or the cross-cutting rules. */
-export const PDP_POLICY_VERSION = '1.3.0';
+export const PDP_POLICY_VERSION = '1.4.0';
 
 const VIEW_RANK: Readonly<Record<ViewLevel, number>> = { V1: 1, V2: 2, V3: 3 };
 

@@ -46,4 +46,5 @@ export * from './gate-relay.js';
 export * from './closeout.js';
 export * from './notifications.js';
 export * from './conversation.js';
+export * from './learn.js';
 export * from './portal-verify.js';

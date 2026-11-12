@@ -7,6 +7,12 @@ permit (principal in Role::"factory.admin", action == Action::"audit.read", reso
 @id("role/factory.admin/banner.publish")
 permit (principal in Role::"factory.admin", action == Action::"banner.publish", resource);
 
+@id("role/factory.admin/closeout.read")
+permit (principal in Role::"factory.admin", action == Action::"closeout.read", resource);
+
+@id("role/factory.admin/config.decide")
+permit (principal in Role::"factory.admin", action == Action::"config.decide", resource);
+
 @id("role/factory.admin/config.propose")
 permit (principal in Role::"factory.admin", action == Action::"config.propose", resource);
 
@@ -22,6 +28,9 @@ permit (principal in Role::"factory.admin", action == Action::"floor.read", reso
 @id("role/factory.admin/gate.view")
 permit (principal in Role::"factory.admin", action == Action::"gate.view", resource);
 
+@id("role/factory.admin/item.escape")
+permit (principal in Role::"factory.admin", action == Action::"item.escape", resource);
+
 @id("role/factory.admin/item.view_floor")
 permit (principal in Role::"factory.admin", action == Action::"item.view_floor", resource);
 
@@ -30,6 +39,9 @@ permit (principal in Role::"factory.admin", action == Action::"kill.release", re
 
 @id("role/factory.admin/kill.request")
 permit (principal in Role::"factory.admin", action == Action::"kill.request", resource);
+
+@id("role/factory.admin/learn.propose")
+permit (principal in Role::"factory.admin", action == Action::"learn.propose", resource);
 
 @id("role/factory.admin/project.onboard")
 permit (principal in Role::"factory.admin", action == Action::"project.onboard", resource);
@@ -45,6 +57,9 @@ permit (principal in Role::"factory.auditor", action == Action::"access.explain"
 
 @id("role/factory.auditor/audit.read")
 permit (principal in Role::"factory.auditor", action == Action::"audit.read", resource);
+
+@id("role/factory.auditor/closeout.read")
+permit (principal in Role::"factory.auditor", action == Action::"closeout.read", resource);
 
 @id("role/factory.auditor/floor.read")
 permit (principal in Role::"factory.auditor", action == Action::"floor.read", resource);
@@ -85,6 +100,9 @@ permit (principal in Role::"project.admin", action == Action::"banner.publish", 
 @id("role/project.admin/card.decide")
 permit (principal in Role::"project.admin", action == Action::"card.decide", resource);
 
+@id("role/project.admin/closeout.read")
+permit (principal in Role::"project.admin", action == Action::"closeout.read", resource);
+
 @id("role/project.admin/config.propose")
 permit (principal in Role::"project.admin", action == Action::"config.propose", resource);
 
@@ -104,6 +122,9 @@ when { resource.slot == "admin" };
 @id("role/project.admin/gate.view")
 permit (principal in Role::"project.admin", action == Action::"gate.view", resource);
 
+@id("role/project.admin/item.escape")
+permit (principal in Role::"project.admin", action == Action::"item.escape", resource);
+
 @id("role/project.admin/item.ready")
 permit (principal in Role::"project.admin", action == Action::"item.ready", resource);
 
@@ -119,6 +140,9 @@ permit (principal in Role::"project.admin", action == Action::"kill.release", re
 @id("role/project.admin/kill.request")
 permit (principal in Role::"project.admin", action == Action::"kill.request", resource);
 
+@id("role/project.admin/learn.propose")
+permit (principal in Role::"project.admin", action == Action::"learn.propose", resource);
+
 @id("role/project.admin/project.settings.edit")
 permit (principal in Role::"project.admin", action == Action::"project.settings.edit", resource);
 
@@ -128,8 +152,14 @@ permit (principal in Role::"project.admin", action == Action::"project.view", re
 @id("role/project.admin/work.request")
 permit (principal in Role::"project.admin", action == Action::"work.request", resource);
 
+@id("role/project.code_owner/audit.record")
+permit (principal in Role::"project.code_owner", action == Action::"audit.record", resource);
+
 @id("role/project.code_owner/card.decide")
 permit (principal in Role::"project.code_owner", action == Action::"card.decide", resource);
+
+@id("role/project.code_owner/closeout.read")
+permit (principal in Role::"project.code_owner", action == Action::"closeout.read", resource);
 
 @id("role/project.code_owner/floor.read")
 permit (principal in Role::"project.code_owner", action == Action::"floor.read", resource);
@@ -141,6 +171,12 @@ when { resource.slot == "g4" };
 @id("role/project.code_owner/gate.view")
 permit (principal in Role::"project.code_owner", action == Action::"gate.view", resource);
 
+@id("role/project.code_owner/item.escape")
+permit (principal in Role::"project.code_owner", action == Action::"item.escape", resource);
+
+@id("role/project.code_owner/item.unsure")
+permit (principal in Role::"project.code_owner", action == Action::"item.unsure", resource);
+
 @id("role/project.code_owner/item.view_floor")
 permit (principal in Role::"project.code_owner", action == Action::"item.view_floor", resource);
 
@@ -149,6 +185,9 @@ permit (principal in Role::"project.code_owner", action == Action::"project.view
 
 @id("role/project.design_approver/card.decide")
 permit (principal in Role::"project.design_approver", action == Action::"card.decide", resource);
+
+@id("role/project.design_approver/closeout.read")
+permit (principal in Role::"project.design_approver", action == Action::"closeout.read", resource);
 
 @id("role/project.design_approver/floor.read")
 permit (principal in Role::"project.design_approver", action == Action::"floor.read", resource);
@@ -178,6 +217,9 @@ permit (principal in Role::"project.design_approver", action == Action::"project
 @id("role/project.exception_approver/card.decide")
 permit (principal in Role::"project.exception_approver", action == Action::"card.decide", resource);
 
+@id("role/project.exception_approver/closeout.read")
+permit (principal in Role::"project.exception_approver", action == Action::"closeout.read", resource);
+
 @id("role/project.exception_approver/floor.read")
 permit (principal in Role::"project.exception_approver", action == Action::"floor.read", resource);
 
@@ -188,6 +230,9 @@ when { resource.slot == "x" };
 @id("role/project.exception_approver/gate.view")
 permit (principal in Role::"project.exception_approver", action == Action::"gate.view", resource);
 
+@id("role/project.exception_approver/item.escape")
+permit (principal in Role::"project.exception_approver", action == Action::"item.escape", resource);
+
 @id("role/project.exception_approver/item.view_floor")
 permit (principal in Role::"project.exception_approver", action == Action::"item.view_floor", resource);
 
@@ -196,6 +241,9 @@ permit (principal in Role::"project.exception_approver", action == Action::"proj
 
 @id("role/project.intent_approver/card.decide")
 permit (principal in Role::"project.intent_approver", action == Action::"card.decide", resource);
+
+@id("role/project.intent_approver/closeout.read")
+permit (principal in Role::"project.intent_approver", action == Action::"closeout.read", resource);
 
 @id("role/project.intent_approver/floor.read")
 permit (principal in Role::"project.intent_approver", action == Action::"floor.read", resource);
@@ -215,6 +263,9 @@ permit (principal in Role::"project.intent_approver", action == Action::"item.vi
 
 @id("role/project.intent_approver/project.view")
 permit (principal in Role::"project.intent_approver", action == Action::"project.view", resource);
+
+@id("role/project.kill_holder/closeout.read")
+permit (principal in Role::"project.kill_holder", action == Action::"closeout.read", resource);
 
 @id("role/project.kill_holder/floor.read")
 permit (principal in Role::"project.kill_holder", action == Action::"floor.read", resource);
@@ -237,6 +288,9 @@ permit (principal in Role::"project.kill_holder", action == Action::"project.vie
 @id("role/project.onboarding_signer/card.decide")
 permit (principal in Role::"project.onboarding_signer", action == Action::"card.decide", resource);
 
+@id("role/project.onboarding_signer/closeout.read")
+permit (principal in Role::"project.onboarding_signer", action == Action::"closeout.read", resource);
+
 @id("role/project.onboarding_signer/floor.read")
 permit (principal in Role::"project.onboarding_signer", action == Action::"floor.read", resource);
 
@@ -255,6 +309,9 @@ permit (principal in Role::"project.onboarding_signer", action == Action::"proje
 
 @id("role/project.release_approver/card.decide")
 permit (principal in Role::"project.release_approver", action == Action::"card.decide", resource);
+
+@id("role/project.release_approver/closeout.read")
+permit (principal in Role::"project.release_approver", action == Action::"closeout.read", resource);
 
 @id("role/project.release_approver/floor.read")
 permit (principal in Role::"project.release_approver", action == Action::"floor.read", resource);
@@ -278,6 +335,9 @@ permit (principal in Role::"project.release_approver", action == Action::"projec
 @id("role/project.requester/card.decide")
 permit (principal in Role::"project.requester", action == Action::"card.decide", resource);
 
+@id("role/project.requester/closeout.read")
+permit (principal in Role::"project.requester", action == Action::"closeout.read", resource);
+
 @id("role/project.requester/floor.read")
 permit (principal in Role::"project.requester", action == Action::"floor.read", resource);
 
@@ -287,6 +347,9 @@ when { resource.slot == "requesters" };
 
 @id("role/project.requester/gate.view")
 permit (principal in Role::"project.requester", action == Action::"gate.view", resource);
+
+@id("role/project.requester/item.escape")
+permit (principal in Role::"project.requester", action == Action::"item.escape", resource);
 
 @id("role/project.requester/item.ready")
 permit (principal in Role::"project.requester", action == Action::"item.ready", resource);
@@ -302,6 +365,9 @@ permit (principal in Role::"project.requester", action == Action::"work.request"
 
 @id("role/project.security_approver/card.decide")
 permit (principal in Role::"project.security_approver", action == Action::"card.decide", resource);
+
+@id("role/project.security_approver/closeout.read")
+permit (principal in Role::"project.security_approver", action == Action::"closeout.read", resource);
 
 @id("role/project.security_approver/floor.read")
 permit (principal in Role::"project.security_approver", action == Action::"floor.read", resource);
@@ -340,5 +406,5 @@ forbid (principal, action in [Action::"kill.request", Action::"kill.release"], r
 unless { principal in Role::"factory.admin" };
 
 @id("xcut/service_principal_never_decides")
-forbid (principal, action in [Action::"gate.decide", Action::"card.decide"], resource)
+forbid (principal, action in [Action::"gate.decide", Action::"card.decide", Action::"config.decide"], resource)
 when { principal.kind == "service" };

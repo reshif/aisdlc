@@ -58,7 +58,7 @@ export type RecordEvent = z.infer<typeof RecordEvent>;
  * gate-check observed without its check passing (M14.5: the X4 post-hoc review of a bypass merge; the subject id is
  * the merge's id, `mergeSubjectId`).
  */
-export const SubjectKind = z.enum(['item', 's0_record', 'config', 'breaker', 'merge']);
+export const SubjectKind = z.enum(['item', 's0_record', 'config', 'breaker', 'merge', 'learn']);
 export type SubjectKind = z.infer<typeof SubjectKind>;
 export const SubjectKindValues: readonly SubjectKind[] = SubjectKind.options;
 
