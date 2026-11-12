@@ -110,7 +110,7 @@ export const S0_EVENT = {
   signoff_ready: 's0.signoff_ready',
   /** Card 4's re-check read the code host again. */
   controls_checked: 's0.controls_checked',
-  /** The bootstrap decider (PLAN M7.4): the requester is the provisional admin of cards 1, 4 and 5. */
+  /** The bootstrap decider (PLAN M7.4): the requester is the provisional admin of cards 1, 2, 4 and 5. */
   bootstrap_granted: 's0.bootstrap_granted',
   /** The controls report card 4 was decided on, in full: the PRR's `controls` are read from it. */
   controls_recorded: 's0.controls_recorded',
@@ -413,13 +413,15 @@ export type S0ControlsCheckedPayload = z.infer<typeof S0ControlsCheckedPayload>;
 // ---------------------------------------------------------------- Bootstrap, PRR and work events
 
 /** The cards the bootstrap decider covers (PLAN M7.4). The security card, M4 and every other gate are not among them. */
-export const BOOTSTRAP_CARDS = ['C1', 'C4', 'C5'] as const;
+// User decision 2026-11-12 (PLAN §7a): card 2 joins the grant, for the grantee's own onboarding only.
+// A grant keeps the cards it was recorded with: one recorded before that decision covers C1, C4, C5.
+export const BOOTSTRAP_CARDS = ['C1', 'C2', 'C4', 'C5'] as const;
 export const BootstrapCard = z.enum(BOOTSTRAP_CARDS);
 
 /**
  * User decision 2026-11-08: on a project's first onboarding (no published role map, no other live
  * bootstrap) the requester, who passed `project.onboard`, is the provisional admin of this S0
- * record's cards 1, 4 and 5. It ends when card 4's revision is published, or when the record ends.
+ * record's cards 1, 2, 4 and 5 (the `cards` it was recorded with). It ends when card 4's revision is published, or when the record ends.
  * `ledger_entry_id` is the ledger entry that states the grant.
  */
 export const S0BootstrapGrantedPayload = z.strictObject({

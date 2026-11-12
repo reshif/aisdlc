@@ -19,8 +19,8 @@ import { makeHarness, type Json, type Scn } from './harness.js';
 
 // Card 2, Light 0.2 (PLAN M16; OB §4, §6.2 row 0.2; DEC-11 refined, DEC-12(a)) on real Postgres
 // with the real decision kernel, ledger and Notary; knowledge and the code host are fakes behind
-// their ports. The role map's slots are seeded before card 2 (the bootstrap grant covers cards 1, 4
-// and 5 only: whether it also covers card 2 is the user's call).
+// their ports. Most cases seed the role map's slots; one runs a project's first onboarding on the
+// bootstrap grant alone, which covers card 2 since the user decision of 2026-11-12.
 
 let s: CoreStack;
 beforeAll(async () => {
@@ -83,13 +83,18 @@ We ship on Tuesdays.
 
 async function light(
   o: {
+    bootstrap?: boolean;
     agents?: string | null;
     facts?: Fact[] | null;
     template?: () => InstructionTemplate | null;
   } = {},
 ): Promise<Scn> {
   const files = o.agents === null ? [] : [{ path: 'AGENTS.md', content: o.agents ?? AGENTS_MD }];
-  const c0 = await h.scenario({ level: 'light', host: { atBaseline: files } });
+  const c0 = await h.scenario({
+    level: 'light',
+    host: { atBaseline: files },
+    ...(o.bootstrap ? { slots: 'none' as const, bootstrap: true } : {}),
+  });
   c0.knowledge.defaultFacts = o.facts === undefined ? FACTS : o.facts;
   const c = o.template ? { ...c0, deps: { ...c0.deps, instructionTemplate: o.template } } : c0;
   await h.throughC1(c);
@@ -219,6 +224,41 @@ describe('card 2 (Light 0.2)', () => {
     for (const crit of ['RS-AI-4', 'RS-KN-4', 'RS-KN-5']) {
       expect(gaps.filter((g) => g.criterion === crit && g.status === 'open')).toEqual([]);
     }
+  });
+
+  it("a project's first Light onboarding: the requester decides card 2 on the bootstrap grant alone, with the step-up", async () => {
+    const c = await light({ bootstrap: true });
+    expect(c.intake.value.bootstrap).toMatchObject({ grantee: 'alice' });
+    await sync(c);
+    const card = await actionable(c, 'C2');
+    const d = await detail(c, card.card_id);
+    expect(d.deciders).toMatchObject({ slot: 'admin', holders: ['alice'] });
+    // nobody else: the grant is the requester's, for this onboarding
+    expect(await decideAs(c, card.card_id, 'bob', 'approve', c2Content(d.view))).toMatchObject({
+      ok: false,
+      error: { code: 'forbidden' },
+    });
+    // the step-up is still required
+    const p = ok(
+      await prepareOnboardingCard(c.deps, { card_id: card.card_id, principal: pr('alice') }),
+    );
+    ok(
+      await recordOnboardingEvidence(c.deps, {
+        nonce: p.value.nonce,
+        evidence_hash: p.value.evidence_hash,
+      }),
+    );
+    const noProof = await decideOnboardingCard(c.deps, {
+      card_id: card.card_id,
+      principal: pr('alice'),
+      nonce: p.value.nonce,
+      decision: 'approve',
+      content: c2Content(d.view),
+    });
+    expect(noProof).toMatchObject({ ok: false, error: { code: 'refused' } });
+    const r = ok(await decideAs(c, card.card_id, 'alice', 'approve', c2Content(d.view)));
+    expect(r.value.applied).toBe('applied');
+    expect((await stateOf(c)).steps.get('0.2')?.state).toBe('done');
   });
 
   it('no step-up, or one bound to something else, is refused and nothing is written', async () => {
