@@ -1,0 +1,441 @@
+{
+  "generated_by": "platform/compose/load.sh",
+  "machine": {
+    "cpus": 4,
+    "memory_gib": 15.7,
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "kernel": "6.18.44-fc-v378",
+    "docker": "29.9.2",
+    "note": "one shared VM; other workloads may have run on the same Docker daemon during the run"
+  },
+  "settings": {
+    "projects": "4",
+    "items": "30",
+    "coding_cap": "4",
+    "concurrency": "8",
+    "driver_interval_ms": "1000",
+    "image": "aisdlc/factory:m19c-before",
+    "commit": "7247860"
+  },
+  "projects": [
+    "load-1",
+    "load-2",
+    "load-3",
+    "load-4"
+  ],
+  "started_at": "2026-11-12T21:40:14.204Z",
+  "ended_at": "2026-11-12T22:01:31.225Z",
+  "duration_s": 1277,
+  "items": {
+    "submitted": 120,
+    "done": 120,
+    "not_done": 0,
+    "end_to_end_s": {
+      "n": 120,
+      "p50": 975.2,
+      "p95": 1205.3,
+      "p99": 1207.9,
+      "max": 1208.1,
+      "mean": 969.2
+    },
+    "floor_items_seen": {
+      "n": 168,
+      "p50": 30,
+      "p95": 30,
+      "p99": 30,
+      "max": 30,
+      "mean": 30
+    }
+  },
+  "submit_ms": {
+    "n": 120,
+    "p50": 65.2,
+    "p95": 91.6,
+    "p99": 146.6,
+    "max": 237.4,
+    "mean": 68.6
+  },
+  "reads_ms": {
+    "burst_in_flight.core.floor": {
+      "n": 20,
+      "p50": 666.8,
+      "p95": 1122.9,
+      "p99": 2689.7,
+      "max": 2689.7,
+      "mean": 822.1
+    },
+    "burst_in_flight.bff.floor": {
+      "n": 20,
+      "p50": 750,
+      "p95": 1029.4,
+      "p99": 1448.2,
+      "max": 1448.2,
+      "mean": 796.8
+    },
+    "burst_in_flight.core.fleet": {
+      "n": 5,
+      "p50": 38.4,
+      "p95": 55.1,
+      "p99": 55.1,
+      "max": 55.1,
+      "mean": 40.6
+    },
+    "burst_in_flight.core.inbox": {
+      "n": 5,
+      "p50": 70.6,
+      "p95": 133.6,
+      "p99": 133.6,
+      "max": 133.6,
+      "mean": 89.1
+    },
+    "burst_in_flight.bff.fleet": {
+      "n": 5,
+      "p50": 220.4,
+      "p95": 257.6,
+      "p99": 257.6,
+      "max": 257.6,
+      "mean": 217.7
+    },
+    "burst_in_flight.bff.inbox": {
+      "n": 5,
+      "p50": 86.6,
+      "p95": 358.2,
+      "p99": 358.2,
+      "max": 358.2,
+      "mean": 138
+    },
+    "during.core.floor": {
+      "n": 128,
+      "p50": 2844.2,
+      "p95": 10157.1,
+      "p99": 16672.3,
+      "max": 24987.7,
+      "mean": 3968.3
+    },
+    "during.bff.floor": {
+      "n": 125,
+      "p50": 2579.1,
+      "p95": 6708.2,
+      "p99": 8812.2,
+      "max": 9832,
+      "mean": 3062.5
+    },
+    "during.core.fleet": {
+      "n": 32,
+      "p50": 476.4,
+      "p95": 13467.9,
+      "p99": 39940.1,
+      "max": 39940.1,
+      "mean": 2643.6
+    },
+    "during.core.inbox": {
+      "n": 32,
+      "p50": 345.3,
+      "p95": 3926,
+      "p99": 4688.5,
+      "max": 4688.5,
+      "mean": 684.5
+    },
+    "during.bff.fleet": {
+      "n": 31,
+      "p50": 775.8,
+      "p95": 2692,
+      "p99": 3853.1,
+      "max": 3853.1,
+      "mean": 1149.1
+    },
+    "during.bff.inbox": {
+      "n": 32,
+      "p50": 614.9,
+      "p95": 7180.7,
+      "p99": 8453,
+      "max": 8453,
+      "mean": 1220.5
+    },
+    "burst_end.core.floor": {
+      "n": 20,
+      "p50": 1233.5,
+      "p95": 1530.9,
+      "p99": 1655.4,
+      "max": 1655.4,
+      "mean": 1269.6
+    },
+    "burst_end.bff.floor": {
+      "n": 20,
+      "p50": 1302.8,
+      "p95": 1573,
+      "p99": 1655.5,
+      "max": 1655.5,
+      "mean": 1362.3
+    },
+    "burst_end.core.fleet": {
+      "n": 5,
+      "p50": 48.2,
+      "p95": 105,
+      "p99": 105,
+      "max": 105,
+      "mean": 58.8
+    },
+    "burst_end.core.inbox": {
+      "n": 5,
+      "p50": 139.7,
+      "p95": 484.3,
+      "p99": 484.3,
+      "max": 484.3,
+      "mean": 251.5
+    },
+    "burst_end.bff.fleet": {
+      "n": 5,
+      "p50": 311.3,
+      "p95": 390,
+      "p99": 390,
+      "max": 390,
+      "mean": 334.5
+    },
+    "burst_end.bff.inbox": {
+      "n": 5,
+      "p50": 117.5,
+      "p95": 377.1,
+      "p99": 377.1,
+      "max": 377.1,
+      "mean": 176.5
+    }
+  },
+  "work_driver": {
+    "commands": 4908,
+    "latency_ms": {
+      "n": 4908,
+      "p50": 2765.9,
+      "p95": 24841.7,
+      "p99": 48413.5,
+      "max": 56965.4,
+      "mean": 6678.4
+    },
+    "retried": 4908,
+    "dead": 0
+  },
+  "admission": {
+    "admitted": 120,
+    "span_s": 826,
+    "per_minute": 8.7,
+    "command_6_0_ms": {
+      "n": 228,
+      "p50": 7171.5,
+      "p95": 23721.1,
+      "p99": 37075.1,
+      "max": 56965.4,
+      "mean": 9199.2
+    },
+    "held_events": 108
+  },
+  "errors": {
+    "count": 922,
+    "first": [
+      "G1 prepare 409",
+      "G3s prepare 409",
+      "bff /api/fleet 502",
+      "bff floor 502"
+    ]
+  },
+  "memory": {
+    "bff": {
+      "samples": 167,
+      "mean_mib": 92.9,
+      "max_mib": 110.2,
+      "limit_mib": 256,
+      "max_of_limit_pct": 43,
+      "cpu_max_pct": 138
+    },
+    "codehost": {
+      "samples": 167,
+      "mean_mib": 60.9,
+      "max_mib": 74.3,
+      "limit_mib": 192,
+      "max_of_limit_pct": 38.7,
+      "cpu_max_pct": 11.6
+    },
+    "core": {
+      "samples": 167,
+      "mean_mib": 171.9,
+      "max_mib": 183.7,
+      "limit_mib": 256,
+      "max_of_limit_pct": 71.8,
+      "cpu_max_pct": 103.1
+    },
+    "core-worker": {
+      "samples": 167,
+      "mean_mib": 134.6,
+      "max_mib": 149.3,
+      "limit_mib": 256,
+      "max_of_limit_pct": 58.3,
+      "cpu_max_pct": 88
+    },
+    "dev-oidc": {
+      "samples": 167,
+      "mean_mib": 40.1,
+      "max_mib": 54.4,
+      "limit_mib": 128,
+      "max_of_limit_pct": 42.5,
+      "cpu_max_pct": 13.4
+    },
+    "fake-github": {
+      "samples": 167,
+      "mean_mib": 39.3,
+      "max_mib": 53.5,
+      "limit_mib": 128,
+      "max_of_limit_pct": 41.8,
+      "cpu_max_pct": 12.7
+    },
+    "gateway": {
+      "samples": 167,
+      "mean_mib": 70.4,
+      "max_mib": 84.2,
+      "limit_mib": 192,
+      "max_of_limit_pct": 43.8,
+      "cpu_max_pct": 18.8
+    },
+    "identity": {
+      "samples": 167,
+      "mean_mib": 67.7,
+      "max_mib": 80.5,
+      "limit_mib": 192,
+      "max_of_limit_pct": 41.9,
+      "cpu_max_pct": 17.3
+    },
+    "killswitch": {
+      "samples": 167,
+      "mean_mib": 65.5,
+      "max_mib": 82.5,
+      "limit_mib": 128,
+      "max_of_limit_pct": 64.4,
+      "cpu_max_pct": 14.4
+    },
+    "kms-local": {
+      "samples": 167,
+      "mean_mib": 41.3,
+      "max_mib": 54.7,
+      "limit_mib": 128,
+      "max_of_limit_pct": 42.8,
+      "cpu_max_pct": 12.4
+    },
+    "knowledge": {
+      "samples": 167,
+      "mean_mib": 54.8,
+      "max_mib": 69.1,
+      "limit_mib": 256,
+      "max_of_limit_pct": 27,
+      "cpu_max_pct": 13.9
+    },
+    "load-run-3f2a0a3b80bd": {
+      "samples": 166,
+      "mean_mib": 109.2,
+      "max_mib": 114.1,
+      "limit_mib": 256,
+      "max_of_limit_pct": 44.6,
+      "cpu_max_pct": 61
+    },
+    "notary": {
+      "samples": 167,
+      "mean_mib": 64.9,
+      "max_mib": 79.4,
+      "limit_mib": 128,
+      "max_of_limit_pct": 62,
+      "cpu_max_pct": 16.3
+    },
+    "object-store": {
+      "samples": 167,
+      "mean_mib": 51.9,
+      "max_mib": 53.6,
+      "limit_mib": 512,
+      "max_of_limit_pct": 10.5,
+      "cpu_max_pct": 7
+    },
+    "postgres": {
+      "samples": 167,
+      "mean_mib": 184.1,
+      "max_mib": 207,
+      "limit_mib": 512,
+      "max_of_limit_pct": 40.4,
+      "cpu_max_pct": 97.6
+    },
+    "witness": {
+      "samples": 167,
+      "mean_mib": 40.8,
+      "max_mib": 55.3,
+      "limit_mib": 128,
+      "max_of_limit_pct": 43.2,
+      "cpu_max_pct": 13.7
+    }
+  },
+  "postgres": {
+    "samples": 167,
+    "connections_max": 44,
+    "connections_mean": 35.5,
+    "max_by_role": {
+      "(background)": 5,
+      "aisdlc": 30,
+      "gateway": 3,
+      "killswitch": 2,
+      "notary": 4,
+      "postgres": 3,
+      "witness": 1
+    },
+    "max_connections": 100
+  },
+  "thresholds": [
+    {
+      "what": "floor read at core, p95 (ms)",
+      "value": 1122.9,
+      "limit": 250,
+      "ok": false
+    },
+    {
+      "what": "floor read at the bff, p95 (ms)",
+      "value": 1029.4,
+      "limit": 400,
+      "ok": false
+    },
+    {
+      "what": "fleet read at the bff, p95 (ms)",
+      "value": 257.6,
+      "limit": 400,
+      "ok": true
+    },
+    {
+      "what": "inbox at the bff, p95 (ms)",
+      "value": 358.2,
+      "limit": 500,
+      "ok": true
+    },
+    {
+      "what": "work driver command latency, p95 (ms)",
+      "value": 24841.7,
+      "limit": 5000,
+      "ok": false
+    },
+    {
+      "what": "Postgres connections, max",
+      "value": 44,
+      "limit": 80,
+      "ok": true
+    },
+    {
+      "what": "memory of the busiest service, max % of its limit",
+      "value": 71.8,
+      "limit": 80,
+      "ok": true
+    },
+    {
+      "what": "items not done at the deadline",
+      "value": 0,
+      "limit": 0,
+      "ok": true
+    },
+    {
+      "what": "dead-lettered work commands",
+      "value": 0,
+      "limit": 0,
+      "ok": true
+    }
+  ]
+}
