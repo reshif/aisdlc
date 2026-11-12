@@ -40,3 +40,10 @@ export {
   observeBypassMerges,
   type MergeReviewDeps,
 } from './merge-review.js';
+export {
+  CensusGapRecheck,
+  issueTwinLoop,
+  syncIssueTwins,
+  type IssueTwinSyncDeps,
+  type IssueTwinSyncReport,
+} from './issue-twin/index.js';
