@@ -8,6 +8,10 @@ import {
   LevelValues,
   PRR_EVENT,
   PrrStatusChangedPayload,
+  REONBOARD_EVENT,
+  REONBOARD_LEDGER_ENTRY,
+  ReonboardDecidedPayload,
+  reonboardStream,
   REAFFIRM_TEXT_MAX,
   bypassListFor,
   bypassListHash,
@@ -26,6 +30,8 @@ import {
   type ProjectId,
   type ReaffirmRequest,
   type ReaffirmResult,
+  type ReonboardDecideRequest,
+  type ReonboardDecideResult,
   type RepoFullName,
   type RestoreRequest,
   type RestoreResult,
@@ -56,6 +62,7 @@ import {
   type CoreDeps,
   type Journal,
 } from '../journal.js';
+import { applyKnowledgeDefectEvent, reonboardProposal } from '../knowledge-defects.js';
 import { repoIdentity } from '../prr-store.js';
 import { requestOnboarding } from '../s0.js';
 import { checkDrift, recheckRepo, type DriftDeps } from './check.js';
@@ -77,6 +84,11 @@ import { baselineFor, inputsOf, loadDrift, type LoadedDrift } from './state.js';
 //   requestVersion       a level-up (Census -> Light -> Full) or the re-sign of an expired record: a new S0 record
 //                        through the normal onboarding request (0.1 re-runs at the current head, then the cards and M4
 //                        make a new version); the governing version stays in force until that M4.
+//   decideReonboarding   M17: the admin slot accepts or declines a re-onboarding proposal (OB §8, knowledge defects in
+//                        an area). The decision is recorded first with its `reonboard.decided` ledger entry; an accept
+//                        then starts a new S0 record at the governing record's signed level through the same onboarding
+//                        request (0.1 re-runs at the current head, then the cards and M4). The governing version stays
+//                        in force until that M4; a retry of an accept re-drives the (idempotent) request.
 
 export interface DriftActionDeps extends DriftDeps {
   readonly ledger: LedgerClientDeps;
@@ -574,5 +586,145 @@ export async function requestVersion(
     level: req.level,
     reason: req.reason,
     duplicate: made.value.duplicate,
+  });
+}
+
+// ---------------------------------------------------------------- a re-onboarding proposal decided (M17, OB §8)
+
+/** The request id of an accepted proposal's onboarding: one S0 record per proposal, whatever the retries. */
+export const reonboardRequestId = (proposalId: string): string =>
+  deterministicId<'Request'>(`reonboard:${proposalId}`);
+
+export async function decideReonboarding(
+  d: DriftActionDeps,
+  project: ProjectId,
+  req: ReonboardDecideRequest,
+): Promise<Result<ReonboardDecideResult, CoreError>> {
+  const r = await repoOf(d, project, req.repo);
+  if (!r.ok) return r;
+  const who = req.on_behalf_of;
+  const notHolder = await holder(d, project, who);
+  if (notHolder) return err(notHolder);
+  const before = await reonboardProposal(d.pool, r.value.repo_ref, req.proposal_id);
+  if (!before || before.project_id !== project) {
+    return err(coreError('not_found', 'no such re-onboarding proposal for this repository'));
+  }
+  const requestId = reonboardRequestId(req.proposal_id);
+  // the onboarding an accept starts, at the governing record's signed level; Full is the re-sign of a Full record
+  const start = (level: Level, fromVersion: number) =>
+    requestOnboarding(
+      d,
+      {
+        project_id: project,
+        repo: r.value.repo_ref as RepoFullName,
+        level,
+        request_id: requestId,
+        on_behalf_of: who,
+      },
+      level === 'full' ? { levelUp: { from_version: fromVersion, from_level: 'full' } } : {},
+    );
+  if (before.decision) {
+    const prior = before.decision;
+    if (prior.decision !== req.decision) {
+      return err(coreError('conflict', `the proposal was already decided: ${prior.decision}`));
+    }
+    if (prior.decision === 'accept' && prior.level !== null) {
+      const again = await start(prior.level, prior.prr_version);
+      if (!again.ok) return again;
+    }
+    return ok({
+      proposal_id: req.proposal_id as never,
+      decision: prior.decision,
+      status: before.status,
+      new_s0_id: prior.new_s0_id,
+      ledger_entry_id: prior.ledger_entry_id,
+      duplicate: true,
+    });
+  }
+  const at = clockOf(d).now().toISOString();
+  const recorded = await inCoreLedgerTx<ReonboardDecidedPayload>(d, async (j, tx) => {
+    await lockRepo(tx, project, r.value.repo_ref);
+    await lockKeys(tx, [reonboardStream(r.value.repo_ref)]);
+    const l = await loadDrift(tx, r.value.repo_ref);
+    const g = l?.governing;
+    if (!l || !g) return err(coreError('refused', 'no readiness record governs this repository'));
+    const expired = g.status === 'expired' || Date.parse(at) >= Date.parse(g.prr.fresh_until);
+    if (req.decision === 'accept' && expired) {
+      return err(
+        coreError('refused', 'the record has expired: re-sign it, which re-onboards it from 0.1'),
+      );
+    }
+    const cur = await reonboardProposal(tx, r.value.repo_ref, req.proposal_id);
+    if (!cur || cur.status !== 'proposed') {
+      return err(coreError('conflict', 'the proposal was decided meanwhile: read it again'));
+    }
+    const started = await ledgerStart(tx, d.ledger);
+    if (!started.ok) return started;
+    const pending = started.value;
+    const entryId = deterministicId<'LedgerEntry'>(
+      `reonboard.decided:${req.proposal_id}:${req.decision}`,
+    );
+    const level = req.decision === 'accept' ? g.prr.level.signed : null;
+    const body = ReonboardDecidedPayload.parse({
+      proposal_id: req.proposal_id,
+      repo: l.repo_ref,
+      project_id: project,
+      area: cur.area,
+      decision: req.decision,
+      reason: req.reason,
+      by: who,
+      at,
+      prr_version: g.version,
+      record_hash: g.prr.record_hash,
+      level,
+      new_s0_id: level === null ? null : deterministicId<'S0Record'>(`aisdlc.s0:${requestId}`),
+      ledger_entry_id: entryId,
+    });
+    const w = await j.emit(reonboardStream(l.repo_ref), REONBOARD_EVENT.decided, body, who);
+    if (!w.ok) return w;
+    await applyKnowledgeDefectEvent(tx, {
+      type: w.value.type,
+      payload: body,
+      global_seq: w.value.global_seq,
+    });
+    const { ledger_entry_id: _drop, ...rest } = body;
+    void _drop;
+    const { decision: _none, status: _st, ...proposal } = cur;
+    void _none;
+    void _st;
+    const draft: LedgerEntryDraft = {
+      entry_id: entryId,
+      entry_type: REONBOARD_LEDGER_ENTRY,
+      gate_instance_id: null,
+      gate_id: null,
+      subject_kind: 's0_record',
+      subject_id: g.s0_id as never,
+      // what was decided: exactly this proposal (its defects, in its area, under that version)
+      subject_hash: hashCanonical({ proposal, decision: rest }) as never,
+      decision: null,
+      actor: who,
+      sod_waiver: false,
+      policy_bundle_version: DEFAULT_POLICY_BUNDLE_VERSION,
+      body: { kind: 'reonboard_decided', ...rest } as never,
+      created_at: at as never,
+    };
+    const le = await appendLedgerEntryTx(tx, d.ledger, draft);
+    if (!le.ok) return err(coreError('unavailable', le.error.message));
+    pending.push(...le.value.pending);
+    return ok({ value: body, pending });
+  });
+  if (!recorded.ok) return recorded;
+  const p = recorded.value;
+  if (p.decision === 'accept' && p.level !== null) {
+    const made = await start(p.level, p.prr_version);
+    if (!made.ok) return made;
+  }
+  return ok({
+    proposal_id: p.proposal_id as never,
+    decision: p.decision,
+    status: p.decision === 'accept' ? 'accepted' : 'declined',
+    new_s0_id: p.new_s0_id,
+    ledger_entry_id: p.ledger_entry_id,
+    duplicate: false,
   });
 }

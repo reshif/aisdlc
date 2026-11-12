@@ -50,6 +50,7 @@ import type pg from 'pg';
 import type { CoreError } from './errors.js';
 import { governingPrr } from './fold.js';
 import { inCoreTx, lockKeys, type CoreDeps } from './journal.js';
+import { unresolvedR3 } from './knowledge-defects.js';
 import { laneEligibility, routeLane } from './lane-eligibility.js';
 import { repoIdentity } from './prr-store.js';
 import { questionIdOf } from './requests.js';
@@ -197,7 +198,15 @@ export async function ensureItems(d: WorkDriverDeps): Promise<{ created: string[
       if (!id) return ok(null);
       const prr = governingPrr(await j.prr(id.project_id, id.repo_id));
       const verdict = applyGuard(
-        routeLane(request.repo, request.lane, prr, clockOf(d).now()),
+        routeLane(
+          request.repo,
+          request.lane,
+          prr,
+          clockOf(d).now(),
+          undefined,
+          request.area,
+          prr ? await unresolvedR3(tx, request.repo, prr.version) : [],
+        ),
         await projectGuard(tx, {
           project_id: id.project_id,
           lane: request.lane,
@@ -513,12 +522,14 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
     }
 
     case 'check_eligibility': {
+      // DEC-25: an item whose request named an area asks that area's lanes (absent: the repo as a whole)
       const base = await laneEligibility(
         d.pool,
         s.repo,
         c.lane,
         clockOf(d),
         catalogueOfItem(s).eligibility,
+        s.area,
       );
       // R3 and R4: a tripped breaker or an overdue hotfix follow-up sends a NEW item to L8. The same
       // check also answers R1 ("may this project run the lane the work needs"), which is no new item.

@@ -6832,6 +6832,8 @@
       "type": "string",
       "enum": [
         "LF3",
+        "LF5",
+        "LF6",
         "FF1"
       ]
     },
@@ -12271,6 +12273,10 @@
                       "minLength": 1,
                       "maxLength": 255,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                    },
+                    "service": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                     }
                   },
                   "required": [
@@ -13717,6 +13723,10 @@
                                 "minLength": 1,
                                 "maxLength": 255,
                                 "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                              },
+                              "service": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                               }
                             },
                             "required": [
@@ -15899,6 +15909,10 @@
                           "minLength": 1,
                           "maxLength": 255,
                           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "service": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                         }
                       },
                       "required": [
@@ -17209,6 +17223,10 @@
                                 "minLength": 1,
                                 "maxLength": 255,
                                 "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                              },
+                              "service": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                               }
                             },
                             "required": [
@@ -27349,7 +27367,8 @@
               "type": "string",
               "enum": [
                 "default",
-                "revision"
+                "revision",
+                "factory"
               ]
             },
             "rev_hash": {
@@ -29742,7 +29761,8 @@
             "work_gate",
             "drift_reaffirm",
             "prr_restore",
-            "prr_resign"
+            "prr_resign",
+            "reonboard"
           ]
         },
         "id": {
@@ -34278,7 +34298,8 @@
         "staging_separation_not_attested",
         "circuit_breaker",
         "followup_overdue",
-        "area_unknown"
+        "area_unknown",
+        "r3_zone"
       ]
     },
     "EligibilityRoute": {
@@ -46769,6 +46790,14 @@
           ],
           "additionalProperties": false
         },
+        "gates_off": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "view_level": {
           "type": "string",
           "enum": [
@@ -46799,6 +46828,7 @@
         "kill",
         "liveness",
         "freshness",
+        "gates_off",
         "view_level",
         "data_class"
       ],
@@ -49268,6 +49298,184 @@
             }
           ]
         },
+        "handoff": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "handoff_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "n": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "D1",
+                    "D2",
+                    "D3",
+                    "E4"
+                  ]
+                },
+                "trigger": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin_phase": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin_step": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "0.1",
+                        "0.2",
+                        "0.3",
+                        "0.4",
+                        "0.5",
+                        "1.1",
+                        "1.2",
+                        "1.3",
+                        "1.4",
+                        "1.5",
+                        "1.6",
+                        "2.1",
+                        "2.1b",
+                        "2.2",
+                        "2.3",
+                        "2.4",
+                        "2.5",
+                        "3.1",
+                        "3.2",
+                        "3.3",
+                        "3.4",
+                        "3.5",
+                        "4.1",
+                        "4.2",
+                        "4.3",
+                        "4.4",
+                        "4.5",
+                        "4.6",
+                        "5.1",
+                        "5.2",
+                        "5.3",
+                        "5.4",
+                        "5.5",
+                        "5.6",
+                        "5.7",
+                        "5.8",
+                        "6.0",
+                        "6.1",
+                        "6.2",
+                        "6.3",
+                        "6.4",
+                        "6.5",
+                        "6.6",
+                        "7.1",
+                        "7.2",
+                        "7.3",
+                        "7.4",
+                        "7.5",
+                        "7.6",
+                        "8.1",
+                        "8.2",
+                        "S8b",
+                        "9.2",
+                        "9.3",
+                        "9.4",
+                        "9.5"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pack": {
+                  "type": "object",
+                  "properties": {
+                    "pack_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "content_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "pack_id",
+                    "content_sha256"
+                  ],
+                  "additionalProperties": false
+                },
+                "valid_choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "resume",
+                      "extend",
+                      "replan",
+                      "respec",
+                      "takeover",
+                      "hand_over_close",
+                      "abandon"
+                    ]
+                  }
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "chosen"
+                  ]
+                },
+                "choice": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "resume",
+                        "extend",
+                        "replan",
+                        "respec",
+                        "takeover",
+                        "hand_over_close",
+                        "abandon"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "handoff_id",
+                "n",
+                "code",
+                "trigger",
+                "origin_phase",
+                "origin_step",
+                "pack",
+                "valid_choices",
+                "status",
+                "choice"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "subject": {
           "anyOf": [
             {
@@ -49970,6 +50178,39 @@
                                   "minLength": 1,
                                   "maxLength": 255,
                                   "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                },
+                                "service_env": {
+                                  "type": "object",
+                                  "properties": {
+                                    "service_env_id": {
+                                      "type": "string",
+                                      "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                                    },
+                                    "service": {
+                                      "type": "string",
+                                      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                                    },
+                                    "environment": {
+                                      "type": "string",
+                                      "enum": [
+                                        "development",
+                                        "staging",
+                                        "production"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "service_env_id",
+                                    "service",
+                                    "environment"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "target_environment": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 255,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
                                 }
                               },
                               "required": [
@@ -50014,7 +50255,9 @@
                                     "no_passing_pack",
                                     "no_pull_request",
                                     "pack_head_not_pr_head",
-                                    "no_release_target"
+                                    "no_release_target",
+                                    "target_not_attested",
+                                    "staging_separation_not_attested"
                                   ]
                                 }
                               },
@@ -50073,6 +50316,10 @@
                                       "minLength": 1,
                                       "maxLength": 255,
                                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                    },
+                                    "service": {
+                                      "type": "string",
+                                      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                                     }
                                   },
                                   "required": [
@@ -51293,6 +51540,7 @@
         "patch",
         "dependencies",
         "constitution",
+        "handoff",
         "subject",
         "data_class"
       ],
@@ -53801,6 +54049,39 @@
                           "minLength": 1,
                           "maxLength": 255,
                           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "service_env": {
+                          "type": "object",
+                          "properties": {
+                            "service_env_id": {
+                              "type": "string",
+                              "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                            },
+                            "service": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                            },
+                            "environment": {
+                              "type": "string",
+                              "enum": [
+                                "development",
+                                "staging",
+                                "production"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "service_env_id",
+                            "service",
+                            "environment"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "target_environment": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
                         }
                       },
                       "required": [
@@ -53845,7 +54126,9 @@
                             "no_passing_pack",
                             "no_pull_request",
                             "pack_head_not_pr_head",
-                            "no_release_target"
+                            "no_release_target",
+                            "target_not_attested",
+                            "staging_separation_not_attested"
                           ]
                         }
                       },
@@ -53904,6 +54187,10 @@
                               "minLength": 1,
                               "maxLength": 255,
                               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                            },
+                            "service": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                             }
                           },
                           "required": [
@@ -56719,6 +57006,47 @@
         "E6"
       ]
     },
+    "HumanWorkReference": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "pr"
+            },
+            "number": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000
+            }
+          },
+          "required": [
+            "kind",
+            "number"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "commit"
+            },
+            "sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          },
+          "required": [
+            "kind",
+            "sha"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "IdentityEventType": {
       "type": "string",
       "enum": [
@@ -57347,7 +57675,8 @@
         "work_gate",
         "drift_reaffirm",
         "prr_restore",
-        "prr_resign"
+        "prr_resign",
+        "reonboard"
       ]
     },
     "InjectionFlag": {
@@ -64996,6 +65325,97 @@
                 "type": "string",
                 "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
               }
+            },
+            "profile_gates": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "on": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      }
+                    },
+                    "off": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "on",
+                    "off"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -65018,7 +65438,8 @@
             "assumptions",
             "catalogue_ref",
             "injection_suspected",
-            "dedupe_links"
+            "dedupe_links",
+            "profile_gates"
           ],
           "additionalProperties": false
         },
@@ -66237,6 +66658,11 @@
             "L8"
           ]
         },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
         "intake": {
           "type": "object",
           "properties": {
@@ -66428,6 +66854,583 @@
       ],
       "additionalProperties": false
     },
+    "ItemHandBackRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "plan_changed": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "plan_changed",
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "ItemHandoffChooseRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "handoff_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "choice": {
+          "type": "string",
+          "enum": [
+            "resume",
+            "extend",
+            "replan",
+            "respec",
+            "takeover",
+            "hand_over_close",
+            "abandon"
+          ]
+        },
+        "extension_percent": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000
+        },
+        "cause": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "handoff_id",
+        "choice"
+      ],
+      "additionalProperties": false
+    },
+    "ItemHandoffView": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "lane": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "waiting": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "handoff": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "handoff_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "item_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "n": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "D1",
+                    "D2",
+                    "D3",
+                    "E4"
+                  ]
+                },
+                "trigger": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin_phase": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin_step": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "0.1",
+                        "0.2",
+                        "0.3",
+                        "0.4",
+                        "0.5",
+                        "1.1",
+                        "1.2",
+                        "1.3",
+                        "1.4",
+                        "1.5",
+                        "1.6",
+                        "2.1",
+                        "2.1b",
+                        "2.2",
+                        "2.3",
+                        "2.4",
+                        "2.5",
+                        "3.1",
+                        "3.2",
+                        "3.3",
+                        "3.4",
+                        "3.5",
+                        "4.1",
+                        "4.2",
+                        "4.3",
+                        "4.4",
+                        "4.5",
+                        "4.6",
+                        "5.1",
+                        "5.2",
+                        "5.3",
+                        "5.4",
+                        "5.5",
+                        "5.6",
+                        "5.7",
+                        "5.8",
+                        "6.0",
+                        "6.1",
+                        "6.2",
+                        "6.3",
+                        "6.4",
+                        "6.5",
+                        "6.6",
+                        "7.1",
+                        "7.2",
+                        "7.3",
+                        "7.4",
+                        "7.5",
+                        "7.6",
+                        "8.1",
+                        "8.2",
+                        "S8b",
+                        "9.2",
+                        "9.3",
+                        "9.4",
+                        "9.5"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pack": {
+                  "type": "object",
+                  "properties": {
+                    "pack_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "content_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "pack_id",
+                    "content_sha256"
+                  ],
+                  "additionalProperties": false
+                },
+                "e4_gate_instance_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "e4_decided": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "chosen"
+                  ]
+                },
+                "choice": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "resume",
+                        "extend",
+                        "replan",
+                        "respec",
+                        "takeover",
+                        "hand_over_close",
+                        "abandon"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "chosen_by": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "extension": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "percent": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "via": {
+                          "type": "string",
+                          "enum": [
+                            "E3",
+                            "E5"
+                          ]
+                        },
+                        "approved": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "percent",
+                        "via",
+                        "approved"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "opened_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "chosen_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "handoff_id",
+                "item_id",
+                "n",
+                "code",
+                "trigger",
+                "origin_phase",
+                "origin_step",
+                "pack",
+                "e4_gate_instance_id",
+                "e4_decided",
+                "status",
+                "choice",
+                "chosen_by",
+                "extension",
+                "opened_at",
+                "chosen_at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "e4": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "gate_instance_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "card_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "decided"
+                  ]
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "approvers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.@-]+$"
+                  }
+                }
+              },
+              "required": [
+                "gate_instance_id",
+                "card_id",
+                "status",
+                "outcome",
+                "approvers"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "resume",
+              "extend",
+              "replan",
+              "respec",
+              "takeover",
+              "hand_over_close",
+              "abandon"
+            ]
+          }
+        },
+        "extension_max_percent": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "human_led": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taken_over": {
+                  "type": "boolean"
+                },
+                "lane_before": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "L0",
+                        "L1",
+                        "L2",
+                        "L3",
+                        "L4",
+                        "L5",
+                        "L6",
+                        "L7",
+                        "L8"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "hand_backs_left": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "taken_over",
+                "lane_before",
+                "hand_backs_left"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "done": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "by": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "reference": {
+                "anyOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "pr"
+                          },
+                          "number": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "number"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "commit"
+                          },
+                          "sha": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{40}$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "sha"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "by",
+              "at",
+              "reference"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "item_id",
+        "project_id",
+        "lane",
+        "phase",
+        "waiting",
+        "handoff",
+        "e4",
+        "choices",
+        "extension_max_percent",
+        "human_led",
+        "done"
+      ],
+      "additionalProperties": false
+    },
     "ItemHold": {
       "type": "object",
       "properties": {
@@ -66486,6 +67489,47 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64
+        },
+        "reference": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "pr"
+                },
+                "number": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000000000
+                }
+              },
+              "required": [
+                "kind",
+                "number"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "commit"
+                },
+                "sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                }
+              },
+              "required": [
+                "kind",
+                "sha"
+              ],
+              "additionalProperties": false
+            }
+          ]
         }
       },
       "required": [
@@ -67838,6 +68882,97 @@
                 "type": "string",
                 "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
               }
+            },
+            "profile_gates": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "on": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      }
+                    },
+                    "off": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "G0",
+                          "G1",
+                          "G1f",
+                          "G2",
+                          "G3",
+                          "G3d",
+                          "G3s",
+                          "G3o",
+                          "G4",
+                          "G5",
+                          "G6",
+                          "X1",
+                          "X2",
+                          "X3",
+                          "X4",
+                          "E1",
+                          "E2",
+                          "E3",
+                          "E4",
+                          "E5",
+                          "E6",
+                          "M1",
+                          "M2",
+                          "M3",
+                          "M4",
+                          "M5",
+                          "M6",
+                          "Q1",
+                          "SECT"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "on",
+                    "off"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -67860,7 +68995,8 @@
             "assumptions",
             "catalogue_ref",
             "injection_suspected",
-            "dedupe_links"
+            "dedupe_links",
+            "profile_gates"
           ],
           "additionalProperties": false
         },
@@ -69699,6 +70835,97 @@
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
+        },
+        "profile_gates": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "on": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  }
+                },
+                "off": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "on",
+                "off"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -69721,7 +70948,8 @@
         "assumptions",
         "catalogue_ref",
         "injection_suspected",
-        "dedupe_links"
+        "dedupe_links",
+        "profile_gates"
       ],
       "additionalProperties": false
     },
@@ -75456,7 +76684,8 @@
             "staging_separation_not_attested",
             "circuit_breaker",
             "followup_overdue",
-            "area_unknown"
+            "area_unknown",
+            "r3_zone"
           ]
         },
         "prr": {
@@ -87016,6 +88245,11 @@
             "L8"
           ]
         },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
         "text": {
           "type": "string",
           "minLength": 1,
@@ -87154,7 +88388,8 @@
                   "work_gate",
                   "drift_reaffirm",
                   "prr_restore",
-                  "prr_resign"
+                  "prr_resign",
+                  "reonboard"
                 ]
               },
               "id": {
@@ -87381,7 +88616,8 @@
                   "work_gate",
                   "drift_reaffirm",
                   "prr_restore",
-                  "prr_resign"
+                  "prr_resign",
+                  "reonboard"
                 ]
               },
               "id": {
@@ -87613,7 +88849,8 @@
             "work_gate",
             "drift_reaffirm",
             "prr_restore",
-            "prr_resign"
+            "prr_resign",
+            "reonboard"
           ]
         },
         "id": {
@@ -88215,6 +89452,542 @@
       "required": [
         "project_id",
         "repos",
+        "may"
+      ],
+      "additionalProperties": false
+    },
+    "PortalItemHandoffView": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "lane": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "waiting": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "handoff": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "handoff_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "item_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "n": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "D1",
+                    "D2",
+                    "D3",
+                    "E4"
+                  ]
+                },
+                "trigger": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin_phase": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin_step": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "0.1",
+                        "0.2",
+                        "0.3",
+                        "0.4",
+                        "0.5",
+                        "1.1",
+                        "1.2",
+                        "1.3",
+                        "1.4",
+                        "1.5",
+                        "1.6",
+                        "2.1",
+                        "2.1b",
+                        "2.2",
+                        "2.3",
+                        "2.4",
+                        "2.5",
+                        "3.1",
+                        "3.2",
+                        "3.3",
+                        "3.4",
+                        "3.5",
+                        "4.1",
+                        "4.2",
+                        "4.3",
+                        "4.4",
+                        "4.5",
+                        "4.6",
+                        "5.1",
+                        "5.2",
+                        "5.3",
+                        "5.4",
+                        "5.5",
+                        "5.6",
+                        "5.7",
+                        "5.8",
+                        "6.0",
+                        "6.1",
+                        "6.2",
+                        "6.3",
+                        "6.4",
+                        "6.5",
+                        "6.6",
+                        "7.1",
+                        "7.2",
+                        "7.3",
+                        "7.4",
+                        "7.5",
+                        "7.6",
+                        "8.1",
+                        "8.2",
+                        "S8b",
+                        "9.2",
+                        "9.3",
+                        "9.4",
+                        "9.5"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pack": {
+                  "type": "object",
+                  "properties": {
+                    "pack_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "content_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "pack_id",
+                    "content_sha256"
+                  ],
+                  "additionalProperties": false
+                },
+                "e4_gate_instance_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "e4_decided": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "chosen"
+                  ]
+                },
+                "choice": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "resume",
+                        "extend",
+                        "replan",
+                        "respec",
+                        "takeover",
+                        "hand_over_close",
+                        "abandon"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "chosen_by": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "extension": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "percent": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "via": {
+                          "type": "string",
+                          "enum": [
+                            "E3",
+                            "E5"
+                          ]
+                        },
+                        "approved": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "percent",
+                        "via",
+                        "approved"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "opened_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "chosen_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "handoff_id",
+                "item_id",
+                "n",
+                "code",
+                "trigger",
+                "origin_phase",
+                "origin_step",
+                "pack",
+                "e4_gate_instance_id",
+                "e4_decided",
+                "status",
+                "choice",
+                "chosen_by",
+                "extension",
+                "opened_at",
+                "chosen_at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "e4": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "gate_instance_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "card_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "decided"
+                  ]
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "approvers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.@-]+$"
+                  }
+                }
+              },
+              "required": [
+                "gate_instance_id",
+                "card_id",
+                "status",
+                "outcome",
+                "approvers"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "resume",
+              "extend",
+              "replan",
+              "respec",
+              "takeover",
+              "hand_over_close",
+              "abandon"
+            ]
+          }
+        },
+        "extension_max_percent": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "human_led": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taken_over": {
+                  "type": "boolean"
+                },
+                "lane_before": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "L0",
+                        "L1",
+                        "L2",
+                        "L3",
+                        "L4",
+                        "L5",
+                        "L6",
+                        "L7",
+                        "L8"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "hand_backs_left": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "taken_over",
+                "lane_before",
+                "hand_backs_left"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "done": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "by": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "reference": {
+                "anyOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "pr"
+                          },
+                          "number": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000000
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "number"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "commit"
+                          },
+                          "sha": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{40}$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "sha"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "by",
+              "at",
+              "reference"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "may": {
+          "type": "object",
+          "properties": {
+            "decide_e4": {
+              "type": "boolean"
+            },
+            "choose": {
+              "type": "boolean"
+            },
+            "hand_back": {
+              "type": "boolean"
+            },
+            "human_done": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "decide_e4",
+            "choose",
+            "hand_back",
+            "human_done"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "item_id",
+        "project_id",
+        "lane",
+        "phase",
+        "waiting",
+        "handoff",
+        "e4",
+        "choices",
+        "extension_max_percent",
+        "human_led",
+        "done",
         "may"
       ],
       "additionalProperties": false
@@ -88967,6 +90740,97 @@
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         },
+        "profile_gates": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "on": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  }
+                },
+                "off": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "G0",
+                      "G1",
+                      "G1f",
+                      "G2",
+                      "G3",
+                      "G3d",
+                      "G3s",
+                      "G3o",
+                      "G4",
+                      "G5",
+                      "G6",
+                      "X1",
+                      "X2",
+                      "X3",
+                      "X4",
+                      "E1",
+                      "E2",
+                      "E3",
+                      "E4",
+                      "E5",
+                      "E6",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5",
+                      "M6",
+                      "Q1",
+                      "SECT"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "on",
+                "off"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "may": {
           "type": "object",
           "properties": {
@@ -89013,6 +90877,7 @@
         "catalogue_ref",
         "injection_suspected",
         "dedupe_links",
+        "profile_gates",
         "may"
       ],
       "additionalProperties": false
@@ -89402,6 +91267,208 @@
                   ]
                 }
               },
+              "reonboarding": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "proposal_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "repo": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "area": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "trigger": {
+                      "type": "string",
+                      "enum": [
+                        "knowledge_defects"
+                      ]
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "threshold": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "window_days": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "defect_ids": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "prr_version": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposed_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "proposed",
+                        "accepted",
+                        "declined"
+                      ]
+                    },
+                    "decision": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "proposal_id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "repo": {
+                              "type": "string",
+                              "maxLength": 200,
+                              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                            },
+                            "project_id": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "area": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 256
+                            },
+                            "decision": {
+                              "type": "string",
+                              "enum": [
+                                "accept",
+                                "decline"
+                              ]
+                            },
+                            "reason": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "by": {
+                              "type": "string",
+                              "maxLength": 128,
+                              "pattern": "^[A-Za-z0-9_.@-]+$"
+                            },
+                            "at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "prr_version": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "record_hash": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "level": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "census",
+                                    "light",
+                                    "full"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "new_s0_id": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "ledger_entry_id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "required": [
+                            "proposal_id",
+                            "repo",
+                            "project_id",
+                            "area",
+                            "decision",
+                            "reason",
+                            "by",
+                            "at",
+                            "prr_version",
+                            "record_hash",
+                            "level",
+                            "new_s0_id",
+                            "ledger_entry_id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "proposal_id",
+                    "repo",
+                    "project_id",
+                    "area",
+                    "trigger",
+                    "count",
+                    "threshold",
+                    "window_days",
+                    "defect_ids",
+                    "prr_version",
+                    "proposed_at",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              },
               "history": {
                 "type": "array",
                 "items": {
@@ -89473,6 +91540,7 @@
               "suspension",
               "restore",
               "level_up",
+              "reonboarding",
               "history"
             ],
             "additionalProperties": false
@@ -89492,13 +91560,17 @@
             },
             "request_version": {
               "type": "boolean"
+            },
+            "reonboard": {
+              "type": "boolean"
             }
           },
           "required": [
             "restore",
             "reaffirm",
             "recheck",
-            "request_version"
+            "request_version",
+            "reonboard"
           ],
           "additionalProperties": false
         }
@@ -89592,7 +91664,8 @@
                 "staging_separation_not_attested",
                 "circuit_breaker",
                 "followup_overdue",
-                "area_unknown"
+                "area_unknown",
+                "r3_zone"
               ]
             },
             "prr": {
@@ -90385,6 +92458,10 @@
                               "minLength": 1,
                               "maxLength": 255,
                               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                            },
+                            "service": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                             }
                           },
                           "required": [
@@ -90884,6 +92961,10 @@
                       "minLength": 1,
                       "maxLength": 255,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                    },
+                    "service": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                     }
                   },
                   "required": [
@@ -93093,6 +95174,460 @@
       ],
       "additionalProperties": false
     },
+    "ProjectConfigKeyView": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "setting",
+                "ops_flag"
+              ]
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "overridable": {
+              "type": "boolean"
+            },
+            "json_schema": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "key",
+            "kind",
+            "description",
+            "overridable",
+            "json_schema"
+          ],
+          "additionalProperties": false
+        },
+        "default": {},
+        "effective": {
+          "type": "object",
+          "properties": {
+            "value": {},
+            "source": {
+              "type": "string",
+              "enum": [
+                "default",
+                "revision",
+                "factory"
+              ]
+            },
+            "rev_hash": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gate_instance_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ledger_entry_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "published_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "source",
+            "rev_hash",
+            "gate_instance_id",
+            "ledger_entry_id",
+            "published_at"
+          ],
+          "additionalProperties": false
+        },
+        "head_rev_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "revision": {
+                "type": "object",
+                "properties": {
+                  "rev_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "parent_rev_hash": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "proposed",
+                      "current",
+                      "superseded",
+                      "rolled_back",
+                      "rejected"
+                    ]
+                  },
+                  "gate_instance_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ledger_entry_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "proposed_by": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "proposed_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "published_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "value": {},
+                  "set": {
+                    "type": "boolean"
+                  },
+                  "changes_key": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "rev_hash",
+                  "parent_rev_hash",
+                  "state",
+                  "gate_instance_id",
+                  "ledger_entry_id",
+                  "proposed_by",
+                  "proposed_at",
+                  "published_at",
+                  "value",
+                  "set",
+                  "changes_key"
+                ],
+                "additionalProperties": false
+              },
+              "gate_status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "decided",
+                      "superseded",
+                      "expired",
+                      "closed"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "deciders": {
+                "type": "object",
+                "properties": {
+                  "slot": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "requesters",
+                      "intent",
+                      "design",
+                      "g4",
+                      "g5",
+                      "x",
+                      "sec",
+                      "m4",
+                      "kill"
+                    ]
+                  },
+                  "holders": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    }
+                  },
+                  "single_operator": {
+                    "type": "boolean"
+                  },
+                  "sod_waiver": {
+                    "type": "boolean"
+                  },
+                  "tier": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "T0",
+                          "T1",
+                          "T2"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "t2": {
+                    "type": "boolean"
+                  },
+                  "can_decide": {
+                    "type": "boolean"
+                  },
+                  "error": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "slot",
+                  "holders",
+                  "single_operator",
+                  "sod_waiver",
+                  "tier",
+                  "t2",
+                  "can_decide",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "revision",
+              "gate_status",
+              "deciders"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rev_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "parent_rev_hash": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "proposed",
+                  "current",
+                  "superseded",
+                  "rolled_back",
+                  "rejected"
+                ]
+              },
+              "gate_instance_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ledger_entry_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "proposed_by": {
+                "type": "string",
+                "minLength": 1
+              },
+              "proposed_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "published_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "value": {},
+              "set": {
+                "type": "boolean"
+              },
+              "changes_key": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "rev_hash",
+              "parent_rev_hash",
+              "state",
+              "gate_instance_id",
+              "ledger_entry_id",
+              "proposed_by",
+              "proposed_at",
+              "published_at",
+              "value",
+              "set",
+              "changes_key"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "T0",
+                "T1",
+                "T2"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deploys": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "default",
+        "effective",
+        "head_rev_hash",
+        "pending",
+        "history",
+        "project_id",
+        "tier",
+        "deploys"
+      ],
+      "additionalProperties": false
+    },
     "ProjectDefaultEnvelope": {
       "anyOf": [
         {
@@ -94043,6 +96578,208 @@
                   ]
                 }
               },
+              "reonboarding": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "proposal_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "repo": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "area": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "trigger": {
+                      "type": "string",
+                      "enum": [
+                        "knowledge_defects"
+                      ]
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "threshold": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "window_days": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "defect_ids": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "prr_version": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposed_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "proposed",
+                        "accepted",
+                        "declined"
+                      ]
+                    },
+                    "decision": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "proposal_id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "repo": {
+                              "type": "string",
+                              "maxLength": 200,
+                              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                            },
+                            "project_id": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "area": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 256
+                            },
+                            "decision": {
+                              "type": "string",
+                              "enum": [
+                                "accept",
+                                "decline"
+                              ]
+                            },
+                            "reason": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "by": {
+                              "type": "string",
+                              "maxLength": 128,
+                              "pattern": "^[A-Za-z0-9_.@-]+$"
+                            },
+                            "at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "prr_version": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "record_hash": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "level": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "census",
+                                    "light",
+                                    "full"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "new_s0_id": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "ledger_entry_id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "required": [
+                            "proposal_id",
+                            "repo",
+                            "project_id",
+                            "area",
+                            "decision",
+                            "reason",
+                            "by",
+                            "at",
+                            "prr_version",
+                            "record_hash",
+                            "level",
+                            "new_s0_id",
+                            "ledger_entry_id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "proposal_id",
+                    "repo",
+                    "project_id",
+                    "area",
+                    "trigger",
+                    "count",
+                    "threshold",
+                    "window_days",
+                    "defect_ids",
+                    "prr_version",
+                    "proposed_at",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              },
               "history": {
                 "type": "array",
                 "items": {
@@ -94114,6 +96851,7 @@
               "suspension",
               "restore",
               "level_up",
+              "reonboarding",
               "history"
             ],
             "additionalProperties": false
@@ -94614,6 +97352,18 @@
         "data_class"
       ],
       "additionalProperties": false
+    },
+    "ProjectLayerKey": {
+      "type": "string",
+      "enum": [
+        "project.gating_profile",
+        "project.role_map",
+        "project.two_person",
+        "project.release",
+        "project.wip_limit",
+        "project.default_envelope",
+        "project.kill_delegations"
+      ]
     },
     "ProjectLearnView": {
       "type": "object",
@@ -95336,6 +98086,8 @@
                                       "type": "string",
                                       "enum": [
                                         "LF3",
+                                        "LF5",
+                                        "LF6",
                                         "FF1"
                                       ]
                                     },
@@ -96007,6 +98759,44 @@
                           "items": {
                             "type": "string",
                             "minLength": 1
+                          }
+                        },
+                        "r3_sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "area": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 256
+                              },
+                              "glob": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "trigger": {
+                                "type": "string",
+                                "enum": [
+                                  "knowledge_defects"
+                                ]
+                              },
+                              "proposal_ids": {
+                                "minItems": 1,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "pattern": "^[0-9a-f]{64}$"
+                                }
+                              }
+                            },
+                            "required": [
+                              "area",
+                              "glob",
+                              "trigger",
+                              "proposal_ids"
+                            ],
+                            "additionalProperties": false
                           }
                         }
                       },
@@ -97353,6 +100143,8 @@
                                             "type": "string",
                                             "enum": [
                                               "LF3",
+                                              "LF5",
+                                              "LF6",
                                               "FF1"
                                             ]
                                           },
@@ -98024,6 +100816,44 @@
                                 "items": {
                                   "type": "string",
                                   "minLength": 1
+                                }
+                              },
+                              "r3_sources": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "area": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 256
+                                    },
+                                    "glob": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "trigger": {
+                                      "type": "string",
+                                      "enum": [
+                                        "knowledge_defects"
+                                      ]
+                                    },
+                                    "proposal_ids": {
+                                      "minItems": 1,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "area",
+                                    "glob",
+                                    "trigger",
+                                    "proposal_ids"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               }
                             },
@@ -99307,6 +102137,8 @@
                           "type": "string",
                           "enum": [
                             "LF3",
+                            "LF5",
+                            "LF6",
                             "FF1"
                           ]
                         },
@@ -99978,6 +102810,44 @@
               "items": {
                 "type": "string",
                 "minLength": 1
+              }
+            },
+            "r3_sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "glob": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "trigger": {
+                    "type": "string",
+                    "enum": [
+                      "knowledge_defects"
+                    ]
+                  },
+                  "proposal_ids": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "required": [
+                  "area",
+                  "glob",
+                  "trigger",
+                  "proposal_ids"
+                ],
+                "additionalProperties": false
               }
             }
           },
@@ -103599,6 +106469,8 @@
                 "type": "string",
                 "enum": [
                   "LF3",
+                  "LF5",
+                  "LF6",
                   "FF1"
                 ]
               },
@@ -103664,6 +106536,8 @@
           "type": "string",
           "enum": [
             "LF3",
+            "LF5",
+            "LF6",
             "FF1"
           ]
         },
@@ -103784,6 +106658,44 @@
           "items": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        "r3_sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "glob": {
+                "type": "string",
+                "minLength": 1
+              },
+              "trigger": {
+                "type": "string",
+                "enum": [
+                  "knowledge_defects"
+                ]
+              },
+              "proposal_ids": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            "required": [
+              "area",
+              "glob",
+              "trigger",
+              "proposal_ids"
+            ],
+            "additionalProperties": false
           }
         }
       },
@@ -104285,6 +107197,8 @@
                       "type": "string",
                       "enum": [
                         "LF3",
+                        "LF5",
+                        "LF6",
                         "FF1"
                       ]
                     },
@@ -104766,6 +107680,8 @@
                               "type": "string",
                               "enum": [
                                 "LF3",
+                                "LF5",
+                                "LF6",
                                 "FF1"
                               ]
                             },
@@ -105437,6 +108353,44 @@
                   "items": {
                     "type": "string",
                     "minLength": 1
+                  }
+                },
+                "r3_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "glob": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "trigger": {
+                        "type": "string",
+                        "enum": [
+                          "knowledge_defects"
+                        ]
+                      },
+                      "proposal_ids": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "glob",
+                      "trigger",
+                      "proposal_ids"
+                    ],
+                    "additionalProperties": false
                   }
                 }
               },
@@ -106442,6 +109396,41 @@
       ],
       "additionalProperties": false
     },
+    "PrrR3Zone": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "glob": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "knowledge_defects"
+          ]
+        },
+        "proposal_ids": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "required": [
+        "area",
+        "glob",
+        "trigger",
+        "proposal_ids"
+      ],
+      "additionalProperties": false
+    },
     "PrrRepo": {
       "type": "object",
       "properties": {
@@ -107285,6 +110274,8 @@
                               "type": "string",
                               "enum": [
                                 "LF3",
+                                "LF5",
+                                "LF6",
                                 "FF1"
                               ]
                             },
@@ -107956,6 +110947,44 @@
                   "items": {
                     "type": "string",
                     "minLength": 1
+                  }
+                },
+                "r3_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "glob": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "trigger": {
+                        "type": "string",
+                        "enum": [
+                          "knowledge_defects"
+                        ]
+                      },
+                      "proposal_ids": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "area",
+                      "glob",
+                      "trigger",
+                      "proposal_ids"
+                    ],
+                    "additionalProperties": false
                   }
                 }
               },
@@ -110117,6 +113146,12 @@
         "x2_sensitive_path"
       ]
     },
+    "R3ZoneTrigger": {
+      "type": "string",
+      "enum": [
+        "knowledge_defects"
+      ]
+    },
     "RaisableGate": {
       "type": "string",
       "enum": [
@@ -110716,6 +113751,39 @@
               "minLength": 1,
               "maxLength": 255,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "service_env": {
+              "type": "object",
+              "properties": {
+                "service_env_id": {
+                  "type": "string",
+                  "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                },
+                "service": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                },
+                "environment": {
+                  "type": "string",
+                  "enum": [
+                    "development",
+                    "staging",
+                    "production"
+                  ]
+                }
+              },
+              "required": [
+                "service_env_id",
+                "service",
+                "environment"
+              ],
+              "additionalProperties": false
+            },
+            "target_environment": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
             }
           },
           "required": [
@@ -110760,7 +113828,9 @@
                 "no_passing_pack",
                 "no_pull_request",
                 "pack_head_not_pr_head",
-                "no_release_target"
+                "no_release_target",
+                "target_not_attested",
+                "staging_separation_not_attested"
               ]
             }
           },
@@ -110937,6 +114007,10 @@
               "minLength": 1,
               "maxLength": 255,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "service": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
             }
           },
           "required": [
@@ -111017,6 +114091,39 @@
                       "minLength": 1,
                       "maxLength": 255,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                    },
+                    "service_env": {
+                      "type": "object",
+                      "properties": {
+                        "service_env_id": {
+                          "type": "string",
+                          "pattern": "^senv:[^:]+:[a-z0-9._-]+:(development|staging|production)$"
+                        },
+                        "service": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": [
+                            "development",
+                            "staging",
+                            "production"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "service_env_id",
+                        "service",
+                        "environment"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "target_environment": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
                     }
                   },
                   "required": [
@@ -111061,7 +114168,9 @@
                         "no_passing_pack",
                         "no_pull_request",
                         "pack_head_not_pr_head",
-                        "no_release_target"
+                        "no_release_target",
+                        "target_not_attested",
+                        "staging_separation_not_attested"
                       ]
                     }
                   },
@@ -111120,6 +114229,10 @@
                           "minLength": 1,
                           "maxLength": 255,
                           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "service": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                         }
                       },
                       "required": [
@@ -111541,13 +114654,214 @@
         "no_passing_pack",
         "no_pull_request",
         "pack_head_not_pr_head",
-        "no_release_target"
+        "no_release_target",
+        "target_not_attested",
+        "staging_separation_not_attested"
+      ]
+    },
+    "ReonboardDecideRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "proposal_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "accept",
+            "decline"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "repo",
+        "proposal_id",
+        "decision",
+        "reason",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "ReonboardDecideResult": {
+      "type": "object",
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "accept",
+            "decline"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "accepted",
+            "declined"
+          ]
+        },
+        "new_s0_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "duplicate": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "proposal_id",
+        "decision",
+        "status",
+        "new_s0_id",
+        "ledger_entry_id",
+        "duplicate"
+      ],
+      "additionalProperties": false
+    },
+    "ReonboardDecidedPayload": {
+      "type": "object",
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "accept",
+            "decline"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "prr_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "census",
+                "light",
+                "full"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "new_s0_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "proposal_id",
+        "repo",
+        "project_id",
+        "area",
+        "decision",
+        "reason",
+        "by",
+        "at",
+        "prr_version",
+        "record_hash",
+        "level",
+        "new_s0_id",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "ReonboardDecision": {
+      "type": "string",
+      "enum": [
+        "accept",
+        "decline"
       ]
     },
     "ReonboardProposalStatus": {
       "type": "string",
       "enum": [
-        "proposed"
+        "proposed",
+        "accepted",
+        "declined"
       ]
     },
     "ReonboardProposalView": {
@@ -111620,7 +114934,116 @@
         "status": {
           "type": "string",
           "enum": [
-            "proposed"
+            "proposed",
+            "accepted",
+            "declined"
+          ]
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "proposal_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "repo": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                },
+                "project_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "area": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "decision": {
+                  "type": "string",
+                  "enum": [
+                    "accept",
+                    "decline"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "by": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "prr_version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "record_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "level": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "census",
+                        "light",
+                        "full"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "new_s0_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ledger_entry_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              },
+              "required": [
+                "proposal_id",
+                "repo",
+                "project_id",
+                "area",
+                "decision",
+                "reason",
+                "by",
+                "at",
+                "prr_version",
+                "record_hash",
+                "level",
+                "new_s0_id",
+                "ledger_entry_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },
@@ -112270,6 +115693,208 @@
             ]
           }
         },
+        "reonboarding": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "proposal_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "repo": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+              },
+              "project_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "area": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "trigger": {
+                "type": "string",
+                "enum": [
+                  "knowledge_defects"
+                ]
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "threshold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "window_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "defect_ids": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "prr_version": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "proposed_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "proposed",
+                  "accepted",
+                  "declined"
+                ]
+              },
+              "decision": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "proposal_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "repo": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                      },
+                      "project_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "area": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "decision": {
+                        "type": "string",
+                        "enum": [
+                          "accept",
+                          "decline"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "by": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[A-Za-z0-9_.@-]+$"
+                      },
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "prr_version": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "record_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "level": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "census",
+                              "light",
+                              "full"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "new_s0_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "ledger_entry_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    },
+                    "required": [
+                      "proposal_id",
+                      "repo",
+                      "project_id",
+                      "area",
+                      "decision",
+                      "reason",
+                      "by",
+                      "at",
+                      "prr_version",
+                      "record_hash",
+                      "level",
+                      "new_s0_id",
+                      "ledger_entry_id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "proposal_id",
+              "repo",
+              "project_id",
+              "area",
+              "trigger",
+              "count",
+              "threshold",
+              "window_days",
+              "defect_ids",
+              "prr_version",
+              "proposed_at",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
         "history": {
           "type": "array",
           "items": {
@@ -112341,6 +115966,7 @@
         "suspension",
         "restore",
         "level_up",
+        "reonboarding",
         "history"
       ],
       "additionalProperties": false
@@ -116899,6 +120525,10 @@
                               "minLength": 1,
                               "maxLength": 255,
                               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                            },
+                            "service": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                             }
                           },
                           "required": [
@@ -119887,6 +123517,10 @@
                       "minLength": 1,
                       "maxLength": 255,
                       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                    },
+                    "service": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
                     }
                   },
                   "required": [
@@ -123867,6 +127501,11 @@
             "L8"
           ]
         },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
         "channel": {
           "type": "string",
           "enum": [
@@ -123988,7 +127627,8 @@
                 "staging_separation_not_attested",
                 "circuit_breaker",
                 "followup_overdue",
-                "area_unknown"
+                "area_unknown",
+                "r3_zone"
               ]
             },
             "prr": {
@@ -131636,7 +135276,8 @@
             "staging_separation_not_attested",
             "circuit_breaker",
             "followup_overdue",
-            "area_unknown"
+            "area_unknown",
+            "r3_zone"
           ]
         }
       },
@@ -132036,6 +135677,11 @@
           ],
           "additionalProperties": false
         },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
         "request_text": {
           "anyOf": [
             {
@@ -132221,7 +135867,8 @@
             "staging_separation_not_attested",
             "circuit_breaker",
             "followup_overdue",
-            "area_unknown"
+            "area_unknown",
+            "r3_zone"
           ]
         },
         "prr_version": {

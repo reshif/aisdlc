@@ -106,6 +106,8 @@ export interface ItemState {
   readonly project_id: string;
   readonly request_id: string;
   readonly repo: string;
+  /** M17 (DEC-25): the area the request named; 1.4 asks its lanes. Absent: the repo as a whole. */
+  readonly area?: string;
   readonly requester: string;
   readonly channel: string;
   readonly catalogue_ref: CatalogueRef;

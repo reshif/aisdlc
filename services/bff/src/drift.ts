@@ -7,6 +7,8 @@ import {
   ReaffirmRequest,
   ReaffirmResult,
   ReaffirmView,
+  ReonboardDecideRequest,
+  ReonboardDecideResult,
   RepoDriftView,
   RepoFullName,
   RestoreRequest,
@@ -32,6 +34,8 @@ import type { CoreClient } from './core-client.js';
 //   POST /api/projects/:id/drift/restore      {repo, bypass, attestation}                       (project.settings.edit)
 //   POST /api/projects/:id/drift/reaffirm     {repo, path, text_sha256, step_up}                 (project.settings.edit)
 //   POST /api/projects/:id/onboarding-versions {repo, reason, level}  level-up or re-sign      (project.onboard)
+//   POST /api/projects/:id/reonboarding/decide {repo, proposal_id, decision, reason}
+//                                                  accept or decline a re-onboarding proposal   (project.settings.edit)
 
 export interface DriftRouteDeps {
   readonly app: FastifyInstance;
@@ -44,6 +48,7 @@ export const PortalRecheckBody = RestoreRequest.pick({ repo: true });
 export const PortalRestoreBody = RestoreRequest.omit({ on_behalf_of: true });
 export const PortalReaffirmBody = ReaffirmRequest.omit({ on_behalf_of: true });
 export const PortalVersionBody = OnboardingVersionRequest.omit({ on_behalf_of: true });
+export const PortalReonboardBody = ReonboardDecideRequest.omit({ on_behalf_of: true });
 
 export function registerDriftRoutes(d: DriftRouteDeps): void {
   const { app } = d;
@@ -130,6 +135,7 @@ export function registerDriftRoutes(d: DriftRouteDeps): void {
         reaffirm: edit,
         recheck: await allowed(p.who, 'config.propose', pdpResource.project(p.id)),
         request_version: await allowed(p.who, 'project.onboard', pdpResource.fleet()),
+        reonboard: edit,
       },
     });
   });
@@ -205,6 +211,14 @@ export function registerDriftRoutes(d: DriftRouteDeps): void {
       resource: () => pdpResource.fleet(),
       path: 'onboarding-versions',
       parse: (v) => OnboardingVersionResult.parse(v),
+    }),
+  );
+  app.post('/api/projects/:id/reonboarding/decide', (req, reply) =>
+    write(req, reply, {
+      schema: PortalReonboardBody,
+      action: 'project.settings.edit',
+      path: 'reonboarding/decide',
+      parse: (v) => ReonboardDecideResult.parse(v),
     }),
   );
 }

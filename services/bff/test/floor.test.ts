@@ -105,6 +105,7 @@ const floorFixture = (o: { stale?: boolean; read_at?: string } = {}) =>
       reason: o.stale ? 'the floor read model needs a rebuild' : null,
       read_at: o.read_at ?? AT,
     },
+    gates_off: [],
     view_level: 'V3',
     data_class: 'D2',
   });

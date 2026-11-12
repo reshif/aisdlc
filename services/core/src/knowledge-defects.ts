@@ -6,6 +6,7 @@ import {
   KnowledgeDefectRecordedPayload,
   REONBOARD_EVENT,
   REONBOARD_TRIGGERS_KEY,
+  ReonboardDecidedPayload,
   ReonboardProposalView,
   ReonboardProposedPayload,
   ReonboardTriggersConfig,
@@ -15,6 +16,7 @@ import {
   type KnowledgeDefectSource,
 } from '@aisdlc/contracts';
 import type { ConfigReader } from '@aisdlc/config';
+import { areaOfPath, type TrippedArea } from '@aisdlc/onboarding';
 import { hashCanonical, ok, type Result } from '@aisdlc/kernel';
 import type { Executor, Tx } from '@aisdlc/record';
 import type { CoreError } from './errors.js';
@@ -57,15 +59,8 @@ const repoPathOf = (d: KnowledgeDefect): string | null =>
     ? null
     : d.path;
 
-/** The area of `path`: the longest area that is a directory prefix of it, else `.`. */
-export function areaOfPath(path: string, areas: readonly string[]): string {
-  let best = CENSUS_AREA;
-  for (const a of areas) {
-    if (a === CENSUS_AREA) continue;
-    if ((path === a || path.startsWith(`${a}/`)) && a.length > best.length) best = a;
-  }
-  return best;
-}
+/** The area of `path` (the longest area that is a directory prefix of it, else `.`): `@aisdlc/onboarding`'s. */
+export { areaOfPath };
 
 // ---------------------------------------------------------------- read models
 
@@ -108,6 +103,14 @@ export async function applyKnowledgeDefectEvent(
         e.global_seq,
       ],
     );
+    return;
+  }
+  if (e.type === REONBOARD_EVENT.decided) {
+    const p = ReonboardDecidedPayload.parse(e.payload);
+    await tx.query(
+      `UPDATE core.reonboard_proposal SET status = $2, decision = $3 WHERE proposal_id = $1 AND status = 'proposed'`,
+      [p.proposal_id, p.decision === 'accept' ? 'accepted' : 'declined', JSON.stringify(p)],
+    );
   }
 }
 
@@ -140,13 +143,51 @@ export async function listReonboardProposals(
   db: Executor,
   repo: string,
 ): Promise<ReonboardProposalView[]> {
-  const q = await db.query<{ body: unknown; status: string }>(
-    'SELECT body, status FROM core.reonboard_proposal WHERE repo = $1 ORDER BY event_gseq',
+  const q = await db.query<{ body: unknown; status: string; decision: unknown }>(
+    'SELECT body, status, decision FROM core.reonboard_proposal WHERE repo = $1 ORDER BY event_gseq',
     [repo.toLowerCase()],
   );
   return q.rows.map((r) =>
-    ReonboardProposalView.parse({ ...(r.body as object), status: r.status }),
+    ReonboardProposalView.parse({
+      ...(r.body as object),
+      status: r.status,
+      decision: r.decision ?? null,
+    }),
   );
+}
+
+/**
+ * The R3 state of a repo (OB §8, read-only): the areas with an unresolved knowledge-defect proposal. Open proposals
+ * count whatever version they were raised under; an accepted one counts while the version it was about still governs
+ * (its re-onboarding has not signed yet), except for the onboarding it started (`exceptS0`: the record that resolves
+ * it). Declined ones never count.
+ */
+export async function unresolvedR3(
+  db: Executor,
+  repo: string,
+  governingVersion: number | null,
+  exceptS0?: string,
+): Promise<TrippedArea[]> {
+  return (await listReonboardProposals(db, repo))
+    .filter((p) =>
+      p.status === 'proposed'
+        ? true
+        : p.status === 'accepted' &&
+          p.decision !== null &&
+          p.decision !== undefined &&
+          p.decision.prr_version === governingVersion &&
+          p.decision.new_s0_id !== (exceptS0 ?? null),
+    )
+    .map((p) => ({ area: p.area, proposal_id: p.proposal_id }));
+}
+
+/** One proposal of a repo, or `null`. */
+export async function reonboardProposal(
+  db: Executor,
+  repo: string,
+  proposalId: string,
+): Promise<ReonboardProposalView | null> {
+  return (await listReonboardProposals(db, repo)).find((p) => p.proposal_id === proposalId) ?? null;
 }
 
 // ---------------------------------------------------------------- the step

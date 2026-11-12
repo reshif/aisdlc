@@ -30,7 +30,14 @@ import { recordSignedIn } from './s0.js';
 import { fanOutHeld, type FanOutReport } from './work.js';
 import { c5Base } from './cards/views.js';
 import { approvedPayload, loadS0, s0Cards, type LoadedS0 } from './cards/read.js';
-import { affirmedFromC2, affirmedFullFrom, type AreaLevelInput } from '@aisdlc/onboarding';
+import {
+  affirmedFromC2,
+  affirmedFullFrom,
+  type AreaClaim,
+  type AreaLevelInput,
+} from '@aisdlc/onboarding';
+import { lightProposalOf } from './cards/light.js';
+import { unresolvedR3 } from './knowledge-defects.js';
 import { fullBaselineOf } from './cards/full.js';
 import type { Clock } from '@aisdlc/kernel';
 import type pg from 'pg';
@@ -222,6 +229,8 @@ export async function ensurePrrProposed(
 
   // ---- card 2 (Light): what was affirmed goes into the record (OB §3.2 `affirmed`)
   let affirmed: ProjectReadinessRecord['affirmed'] | undefined;
+  // card 2's claims with their verdicts and evidence paths: LF6 per area (DEC-25), R3 zones (an unknown claim)
+  let claims: AreaClaim[] | null = null;
   if (s0.steps.get('0.2')?.state === 'done') {
     const c2 = approvedPayload(cards, 'C2');
     const c2Entry = await entryMeta(deps.pool, c2?.card.state.steps[0]?.ledger_entry_id ?? null);
@@ -234,6 +243,18 @@ export async function ensurePrrProposed(
     });
     if (!a.ok) return err(coreError('conflict', a.error.message));
     affirmed = a.value;
+    const proposal = lightProposalOf(loaded, c2.card.occurrence);
+    if (proposal) {
+      const verdicts = new Map(
+        c2.payload.flatMap((p) => (p.kind === 'claim_verdict' ? [[p.claim_id, p.verdict]] : [])),
+      );
+      claims = proposal.claims.flatMap((cl) => {
+        const verdict = verdicts.get(cl.claim_id);
+        return verdict === undefined
+          ? []
+          : [{ verdict, paths: [...new Set(cl.evidence.map((e) => e.path))] }];
+      });
+    }
   }
 
   // ---- card 3 (Full, M17): the baseline, interview, exam, seeds and golden tasks, by hash and count; and the
@@ -263,8 +284,14 @@ export async function ensurePrrProposed(
       system_map: baseline.system_map,
       seeded_areas: baseline.seeds.map((x) => x.area),
       graph_truncated: baseline.graph.truncated,
+      instruction_areas: affirmed.instructions.map((x) => x.area),
+      claims,
     };
   }
+
+  // R3 (OB §8): the knowledge-defect proposals still unresolved are this record's zones (read-only projection)
+  const governingNow = governingPrr(await readPrrState(deps.pool, project, repoId));
+  const r3 = await unresolvedR3(deps.pool, s0.repo, governingNow?.version ?? null, s0Id);
 
   return inCoreTx<ProjectReadinessRecord>(deps, async (j, tx) => {
     await lockKeys(tx, [`project:${project}`, `repo:${s0.repo.toLowerCase()}`, `s0:${s0Id}`]);
@@ -331,6 +358,7 @@ export async function ensurePrrProposed(
       signer: signer.value,
       ...(affirmed ? { affirmed } : {}),
       areas,
+      r3,
     });
     if (!built.ok) {
       return err(coreError('refused', `${built.error.code}: ${built.error.message}`, built.error));

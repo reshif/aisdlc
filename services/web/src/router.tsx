@@ -36,6 +36,7 @@ export type Route =
   | { name: 'notificationPrefs' }
   | { name: 'closeout'; id: string }
   | { name: 'learn'; id: string }
+  | { name: 'projectSettings'; id: string }
   | { name: 'factoryRevision'; id: string }
   | { name: StaticScreen }
   | { name: 'notfound' };
@@ -87,6 +88,8 @@ export function parseRoute(path: string): Route {
   if (cfg) return { name: 'configKey', key: decodeURIComponent(cfg[1] as string) };
   const closeout = /^\/items\/([^/]+)\/closeout$/.exec(p);
   if (closeout) return { name: 'closeout', id: decodeURIComponent(closeout[1] as string) };
+  const settings = /^\/projects\/([^/]+)\/settings$/.exec(p);
+  if (settings) return { name: 'projectSettings', id: decodeURIComponent(settings[1] as string) };
   const learn = /^\/projects\/([^/]+)\/learn$/.exec(p);
   if (learn) return { name: 'learn', id: decodeURIComponent(learn[1] as string) };
   const frev = /^\/config\/revisions\/([^/]+)$/.exec(p);

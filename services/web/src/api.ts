@@ -9,6 +9,7 @@ import type {
   ThreadView,
   ConfigKeySummary,
   ConfigKeyView,
+  Tier,
   ConfigProposeResult,
   DecisionBatchView,
   DecisionQuery,
@@ -18,6 +19,9 @@ import type {
   ItemPlanRequest,
   ItemPlanResult,
   PortalItemView,
+  PortalItemHandoffView,
+  HandoffChoice,
+  HumanWorkReference,
   PortalAskRequest,
   PortalRequestReceipt,
   CardDeciders,
@@ -38,6 +42,8 @@ import type {
   RestoreResult,
   RepoDriftView,
   OnboardingVersionResult,
+  ReonboardDecideResult,
+  ReonboardDecision,
   BypassListShown,
   Level,
   OnboardingVersionReason,
@@ -117,6 +123,10 @@ export interface Me {
 export type ConfigKeyWire = ConfigKeyView & {
   readonly may_propose: boolean;
   readonly principal_names: Readonly<Record<string, string>>;
+  /** The project layer only (P1-5): the project's tier and deploys, for the floors. */
+  readonly project_id?: string;
+  readonly tier?: Tier | null;
+  readonly deploys?: boolean | null;
 };
 
 export type OnboardInput = Omit<OnboardRequest, 'on_behalf_of'>;
@@ -385,6 +395,29 @@ export const api = {
       b,
       csrf,
     ),
+  // P1-5: a project's own layer
+  projectConfigKeys: (project: string) =>
+    request<{ keys: ConfigKeySummary[]; may_propose: boolean }>(
+      'GET',
+      `/api/projects/${encodeURIComponent(project)}/config/keys`,
+    ),
+  projectConfigKey: (project: string, key: string) =>
+    request<ConfigKeyWire>(
+      'GET',
+      `/api/projects/${encodeURIComponent(project)}/config/keys/${encodeURIComponent(key)}`,
+    ),
+  proposeProjectConfig: (
+    project: string,
+    key: string,
+    b: { value: unknown; parent_rev_hash: string | null },
+    csrf: string,
+  ) =>
+    request<ConfigProposeResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/config/keys/${encodeURIComponent(key)}/proposals`,
+      b,
+      csrf,
+    ),
   logout: (csrf: string) => request<{ ok: true }>('POST', '/api/logout', {}, csrf),
   projects: () => request<ProjectSummary[]>('GET', '/api/projects'),
   project: (id: string) => request<ProjectDetail>('GET', `/api/projects/${encodeURIComponent(id)}`),
@@ -521,6 +554,24 @@ export const api = {
     request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/observe`, b, csrf),
   itemPlan: (id: string, b: PortalPlan, csrf: string) =>
     request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
+  // ------------------------------------------------------------ handoffs (P1-4)
+  itemHandoff: (id: string) =>
+    request<PortalItemHandoffView>('GET', `/api/items/${encodeURIComponent(id)}/handoff`),
+  itemHandoffChoose: (
+    id: string,
+    b: { handoff_id: string; choice: HandoffChoice; extension_percent?: number },
+    csrf: string,
+  ) =>
+    request<ItemActionResult>(
+      'POST',
+      `/api/items/${encodeURIComponent(id)}/handoff/choose`,
+      b,
+      csrf,
+    ),
+  itemHandBack: (id: string, b: { plan_changed: boolean; key: string }, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/hand-back`, b, csrf),
+  itemHumanDone: (id: string, b: { key: string; reference?: HumanWorkReference }, csrf: string) =>
+    request<ItemActionResult>('POST', `/api/items/${encodeURIComponent(id)}/human-done`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
   knowledge: (project: string) =>
@@ -598,6 +649,18 @@ export const api = {
     request<OnboardingVersionResult>(
       'POST',
       `/api/projects/${encodeURIComponent(project)}/onboarding-versions`,
+      b,
+      csrf,
+    ),
+  /** M17: accept (a new onboarding from 0.1) or decline a re-onboarding proposal. */
+  reonboardDecide: (
+    project: string,
+    b: { repo: string; proposal_id: string; decision: ReonboardDecision; reason: string },
+    csrf: string,
+  ) =>
+    request<ReonboardDecideResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/reonboarding/decide`,
       b,
       csrf,
     ),

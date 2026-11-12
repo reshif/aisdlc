@@ -814,6 +814,12 @@ function FloorDrawer({
             ['After', g ? `${g.after_step} ${STEPS[g.after_step].title}` : '—'],
             ['On the route of', lanes.length > 0 ? lanes.join(', ') : 'no lane of this catalogue'],
             [
+              'For this project',
+              (view.gates_off ?? []).includes(target.key)
+                ? 'off for this project (its gating profile has it off; an item pinned before keeps it)'
+                : 'on where the lane has it',
+            ],
+            [
               'If nobody decides',
               'B21 notifies the backup after a business day; expiry never approves',
             ],
