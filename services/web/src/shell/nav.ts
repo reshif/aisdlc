@@ -70,7 +70,8 @@ export const NAV: readonly NavEntry[] = [
       r.name === 'project' ||
       r.name === 's0' ||
       r.name === 'readiness' ||
-      r.name === 'ledger',
+      r.name === 'ledger' ||
+      r.name === 'issues',
   },
   {
     group: 'Projects',

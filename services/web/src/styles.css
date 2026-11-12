@@ -990,3 +990,20 @@ textarea {
 section[aria-label] > .ui-eyebrow {
   margin-top: 12px;
 }
+
+/* M16: the issue twin (one block per repo, its heading beside its action) */
+.twin-page,
+.twin-repo {
+  display: grid;
+  gap: 1rem;
+}
+.twin-repo-hd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+.twin-repo-hd h2 {
+  margin: 0;
+}

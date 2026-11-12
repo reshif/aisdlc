@@ -28,6 +28,9 @@ import type {
   PortalSettingsRevision,
   ProjectDetail,
   ProjectPrrView,
+  PortalIssueTwinView,
+  IssueTwinBatchResult,
+  IssueTwinRequestResult,
   ProjectSummary,
   S0Overview,
   EvidencePackView,
@@ -409,6 +412,30 @@ export const api = {
     request<ItemPlanResult>('POST', `/api/items/${encodeURIComponent(id)}/plan`, b, csrf),
   prr: (project: string) =>
     request<ProjectPrrView>('GET', `/api/projects/${encodeURIComponent(project)}/prr`),
+  // ------------------------------------------------------------ the GitHub issue twin (M16)
+  issueTwin: (project: string) =>
+    request<PortalIssueTwinView>('GET', `/api/projects/${encodeURIComponent(project)}/issue-twin`),
+  issueTwinBatch: (
+    project: string,
+    b: {
+      repo: string;
+      rows: ReadonlyArray<{ gap_id: string; disposition: 'file_issue' | 'track_only' }>;
+    },
+    csrf: string,
+  ) =>
+    request<IssueTwinBatchResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/issue-twin/batches`,
+      b,
+      csrf,
+    ),
+  issueTwinRequest: (project: string, b: { repo: string; gap_id: string }, csrf: string) =>
+    request<IssueTwinRequestResult>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/issue-twin/requests`,
+      b,
+      csrf,
+    ),
   // ------------------------------------------------------------ the assistant (M18)
   ask: (input: AskInput, csrf: string) =>
     request<AskResult>('POST', '/api/assistant/ask', input, csrf),
