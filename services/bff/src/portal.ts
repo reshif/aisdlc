@@ -13,6 +13,9 @@ import {
   ConfigKeyView,
   ConfigProposeRequest,
   ConfigProposeResult,
+  PROJECT_LAYER_KEYS,
+  ProjectConfigKeyView,
+  ProjectLayerKey,
   CoreInboxItem,
   EvalRunsView,
   EvalSummaryView,
@@ -527,6 +530,95 @@ export function registerPortalRoutes(d: PortalDeps): void {
       on_behalf_of: who,
     });
     const got = upstream(reply, r, (v) => ConfigProposeResult.parse(v));
+    if (!got) return;
+    return reply.code(201).send(got.value);
+  });
+
+  // ------------------------------------------------------------ a project's settings (P1-5)
+  //
+  // The project layer of the configuration console: read under `project.view` on the project, proposed under
+  // `project.settings.edit` (core asks it again) as `PUT /v1/projects/:id/settings` with the one field the key maps
+  // to and the head the draft was made against. The proposal is an M1 at the project's admin slot; nothing changes
+  // until it is decided approve and published.
+
+  async function projectConfigReader(req: FastifyRequest, reply: FastifyReply) {
+    const c = core(reply);
+    if (!c) return null;
+    const id = ProjectId.safeParse((req.params as { id?: string }).id);
+    if (!id.success) {
+      sendError(reply, 400, 'invalid_input', 'bad project id');
+      return null;
+    }
+    const who = d.principalOf(req);
+    const res = pdpResource.project(id.data);
+    if (!(await allowed(who, 'project.view', res))) {
+      deny(reply, 'project.view');
+      return null;
+    }
+    const propose = await allowed(who, 'project.settings.edit', res);
+    return { c, who, project: id.data, propose };
+  }
+  const projectKey = (req: FastifyRequest, reply: FastifyReply): ProjectLayerKey | null => {
+    const k = ProjectLayerKey.safeParse((req.params as { key?: string }).key);
+    if (k.success) return k.data;
+    sendError(reply, 404, 'not_found', 'not a key of the project layer');
+    return null;
+  };
+
+  app.get('/api/projects/:id/config/keys', async (req, reply) => {
+    const r = await projectConfigReader(req, reply);
+    if (!r) return;
+    const got = upstream(
+      reply,
+      await r.c.call('GET', `/v1/projects/${encodeURIComponent(r.project)}/config/keys`),
+      (v) => z.array(ConfigKeySummary).parse(v),
+    );
+    return got ? { keys: got.value, may_propose: r.propose } : undefined;
+  });
+
+  app.get('/api/projects/:id/config/keys/:key', async (req, reply) => {
+    const r = await projectConfigReader(req, reply);
+    const key = r ? projectKey(req, reply) : null;
+    if (!r || !key) return;
+    const got = upstream(
+      reply,
+      await r.c.call('GET', `/v1/projects/${encodeURIComponent(r.project)}/config/keys/${key}`),
+      (v) => ProjectConfigKeyView.parse(v),
+    );
+    if (!got) return;
+    const ids = new Set<string>();
+    for (const h of got.value.history) ids.add(h.proposed_by);
+    for (const p of got.value.pending) for (const h of p.deciders.holders) ids.add(h);
+    return { ...got.value, may_propose: r.propose, principal_names: await names([...ids]) };
+  });
+
+  app.post('/api/projects/:id/config/keys/:key/proposals', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const id = ProjectId.safeParse((req.params as { id?: string }).id);
+    if (!id.success) return sendError(reply, 400, 'invalid_input', 'bad project id');
+    const key = projectKey(req, reply);
+    if (!key) return;
+    const body = PortalConfigProposeBody.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    const who = d.principalOf(req);
+    if (!(await allowed(who, 'project.settings.edit', pdpResource.project(id.data)))) {
+      return deny(reply, 'project.settings.edit');
+    }
+    const r = await c.call('PUT', `/v1/projects/${encodeURIComponent(id.data)}/settings`, {
+      [PROJECT_LAYER_KEYS[key]]: body.data.value,
+      parent_rev_hash: body.data.parent_rev_hash,
+      on_behalf_of: who,
+    });
+    const got = upstream(reply, r, (v) => {
+      const o = v as Record<string, unknown>;
+      return ConfigProposeResult.parse({
+        rev_hash: o['rev_hash'],
+        parent_rev_hash: o['parent_rev_hash'],
+        gate_instance_id: o['gate_instance_id'],
+        superseded: o['superseded'],
+      });
+    });
     if (!got) return;
     return reply.code(201).send(got.value);
   });

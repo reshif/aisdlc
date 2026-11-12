@@ -972,6 +972,8 @@ export const SCHEMAS = {
   ConfigKeyRevision: entities.ConfigKeyRevision,
   ConfigPending: entities.ConfigPending,
   ConfigKeyView: entities.ConfigKeyView,
+  ProjectConfigKeyView: entities.ProjectConfigKeyView,
+  ProjectLayerKey: entities.ProjectLayerKey,
   ConfigProposeRequest: entities.ConfigProposeRequest,
   ConfigProposeResult: entities.ConfigProposeResult,
   // M16: the GitHub issue twin

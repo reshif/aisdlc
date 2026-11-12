@@ -26838,7 +26838,8 @@
               "type": "string",
               "enum": [
                 "default",
-                "revision"
+                "revision",
+                "factory"
               ]
             },
             "rev_hash": {
@@ -87621,6 +87622,460 @@
       ],
       "additionalProperties": false
     },
+    "ProjectConfigKeyView": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "setting",
+                "ops_flag"
+              ]
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "overridable": {
+              "type": "boolean"
+            },
+            "json_schema": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "key",
+            "kind",
+            "description",
+            "overridable",
+            "json_schema"
+          ],
+          "additionalProperties": false
+        },
+        "default": {},
+        "effective": {
+          "type": "object",
+          "properties": {
+            "value": {},
+            "source": {
+              "type": "string",
+              "enum": [
+                "default",
+                "revision",
+                "factory"
+              ]
+            },
+            "rev_hash": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gate_instance_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ledger_entry_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "published_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "source",
+            "rev_hash",
+            "gate_instance_id",
+            "ledger_entry_id",
+            "published_at"
+          ],
+          "additionalProperties": false
+        },
+        "head_rev_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "revision": {
+                "type": "object",
+                "properties": {
+                  "rev_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "parent_rev_hash": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "proposed",
+                      "current",
+                      "superseded",
+                      "rolled_back",
+                      "rejected"
+                    ]
+                  },
+                  "gate_instance_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ledger_entry_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "proposed_by": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "proposed_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "published_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "value": {},
+                  "set": {
+                    "type": "boolean"
+                  },
+                  "changes_key": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "rev_hash",
+                  "parent_rev_hash",
+                  "state",
+                  "gate_instance_id",
+                  "ledger_entry_id",
+                  "proposed_by",
+                  "proposed_at",
+                  "published_at",
+                  "value",
+                  "set",
+                  "changes_key"
+                ],
+                "additionalProperties": false
+              },
+              "gate_status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "decided",
+                      "superseded",
+                      "expired",
+                      "closed"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "deciders": {
+                "type": "object",
+                "properties": {
+                  "slot": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "requesters",
+                      "intent",
+                      "design",
+                      "g4",
+                      "g5",
+                      "x",
+                      "sec",
+                      "m4",
+                      "kill"
+                    ]
+                  },
+                  "holders": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    }
+                  },
+                  "single_operator": {
+                    "type": "boolean"
+                  },
+                  "sod_waiver": {
+                    "type": "boolean"
+                  },
+                  "tier": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "T0",
+                          "T1",
+                          "T2"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "t2": {
+                    "type": "boolean"
+                  },
+                  "can_decide": {
+                    "type": "boolean"
+                  },
+                  "error": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "slot",
+                  "holders",
+                  "single_operator",
+                  "sod_waiver",
+                  "tier",
+                  "t2",
+                  "can_decide",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "revision",
+              "gate_status",
+              "deciders"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rev_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "parent_rev_hash": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "proposed",
+                  "current",
+                  "superseded",
+                  "rolled_back",
+                  "rejected"
+                ]
+              },
+              "gate_instance_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ledger_entry_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "proposed_by": {
+                "type": "string",
+                "minLength": 1
+              },
+              "proposed_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "published_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "value": {},
+              "set": {
+                "type": "boolean"
+              },
+              "changes_key": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "rev_hash",
+              "parent_rev_hash",
+              "state",
+              "gate_instance_id",
+              "ledger_entry_id",
+              "proposed_by",
+              "proposed_at",
+              "published_at",
+              "value",
+              "set",
+              "changes_key"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "T0",
+                "T1",
+                "T2"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deploys": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "default",
+        "effective",
+        "head_rev_hash",
+        "pending",
+        "history",
+        "project_id",
+        "tier",
+        "deploys"
+      ],
+      "additionalProperties": false
+    },
     "ProjectDefaultEnvelope": {
       "anyOf": [
         {
@@ -89142,6 +89597,18 @@
         "data_class"
       ],
       "additionalProperties": false
+    },
+    "ProjectLayerKey": {
+      "type": "string",
+      "enum": [
+        "project.gating_profile",
+        "project.role_map",
+        "project.two_person",
+        "project.release",
+        "project.wip_limit",
+        "project.default_envelope",
+        "project.kill_delegations"
+      ]
     },
     "ProjectLearnView": {
       "type": "object",

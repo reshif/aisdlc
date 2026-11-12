@@ -99,6 +99,7 @@ import { projectKnowledge } from './portal-knowledge.js';
 import {
   getProject,
   getProjectDetail,
+  getProjectState,
   getS0Overview,
   listProjects,
   listS0ForRepo,
@@ -143,7 +144,13 @@ import { registerIssueTwinRoutes } from './issue-twin/routes.js';
 import { registerDriftRoutes } from './drift/routes.js';
 import { registerErasableRoutes } from './conversation/erasable.js';
 import { registerGovernanceRoutes } from './governance-routes.js';
-import { configKeyView, listConfigKeys, proposeConfigKey } from './config-console.js';
+import {
+  configKeyView,
+  listConfigKeys,
+  listProjectConfigKeys,
+  projectConfigKeyView,
+  proposeConfigKey,
+} from './config-console.js';
 import {
   cardDetail,
   cardHeader,
@@ -1416,6 +1423,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         // M15.5: the project's admission limits (ADR-0003 §6)
         wip_limit: ProjectWipLimit.optional(),
         default_envelope: ProjectDefaultEnvelope.optional(),
+        // P1-5: the project lineage's head the draft was made against (absent: the head now)
+        parent_rev_hash: Sha256Hex.nullable().optional(),
         on_behalf_of: PrincipalId,
       }),
       req.body,
@@ -1427,11 +1436,12 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       return;
     }
     if (!o.config) return fail(reply, coreError('unavailable', 'no decision kernel is configured'));
-    const { on_behalf_of, ...change } = b.value;
+    const { on_behalf_of, parent_rev_hash, ...change } = b.value;
     const r = await proposeProjectSettings(o.config, {
       project: id,
       change,
       proposed_by: on_behalf_of,
+      ...(parent_rev_hash !== undefined ? { parent_rev_hash } : {}),
     });
     if (!r.ok) return fail(reply, r.error);
     return reply.code(202).send(r.value);
@@ -1882,6 +1892,40 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       parent_rev_hash: b.value.parent_rev_hash,
     });
     return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
+
+  // ------------------------------------------------------------ the project layer (P1-5)
+  //
+  // A project's own settings after onboarding, read as config keys of its layer (the value in force for the project,
+  // the lineage, pending M1s at the project's admin slot, history). A proposal is `PUT /v1/projects/:id/settings`
+  // with one field and the head it was drafted against: the existing M1 path, nothing new.
+
+  app.get('/v1/projects/:id/config/keys', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    if (!config) return;
+    return listProjectConfigKeys(config);
+  });
+
+  app.get('/v1/projects/:id/config/keys/:key', async (req, reply) => {
+    if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const config = configOr(reply);
+    const id = projectIdOf(req);
+    const key = keyParam(req);
+    if (!config) return;
+    if (!id) return fail(reply, coreError('invalid_input', 'bad project id'));
+    if (!key) return fail(reply, coreError('invalid_input', 'bad config key'));
+    try {
+      const st = await getProjectState(o.pool, id);
+      if (!st) return fail(reply, coreError('not_found', 'no such project'));
+      const r = await projectConfigKeyView(config, id, key, {
+        tier: st.project.tier ?? st.attestations.tier_floor ?? null,
+        deploys: st.project.deploys ?? null,
+      });
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the configuration could not be read'));
+    }
   });
 
   // ------------------------------------------------------------ readiness record and ledger (M8.4)
