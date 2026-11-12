@@ -4,7 +4,8 @@ import { SANDBOX_LABEL } from '@aisdlc/contracts';
 import type { ServiceAuth } from '@aisdlc/service-kit';
 import {
   OCCUPIES_SLOT,
-  isSandboxLabelled,
+  isOwnedBy,
+  ownerOf,
   peerLabelOk,
   route,
   validateArchive,
@@ -12,6 +13,7 @@ import {
   validateCreate,
   validateDelete,
   validateKill,
+  validateList,
   validateLogs,
   validateNetworkCreate,
   validateWaitCondition,
@@ -211,11 +213,11 @@ export class DockerProxy {
     const r = await this.upJson(`/containers/${id}/json`);
     if (r.status === 404) return { allow: false, status: 404, reason: 'no such container' };
     const cfg = (r.json as { Config?: { Labels?: unknown } } | null)?.Config;
-    if (r.status !== 200 || !isSandboxLabelled(cfg?.Labels)) {
+    if (r.status !== 200 || !isOwnedBy(cfg?.Labels, ownerOf(this.opts.policy))) {
       return {
         allow: false,
         status: 403,
-        reason: `not a sandbox container (no ${SANDBOX_LABEL.sandbox}=1 label)`,
+        reason: `not a sandbox container of this proxy (${SANDBOX_LABEL.sandbox}=1 and ${SANDBOX_LABEL.owner}=${ownerOf(this.opts.policy)})`,
       };
     }
     return { allow: true, value: undefined };
@@ -225,11 +227,15 @@ export class DockerProxy {
     const r = await this.upJson(`/networks/${id}`);
     if (r.status === 404) return { allow: false, status: 404, reason: 'no such network' };
     const n = r.json as { Labels?: unknown; Internal?: unknown } | null;
-    if (r.status !== 200 || !isSandboxLabelled(n?.Labels) || n?.Internal !== true) {
+    if (
+      r.status !== 200 ||
+      !isOwnedBy(n?.Labels, ownerOf(this.opts.policy)) ||
+      n?.Internal !== true
+    ) {
       return {
         allow: false,
         status: 403,
-        reason: 'not a sandbox session network (label and internal)',
+        reason: 'not a sandbox session network of this proxy (labels and internal)',
       };
     }
     return { allow: true, value: undefined };
@@ -268,6 +274,60 @@ export class DockerProxy {
       };
     }
     return { allow: true, value: undefined };
+  }
+
+  /**
+   * M19: this proxy's own sandboxes, as a minimal list the proxy writes itself (the filter is the proxy's: the
+   * sandbox label and its owner label; nothing of the daemon's answer is passed on but ids, names, state and the
+   * session and class labels).
+   */
+  private async list(res: http.ServerResponse, kind: 'containers' | 'networks'): Promise<void> {
+    const filters = encodeURIComponent(
+      JSON.stringify({
+        label: [
+          `${SANDBOX_LABEL.sandbox}=1`,
+          `${SANDBOX_LABEL.owner}=${ownerOf(this.opts.policy)}`,
+        ],
+      }),
+    );
+    const r = await this.upJson(
+      kind === 'containers'
+        ? `/containers/json?all=true&filters=${filters}`
+        : `/networks?filters=${filters}`,
+    );
+    if (r.status !== 200 || !Array.isArray(r.json)) {
+      this.refuse(res, 502, `the daemon would not list ${kind}`);
+      return;
+    }
+    const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+    const rows = (r.json as Array<Record<string, unknown>>).flatMap((x) => {
+      const labels = (x['Labels'] ?? {}) as Record<string, unknown>;
+      // the daemon filtered by label; checked again here (a filter the daemon ignored lists nothing)
+      if (!isOwnedBy(labels, ownerOf(this.opts.policy))) return [];
+      const id = str(x['Id']);
+      if (id === null) return [];
+      const name =
+        kind === 'containers'
+          ? (str((x['Names'] as unknown[] | undefined)?.[0]) ?? '').replace(/^\//, '')
+          : (str(x['Name']) ?? '');
+      return [
+        {
+          id,
+          name,
+          session: str(labels[SANDBOX_LABEL.session]),
+          ...(kind === 'containers'
+            ? { class: str(labels[SANDBOX_LABEL.class]), state: str(x['State']) }
+            : {}),
+        },
+      ];
+    });
+    const body = JSON.stringify(rows);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body),
+      Connection: 'close',
+    });
+    res.end(body);
   }
 
   // ---- the handler
@@ -322,6 +382,15 @@ export class DockerProxy {
       case 'ping': {
         ok();
         return this.pass(res, await this.up(method, r.path, {}));
+      }
+      case 'container_list':
+      case 'network_list': {
+        if (r.kind === 'network_list' && !this.opts.policy.allowNetworks)
+          return deny(403, `${label}: this proxy has no networks`);
+        if (!(await check(validateList(r.query)))) return;
+        this.drain(req).catch(() => undefined);
+        ok();
+        return this.list(res, r.kind === 'container_list' ? 'containers' : 'networks');
       }
       case 'container_create': {
         const body = await this.readJson(req);

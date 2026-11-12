@@ -176,7 +176,15 @@ export const SANDBOX_LABEL = {
   class: 'aisdlc.sandbox.class',
   /** Set by compose on the peers a session network may attach (`gateway`, `mirror`); the proxy refuses it on a create. */
   peer: 'aisdlc.sandbox.peer',
+  /**
+   * M19: set by the socket proxy itself on every container and network it creates (never by a client): the proxy
+   * instance that made it. A proxy lists, inspects and removes only what carries its own owner, so the sweep of a
+   * runner host after a crash (the sandbox-controller's boot) never touches another host's sandboxes on one daemon.
+   */
+  owner: 'aisdlc.sandbox.owner',
 } as const;
+/** A proxy owner name (`DOCKER_PROXY_OWNER`): what `SANDBOX_LABEL.owner` carries. */
+export const SANDBOX_OWNER = /^[a-z0-9][a-z0-9.-]{0,62}$/;
 
 export const SandboxPeer = z.enum(['gateway', 'mirror']);
 export type SandboxPeer = z.infer<typeof SandboxPeer>;

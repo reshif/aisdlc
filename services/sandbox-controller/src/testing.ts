@@ -14,6 +14,8 @@ export interface TestController {
   /** The adapter core uses, pointed at this controller. */
   readonly client: HttpSandbox;
   close(): Promise<void>;
+  /** M19: the process dies: every open connection is cut at once (an answer in flight is never sent). */
+  kill(): Promise<void>;
 }
 
 /** A controller on a loopback port in front of `driver` (a `FakeSandbox` in tests), with fixed caps and fake grants by default. */
@@ -25,6 +27,7 @@ export async function startTestController(o: {
   scopes?: readonly ControllerScope[];
   probeImage?: () => string | null;
   onStart?: ConstructorParameters<typeof SandboxController>[0]['onStart'];
+  sweep?: ConstructorParameters<typeof SandboxController>[0]['sweep'];
 }): Promise<TestController> {
   const token = randomBytes(24).toString('hex');
   const caps = o.caps ?? new StaticCaps();
@@ -35,6 +38,7 @@ export async function startTestController(o: {
     hostId: 'test',
     ...(o.probeImage ? { probeImage: o.probeImage } : {}),
     ...(o.onStart ? { onStart: o.onStart } : {}),
+    ...(o.sweep ? { sweep: o.sweep } : {}),
   });
   const app = createControllerApp({
     controller,
@@ -49,5 +53,9 @@ export async function startTestController(o: {
     controller,
     client: new HttpSandbox({ baseUrl: url, token }),
     close: () => app.close(),
+    kill: async () => {
+      app.server.closeAllConnections();
+      await app.close();
+    },
   };
 }

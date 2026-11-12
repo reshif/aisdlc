@@ -15,7 +15,8 @@
 
 x-factory:
   &factory # The one image, built by `migrate` below; every service picks its bundle with `command`.
-  image: aisdlc/factory:local
+  # M19: AISDLC_FACTORY_IMAGE names another tag of the same image (two stacks of different branches on one daemon)
+  image: ${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local}
   pull_policy: never
   user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
   init: true
@@ -1176,6 +1177,8 @@ services:
     group_add: ['${DOCKER_GID:-0}']
     environment:
       DOCKER_PROXY_MODE: cvw
+      # M19: this instance's owner label: it lists, inspects and removes only the sandboxes it labelled itself
+      DOCKER_PROXY_OWNER: ${COMPOSE_PROJECT_NAME:-aisdlc}-cvw
       # the internal network is not an identity: every TCP caller presents its own bearer token (file: references)
       DOCKER_PROXY_CALLERS: cvw=file:/run/secrets/tok-cvw-docker-cvw
       DOCKER_PROXY_IMAGES: ${SANDBOX_IMAGE:-aisdlc/sandbox:local},${SANDBOX_AGENT_IMAGE:-aisdlc/sandbox-agent:local}
@@ -1204,6 +1207,8 @@ services:
     group_add: ['${DOCKER_GID:-0}']
     environment:
       DOCKER_PROXY_MODE: coding
+      # M19: this runner host's owner label: the sandbox-controller's sweep (at boot, after a crash) removes only these
+      DOCKER_PROXY_OWNER: ${COMPOSE_PROJECT_NAME:-aisdlc}-coding
       # M14.2: the sandbox-controller is the one service that drives it (core-worker no longer holds a token here)
       DOCKER_PROXY_CALLERS: sandbox-controller=file:/run/secrets/tok-sandbox-controller-docker-coding,smoke=file:/run/secrets/tok-smoke-docker-coding
       # M16: plus the onboarding probe image by digest (platform/sandbox/onboarding/build.sh prints it), when built

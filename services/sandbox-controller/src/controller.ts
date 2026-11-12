@@ -28,8 +28,10 @@ import type { GrantVerifier } from './grants.js';
 //   3. the two caps of the host, read now (a reload takes effect on the next session): the total across classes
 //      and the coding cap (`CODING_CLASSES`). Over either: `busy`, nothing started, nothing queued;
 //   4. the driver runs the session to its end; the slot is released in `finally`, whatever the driver did.
-// Its state is the running sessions, in memory only: a restart forgets them, which is safe because they die with
-// the process (the driver's containers are removed by the driver, or by the proxy's labels on the next start).
+// Its state is the running sessions, in memory only: a restart forgets them. Their containers do NOT die with the
+// process (the daemon runs them on): the next controller sweeps at boot (M19, `sweep`), and the proxy's owner label
+// says which sandboxes are this host's to remove. A session whose controller died is never answered to core: core's
+// call fails, the stage command is not answered and is delivered again (same key, same grant and lease epoch).
 
 export interface ControllerDeps {
   readonly driver: SandboxPort;
@@ -46,6 +48,19 @@ export interface ControllerDeps {
   readonly now?: () => Date;
   /** M19: told when a session takes its slot (the heartbeat reporter beats it at once). Never awaited, never fails a run. */
   readonly onStart?: (s: RunningSession) => void;
+  /**
+   * M19 (the runner-killed drill): removes what this host's driver left behind of every session not in `keep` (the
+   * `DockerSandboxDriver`'s `sweep`). Absent: nothing to sweep (a fake driver keeps nothing).
+   */
+  readonly sweep?: (keep: ReadonlySet<string>) => Promise<SweepResult>;
+}
+
+/** What a sweep removed (session ids) and what it could not. */
+export interface SweepResult {
+  readonly containers: readonly string[];
+  readonly networks: readonly string[];
+  readonly scratch: readonly string[];
+  readonly errors: readonly string[];
 }
 
 /** A session this host is running, with the grant it runs under (what a heartbeat names). */
@@ -91,6 +106,16 @@ export class SandboxController {
         started_at: r.started_at,
       })),
     };
+  }
+
+  /**
+   * M19: removes what a dead predecessor (or a driver that could not clean up) left on this host: every sandbox whose
+   * session is not running HERE. At boot nothing runs, so everything of this host's owner goes; later, a running
+   * session is kept (its slot is taken before its container is made, so a sweep never races a session it keeps).
+   */
+  async sweep(): Promise<SweepResult> {
+    if (!this.d.sweep) return { containers: [], networks: [], scratch: [], errors: [] };
+    return this.d.sweep(new Set(this.running.keys()));
   }
 
   /** The sessions running now (M19: the heartbeat reporter beats each of them). */

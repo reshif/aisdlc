@@ -24,6 +24,8 @@ let containers: Record<string, { Config: { Labels: Record<string, string> } }> =
 let networks: Record<string, { Labels: Record<string, string>; Internal: boolean }> = {};
 let listing: Array<{ State: string; Labels: Record<string, string> }> = [];
 let proxy: DockerProxy;
+/** The labels this proxy (owner `local`, the default) puts on what it creates. */
+const OWN = { [SANDBOX_LABEL.sandbox]: '1', [SANDBOX_LABEL.owner]: 'local' };
 let sock: string;
 
 beforeAll(async () => {
@@ -70,15 +72,23 @@ beforeEach(() => {
   seen = [];
   listing = [];
   containers = {
-    'aisdlc-sbx-sess-000001': { Config: { Labels: { [SANDBOX_LABEL.sandbox]: '1' } } },
+    'aisdlc-sbx-sess-000001': { Config: { Labels: OWN } },
+    // M19: a sandbox of another proxy on the same daemon (another runner host, another stack)
+    'aisdlc-sbx-sess-000007': {
+      Config: { Labels: { [SANDBOX_LABEL.sandbox]: '1', [SANDBOX_LABEL.owner]: 'other' } },
+    },
     postgres: { Config: { Labels: {} } },
     'aisdlc-gateway': { Config: { Labels: { [SANDBOX_LABEL.peer]: 'gateway' } } },
     'aisdlc-package-mirror': { Config: { Labels: { [SANDBOX_LABEL.peer]: 'mirror' } } },
   };
   networks = {
-    'aisdlc-sbx-net-sess-000001': { Labels: { [SANDBOX_LABEL.sandbox]: '1' }, Internal: true },
+    'aisdlc-sbx-net-sess-000001': { Labels: OWN, Internal: true },
+    'aisdlc-sbx-net-sess-000007': {
+      Labels: { [SANDBOX_LABEL.sandbox]: '1', [SANDBOX_LABEL.owner]: 'other' },
+      Internal: true,
+    },
     'aisdlc-sbx-net-sess-000002': { Labels: {}, Internal: true },
-    'aisdlc-sbx-net-sess-000003': { Labels: { [SANDBOX_LABEL.sandbox]: '1' }, Internal: false },
+    'aisdlc-sbx-net-sess-000003': { Labels: OWN, Internal: false },
   };
 });
 
@@ -280,7 +290,67 @@ describe('ownership: a verb on a container or network needs the sandbox label', 
       Internal: true,
       Driver: 'bridge',
       Attachable: false,
+      Labels: { [SANDBOX_LABEL.owner]: 'local' },
     });
+  });
+  it("M19: another proxy's sandbox (another owner on the same daemon) is not this proxy's to touch", async () => {
+    for (const [m, u] of [
+      ['POST', '/containers/aisdlc-sbx-sess-000007/kill'],
+      ['DELETE', '/containers/aisdlc-sbx-sess-000007?force=true'],
+      ['GET', '/containers/aisdlc-sbx-sess-000007/logs'],
+      ['DELETE', '/networks/aisdlc-sbx-net-sess-000007'],
+    ] as const) {
+      expect((await call(m, u)).status, u).toBe(403);
+    }
+    expect(nonInspect().filter((s) => !s.url.startsWith('/networks/aisdlc'))).toEqual([]);
+    expect(seen.filter((s) => s.method !== 'GET')).toEqual([]);
+  });
+});
+
+describe("M19: the list of this proxy's own sandboxes (the sweep after a crash)", () => {
+  it('asks the daemon with its own filter and answers ids, names, sessions and states only', async () => {
+    listing = [
+      {
+        Id: 'a'.repeat(64),
+        Names: ['/aisdlc-sbx-sess-000001'],
+        State: 'running',
+        Labels: { ...OWN, [SANDBOX_LABEL.session]: 'sess-000001', [SANDBOX_LABEL.class]: 'W' },
+        Mounts: [{ Source: '/secret/host/path' }],
+      },
+      // a daemon that ignored the filter: the proxy checks the labels again
+      { Id: 'b'.repeat(64), Names: ['/postgres'], State: 'running', Labels: {} },
+    ] as never;
+    const r = await call('GET', '/containers/json?all=true');
+    expect(r.status).toBe(200);
+    expect(JSON.parse(r.body)).toEqual([
+      {
+        id: 'a'.repeat(64),
+        name: 'aisdlc-sbx-sess-000001',
+        session: 'sess-000001',
+        class: 'W',
+        state: 'running',
+      },
+    ]);
+    const asked = seen.find((s) => s.url.startsWith('/containers/json'));
+    const filters = JSON.parse(
+      decodeURIComponent(new URL(`http://x${asked?.url ?? ''}`).searchParams.get('filters') ?? ''),
+    );
+    expect(filters).toEqual({
+      label: [`${SANDBOX_LABEL.sandbox}=1`, `${SANDBOX_LABEL.owner}=local`],
+    });
+  });
+  it("a client filter is refused (the filter is the proxy's own)", async () => {
+    const f = encodeURIComponent(JSON.stringify({ label: ['x=1'] }));
+    expect((await call('GET', `/containers/json?all=true&filters=${f}`)).status).toBe(403);
+    expect((await call('GET', '/containers/json?all=false')).status).toBe(403);
+    expect(seen).toEqual([]);
+  });
+  it('a client may not set the owner label on a create', async () => {
+    const b = validBody('K', 'sess-000005');
+    (b.Labels as Record<string, string>)[SANDBOX_LABEL.owner] = 'other';
+    const r = await call('POST', '/containers/create?name=aisdlc-sbx-sess-000005', json(b), JSON_H);
+    expect(r.status).toBe(403);
+    expect(seen.filter((s) => s.url.startsWith('/containers/create'))).toEqual([]);
   });
 });
 
