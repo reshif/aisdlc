@@ -26,10 +26,11 @@ function run(label, cmd, cmdArgs, { buffer }) {
     const child = spawn(cmd, cmdArgs, {
       cwd: root,
       stdio: buffer ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-      env: {
-        ...process.env,
-        FORCE_COLOR: process.env['FORCE_COLOR'] ?? (process.stdout.isTTY ? '1' : '0'),
-      },
+      // Held output is piped: keep its colours when it is printed to a terminal.
+      env:
+        buffer && process.stdout.isTTY && process.env['FORCE_COLOR'] === undefined
+          ? { ...process.env, FORCE_COLOR: '1' }
+          : process.env,
     });
     let out = '';
     if (buffer) {
