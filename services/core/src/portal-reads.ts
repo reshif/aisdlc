@@ -155,6 +155,8 @@ export async function prepareRevision(
         nonce: p.value.nonce,
         expires_at: p.value.expires_at,
         evidence_hash: p.value.evidence_hash,
+        // an M1 that needs two people needs each to step up (RC-SEC-4)
+        step_up: p.value.step_up,
       })
     : err(decisionRefusal(p.error));
 }
@@ -182,9 +184,13 @@ export interface RevisionDecision {
  */
 export async function decideRevision(
   deps: { pool: pg.Pool; config: ConfigDeps },
-  input: { nonce: string; decision: string },
+  input: { nonce: string; decision: string; step_up?: { proof: string } | undefined },
 ): Promise<Result<RevisionDecision, CoreError>> {
-  const d = await decideGate(deps.config, { nonce: input.nonce, decision: input.decision });
+  const d = await decideGate(deps.config, {
+    nonce: input.nonce,
+    decision: input.decision,
+    ...(input.step_up ? { step_up: input.step_up } : {}),
+  });
   if (!d.ok) return err(decisionRefusal(d.error));
   const { entry, after } = d.value;
   let published = false;

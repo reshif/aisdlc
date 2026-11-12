@@ -149,7 +149,8 @@ export async function openGate(
       facts: { ...input.facts, expires_at: expiresAt },
       quorum: { required: plan.value.required, slot: plan.value.slot, basis: plan.value.basis },
       step_up: {
-        required: policy.step_up || input.step_up === true,
+        // two people: each with a step-up core verifies (RC-SEC-4, `stepUpOf`)
+        required: policy.step_up || input.step_up === true || plan.value.required >= 2,
         bound_hash: input.step_up_bound_hash ?? input.subject_hash,
       },
       supersedes: pendingStates[0]?.open.gate_instance_id ?? null,

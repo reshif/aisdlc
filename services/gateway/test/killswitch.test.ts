@@ -14,6 +14,8 @@ beforeAll(async () => {
   kms = await startTestKms();
   ks = await startTestKillswitch({
     custody: kms.custodyFor('killswitch'),
+    // the person's step-up proofs, signed as the bff signs them
+    stepUpSigner: kms.custodyFor('bff'),
     admins: ['root', 'rita'],
   });
   gw = await startTestGateway({ kill: ks.killState() });

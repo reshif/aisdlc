@@ -110,7 +110,17 @@ export async function decideGate(s: CoreStack, gate: string, principal: string, 
     evidence_hash: p.value.evidence_hash,
   });
   if (!v.ok) return v;
-  return decide(s.config, { nonce: p.value.nonce, decision });
+  // The person stepped up where the gate asks it (G5, M4, every two-person gate: RC-SEC-4), with the stack's
+  // fake proof; a test of the refusal calls `decide` itself.
+  const proof =
+    p.value.step_up.required && s.config.stepUp instanceof FakeStepUp
+      ? s.config.stepUp.issue(p.value.step_up.bound_hash, principal)
+      : null;
+  return decide(s.config, {
+    nonce: p.value.nonce,
+    decision,
+    ...(proof ? { step_up: { proof } } : {}),
+  });
 }
 
 /** Proposes project settings, approves the M1 gate with `approver`, publishes. Throws on any refusal. */

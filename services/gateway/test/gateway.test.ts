@@ -405,6 +405,37 @@ describe('redaction of what leaves the gateway', () => {
     expect(JSON.stringify(r.json)).not.toContain(secret);
   });
 
+  it('redacts a secret the model echoes in a NON-streamed answer, in text and in an allowed tool call (M10.6, RC-SEC-12)', async () => {
+    const { key, vkey } = await gw.mint({ tools: ['read_file'] });
+    const secret = makeCanary('gateway-answer'); // built at run time, never a literal
+    gw.provider.enqueue({
+      text: `Here it is: ${secret}. Done.`,
+      tool_uses: [{ id: 'toolu_b', name: 'read_file', input: { path: 'a.ts', note: [secret] } }],
+      usage: { input_tokens: 4, output_tokens: 6 },
+    });
+    const r = await gw.messages(
+      key,
+      hello({ tools: [{ name: 'read_file', input_schema: { type: 'object' } }] }),
+    );
+    expect(r.status).toBe(200);
+    expect(JSON.stringify(r.json)).not.toContain(secret);
+    expect(r.json.content).toEqual([
+      { type: 'text', text: 'Here it is: [REDACTED:aisdlc-canary]. Done.' },
+      {
+        type: 'tool_use',
+        id: 'toolu_b',
+        name: 'read_file',
+        input: { path: 'a.ts', note: ['[REDACTED:aisdlc-canary]'] },
+      },
+    ]);
+    const [c] = await calls(vkey.vkey_id);
+    expect(c).toMatchObject({ outcome: 'ok', response_redactions: 2 });
+    const dump = JSON.stringify(
+      (await gw.database.pool.query('SELECT body FROM record.record_event')).rows,
+    );
+    expect(dump).not.toContain(secret);
+  });
+
   it('leaves clean text alone and records zero redactions', async () => {
     const { key, vkey } = await gw.mint();
     await gw.messages(
