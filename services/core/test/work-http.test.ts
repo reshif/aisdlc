@@ -1,4 +1,4 @@
-import { ItemView } from '@aisdlc/contracts';
+import { ItemView, SubmitRequestReceipt } from '@aisdlc/contracts';
 import { bindProject, grantFleetRole, grantRole, seedPrincipals } from '@aisdlc/identity/testing';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
 import { Pdp, RecordDecisionLog, StaticBundleSource, buildBundle } from '@aisdlc/pdp';
@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createCoreApp, type CoreScope } from '../src/index.js';
 import { startCoreStack, type CoreStack } from '../src/testing.js';
-import { loadReports, seedActivePrr } from './work-fixtures.js';
+import { approvers, loadReports, seedActivePrr } from './work-fixtures.js';
 
 // The HTTP edge of M9.0 (who may start an onboarding) and M9.1 (who may ask for work, and read an
 // item), with the real PDP over the real identity read model: bindings decide, nothing else.
@@ -194,6 +194,70 @@ describe('M9.1: requests and items over HTTP', () => {
     expect(
       (await call(TOKENS.reader, 'GET', `/v1/items/${ok.json.item_id}?on_behalf_of=ria`)).status,
     ).toBe(403);
+  });
+
+  it('answers with a receipt: the text as kept and its taint mark, the lane and why, and who decides G0 and G1', async () => {
+    const seeded = await seedActivePrr(s, { level: 'light' });
+    await bindProject(s.id, seeded.project, { requesters: ['ria'] });
+    approvers(s, seeded.project, ['bob']);
+    const ask = (over: Record<string, unknown>) =>
+      call(TOKENS.bff, 'POST', '/v1/requests', {
+        project_id: seeded.project,
+        repo: seeded.repo,
+        lane: 'L3',
+        channel: 'N1',
+        text: 'Add\u200b pagination   \r\n\r\n\r\n\r\nto the orders list.  ',
+        on_behalf_of: 'ria',
+        ...over,
+      });
+    const r = await ask({});
+    expect(r.status).toBe(201);
+    const receipt = SubmitRequestReceipt.parse(r.json);
+    expect(receipt.request_text).toMatchObject({
+      text: 'Add pagination\n\nto the orders list.',
+      taint: 'untrusted',
+      origin: 'request',
+      flags: [],
+      provenance: { channel: 'N1', submitted_by: 'ria' },
+    });
+    expect(receipt).toMatchObject({
+      state: 'admitted',
+      asked_lane: 'L3',
+      proposed_lane: 'L3',
+      lane_opens_at: 'light',
+      verdict: { lane: 'L3', eligible: true, route: 'normal', reason: 'eligible' },
+      dedupe_links: [],
+    });
+    expect(receipt.deciders.map((d) => [d.gate, d.holders])).toEqual([
+      ['G0', ['bob']],
+      ['G1', ['bob']],
+    ]);
+
+    // the same text again is linked to the first item (1.2), and a lane above the level says what level opens it
+    const again = SubmitRequestReceipt.parse(
+      (await ask({ lane: 'L5', text: 'add pagination to the orders list.' })).json,
+    );
+    expect(again.dedupe_links).toEqual([receipt.item_id]);
+    expect(again.lane_opens_at).toBe('full');
+    expect(again.verdict).toMatchObject({ lane: 'L5', eligible: false });
+  });
+
+  it('a receipt whose deciders cannot be read says so: unknown, never anyone', async () => {
+    const seeded = await seedActivePrr(s, { level: 'light' });
+    await bindProject(s.id, seeded.project, { requesters: ['ria'] });
+    // no slot of this project is known to the decision kernel's eligibility
+    const r = await call(TOKENS.bff, 'POST', '/v1/requests', {
+      project_id: seeded.project,
+      repo: seeded.repo,
+      lane: 'L3',
+      channel: 'N1',
+      text: 'Show the order total in the list.',
+      on_behalf_of: 'ria',
+    });
+    expect(r.status).toBe(201);
+    const receipt = SubmitRequestReceipt.parse(r.json);
+    expect(receipt.deciders.map((d) => d.holders)).toEqual([null, null]);
+    expect(receipt.deciders[0]?.reason).toMatch(/unknown/);
   });
 
   it('an injection-like text is accepted, flagged in the answer, and the request still goes the normal way', async () => {

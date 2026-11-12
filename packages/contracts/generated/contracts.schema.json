@@ -29372,6 +29372,17 @@
             }
           ]
         },
+        "card_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "feasibility": {
           "type": "string",
           "enum": [
@@ -29401,6 +29412,7 @@
         "holders",
         "item_id",
         "gate",
+        "card_id",
         "feasibility",
         "feasibility_reason"
       ],
@@ -59737,13 +59749,37 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "card_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ledger_entry_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
                   "gate",
                   "gate_instance_id",
                   "status",
-                  "outcome"
+                  "outcome",
+                  "card_id",
+                  "ledger_entry_id"
                 ],
                 "additionalProperties": false
               }
@@ -62555,13 +62591,37 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "card_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ledger_entry_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
                   "gate",
                   "gate_instance_id",
                   "status",
-                  "outcome"
+                  "outcome",
+                  "card_id",
+                  "ledger_entry_id"
                 ],
                 "additionalProperties": false
               }
@@ -64392,13 +64452,37 @@
                   "string",
                   "null"
                 ]
+              },
+              "card_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ledger_entry_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
               "gate",
               "gate_instance_id",
               "status",
-              "outcome"
+              "outcome",
+              "card_id",
+              "ledger_entry_id"
             ],
             "additionalProperties": false
           }
@@ -80741,6 +80825,51 @@
       ],
       "additionalProperties": false
     },
+    "PortalAskRequest": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100000
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "project_id",
+        "repo",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "PortalCardSummary": {
       "type": "object",
       "properties": {
@@ -81002,6 +81131,17 @@
                   }
                 ]
               },
+              "card_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "feasibility": {
                 "type": "string",
                 "enum": [
@@ -81055,6 +81195,7 @@
               "holders",
               "item_id",
               "gate",
+              "card_id",
               "feasibility",
               "feasibility_reason",
               "may_decide",
@@ -81217,6 +81358,17 @@
                   }
                 ]
               },
+              "card_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "feasibility": {
                 "type": "string",
                 "enum": [
@@ -81270,6 +81422,7 @@
               "holders",
               "item_id",
               "gate",
+              "card_id",
               "feasibility",
               "feasibility_reason",
               "may_decide",
@@ -81437,6 +81590,17 @@
             }
           ]
         },
+        "card_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "feasibility": {
           "type": "string",
           "enum": [
@@ -81490,6 +81654,7 @@
         "holders",
         "item_id",
         "gate",
+        "card_id",
         "feasibility",
         "feasibility_reason",
         "may_decide",
@@ -82221,13 +82386,37 @@
                   "string",
                   "null"
                 ]
+              },
+              "card_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ledger_entry_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
               "gate",
               "gate_instance_id",
               "status",
-              "outcome"
+              "outcome",
+              "card_id",
+              "ledger_entry_id"
             ],
             "additionalProperties": false
           }
@@ -83154,6 +83343,499 @@
         "project_id",
         "repos",
         "may"
+      ],
+      "additionalProperties": false
+    },
+    "PortalRequestReceipt": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "requested",
+            "held",
+            "admitted",
+            "routed_l8",
+            "released",
+            "l8_offered"
+          ]
+        },
+        "verdict": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "lane": {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            "area": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "eligible": {
+              "type": "boolean"
+            },
+            "route": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "n8_hold",
+                "l8"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "eligible",
+                "no_active_prr",
+                "prr_stale",
+                "prr_suspended",
+                "prr_expired",
+                "level_too_low",
+                "lane_unspecified",
+                "tier_requires_full",
+                "posture_red",
+                "staging_separation_not_attested",
+                "circuit_breaker",
+                "followup_overdue",
+                "area_unknown"
+              ]
+            },
+            "prr": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "proposed",
+                        "active",
+                        "stale",
+                        "suspended",
+                        "expired",
+                        "superseded"
+                      ]
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "census",
+                        "light",
+                        "full"
+                      ]
+                    },
+                    "record_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "fresh_until": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "status",
+                    "level",
+                    "record_hash",
+                    "fresh_until"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "repo",
+            "lane",
+            "eligible",
+            "route",
+            "reason",
+            "prr"
+          ],
+          "additionalProperties": false
+        },
+        "duplicate": {
+          "type": "boolean"
+        },
+        "dedupe_links": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "injection": {
+          "type": "object",
+          "properties": {
+            "suspected": {
+              "type": "boolean"
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "L-TIER",
+                  "L-AUTONOMY",
+                  "L-LANE",
+                  "L-GATE",
+                  "L-BUDGET",
+                  "L-GRANT",
+                  "L-ADDRESS",
+                  "L-DIRECTIVE",
+                  "L-SECRET",
+                  "L-URL",
+                  "L-PIPE-SH",
+                  "L-PROSE",
+                  "L-FMT-LINES",
+                  "L-FMT-FRONTMATTER"
+                ]
+              }
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "suspected",
+            "rules",
+            "lines",
+            "text_sha256"
+          ],
+          "additionalProperties": false
+        },
+        "asked_lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "proposed_lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "lane_opens_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "census",
+                "light",
+                "full"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "request_text": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "taint": {
+              "type": "string",
+              "const": "untrusted"
+            },
+            "origin": {
+              "type": "string",
+              "enum": [
+                "request",
+                "answer",
+                "issue",
+                "repo",
+                "dependency"
+              ]
+            },
+            "provenance": {
+              "type": "object",
+              "properties": {
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "N1",
+                    "N2",
+                    "N3",
+                    "N4",
+                    "N5",
+                    "N6",
+                    "N7",
+                    "N8"
+                  ]
+                },
+                "source": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "portal_ask",
+                        "teams",
+                        "api",
+                        "code_host_issue",
+                        "factory_proposed",
+                        "onboarding_hold"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "received_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "submitted_by": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                "raw_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "normalised_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "channel",
+                "source",
+                "received_at",
+                "submitted_by",
+                "raw_sha256",
+                "normalised_sha256"
+              ],
+              "additionalProperties": false
+            },
+            "flags": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rule": {
+                    "type": "string",
+                    "enum": [
+                      "L-TIER",
+                      "L-AUTONOMY",
+                      "L-LANE",
+                      "L-GATE",
+                      "L-BUDGET",
+                      "L-GRANT",
+                      "L-ADDRESS",
+                      "L-DIRECTIVE",
+                      "L-SECRET",
+                      "L-URL",
+                      "L-PIPE-SH",
+                      "L-PROSE",
+                      "L-FMT-LINES",
+                      "L-FMT-FRONTMATTER"
+                    ]
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "rule",
+                  "line"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "text",
+            "taint",
+            "origin",
+            "provenance",
+            "flags"
+          ],
+          "additionalProperties": false
+        },
+        "deciders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "gate": {
+                "type": "string",
+                "enum": [
+                  "G0",
+                  "G1",
+                  "G1f",
+                  "G2",
+                  "G3",
+                  "G3d",
+                  "G3s",
+                  "G3o",
+                  "G4",
+                  "G5",
+                  "G6",
+                  "X1",
+                  "X2",
+                  "X3",
+                  "X4",
+                  "E1",
+                  "E2",
+                  "E3",
+                  "E4",
+                  "E5",
+                  "E6",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "M4",
+                  "M5",
+                  "M6",
+                  "Q1",
+                  "SECT"
+                ]
+              },
+              "slot": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "requesters",
+                  "intent",
+                  "design",
+                  "g4",
+                  "g5",
+                  "x",
+                  "sec",
+                  "m4",
+                  "kill"
+                ]
+              },
+              "holders": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "gate",
+              "slot",
+              "holders",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "principal_names": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "request_id",
+        "item_id",
+        "state",
+        "verdict",
+        "duplicate",
+        "dedupe_links",
+        "injection",
+        "asked_lane",
+        "proposed_lane",
+        "lane_opens_at",
+        "request_text",
+        "deciders",
+        "principal_names"
       ],
       "additionalProperties": false
     },
@@ -105038,6 +105720,88 @@
       ],
       "additionalProperties": false
     },
+    "RequestGateDeciders": {
+      "type": "object",
+      "properties": {
+        "gate": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G1f",
+            "G2",
+            "G3",
+            "G3d",
+            "G3s",
+            "G3o",
+            "G4",
+            "G5",
+            "G6",
+            "X1",
+            "X2",
+            "X3",
+            "X4",
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "Q1",
+            "SECT"
+          ]
+        },
+        "slot": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "requesters",
+            "intent",
+            "design",
+            "g4",
+            "g5",
+            "x",
+            "sec",
+            "m4",
+            "kill"
+          ]
+        },
+        "holders": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "gate",
+        "slot",
+        "holders",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
     "RequiredCheck": {
       "type": "object",
       "properties": {
@@ -116136,6 +116900,489 @@
       ],
       "additionalProperties": false
     },
+    "SubmitRequestReceipt": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "requested",
+            "held",
+            "admitted",
+            "routed_l8",
+            "released",
+            "l8_offered"
+          ]
+        },
+        "verdict": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "lane": {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            "area": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "eligible": {
+              "type": "boolean"
+            },
+            "route": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "n8_hold",
+                "l8"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "eligible",
+                "no_active_prr",
+                "prr_stale",
+                "prr_suspended",
+                "prr_expired",
+                "level_too_low",
+                "lane_unspecified",
+                "tier_requires_full",
+                "posture_red",
+                "staging_separation_not_attested",
+                "circuit_breaker",
+                "followup_overdue",
+                "area_unknown"
+              ]
+            },
+            "prr": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "proposed",
+                        "active",
+                        "stale",
+                        "suspended",
+                        "expired",
+                        "superseded"
+                      ]
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "census",
+                        "light",
+                        "full"
+                      ]
+                    },
+                    "record_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "fresh_until": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "status",
+                    "level",
+                    "record_hash",
+                    "fresh_until"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "repo",
+            "lane",
+            "eligible",
+            "route",
+            "reason",
+            "prr"
+          ],
+          "additionalProperties": false
+        },
+        "duplicate": {
+          "type": "boolean"
+        },
+        "dedupe_links": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "injection": {
+          "type": "object",
+          "properties": {
+            "suspected": {
+              "type": "boolean"
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "L-TIER",
+                  "L-AUTONOMY",
+                  "L-LANE",
+                  "L-GATE",
+                  "L-BUDGET",
+                  "L-GRANT",
+                  "L-ADDRESS",
+                  "L-DIRECTIVE",
+                  "L-SECRET",
+                  "L-URL",
+                  "L-PIPE-SH",
+                  "L-PROSE",
+                  "L-FMT-LINES",
+                  "L-FMT-FRONTMATTER"
+                ]
+              }
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "suspected",
+            "rules",
+            "lines",
+            "text_sha256"
+          ],
+          "additionalProperties": false
+        },
+        "asked_lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "proposed_lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "lane_opens_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "census",
+                "light",
+                "full"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "request_text": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "taint": {
+              "type": "string",
+              "const": "untrusted"
+            },
+            "origin": {
+              "type": "string",
+              "enum": [
+                "request",
+                "answer",
+                "issue",
+                "repo",
+                "dependency"
+              ]
+            },
+            "provenance": {
+              "type": "object",
+              "properties": {
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "N1",
+                    "N2",
+                    "N3",
+                    "N4",
+                    "N5",
+                    "N6",
+                    "N7",
+                    "N8"
+                  ]
+                },
+                "source": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "portal_ask",
+                        "teams",
+                        "api",
+                        "code_host_issue",
+                        "factory_proposed",
+                        "onboarding_hold"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "received_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "submitted_by": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                "raw_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "normalised_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "channel",
+                "source",
+                "received_at",
+                "submitted_by",
+                "raw_sha256",
+                "normalised_sha256"
+              ],
+              "additionalProperties": false
+            },
+            "flags": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rule": {
+                    "type": "string",
+                    "enum": [
+                      "L-TIER",
+                      "L-AUTONOMY",
+                      "L-LANE",
+                      "L-GATE",
+                      "L-BUDGET",
+                      "L-GRANT",
+                      "L-ADDRESS",
+                      "L-DIRECTIVE",
+                      "L-SECRET",
+                      "L-URL",
+                      "L-PIPE-SH",
+                      "L-PROSE",
+                      "L-FMT-LINES",
+                      "L-FMT-FRONTMATTER"
+                    ]
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "rule",
+                  "line"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "text",
+            "taint",
+            "origin",
+            "provenance",
+            "flags"
+          ],
+          "additionalProperties": false
+        },
+        "deciders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "gate": {
+                "type": "string",
+                "enum": [
+                  "G0",
+                  "G1",
+                  "G1f",
+                  "G2",
+                  "G3",
+                  "G3d",
+                  "G3s",
+                  "G3o",
+                  "G4",
+                  "G5",
+                  "G6",
+                  "X1",
+                  "X2",
+                  "X3",
+                  "X4",
+                  "E1",
+                  "E2",
+                  "E3",
+                  "E4",
+                  "E5",
+                  "E6",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "M4",
+                  "M5",
+                  "M6",
+                  "Q1",
+                  "SECT"
+                ]
+              },
+              "slot": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "requesters",
+                  "intent",
+                  "design",
+                  "g4",
+                  "g5",
+                  "x",
+                  "sec",
+                  "m4",
+                  "kill"
+                ]
+              },
+              "holders": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "gate",
+              "slot",
+              "holders",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "request_id",
+        "item_id",
+        "state",
+        "verdict",
+        "duplicate",
+        "dedupe_links",
+        "injection",
+        "asked_lane",
+        "proposed_lane",
+        "lane_opens_at",
+        "request_text",
+        "deciders"
+      ],
+      "additionalProperties": false
+    },
     "SystemMap": {
       "type": "object",
       "properties": {
@@ -123412,6 +124659,17 @@
         "offers"
       ],
       "additionalProperties": false
+    },
+    "WorkIntakeState": {
+      "type": "string",
+      "enum": [
+        "requested",
+        "held",
+        "admitted",
+        "routed_l8",
+        "released",
+        "l8_offered"
+      ]
     },
     "WorkItem": {
       "type": "object",
