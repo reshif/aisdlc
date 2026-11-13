@@ -1,13 +1,14 @@
 import {
-  OPS_ALERT_AFTER_MS,
   OPS_ALERT_EVENT,
   OPS_ALERT_SUBJECT_CHECKPOINT,
-  OPS_CHECKPOINT_OVERDUE_MS,
   OpsAlertClearedPayload,
   OpsAlertRaisedPayload,
   opsAlertStream,
   type HealthSnapshot,
   type OpsAlertKind,
+  DEFAULT_OPS_HEALTH,
+  SETTINGS_KEYS,
+  settingInForce,
 } from '@aisdlc/contracts';
 import { withTransaction } from '@aisdlc/db';
 import { deterministicId } from '@aisdlc/kernel';
@@ -141,7 +142,8 @@ export class AlertTracker {
     now: Date,
     o: { readonly checkpoint?: boolean } = {},
   ): Promise<{ raised: string[]; cleared: string[] }> {
-    const after = this.o.afterMs ?? OPS_ALERT_AFTER_MS;
+    const after =
+      this.o.afterMs ?? settingInForce(SETTINGS_KEYS.ops_health, DEFAULT_OPS_HEALTH).alert_after_ms;
     const raised: string[] = [];
     const cleared: string[] = [];
     const note = (subject: string, r: 'raised' | 'cleared' | null) => {
@@ -171,7 +173,9 @@ export class AlertTracker {
     }
     if (o.checkpoint !== false) {
       const lag = await checkpointLag(pool);
-      const overdue = this.o.checkpointOverdueMs ?? OPS_CHECKPOINT_OVERDUE_MS;
+      const overdue =
+        this.o.checkpointOverdueMs ??
+        settingInForce(SETTINGS_KEYS.ops_health, DEFAULT_OPS_HEALTH).checkpoint_overdue_ms;
       if (lag === null) {
         note(
           OPS_ALERT_SUBJECT_CHECKPOINT,

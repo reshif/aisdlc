@@ -1,4 +1,7 @@
-import { CODING_SESSION_CAP as CONTRACT_CODING_SESSION_CAP } from '@aisdlc/contracts';
+import {
+  CODING_SESSION_CAP as CONTRACT_CODING_SESSION_CAP,
+  DEFAULT_PLANNING_SIZE_SHARE,
+} from '@aisdlc/contracts';
 import type { PlannedUnit, UnitSize } from '@aisdlc/contracts';
 import { UnitKey } from '@aisdlc/contracts';
 
@@ -309,11 +312,7 @@ export function boundCapacity(
  * ("the flow names a profile envelope and gives none"), so a lane default, when the catalogue has one,
  * only CAPS the plan.
  */
-export const SIZE_SHARE: Readonly<Record<UnitSize, number>> = {
-  small: 0.25,
-  medium: 0.5,
-  large: 1,
-};
+export const SIZE_SHARE: Readonly<Record<UnitSize, number>> = DEFAULT_PLANNING_SIZE_SHARE;
 
 export interface EnvelopeInput {
   readonly lane: string;
@@ -323,6 +322,8 @@ export interface EnvelopeInput {
   readonly coder_budget: { readonly max_tokens: number; readonly max_cost_micro_usd: number };
   readonly units: ReadonlyArray<{ unit_key: string; size: UnitSize }>;
   readonly base_sha: string;
+  /** Portal v2 (`planning.size_share`, H15): the share per part size in force; default `SIZE_SHARE`. */
+  readonly size_share?: Readonly<Record<UnitSize, number>>;
 }
 
 /** 5.5, deterministic: what each Unit may spend, from the lane's profile default and the sizes of the Units. */
@@ -330,14 +331,12 @@ export function budgetEnvelope(i: EnvelopeInput): {
   content: Obj;
   envelopes: Map<string, { max_tokens: number; max_cost_micro_usd: number }>;
 } {
+  const share = i.size_share ?? SIZE_SHARE;
   const raw = i.units.map((u) => ({
     unit_key: u.unit_key,
     size: u.size,
-    max_tokens: Math.max(1, Math.ceil(i.coder_budget.max_tokens * SIZE_SHARE[u.size])),
-    max_cost_micro_usd: Math.max(
-      1,
-      Math.ceil(i.coder_budget.max_cost_micro_usd * SIZE_SHARE[u.size]),
-    ),
+    max_tokens: Math.max(1, Math.ceil(i.coder_budget.max_tokens * share[u.size])),
+    max_cost_micro_usd: Math.max(1, Math.ceil(i.coder_budget.max_cost_micro_usd * share[u.size])),
   }));
   const sum = (k: 'max_tokens' | 'max_cost_micro_usd') => raw.reduce((a, u) => a + u[k], 0);
   const cap = i.lane_default_budget_cents === null ? null : i.lane_default_budget_cents * 10_000;
@@ -355,7 +354,7 @@ export function budgetEnvelope(i: EnvelopeInput): {
       lane: i.lane,
       lane_default_budget_cents: i.lane_default_budget_cents,
       coder_contract: i.coder_budget,
-      size_share: SIZE_SHARE,
+      size_share: share,
     },
     capped,
     units,

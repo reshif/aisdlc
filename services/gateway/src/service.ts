@@ -161,8 +161,11 @@ export interface GatewayDeps {
   readonly adapters: AdapterSource;
   readonly kill: KillStatePort;
   readonly environment: GatewayEnvironment;
-  /** The hard ceiling of calls that may reach a vendor in this process (`GATEWAY_MAX_PROVIDER_CALLS`). */
-  readonly maxProviderCalls: number;
+  /**
+   * The hard ceiling of calls that may reach a vendor in this process (`GATEWAY_MAX_PROVIDER_CALLS`). A function is
+   * read on every call (portal v2 `gateway.limits`, H17; the env is the bootstrap default).
+   */
+  readonly maxProviderCalls: number | (() => number);
   /** A reservation still open after this long is abandoned by the sweep (default 15 minutes). */
   readonly reservationMaxAgeMs?: number;
   readonly clock?: Clock;
@@ -242,8 +245,18 @@ export class GatewayService {
   private providerCalls = 0;
   private readonly evidence = new Map<string, ProviderEvidence>();
 
+  /** The ceiling now; a bad answer from the setting is 0 (no call reaches a vendor: fail closed). */
+  private maxCalls(): number {
+    const v = this.d.maxProviderCalls;
+    const n = typeof v === 'function' ? v() : v;
+    return Number.isInteger(n) && n >= 0 ? n : 0;
+  }
+
   constructor(private readonly d: GatewayDeps) {
-    if (!Number.isInteger(d.maxProviderCalls) || d.maxProviderCalls < 0) {
+    if (
+      typeof d.maxProviderCalls === 'number' &&
+      (!Number.isInteger(d.maxProviderCalls) || d.maxProviderCalls < 0)
+    ) {
       throw new RangeError('maxProviderCalls must be a non-negative integer');
     }
     this.clock = d.clock ?? systemClock;
@@ -318,7 +331,7 @@ export class GatewayService {
       );
     const model = models[0];
     if (!model) return record({ ...base, outcome: 'no_model', code: 'no_model' });
-    if (this.providerCalls >= this.d.maxProviderCalls) {
+    if (this.providerCalls >= this.maxCalls()) {
       return record({ ...base, model_id: model.model_id, outcome: 'refused', code: 'spend_guard' });
     }
     const admitted = await admitAgentWork(this.d.kill, { project_id: 'factory' });
@@ -548,7 +561,7 @@ export class GatewayService {
       ctx.data_class = dc.data;
     }
 
-    if (this.providerCalls >= this.d.maxProviderCalls) {
+    if (this.providerCalls >= this.maxCalls()) {
       return refuse('spend_guard', 'this gateway process reached its provider call ceiling');
     }
     this.providerCalls += 1;

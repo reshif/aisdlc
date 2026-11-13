@@ -77,6 +77,11 @@ export interface CheckerDeps {
   readonly store: GateCheckStore;
   /** When a repo's watch starts (default the system clock). */
   readonly clock?: Clock;
+  /**
+   * Portal v2: loads the catalogue's settings releases from the record (`loadSettingsReleases`), asked when a pack
+   * names a catalogue this process does not know yet. Absent: an unknown catalogue stays unknown (pending).
+   */
+  readonly loadCatalogueReleases?: () => Promise<void>;
 }
 
 const SUMMARY: Readonly<Record<GateCheckReason, string>> = {
@@ -300,7 +305,11 @@ export class GateChecker {
     pack: EvidencePack,
     itemId: string,
   ): Promise<'yes' | 'no' | 'unknown' | 'mismatch'> {
-    const cat = catalogueFor(pack.catalogue_ref);
+    let cat = catalogueFor(pack.catalogue_ref);
+    if (!cat.ok && cat.error._tag === 'CatalogueUnknown' && this.d.loadCatalogueReleases) {
+      await this.d.loadCatalogueReleases().catch(() => undefined);
+      cat = catalogueFor(pack.catalogue_ref);
+    }
     if (!cat.ok) return 'unknown';
     const lane = cat.value.lanes[pack.lane];
     if (!lane) return 'unknown';

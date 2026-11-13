@@ -235,6 +235,49 @@ describe('dispatch: the agent, its key and the record of both', () => {
     });
   });
 
+  it('agents.config: an agent switched off runs nothing (recorded once); its models and budget reach the key', async () => {
+    const it_ = await newItem({ lane: 'L3', level: 'light', gating: GATING_OFF });
+    const state = (await readItem(s.record.pool, it_.itemId))?.state;
+    if (!state) throw new Error('no item');
+    const keys = new FakeAgentKeys();
+    const c = {
+      type: 'run_stage' as const,
+      key: 'settings-1',
+      port: 'planning' as const,
+      step: '2.1' as const,
+      attempt: 1,
+      lane: 'L3' as Lane,
+      approved_gates: [],
+      denied_gates: [],
+    };
+    const agent = primaryAgentFor('2.1');
+    if (!agent) throw new Error('no agent');
+    let table: Record<string, unknown> | null = { [agent.agent_id]: { enabled: false } };
+    const d = { ...s.deps, keys, agentSettings: () => table as never };
+    for (let i = 0; i < 2; i++) expect((await dispatchAgent(d, state, c)).ok).toBe(false);
+    const failed = await rows(
+      `SELECT body FROM record.record_event WHERE stream = $1 AND type = $2`,
+      [agentStream(it_.itemId), AGENT_EVENT.run_failed],
+    );
+    expect(failed.map((f) => f.body.code)).toEqual(['agent_disabled']);
+    expect(keys.requests).toHaveLength(0);
+    // unreadable settings: nothing either
+    table = null;
+    expect((await dispatchAgent(d, state, { ...c, key: 'settings-2' })).ok).toBe(false);
+    expect(keys.requests).toHaveLength(0);
+    // on again, with a budget of its own: the key carries it, the tools stay the contract's
+    table = {
+      [agent.agent_id]: {
+        enabled: true,
+        budget: { max_tokens: 1234, max_cost_micro_usd: 5678, ttl_seconds: 900 },
+      },
+    };
+    const b = ok(await dispatchAgent(d, state, c));
+    expect(b?.tools).toEqual([...agent.contract.tools]);
+    expect(keys.requests[0]?.budget).toMatchObject({ max_tokens: 1234, max_cost_micro_usd: 5678 });
+    expect(keys.requests[0]?.mint.tools).toEqual([...agent.contract.tools]);
+  });
+
   it('the driver does not call a stage port while the key cannot be minted, and carries on when it can', async () => {
     const it_ = await newItem({ lane: 'L3', level: 'light', gating: GATING_OFF });
     const keys = new FakeAgentKeys().breakIt();

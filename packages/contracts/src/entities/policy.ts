@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { GATES, GateId } from '../flow.js';
 import { FLEET_REF, type Scope } from '../values.js';
 import { ViewLevel, type RoleDef } from './access.js';
-import { GATE_POLICIES } from './gate-lifecycle.js';
+import { GATE_POLICIES, gatePolicy } from './gate-lifecycle.js';
 import { IsoDateTime, PrincipalId, RoleId, Sha256Hex } from './ids.js';
 import { RoleSlot } from './projects.js';
 
@@ -656,7 +656,7 @@ export function roleHolds(role: RoleDef, action: ActionId, resource: PdpResource
   const g = roleGrants(role).find((x) => x.action === action);
   if (!g) return false;
   if (g.gate_slot === null) return true;
-  return resource.gate_id !== null && GATE_POLICIES[resource.gate_id].slot === g.gate_slot;
+  return resource.gate_id !== null && gatePolicy(resource.gate_id).slot === g.gate_slot;
 }
 
 /** The Cedar attributes of a Gate resource, from the gate's policy and family. */
@@ -664,7 +664,7 @@ export const gateAttributes = (
   gate: GateId,
 ): { gate_id: string; slot: string; family: string } => ({
   gate_id: gate,
-  slot: GATE_POLICIES[gate].slot,
+  slot: gatePolicy(gate).slot,
   family: GATES[gate].family,
 });
 

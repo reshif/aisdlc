@@ -12,11 +12,12 @@ import {
   effectiveAutonomy,
   eligibleLanes,
   readinessCap,
+  type AutonomyCatalogue,
 } from '@aisdlc/catalogue';
 import {
   AutonomyValues,
   MS_PER_DAY,
-  PRR_FRESH_DAYS,
+  readinessPolicy,
   PRR_GOVERNANCE_CAP_MAP,
   PRR_REVIEW_MONTHS,
   ProjectReadinessRecord,
@@ -109,34 +110,42 @@ const arank = (a: Autonomy): number => AutonomyValues.indexOf(a);
  * `afterProbation` answers the question "which cap would bind then?" (the golden tests use it to
  * show the tier cap binding, which no record can show at issue); it is never stored.
  */
-export function computeAutonomy(i: {
-  tier: Tier;
-  level: Level;
-  composite: number;
-  posture: Posture;
-  issued_at: Date;
-  afterProbation?: boolean;
-}): AutonomyBreakdown {
-  const tier_cap = AUTONOMY.tier[i.tier];
-  const level_cap = AUTONOMY.level[i.level] ?? TOP;
-  const readiness_cap = readinessCap(i.composite) ?? (AutonomyValues[0] as Autonomy);
-  const posture_cap = AUTONOMY.posture[i.posture].cap;
-  const weeks = AUTONOMY.probation.min_weeks.value ?? 4;
+export function computeAutonomy(
+  i: {
+    tier: Tier;
+    level: Level;
+    composite: number;
+    posture: Posture;
+    issued_at: Date;
+    afterProbation?: boolean;
+  },
+  /** The autonomy table of the S0 record's pinned catalogue (portal v2: a settings release may change it). */
+  table: AutonomyCatalogue = AUTONOMY,
+): AutonomyBreakdown {
+  const AUTONOMY_ = table;
+  const tier_cap = AUTONOMY_.tier[i.tier];
+  const level_cap = AUTONOMY_.level[i.level] ?? TOP;
+  const readiness_cap = readinessCap(i.composite, AUTONOMY_) ?? (AutonomyValues[0] as Autonomy);
+  const posture_cap = AUTONOMY_.posture[i.posture].cap;
+  const weeks = AUTONOMY_.probation.min_weeks.value ?? 4;
   const probation_until = new Date(i.issued_at.getTime() + weeks * 7 * MS_PER_DAY).toISOString();
   const onProbation = i.afterProbation !== true;
-  const effective = effectiveAutonomy({
-    tier: i.tier,
-    level: i.level,
-    readiness: i.composite,
-    posture: i.posture,
-    onProbation,
-  });
+  const effective = effectiveAutonomy(
+    {
+      tier: i.tier,
+      level: i.level,
+      readiness: i.composite,
+      posture: i.posture,
+      onProbation,
+    },
+    AUTONOMY_,
+  );
   const caps: Array<[AutonomyBreakdown['binding'][number], Autonomy | null]> = [
     ['tier', tier_cap],
-    ['level', AUTONOMY.level[i.level]],
+    ['level', AUTONOMY_.level[i.level]],
     ['readiness', readiness_cap],
     ['posture', posture_cap],
-    ['probation', onProbation ? AUTONOMY.probation.cap : null],
+    ['probation', onProbation ? AUTONOMY_.probation.cap : null],
   ];
   return {
     tier_cap,
@@ -465,13 +474,6 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
   const pillars = toPrrPillars(census);
   const composite = Math.min(...pillars.map((p) => p.level));
   const posture = postureAtSignOff(census, c4, signed);
-  const aut = computeAutonomy({
-    tier: c1.tier,
-    level: signed,
-    composite,
-    posture,
-    issued_at: i.now,
-  });
 
   // ---- lanes: what the signed level and tier unlock, confined to Census lanes while posture is red,
   // read from the eligibility table of the catalogue the S0 record is pinned to (catalogue 1.4.0
@@ -484,6 +486,16 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
       [pinned.error._tag],
     );
   }
+  const aut = computeAutonomy(
+    {
+      tier: c1.tier,
+      level: signed,
+      composite,
+      posture,
+      issued_at: i.now,
+    },
+    pinned.value.autonomy,
+  );
   // Per area (DEC-25(a)): each area's floors can only lower it below the signed level; each area opens the lanes
   // of its own level, and the repo as a whole (a request that names no area) the lanes of the LOWEST area.
   // FF2 (L5 only): the census never evaluates it; card 3's ServiceEnv declaration does (`ff2Of`), and only a Full
@@ -491,7 +503,7 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
   const ff2 =
     census.floors.find((f) => f.id === 'FF2')?.status === 'met' ||
     i.affirmed?.full?.service_envs?.ff2 === 'met';
-  const redLanes = AUTONOMY.posture[posture].census_lanes_only;
+  const redLanes = pinned.value.autonomy.posture[posture].census_lanes_only;
   const lanesAt = (level: Level): Lane[] =>
     eligibleLanes(
       redLanes ? 'census' : level,
@@ -633,7 +645,9 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
     signer: i.signer,
     m4: null,
     issued_at: issued_at as never,
-    fresh_until: new Date(i.now.getTime() + PRR_FRESH_DAYS * MS_PER_DAY).toISOString() as never,
+    fresh_until: new Date(
+      i.now.getTime() + readinessPolicy().prr_fresh_days * MS_PER_DAY,
+    ).toISOString() as never,
     review_by:
       months === undefined
         ? null

@@ -1,9 +1,11 @@
 import {
   ONBOARDING_PROBE_UNIT,
   PROBE_GRANT_LEASE_EPOCH,
-  PROBE_GRANT_TTL_S,
   type SandboxClass,
   type SandboxGrantRef,
+  DEFAULT_SANDBOX_PROBE,
+  SETTINGS_KEYS,
+  settingInForce,
 } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import type pg from 'pg';
@@ -87,7 +89,10 @@ export class RecordGrants implements GrantVerifier {
         `SELECT s0_id::text AS s0_id, status,
                 granted_at > now() - make_interval(secs => $2) AS fresh
            FROM core.probe_grant WHERE probe_id = $1`,
-        [ref.grant_id, PROBE_GRANT_TTL_S],
+        [
+          ref.grant_id,
+          settingInForce(SETTINGS_KEYS.sandbox_probe, DEFAULT_SANDBOX_PROBE).grant_ttl_s,
+        ],
       );
       const g = q.rows[0];
       const active =

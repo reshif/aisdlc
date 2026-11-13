@@ -32,9 +32,35 @@ export interface ConfigDocRule {
   check(values: Readonly<Record<string, unknown>>): readonly string[];
 }
 
+/**
+ * A key made from other keys at propose time (portal v2: `pdp.bundle` regenerated from `access.roles`). It sees the
+ * document as proposed and returns it with the derived keys set, so the M1 approver decides the derived value too and
+ * the publish makes both effective in one revision. A rule should check the same derivation (a document that bypasses
+ * `prepare` is then refused).
+ */
+export interface ConfigDerivation {
+  readonly name: string;
+  apply(doc: Readonly<Record<string, unknown>>): Record<string, unknown>;
+}
+
 export class ConfigRegistry {
   private readonly defs = new Map<string, ConfigKeyDef>();
   private readonly rules: ConfigDocRule[] = [];
+  private readonly derivations: ConfigDerivation[] = [];
+
+  /** Registers a derivation that `prepare` applies. */
+  derive(d: ConfigDerivation): this {
+    this.derivations.push(d);
+    return this;
+  }
+
+  /** The document with every derived key set (`proposeRevision` calls it before `validate`). */
+  prepare(doc: unknown): unknown {
+    if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) return doc;
+    let out = { ...(doc as Record<string, unknown>) };
+    for (const d of this.derivations) out = d.apply(out);
+    return out;
+  }
 
   /** Registers a cross-key rule; `validate` refuses a document that breaks it. */
   rule(r: ConfigDocRule): this {

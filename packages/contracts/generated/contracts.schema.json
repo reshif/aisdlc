@@ -7536,7 +7536,8 @@
             "key_mint_refused",
             "port_error",
             "output_invalid",
-            "secret_in_output"
+            "secret_in_output",
+            "agent_disabled"
           ]
         },
         "detail": {
@@ -7564,7 +7565,8 @@
         "key_mint_refused",
         "port_error",
         "output_invalid",
-        "secret_in_output"
+        "secret_in_output",
+        "agent_disabled"
       ]
     },
     "AgentRunId": {
@@ -9434,6 +9436,66 @@
         "tainted"
       ]
     },
+    "AgentSettingsRow": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "models": {
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000
+            },
+            "max_cost_micro_usd": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000000
+            },
+            "ttl_seconds": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 86400
+            }
+          },
+          "required": [
+            "max_tokens",
+            "max_cost_micro_usd",
+            "ttl_seconds"
+          ],
+          "additionalProperties": false
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "run_time_s": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 14400
+        },
+        "test_time_s": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 14400
+        }
+      },
+      "additionalProperties": false
+    },
     "AgentStats": {
       "type": "object",
       "properties": {
@@ -9608,6 +9670,88 @@
         "Bash",
         "KnowledgeSearch"
       ]
+    },
+    "AgentsSettingsConfig": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6",
+          "A7",
+          "A8",
+          "A9",
+          "A10",
+          "A11",
+          "A12",
+          "coder",
+          "assistant"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "models": {
+            "minItems": 1,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "budget": {
+            "type": "object",
+            "properties": {
+              "max_tokens": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000000
+              },
+              "max_cost_micro_usd": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000000000
+              },
+              "ttl_seconds": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 86400
+              }
+            },
+            "required": [
+              "max_tokens",
+              "max_cost_micro_usd",
+              "ttl_seconds"
+            ],
+            "additionalProperties": false
+          },
+          "max_turns": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "run_time_s": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 14400
+          },
+          "test_time_s": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 14400
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "AmberCode": {
       "type": "string",
@@ -11839,7 +11983,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -21468,7 +21613,8 @@
       "properties": {
         "version": {
           "type": "string",
-          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+          "maxLength": 64,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
         },
         "hash": {
           "type": "string",
@@ -21481,9 +21627,77 @@
       ],
       "additionalProperties": false
     },
+    "CatalogueReleasedPayload": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "base": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
+            },
+            "hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "version",
+            "hash"
+          ],
+          "additionalProperties": false
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "rev_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "catalogue": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "flow": {}
+      },
+      "required": [
+        "version",
+        "hash",
+        "base",
+        "content_hash",
+        "sections",
+        "rev_hash",
+        "catalogue",
+        "flow"
+      ],
+      "additionalProperties": false
+    },
     "CatalogueVersion": {
       "type": "string",
-      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+      "maxLength": 64,
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
     },
     "CatalogueVersionRow": {
       "type": "object",
@@ -21493,7 +21707,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -21711,7 +21926,8 @@
                 "properties": {
                   "version": {
                     "type": "string",
-                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                    "maxLength": 64,
+                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                   },
                   "hash": {
                     "type": "string",
@@ -22078,7 +22294,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -24450,7 +24667,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -26139,7 +26357,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -26631,7 +26850,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -28789,7 +29009,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -29203,7 +29424,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -29974,6 +30196,32 @@
         "python",
         "other"
       ]
+    },
+    "CodehostPollsConfig": {
+      "type": "object",
+      "properties": {
+        "fast_ms": {
+          "type": "integer",
+          "minimum": 60000,
+          "maximum": 86400000
+        },
+        "hourly_ms": {
+          "type": "integer",
+          "minimum": 300000,
+          "maximum": 86400000
+        },
+        "daily_ms": {
+          "type": "integer",
+          "minimum": 3600000,
+          "maximum": 604800000
+        }
+      },
+      "required": [
+        "fast_ms",
+        "hourly_ms",
+        "daily_ms"
+      ],
+      "additionalProperties": false
     },
     "CodeownersError": {
       "type": "object",
@@ -43248,6 +43496,32 @@
         "manual"
       ]
     },
+    "EvalsGateConfig": {
+      "type": "object",
+      "properties": {
+        "floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "level": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 0.999
+        },
+        "resamples": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 100000
+        }
+      },
+      "required": [
+        "floor",
+        "level",
+        "resamples"
+      ],
+      "additionalProperties": false
+    },
     "EvidenceDecision": {
       "type": "object",
       "properties": {
@@ -43558,7 +43832,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -44274,7 +44549,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -45578,7 +45854,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -48639,7 +48916,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -50493,7 +50771,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -51250,7 +51529,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -61536,6 +61816,188 @@
       ],
       "additionalProperties": false
     },
+    "GatesPolicyConfig": {
+      "type": "object",
+      "properties": {
+        "gates": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "G0",
+              "G1",
+              "G1f",
+              "G2",
+              "G3",
+              "G3d",
+              "G3s",
+              "G3o",
+              "G4",
+              "G5",
+              "G6",
+              "X1",
+              "X2",
+              "X3",
+              "X4",
+              "E1",
+              "E2",
+              "E3",
+              "E4",
+              "E5",
+              "E6",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "M5",
+              "M6",
+              "Q1",
+              "SECT"
+            ]
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "requesters",
+                  "intent",
+                  "design",
+                  "g4",
+                  "g5",
+                  "x",
+                  "sec",
+                  "m4",
+                  "kill"
+                ]
+              },
+              "own_request": {
+                "type": "string",
+                "enum": [
+                  "blocked",
+                  "allowed"
+                ]
+              },
+              "step_up": {
+                "type": "boolean"
+              },
+              "consolidatable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "slot",
+              "own_request",
+              "step_up",
+              "consolidatable"
+            ],
+            "additionalProperties": false
+          },
+          "required": [
+            "G0",
+            "G1",
+            "G1f",
+            "G2",
+            "G3",
+            "G3d",
+            "G3s",
+            "G3o",
+            "G4",
+            "G5",
+            "G6",
+            "X1",
+            "X2",
+            "X3",
+            "X4",
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "Q1",
+            "SECT"
+          ]
+        },
+        "two_person_gates": {
+          "maxItems": 29,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "G0",
+              "G1",
+              "G1f",
+              "G2",
+              "G3",
+              "G3d",
+              "G3s",
+              "G3o",
+              "G4",
+              "G5",
+              "G6",
+              "X1",
+              "X2",
+              "X3",
+              "X4",
+              "E1",
+              "E2",
+              "E3",
+              "E4",
+              "E5",
+              "E6",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "M5",
+              "M6",
+              "Q1",
+              "SECT"
+            ]
+          }
+        }
+      },
+      "required": [
+        "gates",
+        "two_person_gates"
+      ],
+      "additionalProperties": false
+    },
+    "GatesTimersConfig": {
+      "type": "object",
+      "properties": {
+        "expires_after_s": {
+          "type": "integer",
+          "minimum": 3600,
+          "maximum": 7776000
+        },
+        "step_up_ttl_s": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 900
+        },
+        "nonce_ttl_s": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600
+        }
+      },
+      "required": [
+        "expires_after_s",
+        "step_up_ttl_s",
+        "nonce_ttl_s"
+      ],
+      "additionalProperties": false
+    },
     "GatewayAdapterState": {
       "type": "object",
       "properties": {
@@ -61567,6 +62029,20 @@
         "staging",
         "prod"
       ]
+    },
+    "GatewayLimitsConfig": {
+      "type": "object",
+      "properties": {
+        "max_provider_calls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        }
+      },
+      "required": [
+        "max_provider_calls"
+      ],
+      "additionalProperties": false
     },
     "GatewayModel": {
       "type": "object",
@@ -72704,7 +73180,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -73118,7 +73595,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -74096,7 +74574,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -77222,7 +77701,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -80196,7 +80676,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -92029,7 +92510,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -97074,6 +97556,38 @@
       ],
       "additionalProperties": false
     },
+    "OpsHealthConfig": {
+      "type": "object",
+      "properties": {
+        "stale_after_ms": {
+          "type": "integer",
+          "minimum": 10000,
+          "maximum": 3600000
+        },
+        "snapshot_interval_ms": {
+          "type": "integer",
+          "minimum": 5000,
+          "maximum": 600000
+        },
+        "alert_after_ms": {
+          "type": "integer",
+          "minimum": 10000,
+          "maximum": 3600000
+        },
+        "checkpoint_overdue_ms": {
+          "type": "integer",
+          "minimum": 60000,
+          "maximum": 86400000
+        }
+      },
+      "required": [
+        "stale_after_ms",
+        "snapshot_interval_ms",
+        "alert_after_ms",
+        "checkpoint_overdue_ms"
+      ],
+      "additionalProperties": false
+    },
     "OpsLedgerState": {
       "type": "string",
       "enum": [
@@ -98780,6 +99294,32 @@
         "depends_on",
         "position",
         "envelope"
+      ],
+      "additionalProperties": false
+    },
+    "PlanningSizeShareConfig": {
+      "type": "object",
+      "properties": {
+        "small": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "medium": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "large": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "small",
+        "medium",
+        "large"
       ],
       "additionalProperties": false
     },
@@ -101397,7 +101937,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -107269,7 +107810,8 @@
                     "properties": {
                       "version": {
                         "type": "string",
-                        "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                        "maxLength": 64,
+                        "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                       },
                       "hash": {
                         "type": "string",
@@ -109443,7 +109985,8 @@
                           "properties": {
                             "version": {
                               "type": "string",
-                              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                              "maxLength": 64,
+                              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                             },
                             "hash": {
                               "type": "string",
@@ -111500,7 +112043,8 @@
                                 "properties": {
                                   "version": {
                                     "type": "string",
-                                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                                    "maxLength": 64,
+                                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                                   },
                                   "hash": {
                                     "type": "string",
@@ -113494,7 +114038,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -119024,7 +119569,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -119184,7 +119730,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -121778,7 +122325,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -124974,6 +125522,38 @@
         "ORL",
         "KRL"
       ]
+    },
+    "ReadinessPolicyConfig": {
+      "type": "object",
+      "properties": {
+        "prr_fresh_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        },
+        "max_waiver_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        },
+        "max_light_claims": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "lf6_min_affirmed_or_unknown": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "prr_fresh_days",
+        "max_waiver_days",
+        "max_light_claims",
+        "lf6_min_affirmed_or_unknown"
+      ],
+      "additionalProperties": false
     },
     "ReadinessStatus": {
       "type": "string",
@@ -131743,7 +132323,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -132356,7 +132937,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -132500,7 +133082,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -133889,6 +134472,20 @@
         "mirror"
       ]
     },
+    "SandboxProbeConfig": {
+      "type": "object",
+      "properties": {
+        "grant_ttl_s": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 7200
+        }
+      },
+      "required": [
+        "grant_ttl_s"
+      ],
+      "additionalProperties": false
+    },
     "SandboxProfile": {
       "type": "object",
       "properties": {
@@ -133983,6 +134580,56 @@
         "limits"
       ],
       "additionalProperties": false
+    },
+    "SandboxProfilesConfig": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "K",
+          "K-exec",
+          "P",
+          "W",
+          "O",
+          "V"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "cpus": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 8
+          },
+          "memory_mb": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 8192
+          },
+          "pids": {
+            "type": "integer",
+            "minimum": 16,
+            "maximum": 4096
+          },
+          "time_s": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 14400
+          },
+          "out_bytes": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 268435456
+          },
+          "work_bytes": {
+            "type": "integer",
+            "minimum": 1048576,
+            "maximum": 1073741824
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "SandboxRepoFileWire": {
       "type": "object",
@@ -135335,6 +135982,26 @@
         "unit_id",
         "sandbox_class",
         "at"
+      ],
+      "additionalProperties": false
+    },
+    "SessionPolicyConfig": {
+      "type": "object",
+      "properties": {
+        "idle_s": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "absolute_s": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 604800
+        }
+      },
+      "required": [
+        "idle_s",
+        "absolute_s"
       ],
       "additionalProperties": false
     },
@@ -136704,7 +137371,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -139541,7 +140209,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -147951,7 +148620,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -148072,7 +148742,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -148093,6 +148764,20 @@
         "requester",
         "received_at",
         "catalogue_ref"
+      ],
+      "additionalProperties": false
+    },
+    "WorkRequestConfig": {
+      "type": "object",
+      "properties": {
+        "max_text_chars": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 200000
+        }
+      },
+      "required": [
+        "max_text_chars"
       ],
       "additionalProperties": false
     },
@@ -148154,7 +148839,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",

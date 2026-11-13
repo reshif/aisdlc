@@ -126,7 +126,7 @@ describe('autonomy caps (OB 2.3)', () => {
   });
 
   it('readiness cap follows RL1..RL4+ and is unstated at 0', () => {
-    expect([0, 1, 2, 3, 4, 5, 9].map(readinessCap)).toEqual([
+    expect([0, 1, 2, 3, 4, 5, 9].map((l) => readinessCap(l))).toEqual([
       null,
       'A0',
       'A1',

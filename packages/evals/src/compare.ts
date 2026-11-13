@@ -1,10 +1,12 @@
 import {
-  EVAL_COMPARE_LEVEL,
   type EvalBaseline,
   type EvalCompareResult,
   type EvalGateReason,
   type EvalGateResult,
   type EvalRunRecord,
+  DEFAULT_EVALS_GATE,
+  SETTINGS_KEYS,
+  settingInForce,
 } from '@aisdlc/contracts';
 import { runPassRate } from '@aisdlc/agents';
 
@@ -16,8 +18,8 @@ import { runPassRate } from '@aisdlc/agents';
 // A regression is significant when the WHOLE interval is below zero. A case the baseline has and the
 // run lacks counts as failed (unknown means unmet); a case only the run has is not compared.
 
-export const DEFAULT_FLOOR = 0.8;
-export const DEFAULT_RESAMPLES = 2000;
+export const DEFAULT_FLOOR = DEFAULT_EVALS_GATE.floor;
+export const DEFAULT_RESAMPLES = DEFAULT_EVALS_GATE.resamples;
 
 /** mulberry32: a small seeded PRNG, so a bootstrap is reproducible. */
 function prng(seed: number): () => number {
@@ -39,7 +41,7 @@ export function compareRuns(
   baseline: EvalBaseline | null,
   o: { level?: number; resamples?: number; seed?: number } = {},
 ): EvalCompareResult {
-  const level = o.level ?? EVAL_COMPARE_LEVEL;
+  const level = o.level ?? settingInForce(SETTINGS_KEYS.evals_gate, DEFAULT_EVALS_GATE).level;
   const candidate_pass_rate = runPassRate(run);
   if (baseline === null) {
     return {
@@ -66,7 +68,7 @@ export function compareRuns(
   const mean = deltas.reduce((s, x) => s + x, 0) / n;
   const rnd = prng(o.seed ?? 20261109);
   const means: number[] = [];
-  const B = o.resamples ?? DEFAULT_RESAMPLES;
+  const B = o.resamples ?? settingInForce(SETTINGS_KEYS.evals_gate, DEFAULT_EVALS_GATE).resamples;
   for (let r = 0; r < B; r += 1) {
     let s = 0;
     for (let j = 0; j < n; j += 1) s += deltas[Math.floor(rnd() * n)] as number;
@@ -99,7 +101,7 @@ export function gateRun(
   baseline: EvalBaseline | null,
   o: { floor?: number; level?: number; resamples?: number; seed?: number } = {},
 ): EvalGateResult {
-  const floor = o.floor ?? DEFAULT_FLOOR;
+  const floor = o.floor ?? settingInForce(SETTINGS_KEYS.evals_gate, DEFAULT_EVALS_GATE).floor;
   const compare = compareRuns(run, baseline, o);
   const pass_rate = runPassRate(run);
   const reasons: EvalGateReason[] = [];

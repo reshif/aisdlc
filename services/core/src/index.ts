@@ -62,6 +62,8 @@ export * from './degraded.js';
 export * from './knowledge-defects.js';
 export * from './portal-knowledge.js';
 export * from './portal-ops.js';
+export * from './settings-v2.js';
+export * from './catalogue-pin.js';
 export * from './deletion/engine.js';
 export * from './deletion/match.js';
 export * from './deletion/targets.js';
