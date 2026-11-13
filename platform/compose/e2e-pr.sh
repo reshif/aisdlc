@@ -119,9 +119,15 @@ echo "  W image $SANDBOX_AGENT_IMAGE_ID, probe image $SANDBOX_ONBOARDING_IMAGE"
 
 echo "== SP-STD-1 on the W image (LF4's evidence)"
 # the report is written before the test's own leftover check (a sandbox of another run on a shared daemon may fail
-# that); core computes the verdict itself from the report when it is posted, so a failing report gives no LF4
-(cd "$repo_root" && SP_STD_1_EVIDENCE_DIR="$evidence_dir" npx vitest run --project coding-runner isolation >"$evidence_dir/sp-std-1.log" 2>&1) ||
-  echo "  (the isolation test exited non-zero; its report is checked by core: $(grep -E 'Tests ' "$evidence_dir/sp-std-1.log" | tr -s ' '))"
+# that); core computes the verdict itself from the report when it is posted, so a failing report gives no LF4. A
+# coding session of another run on the same daemon makes the proxy answer busy (one W at a time): tried three times.
+for attempt in 1 2 3; do
+  rm -f "$evidence_dir/sp-std-1.json"
+  (cd "$repo_root" && SP_STD_1_EVIDENCE_DIR="$evidence_dir" npx vitest run --project coding-runner isolation >"$evidence_dir/sp-std-1.log" 2>&1) && break
+  echo "  (attempt $attempt: the isolation test exited non-zero: $(grep -E 'Tests ' "$evidence_dir/sp-std-1.log" | tr -s ' '))"
+  [ -s "$evidence_dir/sp-std-1.json" ] && break
+  sleep 30
+done
 [ -s "$evidence_dir/sp-std-1.json" ] || { tail -40 "$evidence_dir/sp-std-1.log"; fail "SP-STD-1 wrote no report"; }
 grep -q "\"worker_image\": \"$SANDBOX_AGENT_IMAGE_ID\"" "$evidence_dir/sp-std-1.json" || fail "the SP-STD-1 report is not about $SANDBOX_AGENT_IMAGE_ID"
 
