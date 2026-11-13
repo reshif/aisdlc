@@ -32,6 +32,7 @@ import { BoardPage, ItemsPage } from './pages/ItemsPage';
 import { FloorPage } from './floor/FloorPage';
 import { FleetPage } from './floor/FleetPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
+import { AgentPage } from './pages/AgentPage';
 import {
   ControlsPage,
   HealthPage,
@@ -127,7 +128,11 @@ function SignedOut() {
  * call: the server refuses the reads anyway, this only saves the person a broken page.
  */
 function Screen({ me, route, children }: { me: Me; route: Route; children: ReactNode }) {
-  const path = Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
+  // an agent's page is guarded as the agent list is
+  const path =
+    route.name === 'agent'
+      ? '/agents'
+      : Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
   const guard = path ? guardOf(path) : null;
   if (guard && !guardPasses(guard, me)) {
     const action = guardAction(guard);
@@ -168,6 +173,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <BoardPage />;
     case 'agents':
       return <AgentsPage />;
+    case 'agent':
+      return <AgentPage id={route.id} />;
     case 'evals':
       return <EvalsPage />;
     case 'models':
