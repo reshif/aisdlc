@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { GitSha, IsoDateTime, PrincipalId, ProjectId } from './ids.js';
 import { RepoOwnerType } from './projects.js';
 
+/** A pull request's state on the code host (`core.pull_request`, DM §3.6). */
+export const PullRequestState = z.enum(['open', 'closed']);
+export type PullRequestState = z.infer<typeof PullRequestState>;
+
 // The code host (PLAN M5; DM §3.6 and §4 `CodeHostPort`; OB §5.5 and §6.5). One vocabulary for the
 // port in `@aisdlc/ports`, the fake, the GitHub App adapter and the `codehost` service: the
 // forbidden verbs and permissions, the token roles, what a read returns, the B4 blockers and the

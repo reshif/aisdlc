@@ -63,6 +63,14 @@ import type {
   GateCardContext,
   GateCheckRunsView,
   ItemVerifyView,
+  AgentDetailView,
+  AgentRecentRunsView,
+  AgentRunsView,
+  AgentScoresView,
+  AgentStats,
+  ItemDocumentsView,
+  ItemRequestView,
+  ItemTimelineView,
   AccessExplainView,
   AdmissionView,
   AgentRegistryView,
@@ -547,6 +555,15 @@ export const api = {
   askForWork: (b: PortalAskRequest, csrf: string) =>
     request<PortalRequestReceipt>('POST', '/api/requests', b, csrf),
   item: (id: string) => request<PortalItemView>('GET', `/api/items/${encodeURIComponent(id)}`),
+  /** P2-1: the item page's tabs (the bff cuts each to the person's view level and data class). */
+  itemRequest: (id: string) =>
+    request<ItemRequestView>('GET', `/api/items/${encodeURIComponent(id)}/request`),
+  itemDocuments: (id: string) =>
+    request<ItemDocumentsView>('GET', `/api/items/${encodeURIComponent(id)}/documents`),
+  itemTimeline: (id: string) =>
+    request<ItemTimelineView>('GET', `/api/items/${encodeURIComponent(id)}/timeline`),
+  itemAgentRuns: (id: string) =>
+    request<AgentRunsView>('GET', `/api/agent-runs?item=${encodeURIComponent(id)}`),
   itemVerify: (id: string, head?: string) =>
     request<ItemVerifyView>(
       'GET',
@@ -729,6 +746,16 @@ export const api = {
       `/api/items${project ? `?project=${encodeURIComponent(project)}` : ''}`,
     ),
   agents: () => request<AgentRegistryView>('GET', '/api/agents'),
+  /** P2-3: one agent's page. */
+  agent: (id: string) => request<AgentDetailView>('GET', `/api/agents/${encodeURIComponent(id)}`),
+  agentRecentRuns: (id: string) =>
+    request<AgentRecentRunsView>('GET', `/api/agents/${encodeURIComponent(id)}/runs?limit=50`),
+  agentStats: (id: string) =>
+    request<AgentStats>('GET', `/api/agents/${encodeURIComponent(id)}/stats`),
+  agentScores: (id: string) =>
+    request<AgentScoresView>('GET', `/api/agents/${encodeURIComponent(id)}/scores`),
+  agentEvalRuns: (id: string) =>
+    request<EvalRunsView>('GET', `/api/evals/runs?agent=${encodeURIComponent(id)}&limit=50`),
   evalSummary: () => request<EvalSummaryView>('GET', '/api/evals/summary'),
   evalRuns: () => request<EvalRunsView>('GET', '/api/evals/runs?limit=50'),
   integrations: () => request<IntegrationsView>('GET', '/api/integrations'),

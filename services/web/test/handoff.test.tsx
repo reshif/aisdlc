@@ -36,6 +36,8 @@ const item = (over: Record<string, unknown> = {}) => ({
   injection_suspected: false,
   dedupe_links: [],
   profile_gates: null,
+  clarify: null,
+  pull_requests: [],
   may: { ready: false, answer: false, observe: false, plan: false },
   ...over,
 });

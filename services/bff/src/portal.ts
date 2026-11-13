@@ -47,6 +47,11 @@ import {
   ItemVerifyView,
   cutGateContext,
   cutVerifyView,
+  ItemDocumentsView,
+  ItemRequestView,
+  ItemTimelineView,
+  cutDocumentsView,
+  cutRequestView,
   RevisionDecideRequest,
   RevisionEvidenceRequest,
   S0Overview,
@@ -93,6 +98,9 @@ import type { Levels } from './levels.js';
 //   POST /api/items/:id/answers           the answer to one S1 clarification question  (item.ready)
 //   POST /api/items/:id/observe           B4 or R2 while G3d is open                   (item.observe)
 //   POST /api/items/:id/plan              B5: the plan a person writes                 (item.plan)
+//   GET  /api/items/:id/request           the request as kept, its marks, de-dupe, lane and why (project.view; text D1)
+//   GET  /api/items/:id/documents         every artefact by kind with its versions and gates (project.view, V2; text D1)
+//   GET  /api/items/:id/timeline          the item's record folded to plain steps          (project.view)
 //   GET  /api/items/:id/verify[?head=]    S7: the checks 7.1-7.5 of a Unit head      (project.view, V2; cut to the data class)
 //   GET  /api/items/:id/evidence[?pack=]  the signed Evidence Pack(s) of 7.6          (project.view, V2)
 //   GET  /api/items/:id/evidence/:pack/signed  the signed bytes, for aisdlc-verify-pack (project.view, V2)
@@ -643,7 +651,12 @@ export function registerPortalRoutes(d: PortalDeps): void {
   // cannot be read is no level: the read is refused.
 
   /** The person's levels on the project, or the refusal sent (403 below V2). */
-  async function contentLevels(req: FastifyRequest, reply: FastifyReply, project: string) {
+  async function contentLevels(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    project: string,
+    what = 'the S7 results and the Evidence Pack are',
+  ) {
     let lv: Levels | null;
     try {
       lv = (await d.levelsOf?.(d.principalOf(req), project)) ?? null;
@@ -655,7 +668,7 @@ export function registerPortalRoutes(d: PortalDeps): void {
         reply,
         403,
         'view_level',
-        'the S7 results and the Evidence Pack are content of the work: they need view level V2 on the project',
+        `${what} content of the work: they need view level V2 on the project`,
       );
       return null;
     }
@@ -673,6 +686,62 @@ export function registerPortalRoutes(d: PortalDeps): void {
 
   const onBehalf = (req: FastifyRequest, extra: Record<string, string> = {}) =>
     new URLSearchParams({ ...extra, on_behalf_of: d.principalOf(req) }).toString();
+
+  // ------------------------------------------------------------ the item page's tabs (P2-1)
+  //
+  // The request (view level V1: whoever may view the project; the text needs D1), the documents (V2, like S7: the
+  // content of the work; their text needs D1) and the timeline (codes only). The levels are the person's on the project
+  // the core answer names; a level that cannot be read is D0 for the V1 reads and a refusal for the V2 one.
+
+  /** The data class the person reaches on the project; none readable is D0 (never assumed higher). */
+  async function dataClassOn(req: FastifyRequest, project: string) {
+    try {
+      return (await d.levelsOf?.(d.principalOf(req), project))?.data_class ?? 'D0';
+    } catch {
+      return 'D0';
+    }
+  }
+
+  app.get('/api/items/:id/request', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const got = upstream(
+      reply,
+      await c.call('GET', `/v1/items/${id}/request?${onBehalf(req)}`),
+      (v) => ItemRequestView.parse(v),
+    );
+    if (!got || !(await projectViewable(req, reply, got.value.project_id))) return;
+    return cutRequestView(got.value, await dataClassOn(req, got.value.project_id));
+  });
+
+  app.get('/api/items/:id/documents', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const got = upstream(
+      reply,
+      await c.call('GET', `/v1/items/${id}/documents?${onBehalf(req)}`),
+      (v) => ItemDocumentsView.parse(v),
+    );
+    if (!got || !(await projectViewable(req, reply, got.value.project_id))) return;
+    const lv = await contentLevels(req, reply, got.value.project_id, "an item's documents are");
+    if (!lv) return;
+    return cutDocumentsView(got.value, lv.data_class);
+  });
+
+  app.get('/api/items/:id/timeline', async (req, reply) => {
+    const c = core(reply);
+    const id = c ? idParam(req, reply) : null;
+    if (!c || !id) return;
+    const got = upstream(
+      reply,
+      await c.call('GET', `/v1/items/${id}/timeline?${onBehalf(req)}`),
+      (v) => ItemTimelineView.parse(v),
+    );
+    if (!got || !(await projectViewable(req, reply, got.value.project_id))) return;
+    return got.value;
+  });
 
   app.get('/api/items/:id/verify', async (req, reply) => {
     const c = core(reply);

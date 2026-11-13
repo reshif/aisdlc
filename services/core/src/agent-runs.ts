@@ -242,6 +242,16 @@ export async function listAgentRunsOf(pool: pg.Pool, agent: AgentId): Promise<Ru
   return q.rows.map(toView) as RunWithOutcome[];
 }
 
+/** Every run of one agent, newest first (P2-3's agent page; the route filters by project and limits). */
+export async function recentAgentRunsOf(pool: pg.Pool, agent: AgentId): Promise<AgentRunView[]> {
+  await catchUpAgentRuns(pool);
+  const q = await pool.query(
+    'SELECT * FROM core.agent_run WHERE agent_id = $1 ORDER BY started_at DESC, run_id DESC LIMIT 5000',
+    [agent],
+  );
+  return q.rows.map(toView);
+}
+
 /** Acceptance rate, back-edge rate and cost per run of one agent, over the fleet or one project. */
 export async function agentStatsOf(
   pool: pg.Pool,

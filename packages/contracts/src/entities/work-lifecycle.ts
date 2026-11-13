@@ -18,7 +18,7 @@ import {
   WorkRequestId,
   uuidId,
 } from './ids.js';
-import { RepoFullName } from './codehost.js';
+import { PullRequestState, RepoFullName } from './codehost.js';
 
 // The work lifecycle's vocabulary (PLAN M9.1, M9.2; DM §3.3, §6.1; FL S1, FIX 7, FIX 15). The Request
 // and its text (data, never instructions), the Question and SpawnLink entities (one shape each, DM
@@ -975,6 +975,35 @@ export const SubmitRequestBody = z.strictObject({
 export type SubmitRequestBody = z.infer<typeof SubmitRequestBody>;
 
 /** An item for a reader: position, what it waits for and its questions; never request text. */
+/**
+ * P2-16: where S1's clarifying questions stand (B1): the round asked, the catalogue's limit, the open blocking questions,
+ * and the business-day deadline the requester's silence runs to (Clarifying: it parks then; Parked: it is abandoned
+ * then). `deadline` is `null` when the pinned catalogue names no limit.
+ */
+export const ItemClarifyState = z.strictObject({
+  round: z.number().int().min(1),
+  rounds_max: z.number().int().min(1).nullable(),
+  open: z.number().int().min(0),
+  since: IsoDateTime,
+  deadline: IsoDateTime.nullable(),
+  then: z.enum(['parks', 'abandons']),
+});
+export type ItemClarifyState = z.infer<typeof ItemClarifyState>;
+
+/** P3-5: a pull request the Push Broker opened for the item (`core.pull_request`): the link and the head. */
+export const ItemPullRequest = z.strictObject({
+  repo: RepoFullName,
+  number: z.number().int().min(1),
+  unit_key: z.string().min(1).max(128),
+  head_ref: z.string().min(1),
+  head_sha: GitSha,
+  state: PullRequestState,
+  draft: z.boolean(),
+  /** The code host's web page of the PR. */
+  url: z.string().min(1).max(500),
+});
+export type ItemPullRequest = z.infer<typeof ItemPullRequest>;
+
 export const ItemView = z.strictObject({
   item_id: WorkItemId,
   project_id: ProjectId,
@@ -1019,5 +1048,9 @@ export const ItemView = z.strictObject({
    * pinned). Conditional gates (raised by a step) are in neither. `null`: the pinned catalogue cannot be read.
    */
   profile_gates: z.strictObject({ on: z.array(GateId), off: z.array(GateId) }).nullable(),
+  /** P2-16: the clarifying round while S1 waits for answers or is parked on them; `null` otherwise. */
+  clarify: ItemClarifyState.nullable(),
+  /** P3-5: the item's pull requests and their heads, by number. */
+  pull_requests: z.array(ItemPullRequest),
 });
 export type ItemView = z.infer<typeof ItemView>;

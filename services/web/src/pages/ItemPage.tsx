@@ -15,6 +15,12 @@ import { HandoffPanel, showsHandoff } from '../items/HandoffPanel';
 import { newKey, waitingText } from '../items/waiting';
 import { Link } from '../router';
 import { DegradedBanners } from '../components/Degraded';
+import { ShortHash } from '../components/Read';
+import { shortTime } from '../format';
+import { AgentRunsTab } from '../items/AgentRunsTab';
+import { DocumentsTab, IntentTab } from '../items/DocumentsTab';
+import { RequestTab } from '../items/RequestTab';
+import { TimelineTab } from '../items/TimelineTab';
 
 // One work item and what the signed-in person may do with it now (PLAN M12.5): answer S1's questions, give the
 // Ready decision (1.6), raise B4 or R2 while the design review (G3d) is open, write the plan after B5. Every
@@ -53,6 +59,27 @@ export function ItemPage({ id, csrf }: { id: string; csrf: string }) {
             {it.lane === null ? ' (proposed, not yet approved)' : ''}
           </dd>
         </div>
+        {it.pull_requests.length > 0 ? (
+          <div>
+            <dt>Pull request{it.pull_requests.length === 1 ? '' : 's'}</dt>
+            <dd data-testid="item-prs">
+              {it.pull_requests.map((p) => (
+                <span key={`${p.repo}#${p.number}`} className="item-pr">
+                  <a href={p.url} target="_blank" rel="noopener noreferrer">
+                    #{p.number}
+                  </a>{' '}
+                  <Badge tone={p.state === 'open' ? 'active' : 'neutral'}>
+                    {p.draft ? 'draft' : p.state}
+                  </Badge>{' '}
+                  head <ShortHash hash={p.head_sha} />
+                  {it.pull_requests.length > 1 ? (
+                    <span className="muted"> (Unit {p.unit_key})</span>
+                  ) : null}{' '}
+                </span>
+              ))}
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt>Where it is</dt>
           <dd data-testid="item-phase">
@@ -97,9 +124,10 @@ export function ItemPage({ id, csrf }: { id: string; csrf: string }) {
 const S7_ON = new Set(['S7', 'S8', 'S8b', 'S9', 'Quarantined']);
 
 /**
- * The item's tabs (M14.6): what the person may do now, and Verify (S7's checks, the Evidence Pack, gate-check). Verify
- * is content of the work: it is offered at view level V2 and above on the project (a hint; the bff refuses the read
- * below V2 whatever this shows).
+ * The item's tabs (P2-1, portal-coverage §2 `item-<KEY>`): what the person may do now, the request as kept, the intent,
+ * the documents, the timeline, the agent runs and Verify (S7). The intent, the documents and Verify are content of the
+ * work: offered at view level V2 and above on the project (a hint; the bff refuses the read below V2 whatever this
+ * shows, and cuts the text to the person's data class). A tab reads its own data only when it is opened.
  */
 function ItemTabs({ item, children }: { item: Item; children: ReactNode }) {
   const access = useAccess();
@@ -111,18 +139,40 @@ function ItemTabs({ item, children }: { item: Item; children: ReactNode }) {
   const selected = tab ?? (v2 && inS7 ? 'verify' : 'now');
   const tabs: TabDef[] = [
     { id: 'now', label: 'Now' },
+    { id: 'request', label: 'Request' },
+    ...(v2 ? [{ id: 'intent', label: 'Intent' }] : []),
+    ...(v2 ? [{ id: 'documents', label: 'Documents' }] : []),
+    { id: 'timeline', label: 'Timeline' },
+    { id: 'runs', label: 'Agent runs' },
     ...(v2 ? [{ id: 'verify', label: 'Verify' }] : []),
   ];
+  const id = item.item_id;
+  const panel =
+    selected === 'request' ? (
+      <RequestTab id={id} />
+    ) : selected === 'intent' && v2 ? (
+      <IntentTab id={id} />
+    ) : selected === 'documents' && v2 ? (
+      <DocumentsTab id={id} />
+    ) : selected === 'timeline' ? (
+      <TimelineTab id={id} />
+    ) : selected === 'runs' ? (
+      <AgentRunsTab id={id} />
+    ) : selected === 'verify' && v2 ? (
+      <VerifyTab id={id} />
+    ) : (
+      children
+    );
   return (
     <>
       {!v2 && access.isSuccess ? (
         <p className="s7-faint" data-testid="verify-hidden">
-          S7 results and the Evidence Pack are content of the work: they need view level V2 on this
-          project. <Link to="/me/access">See my access</Link>
+          The intent, the documents, S7 results and the Evidence Pack are content of the work: they
+          need view level V2 on this project. <Link to="/me/access">See my access</Link>
         </p>
       ) : null}
       <Tabs label="Work item" tabs={tabs} selected={selected} onSelect={setTab}>
-        {selected === 'verify' && v2 ? <VerifyTab id={item.item_id} /> : children}
+        {panel}
       </Tabs>
     </>
   );
@@ -135,6 +185,7 @@ function Questions({ item, csrf }: { item: Item; csrf: string }) {
   return (
     <section aria-label="Questions">
       <h2>Questions from the factory</h2>
+      {item.clarify ? <ClarifyRound c={item.clarify} /> : null}
       <ul className="plain">
         {item.questions.map((q) => (
           <li key={q.question_id} data-testid="question">
@@ -158,6 +209,36 @@ function Questions({ item, csrf }: { item: Item; csrf: string }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** P2-16 (B1): the round asked, the catalogue's limit, and the date the requester's silence runs to. */
+function ClarifyRound({ c }: { c: NonNullable<Item['clarify']> }) {
+  const of = c.rounds_max === null ? '' : ` of ${c.rounds_max}`;
+  const when = c.deadline === null ? null : shortTime(c.deadline);
+  return (
+    <p
+      data-testid="clarify-round"
+      className={c.then === 'abandons' ? 'notice notice-bad' : 'muted'}
+    >
+      {c.then === 'parks' ? (
+        <>
+          Round {c.round}
+          {of}.{' '}
+          {when === null
+            ? 'If nobody answers, the item parks.'
+            : `If nobody answers, the item parks on ${when}.`}
+        </>
+      ) : (
+        <>
+          Parked after round {c.round}
+          {of}.{' '}
+          {when === null
+            ? 'It is abandoned if nobody answers in time.'
+            : `It is abandoned on ${when} if nobody answers.`}
+        </>
+      )}
+    </p>
   );
 }
 

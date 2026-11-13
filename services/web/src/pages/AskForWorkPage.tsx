@@ -12,8 +12,8 @@ import { useId, useState, type FormEvent } from 'react';
 import { Guarded, useMe } from '../access';
 import { api } from '../api';
 import { ErrorNote, Loading, PageError } from '../components/Notice';
-import { shortTime } from '../format';
 import { Link } from '../router';
+import { DuplicatesCard, InjectionCard, RequestTextCard } from '../items/RequestParts';
 import { Card, EmptyState, GateTag, KeyValue, PageHead, Pill, laneText } from '../ui';
 import {
   ELIGIBILITY_REASON_TEXT,
@@ -30,8 +30,6 @@ import {
 
 /** A request is a few paragraphs, not a document (1.1 refuses longer text; `MAX_REQUEST_TEXT_CHARS`). */
 const MAX_TEXT = 20_000;
-
-const short = (hex: string): string => `${hex.slice(0, 12)}…`;
 
 export function AskForWorkPage({ project, csrf }: { project: string | null; csrf: string }) {
   const me = useMe();
@@ -319,67 +317,9 @@ function Receipt({ receipt: r, again }: { receipt: PortalRequestReceipt; again: 
         </p>
       </Card>
 
-      <Card title="Your text, as the factory keeps it (1.1)" testId="receipt-text">
-        <pre className="ask-text" aria-label="The normalised text">
-          {t.text}
-        </pre>
-        <KeyValue
-          label="Taint mark"
-          rows={[
-            [
-              'Taint',
-              <>
-                <Pill tone="warn">{t.taint}</Pill> {t.origin}: read as data, never obeyed
-              </>,
-            ],
-            ['Channel', `${t.provenance.channel} (portal Ask)`],
-            ['Received', shortTime(t.provenance.received_at)],
-            ['From', name(t.provenance.submitted_by)],
-            ['As sent', <code key="raw">sha256 {short(t.provenance.raw_sha256)}</code>],
-            ['Normalised', <code key="norm">sha256 {short(t.provenance.normalised_sha256)}</code>],
-          ]}
-        />
-      </Card>
-
-      <Card title="Injection check (B27)" testId="receipt-injection">
-        {r.injection.suspected ? (
-          <>
-            <p>
-              <Pill tone="bad">flagged</Pill> The text looks like it tries to instruct the factory.
-              It is fenced as data, and the G0 card shows these flags to its decider.
-            </p>
-            <ul className="plain" aria-label="Injection flags">
-              {t.flags.map((f) => (
-                <li key={`${f.rule}:${f.line}`}>
-                  <code>{f.rule}</code> on line {f.line}
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <p>
-            <Pill tone="ok">none</Pill> Nothing in the text looks like an instruction to the
-            factory.
-          </p>
-        )}
-      </Card>
-
-      <Card title="Duplicates (1.2)" testId="receipt-dedupe">
-        {r.dedupe_links.length === 0 ? (
-          <p className="muted">No earlier item on this repo has the same text.</p>
-        ) : (
-          <>
-            <p>The same text was asked for before. The new item is linked to:</p>
-            <ul className="plain" aria-label="Linked items">
-              {r.dedupe_links.map((id) => (
-                <li key={id}>
-                  <Link to={`/items/${id}`}>item {id.replace(/-/g, '').slice(0, 8)}</Link>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </Card>
+      <RequestTextCard text={t} name={name} testId="receipt-text" />
+      <InjectionCard suspected={r.injection.suspected} flags={t.flags} testId="receipt-injection" />
+      <DuplicatesCard links={r.dedupe_links} testId="receipt-dedupe" />
     </>
   );
 }
