@@ -99,7 +99,16 @@ routes=$(docker compose exec -T -e PGPASSWORD="$(cat secrets/pg-superuser)" post
   FROM (SELECT r.doc FROM config.config_published p JOIN config.config_revision r USING (rev_hash)
         WHERE r.layer = 'factory' ORDER BY p.global_seq DESC LIMIT 1) d,
        jsonb_array_elements(d.doc->'gateway.routes') x WHERE x->>'environment' = 'local'" 2>/dev/null || true)
-if [ -e secrets/.anthropic-key-placeholder ]; then key="placeholder (no vendor key)"; else key="set (secrets/anthropic-api-key, mounted in the gateway only)"; fi
+# the vendor key: in Vault when the registry names the Vault field (the default), else the mounted file
+key_ref="${AISDLC_ANTHROPIC_KEY_REF:-vault:gateway/anthropic-api-key#value}"
+if [ "${key_ref#vault:}" != "$key_ref" ]; then
+  vault_key=$(docker compose exec -T -e TOKEN="$(cat secrets/tok-operator-core)" core node -e '
+fetch("http://127.0.0.1:8380/v1/secrets?on_behalf_of=alice", { headers: { authorization: `Bearer ${process.env.TOKEN}` } })
+  .then((r) => r.json()).then((j) => { const s = (j.secrets ?? []).find((x) => x.name === "anthropic-api-key");
+    console.log(s?.set ? `in Vault (version ${s.version}, ${s.updated_at})` : "not set yet: paste it in the portal (Integrations, or PUT /api/secrets/anthropic-api-key)"); })
+  .catch(() => console.log("unknown (core did not answer)"));' 2>/dev/null || echo unknown)
+  key="$vault_key"
+elif [ -e secrets/.anthropic-key-placeholder ]; then key="placeholder (no vendor key)"; else key="set (secrets/anthropic-api-key, mounted in the gateway only)"; fi
 case "$routes" in
   *claude*) models="routed to Claude where shown" ;;
   *) models="the deterministic FAKE provider answers every agent (fixtures ${SEED_FAKE_FIXTURES:-planning}): no model does the work until you route to Claude (docs/getting-started.md §5)" ;;
@@ -117,7 +126,12 @@ cat <<EOF
   Coding (S6)   REAL: W sandbox sessions on this Docker daemon (one at a time), scratch $SANDBOX_SCRATCH
   Verify (S7)   REAL: the verify service, the signed Evidence Pack, gate-check's aisdlc/gate
   Push (6.6)    REAL against the GitHub above: the Push Broker writes agent/<item>/<unit> and a Draft PR; a person merges
-  Stubbed       key custody (kms-local), sign-in (the dev IdP and its test people), the first admin (the seed);
+  Sign-in       Keycloak (http://keycloak.localhost:$AISDLC_OIDC_PORT): the test people (alice, lt, ...; password in
+                secrets/keycloak-persona-password) and the break-glass factory admin \`factory-admin\` (password in
+                secrets/keycloak-factory-admin-password); Keycloak's own admin is kc-admin (secrets/keycloak-bootstrap-admin)
+  Secrets       Vault (LOCAL PROD ONLY: one unseal key in secrets/vault/$COMPOSE_PROJECT_NAME/, it unseals itself); paste a
+                key once in the portal (PUT /api/secrets/<name>), it is never shown again
+  Stubbed       key custody (kms-local), the first admin (the seed), Vault's auto-unseal and plain-http Keycloak;
                 release is the fake unless CORE_WORKER_RELEASE=gate-relay (README.md, "What local-prod stubs")
   Next          sign in as alice (factory admin), Integrations (/integrations) › Repositories › Onboard $REPO
                 (Light for agent lanes: docs/getting-started.md §6); route the models to Claude first (§5)

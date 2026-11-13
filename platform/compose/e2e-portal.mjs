@@ -15,14 +15,14 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { IDP_URL, idpSignIn } from './e2e-signin.mjs';
+
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
 const base = process.env.E2E_BASE_URL ?? 'http://localhost:8340';
 const shots = process.env.E2E_SCREENSHOT_DIR ?? 'docs/screenshots';
 const REPO = { owner: 'reshif', name: 'asf-factory-testbed' };
-const ALICE = '00000000-0000-4000-8000-000000000001';
-const BOB = '00000000-0000-4000-8000-000000000002';
 const composeDir = dirname(fileURLToPath(import.meta.url));
 const T = 240_000;
 
@@ -44,6 +44,7 @@ try {
   page.setDefaultTimeout(30_000);
   const problems = [];
   page.on('console', (m) => {
+    if (IDP_URL.test(page.url())) return; // the identity provider's own page, not the portal
     if (m.type() === 'error' || /Content Security Policy/i.test(m.text()))
       problems.push(`console (${page.url()}): ${m.text()}`);
   });
@@ -107,11 +108,8 @@ try {
     }
   };
 
-  const devSignIn = async () => {
-    await page.waitForURL(/dev-oidc\.localhost:8390\/authorize/);
-    await page.locator('select[name=dev_user]').selectOption(ALICE);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-  };
+  // the IdP's page (Keycloak; the dev IdP with E2E_IDP=dev): sign in as alice
+  const devSignIn = () => idpSignIn(page, 'alice', composeDir);
 
   // 1. The shell, signed out, under the strict policy.
   const first = await page.goto(`${base}/`);
@@ -124,7 +122,7 @@ try {
   await page.getByRole('link', { name: 'Sign in' }).first().click();
   log('signed out: clicked Sign in (bff /auth/login)');
 
-  // 2. The dev IdP: sign in as alice (the first person of the seed, a factory admin).
+  // 2. The identity provider (Keycloak): sign in as alice (the first person of the seed, a factory admin).
   await devSignIn();
   await page.waitForURL(`${base}/`);
   await page.getByRole('button', { name: 'Sign out' }).waitFor();
@@ -328,7 +326,7 @@ try {
   noProblems('card 5');
   const c5Url = page.url();
   await page.getByRole('button', { name: 'Confirm my identity' }).click();
-  await devSignIn(); // the re-login at the dev IdP, bound to the record hash
+  await devSignIn(); // the re-login at the identity provider, bound to the record hash
   await page.waitForURL(/\/cards\/[0-9a-f-]{36}/);
   await page.getByTestId('stepup-ready').waitFor();
   must(!page.url().includes('step_up'), 'the step-up attempt id is left in the address bar');
@@ -567,9 +565,7 @@ try {
     bp.on('pageerror', (e) => problems.push(`pageerror (bob): ${e.message}`));
     await bp.goto(`${base}/`);
     await bp.getByRole('link', { name: 'Sign in' }).first().click();
-    await bp.waitForURL(/dev-oidc\.localhost:8390\/authorize/);
-    await bp.locator('select[name=dev_user]').selectOption(BOB);
-    await bp.getByRole('button', { name: 'Sign in' }).click();
+    await idpSignIn(bp, 'bob', composeDir);
     await bp.getByRole('button', { name: 'Sign out' }).waitFor();
     problems.length = 0;
     const bobCsrf = (await (await bobCtx.request.get(`${base}/api/me`)).json()).csrf_token;

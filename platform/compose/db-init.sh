@@ -7,6 +7,7 @@
 #   role notary  -> database notary    the Notary's own database
 #   role witness -> database witness   the Witness's own database
 #   role killswitch -> database killswitch  the kill switch's own database (AR9)
+#   role keycloak -> database keycloak  Keycloak's own database (portal v2 sign-in): the realm, its users and sessions
 #   role gateway -> database aisdlc    NOT the owner: a login role in the group role `aisdlc_gateway`, which
 #                                      the gateway migration grants exactly the gateway's own tables, INSERT
 #                                      and SELECT of its own `gateway:` record streams, and the effective-config
@@ -40,7 +41,8 @@ psql -v ON_ERROR_STOP=1 \
   -v pw_gate_check="$(cat /run/secrets/pg-pass-gate-check)" \
   -v pw_gate_relay="$(cat /run/secrets/pg-pass-gate-relay)" \
   -v pw_notifier="$(cat /run/secrets/pg-pass-notifier)" \
-  -v pw_audit="$(cat /run/secrets/pg-pass-audit)" <<'SQL'
+  -v pw_audit="$(cat /run/secrets/pg-pass-audit)" \
+  -v pw_keycloak="$(cat /run/secrets/pg-pass-keycloak)" <<'SQL'
 SELECT 'CREATE ROLE aisdlc_app NOLOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_app') \gexec
 
@@ -108,7 +110,7 @@ SELECT format('ALTER ROLE audit PASSWORD %L', :'pw_audit') \gexec
 GRANT aisdlc_audit TO audit;
 
 SELECT format('CREATE ROLE %I LOGIN', r)
-  FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS r
+  FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch', 'keycloak']) AS r
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r) \gexec
 
 -- CREATEROLE: the record migrations create the aisdlc_app group role if it is missing (the
@@ -119,15 +121,16 @@ SELECT format('ALTER ROLE aisdlc CREATEROLE PASSWORD %L', :'pw_aisdlc') \gexec
 SELECT format('ALTER ROLE notary PASSWORD %L', :'pw_notary') \gexec
 SELECT format('ALTER ROLE witness PASSWORD %L', :'pw_witness') \gexec
 SELECT format('ALTER ROLE killswitch PASSWORD %L', :'pw_killswitch') \gexec
+SELECT format('ALTER ROLE keycloak PASSWORD %L', :'pw_keycloak') \gexec
 
 SELECT format('CREATE DATABASE %I OWNER %I', d, d)
-  FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS d
+  FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch', 'keycloak']) AS d
  WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = d) \gexec
 
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', d)
-  FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS d \gexec
+  FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch', 'keycloak']) AS d \gexec
 SELECT format('GRANT CONNECT ON DATABASE %1$I TO %1$I', d)
-  FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch']) AS d \gexec
+  FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch', 'keycloak']) AS d \gexec
 GRANT CONNECT ON DATABASE aisdlc TO gateway;
 GRANT CONNECT ON DATABASE aisdlc TO sandbox_controller;
 GRANT CONNECT ON DATABASE aisdlc TO verify;

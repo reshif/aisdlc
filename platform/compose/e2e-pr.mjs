@@ -19,6 +19,8 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { IDP_URL, idpSignIn } from './e2e-signin.mjs';
+
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
@@ -31,13 +33,6 @@ const composeDir = dirname(fileURLToPath(import.meta.url));
 const T = Number(process.env.E2E_WAIT_MS ?? 300_000);
 const started = Date.now();
 
-// the dev IdP's subjects of the personas (services/bff/src/dev-oidc/personas.ts)
-const SUBJECT = Object.fromEntries(
-  ['lt', 'oh', 'rb', 'ar', 'pm', 'dn', 'ks', 'jm', 'mw', 'nf', 'tb'].map((p, i) => [
-    p,
-    `00000000-0000-4000-8000-${String(i + 3).padStart(12, '0')}`,
-  ]),
-);
 // personaRoleMap('payments'): the testbed's role map
 const ROLE_MAP = {
   admin: ['rb'],
@@ -151,16 +146,15 @@ async function personOf(who) {
       return;
     }
     if (/status of 40[13]/.test(m.text())) return; // a guarded control asked and was told no: shown, not a fault
-    if (/dev-oidc\.localhost/.test(page.url())) return; // the dev IdP's own page (its favicon), not the portal
+    if (IDP_URL.test(page.url())) return; // the identity provider's own page (its favicon), not the portal
     if (m.type() === 'error' || /Content Security Policy/i.test(m.text()))
       problems.push(`console (${who}, ${page.url()}): ${m.text()}`);
   });
   page.on('pageerror', (e) => problems.push(`pageerror (${who}): ${e.message}`));
   await page.goto(`${base}/`);
   await page.getByRole('link', { name: 'Sign in' }).first().click();
-  await page.waitForURL(/dev-oidc\.localhost:\d+\/authorize/);
-  await page.locator('select[name=dev_user]').selectOption(SUBJECT[who]);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  // the identity provider (Keycloak): the person's username and the test people's password
+  await idpSignIn(page, who, composeDir);
   await page.getByRole('button', { name: 'Sign out' }).waitFor();
   const csrf = async () => (await (await context.request.get(`${base}/api/me`)).json()).csrf_token;
   const p = {
@@ -168,11 +162,9 @@ async function personOf(who) {
     context,
     page,
     csrf,
-    /** the dev IdP again, for a step-up (the same person) */
+    /** the identity provider again, for a step-up (the same person signs in again) */
     async reSignIn() {
-      await page.waitForURL(/dev-oidc\.localhost:\d+\/authorize/);
-      await page.locator('select[name=dev_user]').selectOption(SUBJECT[who]);
-      await page.getByRole('button', { name: 'Sign in' }).click();
+      await idpSignIn(page, who, composeDir);
     },
     async api(path) {
       const r = await context.request.get(`${base}${path}`);
@@ -224,6 +216,75 @@ try {
   // ---------------------------------------------------------------------------------------------- the onboarding
   const lt = await personOf('lt');
   const page = lt.page;
+
+  // ------------------------------------------------------------------------- portal v2: the secrets, into Vault
+  // lt (factory owner) pastes the factory App's private key and a model key through the portal's write-only API
+  // (bff -> core -> Vault). The codehost reads the App key from Vault (AISDLC_GITHUB_APP_KEY_REF, e2e-pr.sh), so every
+  // GitHub call of the onboarding below proves it was used; the gateway builds its Anthropic provider from the key.
+  {
+    const putSecret = async (name, value) => {
+      const r = await lt.context.request.put(`${base}/api/secrets/${name}`, {
+        headers: { 'x-csrf-token': await lt.csrf() },
+        data: { value },
+      });
+      must(r.status() === 200, `PUT /api/secrets/${name}: ${r.status()} ${await r.text()}`);
+      const body = await r.json();
+      must(
+        !JSON.stringify(body).includes(value.slice(10, 40)),
+        `the answer of ${name} echoes the value`,
+      );
+      return body;
+    };
+    const pem = readFileSync(join(composeDir, 'secrets', 'github-app.pem'), 'utf8');
+    const app = await putSecret('github-app-key', pem);
+    const model = await putSecret('anthropic-api-key', `sk-ant-e2e-${Date.now()}-not-a-real-key`);
+    const list = await lt.api('/api/secrets');
+    must(list?.store_reachable === true, 'the secret store is not reachable');
+    const row = (n) => list.secrets.find((x) => x.name === n);
+    must(
+      row('github-app-key')?.set && row('github-app-key')?.updated_by === 'lt',
+      `the App key is not listed as set by lt: ${JSON.stringify(row('github-app-key'))}`,
+    );
+    must(row('anthropic-api-key')?.set, 'the Anthropic key is not listed as set');
+    log(
+      `lt pasted the App key (v${app.version}) and the Anthropic key (v${model.version}) into Vault through the portal; the list shows names and versions only`,
+    );
+    const recorded = rows(
+      `SELECT body::text FROM record.record_event WHERE stream = 'secret:github-app-key' ORDER BY seq DESC LIMIT 1`,
+    )[0];
+    must(
+      recorded && Object.keys(JSON.parse(recorded)).sort().join(',') === 'at,by,name,version',
+      `the record of the App key is not {name, version, by, at}: ${recorded}`,
+    );
+    const fragment = pem.replace(/-----[^-]+-----|\s/g, '').slice(40, 100);
+    must(
+      rows(
+        `SELECT count(*) FROM record.record_event WHERE strpos(body::text, '${fragment}') > 0`,
+      )[0] === '0' &&
+        rows(
+          `SELECT count(*) FROM ledger.ledger_entry WHERE strpos(body::text, '${fragment}') > 0`,
+        )[0] === '0',
+      'the App key is in the record or the ledger',
+    );
+    // the gateway's provider, from the key in Vault (its reference cache refreshes every 30 s)
+    await until(
+      async () => {
+        const r = await lt.context.request.post(`${base}/api/models/reload`, {
+          headers: { 'x-csrf-token': await lt.csrf() },
+          data: {},
+        });
+        const j = r.status() === 200 ? await r.json() : null;
+        return (
+          (j?.integrations ?? []).find((i) => i.integration_id === 'anthropic')?.state === 'built'
+        );
+      },
+      'the gateway to build its Anthropic provider from the key in Vault',
+      120_000,
+    );
+    log(
+      'the gateway built its Anthropic provider from the key lt pasted (read from Vault, no restart)',
+    );
+  }
   // resumable on a kept stack (E2E_KEEP): the onboarding of a run before is picked up where it is
   let s0Id = rows(
     `SELECT s0_id FROM core.s0_record WHERE status <> 'withdrawn' ORDER BY s0_id DESC LIMIT 1`,

@@ -10,9 +10,10 @@
 # Ports: every service has its own (postgres 5432, kms-local 8300, notary 8310, witness 8320,
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
 # killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, notifier 8460,
-# gate-relay 8470, audit 8480, fake GitHub 8353 api / 8354 git / 8355 gate-check's door / 8356 gate-relay's door). Only the bff and
-# dev-oidc are published, on 127.0.0.1 (AISDLC_BFF_PORT moves the portal with its URL; AISDLC_OIDC_PORT the dev IdP inside and out, so two stacks
-# can run on one host: the issuer and the redirect URI are the same name and port for the browser and the bff).
+# gate-relay 8470, audit 8480, vault 8200, keycloak's management 9000, fake GitHub 8353 api / 8354 git / 8355 gate-check's door /
+# 8356 gate-relay's door). Only the bff and the identity provider (Keycloak; the dev IdP in its test profile) are published, on
+# 127.0.0.1 (AISDLC_BFF_PORT moves the portal with its URL; AISDLC_OIDC_PORT the IdP inside and out, so two stacks can run on one
+# host: the issuer and the redirect URI are the same name and port for the browser and the bff).
 # The Push Broker's door on the fake GitHub is 8358.
 
 x-factory: &factory
@@ -129,6 +130,37 @@ networks:
     internal: true
   gateway-egress:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.17.0/24' }] }
+  # Vault (portal v2, local prod): one network per client, so a client reaches Vault and nothing else of the others
+  # (a shared network would give the gateway a route to core, the codehost to the notifier, ...). Vault's own policy
+  # then lets each read only its own folder; core is the one writer. `vault-init` is the bootstrap job's own link.
+  vault-core:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.60.0/24' }] }
+    internal: true
+  vault-gateway:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.61.0/24' }] }
+    internal: true
+  vault-codehost:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.62.0/24' }] }
+    internal: true
+  vault-pushbroker:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.63.0/24' }] }
+    internal: true
+  vault-gatecheck:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.64.0/24' }] }
+    internal: true
+  vault-gaterelay:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.65.0/24' }] }
+    internal: true
+  vault-notifier:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.66.0/24' }] }
+    internal: true
+  vault-init:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.67.0/24' }] }
+    internal: true
+  # Keycloak's own way to Postgres (its database `keycloak`, its own role): nothing else of the stack is on it.
+  data-keycloak:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.68.0/24' }] }
+    internal: true
   # The sandbox plane (profile `sandbox`, PLAN M13.2). None of these has a route out.
   #   - `sandbox-mirror`: the package mirror's own network. Each sandbox session gets a per-session internal
   #     network (created and removed by the sandbox driver through the coding proxy) and the mirror and the
@@ -307,6 +339,8 @@ volumes:
   core-worker-sessions: {}
   knowledge-work: {}
   objectstore-data: {}
+  # Vault's file storage (encrypted by Vault; opened with the unseal key in secrets/vault/). Backed up by backup.sh.
+  vault-data: {}
 
 secrets:
   pg-superuser: { file: ./secrets/pg-superuser }
@@ -408,6 +442,21 @@ secrets:
   tok-cvw-docker-cvw: { file: ./secrets/tok-cvw-docker-cvw }
   object-store-access-key: { file: ./secrets/object-store-access-key }
   object-store-secret-key: { file: ./secrets/object-store-secret-key }
+  # Vault (portal v2): one AppRole per client, written by init-secrets and registered by vault-init (its role_id and
+  # secret_id; the unseal key and the root token are files in secrets/vault/ too, mounted into vault and vault-init only)
+  vault-approle-core: { file: ./secrets/vault/approle-core }
+  vault-approle-gateway: { file: ./secrets/vault/approle-gateway }
+  vault-approle-codehost: { file: ./secrets/vault/approle-codehost }
+  vault-approle-push-broker: { file: ./secrets/vault/approle-push-broker }
+  vault-approle-gate-check: { file: ./secrets/vault/approle-gate-check }
+  vault-approle-gate-relay: { file: ./secrets/vault/approle-gate-relay }
+  vault-approle-notifier: { file: ./secrets/vault/approle-notifier }
+  # Keycloak (portal v2 sign-in): its database password, its master-realm admin, the realm's first passwords (the
+  # break-glass factory admin, the local stack's test people); the bff's client secret is bff-oidc-client-secret
+  pg-pass-keycloak: { file: ./secrets/pg-pass-keycloak }
+  keycloak-bootstrap-admin: { file: ./secrets/keycloak-bootstrap-admin }
+  keycloak-factory-admin-password: { file: ./secrets/keycloak-factory-admin-password }
+  keycloak-persona-password: { file: ./secrets/keycloak-persona-password }
 
 services:
   # ------------------------------------------------------------------------------------ data
@@ -442,6 +491,7 @@ services:
         data-gaterelay,
         data-notifier,
         data-audit,
+        data-keycloak,
       ]
     mem_limit: 512m
     shm_size: 64m
@@ -474,6 +524,7 @@ services:
         pg-pass-gate-relay,
         pg-pass-notifier,
         pg-pass-audit,
+        pg-pass-keycloak,
       ]
     depends_on:
       postgres: { condition: service_healthy }
@@ -506,8 +557,153 @@ services:
       - core-worker-sessions:/v/core-worker-sessions
       - knowledge-work:/v/knowledge-work
       - objectstore-data:/v/objectstore-data
+      - vault-data:/v/vault-data
     mem_limit: 32m
     pids_limit: 32
+
+  # ------------------------------------------------------------------------------- secrets (portal v2)
+
+  # HashiCorp Vault: where the secrets a person pastes into the portal live (write-only fields; core writes, each
+  # service reads its own folder). Server mode, file storage on `vault-data`, its own networks (one per client), no
+  # published port. LOCAL PROD ONLY: plain http inside the stack, one unseal key share kept in secrets/vault/ and the
+  # container unseals itself (vault-entry.sh), so the factory comes back after a restart without a person. Production:
+  # AWS Secrets Manager behind the same port (packages/ports secret-store-aws.ts).
+  vault:
+    image: hashicorp/vault:1.18.3@sha256:8f1ba670da547c6af67be55609bd285c3ee3d8b73f88021adbfc43c82ca409e8
+    user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ['/tmp:mode=1777,size=16m']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    entrypoint: ['/bin/sh', '/vault-entry.sh']
+    environment:
+      SKIP_SETCAP: 'true'
+      HOME: /tmp
+      # this stack's unseal key (read only here), written by vault-init at the first start
+      VAULT_UNSEAL_KEY_FILE: /vault/keys/${COMPOSE_PROJECT_NAME:-compose}/unseal-key
+    volumes:
+      - vault-data:/vault/file
+      - ./vault/vault.hcl:/vault/config/vault.hcl:ro
+      - ./vault/vault-entry.sh:/vault-entry.sh:ro
+      - ./secrets/vault:/vault/keys:ro
+    healthcheck:
+      # healthy = initialised and unsealed (sys/health answers 200 only then)
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8200/v1/sys/health']
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 5s
+    depends_on:
+      volume-init: { condition: service_completed_successfully }
+    networks:
+      [
+        vault-init,
+        vault-core,
+        vault-gateway,
+        vault-codehost,
+        vault-pushbroker,
+        vault-gatecheck,
+        vault-gaterelay,
+        vault-notifier,
+      ]
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+    mem_limit: 256m
+
+  # Vault's init job (vault-init.sh, every `up`, idempotent): the first time it initialises Vault and writes the unseal
+  # key and the root token to secrets/vault/<project>/ (0600); then the KV engine, the audit device (values HMAC'd, never
+  # logged), a policy and an AppRole per client from secrets/vault/approle-*. The only container that holds the
+  # root token besides Vault's own volume; it has no other network.
+  vault-init:
+    image: hashicorp/vault:1.18.3@sha256:8f1ba670da547c6af67be55609bd285c3ee3d8b73f88021adbfc43c82ca409e8
+    user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
+    restart: 'no'
+    read_only: true
+    tmpfs: ['/tmp:mode=1777,size=16m']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    entrypoint: ['/bin/sh', '/vault-init.sh']
+    environment:
+      VAULT_ADDR: http://vault:8200
+      HOME: /tmp
+      # one unseal key and root token per stack (compose project) under secrets/vault/
+      VAULT_KEYS_DIR: /vault/keys/${COMPOSE_PROJECT_NAME:-compose}
+    volumes:
+      - ./vault/vault-init.sh:/vault-init.sh:ro
+      - ./vault/policies:/vault/policies:ro
+      - ./secrets/vault:/vault/keys
+    depends_on:
+      vault: { condition: service_started }
+    networks: [vault-init]
+    mem_limit: 128m
+
+  # Keycloak (portal v2: sign-in by OpenID Connect; local username and password accounts for the factory admins as
+  # break-glass). Its own database `keycloak` in the stack's Postgres under its own role (db-init.sh), so it is
+  # persistent and in the backup like every other database (dev-file mode keeps an H2 file Keycloak does not support
+  # for production and backup.sh would not see). The realm `aisdlc` is imported on the first start
+  # (keycloak/realm-aisdlc.json, generated from the one IdP seed: the bff client, the test people, the break-glass
+  # `factory-admin`), with the AISDLC sign-in theme. Published on 127.0.0.1 like the dev IdP was: the browser is sent
+  # to it, and its issuer `http://keycloak.localhost:<port>/realms/aisdlc` is one name for the browser (a loopback name)
+  # and the bff (a network alias). LOCAL PROD: plain http on loopback (behind TLS in production).
+  keycloak:
+    image: ${AISDLC_KEYCLOAK_IMAGE:-aisdlc/keycloak:local}
+    build:
+      context: ./keycloak
+    user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=64m
+      # its transaction log and temporary files (one node; the realm itself is in Postgres)
+      - /opt/keycloak/data:mode=1777,size=64m
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    environment:
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_HOSTNAME: http://keycloak.localhost:${AISDLC_OIDC_PORT:-8390}
+      KC_HTTP_ENABLED: 'true'
+      KC_HTTP_PORT: '${AISDLC_OIDC_PORT:-8390}'
+      KC_HEALTH_ENABLED: 'true'
+      # one node: local caches, no cluster discovery
+      KC_CACHE: local
+      KC_LOG_LEVEL: warn
+      KC_BFF_REDIRECT_URI: http://localhost:${AISDLC_BFF_PORT:-8340}/auth/callback
+      KC_BFF_PUBLIC_URL: http://localhost:${AISDLC_BFF_PORT:-8340}
+      JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=60
+    volumes:
+      - ./keycloak/realm-aisdlc.json:/opt/keycloak/data/import/realm-aisdlc.json:ro
+    secrets:
+      [
+        pg-pass-keycloak,
+        keycloak-bootstrap-admin,
+        keycloak-factory-admin-password,
+        keycloak-persona-password,
+        bff-oidc-client-secret,
+      ]
+    ports:
+      - '127.0.0.1:${KEYCLOAK_HOST_PORT:-${AISDLC_OIDC_PORT:-8390}}:${AISDLC_OIDC_PORT:-8390}'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&3 && grep -q '\"UP\"' <&3",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+    networks:
+      edge:
+        aliases: [keycloak.localhost]
+      data-keycloak: {}
+    mem_limit: 768m
 
   # `aisdlc-migrate` first: every schema in dependency order, the Notary's, the Witness's and the kill
   # switch's databases too (--notary --witness --killswitch). This service also builds the image (see Dockerfile).
@@ -752,7 +948,14 @@ services:
       # What this deployment lets a registry row do. The providers themselves (adapter, base URL, key
       # reference, models) are rows of the integration registry, published through an M1 gate; a row naming
       # another key file or host is refused.
-      GATEWAY_SECRET_REFS: '["file:/run/secrets/anthropic-api-key"]'
+      # portal v2: the Anthropic key is pasted in the portal into Vault (core writes it, only the gateway reads it);
+      # the mounted file stays allowed for a stack that keeps its key there (AISDLC_ANTHROPIC_KEY_REF picks the one the
+      # registry row names, through the seed)
+      GATEWAY_SECRET_REFS: '["file:/run/secrets/anthropic-api-key","vault:gateway/anthropic-api-key#value","vault:gateway/openai-api-key#value","vault:gateway/deepseek-api-key#value"]'
+      # portal v2: the secrets a person pastes into the portal are in Vault; this service reads its own folder
+      # (`vault:<service>/<name>#value` references) with its own AppRole, refreshed every 30 s
+      VAULT_ADDR: http://vault:8200
+      VAULT_APPROLE_FILE: /run/secrets/vault-approle-gateway
       GATEWAY_EGRESS_HOSTS: '["api.anthropic.com"]'
       GATEWAY_KILLSWITCH_URL: http://killswitch:8400
       GATEWAY_KILLSWITCH_TOKEN_REF: file:/run/secrets/tok-gateway-killswitch
@@ -768,6 +971,7 @@ services:
         tok-operator-gateway,
         tok-gateway-killswitch,
         tok-bff-gateway,
+        vault-approle-gateway,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8410']
@@ -778,8 +982,10 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       killswitch: { condition: service_healthy }
+      vault-init: { condition: service_completed_successfully }
     networks:
       [
+        vault-gateway,
         data-gateway,
         gateway-api,
         killswitch-gateway,
@@ -818,8 +1024,9 @@ services:
       IDENTITY_HOST: 0.0.0.0
       IDENTITY_PORT: '8330'
     volumes:
-      # the IdP seed names the dev IdP as issuer by name and port: a stack on another AISDLC_OIDC_PORT mounts its own copy
-      - ${AISDLC_IDP_SEED_FILE:-./config/idp-seed.json}:/config/idp-seed.json:ro
+      # the IdP seed names the issuer by name and port (Keycloak's realm; the dev IdP's in its test profile): a stack on
+      # another AISDLC_OIDC_PORT mounts its own copy (full-env.sh `full_idp_seed`)
+      - ${AISDLC_IDP_SEED_FILE:-./config/keycloak-idp-seed.json}:/config/idp-seed.json:ro
     secrets:
       [
         db-url-aisdlc,
@@ -871,7 +1078,10 @@ services:
       # the key itself stays in the codehost's own file).
       SEED_GITHUB_APP_ID: ${GITHUB_APP_ID:?run ./init-secrets first}
       SEED_GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID:?run ./init-secrets first}
-      SEED_GITHUB_APP_KEY_REF: file:/run/secrets/github-app.pem
+      # the key REFERENCE the registry row names: the mounted file (default), or the Vault field the owner pastes it into
+      # in the portal (AISDLC_GITHUB_APP_KEY_REF=vault:codehost/github-app-key#value); the Anthropic row likewise
+      SEED_GITHUB_APP_KEY_REF: ${AISDLC_GITHUB_APP_KEY_REF:-file:/run/secrets/github-app.pem}
+      SEED_ANTHROPIC_KEY_REF: ${AISDLC_ANTHROPIC_KEY_REF:-vault:gateway/anthropic-api-key#value}
       SEED_GITHUB_API_URL: ${CODEHOST_GITHUB_API_URL:-}
       SEED_GITHUB_GIT_URL: ${CODEHOST_GIT_URL:-}
       # The local sandbox settings, each published through its own M1 gate when set (e2e-pr.sh sets them; empty: the
@@ -945,9 +1155,9 @@ services:
       CORE_CALLERS: >-
         {"codehost":{"token_ref":"file:/run/secrets/tok-codehost-core","scopes":["registry","integrations"]},
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
-        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal","ops"]},
+        "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal","ops","secrets"]},
         "push-broker":{"token_ref":"file:/run/secrets/tok-push-broker-core","scopes":["registry","push_guard"]},
-        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops","settings"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops","settings","secrets"]},
         "sandbox-controller":{"token_ref":"file:/run/secrets/tok-sandbox-controller-core","scopes":["activity"]},
         "audit":{"token_ref":"file:/run/secrets/tok-audit-core","scopes":["erasure"]}}
       CORE_NOTARY_URL: http://notary:8310
@@ -979,6 +1189,10 @@ services:
       # P1-6: identity's `grant` scope (core only): writes the role binding an approved access M1 decided
       CORE_IDENTITY_URL: http://identity:8330
       CORE_IDENTITY_TOKEN_REF: file:/run/secrets/tok-core-identity
+      # portal v2 N15: the write-only secret API writes into Vault with core's AppRole (create and update values,
+      # metadata read and delete; never a read of a value)
+      VAULT_ADDR: http://vault:8200
+      VAULT_APPROLE_FILE: /run/secrets/vault-approle-core
     secrets:
       [
         db-url-aisdlc,
@@ -998,6 +1212,7 @@ services:
         tok-push-broker-core,
         object-store-access-key,
         object-store-secret-key,
+        vault-approle-core,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8380']
@@ -1011,6 +1226,7 @@ services:
       notary: { condition: service_healthy }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
+      vault-init: { condition: service_completed_successfully }
     networks:
       [
         app,
@@ -1018,6 +1234,7 @@ services:
         kms-clients,
         notary-api,
         objectstore-api,
+        vault-core,
         gateway-api,
         core-activity,
         telemetry,
@@ -1181,7 +1398,11 @@ services:
       # key stays in its own file (the reference is in the row); this deployment allows that one file and these
       # hosts (api.github.com and github.com; the fake profile adds its own loopback).
       CODEHOST_REGISTRY_INTEGRATION: github-app
-      CODEHOST_SECRET_REFS: '["file:/run/secrets/github-app.pem"]'
+      CODEHOST_SECRET_REFS: '["file:/run/secrets/github-app.pem","vault:codehost/github-app-key#value"]'
+      # portal v2: the secrets a person pastes into the portal are in Vault; this service reads its own folder
+      # (`vault:<service>/<name>#value` references) with its own AppRole, refreshed every 30 s
+      VAULT_ADDR: http://vault:8200
+      VAULT_APPROLE_FILE: /run/secrets/vault-approle-codehost
       CODEHOST_EGRESS_HOSTS: '["api.github.com","github.com","127.0.0.1"]'
       CODEHOST_REGISTRY_INTERVAL_MS: ${CODEHOST_REGISTRY_INTERVAL_MS:-5000}
       CODEHOST_CALLERS: >-
@@ -1217,6 +1438,7 @@ services:
         tok-codehost-core,
         tok-verify-codehost,
         tracker-app.pem,
+        vault-approle-codehost,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8350']
@@ -1227,9 +1449,11 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       volume-init: { condition: service_completed_successfully }
+      vault-init: { condition: service_completed_successfully }
     networks:
       [
         app,
+        vault-codehost,
         egress,
         verify-codehost,
         gatecheck-github,
@@ -1301,7 +1525,11 @@ services:
       CODEHOST_MODE: push
       CODEHOST_GITHUB_APP_ID: ${PUSH_BROKER_APP_ID:-987654}
       CODEHOST_GITHUB_INSTALLATION_ID: ${PUSH_BROKER_INSTALLATION_ID:-5}
-      CODEHOST_GITHUB_APP_KEY_REF: file:/run/secrets/push-broker-app.pem
+      CODEHOST_GITHUB_APP_KEY_REF: ${AISDLC_PUSH_BROKER_KEY_REF:-file:/run/secrets/push-broker-app.pem}
+      # portal v2: the secrets a person pastes into the portal are in Vault; this service reads its own folder
+      # (`vault:<service>/<name>#value` references) with its own AppRole, refreshed every 30 s
+      VAULT_ADDR: http://vault:8200
+      VAULT_APPROLE_FILE: /run/secrets/vault-approle-push-broker
       CODEHOST_GITHUB_API_URL: ${PUSH_BROKER_GITHUB_API_URL:-}
       # the fake GitHub's door on `pushbroker-github` (the codehost's network namespace); nothing for GitHub itself
       CODEHOST_GITHUB_PLAIN_HTTP_HOSTS: '["codehost"]'
@@ -1323,6 +1551,7 @@ services:
         tok-core-push-broker,
         tok-push-broker-core,
         tok-push-broker-identity,
+        vault-approle-push-broker,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8350']
@@ -1332,7 +1561,8 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [pushbroker, pushbroker-github, pushbroker-egress]
+      vault-init: { condition: service_completed_successfully }
+    networks: [pushbroker, pushbroker-github, pushbroker-egress, vault-pushbroker]
     mem_limit: 160m
 
   # ----------------------------------------------------------------------- browser edge
@@ -1347,9 +1577,13 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       BFF_DATABASE_URL: file:/run/secrets/db-url-aisdlc
       BFF_PUBLIC_URL: http://localhost:${AISDLC_BFF_PORT:-8340}
-      BFF_OIDC_ISSUER: http://dev-oidc.localhost:${AISDLC_OIDC_PORT:-8390}
+      # portal v2: Keycloak's realm by OIDC discovery (AISDLC_OIDC_ISSUER names another provider; the dev IdP of the
+      # `dev-oidc` test profile is http://dev-oidc.localhost:<port>)
+      BFF_OIDC_ISSUER: ${AISDLC_OIDC_ISSUER:-http://keycloak.localhost:${AISDLC_OIDC_PORT:-8390}/realms/aisdlc}
       BFF_OIDC_CLIENT_ID: aisdlc-bff
       BFF_OIDC_CLIENT_SECRET_REF: file:/run/secrets/bff-oidc-client-secret
+      # a step-up's login_hint: Keycloak's usernames are the principal ids (the dev IdP takes the subject)
+      BFF_OIDC_LOGIN_HINT: ${AISDLC_OIDC_LOGIN_HINT:-principal}
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-bff-kms
       # The portal's API calls: core with the bff's own token (scopes read, onboard, portal, work), and the
@@ -1414,7 +1648,9 @@ services:
       migrate: { condition: service_completed_successfully }
       seed: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
-      dev-oidc: { condition: service_healthy }
+      # the identity provider: Keycloak, or the dev IdP when the test profile `dev-oidc` runs instead
+      keycloak: { condition: service_healthy, required: false }
+      dev-oidc: { condition: service_healthy, required: false }
       core: { condition: service_healthy }
     networks:
       [
@@ -1437,6 +1673,10 @@ services:
   # With a real IdP (Entra) this service goes away and BFF_OIDC_* point at it.
   dev-oidc:
     <<: *factory
+    # portal v2: Keycloak is the stack's identity provider; the dev IdP stays only as a test fake behind the same OIDC
+    # configuration (profile `dev-oidc`, with AISDLC_OIDC_ISSUER=http://dev-oidc.localhost:<port>, the dev IdP seed and
+    # Keycloak left out; never both on one port)
+    profiles: [dev-oidc]
     command: ['node', '--enable-source-maps', '/app/services/bff/dist/dev-oidc.js']
     environment:
       FACTORY_ENV: local
@@ -1683,7 +1923,11 @@ services:
         "bff":{"token_ref":"file:/run/secrets/tok-bff-gate-check","scopes":["read"]}}
       GATE_CHECK_APP_ID: ${GATE_CHECK_APP_ID:-654321}
       GATE_CHECK_INSTALLATION_ID: ${GATE_CHECK_INSTALLATION_ID:-2}
-      GATE_CHECK_APP_KEY_REF: file:/run/secrets/gate-check-app.pem
+      GATE_CHECK_APP_KEY_REF: ${AISDLC_GATE_CHECK_KEY_REF:-file:/run/secrets/gate-check-app.pem}
+      # portal v2: the secrets a person pastes into the portal are in Vault; this service reads its own folder
+      # (`vault:<service>/<name>#value` references) with its own AppRole, refreshed every 30 s
+      VAULT_ADDR: http://vault:8200
+      VAULT_APPROLE_FILE: /run/secrets/vault-approle-gate-check
       GATE_CHECK_GITHUB_API_URL: ${GATE_CHECK_GITHUB_API_URL:-https://api.github.com}
       GATE_CHECK_GITHUB_PLAIN_HTTP_HOSTS: '["codehost"]'
       # the Push Broker App's bot login: who authors agent PRs (the fake host's is aisdlc[bot])
@@ -1704,6 +1948,7 @@ services:
         tok-bff-gate-check,
         object-store-access-key,
         object-store-secret-key,
+        vault-approle-gate-check,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8450']
@@ -1715,8 +1960,10 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
+      vault-init: { condition: service_completed_successfully }
     networks:
       [
+        vault-gatecheck,
         data-gatecheck,
         kms-clients,
         objectstore-api,
@@ -1746,7 +1993,11 @@ services:
         {"operator":{"token_ref":"file:/run/secrets/tok-operator-gate-relay","scopes":["read"]}}
       GATE_RELAY_APP_ID: ${GATE_RELAY_APP_ID:-765432}
       GATE_RELAY_INSTALLATION_ID: ${GATE_RELAY_INSTALLATION_ID:-3}
-      GATE_RELAY_APP_KEY_REF: file:/run/secrets/gate-relay-app.pem
+      GATE_RELAY_APP_KEY_REF: ${AISDLC_GATE_RELAY_KEY_REF:-file:/run/secrets/gate-relay-app.pem}
+      # portal v2: the secrets a person pastes into the portal are in Vault; this service reads its own folder
+      # (`vault:<service>/<name>#value` references) with its own AppRole, refreshed every 30 s
+      VAULT_ADDR: http://vault:8200
+      VAULT_APPROLE_FILE: /run/secrets/vault-approle-gate-relay
       GATE_RELAY_GITHUB_API_URL: ${GATE_RELAY_GITHUB_API_URL:-https://api.github.com}
       GATE_RELAY_GITHUB_PLAIN_HTTP_HOSTS: '["codehost"]'
       GATE_RELAY_OBJECT_STORE_URL: http://object-store:9000
@@ -1764,6 +2015,7 @@ services:
         tok-operator-gate-relay,
         object-store-access-key,
         object-store-secret-key,
+        vault-approle-gate-relay,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8470']
@@ -1775,8 +2027,10 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
+      vault-init: { condition: service_completed_successfully }
     networks:
       [
+        vault-gaterelay,
         data-gaterelay,
         kms-clients,
         objectstore-api,
@@ -1804,11 +2058,16 @@ services:
       NOTIFIER_CALLERS: >-
         {"bff":{"token_ref":"file:/run/secrets/tok-bff-notifier","scopes":["people"]}}
       NOTIFIER_PORTAL_URL: ${NOTIFIER_PORTAL_URL:-http://localhost:${AISDLC_BFF_PORT:-8340}}
-      NOTIFIER_SECRET_REFS: ${NOTIFIER_SECRET_REFS:-[]}
+      # portal v2: a channel row names its webhook or SMTP password as the Vault field pasted in the portal
+      NOTIFIER_SECRET_REFS: ${NOTIFIER_SECRET_REFS:-["vault:notifier/slack-webhook-url#value","vault:notifier/smtp-password#value"]}
+      # portal v2: the secrets a person pastes into the portal are in Vault; this service reads its own folder
+      # (`vault:<service>/<name>#value` references) with its own AppRole, refreshed every 30 s
+      VAULT_ADDR: http://vault:8200
+      VAULT_APPROLE_FILE: /run/secrets/vault-approle-notifier
       NOTIFIER_EGRESS_HOSTS: ${NOTIFIER_EGRESS_HOSTS:-["hooks.slack.com"]}
       NOTIFIER_HOST: 0.0.0.0
       NOTIFIER_PORT: '8460'
-    secrets: [db-url-notifier, tok-bff-notifier]
+    secrets: [db-url-notifier, tok-bff-notifier, vault-approle-notifier]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8460']
       interval: 10s
@@ -1817,7 +2076,8 @@ services:
       start_period: 15s
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [data-notifier, notifier-api, notifier-egress, telemetry-notifier]
+      vault-init: { condition: service_completed_successfully }
+    networks: [data-notifier, notifier-api, notifier-egress, telemetry-notifier, vault-notifier]
     mem_limit: 160m
 
   # The audit service (M19; ADR-0003 §1 Trust plane "audit", one service): signed exports of the ledger and the record
