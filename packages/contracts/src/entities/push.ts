@@ -269,6 +269,10 @@ export const PUSH_EVENT = {
   /** Recorded BEFORE the broker is called (DEC-12(a): the record first, the host is its projection). */
   intended: 'push.intended',
   receipt_recorded: 'push.receipt_recorded',
+  /** A re-plan of a pushed Unit: recorded BEFORE the broker is asked to mark the PR draft again (record first). */
+  redraft_intended: 'push.redraft_intended',
+  /** The PR is a draft again and its one comment is on it. */
+  pr_redrafted: 'push.pr_redrafted',
 } as const;
 
 export const PushIntendedPayload = z.strictObject({
@@ -291,6 +295,66 @@ export const PushIntendedPayload = z.strictObject({
 export type PushIntendedPayload = z.infer<typeof PushIntendedPayload>;
 
 export const PushReceiptRecordedPayload = PushReceipt;
+
+// ---------------------------------------------------------------- The re-plan of a pushed Unit (owner decision 2026-11-13)
+
+/**
+ * A back-edge sent an item whose Unit is already pushed back to planning (B11 approach wrong at 7.6, PLAN §7a
+ * 2026-11-13): the factory re-plans and goes on on the SAME branch and the SAME PR. It never closes the PR, never opens a
+ * new one and never force-pushes; the next 6.6 is a fast-forward of the branch. On entering the re-plan the Push Broker
+ * does two things to the PR and nothing else: it marks it a draft again (`convertPullRequestToDraft`) and posts ONE
+ * comment, made of ids only (`replanCommentOf`): no text of the record, the repo or an agent reaches it.
+ */
+export const REPLAN_COMMENT_PREFIX = 'approach revised: re-planning';
+
+/** The one comment of a re-plan: the prefix and ids (item uuid, unit key, the epoch of the grant the re-plan released). */
+export const replanCommentOf = (item_id: string, unit_key: string, epoch: number): string =>
+  `${REPLAN_COMMENT_PREFIX} (item ${item_id}, unit ${unit_key}, epoch ${epoch})`;
+
+/** Exactly what `replanCommentOf` makes: the allow-list row of the comment accepts this body and nothing else. */
+export const REPLAN_COMMENT_PATTERN =
+  /^approach revised: re-planning \(item [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}, unit [a-z0-9][a-z0-9._-]{0,62}, epoch [1-9][0-9]{0,9}\)$/;
+
+/** `redraft_pr`: the PR of a Unit that is re-planned goes back to draft, with one comment. */
+export const RedraftPrRequest = z.strictObject({
+  repo: RepoFullName,
+  item_id: WorkItemId,
+  unit_key: UnitKey,
+  /** `agent/<item>/<unit>`: the PR must be open from exactly this branch, or nothing is done. */
+  branch: z.string().min(1).max(255),
+  pr_number: z.number().int().min(1),
+  /** The epoch of the grant the re-plan released: the comment's id, so one re-plan gets one comment. */
+  lease_epoch: z.number().int().min(1),
+});
+export type RedraftPrRequest = z.infer<typeof RedraftPrRequest>;
+
+export const RedraftedPr = z.strictObject({
+  pr_number: z.number().int().min(1),
+  draft: z.literal(true),
+  /** The comment posted, or the one already there (a redelivery posts nothing). */
+  comment_id: z.number().int().min(1),
+  /** `false`: the comment was already on the PR (the request was delivered again). */
+  commented: z.boolean(),
+});
+export type RedraftedPr = z.infer<typeof RedraftedPr>;
+
+export const PrRedraftIntendedPayload = z.strictObject({
+  item_id: WorkItemId,
+  unit_key: UnitKey,
+  repo: RepoFullName,
+  pr_number: z.number().int().min(1),
+  /** The grant the re-plan released (`replanned`). */
+  grant_id: z.string().min(1),
+  lease_epoch: z.number().int().min(1),
+});
+export type PrRedraftIntendedPayload = z.infer<typeof PrRedraftIntendedPayload>;
+
+export const PrRedraftedPayload = z.strictObject({
+  ...PrRedraftIntendedPayload.shape,
+  comment_id: z.number().int().min(1),
+  at: IsoDateTime,
+});
+export type PrRedraftedPayload = z.infer<typeof PrRedraftedPayload>;
 
 /** The `entry_type` of the ledger entry a push receipt gets. */
 export const PUSH_LEDGER_ENTRY_TYPE = 'push.receipt';

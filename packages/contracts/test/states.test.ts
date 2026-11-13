@@ -188,9 +188,9 @@ const cases: Record<string, Case> = {
       Planned -> Admitted
       Admitted -> Building | GrantReleased
       Building -> Building | Pushed | HumanHeld | Tainted | Stopped
-      Pushed -> Verifying
-      Verifying -> Building | InReview
-      InReview -> Merged | Building
+      Pushed -> Verifying | Planned
+      Verifying -> Building | InReview | Planned
+      InReview -> Merged | Building | Planned
       Merged -> Released
       HumanHeld -> Building
       Tainted -> Quarantined`,
@@ -210,6 +210,9 @@ const cases: Record<string, Case> = {
       ['Tainted', 'Building'],
       ['HumanHeld', 'Pushed'],
       ['GrantReleased', 'Admitted'],
+      ['Merged', 'Planned'],
+      ['Released', 'Planned'],
+      ['Building', 'Planned'],
     ],
     terminals: ['Released', 'Quarantined', 'Stopped', 'GrantReleased'],
   },

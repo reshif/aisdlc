@@ -103471,6 +103471,100 @@
         "unknown"
       ]
     },
+    "PrRedraftIntendedPayload": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "item_id",
+        "unit_key",
+        "repo",
+        "pr_number",
+        "grant_id",
+        "lease_epoch"
+      ],
+      "additionalProperties": false
+    },
+    "PrRedraftedPayload": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "comment_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "item_id",
+        "unit_key",
+        "repo",
+        "pr_number",
+        "grant_id",
+        "lease_epoch",
+        "comment_id",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "PreferencesSetPayload": {
       "type": "object",
       "properties": {
@@ -124259,6 +124353,77 @@
         "sha256",
         "redactions",
         "erased_at"
+      ],
+      "additionalProperties": false
+    },
+    "RedraftPrRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "unit_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "repo",
+        "item_id",
+        "unit_key",
+        "branch",
+        "pr_number",
+        "lease_epoch"
+      ],
+      "additionalProperties": false
+    },
+    "RedraftedPr": {
+      "type": "object",
+      "properties": {
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "draft": {
+          "type": "boolean",
+          "const": true
+        },
+        "comment_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "commented": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pr_number",
+        "draft",
+        "comment_id",
+        "commented"
       ],
       "additionalProperties": false
     },
