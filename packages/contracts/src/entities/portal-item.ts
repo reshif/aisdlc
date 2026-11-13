@@ -255,7 +255,7 @@ export const AgentRecentRunsView = z.strictObject({
   agent_id: AgentId,
   /** Newest first, at most `limit`. */
   runs: z.array(AgentRunView),
-  /** Every run of the agent (the list may be shorter). */
+  /** The runs of the agent read (the newest 5000 at most, every project): `runs` is the viewable newest of them. */
   total: z.number().int().min(0),
 });
 export type AgentRecentRunsView = z.infer<typeof AgentRecentRunsView>;

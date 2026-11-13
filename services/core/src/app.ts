@@ -108,9 +108,11 @@ import {
 } from './queries.js';
 import { resumeS0, requestOnboarding, setSignableLevel, withdrawS0 } from './s0.js';
 import { agentStatsOf, listAgentRuns } from './agent-runs.js';
-import { CorePushGuards } from './build/push.js';
+import { CorePushGuards, listPullRequests } from './build/push.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
+import { itemDocumentsView, itemRequestView, itemTimelineView } from './item-portal.js';
+import { DEFAULT_WORK_SETTINGS, type WorkSettings } from './work-control.js';
 import { itemGateLinks } from './item-gates.js';
 import type { ItemState } from '@aisdlc/work';
 import {
@@ -229,6 +231,8 @@ export interface CoreAppOptions {
   readonly kill?: KillVerdictPort;
   /** P1-6: identity's `grant` scope, which writes what an approved access M1 decided; absent: nothing is applied. */
   readonly grants?: AccessGrantWriterPort;
+  /** P2-16: the calendar the clarifying deadline is counted on (the S0 calendar); absent: the default calendar. */
+  readonly workSettings?: () => WorkSettings;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -775,6 +779,20 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       st.item_id,
       st.gates.map((g) => g.gate_instance_id),
     );
+  /** The item as a reader sees it: its gates' links, its pull requests (P3-5) and the clarifying deadline (P2-16). */
+  const readerView = async (st: ItemState) =>
+    itemView(st, await gateLinksOf(st), {
+      pull_requests: (await listPullRequests(o.pool, st.item_id)).map((p) => ({
+        repo: p.repo as never,
+        number: p.number,
+        unit_key: p.unit_key,
+        head_ref: p.head_ref,
+        head_sha: p.head_sha as never,
+        state: p.state as 'open' | 'closed',
+        draft: p.draft,
+      })),
+      calendar: (o.workSettings?.() ?? DEFAULT_WORK_SETTINGS).calendar,
+    });
 
   app.get('/v1/items/:id', async (req, reply) => {
     if (!allowed(req, 'work')) return sendError(reply, 403, 'forbidden', 'scope work is needed');
@@ -800,7 +818,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     ) {
       return;
     }
-    return itemView(s, await gateLinksOf(s));
+    return readerView(s);
   });
 
   // ------------------------------------------------------------ the portal's actions on an item (PLAN M12.5)
@@ -846,7 +864,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   const maintenanceOn = async (): Promise<boolean> => (await o.config?.maintenance?.()) === true;
   const view = async (id: string) => {
     const again = await readItem(o.pool, id);
-    return again ? itemView(again.state, await gateLinksOf(again.state)) : null;
+    return again ? readerView(again.state) : null;
   };
 
   /** 1.6: the Ready decision. */
@@ -1182,13 +1200,49 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     }
     const project = item.state.project_id as ProjectId;
     if (!(await guard(reply, who.data, 'project.view', pdpResource.project(project)))) return null;
-    return { id, project };
+    return { id, project, state: item.state };
   }
   const shaQuery = (req: FastifyRequest, key: string, re: RegExp): string | undefined | null => {
     const v = (req.query as Record<string, string | undefined>)[key];
     if (v === undefined) return undefined;
     return re.test(v) ? v : null;
   };
+
+  // ------------------------------------------------------------ the item page's tabs (P2-1)
+  //
+  // The request as kept, the documents with their versions and the gates that bound each, and the timeline: from the
+  // record alone, decided on the item's project (`project.view`). Core answers uncut; the bff asks for the view level
+  // and cuts the request text and the documents' text to the person's data class.
+
+  app.get('/v1/items/:id/request', async (req, reply) => {
+    const it = await itemRead(req, reply);
+    if (!it) return;
+    try {
+      return await itemRequestView(o.pool, it.state);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the request could not be read'));
+    }
+  });
+
+  app.get('/v1/items/:id/documents', async (req, reply) => {
+    const it = await itemRead(req, reply);
+    if (!it) return;
+    try {
+      return await itemDocumentsView(o.pool, it.state);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the documents could not be read'));
+    }
+  });
+
+  app.get('/v1/items/:id/timeline', async (req, reply) => {
+    const it = await itemRead(req, reply);
+    if (!it) return;
+    try {
+      return await itemTimelineView(o.pool, it.state);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the timeline could not be read'));
+    }
+  });
 
   app.get('/v1/items/:id/verify', async (req, reply) => {
     const head = shaQuery(req, 'head', /^[0-9a-f]{40}$/);
