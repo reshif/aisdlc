@@ -31,11 +31,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # Playwright as a library, outside the lockfile (the repo's own tests never use it), and its Chromium
+      # Playwright as a library, outside the repo's lockfile (its own tests never use it), and its Chromium
       - name: Playwright and Chromium
         run: |
-          npm install --no-save --no-package-lock playwright@1.63.0
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@1.63.0
           npx playwright install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: request to merged PR
         run: npm run e2e:pr
       - name: the run's leftovers
