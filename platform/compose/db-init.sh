@@ -120,7 +120,6 @@ SELECT format('CREATE ROLE %I LOGIN', r)
 SELECT format('ALTER ROLE aisdlc CREATEROLE PASSWORD %L', :'pw_aisdlc') \gexec
 SELECT format('ALTER ROLE notary PASSWORD %L', :'pw_notary') \gexec
 SELECT format('ALTER ROLE witness PASSWORD %L', :'pw_witness') \gexec
-GRANT aisdlc_app TO aisdlc WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
 SELECT format('ALTER ROLE killswitch PASSWORD %L', :'pw_killswitch') \gexec
 SELECT format('ALTER ROLE keycloak PASSWORD %L', :'pw_keycloak') \gexec
 
