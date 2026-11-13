@@ -73,9 +73,12 @@ proposes no factory revision), fleet-scope audit exports (they hold every projec
 journal (its own database and key, AR9).
 
 **Person.** A person's decisions on other projects' gates are not theirs to take away: deleting the decision would
-re-open a gate that was decided. Their ledger entries are redacted to the **actor** only (`actor` becomes
-`deleted.<sha256(deletion_id|principal)[0..16]>`, body `{}`), keeping the gate columns, so `foldDecisions` still counts
-the approval and the gate stays decided; they show as "Deleted person".
+re-open a gate that was decided. Their gate decisions are redacted to the **actor** only (`actor` becomes
+`deleted.<sha256(deletion_id|principal)[0..16]>`, the body cut to the keys `foldDecisions` reads), keeping the gate
+columns, so the gate stays decided; they show as "Deleted person". Their own streams (`principal:`, `notifier:`,
+`notifier-pref:`) go, their memberships in `group:` streams are redacted, and the identity, directory, bff and notifier
+rows naming them are removed. Their id stays in the record events of OTHER objects they took part in (a gate's
+requester, a vote marker): those are hash-chained parts of someone else's history (§7).
 
 ## 4. The privileged purge path
 
@@ -93,8 +96,9 @@ the approval and the gate stays decided; they show as "Deleted person".
 
 ## 5. The deletion
 
-`DELETE /v1/<kind>/:id` (`projects`, `repos`, `items`, `people`, `teams`, `bindings`), body `{on_behalf_of, reason,
-confirm}` (`confirm` is the object's id typed back). `POST /v1/deletions/preview` `{kind, id}` answers what would go
+`DELETE /v1/<kind>/:id` (`projects`, `repos`, `items`, `people`, `teams`, `bindings`; core scope `delete`), body
+`{on_behalf_of, reason, confirm}` (`confirm` is the object's id typed back; the reason may not name the object, it is
+kept on the record event). `POST /v1/deletions/preview` `{kind, id}` answers what would go
 (counts) and what blocks it, writing nothing. PDP: `<kind>.delete` (`project.delete`, `item.delete`, `repo.delete`,
 `person.delete`, `team.delete`, `binding.delete`): the factory admin always; a project admin for the project's repos and
 items. One transaction, in the lock order:
@@ -108,7 +112,9 @@ items. One transaction, in the lock order:
 
 After COMMIT: purge the objects (idempotent; an object that cannot be purged now is retried by `deletion_purge`
 from the `deletion.performed` facts: the key list is in the record event, not the ledger), confirm the Notary entry,
-ask the Notary to erase its journal's copies. The bff serves the same routes under `/api/`.
+ask the Notary to erase its journal's copies (`POST /v1/journal/redact` with the `deletion.performed` entry itself: the
+Notary checks it signed and committed exactly that entry and erases only the seqs it names; notary migration 0004). The
+bff serves the same routes under `/api/` for the session's person.
 
 ## 6. Backups and the restore drill
 
@@ -121,11 +127,16 @@ than the backup (their roots are hashed, so the runbook keeps the deletion reque
 ## 7. Owner decisions needed
 
 1. Backups: retention period, and whether a restore must replay deletions automatically (needs the plain ids kept
-   outside the factory, which is itself a copy of personal data).
+   outside the factory, which is itself a copy of personal data). Not built: the purge loop that retries an object
+   whose purge failed after COMMIT (the keys are on the `deletion.performed` record event).
 2. Fleet-scope audit exports that contain a deleted project: kept (other projects' evidence) or purged.
 3. Factory configuration history that names a deleted repo: kept as factory settings, or redacted (breaks the M1
    binding of those revisions).
 4. The kill switch's journal (own database, signed by its own key): kept.
+5. A deleted person's id in other objects' record events (requester, voter markers): true erasure there needs
+   pseudonymous principal ids (an id that is not an email or a login) or per-person encryption keys; today the id is
+   whatever identity was given.
+6. A deleted item's project-level aggregates (floor counts, health snapshots) are swept only where a row names it.
 
 ## 8. The factory admin's override
 
@@ -135,10 +146,16 @@ than the backup (their roots are hashed, so the runbook keeps the deletion reque
 (`isAdminOverride`): it is always logged (`logged_because: 'override'`), and the caller must give a reason.
 
 Every override is recorded: an `admin.override` record event on `admin_override:<id>` (`{actor, action, resource,
-gate, reason, bypassed}`), and a ledger entry. For a gate decision the decision entry itself carries `body.override`
+gate, reason, bypassed}`), and a ledger entry. The reason travels in the header `x-aisdlc-override-reason`
+(URI-encoded) from the portal through the bff (it rides on every upstream call of the request) to core: core's guard
+answers `403 override_reason_required` to an override allow without it, and otherwise writes the `admin.override` entry
+(`pdp_grant`) before the act; the gate-card, onboarding-card and settings-revision routes hand it to the decision kernel
+instead, which asks `FactoryAdminPort` itself (identity: an active fleet `factory.admin` binding) and records it on the
+decision. A settings change is applied alone by proposing it and deciding its M1 with the override. For a gate decision the decision entry itself carries `body.override`
 (`{reason, bypassed}`) and the event; `foldDecisions` treats an approve with `body.override` as deciding the gate. For
 anything else an `admin.override` ledger entry. The rules it can bypass are `AdminOverrideRule`: `slot`, `own_request`,
 `two_person`, `quorum_infeasible`, `policy_changed`, `already_voted`, `step_up`, `bootstrap`, `m1_second_approver`,
 `kill_two_person`, `pdp_grant`. Not bypassed (physical, not rules): the factory never merges; a gate past its expiry or
 no longer pending; maintenance mode MM-2; the nonce and the evidence-viewed step (they bind the decision to what was
-shown); a disabled principal.
+shown); a disabled principal. Not built yet: the kill switch's two-person release (its own service and database) and
+the onboarding sign-off N13.
