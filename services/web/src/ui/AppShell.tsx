@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { NavIcon } from './icons';
-import { Breadcrumb } from './page';
+import { Breadcrumb, TrailContext } from './page';
 
 // The portal's shell: a compact top bar (wordmark, project switcher, search, the person's controls), a slim rail of
 // group icons on the left (collapsed by default; expanded it is a two-level list), and in the page a header band
@@ -139,6 +139,15 @@ export function AppShell({
   const rail = collapsed && !phone;
   const navId = useId();
   const group = nav?.find((g) => g.entries.some(anyCurrent));
+  const trail = useMemo(() => {
+    const t = group ? tabsOf(group) : [];
+    const inside = group ? (t.find((x) => x.current) ?? group.entries.find(anyCurrent)) : undefined;
+    return [
+      ...(group?.label ? [group.label] : []),
+      ...(inside ? [inside.label] : []),
+      ...(here ? [here] : []),
+    ];
+  }, [group, here]);
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
   useEffect(() => {
@@ -224,7 +233,9 @@ export function AppShell({
         <main id="main" tabIndex={-1} ref={mainRef} className="ui-main">
           {nav ? <PageBand group={group} here={here} renderLink={renderLink} /> : null}
           {banners ? <div className="ui-banners">{banners}</div> : null}
-          <div className="ui-content">{children}</div>
+          <TrailContext.Provider value={trail}>
+            <div className="ui-content">{children}</div>
+          </TrailContext.Provider>
         </main>
       </div>
     </div>

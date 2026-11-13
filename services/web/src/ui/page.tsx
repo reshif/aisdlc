@@ -1,8 +1,11 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import type { Crumb } from './layout';
 
 // The top of a v2 page (skeleton screens 2 to 4): the breadcrumb, one `h1`, a line of facts, the status beside the
 // title and the page's actions. On a phone the actions wrap under the title.
+
+/** The shell's own trail (section, page): a page header leaves out crumbs that repeat it. */
+export const TrailContext = createContext<readonly string[]>([]);
 
 export function Breadcrumb({
   crumbs,
@@ -54,9 +57,13 @@ export function PageHeader({
   icon?: ReactNode;
   renderLink?: (to: string, label: string) => ReactNode;
 }) {
+  const trail = useContext(TrailContext);
+  const rest = crumbs.filter((c) => !trail.includes(c.label));
+  // what is left is worth a line only when it says more than the current page, which the shell's tabs name
+  const shown = rest.length >= 2 || rest.some((c) => c.to !== undefined) ? rest : [];
   return (
     <header className="ui-pageh">
-      <Breadcrumb crumbs={crumbs} {...(renderLink ? { renderLink } : {})} />
+      <Breadcrumb crumbs={shown} {...(renderLink ? { renderLink } : {})} />
       <div className="ui-pageh-row">
         {icon ? (
           <div className="ui-pageh-icon" aria-hidden="true">

@@ -153,8 +153,8 @@ textarea.ui-input {
 .ui-pageh h1 {
   font-family: var(--display);
   font-weight: 600;
-  font-size: 32px;
-  line-height: 1.1;
+  font-size: var(--fs-h1);
+  line-height: 1.15;
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -760,7 +760,7 @@ button.ui-evidence-tile:hover {
 /* ---------- phone ---------- */
 @media (max-width: 860px) {
   .ui-pageh h1 {
-    font-size: 26px;
+    font-size: 24px;
   }
   .ui-decide,
   .ui-split {
