@@ -5,10 +5,20 @@ import { GateInstanceId, IsoDateTime, LedgerEntryId, ProjectId, Sha256Hex } from
 
 // Configuration (DM §3.11).
 
-/** `major.minor.patch` of the catalogue (`@aisdlc/catalogue`). */
+/**
+ * `major.minor.patch` of the catalogue (`@aisdlc/catalogue`), or a SETTINGS release of it (portal v2):
+ * `<base>+settings.<n>`, the n-th catalogue the factory's settings made from the released base catalogue (the
+ * base's data with the published `catalogue.*` config keys in place of its sections, hashed and recorded as a
+ * `catalogue.released` event when the revision is published). Build metadata, in semver terms: the base is the code
+ * release, the suffix says which settings were applied to it.
+ */
 export const CatalogueVersion = z
   .string()
-  .regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/, 'semver');
+  .max(64)
+  .regex(
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(\+settings\.[1-9]\d*)?$/,
+    'semver, or <base>+settings.<n>',
+  );
 export type CatalogueVersion = z.infer<typeof CatalogueVersion>;
 
 /**
@@ -21,6 +31,28 @@ export const CatalogueRef = z.strictObject({
   hash: Sha256Hex,
 });
 export type CatalogueRef = z.infer<typeof CatalogueRef>;
+
+/** The record stream of the settings releases of the catalogue (one stream for the factory). */
+export const CATALOGUE_RELEASE_STREAM = 'catalogue:settings';
+export const CATALOGUE_EVENT = { released: 'catalogue.released' } as const;
+
+/**
+ * One settings release of the catalogue, recorded once and never changed: the full data and flow tables the hash
+ * covers (so the release reads the same whatever the code later does), the base release it was made from, the config
+ * revision whose publish made it, and which sections the settings replaced. `content_hash` is the hash of the data
+ * WITHOUT its version: the same settings on the same base are the same release.
+ */
+export const CatalogueReleasedPayload = z.strictObject({
+  version: CatalogueVersion,
+  hash: Sha256Hex,
+  base: CatalogueRef,
+  content_hash: Sha256Hex,
+  sections: z.array(z.string().min(1)),
+  rev_hash: Sha256Hex,
+  catalogue: z.record(z.string(), z.unknown()),
+  flow: z.unknown(),
+});
+export type CatalogueReleasedPayload = z.infer<typeof CatalogueReleasedPayload>;
 
 // ---------------------------------------------------------------- Layered configuration (M3.5)
 //

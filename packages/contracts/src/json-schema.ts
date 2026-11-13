@@ -393,6 +393,7 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   ProjectReadinessRecord: entities.ProjectReadinessRecord,
   CatalogueVersion: entities.CatalogueVersion,
   CatalogueRef: entities.CatalogueRef,
+  CatalogueReleasedPayload: entities.CatalogueReleasedPayload,
   ConfigLayerKind: entities.ConfigLayerKind,
   ConfigKey: entities.ConfigKey,
   ConfigDoc: entities.ConfigDoc,
@@ -1255,6 +1256,20 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   GithubAppRow: entities.GithubAppRow,
   GithubAppsView: entities.GithubAppsView,
   RepoOnboardingState: entities.RepoOnboardingState,
+  GatesPolicyConfig: entities.GatesPolicyConfig,
+  GatesTimersConfig: entities.GatesTimersConfig,
+  ReadinessPolicyConfig: entities.ReadinessPolicyConfig,
+  SessionPolicyConfig: entities.SessionPolicyConfig,
+  GatewayLimitsConfig: entities.GatewayLimitsConfig,
+  OpsHealthConfig: entities.OpsHealthConfig,
+  EvalsGateConfig: entities.EvalsGateConfig,
+  CodehostPollsConfig: entities.CodehostPollsConfig,
+  WorkRequestConfig: entities.WorkRequestConfig,
+  SandboxProbeConfig: entities.SandboxProbeConfig,
+  SandboxProfilesConfig: entities.SandboxProfilesConfig,
+  PlanningSizeShareConfig: entities.PlanningSizeShareConfig,
+  AgentSettingsRow: entities.AgentSettingsRow,
+  AgentsSettingsConfig: entities.AgentsSettingsConfig,
 };
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
