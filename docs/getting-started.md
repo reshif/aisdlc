@@ -136,7 +136,9 @@ What stays stubbed with `make up-full`, and how each becomes real:
    ```
 
    You should see `v22.x`.
-5. **Ports 8340 and 8390 free** on `127.0.0.1`. The portal uses 8340 and Keycloak (sign-in) uses 8390.
+5. **Ports 8340 and 8390 free** on `127.0.0.1`. The portal uses 8340 and Keycloak (sign-in) uses 8390. Keep these
+   two: the generated identity seed (`config/keycloak-idp-seed.json`) names Keycloak at port 8390, and Keycloak keeps
+   the portal's address from its first start, so other ports leave nobody able to sign in (a known gap).
 6. **A GitHub account or organisation** where you can create GitHub Apps.
 7. **A testbed repository that you own**, with no production use, no real data and nobody depending on it. This is
    what lets you sign tier T0 on card 1 (DEC-4). Agents may run code only in repositories you own (DEC-18, step 6.4).

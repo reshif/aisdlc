@@ -58,7 +58,7 @@ case "${1:-}" in
       [ -r "$3" ] || { echo "secret: cannot read $3" >&2; exit 1; }
       node -e 'process.stdout.write(JSON.stringify({ value: require("fs").readFileSync(process.argv[1], "utf8") }))' "$3" >"$tmp/body"
     else
-      if [ -t 0 ]; then printf 'Value for %s (not shown): ' "$name" >&2; IFS= read -rs value; echo >&2; else IFS= read -r value; fi
+      if [ -t 0 ]; then printf 'Value for %s (not shown): ' "$name" >&2; IFS= read -rs value || true; echo >&2; else IFS= read -r value || true; fi
       [ -n "$value" ] || { echo "secret: empty value, nothing saved" >&2; exit 1; }
       VALUE="$value" node -e 'process.stdout.write(JSON.stringify({ value: process.env.VALUE }))' >"$tmp/body"
       unset value
