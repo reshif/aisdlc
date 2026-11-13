@@ -18,7 +18,7 @@ import { ProjectDetailPage } from './pages/ProjectDetail';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { ProjectListPage } from './pages/ProjectList';
 import { S0Page } from './pages/S0Page';
-import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
+import { SettingPage, SettingsPage } from './settings/SettingsPage';
 import { MyAccessPage } from './pages/MyAccessPage';
 import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsPage';
 import { AskPage } from './assistant/AskPage';
@@ -31,17 +31,12 @@ import { AccessGrantPage, AccessRequestsPage } from './pages/AccessPages';
 import { BoardPage, ItemsPage } from './pages/ItemsPage';
 import { FloorPage } from './floor/FloorPage';
 import { FleetPage } from './floor/FleetPage';
-import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
-import { AgentPage } from './pages/AgentPage';
-import {
-  ControlsPage,
-  HealthPage,
-  KillPage,
-  SandboxesPage,
-  SchedulerPage,
-} from './pages/OperatePages';
+import { EvalsPage } from './pages/QualityPages';
+import { AgentPage } from './agents/AgentPage';
+import { AgentsPage } from './agents/AgentsPage';
+import { IntegrationsPage } from './integrations/IntegrationsPage';
+import { OperatePage } from './operate/OperatePage';
 import { AuditPage, CataloguePage, FleetLedgerPage } from './pages/GovernPages';
-import { BudgetsPage, CostPage } from './pages/SpendPages';
 import { ExplainPage, PeoplePage, RolesPage, TeamsPage } from './pages/AdminPages';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
@@ -146,7 +141,13 @@ function Screen({ me, route, children }: { me: Me; route: Route; children: React
   const path =
     route.name === 'agent'
       ? '/agents'
-      : Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
+      : route.name === 'settings' || route.name === 'setting'
+        ? '/settings'
+        : route.name === 'operate'
+          ? '/operate'
+          : route.name === 'integrations'
+            ? '/integrations'
+            : Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
   const guard = path ? guardOf(path) : null;
   if (guard && !guardPasses(guard, me)) {
     const action = guardAction(guard);
@@ -186,29 +187,15 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'board':
       return <BoardPage />;
     case 'agents':
-      return <AgentsPage />;
+      return <AgentsPage csrf={csrf} />;
     case 'agent':
-      return <AgentPage id={route.id} />;
+      return <AgentPage id={route.id} csrf={csrf} />;
     case 'evals':
       return <EvalsPage />;
-    case 'models':
-      return <ModelsPage csrf={csrf} />;
     case 'integrations':
-      return <IntegrationsPage />;
-    case 'scheduler':
-      return <SchedulerPage />;
-    case 'sandboxes':
-      return <SandboxesPage />;
-    case 'controls':
-      return <ControlsPage csrf={csrf} />;
-    case 'kill':
-      return <KillPage csrf={csrf} />;
-    case 'health':
-      return <HealthPage />;
-    case 'budgets':
-      return <BudgetsPage />;
-    case 'cost':
-      return <CostPage />;
+      return <IntegrationsPage key={route.tab ?? ''} tab={route.tab} me={me} />;
+    case 'operate':
+      return <OperatePage tab={route.tab} me={me} />;
     case 'fleetLedger':
       return <FleetLedgerPage me={me} />;
     case 'audit':
@@ -274,10 +261,10 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       );
     case 'access':
       return <MyAccessPage />;
-    case 'config':
-      return <ConfigListPage />;
-    case 'configKey':
-      return <ConfigKeyPage configKey={route.key} csrf={me.csrf_token} />;
+    case 'settings':
+      return <SettingsPage section={route.section} />;
+    case 'setting':
+      return <SettingPage key={route.key} configKey={route.key} csrf={me.csrf_token} />;
     case 'ask':
       return <AskPage csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'askForWork':

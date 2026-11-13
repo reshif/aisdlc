@@ -49,7 +49,6 @@ export interface NavSection {
 }
 
 const FLEET_AUDIT: NavGuard = { kind: 'fleet_action', action: 'audit.read' };
-const FLEET_OPS: NavGuard = { kind: 'fleet_action', action: 'ops.read' };
 const FLEET_QUALITY: NavGuard = { kind: 'fleet_action', action: 'quality.read' };
 const SIGNED_IN: NavGuard = { kind: 'signed_in' };
 const SECTION: NavGuard = { kind: 'section' };
@@ -76,7 +75,7 @@ const entry = (
 export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
   work: [
     entry('home', '/', SIGNED_IN, at('home')),
-    entry('inbox', '/inbox', SIGNED_IN, at('inbox', 'card', 'revision', 'factoryRevision')),
+    entry('inbox', '/inbox', SIGNED_IN, at('inbox', 'card', 'revision')),
     entry('items', '/items', SIGNED_IN, at('items', 'item', 'pack', 'closeout'), [
       entry('board', '/board', SIGNED_IN, at('board')),
     ]),
@@ -113,16 +112,13 @@ export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
     ),
   ],
   run: [
-    entry('operate', '/kill', SECTION, () => false, [
-      entry('emergency_stop', '/kill', FLEET_OPS, at('kill')),
-      entry('controls', '/controls', FLEET_OPS, at('controls')),
-      entry('scheduler', '/scheduler', FLEET_OPS, at('scheduler')),
-      entry('sandboxes', '/sandboxes', FLEET_OPS, at('sandboxes')),
-      entry('health', '/health', FLEET_OPS, at('health')),
-      entry('budgets', '/budgets', FLEET_OPS, at('budgets')),
-      // what the gateway metered, per project and per merged item (quality.read: a measure of the work)
-      entry('spend', '/cost', FLEET_QUALITY, at('cost')),
-    ]),
+    // one page with tabs (screen map §2.15); each tab checks its own read (ops.read, Spend's cost quality.read)
+    entry(
+      'operate',
+      '/operate',
+      { kind: 'fleet_any', actions: ['ops.read', 'quality.read'] },
+      at('operate'),
+    ),
     entry('agents', '/agents', FLEET_QUALITY, at('agents', 'agent'), [
       entry('evals', '/evals', FLEET_QUALITY, at('evals')),
     ]),
@@ -130,14 +126,12 @@ export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
   govern: [
     entry(
       'settings',
-      '/config',
+      '/settings',
       { kind: 'fleet_any', actions: ['config.propose', 'audit.read'] },
-      at('config', 'configKey'),
+      at('settings', 'setting', 'factoryRevision'),
       [entry('catalogue', '/catalogue', SIGNED_IN, at('catalogue'))],
     ),
-    entry('integrations', '/integrations', FLEET_QUALITY, at('integrations'), [
-      entry('models', '/models', FLEET_QUALITY, at('models')),
-    ]),
+    entry('integrations', '/integrations', FLEET_QUALITY, at('integrations')),
     entry('people_roles', '/people', SECTION, () => false, [
       // the directory's readers, and whoever holds access.manage somewhere (grant and revoke there)
       entry(
