@@ -48905,6 +48905,356 @@
         "no_floor_read"
       ]
     },
+    "FleetLedgerEntry": {
+      "type": "object",
+      "properties": {
+        "ledger_seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "entry_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "gate_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gate_instance_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "step": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "card_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "actor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sod_waiver": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "entry_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prev_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "override_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deletion": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "redacted": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "override": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "redacted",
+                "override"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ledger_seq",
+        "entry_id",
+        "entry_type",
+        "gate_id",
+        "gate_instance_id",
+        "step",
+        "card_id",
+        "subject_kind",
+        "subject_id",
+        "decision",
+        "actor",
+        "sod_waiver",
+        "created_at",
+        "entry_hash",
+        "prev_hash",
+        "override_reason",
+        "deletion"
+      ],
+      "additionalProperties": false
+    },
+    "FleetLedgerFilter": {
+      "type": "string",
+      "enum": [
+        "all",
+        "decisions",
+        "overrides",
+        "deletions",
+        "access"
+      ]
+    },
+    "FleetLedgerView": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ledger_seq": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "entry_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "entry_type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "gate_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "gate_instance_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "step": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "card_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "subject_kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "subject_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "actor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sod_waiver": {
+                "type": "boolean"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "entry_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "prev_hash": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "override_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "deletion": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string"
+                      },
+                      "redacted": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "override": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "redacted",
+                      "override"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ledger_seq",
+              "entry_id",
+              "entry_type",
+              "gate_id",
+              "gate_instance_id",
+              "step",
+              "card_id",
+              "subject_kind",
+              "subject_id",
+              "decision",
+              "actor",
+              "sod_waiver",
+              "created_at",
+              "entry_hash",
+              "prev_hash",
+              "override_reason",
+              "deletion"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "head": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "ledger_seq": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "entry_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "ledger_seq",
+                "entry_hash"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next_before": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "entries",
+        "head",
+        "next_before"
+      ],
+      "additionalProperties": false
+    },
     "FleetView": {
       "type": "object",
       "properties": {
@@ -99145,6 +99495,538 @@
         "Card"
       ]
     },
+    "PeopleListView": {
+      "type": "object",
+      "properties": {
+        "people": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principal_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "display_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "display_handle": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "human",
+                  "service"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "disabled",
+                  "deleted"
+                ]
+              },
+              "upn": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sign_in": {
+                "type": "string",
+                "enum": [
+                  "sso",
+                  "local"
+                ]
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                }
+              },
+              "roles": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "principal_id",
+              "display_name",
+              "display_handle",
+              "kind",
+              "status",
+              "upn",
+              "sign_in",
+              "teams",
+              "roles"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "people"
+      ],
+      "additionalProperties": false
+    },
+    "PersonBinding": {
+      "type": "object",
+      "properties": {
+        "binding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "role_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "expiry": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "role_map",
+            "access_grant",
+            "other"
+          ]
+        },
+        "group_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "team_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "binding_id",
+        "role_id",
+        "scope",
+        "expiry",
+        "origin",
+        "group_id",
+        "team_id"
+      ],
+      "additionalProperties": false
+    },
+    "PersonDetailView": {
+      "type": "object",
+      "properties": {
+        "person": {
+          "type": "object",
+          "properties": {
+            "principal_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            "display_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "display_handle": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "service"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "disabled",
+                "deleted"
+              ]
+            },
+            "upn": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sign_in": {
+              "type": "string",
+              "enum": [
+                "sso",
+                "local"
+              ]
+            },
+            "teams": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              }
+            },
+            "roles": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "logins": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "role_label": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status_changed_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "principal_id",
+            "display_name",
+            "display_handle",
+            "kind",
+            "status",
+            "upn",
+            "sign_in",
+            "teams",
+            "roles",
+            "logins",
+            "role_label",
+            "status_changed_at"
+          ],
+          "additionalProperties": false
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "group_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "display": {
+                "type": "string"
+              },
+              "team_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "group_id",
+              "display",
+              "team_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "binding_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "role_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "fleet"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "const": "*"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "enterprise",
+                          "org",
+                          "team",
+                          "project",
+                          "repo",
+                          "service_env",
+                          "environment",
+                          "lane",
+                          "session",
+                          "item",
+                          "role",
+                          "model",
+                          "release",
+                          "budget"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "expiry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "role_map",
+                  "access_grant",
+                  "other"
+                ]
+              },
+              "group_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "team_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "binding_id",
+              "role_id",
+              "scope",
+              "expiry",
+              "origin",
+              "group_id",
+              "team_id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "person",
+        "groups",
+        "bindings"
+      ],
+      "additionalProperties": false
+    },
+    "PersonRow": {
+      "type": "object",
+      "properties": {
+        "principal_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "display_handle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "human",
+            "service"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "disabled",
+            "deleted"
+          ]
+        },
+        "upn": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sign_in": {
+          "type": "string",
+          "enum": [
+            "sso",
+            "local"
+          ]
+        },
+        "teams": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          }
+        },
+        "roles": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "principal_id",
+        "display_name",
+        "display_handle",
+        "kind",
+        "status",
+        "upn",
+        "sign_in",
+        "teams",
+        "roles"
+      ],
+      "additionalProperties": false
+    },
+    "PersonSignIn": {
+      "type": "string",
+      "enum": [
+        "sso",
+        "local"
+      ]
+    },
     "PlaceHoldRequest": {
       "type": "object",
       "properties": {
@@ -136656,6 +137538,108 @@
       ],
       "additionalProperties": false
     },
+    "SettingApplies": {
+      "type": "string",
+      "enum": [
+        "now",
+        "new_items",
+        "new_onboardings",
+        "next_start"
+      ]
+    },
+    "SettingPreview": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applies": {
+          "type": "string",
+          "enum": [
+            "now",
+            "new_items",
+            "new_onboardings",
+            "next_start"
+          ]
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "before": {},
+              "after": {}
+            },
+            "required": [
+              "path",
+              "before",
+              "after"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "items_in_progress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "key",
+        "applies",
+        "valid",
+        "problems",
+        "changes",
+        "effects",
+        "items_in_progress"
+      ],
+      "additionalProperties": false
+    },
+    "SettingPreviewCoreRequest": {
+      "type": "object",
+      "properties": {
+        "value": {},
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "value",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "SettingPreviewRequest": {
+      "type": "object",
+      "properties": {
+        "value": {}
+      },
+      "required": [
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "SettingsRevisionView": {
       "type": "object",
       "properties": {
@@ -137143,6 +138127,23 @@
         "deciders"
       ],
       "additionalProperties": false
+    },
+    "SettingsSection": {
+      "type": "string",
+      "enum": [
+        "general",
+        "tracks",
+        "approvals",
+        "onboarding",
+        "factory_rules",
+        "sandboxes",
+        "retention",
+        "agents",
+        "integrations",
+        "project_defaults",
+        "access_policy",
+        "other"
+      ]
     },
     "Sha256Hex": {
       "type": "string",
@@ -142130,10 +143131,354 @@
       ],
       "additionalProperties": false
     },
+    "TeamDetailView": {
+      "type": "object",
+      "properties": {
+        "team": {
+          "type": "object",
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "internal",
+                "confidential"
+              ]
+            },
+            "group_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              }
+            },
+            "roles": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "team_id",
+            "name",
+            "classification",
+            "group_id",
+            "members",
+            "roles"
+          ],
+          "additionalProperties": false
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principal_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "display_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "disabled",
+                  "deleted"
+                ]
+              }
+            },
+            "required": [
+              "principal_id",
+              "display_name",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "binding_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "group_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "role_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "fleet"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "const": "*"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "enterprise",
+                          "org",
+                          "team",
+                          "project",
+                          "repo",
+                          "service_env",
+                          "environment",
+                          "lane",
+                          "session",
+                          "item",
+                          "role",
+                          "model",
+                          "release",
+                          "budget"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "expiry": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "role_map",
+                  "access_grant",
+                  "other"
+                ]
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              }
+            },
+            "required": [
+              "binding_id",
+              "group_id",
+              "role_id",
+              "scope",
+              "expiry",
+              "origin",
+              "members"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "team",
+        "members",
+        "bindings"
+      ],
+      "additionalProperties": false
+    },
     "TeamId": {
       "type": "string",
       "maxLength": 128,
       "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "TeamListView": {
+      "type": "object",
+      "properties": {
+        "teams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "team_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "classification": {
+                "type": "string",
+                "enum": [
+                  "internal",
+                  "confidential"
+                ]
+              },
+              "group_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.@-]+$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "roles": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "team_id",
+              "name",
+              "classification",
+              "group_id",
+              "members",
+              "roles"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "names": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "teams",
+        "names"
+      ],
+      "additionalProperties": false
+    },
+    "TeamRow": {
+      "type": "object",
+      "properties": {
+        "team_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "confidential"
+          ]
+        },
+        "group_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        },
+        "roles": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "team_id",
+        "name",
+        "classification",
+        "group_id",
+        "members",
+        "roles"
+      ],
+      "additionalProperties": false
     },
     "TeamUpdatedPayload": {
       "type": "object",

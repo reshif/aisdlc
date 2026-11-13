@@ -213,8 +213,9 @@ networks:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.28.0/24' }] }
     internal: true
   # The object store's API (M14.1). core-worker writes (M14.4: 7.6 stores the signed Evidence Packs in the
-  # write-once bucket), core reads them for the portal (M14.6), gate-check reads them (M14.5); the store has no
-  # other network and no route out.
+  # write-once bucket), core reads them for the portal (M14.6) and purges a deleted object's (portal v2, with its own
+  # credential that object-store-init makes), gate-check reads them (M14.5); the store has no other network and no
+  # route out.
   objectstore-api:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.29.0/24' }] }
     internal: true
@@ -442,6 +443,14 @@ secrets:
   tok-cvw-docker-cvw: { file: ./secrets/tok-cvw-docker-cvw }
   object-store-access-key: { file: ./secrets/object-store-access-key }
   object-store-secret-key: { file: ./secrets/object-store-secret-key }
+  # Delete means delete (portal v2, docs/specs/deletion.md): core's deletion login (a member of `aisdlc_purge`, made by
+  # db-init), the object-store user that may lift a legal hold (made by object-store-init), and the bff's token at
+  # identity (scope admin: a person's people, team and binding writes, each decided by the PDP)
+  pg-pass-purge: { file: ./secrets/pg-pass-purge }
+  db-url-purge: { file: ./secrets/db-url-purge }
+  object-store-purge-access-key: { file: ./secrets/object-store-purge-access-key }
+  object-store-purge-secret-key: { file: ./secrets/object-store-purge-secret-key }
+  tok-bff-identity: { file: ./secrets/tok-bff-identity }
   # Vault (portal v2): one AppRole per client, written by init-secrets and registered by vault-init (its role_id and
   # secret_id; the unseal key and the root token are files in secrets/vault/ too, mounted into vault and vault-init only)
   vault-approle-core: { file: ./secrets/vault/approle-core }
@@ -525,6 +534,7 @@ services:
         pg-pass-notifier,
         pg-pass-audit,
         pg-pass-keycloak,
+        pg-pass-purge,
       ]
     depends_on:
       postgres: { condition: service_healthy }
@@ -1012,7 +1022,8 @@ services:
         "knowledge":{"token_ref":"file:/run/secrets/tok-knowledge-identity","scopes":["read"]},
         "seed":{"token_ref":"file:/run/secrets/tok-seed-identity","scopes":["read","write","sync"]},
         "push-broker":{"token_ref":"file:/run/secrets/tok-push-broker-identity","scopes":["read"]},
-        "core":{"token_ref":"file:/run/secrets/tok-core-identity","scopes":["grant"]}}
+        "core":{"token_ref":"file:/run/secrets/tok-core-identity","scopes":["grant"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-identity","scopes":["admin"]}}
       NOTARY_URL: http://notary:8310
       IDENTITY_NOTARY_TOKEN_REF: file:/run/secrets/tok-identity-notary
       KMS_URL: http://kms-local:8300
@@ -1039,6 +1050,7 @@ services:
         tok-identity-kms,
         tok-identity-core,
         tok-push-broker-identity,
+        tok-bff-identity,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8330']
@@ -1157,7 +1169,7 @@ services:
         "identity":{"token_ref":"file:/run/secrets/tok-identity-core","scopes":["read"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-core","scopes":["read","onboard","portal","ops","secrets"]},
         "push-broker":{"token_ref":"file:/run/secrets/tok-push-broker-core","scopes":["registry","push_guard"]},
-        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops","settings","secrets"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-core","scopes":["read","onboard","portal","work","ops","settings","secrets","delete"]},
         "sandbox-controller":{"token_ref":"file:/run/secrets/tok-sandbox-controller-core","scopes":["activity"]},
         "audit":{"token_ref":"file:/run/secrets/tok-audit-core","scopes":["erasure"]}}
       CORE_NOTARY_URL: http://notary:8310
@@ -1193,6 +1205,14 @@ services:
       # metadata read and delete; never a read of a value)
       VAULT_ADDR: http://vault:8200
       VAULT_APPROLE_FILE: /run/secrets/vault-approle-core
+      # portal v2, delete means delete (docs/specs/deletion.md §4, §5): the delete routes' own login, a member of
+      # `aisdlc_purge` (core's normal login above is not), and the object-store user that may lift a pack's or an
+      # export's legal hold and delete its versions (object-store-init; it reads and writes nothing). The bff's token
+      # above carries scope `delete`; the PDP decides `<kind>.delete` for the person.
+      CORE_PURGE_DATABASE_URL: file:/run/secrets/db-url-purge
+      CORE_PURGE_OBJECT_STORE_URL: http://object-store:9000
+      CORE_PURGE_OBJECT_STORE_ACCESS_KEY_REF: file:/run/secrets/object-store-purge-access-key
+      CORE_PURGE_OBJECT_STORE_SECRET_KEY_REF: file:/run/secrets/object-store-purge-secret-key
     secrets:
       [
         db-url-aisdlc,
@@ -1213,6 +1233,9 @@ services:
         object-store-access-key,
         object-store-secret-key,
         vault-approle-core,
+        db-url-purge,
+        object-store-purge-access-key,
+        object-store-purge-secret-key,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8380']
@@ -1226,6 +1249,7 @@ services:
       notary: { condition: service_healthy }
       kms-local: { condition: service_healthy }
       object-store: { condition: service_healthy }
+      object-store-init: { condition: service_completed_successfully }
       vault-init: { condition: service_completed_successfully }
     networks:
       [
@@ -1615,6 +1639,11 @@ services:
       # `gateway-bff`: those two only). The bff asks its PDP (`config.propose` on the fleet) for the person first.
       BFF_GATEWAY_URL: http://gateway:8410
       BFF_GATEWAY_TOKEN_REF: file:/run/secrets/tok-bff-gateway
+      # portal v2 (gap G6): identity's write API with scope `admin` only: people, teams, groups and bindings written for
+      # the signed-in person, identity's PDP deciding each (`identity.admin`, `access.manage`). Reached on data-record,
+      # which both already share. The deletes go to core (scope `delete` on the core token above).
+      BFF_IDENTITY_URL: http://identity:8330
+      BFF_IDENTITY_TOKEN_REF: file:/run/secrets/tok-bff-identity
       # M19: the notifier's liveness answer, relayed for core-worker's health tile (the bff is the one that reaches it)
       BFF_HEALTH_PEERS: '{"notifier":"http://notifier:8460"}'
       # Plain http on localhost only; behind TLS this is true.
@@ -1637,6 +1666,7 @@ services:
         tok-bff-audit,
         tok-bff-killswitch,
         tok-bff-gateway,
+        tok-bff-identity,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
@@ -2184,11 +2214,11 @@ services:
 
   # S3-compatible object store for large content (ADR-0003 §2): Evidence Packs from M14.4. MinIO here, any S3
   # service in the cloud (the adapter is `S3ObjectStore`, packages/ports). The adapter creates and checks the
-  # buckets itself (`declareBucket`; a write-once bucket is created with Object Lock), so there is no init job.
-  # Root credentials are the two secret files, read through MinIO's `_FILE` variables. Image: Chainguard's
-  # build of MinIO, pinned by digest (the upstream minio/minio images are no longer published to Docker Hub).
-  # Its only tools are coreutils and bash, so the healthcheck is a bash /dev/tcp probe of /minio/health/live.
-  # Not a dependency of any service yet.
+  # buckets itself (`declareBucket`; a write-once bucket is created with Object Lock); the one init job,
+  # object-store-init, makes the deletion's user. Root credentials are the two secret files, read through MinIO's
+  # `_FILE` variables. Image: Chainguard's build of MinIO, pinned by digest (the upstream minio/minio images are no
+  # longer published to Docker Hub). It has coreutils, bash and `mc`, so the healthcheck is a bash /dev/tcp probe of
+  # /minio/health/live.
   object-store:
     image: chainguard/minio@sha256:db3f583fa49121942168bd6383a773b2cde3384c9a99bf7193560b9a0f3a28fd
     user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
@@ -2225,6 +2255,35 @@ services:
       start_period: 5s
     networks: [objectstore-api]
     mem_limit: 512m
+
+  # The object store's init job (object-store-init.sh, every `up`, idempotent; portal v2 delete means delete): the
+  # deletion's own MinIO user `aisdlc-core-purge` and its one policy (list versions, lift a legal hold, delete a version
+  # in `evidence-packs` and `audit-exports`; no read, no write, no bucket setting). The store's image (it ships `mc`),
+  # the root credential to make them, the purge credential to set; the store's network only. core waits for it.
+  object-store-init:
+    image: chainguard/minio@sha256:db3f583fa49121942168bd6383a773b2cde3384c9a99bf7193560b9a0f3a28fd
+    user: '${AISDLC_UID:?run ./init-secrets first}:${AISDLC_GID:?run ./init-secrets first}'
+    restart: 'no'
+    read_only: true
+    tmpfs: ['/tmp:mode=1777,size=16m']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    entrypoint: ['/usr/bin/bash', '/object-store-init.sh']
+    environment:
+      OBJECT_STORE_URL: http://object-store:9000
+    volumes:
+      - ./object-store-init.sh:/object-store-init.sh:ro
+    secrets:
+      [
+        object-store-access-key,
+        object-store-secret-key,
+        object-store-purge-access-key,
+        object-store-purge-secret-key,
+      ]
+    depends_on:
+      object-store: { condition: service_healthy }
+    networks: [objectstore-api]
+    mem_limit: 256m
 
   # The OpenTelemetry collector (PLAN M19; ADR-0003 §2 Telemetry: one collector for metrics, logs and traces), profile
   # `telemetry`. Turned on with `--profile telemetry` and OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318, which

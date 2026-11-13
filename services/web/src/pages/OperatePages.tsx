@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { TabHead } from '../operate/TabHead';
 import {
   BannerSeverity,
+  label,
   ControlKindValues,
   HOLD_DESCRIPTIONS,
   KillScope,
@@ -28,7 +30,6 @@ import {
   Card,
   EmptyState,
   KeyValue,
-  PageHead,
   Pill,
   Stat,
   Stats,
@@ -37,7 +38,7 @@ import {
   type Column,
   type PillTone,
 } from '../ui';
-import { IntegrationTiles } from './QualityPages';
+import { HealthTiles as IntegrationTiles } from '../integrations/IntegrationsPage';
 
 // Operate (prototype `capacity`, `sessions`, `controls`, `kill`, `health`): the scheduler's admission
 // state (H1–H3, WIP, HUMAN-WAIT), the sandbox-controller's slots and caps, the control plane with its
@@ -67,15 +68,9 @@ export function SchedulerPage() {
   const q = useQuery({ queryKey: ['admission'], queryFn: api.admission, refetchInterval: 10_000 });
   return (
     <>
-      <PageHead
-        eyebrow="Operate"
-        title="Scheduler"
-        sub="Admission at 6.0: a Unit runs only with an approver slot free (H1), a coding slot free (H2), its envelope reserved (H3) and no other holder of its lease (WIP). People set the limits; core decides admission; the sandbox-controller only places sessions."
-        actions={
-          <Link to="/sandboxes" className="ui-btn">
-            Sandboxes
-          </Link>
-        }
+      <TabHead
+        title={label('screen', 'scheduler')}
+        sub="What waits to build and why: a part builds only when someone can approve it, a coding slot is free, its budget is held and nothing else holds its lease. The limits are set in Settings › Sandboxes."
       />
       <Read q={q} what="the admission state">
         {(v) => (
@@ -183,15 +178,9 @@ export function SandboxesPage() {
   });
   return (
     <>
-      <PageHead
-        eyebrow="Operate"
-        title="Sandboxes"
-        sub="The runner host's slots as the sandbox-controller reports them: two caps (a total and coding sessions), the class ceilings, and the sessions running now. Caps change through Configuration (sandbox.caps, M1-gated)."
-        actions={
-          <Link to="/config/sandbox.caps" className="ui-btn">
-            sandbox.caps
-          </Link>
-        }
+      <TabHead
+        title={label('screen', 'sandboxes')}
+        sub="The sandboxes running now, the limits of each kind, and how many may run at once. Change the limits in Settings › Sandboxes."
       />
       {q.isPending ? <Loading what="the slots" /> : null}
       {q.isError ? (
@@ -585,15 +574,9 @@ export function ControlsPage({ csrf }: { csrf: string }) {
   const q = useQuery({ queryKey: ['controls'], queryFn: api.controls, refetchInterval: 15_000 });
   return (
     <>
-      <PageHead
-        eyebrow="Operate"
-        title="Controls"
-        sub="Hold, clamp, halt and maintenance on the fleet, a project or a lane. Every control is previewed first (what it would affect, with a nonce), then applied with that nonce, and both land on the ledger. A fleet control is a factory admin's alone."
-        actions={
-          <Link to="/kill" className="ui-btn">
-            Kill switch
-          </Link>
-        }
+      <TabHead
+        title={label('screen', 'controls')}
+        sub="Pause, limit or halt work on the whole factory, a project or a track, and post notices. Every control is previewed first and recorded in the decision log."
       />
       <ControlForm csrf={csrf} />
       <BannerForm csrf={csrf} />
@@ -732,7 +715,7 @@ function useKillAct(csrf: string) {
             : await api.killReleasePrepare(p.kill_id, csrf);
         savePending(p);
         const got = await api.stepUpStart(
-          { subject_hash: prepared.bound_hash, return_to: '/kill' },
+          { subject_hash: prepared.bound_hash, return_to: '/operate/stop' },
           csrf,
         );
         if (got.status === 'redirect') {
@@ -915,15 +898,9 @@ export function KillPage({ csrf }: { csrf: string }) {
   const act = useKillAct(csrf);
   return (
     <>
-      <PageHead
-        eyebrow="Operate · AR9"
-        title="Kill switch"
-        sub="The kill switch is its own service with its own key and database; it never calls core. Core pulls its signed journal, verifies every entry against the pinned key and records it, and that is what this page shows. An unreachable kill switch counts as a kill."
-        actions={
-          <Link to="/controls" className="ui-btn">
-            Controls
-          </Link>
-        }
+      <TabHead
+        title={label('screen', 'emergency_stop')}
+        sub="Stops all agent work in a scope at once. The stop switch is a service of its own; when it cannot be reached, agents are treated as stopped."
       />
       {act.busy ? <Loading what="your kill act" /> : null}
       {act.error ? <ErrorNote error={act.error} /> : null}
@@ -1045,10 +1022,9 @@ export function HealthPage() {
   });
   return (
     <>
-      <PageHead
-        eyebrow="Operate"
-        title="Health"
-        sub="How the factory's services, loops and integrations are doing, in one shared shape: a reading older than two minutes reads unknown, never ok."
+      <TabHead
+        title={label('screen', 'health')}
+        sub="How the factory's services, background jobs and integrations are doing. A reading that is too old reads unknown, never healthy."
       />
       <Read q={h} what="the service and loop tiles">
         {(v) => (

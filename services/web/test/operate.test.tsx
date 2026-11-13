@@ -285,7 +285,7 @@ describe('operate: kill switch and health', () => {
     });
     expect(m.calls.find((c) => c.path === '/api/step-up')?.body).toEqual({
       subject_hash: BOUND,
-      return_to: '/kill',
+      return_to: '/operate/stop',
     });
     expect(m.calls.find((c) => c.method === 'POST' && c.path === '/api/kills')?.body).toEqual({
       scope: { kind: 'project', ref: 'testbed' },
@@ -394,7 +394,9 @@ describe('operate: kill switch and health', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('note')).toHaveTextContent('Unknown is not healthy');
     expect(screen.getByRole('list', { name: 'Health summary' })).toHaveTextContent('down');
-    expect(screen.getByRole('list', { name: 'Integrations' })).toHaveTextContent('down');
+    expect(screen.getByRole('list', { name: 'Integrations and their health' })).toHaveTextContent(
+      'Down',
+    );
     expect(screen.queryByTestId('not-built')).toBeNull();
   });
 

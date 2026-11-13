@@ -60,13 +60,13 @@ describe('the item page: release and review', () => {
     });
     renderAt(`/items/${ITEM}`);
     const card = await screen.findByTestId('item-release');
-    expect(within(card).getByText('reject')).toBeInTheDocument();
+    expect(within(card).getByText('Reject')).toBeInTheDocument();
     // the button is offered once the PDP's hint has arrived (pending is a disabled placeholder)
     await waitFor(() =>
-      expect(within(card).getByRole('button', { name: 'Re-request the release' })).toBeEnabled(),
+      expect(within(card).getByRole('button', { name: 'Ask to release again' })).toBeEnabled(),
     );
-    await user.click(within(card).getByRole('button', { name: 'Re-request the release' }));
-    expect(await within(card).findByText('The release is requested again.')).toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: 'Ask to release again' }));
+    expect(await within(card).findByText('The release is asked for again.')).toBeInTheDocument();
     const call = m.calls.find((c) => c.path.endsWith('/release/re-request'));
     expect((call?.body as { key: string }).key).toMatch(/^portal-/);
     expect(call?.headers['x-csrf-token']).toBe('csrf-token-of-alice');
@@ -85,12 +85,10 @@ describe('the item page: release and review', () => {
     renderAt(`/items/${ITEM}`);
     const unsure = await screen.findByTestId('item-unsure');
     await waitFor(() =>
-      expect(within(unsure).queryByRole('button', { name: /unsure/ })).toBeNull(),
+      expect(within(unsure).queryByRole('button', { name: /not sure/ })).toBeNull(),
     );
-    expect(
-      within(screen.getByTestId('item-release')).getByText('waiting for a decision'),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Re-request the release' })).toBeNull();
+    expect(within(screen.getByTestId('item-release')).getByText('Waiting')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ask to release again' })).toBeNull();
   });
 });
 

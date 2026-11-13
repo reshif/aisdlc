@@ -144,19 +144,19 @@ function SignedInShell({
       }
       actions={
         <>
-          {may('/ask-for-work') ? (
-            <Link to="/ask-for-work" className="ui-btn ui-btn-primary ui-btn-sm ui-top-hide-phone">
+          {may('/ask') ? (
+            <Link to="/ask" className="ui-btn ui-btn-primary ui-btn-sm ui-top-hide-phone">
               {label('screen', 'ask_for_work')}
             </Link>
           ) : null}
           {stopper ? (
-            <Link to="/kill" className="ui-stopbtn ui-top-hide-phone">
+            <Link to="/operate/stop" className="ui-stopbtn ui-top-hide-phone">
               {label('action', 'kill.request')}
             </Link>
           ) : null}
-          {may('/ask') ? (
+          {may('/assistant') ? (
             <Link
-              to="/ask"
+              to="/assistant"
               className="ui-iconbtn ui-top-hide-phone"
               aria-label={label('screen', 'assistant')}
             >
@@ -226,19 +226,23 @@ function KillPill({ state }: { state: number | 'unknown' | null }) {
   const stop = label('concept', 'kill_switch');
   if (state === 'unknown') {
     return (
-      <Link to="/kill" className="ui-killpill ui-killpill-unknown" title={`${stop}: unknown`}>
+      <Link
+        to="/operate/stop"
+        className="ui-killpill ui-killpill-unknown"
+        title={`${stop}: unknown`}
+      >
         <span className="ui-killpill-t">{stop}: unknown</span>
       </Link>
     );
   }
   return state > 0 ? (
-    <Link to="/kill" className="ui-killpill ui-killpill-stopped">
+    <Link to="/operate/stop" className="ui-killpill ui-killpill-stopped">
       <span className="ui-killpill-t">
         {label('hold', 'kill')}: {state}
       </span>
     </Link>
   ) : (
-    <Link to="/kill" className="ui-killpill" title={`${stop}: off`}>
+    <Link to="/operate/stop" className="ui-killpill" title={`${stop}: off`}>
       <span className="ui-killpill-t">Agents running</span>
     </Link>
   );
@@ -250,7 +254,7 @@ function KillBanner({ count }: { count: number }) {
       <span>
         <strong>{label('hold', 'kill')}.</strong>{' '}
         {count === 1 ? 'An emergency stop is on.' : `${count} emergency stops are on.`}{' '}
-        <Link to="/kill">See the stops</Link>
+        <Link to="/operate/stop">See the stops</Link>
       </span>
     </div>
   );
@@ -424,6 +428,11 @@ function Account({ me }: { me: Me }) {
             {me.principal.principal_id}
           </div>
           <ul>
+            <li>
+              <Link to="/me" className="ui-menu-item" onClick={close}>
+                {label('screen', 'my_profile')}
+              </Link>
+            </li>
             <li>
               <Link to="/me/access" className="ui-menu-item" onClick={close}>
                 {label('screen', 'my_access')}

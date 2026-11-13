@@ -397,7 +397,7 @@ describe('EvidenceGrid and DecisionRail', () => {
       .getAllByRole('button')
       .filter((b) => b.className.includes('ui-btn-block'))
       .map((b) => b.textContent);
-    expect(verbs).toEqual(['Approve', 'Request changes · 1 of 2 tries left', 'Reject']);
+    expect(verbs).toEqual(['Approve', 'Request changes: 1 of 2 tries left', 'Reject']);
     expect(rail).toHaveTextContent('Needs two people: 1 of 2 (approved by Ana Ruiz)');
     await user.click(within(rail).getByRole('button', { name: /Request changes/ }));
     expect(onDecide).not.toHaveBeenCalled();

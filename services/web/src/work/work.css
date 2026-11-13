@@ -1,0 +1,205 @@
+/* The Work squad's screens (portal v2 §2.1-2.8): layout only, every colour and size from tokens.css. */
+.wk-page {
+  display: grid;
+  /* one column that may shrink below its content: a long row (the tabs) scrolls inside itself, never the page */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+.wk-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.wk-muted {
+  color: var(--muted);
+}
+.wk-bad {
+  color: var(--bad);
+}
+.wk-list,
+.wk-projects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.wk-list > li,
+.wk-projects > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.wk-list > li:last-child,
+.wk-projects > li:last-child {
+  border-bottom: 0;
+}
+.wk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.wk-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+.wk-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.wk-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.wk-icard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.wk-icard[data-overdue='true'] {
+  border-color: var(--bad);
+}
+.wk-icard-hd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.wk-icard-hd a {
+  font-weight: 600;
+}
+.wk-icard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.wk-now {
+  border-left: 4px solid var(--accent);
+}
+.wk-lead {
+  font-size: 17px;
+  margin: 0 0 8px;
+}
+.wk-gates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wk-gates > li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  font-size: 14px;
+}
+.wk-gates > li[data-state='off'] {
+  color: var(--muted);
+  border-style: dashed;
+}
+.wk-pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  max-height: 480px;
+  overflow: auto;
+  margin: 0;
+}
+.wk-binds {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.wk-detail {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.wk-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(200px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.wk-board-col {
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 10px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+.wk-board-col h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.wk-form {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+}
+.wk-form textarea {
+  min-height: 160px;
+}
+.wk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wk-hint {
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  background: var(--panel-2);
+  margin: 0;
+}
+.wk-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+@media (max-width: 860px) {
+  .wk-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* the board stacks; the page never scrolls sideways */
+  .wk-board {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    overflow-x: visible;
+  }
+}

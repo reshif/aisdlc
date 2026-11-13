@@ -90,3 +90,16 @@ describe('core configuration of the cards', () => {
     expect(() => coreConfigFromEnv({ ...base, ...gw })).toThrow(/the assistant needs knowledge/);
   });
 });
+
+describe('core configuration of deletion (portal v2)', () => {
+  it('a caller may hold the delete scope, and the purge login switches the routes on', () => {
+    const c = coreConfigFromEnv({
+      CORE_DATABASE_URL: 'postgres://localhost/db',
+      CORE_CALLERS: JSON.stringify({ bff: { token_ref: 'env:T', scopes: ['read', 'delete'] } }),
+      T: 'a'.repeat(32),
+      CORE_PURGE_DATABASE_URL: 'postgres://core_purge@localhost/db',
+    });
+    expect(c.callers['bff']).toEqual(['read', 'delete']);
+    expect(c.deletion?.databaseUrl).toBe('postgres://core_purge@localhost/db');
+  });
+});

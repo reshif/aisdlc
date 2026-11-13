@@ -16,6 +16,8 @@ export type Route =
   | { name: 'project'; id: string }
   | { name: 's0'; id: string }
   | { name: 'card'; id: string }
+  /** portal v2: deciding an approval (`/decide/<card>`; `/cards/<card>` is the same screen). */
+  | { name: 'decide'; id: string }
   | { name: 'item'; id: string }
   | { name: 'pack'; id: string }
   | { name: 'inbox' }
@@ -27,8 +29,13 @@ export type Route =
   | { name: 'drift'; id: string }
   | { name: 'reaffirm'; id: string; repo: string; path: string }
   | { name: 'access' }
-  | { name: 'config' }
-  | { name: 'configKey'; key: string }
+  /** Settings (screen map §2.11): a section, or one setting; the old `/config` addresses open the same pages. */
+  | { name: 'settings'; section: string | null }
+  | { name: 'setting'; key: string }
+  /** Operate (§2.15) with its tabs; `/kill`, `/controls`, ... open the same tabs. */
+  | { name: 'operate'; tab: string | null }
+  /** Integrations (§2.12): a tab, or one integration by id. */
+  | { name: 'integrations'; tab: string | null }
   | { name: 'ask' }
   /** P1-1: the Ask-for-work form, with a project chosen (`/ask-for-work/<project>`) or not. */
   | { name: 'askForWork'; project: string | null }
@@ -41,6 +48,9 @@ export type Route =
   | { name: 'accessGrant'; id: string }
   /** P2-3: one agent (`/agents/<id>`), under the same guard as `/agents`. */
   | { name: 'agent'; id: string }
+  /** portal v2: one person and one team (People, teams & roles). */
+  | { name: 'person'; id: string }
+  | { name: 'team'; id: string }
   | { name: StaticScreen }
   | { name: 'notfound' };
 
@@ -53,16 +63,6 @@ export const STATIC_SCREENS = {
   '/board': 'board',
   '/agents': 'agents',
   '/evals': 'evals',
-  '/models': 'models',
-  '/integrations': 'integrations',
-  '/scheduler': 'scheduler',
-  '/sandboxes': 'sandboxes',
-  '/controls': 'controls',
-  '/kill': 'kill',
-  '/health': 'health',
-  // P2-8: Operate › Budgets and Govern › Cost
-  '/budgets': 'budgets',
-  '/cost': 'cost',
   '/ledger': 'fleetLedger',
   '/audit': 'audit',
   '/catalogue': 'catalogue',
@@ -70,13 +70,29 @@ export const STATIC_SCREENS = {
   '/teams': 'teams',
   '/roles': 'roles',
   '/access-requests': 'accessRequests',
-  '/access-explain': 'explain',
+  '/who-can': 'explain',
+  // portal v2: my profile (the avatar menu)
+  '/me': 'profile',
   // PLAN §7a: guarded by `assistant.use` somewhere, so a direct link is the 403 page like the others
-  '/ask': 'ask',
+  // (portal v2: `/ask` is Ask for work, screen-map §2.8)
+  '/assistant': 'ask',
   // portal v2: every component in both themes, for review (a factory admin, or a dev build)
   '/design': 'design',
 } as const;
 export type StaticScreen = (typeof STATIC_SCREENS)[keyof typeof STATIC_SCREENS];
+
+/** The v1 addresses of the screens Settings, Operate and Integrations replaced: links to them keep working. */
+const OLD_ADDRESSES: Readonly<Record<string, Route>> = {
+  '/config': { name: 'settings', section: null },
+  '/kill': { name: 'operate', tab: 'stop' },
+  '/controls': { name: 'operate', tab: 'pauses' },
+  '/scheduler': { name: 'operate', tab: 'queue' },
+  '/sandboxes': { name: 'operate', tab: 'sandboxes' },
+  '/health': { name: 'operate', tab: 'health' },
+  '/budgets': { name: 'operate', tab: 'spend' },
+  '/cost': { name: 'operate', tab: 'spend' },
+  '/models': { name: 'integrations', tab: 'models' },
+};
 
 export function parseRoute(path: string): Route {
   const p = path.replace(/\/+$/, '') || '/';
@@ -86,14 +102,28 @@ export function parseRoute(path: string): Route {
   if (fixed) return { name: fixed };
   if (p === '/inbox') return { name: 'inbox' };
   if (p === '/me/access') return { name: 'access' };
-  if (p === '/config') return { name: 'config' };
-  if (p === '/ask-for-work') return { name: 'askForWork', project: null };
-  const askFor = /^\/ask-for-work\/([^/]+)$/.exec(p);
+  const alias = OLD_ADDRESSES[p];
+  if (alias) return alias;
+  if (p === '/settings') return { name: 'settings', section: null };
+  const st = /^\/settings\/([^/]+)(?:\/([^/]+))?$/.exec(p);
+  if (st) {
+    return st[2] === undefined
+      ? { name: 'settings', section: decodeURIComponent(st[1] as string) }
+      : { name: 'setting', key: decodeURIComponent(st[2]) };
+  }
+  if (p === '/operate') return { name: 'operate', tab: null };
+  const op = /^\/operate\/([^/]+)$/.exec(p);
+  if (op) return { name: 'operate', tab: decodeURIComponent(op[1] as string) };
+  if (p === '/integrations') return { name: 'integrations', tab: null };
+  const ig = /^\/integrations\/([^/]+)$/.exec(p);
+  if (ig) return { name: 'integrations', tab: decodeURIComponent(ig[1] as string) };
+  if (p === '/ask-for-work' || p === '/ask') return { name: 'askForWork', project: null };
+  const askFor = /^\/ask(?:-for-work)?\/([^/]+)$/.exec(p);
   if (askFor) return { name: 'askForWork', project: decodeURIComponent(askFor[1] as string) };
   if (p === '/me/notifications') return { name: 'notifications' };
   if (p === '/me/notifications/preferences') return { name: 'notificationPrefs' };
   const cfg = /^\/config\/([^/]+)$/.exec(p);
-  if (cfg) return { name: 'configKey', key: decodeURIComponent(cfg[1] as string) };
+  if (cfg) return { name: 'setting', key: decodeURIComponent(cfg[1] as string) };
   const closeout = /^\/items\/([^/]+)\/closeout$/.exec(p);
   if (closeout) return { name: 'closeout', id: decodeURIComponent(closeout[1] as string) };
   const settings = /^\/projects\/([^/]+)\/settings$/.exec(p);
@@ -104,8 +134,14 @@ export function parseRoute(path: string): Route {
   if (grantRoute) return { name: 'accessGrant', id: decodeURIComponent(grantRoute[1] as string) };
   const frev = /^\/config\/revisions\/([^/]+)$/.exec(p);
   if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
+  const person = /^\/people\/([^/]+)$/.exec(p);
+  if (person) return { name: 'person', id: decodeURIComponent(person[1] as string) };
+  const team = /^\/teams\/([^/]+)$/.exec(p);
+  if (team) return { name: 'team', id: decodeURIComponent(team[1] as string) };
   const agent = /^\/agents\/([^/]+)$/.exec(p);
   if (agent) return { name: 'agent', id: decodeURIComponent(agent[1] as string) };
+  const decide = /^\/decide\/([^/]+)$/.exec(p);
+  if (decide) return { name: 'decide', id: decodeURIComponent(decide[1] as string) };
   const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
   if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
   const reaffirm = /^\/projects\/([^/]+)\/reaffirm\/([^/]+)\/([^/]+)$/.exec(p);

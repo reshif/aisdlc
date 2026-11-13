@@ -1,3 +1,4 @@
+import { explain as glossaryExplain, label as glossaryLabel } from '@aisdlc/contracts';
 import {
   STEPS,
   type AgentRunState,
@@ -111,64 +112,65 @@ export const stepName = (id: OnboardingStepId): string => `${id} ${STEPS[id].tit
 
 // ---------------------------------------------------------------- the floor (M19)
 
-/** The floor's station names (the design reference's words for each stage). */
+/** The floor's station names: the glossary's stage labels (portal v2). */
 export const FLOOR_STAGE_TEXT: Readonly<Record<FloorStage, string>> = {
-  S1: 'Intake & triage',
-  S2: 'Shape',
-  S3: 'Specify',
-  S4: 'Design',
-  S5: 'Plan',
-  S6: 'Build in sandbox',
-  S7: 'Verify',
-  S8: 'Human merge',
-  S9: 'Close & learn',
+  S1: glossaryLabel('stage', 'S1'),
+  S2: glossaryLabel('stage', 'S2'),
+  S3: glossaryLabel('stage', 'S3'),
+  S4: glossaryLabel('stage', 'S4'),
+  S5: glossaryLabel('stage', 'S5'),
+  S6: glossaryLabel('stage', 'S6'),
+  S7: glossaryLabel('stage', 'S7'),
+  S8: glossaryLabel('stage', 'S8'),
+  S9: glossaryLabel('stage', 'S9'),
 };
 
-/** The side rooms: what each holds, and what happens next to an item there. */
+/** The side rooms: the glossary's names and tooltips, and what happens next to an item there. */
 export const FLOOR_ROOM_TEXT: Readonly<
   Record<FloorRoom, { title: string; sub: string; next: string }>
 > = {
   SCHED: {
-    title: 'Scheduler',
-    sub: 'lease, pod and envelope',
-    next: 'Admission (6.0) checks the approver slot (H1), coding sessions (H2), the envelope (H3) and WIP; first in, first out.',
+    title: glossaryLabel('room', 'SCHED'),
+    sub: glossaryExplain('room', 'SCHED'),
+    next: 'Before building starts the factory checks there is an approver, a free coding slot, budget and room under the work-in-progress limit; first in, first out.',
   },
   HOLD: {
-    title: 'Holding shelf',
-    sub: 'held, parked, waiting on a person',
-    next: 'Held items keep their saved work and their pod is released. They return when the hold lifts or the person decides (X1, X3, E6, G3o).',
+    title: glossaryLabel('room', 'HOLD'),
+    sub: glossaryExplain('room', 'HOLD'),
+    next: 'Paused items keep their saved work and give up their coding slot. They return when the pause lifts or a person decides the approval they wait for.',
   },
   QUAR: {
-    title: 'Quarantine',
-    sub: 'security triage first',
-    next: 'Security triage (SECT) first. A false positive rebuilds cold; a confirmed one keeps the branch quarantined and the item goes human-led.',
+    title: glossaryLabel('room', 'QUAR'),
+    sub: glossaryExplain('room', 'QUAR'),
+    next: 'A security approver decides first. A false alarm rebuilds in a new sandbox; a real one keeps the branch held and a person does the work.',
   },
   DESK: {
-    title: 'Handoff desk',
-    sub: 'the owner of record chooses',
-    next: 'The owner of record chooses D1 to D5: reshape, extend the envelope (E3), hand to a person, park, or abandon.',
+    title: glossaryLabel('room', 'DESK'),
+    sub: glossaryExplain('room', 'DESK'),
+    next: 'Its owner chooses what happens next: resume, more budget, re-plan, rewrite the spec, take over, or stop the work.',
   },
   BIN: {
-    title: 'Declined, abandoned',
-    sub: 'closed with a cause',
+    title: glossaryLabel('room', 'BIN'),
+    sub: glossaryExplain('room', 'BIN'),
     next: 'Closed with a cause. Reopening is a new request linked to this one.',
   },
   DONE: {
-    title: 'Done',
-    sub: 'closed in the last 24 hours',
-    next: 'Closed with its close-out record.',
+    title: glossaryLabel('room', 'DONE'),
+    sub: 'Closed in the last 24 hours.',
+    next: 'Closed with its final record.',
   },
 };
 
+/** What an item on the floor is doing: the glossary's words. */
 export const FLOOR_STATUS_TEXT: Readonly<
   Record<FloorItemStatus, { label: string; tone: 'info' | 'gate' | 'back' | 'bad' | 'ok' | 'mute' }>
 > = {
-  working: { label: 'working', tone: 'info' },
-  waiting: { label: 'waiting', tone: 'gate' },
-  held: { label: 'held', tone: 'back' },
-  stuck: { label: 'stuck', tone: 'bad' },
-  done: { label: 'done', tone: 'ok' },
-  declined: { label: 'declined', tone: 'mute' },
+  working: { label: glossaryLabel('floorStatus', 'working'), tone: 'info' },
+  waiting: { label: glossaryLabel('floorStatus', 'waiting'), tone: 'gate' },
+  held: { label: glossaryLabel('floorStatus', 'held'), tone: 'back' },
+  stuck: { label: glossaryLabel('floorStatus', 'stuck'), tone: 'bad' },
+  done: { label: glossaryLabel('floorStatus', 'done'), tone: 'ok' },
+  declined: { label: glossaryLabel('floorStatus', 'declined'), tone: 'mute' },
 };
 
 /** 1.4's reason for a verdict on the asked lane, for the request receipt (P2-17). */

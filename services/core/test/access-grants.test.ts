@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   FactoryM1Eligibility,
   HttpAccessGrants,
+  IdentityFactoryAdmins,
   coreInbox,
   createCoreApp,
   identityFleetRoleHolders,
@@ -55,6 +56,7 @@ const kernel = () => ({
     policy: () => readFactoryM1Policy(s.record.pool),
     holders: identityFleetRoleHolders(s.record.pool, s.clock),
   }),
+  admins: new IdentityFactoryAdmins(s.record.pool, s.clock),
 });
 
 beforeAll(async () => {
@@ -91,10 +93,16 @@ afterAll(async () => {
   await s?.stop();
 });
 
-async function call(method: 'GET' | 'POST', path: string, body?: unknown) {
+async function call(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+) {
   const res = await fetch(new URL(path, url), {
     method,
     headers: {
+      ...headers,
       authorization: `Bearer ${TOKENS.bff}`,
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
@@ -413,5 +421,53 @@ describe('two people decide: each vote needs a step-up (RC-SEC-4)', () => {
     const second = await vote('vic', true);
     expect(second.ok && second.value).toMatchObject({ status: 'applied', applied: true });
     expect(await rolesOf('dora')).toContain('factory.onboarder@fleet:*');
+  });
+});
+
+describe('the factory admin answers an access request outside the slot (docs/specs/deletion.md 8)', () => {
+  it('refused without a reason; with one it decides alone and the reason is in the decision ledger entry', async () => {
+    const asked = await call('POST', '/v1/access/requests', {
+      on_behalf_of: 'vic',
+      role_id: 'project.viewer',
+      scope: ACME,
+      expiry: null,
+      reason: 'joining the acme team',
+    });
+    expect(asked.status, JSON.stringify(asked.json)).toBe(201);
+    const p = AccessProposeResult.parse(asked.json);
+    // root is a factory admin but not one of acme's deciders
+    expect(p.deciders).not.toContain('root');
+    expect((await decideAs('root', p.grant_id)).status).toBe(403);
+    const why = 'acme admins are away; the owner asked';
+    const h = { 'x-aisdlc-override-reason': encodeURIComponent(why) };
+    const prep = await call(
+      'POST',
+      `/v1/access/grants/${p.grant_id}/prepare`,
+      { on_behalf_of: 'root' },
+      h,
+    );
+    expect(prep.status, JSON.stringify(prep.json)).toBe(200);
+    const ev = await call(
+      'POST',
+      `/v1/access/grants/${p.grant_id}/evidence`,
+      { on_behalf_of: 'root', nonce: prep.json.nonce, evidence_hash: prep.json.evidence_hash },
+      h,
+    );
+    expect(ev.status).toBe(200);
+    const d = await call(
+      'POST',
+      `/v1/access/grants/${p.grant_id}/decide`,
+      { on_behalf_of: 'root', nonce: prep.json.nonce, decision: 'approve' },
+      h,
+    );
+    expect(d.status, JSON.stringify(d.json)).toBe(200);
+    expect(d.json).toMatchObject({ outcome: 'approve', applied: true });
+    expect(await rolesOf('vic')).toContain('project.viewer@project:acme');
+    const e = await s.record.pool.query<{ actor: string; reason: string | null }>(
+      `SELECT actor, body -> 'override' ->> 'reason' AS reason FROM ledger.ledger_entry
+        WHERE gate_instance_id = $1 AND decision = 'approve'`,
+      [p.gate_instance_id],
+    );
+    expect(e.rows).toEqual([{ actor: 'root', reason: why }]);
   });
 });

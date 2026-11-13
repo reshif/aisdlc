@@ -34,6 +34,8 @@ const Callers = z.record(
           'erasure',
           'activity',
           'secrets',
+          // portal v2: the delete routes (docs/specs/deletion.md §5), the bff's for the signed-in person
+          'delete',
         ]),
       )
       .min(1),

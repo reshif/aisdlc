@@ -35,7 +35,7 @@ describe('the v2 navigation', () => {
     const paths = flatNav().map((e) => e.to);
     expect(new Set(paths).size).toBe(paths.length);
     expect(paths).toEqual(
-      expect.arrayContaining(['/kill', '/controls', '/scheduler', '/sandboxes', '/health']),
+      expect.arrayContaining(['/operate', '/settings', '/integrations', '/agents']),
     );
   });
 
@@ -67,12 +67,20 @@ describe('the v2 navigation', () => {
       expect(within(nav).getByRole('heading', { name: h })).toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: 'Health' })).toBeNull();
     await user.click(within(nav).getByRole('link', { name: 'Operate' }));
-    expect(window.location.pathname).toBe('/kill');
-    expect(within(nav).getByRole('link', { name: 'Emergency stop' })).toHaveAttribute(
+    expect(window.location.pathname).toBe('/operate');
+    expect(within(nav).getByRole('link', { name: 'Operate' })).toHaveAttribute(
       'aria-current',
       'page',
     );
-    expect(within(nav).getByRole('link', { name: 'Health' })).toHaveAttribute('href', '/health');
+    const tabs = await screen.findByRole('navigation', { name: 'Operate tabs' });
+    expect(within(tabs).getByRole('link', { name: 'Emergency stop' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(tabs).getByRole('link', { name: 'Health' })).toHaveAttribute(
+      'href',
+      '/operate/health',
+    );
   });
 });
 
@@ -85,7 +93,7 @@ describe('the v2 top bar', () => {
     const v = renderAt('/projects');
     expect(await screen.findByRole('link', { name: 'Agents running' })).toHaveAttribute(
       'href',
-      '/kill',
+      '/operate/stop',
     );
     v.unmount();
     m.table['GET /api/kills/active'] = { json: { kills: [{ kill_id: 'k1' }] } };
@@ -117,12 +125,9 @@ describe('the v2 top bar', () => {
     renderAt('/projects');
     expect(await screen.findByRole('link', { name: 'Stop agents' })).toHaveAttribute(
       'href',
-      '/kill',
+      '/operate/stop',
     );
-    expect(screen.getByRole('link', { name: 'Ask for work' })).toHaveAttribute(
-      'href',
-      '/ask-for-work',
-    );
+    expect(screen.getByRole('link', { name: 'Ask for work' })).toHaveAttribute('href', '/ask');
     expect(screen.getByRole('link', { name: 'My notifications' })).toHaveAttribute(
       'href',
       '/me/notifications',
@@ -138,7 +143,7 @@ describe('the v2 top bar', () => {
     const box = screen.getByRole('combobox', { name: 'Search' });
     await user.type(box, 'decision log');
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(window.location.pathname).toBe('/ledger'));
+    await waitFor(() => expect(window.location.pathname).toBe('/audit'));
     expect(screen.queryByRole('combobox', { name: 'Search' })).toBeNull();
   });
 

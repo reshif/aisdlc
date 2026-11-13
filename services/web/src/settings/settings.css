@@ -1,0 +1,205 @@
+/* Settings, Integrations, Agents and Operate (portal v2, the Settings squad). Tokens only (tokens.css). */
+
+.st-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .st-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.st-sections ul,
+.st-list,
+.st-tabs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.st-sections {
+  position: sticky;
+  top: calc(var(--top-h) + 16px);
+}
+@media (max-width: 860px) {
+  .st-sections {
+    position: static;
+  }
+  .st-sections ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+.st-section-link {
+  display: block;
+  padding: 8px 12px;
+  border-radius: var(--r);
+  color: var(--fg);
+  text-decoration: none;
+  min-height: 24px;
+}
+.st-section-link:hover {
+  background: var(--sunk);
+}
+.st-section-link[aria-current='page'] {
+  background: var(--panel);
+  border-left: 3px solid var(--accent);
+  font-weight: 600;
+}
+.st-main {
+  min-width: 0;
+}
+.st-main > * + * {
+  margin-top: 16px;
+}
+.st-h2 {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  margin: 0 0 4px;
+}
+
+.st-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.st-row {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+}
+.st-row p {
+  margin: 6px 0 0;
+}
+.st-row-t {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.st-row-t h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.st-row-v {
+  color: var(--muted);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.st-preview {
+  border: 1px solid var(--info-line);
+  background: var(--info-bg);
+  color: var(--fg);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+.st-effects {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.st-diff {
+  margin-top: 8px;
+}
+.st-change-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.st-pending li + li {
+  margin-top: 12px;
+}
+.cfg-entry {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 6px 10px;
+  margin: 6px 0;
+}
+.cfg-entry > summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 24px;
+}
+.cfg-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+/* tabs as links (Operate, Integrations): each tab is a page of its own */
+.st-tabs ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.st-tabs a {
+  display: inline-block;
+  padding: 10px 14px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  min-height: 24px;
+}
+.st-tabs a:hover {
+  color: var(--fg);
+}
+.st-tabs a[aria-current='page'] {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.st-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.st-tile {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+}
+.st-tile h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.st-tile-hd {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+.st-tile p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.st-form {
+  display: grid;
+  gap: 12px;
+  max-width: 640px;
+}
+.st-form .ui-input {
+  width: 100%;
+}
+.st-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}

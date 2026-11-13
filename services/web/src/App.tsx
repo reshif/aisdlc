@@ -4,9 +4,6 @@ import { useState, type ReactNode } from 'react';
 import { AccessProvider, reasonText } from './access';
 import { ApiError, api, type Me } from './api';
 import { ErrorNote, Loading } from './components/Notice';
-import { CardPage } from './pages/CardPage';
-import { InboxPage } from './pages/InboxPage';
-import { ItemPage } from './pages/ItemPage';
 import { PackPage } from './pages/PackPage';
 import { LedgerPage } from './pages/LedgerPage';
 import { PrrPage } from './pages/PrrPage';
@@ -18,31 +15,33 @@ import { ProjectDetailPage } from './pages/ProjectDetail';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { ProjectListPage } from './pages/ProjectList';
 import { S0Page } from './pages/S0Page';
-import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
-import { MyAccessPage } from './pages/MyAccessPage';
-import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsPage';
+import { SettingPage, SettingsPage } from './settings/SettingsPage';
+import { MyAccessPage } from './me/MyAccess';
+import { MyNotificationsPage } from './me/MyNotifications';
+import { MyProfilePage } from './me/MyProfile';
 import { AskPage } from './assistant/AskPage';
-import { AskForWorkPage } from './pages/AskForWorkPage';
-import { HomePage } from './pages/HomePage';
+import { AskScreen } from './work/AskScreen';
+import { DecideScreen } from './work/DecideScreen';
+import { HomeScreen } from './work/HomeScreen';
+import { InboxScreen } from './work/InboxScreen';
+import { ItemScreen } from './work/ItemScreen';
+import { ItemsScreen } from './work/ItemsScreen';
 import { CloseoutPage } from './pages/CloseoutPage';
 import { LearnPage } from './pages/LearnPage';
 import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
-import { AccessGrantPage, AccessRequestsPage } from './pages/AccessPages';
-import { BoardPage, ItemsPage } from './pages/ItemsPage';
+import { AccessRequestPage, AccessRequestsPage } from './people/AccessRequests';
 import { FloorPage } from './floor/FloorPage';
 import { FleetPage } from './floor/FleetPage';
-import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
-import { AgentPage } from './pages/AgentPage';
-import {
-  ControlsPage,
-  HealthPage,
-  KillPage,
-  SandboxesPage,
-  SchedulerPage,
-} from './pages/OperatePages';
-import { AuditPage, CataloguePage, FleetLedgerPage } from './pages/GovernPages';
-import { BudgetsPage, CostPage } from './pages/SpendPages';
-import { ExplainPage, PeoplePage, RolesPage, TeamsPage } from './pages/AdminPages';
+import { EvalsPage } from './pages/QualityPages';
+import { AgentPage } from './agents/AgentPage';
+import { AgentsPage } from './agents/AgentsPage';
+import { IntegrationsPage } from './integrations/IntegrationsPage';
+import { OperatePage } from './operate/OperatePage';
+import { CataloguePage } from './pages/GovernPages';
+import { AuditPage } from './audit/AuditPage';
+import { PeoplePage, PersonPage } from './people/People';
+import { TeamPage, TeamsPage } from './people/Teams';
+import { RolesPage, WhoCanPage } from './people/Roles';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
 import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
@@ -146,7 +145,13 @@ function Screen({ me, route, children }: { me: Me; route: Route; children: React
   const path =
     route.name === 'agent'
       ? '/agents'
-      : Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
+      : route.name === 'settings' || route.name === 'setting'
+        ? '/settings'
+        : route.name === 'operate'
+          ? '/operate'
+          : route.name === 'integrations'
+            ? '/integrations'
+            : Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
   const guard = path ? guardOf(path) : null;
   if (guard && !guardPasses(guard, me)) {
     const action = guardAction(guard);
@@ -174,7 +179,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
   const csrf = me.csrf_token;
   switch (route.name) {
     case 'home':
-      return <HomePage me={me} />;
+      return <HomeScreen me={me} />;
     case 'projects':
       return <ProjectListPage canOnboard={mayOnboard} />;
     case 'floor':
@@ -182,49 +187,37 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'fleet':
       return <FleetPage />;
     case 'items':
-      return <ItemsPage />;
     case 'board':
-      return <BoardPage />;
+      return <ItemsScreen key={route.name} me={me} />;
     case 'agents':
-      return <AgentsPage />;
+      return <AgentsPage csrf={csrf} />;
     case 'agent':
-      return <AgentPage id={route.id} />;
+      return <AgentPage id={route.id} csrf={csrf} />;
     case 'evals':
       return <EvalsPage />;
-    case 'models':
-      return <ModelsPage csrf={csrf} />;
     case 'integrations':
-      return <IntegrationsPage />;
-    case 'scheduler':
-      return <SchedulerPage />;
-    case 'sandboxes':
-      return <SandboxesPage />;
-    case 'controls':
-      return <ControlsPage csrf={csrf} />;
-    case 'kill':
-      return <KillPage csrf={csrf} />;
-    case 'health':
-      return <HealthPage />;
-    case 'budgets':
-      return <BudgetsPage />;
-    case 'cost':
-      return <CostPage />;
+      return <IntegrationsPage key={route.tab ?? ''} tab={route.tab} me={me} />;
+    case 'operate':
+      return <OperatePage tab={route.tab} me={me} />;
     case 'fleetLedger':
-      return <FleetLedgerPage me={me} />;
     case 'audit':
-      return <AuditPage csrf={csrf} />;
+      return <AuditPage me={me} />;
     case 'catalogue':
       return <CataloguePage />;
     case 'people':
       return <PeoplePage me={me} />;
+    case 'person':
+      return <PersonPage key={route.id} id={route.id} me={me} />;
     case 'teams':
-      return <TeamsPage />;
+      return <TeamsPage me={me} />;
+    case 'team':
+      return <TeamPage key={route.id} id={route.id} me={me} />;
     case 'roles':
-      return <RolesPage />;
+      return <RolesPage me={me} />;
     case 'accessRequests':
       return <AccessRequestsPage me={me} />;
     case 'explain':
-      return <ExplainPage me={me} />;
+      return <WhoCanPage me={me} />;
     case 'onboard':
       return <OnboardPage csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':
@@ -232,9 +225,10 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 's0':
       return <S0Page id={route.id} csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'card':
-      return <CardPage id={route.id} csrf={me.csrf_token} me={me.principal.principal_id} />;
+    case 'decide':
+      return <DecideScreen key={route.id} id={route.id} me={me} csrf={csrf} />;
     case 'item':
-      return <ItemPage id={route.id} csrf={me.csrf_token} />;
+      return <ItemScreen key={route.id} id={route.id} me={me} csrf={csrf} />;
     case 'pack':
       return <PackPage id={route.id} />;
     case 'closeout':
@@ -242,11 +236,11 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'learn':
       return <LearnPage project={route.id} csrf={csrf} />;
     case 'accessGrant':
-      return <AccessGrantPage id={route.id} csrf={csrf} />;
+      return <AccessRequestPage key={route.id} id={route.id} me={me} />;
     case 'factoryRevision':
       return <FactoryRevisionPage gate={route.id} csrf={csrf} me={me.principal.principal_id} />;
     case 'inbox':
-      return <InboxPage />;
+      return <InboxScreen me={me} />;
     case 'revision':
       return <RevisionPage gate={route.id} csrf={me.csrf_token} />;
     case 'projectSettings':
@@ -274,18 +268,20 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       );
     case 'access':
       return <MyAccessPage />;
-    case 'config':
-      return <ConfigListPage />;
-    case 'configKey':
-      return <ConfigKeyPage configKey={route.key} csrf={me.csrf_token} />;
+    case 'settings':
+      return <SettingsPage section={route.section} />;
+    case 'setting':
+      return <SettingPage key={route.key} configKey={route.key} csrf={me.csrf_token} />;
+    case 'profile':
+      return <MyProfilePage me={me} />;
     case 'ask':
       return <AskPage csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'askForWork':
-      return <AskForWorkPage key={route.project ?? ''} project={route.project} csrf={csrf} />;
+      return <AskScreen key={route.project ?? ''} project={route.project} csrf={csrf} />;
     case 'notifications':
-      return <NotificationsPage />;
+      return <MyNotificationsPage csrf={me.csrf_token} />;
     case 'notificationPrefs':
-      return <NotificationPrefsPage csrf={me.csrf_token} />;
+      return <MyNotificationsPage csrf={me.csrf_token} prefs />;
     case 'design':
       return <DesignPage />;
     case 'notfound':

@@ -54,19 +54,21 @@ const gateRoutes = (gate: string, card = gateCard(gate), ctx = gateContext(gate)
 const decideCalls = (calls: readonly Call[]) =>
   calls.filter((c) => c.method === 'POST' && c.path.endsWith('/gate/decide'));
 
+/** The rail is ready once the approval is prepared and its evidence reported as viewed. */
 async function readyToDecide() {
-  await waitFor(() =>
-    expect(screen.queryByText(/Getting the decision form ready/)).not.toBeInTheDocument(),
-  );
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled());
+}
+
+async function openVerify() {
+  await userEvent.click(await screen.findByRole('tab', { name: 'Verify' }));
 }
 
 describe('the Verify tab of the item page', () => {
   it('shows the five checks with facts and findings, the raised gate and gate-check, at V2', async () => {
     mockApi(itemRoutes());
     renderAt(`/items/${ITEM}`);
-    // S7: the Verify tab is the one selected
-    const tab = await screen.findByRole('tab', { name: 'Verify' });
-    expect(tab).toHaveAttribute('aria-selected', 'true');
+    await openVerify();
+    expect(screen.getByRole('tab', { name: 'Verify' })).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByRole('region', { name: 'S7 checks' })).toBeInTheDocument();
     const x2 = document.querySelector('[data-step="7.4"]') as HTMLElement;
     expect(x2).toHaveAttribute('data-status', 'raised');
@@ -97,6 +99,7 @@ describe('the Verify tab of the item page', () => {
       }),
     );
     renderAt(`/items/${ITEM}`);
+    await openVerify();
     expect(await screen.findByTestId('withheld')).toHaveTextContent(/hidden/);
     expect(screen.queryByText('CODEOWNERS changed')).toBeNull();
   });
@@ -104,6 +107,7 @@ describe('the Verify tab of the item page', () => {
   it('reads an unreachable gate-check as unknown, never success', async () => {
     mockApi(itemRoutes({ [`GET ${ITEM_PATH}/gate-check`]: { json: gateCheckView('unknown') } }));
     renderAt(`/items/${ITEM}`);
+    await openVerify();
     const s = await screen.findByTestId('gate-check-status');
     expect(s).toHaveAttribute('data-outcome', 'unknown');
     expect(s).not.toHaveTextContent('success');
@@ -112,7 +116,7 @@ describe('the Verify tab of the item page', () => {
   it('offers no Verify tab below view level V2 and never asks for the results', async () => {
     const m = mockApi(itemRoutes({ 'GET /api/me/access': { json: accessAt('V1', 'D0') } }));
     renderAt(`/items/${ITEM}`);
-    expect(await screen.findByTestId('verify-hidden')).toHaveTextContent(/view level V2/);
+    expect(await screen.findByTestId('verify-hidden')).toHaveTextContent(/view level details/);
     expect(screen.queryByRole('tab', { name: 'Verify' })).toBeNull();
     expect(m.calls.some((c) => c.path.includes('/verify'))).toBe(false);
   });
@@ -122,6 +126,7 @@ describe('the Verify tab of the item page', () => {
       itemRoutes({ [`GET ${ITEM_PATH}/verify`]: { json: verifyView({ pack: packSummary() }) } }),
     );
     renderAt(`/items/${ITEM}`);
+    await openVerify();
     expect(await screen.findByRole('link', { name: 'Open the pack' })).toHaveAttribute(
       'href',
       `/items/${ITEM}/evidence`,
@@ -191,29 +196,29 @@ describe('the Evidence Pack viewer', () => {
   });
 });
 
-describe('the gate screens S7 raises', () => {
+describe('deciding the approvals S7 raises (portal v2 Decide)', () => {
   it.each([
-    ['E6', 'Locked test change', 'Approve the test change'],
-    ['X3', 'New dependency', 'Approve the dependency'],
-    ['E2', 'Constitution exception', 'Approve the exception'],
-    ['X2', 'Protected-path change', 'Approve'],
-    ['E4', 'Handoff to the owner of record', 'Take the handoff'],
+    ['E6', 'Change a locked test'],
+    ['X3', 'Allow new dependency'],
+    ['E2', 'Allow a rule exception'],
+    ['X2', 'Allow protected-file change'],
+    ['E4', 'Choose what happens next'],
   ])(
-    '%s: shows what it binds and decides with a reason bound into the decision',
-    async (gate, title, approve) => {
+    '%s: says what it binds and decides with a reason bound into the decision',
+    async (gate, title) => {
       const user = userEvent.setup();
       const m = mockApi(gateRoutes(gate));
-      renderAt(`/cards/${CARD}`);
+      renderAt(`/decide/${CARD}`);
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument();
-      expect(screen.getByTestId('subject-hash')).toHaveTextContent(SUBJECT);
-      expect(screen.getByRole('region', { name: 'What is being decided' })).toHaveTextContent(
-        /station/,
-      );
+      // what it binds, in words: never a raw hash or code on the decision screen
+      const what = screen.getByTestId('what');
+      expect(within(what).getByTestId('binds')).toHaveTextContent('The track and its approvals');
+      expect(what).not.toHaveTextContent(SUBJECT);
+      expect(what).toHaveTextContent(`For commit ${HEAD.slice(0, 7)}`);
       await readyToDecide();
-      await user.click(screen.getByLabelText(/I have read the evidence/));
-      await user.type(screen.getByLabelText(/Reason/), 'Looked at the diff and the facts.');
-      await user.click(screen.getByRole('button', { name: approve }));
-      expect(await screen.findByTestId('receipt')).toHaveTextContent('#42');
+      await user.type(screen.getByLabelText('Reason'), 'Looked at the diff and the facts.');
+      await user.click(screen.getByRole('button', { name: 'Approve' }));
+      expect(await screen.findByTestId('receipt')).toHaveTextContent('decision log entry 42');
       const d = decideCalls(m.calls);
       expect(d).toHaveLength(1);
       expect(d[0]?.body).toEqual({
@@ -225,39 +230,44 @@ describe('the gate screens S7 raises', () => {
     },
   );
 
-  it('Q1: the triage is a choice of finding; "confirmed" is the rejection of SECT', async () => {
-    const user = userEvent.setup();
-    const m = mockApi(gateRoutes('SECT'));
+  it('the old /cards link opens the same screen', async () => {
+    mockApi(gateRoutes('E6'));
     renderAt(`/cards/${CARD}`);
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Test integrity quarantine' }),
+      await screen.findByRole('heading', { level: 1, name: 'Change a locked test' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Quarantined\./)).toBeInTheDocument();
+  });
+
+  it('security review: approve is a false alarm, reject confirms the hold', async () => {
+    const user = userEvent.setup();
+    const m = mockApi(gateRoutes('SECT'));
+    renderAt(`/decide/${CARD}`);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Security review' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('what')).toHaveTextContent(/Approve if it was a false alarm/);
+    await user.click(screen.getByRole('button', { name: /What this approval is about/ }));
     expect(screen.getByText('stub_probe_passed')).toBeInTheDocument();
     await readyToDecide();
-    const record = screen.getByRole('button', { name: 'Record my finding' });
-    expect(record).toBeDisabled();
-    await user.click(screen.getByRole('radio', { name: /Confirmed: bent tests/ }));
-    await user.click(screen.getByLabelText(/I have read the evidence/));
-    await user.type(screen.getByLabelText(/Reason/), 'The oracle asserts a constant.');
-    await user.click(record);
+    await user.type(screen.getByLabelText('Reason'), 'The test asserts a constant.');
+    await user.click(screen.getByRole('button', { name: /^Reject/ }));
     await screen.findByTestId('receipt');
     expect(decideCalls(m.calls)[0]?.body).toMatchObject({ decision: 'reject' });
   });
 
-  it('refuses to send without a reason (nothing is decided)', async () => {
+  it('refuses to send a refusal without a reason (nothing is decided)', async () => {
     const user = userEvent.setup();
     const m = mockApi(gateRoutes('E6'));
-    renderAt(`/cards/${CARD}`);
-    await screen.findByRole('heading', { level: 1, name: 'Locked test change' });
+    renderAt(`/decide/${CARD}`);
+    await screen.findByRole('heading', { level: 1, name: 'Change a locked test' });
     await readyToDecide();
-    await user.click(screen.getByLabelText(/I have read the evidence/));
-    await user.click(screen.getByRole('button', { name: 'Reject (D2)' }));
-    expect(screen.getByTestId('decide-issues')).toHaveTextContent(/goes on the ledger/);
+    await user.click(screen.getByRole('button', { name: /^Reject/ }));
+    expect(screen.getByText(/Say why: a reason is saved/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Reason')).toHaveAttribute('aria-invalid', 'true');
     expect(decideCalls(m.calls)).toHaveLength(0);
   });
 
-  it('X2 two-person: shows the first decision and lets a different person approve second', async () => {
+  it('two people: shows the first approval and the second approver binds the same reason', async () => {
     const user = userEvent.setup();
     const first = {
       ledger_seq: 40,
@@ -273,16 +283,16 @@ describe('the gate screens S7 raises', () => {
         gateContext('X2', { decisions: [first] }),
       ),
     );
-    renderAt(`/cards/${CARD}`);
-    expect(await screen.findByTestId('two-person')).toHaveTextContent(
-      /1 of 2 approvals\. Bob Builder approved first \(ledger #40/,
+    renderAt(`/decide/${CARD}`);
+    expect(await screen.findByText(/Needs two people: 1 of 2/)).toHaveTextContent(
+      'approved by Bob Builder',
     );
+    expect(screen.getByTestId('history')).toHaveTextContent('Bob Builder');
+    await user.click(screen.getByRole('button', { name: /What this approval is about/ }));
     expect(screen.getByTestId('patch-hash')).toHaveTextContent('9'.repeat(64));
     await readyToDecide();
-    // the second approver binds the same payload: the first reason, read-only
-    expect(screen.getByLabelText(/Reason/)).toHaveValue('Ownership move agreed in the team.');
-    expect(screen.getByLabelText(/Reason/)).toHaveAttribute('readonly');
-    await user.click(screen.getByLabelText(/I have read the evidence/));
+    expect(screen.getByLabelText('Reason')).toHaveValue('Ownership move agreed in the team.');
+    expect(screen.getByLabelText('Reason')).toHaveAttribute('readonly');
     await user.click(screen.getByRole('button', { name: 'Approve' }));
     await screen.findByTestId('receipt');
     expect(decideCalls(m.calls)[0]?.body).toMatchObject({
@@ -290,7 +300,7 @@ describe('the gate screens S7 raises', () => {
     });
   });
 
-  it('X2 two-person: the first approver cannot be the second, and no form is prepared', async () => {
+  it('two people: the first approver cannot be the second, and nothing is prepared', async () => {
     const mine = {
       ledger_seq: 40,
       actor: 'alice',
@@ -299,15 +309,13 @@ describe('the gate screens S7 raises', () => {
       sod_waiver: false,
     };
     const m = mockApi(gateRoutes('X2', gateCard('X2'), gateContext('X2', { decisions: [mine] })));
-    renderAt(`/cards/${CARD}`);
-    expect(await screen.findByTestId('cant-decide')).toHaveTextContent(
-      /You approved first \(1 of 2\)\. The two-person rule needs a different second person/,
-    );
+    renderAt(`/decide/${CARD}`);
+    expect(await screen.findByText(/You approved first \(1 of 2\)/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
     expect(m.calls.some((c) => c.path.endsWith('/gate/prepare'))).toBe(false);
   });
 
-  it('says why not, in the PDP’s words, to someone the policy refuses', async () => {
+  it('forbidden: says why and who to ask; the evidence stays readable and nothing is prepared', async () => {
     const m = mockApi(
       gateRoutes(
         'E2',
@@ -317,16 +325,21 @@ describe('the gate screens S7 raises', () => {
         }),
       ),
     );
-    renderAt(`/cards/${CARD}`);
-    expect(await screen.findByTestId('cant-decide')).toHaveTextContent(
-      'None of your roles allows this here.',
+    renderAt(`/decide/${CARD}`);
+    expect(await screen.findByRole('note')).toHaveTextContent(
+      'None of your roles lets you decide this approval on testbed. Ask Alice Admin and Bob Builder.',
     );
     expect(screen.getByTestId('deciders')).toHaveTextContent('Alice Admin');
-    expect(screen.queryByLabelText(/Reason/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Request access' })).toHaveAttribute(
+      'href',
+      '/me/access',
+    );
+    expect(screen.queryByLabelText('Reason')).toBeNull();
+    expect(screen.getByTestId('evidence')).toBeInTheDocument();
     expect(m.calls.some((c) => c.path.endsWith('/gate/prepare'))).toBe(false);
   });
 
-  it('asks for a step-up where the gate needs one and binds the proof into the vote', async () => {
+  it("asks to confirm it's you where the approval needs it and binds the proof into the vote", async () => {
     const user = userEvent.setup();
     const routes = {
       ...gateRoutes(
@@ -340,61 +353,91 @@ describe('the gate screens S7 raises', () => {
       },
     };
     const m = mockApi(routes);
-    renderAt(`/cards/${CARD}`);
-    await screen.findByRole('heading', { level: 1, name: 'Locked test change' });
+    renderAt(`/decide/${CARD}`);
+    await screen.findByRole('heading', { level: 1, name: 'Change a locked test' });
     await readyToDecide();
-    await user.click(screen.getByRole('button', { name: 'Confirm my identity' }));
-    expect(await screen.findByTestId('stepup-ready')).toBeInTheDocument();
-    const su = m.calls.find((c) => c.path === '/api/step-up');
-    expect(su?.body).toMatchObject({ subject_hash: SUBJECT });
-    await user.click(screen.getByLabelText(/I have read the evidence/));
-    await user.type(screen.getByLabelText(/Reason/), 'Spec r3 moved the rounding.');
-    await user.click(screen.getByRole('button', { name: 'Approve the test change' }));
+    await user.click(screen.getByRole('button', { name: "Confirm it's you" }));
+    expect(await screen.findByText('It is you: decide now.')).toBeInTheDocument();
+    expect(m.calls.find((c) => c.path === '/api/step-up')?.body).toMatchObject({
+      subject_hash: SUBJECT,
+    });
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
     await screen.findByTestId('receipt');
     expect(decideCalls(m.calls)[0]?.body).toMatchObject({
       votes: [{ nonce: 'nonce-E6', step_up: { proof: 'proof-1' } }],
     });
   });
 
-  it('X3: licence and advisories it does not know read [unknown]', async () => {
+  it('the factory admin decides outside the rules with a reason, sent as the override', async () => {
+    const user = userEvent.setup();
+    const admin = {
+      ...accessAt('V2'),
+      bindings: [
+        ...accessAt('V2').bindings,
+        {
+          binding_id: 'b-admin',
+          role_id: 'factory.admin',
+          scope: { kind: 'fleet', ref: 'fleet' },
+          project_id: null,
+          blockers: [],
+        },
+      ],
+    };
+    const m = mockApi({
+      ...gateRoutes(
+        'E2',
+        gateCard('E2', { may_decide: false, why_not: { code: 'not_slot_holder', reasons: [] } }),
+      ),
+      'GET /api/me/access': { json: admin },
+    });
+    renderAt(`/decide/${CARD}`);
+    await user.click(await screen.findByRole('button', { name: 'Decide as factory admin' }));
+    expect(m.calls.some((c) => c.path.endsWith('/gate/prepare'))).toBe(false);
+    // approving outside the rules needs a reason too
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(decideCalls(m.calls)).toHaveLength(0);
+    await user.type(screen.getByLabelText('Reason'), 'Approver on leave; risk accepted.');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await screen.findByTestId('receipt');
+    const header = encodeURIComponent('Approver on leave; risk accepted.');
+    for (const p of ['/gate/prepare', '/gate/evidence', '/gate/decide']) {
+      expect(m.calls.find((c) => c.path.endsWith(p))?.headers['x-aisdlc-override-reason']).toBe(
+        header,
+      );
+    }
+  });
+
+  it('X3: licence and advisories it does not know read unknown', async () => {
+    const user = userEvent.setup();
     mockApi(gateRoutes('X3'));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
+    await user.click(await screen.findByRole('button', { name: /What this approval is about/ }));
     const pkg = await screen.findByTestId('package');
     expect(pkg).toHaveTextContent('libphonenumber-js');
     expect(pkg).toHaveTextContent(/Licence\s*\[unknown\]/);
-    expect(pkg).toHaveTextContent(/no advisory database/);
   });
 
-  it('E4 (P1-4): shows the handoff, its pack by hash and the choices the flow allowed', async () => {
-    const handoff = {
-      handoff_id: '55555555-6666-4777-8888-999999999999',
-      n: 1,
-      code: 'D2',
-      trigger: 'ET3',
-      origin_phase: 'S7',
-      origin_step: '7.6',
-      pack: { pack_id: 'handoff-pack:x', content_sha256: 'e'.repeat(64) },
-      valid_choices: ['resume', 'takeover', 'abandon'],
-      status: 'open',
-      choice: null,
-    };
-    mockApi(gateRoutes('E4', gateCard('E4'), gateContext('E4', { handoff })));
-    renderAt(`/cards/${CARD}`);
-    const h = await screen.findByTestId('handoff');
-    expect(h).toHaveTextContent('D2 (#1)');
-    expect(h).toHaveTextContent('S7 at 7.6');
-    expect(h).toHaveTextContent('handoff-pack:x');
-    expect(within(h).getByRole('list', { name: 'Choices' })).toHaveTextContent('takeover');
-  });
-
-  it('E2: shows the constitution report as text', async () => {
+  it('E2: shows the factory rules report as text', async () => {
+    const user = userEvent.setup();
     mockApi(gateRoutes('E2'));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
+    await user.click(await screen.findByRole('button', { name: /What this approval is about/ }));
     expect(await screen.findByTestId('constitution')).toHaveTextContent('C-EGRESS: violation');
+  });
+
+  it('a phone gets the decision as a bottom sheet the person opens', async () => {
+    const user = userEvent.setup();
+    mockApi(gateRoutes('E6'));
+    renderAt(`/decide/${CARD}`);
+    await screen.findByRole('heading', { level: 1, name: 'Change a locked test' });
+    const toggle = screen.getByRole('button', { name: 'Decide' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
+    expect(screen.getByRole('button', { name: 'Hide' })).toHaveAttribute('aria-expanded', 'true');
   });
 });
 
-describe('X2 on an S0 record: the onboarding pack (M16)', () => {
+describe('the onboarding files change on an onboarding record', () => {
   const S0 = '0190a000-0000-7000-8000-0000000000a1';
   const file = (path: string, source: string, c: string) => ({
     path,
@@ -403,107 +446,57 @@ describe('X2 on an S0 record: the onboarding pack (M16)', () => {
     bytes: 120,
     protected_rule: 'factory',
   });
-  const pack = (kind: 'light' | 'full', over: Record<string, unknown> = {}) => ({
-    kind,
+  const pack = (over: Record<string, unknown> = {}) => ({
+    kind: 'light',
     s0_id: S0,
     repo: 'acme/app',
     base_sha: 'a'.repeat(40),
-    branch: `agent/${S0}/${kind === 'light' ? 'onboarding-pack' : 'onboarding-full-pack'}`,
+    branch: `agent/${S0}/onboarding-pack`,
     patch_hash: SUBJECT,
     bound: true,
     intact: true,
     deciding_card: {
-      card: kind === 'light' ? 'C2' : 'C3',
+      card: 'C2',
       card_id: '0190a000-0000-7000-8000-0000000000c2',
       payload_hash: 'e'.repeat(64),
     },
-    files:
-      kind === 'light'
-        ? [
-            file('.factory/knowledge/claims.yaml', 'claims', '1'),
-            file('.github/CODEOWNERS', 'codeowners', '2'),
-          ]
-        : [file('.factory/oracle-lock.json', 'oracle_lock', '3'), file('specs/m.md', 'seed', '4')],
-    codeowners:
-      kind === 'light'
-        ? {
-            outcome: 'rendered',
-            rendered: true,
-            owners: [
-              { principal_id: 'alice', login: 'alice-gh', reason: 'mapped' },
-              { principal_id: 'carol', login: null, reason: 'no_linked_login' },
-            ],
-          }
-        : null,
-    oracle_lock:
-      kind === 'full'
-        ? {
-            path: '.factory/oracle-lock.json',
-            lock_hash: '5'.repeat(64),
-            tests: 4,
-            truncated: false,
-            file_sha256: '3'.repeat(64),
-          }
-        : null,
-    seeds:
-      kind === 'full'
-        ? [
-            {
-              seed_id: 'seed-1',
-              area: 'packages/m',
-              path: 'specs/m.md',
-              text_sha256: '6'.repeat(64),
-            },
-          ]
-        : [],
+    files: [
+      file('.factory/knowledge/claims.yaml', 'claims', '1'),
+      file('.github/CODEOWNERS', 'codeowners', '2'),
+    ],
+    codeowners: {
+      outcome: 'rendered',
+      rendered: true,
+      owners: [{ principal_id: 'alice', login: 'alice-gh', reason: 'mapped' }],
+    },
+    oracle_lock: null,
+    seeds: [],
     ...over,
   });
-  const s0ctx = (k: ReturnType<typeof pack>) =>
+  const ctx = (k: ReturnType<typeof pack>) =>
     gateContext('X2', {
       subject_kind: 's0_record',
       item_id: null,
       s0_id: S0,
       station: 'X2',
-      step: k.kind === 'light' ? '0.2' : '0.3',
+      step: '0.2',
       check: null,
       head_sha: null,
       patch: { patch_hash: SUBJECT, source: 'bound_artefact', bound: true },
       onboarding_pack: k,
     });
 
-  it('Light: the rendered files with their hashes, the patch, card 2 and CODEOWNERS; links to the record', async () => {
-    mockApi(gateRoutes('X2', gateCard('X2'), s0ctx(pack('light'))));
-    renderAt(`/cards/${CARD}`);
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Onboarding pack: protected paths' }),
-    ).toBeInTheDocument();
-    const p = screen.getByTestId('onboarding-pack');
-    expect(within(p).getByTestId('patch-hash')).toHaveTextContent(SUBJECT);
-    const files = within(p).getByTestId('pack-files');
-    expect(files).toHaveTextContent('.factory/knowledge/claims.yaml');
+  it('shows the files it binds in the detail, and says do not decide when they do not match', async () => {
+    const user = userEvent.setup();
+    mockApi(gateRoutes('X2', gateCard('X2', { item_id: null }), ctx(pack())));
+    const { unmount } = renderAt(`/decide/${CARD}`);
+    await user.click(await screen.findByRole('button', { name: /What this approval is about/ }));
+    const files = within(screen.getByTestId('onboarding-pack')).getByTestId('pack-files');
     expect(files).toHaveTextContent('.github/CODEOWNERS');
-    expect(files).toHaveTextContent('1'.repeat(16));
-    expect(p).toHaveTextContent(/Card 2 payload/);
-    const co = screen.getByTestId('pack-codeowners');
-    expect(co).toHaveTextContent('@alice-gh');
-    expect(co).toHaveTextContent('left out: no linked login');
-    expect(screen.queryByTestId('pack-full')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open record' })).toHaveAttribute('href', `/s0/${S0}`);
-  });
-
-  it('Full: the oracle lock and the seeds card 3 made intended', async () => {
-    mockApi(gateRoutes('X2', gateCard('X2'), s0ctx(pack('full'))));
-    renderAt(`/cards/${CARD}`);
-    const f = await screen.findByTestId('pack-full');
-    expect(f).toHaveTextContent('.factory/oracle-lock.json');
-    expect(f).toHaveTextContent(/Tests locked\s*4/);
-    expect(f).toHaveTextContent('packages/m');
-    expect(screen.queryByTestId('pack-codeowners')).not.toBeInTheDocument();
-  });
-
-  it('a pack that does not match its record says do not decide', async () => {
-    mockApi(gateRoutes('X2', gateCard('X2'), s0ctx(pack('light', { intact: false }))));
-    renderAt(`/cards/${CARD}`);
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Do not decide/);
+    unmount();
+    mockApi(gateRoutes('X2', gateCard('X2', { item_id: null }), ctx(pack({ intact: false }))));
+    renderAt(`/decide/${CARD}`);
+    await user.click(await screen.findByRole('button', { name: /What this approval is about/ }));
+    expect(await screen.findByText(/Do not decide/)).toBeInTheDocument();
   });
 });

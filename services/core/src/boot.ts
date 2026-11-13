@@ -5,6 +5,7 @@ import {
   registerGatewayConfig,
   type ConfigDeps,
 } from '@aisdlc/config';
+import { AUDIT_BUCKET, EVIDENCE_BUCKET } from '@aisdlc/contracts';
 import { PgProofStore, SignedStepUp } from '@aisdlc/bff/stepup';
 import { createPool } from '@aisdlc/db';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
@@ -189,7 +190,17 @@ export async function bootCore(env: Env): Promise<RunningService> {
               purgePool: createPool(cfg.deletion.databaseUrl, 2),
               ledger: config.ledger,
               ...(cfg.deletion.objectStore
-                ? { objects: new S3ObjectStore(cfg.deletion.objectStore) }
+                ? {
+                    // the two write-once buckets the deletion purges, known without a request: its credential may
+                    // lift a hold and delete a version there, never create or configure a bucket
+                    objects: new S3ObjectStore({
+                      ...cfg.deletion.objectStore,
+                      knownBuckets: {
+                        [EVIDENCE_BUCKET]: 'write_once',
+                        [AUDIT_BUCKET]: 'write_once',
+                      },
+                    }),
+                  }
                 : {}),
             },
           }

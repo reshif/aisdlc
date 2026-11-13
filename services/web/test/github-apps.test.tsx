@@ -142,7 +142,7 @@ const routes = (decisions: ReturnType<typeof allow>) => ({
 describe('Integrations: GitHub Apps', () => {
   it('each App: jobs, installation, required vs granted (forbidden, extra), key loaded, the aisdlc/gate rule', async () => {
     mockApi(routes(allow('quality.read', 'project.onboard')));
-    renderAt('/integrations');
+    renderAt('/integrations/github');
     const table = await screen.findByRole('table', { name: 'GitHub Apps' });
     const [, factory, gate] = within(table).getAllByRole('row');
     expect(factory).toHaveTextContent('App ID 11');
@@ -164,7 +164,7 @@ describe('Integrations: GitHub Apps', () => {
 
   it('the repos: status per repo and the action it allows; Onboard only when not onboarded and allowed', async () => {
     mockApi(routes(allow('quality.read', 'project.onboard')));
-    renderAt('/integrations');
+    renderAt('/integrations/github');
     const table = await screen.findByRole('table', { name: 'Repositories' });
     const rows = within(table).getAllByRole('row').slice(1);
     const [fresh, inProgress, done, archived, odd] = rows as [
@@ -198,7 +198,7 @@ describe('Integrations: GitHub Apps', () => {
 
   it('without project.onboard the Onboard action is locked (the server still decides)', async () => {
     mockApi(routes(allow('quality.read')));
-    renderAt('/integrations');
+    renderAt('/integrations/github');
     const table = await screen.findByRole('table', { name: 'Repositories' });
     const fresh = within(table).getAllByRole('row')[1] as HTMLElement;
     // the LockedButton (aria-disabled, with the PDP's reason), not a link
@@ -219,7 +219,7 @@ describe('Integrations: GitHub Apps', () => {
         json: { error: { code: 'codehost_unavailable', message: 'the code host could not list' } },
       },
     });
-    renderAt('/integrations');
+    renderAt('/integrations/github');
     expect(await screen.findByText(/repos could not be read/)).toBeInTheDocument();
   });
 });
