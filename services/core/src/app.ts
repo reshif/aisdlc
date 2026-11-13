@@ -5,7 +5,7 @@ import {
   integrationEvents,
 } from './integration-api.js';
 import { registerPortalListRoutes } from './portal-lists.js';
-import { registerPortalOpsRoutes, type BudgetViewPort } from './portal-ops.js';
+import { registerPortalOpsRoutes, type BudgetViewPort, type PortalOpsDeps } from './portal-ops.js';
 import { registerFloorRoutes } from './floor.js';
 import { registerFleetRoutes } from './fleet.js';
 import { readHealthView } from './health.js';
@@ -229,6 +229,8 @@ export interface CoreAppOptions {
   readonly budgets?: BudgetViewPort;
   /** P2-21: the code host's installation repos for the onboard picker; default: the cards' code host reads. */
   readonly installationRepos?: Pick<CodeHostPort, 'list_repos'>;
+  /** P2-4: the GitHub Apps panel's sources (the App reports and the branch rules). */
+  readonly githubApps?: PortalOpsDeps['githubApps'];
   /** The object store of the Evidence Packs (M14.6: the pack viewer reads them back); without it the contents are not shown. */
   readonly objects?: ObjectStorePort;
   /** M16: config `codehost.merge_bypass` now in force (a restore re-attests it); absent or `null`: no restore. */
@@ -431,6 +433,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       : o.cards
         ? { repos: o.cards.source }
         : {}),
+    ...(o.githubApps ? { githubApps: o.githubApps } : {}),
   });
 
   // M19: the floor's live read model (floor.read on the project, item.view_floor per item)

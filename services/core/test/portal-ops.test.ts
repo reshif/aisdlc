@@ -2,7 +2,9 @@ import {
   BudgetsView,
   CostView,
   ITEM_EVENT,
+  CoreGithubAppsView,
   OnboardReposView,
+  type GithubAppJobReport,
   type InstallationRepo,
   type Lane,
 } from '@aisdlc/contracts';
@@ -32,6 +34,22 @@ let app: FastifyInstance;
 let url: string;
 let seeded: Seeded;
 let repos: InstallationRepo[] | null = [];
+let rulesDown = false;
+let appReport: GithubAppJobReport | null = {
+  job: 'read',
+  app_id: '123456',
+  installation_id: 1,
+  login: null,
+  key_loaded: true,
+  last_ok_at: null,
+  installation: {
+    state: 'ok',
+    account_login: 'acme',
+    repository_selection: 'selected',
+    permissions: { contents: 'write', metadata: 'read', pull_requests: 'write' },
+    suspended: false,
+  },
+};
 const TOKENS = { bff: 'bff-at-core-'.padEnd(32, 'x'), reader: 'reader-at-core-'.padEnd(32, 'x') };
 const CALLERS: Record<string, readonly CoreScope[]> = {
   bff: ['read', 'onboard', 'portal', 'work'],
@@ -68,6 +86,27 @@ beforeAll(async () => {
           ? { state: 'unknown', reason: 'server_error', message: 'down' }
           : { state: 'ok', value: repos },
     } as never,
+    githubApps: {
+      codehost: async () => (appReport === null ? null : { reports: [appReport] }),
+      pushBroker: null,
+      rules: {
+        rules_for_branch: async () =>
+          rulesDown
+            ? { state: 'unknown', reason: 'server_error', message: 'down' }
+            : {
+                state: 'ok',
+                value: {
+                  branch: 'main',
+                  pull_request: null,
+                  required_checks: [{ context: 'aisdlc/gate', integration_id: 654321 }],
+                  strict_status_checks: false,
+                  blocks_force_push: true,
+                  blocks_deletion: true,
+                  requires_linear_history: false,
+                },
+              },
+      } as never,
+    },
   });
   url = await listen(app);
 });
@@ -205,6 +244,21 @@ describe('GET /v1/onboarding/repos (P2-21)', () => {
       [`${owner.toUpperCase()}/${name}`, true],
       ['zeta/app', false],
     ]);
+    // P2-4: where each stands, from the record (the governing PRR's level and lanes)
+    const held = v.repos[0]?.onboarding;
+    expect(held?.state).toBe('onboarded');
+    if (held?.state !== 'onboarded') throw new Error('not onboarded');
+    expect(held.project_id).toBe(seeded.project);
+    expect(held.level).toBe('light');
+    expect(held.lanes?.length).toBeGreaterThan(0);
+    expect(v.repos[1]?.onboarding).toEqual({ state: 'not_onboarded' });
+  });
+
+  it('an archived repo reads archived', async () => {
+    repos = [{ full_name: 'zeta/old', default_branch: 'main', private: true, archived: true }];
+    const v = OnboardReposView.parse((await get('/v1/onboarding/repos?on_behalf_of=ada')).json);
+    expect(v.repos[0]?.onboarding).toEqual({ state: 'archived' });
+    repos = [];
   });
 
   it('is project.onboard on the fleet; a code host that does not answer is a 502, never an empty list', async () => {
@@ -212,5 +266,49 @@ describe('GET /v1/onboarding/repos (P2-21)', () => {
     repos = null;
     expect((await get('/v1/onboarding/repos?on_behalf_of=ada')).status).toBe(502);
     repos = [];
+  });
+});
+
+describe('GET /v1/integrations/github-apps (P2-4)', () => {
+  it('relays the App reports and reads each registered repo’s default-branch checks', async () => {
+    repos = [
+      { full_name: seeded.repo as never, default_branch: 'main', private: true, archived: false },
+    ];
+    const r = await get('/v1/integrations/github-apps?on_behalf_of=ada');
+    expect(r.status).toBe(200);
+    const v = CoreGithubAppsView.parse(r.json);
+    expect(v.sources).toEqual([
+      { source: 'codehost', state: 'ok' },
+      { source: 'push-broker', state: 'not_configured' },
+    ]);
+    expect(v.reports.map((x) => x.job)).toEqual(['read']);
+    expect(v.branches).toEqual([
+      {
+        repo: seeded.repo,
+        branch: 'main',
+        required_checks: [{ context: 'aisdlc/gate', integration_id: 654321 }],
+      },
+    ]);
+    // the auditor reads it too (quality.read); a requester does not
+    expect((await get('/v1/integrations/github-apps?on_behalf_of=aud')).status).toBe(200);
+    expect((await get('/v1/integrations/github-apps?on_behalf_of=ria')).status).toBe(403);
+  });
+
+  it('a reporter that does not answer, or rules that cannot be read, are unknown, never ok', async () => {
+    const saved = appReport;
+    appReport = null;
+    rulesDown = true;
+    try {
+      const v = CoreGithubAppsView.parse(
+        (await get('/v1/integrations/github-apps?on_behalf_of=ada')).json,
+      );
+      expect(v.sources[0]).toEqual({ source: 'codehost', state: 'unreachable' });
+      expect(v.reports).toEqual([]);
+      expect(v.branches[0]?.required_checks).toBeNull();
+    } finally {
+      appReport = saved;
+      rulesDown = false;
+      repos = [];
+    }
   });
 });

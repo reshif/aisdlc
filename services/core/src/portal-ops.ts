@@ -7,8 +7,12 @@ import {
   type BudgetGroupView,
   type BudgetRow,
   type BudgetsView,
+  type CoreGithubAppsView,
   type CostView,
+  type GithubAppReport,
   type OnboardReposView,
+  type ProjectSummary,
+  type RepoOnboardingState,
 } from '@aisdlc/contracts';
 import type { Result } from '@aisdlc/kernel';
 import type { Pdp } from '@aisdlc/pdp';
@@ -17,7 +21,8 @@ import { sendError } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
-import { registeredRepos } from './queries.js';
+import { readGoverning } from './prr-store.js';
+import { listProjects, registeredRepos } from './queries.js';
 import { catchUpWork } from './work-projection.js';
 
 // The portal's operate and govern reads of the P2 gap list (docs/design/portal-review.md §12, contracts
@@ -27,6 +32,8 @@ import { catchUpWork } from './work-projection.js';
 //   GET /v1/budgets?on_behalf_of=             portal  ops.read on the fleet      P2-8: budget groups
 //   GET /v1/cost?on_behalf_of=[&days=]        portal  quality.read on the fleet  P2-8: spend per day, project, merged item
 //   GET /v1/onboarding/repos?on_behalf_of=    onboard project.onboard on the fleet  P2-21: the installation's repos
+//                                                                                 (and where each stands, P2-4)
+//   GET /v1/integrations/github-apps?on_behalf_of=  portal quality.read or ops.read  P2-4: the App reports, the rules
 //
 // Budgets: what settled calls spent is summed from `gateway.model_call` (refusals spend nothing), ET1 from
 // `gateway.budget_exhausted`; the limits and the reservations of calls in flight live in the gateway alone and are
@@ -45,7 +52,18 @@ export interface PortalOpsDeps {
   readonly allowed: (req: FastifyRequest, scope: 'portal' | 'onboard') => boolean;
   readonly budget?: BudgetViewPort;
   readonly repos?: Pick<CodeHostPort, 'list_repos'>;
+  /**
+   * The GitHub Apps panel: the App reports of the services that hold the keys (the codehost, the Push Broker; `null`
+   * when that one is not configured here) and the codehost's branch rules (`posture`).
+   */
+  readonly githubApps?: {
+    readonly codehost: (() => Promise<GithubAppReport | null>) | null;
+    readonly pushBroker: (() => Promise<GithubAppReport | null>) | null;
+    readonly rules: Pick<CodeHostPort, 'rules_for_branch'> | null;
+  };
 }
+
+type PortalOpsAction = 'ops.read' | 'quality.read' | 'project.onboard';
 
 /** At most this many groups are listed (newest activity first), and asked of the gateway. */
 const MAX_GROUPS = 100;
@@ -59,8 +77,9 @@ export function registerPortalOpsRoutes(d: PortalOpsDeps): void {
     req: FastifyRequest,
     reply: FastifyReply,
     scope: 'portal' | 'onboard',
-    action: 'ops.read' | 'quality.read' | 'project.onboard',
+    action: PortalOpsAction | readonly PortalOpsAction[],
   ): Promise<string | null> {
+    const actions: readonly PortalOpsAction[] = typeof action === 'string' ? [action] : action;
     if (!d.allowed(req, scope)) {
       sendError(reply, 403, 'forbidden', `scope ${scope} is needed`);
       return null;
@@ -74,20 +93,23 @@ export function registerPortalOpsRoutes(d: PortalOpsDeps): void {
       sendError(reply, 503, 'unavailable', 'no policy decision point is configured');
       return null;
     }
-    let out;
-    try {
-      out = await d.pdp.decide({ principal: p.data, action, resource: pdpResource.fleet() });
-    } catch {
-      sendError(reply, 503, 'unavailable', 'the policy decision point could not answer');
-      return null;
+    // any one of the actions allows (the Integrations page: quality.read or ops.read)
+    const reasons: unknown[] = [];
+    for (const a of actions) {
+      let out;
+      try {
+        out = await d.pdp.decide({ principal: p.data, action: a, resource: pdpResource.fleet() });
+      } catch {
+        sendError(reply, 503, 'unavailable', 'the policy decision point could not answer');
+        return null;
+      }
+      if (out.decision === 'allow') return p.data;
+      reasons.push(...out.reasons);
     }
-    if (out.decision !== 'allow') {
-      reply.code(403).send({
-        error: { code: 'forbidden', message: `${action} denied`, reasons: out.reasons },
-      });
-      return null;
-    }
-    return p.data;
+    reply.code(403).send({
+      error: { code: 'forbidden', message: `${actions.join(' or ')} denied`, reasons },
+    });
+    return null;
   }
 
   // ------------------------------------------------------------ P2-8: budget groups
@@ -165,13 +187,135 @@ export function registerPortalOpsRoutes(d: PortalOpsDeps): void {
     } catch {
       return sendError(reply, 503, 'unavailable', 'the registered repos could not be read');
     }
+    const states = await onboardingStates(d.pool).catch(() => null);
     const view: OnboardReposView = {
       repos: [...got.value]
         .sort((a, b) => a.full_name.localeCompare(b.full_name))
-        .map((r) => ({ ...r, registered: known.has(r.full_name.toLowerCase()) })),
+        .map((r) => ({
+          ...r,
+          registered: known.has(r.full_name.toLowerCase()),
+          onboarding: r.archived
+            ? { state: 'archived' }
+            : states === null
+              ? { state: 'unknown' }
+              : (states.get(r.full_name.toLowerCase()) ?? { state: 'not_onboarded' }),
+        })),
     };
     return view;
   });
+
+  // ------------------------------------------------------------ P2-4: the GitHub Apps panel (read only)
+
+  app.get('/v1/integrations/github-apps', async (req, reply) => {
+    if (!(await reader(req, reply, 'portal', ['quality.read', 'ops.read']))) return;
+    const g = d.githubApps;
+    const ask = async (
+      source: 'codehost' | 'push-broker',
+      f: (() => Promise<GithubAppReport | null>) | null | undefined,
+    ) => {
+      if (!f) return { source, state: 'not_configured' as const, reports: [] };
+      const r = await f().catch(() => null);
+      return r === null
+        ? { source, state: 'unreachable' as const, reports: [] }
+        : { source, state: 'ok' as const, reports: r.reports };
+    };
+    const [ch, pb] = await Promise.all([
+      ask('codehost', g?.codehost),
+      ask('push-broker', g?.pushBroker),
+    ]);
+    // the registered repos' default branches: does each require aisdlc/gate (the bff pins it to gate-check's App)?
+    const registered = await registeredRepos(d.pool)
+      .then((rs) => [...new Set(rs.map((r) => r.repo))])
+      .catch(() => [] as string[]);
+    const listed = d.repos ? await d.repos.list_repos().catch(() => null) : null;
+    const branches = await Promise.all(
+      registered.map(async (repo) => {
+        const info =
+          listed?.state === 'ok'
+            ? listed.value.find((r) => r.full_name.toLowerCase() === repo.toLowerCase())
+            : undefined;
+        const branch = info?.default_branch ?? null;
+        if (branch === null || !g?.rules) return { repo, branch, required_checks: null };
+        const rules = await g.rules
+          .rules_for_branch({ repo: repo as never, branch })
+          .catch(() => null);
+        return {
+          repo,
+          branch,
+          required_checks:
+            rules?.state === 'ok'
+              ? rules.value.required_checks.map((c) => ({
+                  context: c.context,
+                  integration_id: c.integration_id,
+                }))
+              : null,
+        };
+      }),
+    );
+    const view: CoreGithubAppsView = {
+      sources: [
+        { source: ch.source, state: ch.state },
+        { source: pb.source, state: pb.state },
+      ],
+      reports: [...ch.reports, ...pb.reports],
+      branches,
+    };
+    return view;
+  });
+}
+
+/**
+ * Where each repo a project holds stands, by lower-cased name: onboarded when a PRR governs it (its signed level and
+ * lanes), else from the newest S0 record over every project naming it (a finished one with no PRR yet: level unknown).
+ */
+async function onboardingStates(pool: pg.Pool): Promise<Map<string, RepoOnboardingState>> {
+  const newest = new Map<
+    string,
+    { project_id: string; s0: NonNullable<ProjectSummary['latest_s0']> }
+  >();
+  for (const p of await listProjects(pool)) {
+    const s0 = p.latest_s0;
+    if (!s0) continue;
+    const key = s0.repo.toLowerCase();
+    const have = newest.get(key);
+    if (!have || have.s0.updated_at < s0.updated_at) {
+      newest.set(key, { project_id: p.project.project_id, s0 });
+    }
+  }
+  const out = new Map<string, RepoOnboardingState>();
+  for (const [key, { project_id, s0 }] of newest) {
+    // a PRR that governs the repo makes it onboarded (a level-up S0 may be running beside it)
+    const g = await readGoverning(pool, s0.repo);
+    if (g?.governing) {
+      out.set(key, {
+        state: 'onboarded',
+        project_id: g.project_id as never,
+        s0_id: g.governing.s0_id,
+        level: g.governing.prr.level.signed,
+        lanes: [...g.governing.prr.autonomy.lanes_eligible],
+      });
+    } else if (s0.status === 'superseded' || s0.status === 'withdrawn') {
+      out.set(key, { state: 'not_onboarded' });
+    } else if (s0.status === 'done') {
+      // finished, but no PRR governs (yet): onboarded, level and lanes unknown
+      out.set(key, {
+        state: 'onboarded',
+        project_id: project_id as never,
+        s0_id: s0.s0_id,
+        level: null,
+        lanes: null,
+      });
+    } else {
+      out.set(key, {
+        state: 'onboarding',
+        project_id: project_id as never,
+        s0_id: s0.s0_id,
+        status: s0.status,
+        waiting: s0.waiting,
+      });
+    }
+  }
+  return out;
 }
 
 type Num = string | number | null;

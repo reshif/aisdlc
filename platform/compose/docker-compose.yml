@@ -394,6 +394,7 @@ secrets:
   push-broker-app.pem: { file: './secrets/${AISDLC_PUSH_BROKER_KEY:-push-broker-app}.pem' }
   push-broker-app.pub.pem: { file: './secrets/${AISDLC_PUSH_BROKER_KEY:-push-broker-app}.pub.pem' }
   tok-core-worker-push-broker: { file: ./secrets/tok-core-worker-push-broker }
+  tok-core-push-broker: { file: ./secrets/tok-core-push-broker }
   tok-push-broker-core: { file: ./secrets/tok-push-broker-core }
   tok-push-broker-identity: { file: ./secrets/tok-push-broker-identity }
   tok-smoke-docker-coding: { file: ./secrets/tok-smoke-docker-coding }
@@ -907,6 +908,9 @@ services:
       CORE_KNOWLEDGE_TOKEN_REF: file:/run/secrets/tok-core-knowledge
       CORE_CODEHOST_URL: http://codehost:8350
       CORE_CODEHOST_TOKEN_REF: file:/run/secrets/tok-core-codehost
+      # P2-4: the Push Broker's App report only (scope `status`), for the portal's GitHub Apps panel
+      CORE_PUSH_BROKER_URL: http://push-broker:8350
+      CORE_PUSH_BROKER_TOKEN_REF: file:/run/secrets/tok-core-push-broker
       # M14.6: the portal's Evidence Pack viewer reads the signed packs 7.6 stored (read only: core never writes there).
       CORE_OBJECT_STORE_URL: http://object-store:9000
       CORE_OBJECT_STORE_ACCESS_KEY_REF: file:/run/secrets/object-store-access-key
@@ -936,6 +940,7 @@ services:
         tok-core-kms,
         tok-core-knowledge,
         tok-core-codehost,
+        tok-core-push-broker,
         tok-core-gateway,
         tok-core-identity,
         tok-sandbox-controller-core,
@@ -1249,7 +1254,8 @@ services:
       CODEHOST_GITHUB_PLAIN_HTTP_HOSTS: '["codehost"]'
       CODEHOST_COMMITTER_NAME: ${PUSH_BROKER_LOGIN:-aisdlc[bot]}
       CODEHOST_CALLERS: >-
-        {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-push-broker","scopes":["push"]}}
+        {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-push-broker","scopes":["push"]},
+        "core":{"token_ref":"file:/run/secrets/tok-core-push-broker","scopes":["status"]}}
       CODEHOST_IDENTITY_URL: http://identity:8330
       CODEHOST_IDENTITY_TOKEN_REF: file:/run/secrets/tok-push-broker-identity
       CODEHOST_CORE_URL: http://core:8380
@@ -1261,6 +1267,7 @@ services:
       [
         push-broker-app.pem,
         tok-core-worker-push-broker,
+        tok-core-push-broker,
         tok-push-broker-core,
         tok-push-broker-identity,
       ]

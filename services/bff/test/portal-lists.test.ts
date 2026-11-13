@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { bindProject, grantFleetRole } from '@aisdlc/identity/testing';
+import { GithubAppsView } from '@aisdlc/contracts';
 import { Browser, signIn, startBffStack, type BffStack } from '../src/testing.js';
 import { CORE_TOKEN, ITEM_ID, startFakeCore, type FakeCore } from './portal-fixtures.js';
 
@@ -14,6 +15,7 @@ type Who = 'alice' | 'bob' | 'carol' | 'dora' | 'root';
 let s: BffStack;
 let core: FakeCore;
 let sc: FakeCore;
+let gc: FakeCore;
 const sessions = new Map<Who, { browser: Browser; csrf: string }>();
 
 async function as(who: Who) {
@@ -84,7 +86,10 @@ const SLOTS = {
 beforeAll(async () => {
   core = await startFakeCore();
   sc = await startFakeCore();
-  s = await startBffStack({ override: { core: core.client, sandboxController: sc.client } });
+  gc = await startFakeCore();
+  s = await startBffStack({
+    override: { core: core.client, sandboxController: sc.client, gateCheck: gc.client },
+  });
   // alice administers acme; bob is acme's intent holder; root is a factory admin; carol a factory auditor; dora has
   // nothing
   await bindProject(s.identity, 'acme', { admin: ['alice'], intent: ['bob'] });
@@ -96,11 +101,13 @@ afterAll(async () => {
   await s?.stop();
   await core?.stop();
   await sc?.stop();
+  await gc?.stop();
 });
 beforeEach(() => {
   core.seen.length = 0;
   core.override.clear();
   sc.override.clear();
+  gc.override.clear();
 });
 
 /** PLAN §7a: Quality is `quality.read`, Operate `ops.read`, the decision log stays `audit.read` (all on the fleet). */
@@ -216,6 +223,87 @@ describe('fleet reads: Quality, Operate and the decision log', () => {
     const ok = await api('root', 'GET', '/api/integrations');
     expect(ok.status).toBe(200);
     expect(ok.json.health.tiles).toEqual([]);
+  });
+
+  it('P2-4 GitHub Apps: one row per App id, the grant against the union of its jobs, the aisdlc/gate rule', async () => {
+    const inst = (permissions: Record<string, string>) => ({
+      state: 'ok',
+      account_login: 'acme',
+      repository_selection: 'selected',
+      permissions,
+      suspended: false,
+    });
+    const job = (j: string, app: string, permissions: Record<string, string> | null) => ({
+      job: j,
+      app_id: app,
+      installation_id: 7,
+      login: j === 'push' ? 'aisdlc-factory-x[bot]' : null,
+      key_loaded: true,
+      last_ok_at: T,
+      installation: permissions ? inst(permissions) : { state: 'unknown', reason: 'not_read' },
+    });
+    const factory = { contents: 'write', metadata: 'read', pull_requests: 'write' };
+    core.override.set('GET /v1/integrations/github-apps?on_behalf_of=root', {
+      status: 200,
+      json: {
+        sources: [
+          { source: 'codehost', state: 'ok' },
+          { source: 'push-broker', state: 'ok' },
+        ],
+        reports: [job('read', '11', factory), job('push', '11', null)],
+        branches: [
+          {
+            repo: 'acme/web',
+            branch: 'main',
+            required_checks: [{ context: 'aisdlc/gate', integration_id: 22 }],
+          },
+          { repo: 'acme/api', branch: 'main', required_checks: null },
+        ],
+      },
+    });
+    gc.override.set('GET /v1/app', {
+      status: 200,
+      json: {
+        reports: [
+          job('gate-check', '22', {
+            checks: 'write',
+            metadata: 'read',
+            pull_requests: 'read',
+            administration: 'write',
+          }),
+        ],
+      },
+    });
+    expect((await api('alice', 'GET', '/api/integrations/github-apps')).status).toBe(403);
+    const r = await api('root', 'GET', '/api/integrations/github-apps');
+    expect(r.status).toBe(200);
+    const v = GithubAppsView.parse(r.json);
+    expect(v.apps.map((a) => [a.kind, a.app_id, a.jobs])).toEqual([
+      ['factory', '11', ['read', 'push']],
+      ['gate-check', '22', ['gate-check']],
+    ]);
+    expect(v.apps[0]?.comparison?.ok).toBe(true);
+    expect(v.apps[0]?.login).toBe('aisdlc-factory-x[bot]');
+    expect(v.apps[1]?.comparison).toEqual({
+      ok: false,
+      missing: [],
+      extra: ['administration:write'],
+      forbidden: ['administration:write'],
+    });
+    expect(v.gate_rule).toEqual([
+      { repo: 'acme/web', branch: 'main', state: 'required' },
+      { repo: 'acme/api', branch: 'main', state: 'unknown' },
+    ]);
+    expect(v.setup_command).toContain('setup-github-apps');
+    expect(JSON.stringify(r.json)).not.toMatch(/PRIVATE KEY|ghs_/);
+
+    // gate-check unreachable: its source says so, and no rule can read "required"
+    gc.override.set('GET /v1/app', { status: 503, json: {} });
+    const down = GithubAppsView.parse(
+      (await api('root', 'GET', '/api/integrations/github-apps')).json,
+    );
+    expect(down.sources.at(-1)).toEqual({ source: 'gate-check', state: 'unreachable' });
+    expect(down.gate_rule[0]?.state).toBe('unknown');
   });
 
   it('M19 health: the service and loop tiles, audit.read on the fleet; a broken answer is a 502', async () => {

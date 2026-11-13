@@ -11,7 +11,7 @@ import { HttpNotary } from '@aisdlc/notary/client';
 import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
 import { BootstrapPdpEntities } from '@aisdlc/onboarding';
-import { HttpCodeHostReads, S3ObjectStore } from '@aisdlc/ports';
+import { HttpCodeHostReads, S3ObjectStore, fetchGithubAppReport } from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreApp } from './app.js';
 import { HttpAdmissionVerdict } from './floor-live.js';
@@ -35,6 +35,10 @@ import { workSettingsFrom } from './work-control.js';
  * `aisdlc-migrate`), the core schema is migrated here. The PDP reads the published `pdp.bundle`
  * through a config reader, so until one is published every decision is a deny.
  */
+/** A service's App report (`GET /v1/app`), or `null` when the service is not configured. */
+const reportOf = (r: { url: string; token: string } | null) =>
+  r === null ? null : () => fetchGithubAppReport({ baseUrl: r.url, token: r.token });
+
 export async function bootCore(env: Env): Promise<RunningService> {
   const cfg = coreConfigFromEnv(env);
   const listenOpts = listenConfig(env, 'CORE', 8380);
@@ -156,6 +160,12 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(cards ? { cards } : {}),
       ...(assistant ? { assistant } : {}),
       ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
+      // P2-4: the GitHub Apps panel asks the services that hold the keys (never a key itself)
+      githubApps: {
+        codehost: reportOf(cfg.cards?.codehost ?? null),
+        pushBroker: reportOf(cfg.pushBroker),
+        rules: cards ? cards.source : null,
+      },
       // M16: a drift restore re-attests the per-repo bypass list in force
       ...(reader ? { bypass: mergeBypassFrom(reader) } : {}),
       // P2-16: the clarifying deadline is counted on the S0 calendar, as the work driver's timers are
