@@ -1220,6 +1220,24 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   LegalHoldList: entities.LegalHoldList,
   RetentionView: entities.RetentionView,
   SignedExportBytes: entities.SignedExportBytes,
+  // portal-ops.ts (the P2 operate and govern gaps)
+  CardRouteKind: entities.CardRouteKind,
+  CardKindView: entities.CardKindView,
+  BudgetRow: entities.BudgetRow,
+  BudgetsView: entities.BudgetsView,
+  CostDay: entities.CostDay,
+  MergedItemCost: entities.MergedItemCost,
+  CostOutcome: entities.CostOutcome,
+  CostView: entities.CostView,
+  BreakersView: entities.BreakersView,
+  BreakerResetRequested: entities.BreakerResetRequested,
+  PublishBannerBody: entities.PublishBannerBody,
+  ProviderTestResult: entities.ProviderTestResult,
+  ProviderTestedPayload: entities.ProviderTestedPayload,
+  GatewayAdapterState: entities.GatewayAdapterState,
+  GatewayReloadView: entities.GatewayReloadView,
+  OnboardRepo: entities.OnboardRepo,
+  OnboardReposView: entities.OnboardReposView,
 };
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
