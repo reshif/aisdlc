@@ -2,6 +2,8 @@ import {
   STEPS,
   StepIdValues,
   feasibilityFlagged,
+  label,
+  lookupTerm,
   type ActorKind,
   type FloorItem,
   type FloorMove,
@@ -11,7 +13,7 @@ import {
   type FloorView,
 } from '@aisdlc/contracts';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { ActorGlyph, laneFill, laneText } from '../ui';
+import { ActorGlyph, laneFill } from '../ui';
 import { FLOOR_ROOM_TEXT, FLOOR_STAGE_TEXT, FLOOR_STATUS_TEXT } from '../vocab';
 import {
   BB,
@@ -200,10 +202,10 @@ export function FloorPlanView(p: FloorPlanProps) {
               <line x1="1480" y1={Y1 - 140} x2="1480" y2={Y2} />
             </g>
             <text className="fl-tracklbl" x="40" y={Y1 - 9}>
-              bypass track
+              off the main belt
             </text>
             <text className="fl-tracklbl" x="40" y={Y2 - 9}>
-              bypass track
+              off the main belt
             </text>
             <path className="fl-belt" d={`M14 ${BT} H${VX} V${BB} H52`} />
             <path className="fl-belt-run" d={`M14 ${BT} H${VX} V${BB} H52`} />
@@ -233,7 +235,7 @@ export function FloorPlanView(p: FloorPlanProps) {
                 className={`fl-st${id === 'S6' ? ' fl-s6' : ''}${route?.has(id) ? ' fl-onroute' : ''}`}
                 role="button"
                 tabIndex={0}
-                // the name is the text shown, id and stage (WCAG 2.5.3: no aria-label to drift from it); the
+                // the name is the text shown, the stage's name (WCAG 2.5.3: no aria-label to drift from it); the
                 // count, the score and the pods, hidden from the tree inside, are its description
                 aria-describedby={`fl-st-d-${id}`}
                 onClick={() => p.onOpen({ kind: 'station', stage: id })}
@@ -245,7 +247,6 @@ export function FloorPlanView(p: FloorPlanProps) {
                   <span
                     className={`fl-led${stuck ? ' fl-bad' : items.length > 0 ? ' fl-on' : ''}`}
                   />
-                  <span className="ui-mono">{id}</span>
                   <span className="fl-sp" />
                   <span aria-hidden="true">
                     <ScoreChip chips={view.scores.filter((c) => c.stage === id)} />
@@ -352,7 +353,7 @@ export function FloorPlanView(p: FloorPlanProps) {
                 <button
                   type="button"
                   className="fl-dia"
-                  aria-label={`Gate ${g.key}${off ? ' (off for this project)' : ''}: ${waiting.length} waiting${who.length ? `, decided by ${who.join(', ')}` : ''}${flagged.length > 0 ? `, ${flagged.length} cannot be decided as things stand` : ''}. Open the gate`}
+                  aria-label={`${g.gates.map((x) => label('gate', x)).join(' and ')}${off ? ' (off for this project)' : ''}: ${waiting.length} waiting${who.length ? `, decided by ${who.join(', ')}` : ''}${flagged.length > 0 ? `, ${flagged.length} cannot be decided as things stand` : ''}. Open the approval`}
                   onClick={() => p.onOpen({ kind: 'gate', key: g.key })}
                 />
                 {flagged.length > 0 ? (
@@ -399,9 +400,9 @@ export function FloorPlanView(p: FloorPlanProps) {
               if (!c) return null;
               const where =
                 it.node.kind === 'station'
-                  ? `${it.node.stage}${it.step ? ` step ${it.step}` : ''}`
+                  ? FLOOR_STAGE_TEXT[it.node.stage]
                   : it.node.kind === 'gate'
-                    ? `gate ${it.node.key}`
+                    ? 'an approval'
                     : FLOOR_ROOM_TEXT[it.node.room].title;
               const cls = [
                 'fl-chip',
@@ -437,7 +438,7 @@ export function FloorPlanView(p: FloorPlanProps) {
                   type="button"
                   className={cls}
                   style={{ left: c.x, top: c.y }}
-                  aria-label={`${it.key.slice(0, 4)}: item ${it.key}, lane ${laneText(it.lane)}, ${FLOOR_STATUS_TEXT[it.status].label} at ${where}${it.title ? `: ${it.title}` : ''}`}
+                  aria-label={`${it.key.slice(0, 4)}: item ${it.key}, ${lookupTerm('lane', it.lane)?.label ?? 'Unknown'}, ${FLOOR_STATUS_TEXT[it.status].label} at ${where}${it.title ? `: ${it.title}` : ''}`}
                   onClick={() => p.onOpen({ kind: 'item', id: it.item_id })}
                   onMouseEnter={() => setFocus(it)}
                   onMouseLeave={() => setFocus(null)}
@@ -462,7 +463,7 @@ export function FloorPlanView(p: FloorPlanProps) {
               }}
             >
               <div>
-                <b className="ui-mono">{focus.key}</b> · {laneText(focus.lane)}
+                <b className="ui-mono">{focus.key}</b> · {lookupTerm('lane', focus.lane)?.label}
                 {focus.lane_bound ? '' : ' (proposed)'} · {FLOOR_STATUS_TEXT[focus.status].label}
               </div>
               <div className="fl-tip-t">

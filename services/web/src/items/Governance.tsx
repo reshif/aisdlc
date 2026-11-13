@@ -1,15 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { pdpResource, type PortalItemView } from '@aisdlc/contracts';
+import { label, lookupTerm, pdpResource, type PortalItemView } from '@aisdlc/contracts';
 import { useState } from 'react';
 import { api } from '../api';
 import { Guarded } from '../access';
 import { ErrorNote } from '../components/Notice';
 import { Link } from '../router';
-import { Card, GateTag, Pill } from '../ui';
+import { Card, Pill } from '../ui';
 
-// M15 on the item page: G5's release status with RELHOLD's re-request, B14 (the mode-E approver is unsure: the
-// review goes to a codeowner, mode C), and the way to the 9.3 close-out record. Each button is the PDP's hint for
-// the person on this item; the server decides (the slot, the approver bars, the item's state) and may still refuse.
+// On the item page: the release approval with "ask to release again" when it is held, "I'm not sure" (a light code
+// review goes to a code owner instead), and the way to the final record. Each button is the PDP's hint for the person
+// on this item; the server decides (the role, the approver bars, the item's state) and may still refuse.
 
 /** One retry key per press: the same key is the same signal, so a double click is not two. */
 const newKey = (): string => `portal-${crypto.randomUUID()}`;
@@ -19,7 +19,7 @@ export function ItemGovernance({ item, csrf }: { item: PortalItemView; csrf: str
   const g5 = item.gates.filter((g) => g.gate === 'G5');
   const g4Pending = item.gates.some((g) => g.gate === 'G4' && g.status === 'pending');
   const lastG5 = g5.at(-1);
-  // RELHOLD: the release was turned down; once the fix window is over the requester asks for G5 again.
+  // the release was turned down; once the fix window is over the requester asks for it again
   const onHold =
     lastG5 !== undefined && lastG5.status === 'decided' && lastG5.outcome !== 'approve';
   const closed = item.terminal !== null || item.phase === 'S9' || item.phase === 'G6';
@@ -27,16 +27,16 @@ export function ItemGovernance({ item, csrf }: { item: PortalItemView; csrf: str
   return (
     <>
       {g5.length > 0 ? (
-        <Card title="Release (G5)" testId="item-release">
-          <ul className="pg-list" aria-label="Release decisions">
+        <Card title={label('gate', 'G5')} testId="item-release">
+          <ul className="wk-list" aria-label="Release decisions">
             {g5.map((g) => (
               <li key={g.gate_instance_id}>
-                <GateTag gate="G5" />
                 {g.status === 'pending' ? (
-                  <Pill tone="warn">waiting for a decision</Pill>
+                  <Pill tone="warn">{label('gateStatus', 'pending')}</Pill>
                 ) : (
                   <Pill tone={g.outcome === 'approve' ? 'ok' : 'bad'}>
-                    {g.outcome ?? 'decided'}
+                    {lookupTerm('decision', g.outcome ?? '')?.label ??
+                      label('gateStatus', 'decided')}
                   </Pill>
                 )}
               </li>
@@ -45,13 +45,13 @@ export function ItemGovernance({ item, csrf }: { item: PortalItemView; csrf: str
           {onHold ? (
             <>
               <p>
-                The release is on hold (RELHOLD). When the fix window has passed, ask for the
-                release again: G5 opens anew and its deciders see it in their inbox.
+                The release is on hold. When the fix window has passed, ask for the release again:
+                the release approval opens anew and its deciders see it in their inbox.
               </p>
-              <Guarded action="item.release" resource={resource} label="Re-request the release">
+              <Guarded action="item.release" resource={resource} label="Ask to release again">
                 <ActionButton
-                  label="Re-request the release"
-                  done="The release is requested again."
+                  label="Ask to release again"
+                  done="The release is asked for again."
                   run={() => api.itemReRequestRelease(item.item_id, newKey(), csrf)}
                   id={item.item_id}
                 />
@@ -61,15 +61,15 @@ export function ItemGovernance({ item, csrf }: { item: PortalItemView; csrf: str
         </Card>
       ) : null}
       {g4Pending ? (
-        <Card title="Not sure about this merge?" testId="item-unsure">
+        <Card title="Not sure about this code review?" testId="item-unsure">
           <p>
-            An evidence approver (mode E) decides on the Evidence Pack alone. If you are unsure,
-            send the review to a codeowner instead (B14: mode C). Nothing is approved by this.
+            In a light review the code reviewer decides on the evidence pack alone. If you are
+            unsure, ask a code owner to do a full review instead. Nothing is approved by this.
           </p>
           <Guarded action="item.unsure" resource={resource} mode="hide">
             <ActionButton
-              label="I am unsure: ask a codeowner"
-              done="The review now goes to a codeowner (mode C)."
+              label={label('decideWord', 'unsure')}
+              done="A code owner now does a full review."
               run={() => api.itemUnsure(item.item_id, newKey(), csrf)}
               id={item.item_id}
             />
@@ -77,10 +77,10 @@ export function ItemGovernance({ item, csrf }: { item: PortalItemView; csrf: str
         </Card>
       ) : null}
       {closed ? (
-        <Card title="Close-out" testId="item-closeout-link">
+        <Card title={label('concept', 'closeout')} testId="item-closeout-link">
           <p>
-            <Link to={`/items/${item.item_id}/closeout`}>The close-out record</Link>: every gate
-            with its ledger decision, the merge, the release, the acceptance and the rework (9.3).
+            <Link to={`/items/${item.item_id}/closeout`}>Open the final record</Link>: every
+            approval with its decision, the merge, the release, the acceptance and the rework.
           </p>
         </Card>
       ) : null}
@@ -89,7 +89,7 @@ export function ItemGovernance({ item, csrf }: { item: PortalItemView; csrf: str
 }
 
 function ActionButton({
-  label,
+  label: text,
   done,
   run,
   id,
@@ -111,10 +111,10 @@ function ActionButton({
   return (
     <>
       <button type="button" className="ui-btn" disabled={m.isPending} onClick={() => m.mutate()}>
-        {label}
+        {text}
       </button>
       {ok ? (
-        <p role="status" className="muted">
+        <p role="status" className="wk-muted">
           {done}
         </p>
       ) : null}

@@ -392,14 +392,16 @@ describe('the inbox lists the after-onboarding items and the pack X2', () => {
     });
     renderAt('/inbox');
     expect(
-      await screen.findByRole('link', { name: 'Restore a suspended readiness record: acme/web' }),
+      await screen.findByRole('link', {
+        name: 'Review: Restore a suspended readiness record: acme/web',
+      }),
     ).toHaveAttribute('href', '/projects/acme/drift');
     expect(
-      screen.getByRole('link', { name: 'Re-affirm changed instruction text: acme/web' }),
+      screen.getByRole('link', { name: 'Review: Re-affirm changed instruction text: acme/web' }),
     ).toHaveAttribute('href', '/projects/acme/drift');
-    expect(screen.getByRole('link', { name: 'X2: the onboarding pack PR' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Decide: Onboarding files change' })).toHaveAttribute(
       'href',
-      '/cards/01a1bc26-f0e5-719a-a52b-a88a4b6cbe99',
+      '/decide/01a1bc26-f0e5-719a-a52b-a88a4b6cbe99',
     );
   });
 

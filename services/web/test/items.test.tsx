@@ -86,12 +86,15 @@ describe('the gates of an item (P2-10)', () => {
       },
     });
     renderAt(`/items/${ITEM}`);
-    const route = await screen.findByTestId('route-gates');
-    expect(route.querySelector('[data-gate="G0"]')).toBeNull();
-    expect(route.querySelector('[data-gate="G4"]')).toHaveTextContent('not reached yet');
-    expect(route.querySelector('[data-gate="E1"]')).toHaveTextContent('raised by a step');
-    expect(route.querySelector('[data-gate="G2"]')).toHaveTextContent('off for this project');
-    expect(route.querySelector('[data-gate="G3d"]')).toHaveAttribute('data-off', 'true');
+    const route = await screen.findByTestId('item-gates');
+    // in plain words: the approval's name, never its code
+    expect(route).not.toHaveTextContent(/\b(G0|G4|E1|G2)\b/);
+    expect(route.querySelector('[data-gate="G0"]')).toHaveTextContent('Accept the request');
+    expect(route.querySelector('[data-gate="G0"]')).toHaveAttribute('data-state', 'approved');
+    expect(route.querySelector('[data-gate="G4"]')).toHaveTextContent('Not reached yet');
+    expect(route.querySelector('[data-gate="E1"]')).toHaveAttribute('data-state', 'waiting');
+    expect(route.querySelector('[data-gate="G2"]')).toHaveTextContent('Off: step skipped');
+    expect(route.querySelector('[data-gate="G3d"]')).toHaveAttribute('data-state', 'off');
     expect(route.querySelector('[data-gate="G5"]')).toBeNull();
   });
 
@@ -114,11 +117,14 @@ describe('the work item page', () => {
       },
     });
     renderAt(`/items/${ITEM}`);
-    expect(await screen.findByRole('heading', { level: 1, name: 'Work item' })).toBeInTheDocument();
-    expect(screen.getByTestId('item-waiting')).toHaveTextContent(/ready for the first approval/);
-    expect(screen.getByTestId('item-lane')).toHaveTextContent('L4 (proposed, not yet approved)');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Item 33333333' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('item-waiting')).toHaveTextContent(/ready for its first approval/);
+    expect(screen.getByTestId('item')).toHaveTextContent('Track: Feature (proposed)');
+    expect(screen.getByText('Nothing for you to do on this item right now.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Say it is ready' })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Ready decision' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Is this ready?' })).toBeNull();
     expect(screen.getByText(/Answered\./)).toBeInTheDocument();
   });
 
@@ -171,7 +177,7 @@ describe('the work item page', () => {
       [`POST ${PATH}/ready`]: { json: result() },
     });
     renderAt(`/items/${ITEM}`);
-    const region = await screen.findByRole('region', { name: 'Ready decision' });
+    const region = await screen.findByRole('region', { name: 'Is this ready?' });
     expect(posts(m)).toHaveLength(0);
     await userEvent.click(within(region).getByRole('button', { name: 'Say it is ready' }));
     await waitFor(() => expect(posts(m)).toHaveLength(1));
@@ -226,29 +232,25 @@ describe('the work item page', () => {
       [`POST ${PATH}/observe`]: { json: result() },
     });
     renderAt(`/items/${ITEM}`);
-    const region = await screen.findByRole('region', { name: 'What the design review found' });
-    // the lanes offered are smaller than L4, and never the special ones
-    const lanes = within(region)
+    const region = await screen.findByRole('region', { name: 'Raise a concern' });
+    // the tracks offered are lighter than Feature, by name, and never the special ones
+    const lanes = within(within(region).getByLabelText('Move it to'))
       .getAllByRole('option')
       .map((o) => o.textContent);
-    expect(lanes).toEqual(expect.arrayContaining(['L1', 'L2', 'L3']));
-    expect(lanes).not.toContain('L4');
-    expect(lanes).not.toContain('L8');
+    expect(lanes).toEqual(['Quick fix', 'Readiness fix', 'Small change']);
 
     await userEvent.selectOptions(
       within(region).getByLabelText('What is wrong with the spec'),
       'spec_ambiguous',
     );
-    await userEvent.click(within(region).getByRole('button', { name: 'Send the spec back (B4)' }));
+    await userEvent.click(within(region).getByRole('button', { name: 'Send the spec back' }));
     await waitFor(() => expect(posts(m)).toHaveLength(1));
     expect(posts(m)[0]?.body).toMatchObject({ edge: 'B4', reason_code: 'spec_ambiguous' });
     expect((posts(m)[0]?.body as { key: string }).key).toBeTruthy();
     expect((posts(m)[0]?.body as Record<string, unknown>)['on_behalf_of']).toBeUndefined();
 
-    await userEvent.selectOptions(within(region).getByLabelText('Move it to lane'), 'L2');
-    await userEvent.click(
-      within(region).getByRole('button', { name: 'Ask for a smaller lane (R2)' }),
-    );
+    await userEvent.selectOptions(within(region).getByLabelText('Move it to'), 'L2');
+    await userEvent.click(within(region).getByRole('button', { name: 'Ask for a lighter track' }));
     await waitFor(() => expect(posts(m)).toHaveLength(2));
     expect(posts(m)[1]?.body).toMatchObject({
       edge: 'R2',
@@ -264,7 +266,7 @@ describe('the work item page', () => {
     });
     renderAt(`/items/${ITEM}`);
     await screen.findByTestId('item-waiting');
-    expect(screen.queryByRole('region', { name: 'What the design review found' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Raise a concern' })).toBeNull();
   });
 });
 

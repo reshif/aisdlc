@@ -97,13 +97,16 @@ describe('the handoff panel (P1-4)', () => {
     });
     renderAt(`/items/${ITEM}`);
     const facts = await screen.findByTestId('handoff-facts');
-    expect(facts).toHaveTextContent('D1: HANDOFF from S6');
-    expect(facts).toHaveTextContent('ET1 (budget 100%)');
-    expect(facts).toHaveTextContent('From');
+    expect(screen.getByRole('heading', { name: 'Needs a person: build' })).toBeInTheDocument();
+    expect(facts).toHaveTextContent('Budget used up');
+    expect(facts).toHaveTextContent('Build');
+    expect(facts).not.toHaveTextContent(/\b(D1|ET1|S6|E4)\b/);
     expect(within(facts).getByTestId('pack-sha')).toHaveAttribute('title', 'd'.repeat(64));
-    expect(screen.getByTestId('item-waiting')).toHaveTextContent(/owner of record: E4 is open/);
-    const link = screen.getByRole('link', { name: 'Open the E4 card to decide it' });
-    expect(link).toHaveAttribute('href', `/cards/${E4_CARD}`);
+    expect(screen.getByTestId('item-waiting')).toHaveTextContent(
+      /a person must choose what happens next/,
+    );
+    const link = screen.getByRole('link', { name: 'Decide it' });
+    expect(link).toHaveAttribute('href', `/decide/${E4_CARD}`);
     // no choice before E4 is approved
     expect(screen.queryByRole('button', { name: 'Record my choice' })).toBeNull();
   });
@@ -134,14 +137,14 @@ describe('the handoff panel (P1-4)', () => {
     const record = await screen.findByRole('button', { name: 'Record my choice' });
     expect(record).toBeDisabled();
     expect(screen.queryByRole('radio', { name: /Re-plan/ })).toBeNull();
-    await userEvent.click(screen.getByRole('radio', { name: /One envelope extension/ }));
-    const pct = screen.getByLabelText(/How much more envelope/);
+    await userEvent.click(screen.getByRole('radio', { name: /Ask for more budget/ }));
+    const pct = screen.getByLabelText(/How much more budget/);
     await userEvent.clear(pct);
     await userEvent.type(pct, '80');
     expect(record).toBeDisabled();
     await userEvent.clear(pct);
     await userEvent.type(pct, '25');
-    await userEvent.click(screen.getByRole('radio', { name: /A developer takes over/ }));
+    await userEvent.click(screen.getByRole('radio', { name: /Take over/ }));
     await userEvent.click(record);
     await waitFor(() => expect(posts(m)).toHaveLength(1));
     expect(posts(m)[0]).toMatchObject({
@@ -170,7 +173,7 @@ describe('the handoff panel (P1-4)', () => {
     });
     renderAt(`/items/${ITEM}`);
     expect(await screen.findByTestId('choose-not-mine')).toHaveTextContent(
-      'Only who approved E4 records the choice',
+      'Only who approved the handover chooses what happens next',
     );
     expect(screen.queryByRole('button', { name: 'Record my choice' })).toBeNull();
   });
@@ -191,7 +194,7 @@ describe('the handoff panel (P1-4)', () => {
       [`POST ${PATH}/hand-back`]: { json: result },
     });
     renderAt(`/items/${ITEM}`);
-    const done = await screen.findByRole('button', { name: 'I have done the work' });
+    const done = await screen.findByRole('button', { name: 'Mark my work done' });
     expect(done).toBeDisabled();
     const ref = screen.getByLabelText('Pull request number');
     await userEvent.type(ref, 'abc');
@@ -207,9 +210,11 @@ describe('the handoff panel (P1-4)', () => {
       body: { reference: { kind: 'pr', number: 42 } },
     });
     // D4: once, with or without a changed plan
-    expect(screen.getByText(/back to lane L3/)).toHaveTextContent('1 hand-back left');
+    expect(screen.getByText(/back to the Small change track/)).toHaveTextContent(
+      '1 hand-back left',
+    );
     await userEvent.click(screen.getByRole('checkbox', { name: /The plan changed/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Hand it back' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hand back' }));
     await waitFor(() => expect(posts(m)).toHaveLength(2));
     expect(posts(m)[1]).toMatchObject({
       path: `${PATH}/hand-back`,
@@ -241,9 +246,9 @@ describe('the handoff panel (P1-4)', () => {
     });
     renderAt(`/items/${ITEM}`);
     expect(await screen.findByText(/handed back once already/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Hand it back' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'I have done the work' })).toBeNull();
-    expect(screen.getByLabelText('Work said done (D5)')).toHaveTextContent('commit cccccccccccc');
+    expect(screen.queryByRole('button', { name: 'Hand back' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mark my work done' })).toBeNull();
+    expect(screen.getByLabelText('Marked done')).toHaveTextContent('commit cccccccccccc');
   });
 
   it('parses a reference the way the contract takes it', () => {

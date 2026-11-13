@@ -1,3 +1,4 @@
+import { OVERRIDE_REASON_HEADER } from '@aisdlc/contracts';
 import type {
   CardKindView,
   BreakersView,
@@ -321,8 +322,9 @@ async function request<T>(
   path: string,
   body?: unknown,
   csrf?: string,
+  extra?: Readonly<Record<string, string>>,
 ): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json' };
+  const headers: Record<string, string> = { accept: 'application/json', ...extra };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (csrf !== undefined) headers['x-csrf-token'] = csrf;
   let res: Response;
@@ -355,6 +357,12 @@ async function request<T>(
   }
   return json as T;
 }
+
+/** The factory admin's override reason, carried to core by the bff (docs/specs/deletion.md §8). */
+export const overrideHeader = (reason?: string): Record<string, string> =>
+  reason === undefined || reason.trim() === ''
+    ? {}
+    : { [OVERRIDE_REASON_HEADER]: encodeURIComponent(reason.trim()) };
 
 /** A conditional GET: with the last ETag, an unchanged answer is `not_modified` and carries no body. */
 export type Conditional<T> =
@@ -465,23 +473,26 @@ export const api = {
     request<GateCardWire>('GET', `/api/cards/${encodeURIComponent(id)}/gate`),
   gateContext: (id: string) =>
     request<GateContextWire>('GET', `/api/cards/${encodeURIComponent(id)}/gate/context`),
-  prepareGateCard: (id: string, csrf: string) =>
+  prepareGateCard: (id: string, csrf: string, override?: string) =>
     request<GateCardPreparedWire>(
       'POST',
       `/api/cards/${encodeURIComponent(id)}/gate/prepare`,
       {},
       csrf,
+      overrideHeader(override),
     ),
   gateCardEvidence: (
     id: string,
     views: ReadonlyArray<{ nonce: string; evidence_hash: string }>,
     csrf: string,
+    override?: string,
   ) =>
     request<{ evidence_viewed: true }>(
       'POST',
       `/api/cards/${encodeURIComponent(id)}/gate/evidence`,
       { views },
       csrf,
+      overrideHeader(override),
     ),
   decideGateCard: (
     id: string,
@@ -491,12 +502,19 @@ export const api = {
       votes: ReadonlyArray<{ nonce: string; step_up?: { proof: string } }>;
     },
     csrf: string,
+    override?: string,
   ) =>
     request<{
       readonly card_id: string;
       readonly entries: readonly LedgerReceipt[];
       readonly status: string;
-    }>('POST', `/api/cards/${encodeURIComponent(id)}/gate/decide`, b, csrf),
+    }>(
+      'POST',
+      `/api/cards/${encodeURIComponent(id)}/gate/decide`,
+      b,
+      csrf,
+      overrideHeader(override),
+    ),
   prepareCard: (id: string, csrf: string) =>
     request<PreparedCard>('POST', `/api/cards/${encodeURIComponent(id)}/prepare`, {}, csrf),
   cardEvidence: (id: string, b: { nonce: string; evidence_hash: string }, csrf: string) =>

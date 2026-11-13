@@ -323,7 +323,7 @@ try {
   const stepUp = async (p) => {
     await p.page.getByRole('button', { name: 'Confirm my identity' }).click();
     await p.reSignIn();
-    await p.page.waitForURL(/\/cards\/[0-9a-f-]{36}/);
+    await p.page.waitForURL(/\/(cards|decide)\/[0-9a-f-]{36}/);
     await p.page.getByTestId('stepup-ready').waitFor();
     await formReady(p.page);
   };

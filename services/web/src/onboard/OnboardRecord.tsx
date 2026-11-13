@@ -460,7 +460,7 @@ function Fixes({ v }: { v: OnboardingSummaryView }) {
                 f.approval ? (
                   <span className="ob-text">
                     {f.approval.may_decide ? (
-                      <Link to={`/cards/${f.approval.card_id}`}>Approve opening this PR</Link>
+                      <Link to={`/decide/${f.approval.card_id}`}>Approve opening this PR</Link>
                     ) : (
                       'The exceptions approver approves opening it.'
                     )}
@@ -820,7 +820,7 @@ function OtherApprovals({ v }: { v: OnboardingSummaryView }) {
       <ul className="ob-list">
         {other.map((c) => (
           <li key={c.card_id}>
-            <Link to={`/cards/${c.card_id}`}>{termOr('card', c.card)}</Link>{' '}
+            <Link to={`/decide/${c.card_id}`}>{termOr('card', c.card)}</Link>{' '}
             <span className="ui-help">Decided by its own approver.</span>
           </li>
         ))}

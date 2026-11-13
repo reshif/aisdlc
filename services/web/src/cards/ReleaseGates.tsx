@@ -33,7 +33,7 @@ function PrLink({ pr }: { pr: PullRequestLink }) {
 function StepsLine({ steps }: { steps: readonly StepStatusView[] }) {
   if (steps.length === 0) return <span className="muted">[unknown]</span>;
   return (
-    <ul className="plain s7-steps-line" aria-label="S7 steps of the head">
+    <ul className="plain s7-steps-line" aria-label="The checks of this commit">
       {steps.map((s) => (
         <li key={s.step}>
           <code>{s.step}</code> <StepStatusPill status={s.status} />
@@ -84,16 +84,16 @@ function PackFacts({ pack, item }: { pack: EvidencePackSummary | null; item: str
 
 const REASON: Readonly<Record<string, string>> = {
   evidence_sufficient: 'every input is known and none asks for a codeowner',
-  b14_unsure: 'the mode-E approver was unsure (B14)',
+  b14_unsure: 'the code reviewer asked for a full review',
   sensitive_path: 'a changed path is sensitive or protected',
   paths_unknown: 'the changed paths are not in the record',
   codeowners_unreadable: 'CODEOWNERS could not be read',
   no_governing_prr: 'the repo has no governing readiness record',
-  posture: 'the repo’s posture reviews every PR in mode C',
+  posture: 'this repo has every pull request read in full',
   autonomy_a0: 'the effective autonomy is A0',
   r3_zone: 'a changed path is in an area with a critical unknown (R3)',
   human_led: 'a person wrote the change',
-  mode_e_suspended: 'mode E is suspended for the project (B19)',
+  mode_e_suspended: 'light review is paused for this project',
 };
 
 function UnitDiff({ u }: { u: MergeReviewUnitView }) {
@@ -101,7 +101,7 @@ function UnitDiff({ u }: { u: MergeReviewUnitView }) {
     return (
       <p className="muted" data-testid="paths-unknown">
         The changed paths of this head are not in the record: [unknown]. The review treats them as
-        sensitive (mode C with the step-up).
+        sensitive (a full review, and confirm it's you).
       </p>
     );
   }
@@ -133,7 +133,7 @@ function UnitDiff({ u }: { u: MergeReviewUnitView }) {
 }
 
 const STANDING: Readonly<Record<MergeReviewSubject['standing'], [string, PillTone]>> = {
-  none: ['no G4', 'mute'],
+  none: ['no code review', 'mute'],
   pending: ['open', 'gate'],
   approved: ['approved for these heads', 'ok'],
   changes_requested: ['changes requested', 'back'],
@@ -191,13 +191,13 @@ export function MergeReviewMain({
             ],
             ['Step-up', r.step_up ? 'required (D37): a sensitive path or unknown paths' : 'no'],
             [
-              'This G4',
+              'This code review',
               <Pill key="st" tone={tone}>
                 {standing}
               </Pill>,
             ],
             [
-              'Changes requested (B13)',
+              'Changes requested',
               s.b13.limit === null
                 ? `${s.b13.used} so far; no catalogue limit (the rework budget bounds it)`
                 : `${s.b13.used} of ${s.b13.limit} rounds used · ${s.b13.left ?? 0} left${s.b13.exhausted_to ? `, then ${s.b13.exhausted_to}` : ''}`,
@@ -227,13 +227,13 @@ export function MergeReviewMain({
               ['PR state', u.pr.state ?? '[unknown]'],
               ['Head', <code key="h">{short(u.head_sha)}</code>],
               ['Base', <code key="b2">{short(u.base_sha)}</code>],
-              ['S7 steps', <StepsLine key="s" steps={u.steps} />],
+              ['Checks', <StepsLine key="s" steps={u.steps} />],
             ]}
           />
           <PackFacts pack={u.pack} item={c.item_id ?? ''} />
           {u.pack !== null && u.pack.head_sha !== u.head_sha ? (
             <p className="notice notice-bad" role="alert">
-              The pack is for another head: G4 binds the pack of exactly the head.
+              The pack is for another commit: code review binds the pack of exactly this commit.
             </p>
           ) : null}
           <UnitDiff u={u} />
@@ -251,7 +251,7 @@ const DEPLOY: Readonly<Record<ReleaseSubject['deployment']['state'], [string, Pi
   refused: ['refused by gate-relay', 'bad'],
   deployed: ['deployed, no verdict yet', 'info'],
   healthy: ['healthy', 'ok'],
-  unhealthy: ['unhealthy: rolled back (B16)', 'bad'],
+  unhealthy: ['unhealthy: rolled back', 'bad'],
 };
 
 export function ReleaseMain({ c, s }: { c: GateContextWire; s: ReleaseSubject }) {
@@ -294,13 +294,13 @@ export function ReleaseMain({ c, s }: { c: GateContextWire; s: ReleaseSubject })
         {s.target_changed ? (
           <p className="notice notice-bad" role="alert" data-testid="target-changed">
             The project&rsquo;s release target changed since this card opened: gate-relay will
-            refuse it (target_changed). A re-request opens G5 again.
+            refuse it (target_changed). Asking again opens the release approval again.
           </p>
         ) : null}
       </Card>
       <Card title="Release evidence" testId="release-evidence">
         <PackFacts pack={s.pack} item={c.item_id ?? ''} />
-        <KeyValue rows={[['S7 steps of the head', <StepsLine key="s" steps={s.steps} />]]} />
+        <KeyValue rows={[['The checks of this commit', <StepsLine key="s" steps={s.steps} />]]} />
       </Card>
       <Card
         title="gate-relay’s deployment"
@@ -329,8 +329,8 @@ export function ReleaseMain({ c, s }: { c: GateContextWire; s: ReleaseSubject })
           ]}
         />
         <p className="s7-faint">
-          gate-relay creates the deployment once, through its own App, only for an approved G5 whose
-          binding still holds. Core never deploys.
+          gate-relay creates the deployment once, through its own App, only for an approved release
+          whose binding still holds. Core never deploys.
         </p>
       </Card>
     </>
@@ -347,7 +347,7 @@ export function AcceptanceMain({ s, name }: { s: AcceptanceSubject; name: (p: st
         {i === null ? (
           <p className="muted">No intent block is in the record for this item: [unknown].</p>
         ) : i.withheld ? (
-          <p className="muted">The intent text needs data class D1.</p>
+          <p className="muted">The goal text needs a higher data class than yours.</p>
         ) : !i.intact ? (
           <p className="notice notice-bad" role="alert">
             The approved intent block is not intact in the store: do not decide on it.
@@ -376,7 +376,9 @@ export function AcceptanceMain({ s, name }: { s: AcceptanceSubject; name: (p: st
         {i !== null ? (
           <p className="s7-faint">
             intent <code>{short(i.sha256, 16)}</code> ·{' '}
-            {i.bound_by ? 'approved at G0/G1' : 'not bound by an approved G0/G1'}
+            {i.bound_by
+              ? 'approved when the request was accepted'
+              : 'not bound by an accepted request'}
           </p>
         ) : null}
       </Card>
@@ -407,12 +409,12 @@ export function AcceptanceMain({ s, name }: { s: AcceptanceSubject; name: (p: st
               render: (m) =>
                 m.pack ? <Pill tone="ok">passing</Pill> : <Pill tone="warn">[unknown]</Pill>,
             },
-            { key: 'steps', header: 'S7 steps', render: (m) => <StepsLine steps={m.steps} /> },
+            { key: 'steps', header: 'Checks', render: (m) => <StepsLine steps={m.steps} /> },
           ]}
         />
         <p className="s7-faint">
           Compare each criterion with what merged: 7.3 is the spec conformance check of the head.
-          Accept, or reject (B18: the item is done and a new linked item carries what is missing).
+          Approve, or reject: the item is done and a new linked item carries what is missing.
         </p>
       </Card>
     </>

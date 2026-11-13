@@ -81,111 +81,7 @@ describe('the security card', () => {
 
 void gap;
 
-describe('a work-item gate card (G2): the artefacts it decides', () => {
-  const view = (over: Record<string, unknown> = {}) => ({
-    card_id: CARD_ID,
-    project_id: 'testbed',
-    item_id: '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77',
-    gates: ['G2'],
-    subject_hash: 'c'.repeat(64),
-    intact: true,
-    artefacts: [
-      {
-        step: '3.2',
-        type: 'spec_delta',
-        sha256: 'd'.repeat(64),
-        version: 2,
-        markdown:
-          '# Spec delta\n\n## REQ-12 (modified)\n\n<img src=x onerror=alert(1)> exports CSV\n',
-        intact: true,
-      },
-      {
-        step: '3.4',
-        type: 'oracle_specs',
-        sha256: 'e'.repeat(64),
-        version: 1,
-        markdown: '# Oracle specs\n\n## o1 for REQ-12\n',
-        intact: true,
-      },
-    ],
-    ...over,
-  });
-  const notOnboarding = {
-    status: 404,
-    json: { error: { code: 'not_found', message: 'not an onboarding card' } },
-  };
-
-  it('renders both artefacts with their hashes, as text (nothing in them becomes markup)', async () => {
-    mockApi({
-      'GET /api/me': { json: me() },
-      [`GET /api/cards/${CARD_ID}`]: notOnboarding,
-      [`GET /api/cards/${CARD_ID}/artefacts`]: { json: view() },
-      [`GET /api/cards/${CARD_ID}/gate`]: {
-        status: 403,
-        json: { error: { code: 'forbidden', message: 'x' } },
-      },
-    });
-    const { container } = renderAt(`/cards/${CARD_ID}`);
-    expect(
-      await screen.findByRole('heading', { name: /Spec and oracle-spec approval/ }),
-    ).toBeTruthy();
-    expect(screen.getByText('d'.repeat(64))).toBeTruthy();
-    expect(screen.getByText('e'.repeat(64))).toBeTruthy();
-    expect(screen.getByLabelText('spec_delta').textContent).toContain(
-      '<img src=x onerror=alert(1)> exports CSV',
-    );
-    expect(container.querySelector('img')).toBeNull();
-    expect(screen.queryByText(/not intact/i)).toBeNull();
-  });
-
-  it('P3-8: asks the card kind once and never probes the onboarding route (no 404 in the console)', async () => {
-    const { calls } = mockApi({
-      'GET /api/me': { json: me() },
-      [`GET /api/cards/${CARD_ID}/kind`]: { json: { card_id: CARD_ID, kind: 'work_gate' } },
-      [`GET /api/cards/${CARD_ID}/artefacts`]: { json: view() },
-      [`GET /api/cards/${CARD_ID}/gate`]: {
-        status: 403,
-        json: { error: { code: 'forbidden', message: 'x' } },
-      },
-    });
-    renderAt(`/cards/${CARD_ID}`);
-    await screen.findByRole('heading', { name: /Spec and oracle-spec approval/ });
-    const paths = calls.map((c) => c.path);
-    expect(paths).toContain(`/api/cards/${CARD_ID}/kind`);
-    expect(paths).not.toContain(`/api/cards/${CARD_ID}`);
-  });
-
-  it('says so, loudly, when an artefact is not intact, and shows no text for it', async () => {
-    mockApi({
-      'GET /api/me': { json: me() },
-      [`GET /api/cards/${CARD_ID}`]: notOnboarding,
-      [`GET /api/cards/${CARD_ID}/artefacts`]: {
-        json: view({
-          intact: false,
-          artefacts: [
-            {
-              step: '3.2',
-              type: 'spec_delta',
-              sha256: 'd'.repeat(64),
-              version: null,
-              markdown: null,
-              intact: false,
-            },
-          ],
-        }),
-      },
-      [`GET /api/cards/${CARD_ID}/gate`]: {
-        status: 403,
-        json: { error: { code: 'forbidden', message: 'x' } },
-      },
-    });
-    renderAt(`/cards/${CARD_ID}`);
-    expect(await screen.findByText(/An artefact is not intact/)).toBeTruthy();
-    expect(screen.getByLabelText('spec_delta').querySelector('pre')).toBeNull();
-  });
-});
-
-describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, evidence viewed, decide', () => {
+describe('deciding a work-item approval that decides documents (portal v2 Decide)', () => {
   const SUBJECT = 'c'.repeat(64);
   const GATE_A = '0190a000-0000-7000-8000-0000000000a1';
   const GATE_B = '0190a000-0000-7000-8000-0000000000a2';
@@ -210,7 +106,7 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
         type: 'intent_block',
         sha256: 'e'.repeat(64),
         version: 1,
-        markdown: '# Intent\n\n## Goal\n\nLet admins export the audit log.\n',
+        markdown: '# Intent\n\n<img src=x onerror=alert(1)> Let admins export the audit log.\n',
         intact: true,
       },
     ],
@@ -247,43 +143,33 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
     decisions_allowed: ['approve', 'reject', 'request_changes'],
     decision_reason: null,
     may_decide: true,
+    why_not: null,
     principal_names: { alice: 'Alice Admin' },
     ...over,
   });
   const prepared = (subject = SUBJECT) => ({
     card_id: CARD_ID,
-    gates: [
-      {
-        gate_instance_id: GATE_A,
-        gate: 'G0',
-        nonce: 'nonce-a',
-        expires_at: '2026-11-08T10:15:00.000Z',
-        subject_hash: subject,
-        evidence_hash: subject,
-        step_up: { required: false, bound_hash: subject },
-      },
-      {
-        gate_instance_id: GATE_B,
-        gate: 'G1',
-        nonce: 'nonce-b',
-        expires_at: '2026-11-08T10:15:00.000Z',
-        subject_hash: subject,
-        evidence_hash: subject,
-        step_up: { required: false, bound_hash: subject },
-      },
-    ],
+    gates: [GATE_A, GATE_B].map((g, n) => ({
+      gate_instance_id: g,
+      gate: n === 0 ? 'G0' : 'G1',
+      nonce: n === 0 ? 'nonce-a' : 'nonce-b',
+      expires_at: '2026-11-08T10:15:00.000Z',
+      subject_hash: subject,
+      evidence_hash: subject,
+      step_up: { required: false, bound_hash: subject },
+    })),
   });
-  const notOnboarding = {
-    status: 404,
-    json: { error: { code: 'not_found', message: 'not an onboarding card' } },
-  };
   const routes = (
     o: { gate?: unknown; art?: unknown; prep?: unknown; extra?: Record<string, unknown> } = {},
   ) => ({
     'GET /api/me': { json: me() },
-    [`GET /api/cards/${CARD_ID}`]: notOnboarding,
+    [`GET /api/cards/${CARD_ID}/kind`]: { json: { card_id: CARD_ID, kind: 'work_gate' } },
     [`GET /api/cards/${CARD_ID}/artefacts`]: { json: o.art ?? artefactsView() },
     [`GET /api/cards/${CARD_ID}/gate`]: { json: o.gate ?? gateCard() },
+    [`GET /api/cards/${CARD_ID}/gate/context`]: {
+      status: 403,
+      json: { error: { code: 'forbidden', message: 'view level' } },
+    },
     [`POST /api/cards/${CARD_ID}/gate/prepare`]: { json: o.prep ?? prepared() },
     [`POST /api/cards/${CARD_ID}/gate/evidence`]: { json: { evidence_viewed: true } },
     ...(o.extra ?? {}),
@@ -299,33 +185,40 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
       actor: 'alice',
       sod_waiver: false,
     },
-    {
-      ledger_seq: 8,
-      entry_id: 'e2',
-      entry_hash: ENTRY_HASH,
-      entry_type: 'decision',
-      gate_id: 'G1',
-      decision: 'approve',
-      actor: 'alice',
-      sod_waiver: false,
-    },
   ];
   const decideReady = async () => {
-    await screen.findByRole('region', { name: 'Decision' });
-    await waitFor(() => expect(screen.queryByText(/Getting the decision form ready/)).toBeNull());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled());
   };
 
-  it('renders the artefacts first; the evidence is reported only after, for every gate, and nothing is decided by itself', async () => {
+  it('names the approvals in plain words, asks the card kind once, and shows a document as text', async () => {
+    const user = userEvent.setup();
     const m = mockApi(routes());
-    renderAt(`/cards/${CARD_ID}`);
+    const { container } = renderAt(`/decide/${CARD_ID}`);
     expect(
-      await screen.findByRole('heading', { name: /Lane and intent and Intent acceptance/ }),
+      await screen.findByRole('heading', {
+        level: 1,
+        name: 'Accept the request and Confirm the goal',
+      }),
     ).toBeTruthy();
-    await decideReady();
-    expect(screen.getByLabelText('intent_block').textContent).toContain(
-      'Let admins export the audit log.',
+    expect(screen.getByTestId('decide')).not.toHaveTextContent(/\b(G0|G1|L4)\b/);
+    expect(screen.getByTestId('decide')).toHaveTextContent('Track: Feature');
+    await user.click(screen.getByRole('button', { name: /Agreed goal/ }));
+    expect(screen.getByTestId('detail').textContent).toContain(
+      '<img src=x onerror=alert(1)> Let admins export the audit log.',
     );
-    const order = m.calls.map((c) => `${c.method} ${c.path}`).filter((x) => x.includes('/gate/'));
+    expect(container.querySelector('img')).toBeNull();
+    const paths = m.calls.map((c) => c.path);
+    expect(paths).toContain(`/api/cards/${CARD_ID}/kind`);
+    expect(paths).not.toContain(`/api/cards/${CARD_ID}`);
+    // the part of the evidence a higher view level would show is said, never assumed passed
+    expect(screen.getByTestId('doubts')).toHaveTextContent('needs a higher view level');
+  });
+
+  it('prepares, reports the evidence after it was shown, and decides nothing by itself', async () => {
+    const m = mockApi(routes());
+    renderAt(`/decide/${CARD_ID}`);
+    await decideReady();
+    const order = m.calls.map((c) => `${c.method} ${c.path}`).filter((x) => x.startsWith('POST'));
     expect(order).toEqual([
       `POST /api/cards/${CARD_ID}/gate/prepare`,
       `POST /api/cards/${CARD_ID}/gate/evidence`,
@@ -336,13 +229,10 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
         { nonce: 'nonce-b', evidence_hash: SUBJECT },
       ],
     });
-    // no decision was sent, no button is a default, and it says so
     expect(sent(m, `/api/cards/${CARD_ID}/gate/decide`)).toHaveLength(0);
-    expect(screen.getByText(/Nothing is decided until you press one of/)).toBeTruthy();
-    expect(screen.getByText(/Proposed lane: L4/)).toBeTruthy();
   });
 
-  it('approve sends one vote per gate with the csrf token and shows the ledger receipt', async () => {
+  it('approve sends one vote per gate with the csrf token and shows the decision log entry', async () => {
     const m = mockApi(
       routes({
         extra: {
@@ -352,13 +242,12 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
         },
       }),
     );
-    renderAt(`/cards/${CARD_ID}`);
+    renderAt(`/decide/${CARD_ID}`);
     await decideReady();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Approve' }));
-    const receipt_ = await screen.findByRole('region', { name: 'Ledger receipt' });
-    expect(within(receipt_).getByText('G0: approved')).toBeTruthy();
-    expect(within(receipt_).getByText('G1: approved')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByTestId('receipt')).toHaveTextContent(
+      'Approve, decision log entry 7.',
+    );
     const d = sent(m, `/api/cards/${CARD_ID}/gate/decide`);
     expect(d).toHaveLength(1);
     expect(d[0]?.body).toEqual({
@@ -368,30 +257,25 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
     expect(d[0]?.headers['x-csrf-token']).toBe('csrf-token-of-alice');
   });
 
-  it('reject and ask for changes need a reason: without one nothing is sent; with one it goes with the decision', async () => {
+  it('reject and request changes need a reason: without one nothing is sent', async () => {
+    const user = userEvent.setup();
     const m = mockApi(
       routes({
         extra: {
           [`POST /api/cards/${CARD_ID}/gate/decide`]: {
-            json: {
-              card_id: CARD_ID,
-              entries: [{ ...entries[0], decision: 'reject' }],
-              status: 'rejected',
-            },
+            json: { card_id: CARD_ID, entries: [{ ...entries[0], decision: 'reject' }] },
           },
         },
       }),
     );
-    renderAt(`/cards/${CARD_ID}`);
+    renderAt(`/decide/${CARD_ID}`);
     await decideReady();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Reject' }));
-    expect(await screen.findByTestId('decide-issues')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Ask for changes' }));
+    await user.click(screen.getByRole('button', { name: /^Reject/ }));
+    await user.click(screen.getByRole('button', { name: /^Request changes/ }));
     expect(sent(m, `/api/cards/${CARD_ID}/gate/decide`)).toHaveLength(0);
-    await user.type(screen.getByLabelText(/Reason/), 'The goal is too wide');
-    await user.click(screen.getByRole('button', { name: 'Reject' }));
-    await screen.findByRole('region', { name: 'Ledger receipt' });
+    await user.type(screen.getByLabelText('Reason'), 'The goal is too wide');
+    await user.click(screen.getByRole('button', { name: /^Reject/ }));
+    await screen.findByTestId('receipt');
     expect(sent(m, `/api/cards/${CARD_ID}/gate/decide`)[0]?.body).toEqual({
       decision: 'reject',
       reason: 'The goal is too wide',
@@ -399,15 +283,22 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
     });
   });
 
-  it('a person who may not decide sees the evidence and no button, and nothing is prepared', async () => {
-    const m = mockApi(routes({ gate: gateCard({ may_decide: false }) }));
-    renderAt(`/cards/${CARD_ID}`);
-    expect(await screen.findByTestId('not-decidable')).toBeTruthy();
+  it('a person who may not decide reads the evidence, gets no button, and nothing is prepared', async () => {
+    const m = mockApi(
+      routes({
+        gate: gateCard({ may_decide: false, why_not: { code: 'not_slot_holder', reasons: [] } }),
+      }),
+    );
+    renderAt(`/decide/${CARD_ID}`);
+    expect(await screen.findByRole('note')).toHaveTextContent(
+      'Only the request and spec approver can decide this. Ask Alice Admin.',
+    );
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Decide as factory admin' })).toBeNull();
     expect(sent(m, `/api/cards/${CARD_ID}/gate/prepare`)).toHaveLength(0);
   });
 
-  it('an artefact that is not intact cannot be decided: no button, nothing prepared', async () => {
+  it('a document that is not intact cannot be decided: no button, nothing prepared', async () => {
     const m = mockApi(
       routes({
         art: artefactsView({
@@ -425,49 +316,28 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
         }),
       }),
     );
-    renderAt(`/cards/${CARD_ID}`);
-    expect(await screen.findByText(/An artefact is not intact/)).toBeTruthy();
-    expect(await screen.findByTestId('not-decidable')).toBeTruthy();
+    renderAt(`/decide/${CARD_ID}`);
+    expect(await screen.findByText(/not intact, so it cannot be decided/)).toBeTruthy();
+    expect(screen.getByTestId('doubts')).toHaveTextContent('Do not approve it');
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
     expect(sent(m, `/api/cards/${CARD_ID}/gate/prepare`)).toHaveLength(0);
   });
 
-  it('a card whose subject changed between the page and the nonce is not decided blind: the evidence is never reported', async () => {
+  it('an approval whose subject changed under the page is not decided blind', async () => {
     const m = mockApi(routes({ prep: prepared('f'.repeat(64)) }));
-    renderAt(`/cards/${CARD_ID}`);
-    expect(await screen.findByText(/The card changed while this page was opening/)).toBeTruthy();
+    renderAt(`/decide/${CARD_ID}`);
+    expect(
+      await screen.findByText(/This approval changed while the page was opening/),
+    ).toBeTruthy();
     expect(sent(m, `/api/cards/${CARD_ID}/gate/evidence`)).toHaveLength(0);
-    expect(screen.getByRole('button', { name: 'Approve' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
   });
 
-  it('a gate that needs a step-up is not decided here, and a closed card says how it ended', async () => {
+  it('a decided approval says how it ended, with its reason, and offers no button', async () => {
     mockApi(
       routes({
         gate: gateCard({
-          gates: [
-            {
-              gate_instance_id: GATE_A,
-              gate: 'G3',
-              slot: 'design',
-              status: 'pending',
-              outcome: null,
-              step_up_required: true,
-            },
-          ],
-          may_decide: false,
-        }),
-      }),
-    );
-    renderAt(`/cards/${CARD_ID}`);
-    expect(await screen.findByText(/needs you to confirm your identity again/)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
-  });
-
-  it('a decided card shows its reason and offers no button', async () => {
-    mockApi(
-      routes({
-        gate: gateCard({
-          status: 'decided',
+          status: 'sent_back',
           gates: [
             {
               gate_instance_id: GATE_A,
@@ -480,11 +350,26 @@ describe('deciding a work-item gate card (G0 and G1, G2, G3d, G3 ...): prepare, 
           ],
           decision_reason: 'REQ-12 is missing a header row',
           may_decide: false,
+          why_not: { code: 'not_open', reasons: [] },
         }),
       }),
     );
-    renderAt(`/cards/${CARD_ID}`);
-    expect(await screen.findByText(/REQ-12 is missing a header row/)).toBeTruthy();
+    renderAt(`/decide/${CARD_ID}`);
+    expect(await screen.findByRole('note')).toHaveTextContent(
+      'This approval is changes requested; nothing more is decided on it. The reason given: REQ-12 is missing a header row',
+    );
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+  });
+
+  it('a missing approval is the one 404', async () => {
+    mockApi({
+      'GET /api/me': { json: me() },
+      [`GET /api/cards/${CARD_ID}/kind`]: {
+        status: 404,
+        json: { error: { code: 'not_found', message: 'no' } },
+      },
+    });
+    renderAt(`/decide/${CARD_ID}`);
+    await waitFor(() => expect(document.querySelector('[data-status="404"]')).not.toBeNull());
   });
 });
