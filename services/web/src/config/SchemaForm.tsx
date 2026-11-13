@@ -1,6 +1,7 @@
 import { SECRET_REF_PATTERN, SecretRef } from '@aisdlc/contracts';
 import { useEffect, useId, useState } from 'react';
 import type { JsonSchema } from '../lib/schema';
+import { fieldWord, valueWord } from '../settings/words';
 
 // A form generated from a key's JSON Schema (the server sends it, generated from the key's Zod
 // schema in the contracts: nothing is listed here). Objects with named properties, arrays, strings
@@ -17,14 +18,17 @@ export const isSecretRefSchema = (s: JsonSchema): boolean =>
 export const looksLikeSecretRef = (v: unknown): boolean =>
   typeof v === 'string' && SecretRef.safeParse(v).success;
 
-type Kind = 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'json';
+type Kind = 'object' | 'record' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'json';
 
 function kindOf(s: JsonSchema): Kind {
   if (Array.isArray(s['anyOf']) || Array.isArray(s['oneOf']) || Array.isArray(s['allOf'])) {
     return 'json';
   }
   const t = s['type'];
-  if (t === 'object') return isObj(s['properties']) ? 'object' : 'json';
+  if (t === 'object') {
+    if (isObj(s['properties'])) return 'object';
+    return isObj(s['additionalProperties']) ? 'record' : 'json';
+  }
   if (t === 'array') return isObj(s['items']) ? 'array' : 'json';
   if (t === 'string' || t === 'integer' || t === 'number' || t === 'boolean') return t;
   return 'json';
@@ -44,6 +48,8 @@ export function defaultFor(s: JsonSchema): unknown {
     }
     case 'array':
       return [];
+    case 'record':
+      return {};
     case 'string':
       return '';
     case 'integer':
@@ -131,7 +137,7 @@ export function SchemaField(p: FieldProps) {
                 schema={sub}
                 value={obj[k]}
                 onChange={set}
-                label={k}
+                label={fieldWord(k)}
                 {...(disabled ? { disabled } : {})}
               />
             );
@@ -152,14 +158,14 @@ export function SchemaField(p: FieldProps) {
                     }
                   }}
                 />
-                Set {k} <span className="muted">(optional)</span>
+                Set {fieldWord(k)} <span className="muted">(optional)</span>
               </label>
               {present ? (
                 <SchemaField
                   schema={sub}
                   value={obj[k]}
                   onChange={set}
-                  label={k}
+                  label={fieldWord(k)}
                   {...(disabled ? { disabled } : {})}
                 />
               ) : null}
@@ -168,6 +174,10 @@ export function SchemaField(p: FieldProps) {
         })}
       </fieldset>
     );
+  }
+
+  if (kind === 'record') {
+    return <RecordField {...p} />;
   }
 
   if (kind === 'array') {
@@ -268,7 +278,7 @@ export function SchemaField(p: FieldProps) {
           >
             {options.map((o) => (
               <option key={String(o)} value={String(o)}>
-                {String(o)}
+                {valueWord(o)}
               </option>
             ))}
           </select>
@@ -302,6 +312,80 @@ export function SchemaField(p: FieldProps) {
   }
 
   return <JsonField {...p} />;
+}
+
+/**
+ * A record (`z.record(Gate, ...)`): one folded entry per key, labelled in plain words; keys from the schema's own
+ * list can be added, and an entry removed.
+ */
+function RecordField({ schema, value, onChange, label, disabled }: FieldProps) {
+  const id = useId();
+  const sub = schema['additionalProperties'] as JsonSchema;
+  const names = schema['propertyNames'];
+  const allowed =
+    isObj(names) && Array.isArray(names['enum']) ? (names['enum'] as unknown[]).map(String) : null;
+  const obj = isObj(value) ? value : {};
+  const free = allowed ? allowed.filter((k) => !(k in obj)) : [];
+  const [adding, setAdding] = useState('');
+  return (
+    <fieldset className="cfg-group">
+      <legend>{label}</legend>
+      {Object.keys(obj).length === 0 ? <p className="muted">No entries.</p> : null}
+      {Object.entries(obj).map(([k, v]) => (
+        <details key={k} className="cfg-entry">
+          <summary>{fieldWord(k)}</summary>
+          <SchemaField
+            schema={sub}
+            value={v}
+            onChange={(nv) => onChange({ ...obj, [k]: nv })}
+            label={fieldWord(k)}
+            {...(disabled ? { disabled } : {})}
+          />
+          <button
+            type="button"
+            className="ui-btn ui-btn-sm ui-btn-ghost"
+            disabled={disabled}
+            onClick={() => {
+              const { [k]: _gone, ...rest } = obj;
+              void _gone;
+              onChange(rest);
+            }}
+          >
+            Remove {fieldWord(k)}
+          </button>
+        </details>
+      ))}
+      {free.length > 0 ? (
+        <div className="cfg-add">
+          <label htmlFor={id}>Add an entry</label>
+          <select
+            id={id}
+            value={adding}
+            disabled={disabled}
+            onChange={(e) => setAdding(e.target.value)}
+          >
+            <option value="">Choose…</option>
+            {free.map((k) => (
+              <option key={k} value={k}>
+                {fieldWord(k)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="ui-btn ui-btn-sm"
+            disabled={disabled || adding === ''}
+            onClick={() => {
+              onChange({ ...obj, [adding]: defaultFor(sub) });
+              setAdding('');
+            }}
+          >
+            Add
+          </button>
+        </div>
+      ) : null}
+    </fieldset>
+  );
 }
 
 /** One changed leaf between two JSON values. */

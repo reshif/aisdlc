@@ -142,6 +142,52 @@ describe('/api/config', () => {
     expect(forged.status).toBe(400);
   });
 
+  it('the factory admin is told they may apply a change alone; an auditor is not', async () => {
+    expect((await api('root', 'GET', '/api/config/keys')).json.may_apply_now).toBe(true);
+    expect(
+      (await api('root', 'GET', `/api/config/keys/${SANDBOX_CAPS_KEY}`)).json.may_apply_now,
+    ).toBe(true);
+    expect(
+      (await api('alice', 'GET', `/api/config/keys/${SANDBOX_CAPS_KEY}`)).json.may_apply_now,
+    ).toBe(false);
+  });
+
+  it('a preview is config.propose, sent as the session person, and passes in the contract shape', async () => {
+    const PREVIEW = {
+      key: SANDBOX_CAPS_KEY,
+      applies: 'now',
+      valid: true,
+      problems: [],
+      changes: [{ path: 'coding', before: 1, after: 2 }],
+      effects: ['Coding sandboxes at once: 1 → 2.'],
+      items_in_progress: 0,
+    };
+    core.override.set(`POST /v1/config/keys/${SANDBOX_CAPS_KEY}/preview`, {
+      status: 200,
+      json: PREVIEW,
+    });
+    core.seen.length = 0;
+    const denied = await api('alice', 'POST', `/api/config/keys/${SANDBOX_CAPS_KEY}/preview`, {
+      value: { total: 4, coding: 2 },
+    });
+    expect(denied.status).toBe(403);
+    expect(core.seen).toEqual([]);
+    const r = await api('root', 'POST', `/api/config/keys/${SANDBOX_CAPS_KEY}/preview`, {
+      value: { total: 4, coding: 2 },
+    });
+    expect(r.status).toBe(200);
+    expect(r.json).toEqual(PREVIEW);
+    expect(core.seen.at(-1)?.body).toEqual({
+      value: { total: 4, coding: 2 },
+      on_behalf_of: 'root',
+    });
+    const forged = await api('root', 'POST', `/api/config/keys/${SANDBOX_CAPS_KEY}/preview`, {
+      value: 1,
+      on_behalf_of: 'alice',
+    });
+    expect(forged.status).toBe(400);
+  });
+
   it('a proposal by someone the PDP refuses never reaches core', async () => {
     core.seen.length = 0;
     const r = await api('alice', 'POST', `/api/config/keys/${SANDBOX_CAPS_KEY}/proposals`, {
