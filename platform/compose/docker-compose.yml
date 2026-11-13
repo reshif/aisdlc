@@ -117,7 +117,7 @@ networks:
   # with that person's step-up proof (the kill switch verifies it and takes the actor from it, never from the bff's
   # token); nothing of core, the Notary or the record is on it, so the kill switch still has no route to them.
   killswitch-bff:
-    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.44.0/24' }] }
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.55.0/24' }] }
     internal: true
   gateway-egress:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.17.0/24' }] }
