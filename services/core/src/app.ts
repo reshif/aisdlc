@@ -75,6 +75,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
 import { gateArtefactsView } from './planning/gate-view.js';
+import type { DeletionDeps } from './deletion/engine.js';
+import { registerDeletionRoutes } from './deletion/routes.js';
 import {
   decideGateCard,
   gateCardView,
@@ -192,7 +194,8 @@ import {
  * Broker asks whether a Unit's lease is held at an epoch and whether an approved X2 is bound to a patch hash: core's own
  * word, read from the lease and the ledger), `erasure` (M19: the audit service lists the payloads kept off the hash chain
  * and erases one it has the `erasure.execute` entry for; no other caller has a reason to hold it),
- * `activity` (M19: a session's reporter posts its heartbeat; nothing else).
+ * `activity` (M19: a session's reporter posts its heartbeat; nothing else), `delete` (portal v2: the bff deletes an object
+ * for a signed-in person; the PDP decides `<kind>.delete`, docs/specs/deletion.md).
  */
 export type CoreScope =
   | 'read'
@@ -206,7 +209,8 @@ export type CoreScope =
   | 'evals'
   | 'push_guard'
   | 'erasure'
-  | 'activity';
+  | 'activity'
+  | 'delete';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -241,6 +245,8 @@ export interface CoreAppOptions {
   readonly grants?: AccessGrantWriterPort;
   /** P2-16: the calendar the clarifying deadline is counted on (the S0 calendar); absent: the default calendar. */
   readonly workSettings?: () => WorkSettings;
+  /** Delete means delete (docs/specs/deletion.md): the purge login and its object purger; absent: `503`. */
+  readonly deletion?: DeletionDeps;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -2145,6 +2151,16 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   // ------------------------------------------------------------ the erasable payloads (M19, the audit service)
 
   registerErasableRoutes({ app, deps, allowed: (req) => allowed(req, 'erasure') });
+
+  // ------------------------------------------------------------ delete means delete (portal v2)
+
+  registerDeletionRoutes({
+    app,
+    pdp: o.pdp,
+    pool: o.pool,
+    deletion: o.deletion,
+    allowed: (req) => allowed(req, 'delete'),
+  });
 
   // ------------------------------------------------------------ the assistant (M18)
 
