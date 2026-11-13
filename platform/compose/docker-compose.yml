@@ -701,7 +701,10 @@ services:
         telemetry-killswitch,
         killswitch-bff,
       ]
-    mem_limit: 128m
+    # 192m: it idles at about 80 MiB, and the operator path (smoke.sh, drill-restore.sh, the runbooks) is a second
+    # node process exec'd INSIDE this container, in the same memory cgroup; at 128m that exec got the kill switch
+    # itself OOM-killed (and restarted) in the middle of a kill or a release
+    mem_limit: 192m
 
   # Boundary: model key custody (RV §2, AR5, AR7). EVERY model call of the factory goes through here and
   # this is the only container that mounts a vendor key (`anthropic-api-key`, a file; no other service
