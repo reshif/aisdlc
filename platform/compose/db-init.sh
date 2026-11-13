@@ -136,10 +136,6 @@ SELECT format('CREATE ROLE %I LOGIN', r)
 SELECT format('ALTER ROLE aisdlc CREATEROLE PASSWORD %L', :'pw_aisdlc') \gexec
 SELECT format('ALTER ROLE notary PASSWORD %L', :'pw_notary') \gexec
 SELECT format('ALTER ROLE witness PASSWORD %L', :'pw_witness') \gexec
--- record/0005 (run by `migrate` as aisdlc) makes the purge role a member of aisdlc_app: PostgreSQL 16 lets only a
--- holder of aisdlc_app's ADMIN option grant it, and this script made aisdlc_app. ADMIN alone: aisdlc neither inherits
--- nor sets the group role (it owns the tables anyway).
-GRANT aisdlc_app TO aisdlc WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
 SELECT format('ALTER ROLE killswitch PASSWORD %L', :'pw_killswitch') \gexec
 SELECT format('ALTER ROLE keycloak PASSWORD %L', :'pw_keycloak') \gexec
 
