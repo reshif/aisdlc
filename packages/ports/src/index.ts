@@ -41,3 +41,7 @@ export * from './gate-check-host.js';
 export * from './gate-relay-host.js';
 export * from './notification-channel.js';
 export * from './erasable-payloads.js';
+export * from './secret-store.js';
+export * from './secret-store-vault.js';
+export * from './secret-store-aws.js';
+export * from './fake-vault.js';

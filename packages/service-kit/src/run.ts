@@ -1,4 +1,5 @@
 import { ServiceConfigError } from './auth.js';
+import { primeSecretRefsFromEnv } from './secret-refs.js';
 
 export interface RunningService {
   /** Where it listens, for the startup line. */
@@ -18,10 +19,12 @@ export interface RunServiceDeps {
   /** Where signal handlers are installed. */
   proc?: Pick<NodeJS.Process, 'once' | 'on'>;
   shutdownTimeoutMs?: number;
+  /** Whose `vault:` references are primed before `start` (default process.env). */
+  env?: Record<string, string | undefined>;
 }
 
 /**
- * The `main` of every service. Runs `start`; a `ServiceConfigError` prints a clear message and
+ * The `main` of every service. Primes the `vault:` references of the environment, runs `start`; a `ServiceConfigError` prints a clear message and
  * exits 78, any other startup failure exits 1. On SIGTERM or SIGINT it calls `close()` once and
  * exits 0 (1 if close fails or takes longer than the timeout); a second signal exits at once.
  */
@@ -36,6 +39,8 @@ export async function runService(
   const proc = deps.proc ?? process;
   let svc: RunningService;
   try {
+    // every `vault:` reference the environment names is read before any configuration is (secret-refs.ts)
+    await primeSecretRefsFromEnv(deps.env ?? process.env);
     svc = await start();
   } catch (e) {
     if (e instanceof ServiceConfigError) {

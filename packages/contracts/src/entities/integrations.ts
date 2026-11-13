@@ -63,15 +63,19 @@ export const ADAPTER_KIND: Readonly<Record<IntegrationAdapter, IntegrationKind>>
 export const IntegrationStatus = z.enum(['draft', 'enabled', 'disabled', 'retired']);
 export type IntegrationStatus = z.infer<typeof IntegrationStatus>;
 
-/** The shape of a secret reference; its `source` is the `pattern` a JSON Schema of a SecretRef carries. */
-export const SECRET_REF_PATTERN = /^(file:\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$/;
+/**
+ * The shape of a secret reference; its `source` is the `pattern` a JSON Schema of a SecretRef carries. `vault:` names
+ * a field of a KV v2 secret in Vault (`vault:<path>#<key>`, e.g. `vault:gateway/anthropic-api-key#value`; secrets.ts).
+ */
+export const SECRET_REF_PATTERN =
+  /^(file:\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$/;
 
-/** A reference to a secret: a `file:` path or an `env:` name. Never a value (the check is by shape). */
+/** A reference to a secret: a `file:` path, an `env:` name or a `vault:` field. Never a value (the check is by shape). */
 export const SecretRef = z
   .string()
   .regex(
     SECRET_REF_PATTERN,
-    'a secret reference: file:/absolute/path or env:NAME (never the secret itself)',
+    'a secret reference: file:/absolute/path, env:NAME or vault:path#key (never the secret itself)',
   );
 
 export const IntegrationCredentialKind = z.enum(['app_key', 'pat', 'api_key', 'oauth']);
