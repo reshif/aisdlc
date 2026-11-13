@@ -229,10 +229,20 @@ describe('L4: S1 to S5 with real agents, to the plan approval (G3)', () => {
 
   it('the read model is derived: dropping and rebuilding it from the events gives the same rows', async () => {
     const before = await listUnits(s.record.pool, rig.itemId);
+    // every column, the fold's time included (the restore drill compares whole rows)
+    const raw = async () =>
+      (
+        await s.record.pool.query(
+          'SELECT row_to_json(u)::text AS r FROM core.unit u WHERE item_id = $1 ORDER BY unit_key',
+          [rig.itemId],
+        )
+      ).rows.map((x: { r: string }) => x.r);
+    const rawBefore = await raw();
     await s.record.pool.query('DELETE FROM core.unit WHERE item_id = $1', [rig.itemId]);
     expect(await listUnits(s.record.pool, rig.itemId)).toEqual([]);
     expect(await rebuildUnits({ pool: s.record.pool, clock: s.clock }, rig.itemId)).toBe(1);
     expect(await listUnits(s.record.pool, rig.itemId)).toEqual(before);
+    expect(await raw()).toEqual(rawBefore);
   });
 
   it('scheduling is automatic by default: no 5.7 station, and an approved plan goes straight on to scheduling (6.0 admission)', async () => {
@@ -669,5 +679,43 @@ describe('the `unit` read model', () => {
         ])
       ).length,
     ).toBe(2);
+  });
+
+  it('the fold time of a plan is its event time, so the live rows equal the rebuilt ones under a clock that moves', async () => {
+    const rig = await planningRig(s, gw, { lane: 'L4' });
+    // every read of this clock is a millisecond later (a real clock between the fold and the append)
+    let t = Date.parse('2026-11-13T00:00:00.000Z');
+    const d = {
+      pool: s.record.pool,
+      clock: { now: () => new Date((t += 1)), nowMs: () => (t += 1) },
+    };
+    const planned = await planUnits(d, {
+      item_id: rig.itemId,
+      project_id: rig.project,
+      repo: rig.repo,
+      base_sha: MERGED,
+      plan_sha256: 'c'.repeat(64),
+      units: [
+        {
+          unit_key: 'only',
+          title: 'only',
+          paths: ['src/'],
+          size: 'small' as const,
+          depends_on: [],
+          position: 0,
+          envelope: { max_tokens: 10, max_cost_micro_usd: 10 },
+        },
+      ],
+    });
+    expect(planned.ok).toBe(true);
+    const raw = async () =>
+      (
+        await rows(`SELECT row_to_json(u)::text AS r FROM core.unit u WHERE item_id = $1`, [
+          rig.itemId,
+        ])
+      ).map((x) => (x as { r: string }).r);
+    const live = await raw();
+    expect(await rebuildUnits(d, rig.itemId)).toBe(1);
+    expect(await raw()).toEqual(live);
   });
 });

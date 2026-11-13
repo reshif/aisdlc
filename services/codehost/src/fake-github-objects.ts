@@ -45,7 +45,14 @@ function nest(flat: FlatTree): Dir {
   return root;
 }
 
-function hashDir(d: Dir): string {
+/** A git object as `git hash-object -t <type>` takes it: its type and its body (without the `<type> <n>\0` header). */
+export interface LooseObject {
+  readonly type: 'blob' | 'tree' | 'commit';
+  readonly sha: string;
+  readonly body: Buffer;
+}
+
+function dirBody(d: Dir, out: LooseObject[] | null): string {
   const entries: Array<{ key: string; bytes: Buffer }> = [];
   for (const [name, f] of d.files) {
     entries.push({
@@ -55,14 +62,19 @@ function hashDir(d: Dir): string {
   }
   for (const [name, sub] of d.dirs) {
     entries.push({
-      // git sorts a directory as if its name ended in "/"
       key: `${name}/`,
-      bytes: Buffer.concat([Buffer.from(`40000 ${name}\0`), Buffer.from(hashDir(sub), 'hex')]),
+      bytes: Buffer.concat([Buffer.from(`40000 ${name}\0`), Buffer.from(dirBody(sub, out), 'hex')]),
     });
   }
   entries.sort((a, b) => Buffer.compare(Buffer.from(a.key), Buffer.from(b.key)));
   const body = Buffer.concat(entries.map((e) => e.bytes));
-  return sha1(`tree ${body.length}\0`, body);
+  const sha = sha1(`tree ${body.length}\0`, body);
+  out?.push({ type: 'tree', sha, body });
+  return sha;
+}
+
+function hashDir(d: Dir): string {
+  return dirBody(d, null);
 }
 
 export const treeSha = (flat: FlatTree): string => hashDir(nest(flat));
@@ -175,16 +187,46 @@ export class GitObjects {
   ): { sha: string } | { error: string } {
     if (!this.trees.has(c.tree)) return { error: 'tree does not exist' };
     for (const p of c.parents) if (!this.commit(repo, p)) return { error: 'parent does not exist' };
-    const ts = (d: string): string => `${Math.floor(new Date(d).getTime() / 1000)} +0000`;
-    const text =
-      `tree ${c.tree}\n` +
-      c.parents.map((p) => `parent ${p}\n`).join('') +
-      `author ${c.author.name} <${c.author.email}> ${ts(c.author.date)}\n` +
-      `committer ${c.committer.name} <${c.committer.email}> ${ts(c.committer.date)}\n\n${c.message}`;
+    const text = this.commitText({ sha: '', ...c });
     const sha = sha1(`commit ${Buffer.byteLength(text)}\0`, text);
     this.commits.set(sha, { sha, ...c });
     this.made.add(sha);
     return { sha };
+  }
+
+  /** The raw text of a commit the API created (what its sha hashes), or `undefined`. */
+  private commitText(c: CommitObject): string {
+    const ts = (d: string): string => `${Math.floor(new Date(d).getTime() / 1000)} +0000`;
+    return (
+      `tree ${c.tree}\n` +
+      c.parents.map((p) => `parent ${p}\n`).join('') +
+      `author ${c.author.name} <${c.author.email}> ${ts(c.author.date)}\n` +
+      `committer ${c.committer.name} <${c.committer.email}> ${ts(c.committer.date)}\n\n${c.message}`
+    );
+  }
+
+  /**
+   * Every object of the commits the API created up to `sha` (blobs, trees, the commits, oldest parent first), as loose
+   * objects, so a real git repository can hold them (a seeded commit is the repository's own and is not repeated).
+   */
+  looseObjects(sha: string): LooseObject[] {
+    const out: LooseObject[] = [];
+    const seen = new Set<string>();
+    const walk = (s: string): void => {
+      if (seen.has(s) || !this.made.has(s)) return;
+      seen.add(s);
+      const c = this.commits.get(s) as CommitObject;
+      for (const p of c.parents) walk(p);
+      const flat = this.trees.get(c.tree) ?? new Map<string, TreeFile>();
+      for (const f of flat.values()) {
+        const b = this.blobs.get(f.blob);
+        if (b) out.push({ type: 'blob', sha: f.blob, body: b });
+      }
+      dirBody(nest(flat), out);
+      out.push({ type: 'commit', sha: s, body: Buffer.from(this.commitText(c)) });
+    };
+    walk(sha);
+    return out;
   }
 
   /** Is `ancestor` reachable from `from` by parents (a commit is its own ancestor)? */

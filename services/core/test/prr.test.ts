@@ -9,6 +9,7 @@ import {
 import { hashCanonical } from '@aisdlc/kernel';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { computeAutonomy, expectedSigner, routeLane } from '../src/index.js';
+import { postureAtSignOff } from '../src/prr.js';
 import { censusFixture } from './cards-fixtures.js';
 import {
   GATING_ON,
@@ -145,7 +146,7 @@ describe('buildPrr: the record, golden', () => {
       sensitive_paths_hash: good.sensitive_paths_hash,
     });
     expect(prr.controls.effective_rules?.required_checks).toEqual([
-      { name: 'gate-check', integration_id: 99 },
+      { name: 'aisdlc/gate', integration_id: 99 },
     ]);
     // counts only: no finding, no fingerprint, no value
     expect(Object.keys(prr.security_summary.history_scan).sort()).toEqual(
@@ -199,6 +200,47 @@ describe('buildPrr: the record, golden', () => {
     expect(none.writes).toBe('none');
     const e = refused(inputs({ level: 'light', report: unprotected }));
     expect(e.code).toBe('b3_not_met');
+  });
+
+  it('card 4 settles B3 and B4: a census red only on the installation it could not read signs Light with agent lanes', () => {
+    const i = inputs({ level: 'light' });
+    const census = {
+      ...i.census,
+      posture: {
+        ...i.census.posture,
+        state: 'red' as const,
+        reasons: [
+          {
+            kind: 'blocker' as const,
+            blocker: 'B4' as const,
+            status: 'unknown' as const,
+            codes: ['installation_unknown'],
+            evidence: [],
+          },
+        ],
+      },
+    };
+    expect(postureAtSignOff(census, i.c4, 'light')).toBe(i.c4.report.b4.amber ? 'amber' : 'green');
+    const light = built({ ...i, census });
+    expect(light.autonomy.lanes_eligible).toEqual(['L0', 'L1', 'L2', 'L3', 'L7', 'L8']);
+    // card 4 could not read the installation either: still red, Census lanes only
+    const unread = {
+      ...i.c4,
+      report: {
+        ...i.c4.report,
+        app_installation: { ...i.c4.report.app_installation, read: 'unknown' as const },
+      },
+    };
+    expect(postureAtSignOff(census, unread, 'light')).toBe('red');
+    // a B1 the census found open stays open whatever card 4 read
+    const b1 = {
+      ...census,
+      posture: {
+        ...census.posture,
+        reasons: [{ ...census.posture.reasons[0]!, blocker: 'B1' as const }],
+      },
+    };
+    expect(postureAtSignOff(b1, i.c4, 'light')).toBe('red');
   });
 
   it('a red posture confines the lanes to Census lanes and caps at A0', () => {

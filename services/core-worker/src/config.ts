@@ -78,10 +78,12 @@ export interface CoreWorkerConfig {
     readonly model: string;
   } | null;
   /**
-   * 6.6 through the Push Broker (PLAN M13.6): with `CORE_WORKER_PUSH_BROKER=1` (and a sandbox) the codehost's `push` route is
-   * asked for the Unit's patch (this worker's codehost token needs the scope `push`). Off: 6.6 stays over the stage-port fake.
+   * 6.6 through the Push Broker (PLAN M13.6): with `CORE_WORKER_PUSH_BROKER=1` (and a sandbox) the Push Broker's `push` route
+   * is asked for the Unit's patch: the codehost in `CODEHOST_MODE=push` at `CORE_WORKER_PUSH_BROKER_URL` with this worker's
+   * token there (scope `push`), or, without that URL, the codehost above (its token then needs the scope `push`). `null`:
+   * 6.6 stays over the stage-port fake.
    */
-  readonly pushBroker: boolean;
+  readonly pushBroker: { readonly url: string; readonly token: string } | null;
   /**
    * M14.3: S7 7.1 to 7.5 through the verify service (`CORE_WORKER_VERIFY_URL`, this worker's token there with the
    * scopes `run` and `read`), and 7.6 (M14.4): the Evidence Pack signed by the Notary (this worker's Notary token needs
@@ -254,8 +256,10 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *                                   sessions go to it (it holds the proxy token, the ceilings and the caps) instead of a
  *                                   driver in this process, and H2 reads its free slots. Not with CORE_WORKER_SANDBOX_PROXY_URL.
  *                                   CORE_WORKER_SESSION_STORE and CORE_WORKER_CODER_MODEL as above
- *   CORE_WORKER_PUSH_BROKER         `1`: 6.6 asks the codehost's Push Broker (route `push`, scope `push`) to write the Unit's patch
+ *   CORE_WORKER_PUSH_BROKER         `1`: 6.6 asks the Push Broker (route `push`, scope `push`) to write the Unit's patch
  *                                   as a commit on agent/<item>/<unit> and a Draft PR; needs the sandbox. Default off
+ *   CORE_WORKER_PUSH_BROKER_URL, CORE_WORKER_PUSH_BROKER_TOKEN_REF   the Push Broker's own codehost (CODEHOST_MODE=push, its
+ *                                   own App) and this worker's token there; unset: the codehost above plays it
  *   CORE_WORKER_AGENT_EXTRA_MODELS  comma-separated model ids added to every key's allow-list (the local
  *                                   deployment routes everything to `fake-model`); default none
  *   CORE_WORKER_RELEASE             `gate-relay` (M15.3): S8b reads gate-relay's record of the approved G5's deployment
@@ -396,8 +400,22 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
       'CORE_WORKER_SANDBOX_CONTROLLER_URL runs real coding sessions, which need CORE_WORKER_STAGE_PORTS=agents',
     );
   }
-  const pushBroker = env['CORE_WORKER_PUSH_BROKER'] === '1';
-  if (pushBroker && sandbox === null && sandboxController === null) {
+  const pushOn = env['CORE_WORKER_PUSH_BROKER'] === '1';
+  const brokerUrl = env['CORE_WORKER_PUSH_BROKER_URL'];
+  if (!pushOn && brokerUrl !== undefined && brokerUrl !== '') {
+    throw new ServiceConfigError(
+      'CORE_WORKER_PUSH_BROKER_URL is used only with CORE_WORKER_PUSH_BROKER=1',
+    );
+  }
+  const pushBroker = !pushOn
+    ? null
+    : brokerUrl !== undefined && brokerUrl !== ''
+      ? {
+          url: httpUrlEnv(env, 'CORE_WORKER_PUSH_BROKER_URL'),
+          token: resolveSecretRef(requiredEnv(env, 'CORE_WORKER_PUSH_BROKER_TOKEN_REF'), { env }),
+        }
+      : null;
+  if (pushOn && sandbox === null && sandboxController === null) {
     throw new ServiceConfigError(
       'CORE_WORKER_PUSH_BROKER=1 needs the sandbox (6.6 pushes what 6.1 to 6.5 built)',
     );
@@ -482,7 +500,12 @@ export function coreWorkerConfigFromEnv(env: Env): CoreWorkerConfig {
     gateway,
     sandbox,
     sandboxController,
-    pushBroker,
+    pushBroker: !pushOn
+      ? null
+      : (pushBroker ?? {
+          url: httpUrlEnv(env, 'CORE_WORKER_CODEHOST_URL'),
+          token: resolveSecretRef(requiredEnv(env, 'CORE_WORKER_CODEHOST_TOKEN_REF'), { env }),
+        }),
     verify,
     releaseViaGateRelay,
     fakeVerify,

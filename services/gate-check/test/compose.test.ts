@@ -48,11 +48,14 @@ describe('gate-check in the compose stack', () => {
       'gate-relay-app.pub.pem',
       // M16: the issue twin's tracker App is its fourth
       'tracker-app.pub.pem',
+      // the Push Broker's own App is its fifth
+      'push-broker-app.pub.pem',
     ]);
   });
 
   it('is hardened, health-checked, and on its own networks: no route to core, the Notary or identity', () => {
-    expect(gc.profiles).toEqual(['gate-check']);
+    // its own profile, and `full` (the request-to-PR stack)
+    expect(gc.profiles).toEqual(['gate-check', 'full']);
     expect(gc.read_only).toBe(true);
     expect(gc.cap_drop).toEqual(['ALL']);
     expect(gc.security_opt).toContain('no-new-privileges:true');

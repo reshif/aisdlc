@@ -40,8 +40,11 @@ export async function planUnits(d: CoreDeps, p: PlanOfUnits): Promise<Result<voi
       },
     ]);
     if (!e.ok) return e;
-    // a redelivered plan (the same hash) is the same event: the rows are folded again to the same state
-    await foldPlan(tx, p, now);
+    // a redelivered plan (the same hash) is the same event: the rows are folded again to the same state. The time folded
+    // is the event's own (`planned_at`), as `rebuildUnits` folds it: a clock read here would make the live row differ
+    // from the one rebuilt from the record (the restore drill found it)
+    const at = e.value.events[0]?.occurred_at;
+    await foldPlan(tx, p, at === undefined ? now : new Date(at));
     return ok(undefined);
   });
 }

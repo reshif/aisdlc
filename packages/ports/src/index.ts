@@ -27,6 +27,7 @@ export * from './model-provider.js';
 export * from './agent-keys.js';
 export * from './knowledge-search.js';
 export * from './planning-fixtures.js';
+export * from './testbed-fixtures.js';
 export * from './sandbox.js';
 export * from './sandbox-guard.js';
 export * from './http-sandbox.js';
