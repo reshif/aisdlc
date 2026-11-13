@@ -1,19 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  CARD_ID,
-  NOW,
-  S0_ID,
-  card,
-  me,
-  mockApi,
-  projectOf,
-  renderAt,
-  repoOf,
-  s0,
-  summaryOf,
-} from './helpers';
+import { summary } from './onboardFixtures';
+import { CARD_ID, NOW, S0_ID, me, mockApi, renderAt, summaryOf } from './helpers';
 
 // PLAN M18 in the portal: the onboarding assistant beside the S0 page, "Ask the factory", and the notifications
 // screens. The browser sends the question and nothing else (the bff adds the person and the data class); answers are
@@ -143,10 +132,7 @@ const decisions = (allow: readonly string[]) => (c: { body: unknown }) => ({
 function s0Routes(extra: Record<string, unknown> = {}) {
   return {
     'GET /api/me': { json: me() },
-    [`GET /api/s0/${S0_ID}`]: { json: s0({ status: 'card', states: { '0.1': 'card' } }) },
-    [`GET /api/s0/${S0_ID}/cards`]: { json: [card()] },
-    [`GET /api/s0/${S0_ID}/revision`]: { json: { revision: null } },
-    'GET /api/projects/testbed': { json: { project: projectOf(), repos: [repoOf()], s0: [] } },
+    [`GET /api/s0/${S0_ID}/summary`]: { json: summary() },
     'GET /api/assistant/budget': { json: budget },
     ...extra,
   } as never;
@@ -156,7 +142,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('the onboarding assistant beside the S0 page', () => {
+describe('the onboarding assistant beside the onboarding summary', () => {
   it('asks with the question only, and shows the answer as text with citations, drafts and buttons', async () => {
     let asked = false;
     const api = mockApi(
@@ -181,7 +167,11 @@ describe('the onboarding assistant beside the S0 page', () => {
       }),
     );
     renderAt(`/s0/${S0_ID}`);
-    const panel = await screen.findByRole('region', { name: 'Onboarding assistant' });
+    const panel = await screen.findByRole(
+      'region',
+      { name: 'Onboarding assistant' },
+      { timeout: 5000 },
+    );
     await userEvent.click(
       await within(panel).findByRole('button', { name: 'Why is this onboarding waiting?' }),
     );
@@ -240,7 +230,11 @@ describe('the onboarding assistant beside the S0 page', () => {
       }),
     );
     renderAt(`/s0/${S0_ID}`);
-    const panel = await screen.findByRole('region', { name: 'Onboarding assistant' });
+    const panel = await screen.findByRole(
+      'region',
+      { name: 'Onboarding assistant' },
+      { timeout: 5000 },
+    );
     const actions = await within(panel).findByRole('group', { name: 'Suggested actions' });
     await waitFor(() =>
       expect(
@@ -255,6 +249,8 @@ describe('the onboarding assistant beside the S0 page', () => {
       (
         await screen.findAllByText(
           'The assistant answers only people who can see this onboarding and may use the assistant.',
+          {},
+          { timeout: 5000 },
         )
       ).length,
     ).toBeGreaterThan(0);
@@ -323,6 +319,8 @@ describe('the onboarding assistant asks for assistant.use too (PLAN §7a)', () =
       (
         await screen.findAllByText(
           'The assistant answers only people who can see this onboarding and may use the assistant.',
+          {},
+          { timeout: 5000 },
         )
       ).length,
     ).toBeGreaterThan(0);

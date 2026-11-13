@@ -188,6 +188,40 @@ export const SAMPLE_OUTPUTS: Readonly<Record<AgentId, readonly Record<string, un
     },
   ],
   coder: implementation,
+  onboarding: [
+    {
+      kind: 'onboarding',
+      summary:
+        'A small TypeScript service. Tests run with `npm test`; there is no CODEOWNERS file.',
+      learned: [
+        { topic: 'tests', status: 'ok', text: 'npm test runs vitest.', evidence },
+        { topic: 'owners', status: 'needs_fix', text: 'No CODEOWNERS file.', evidence: [] },
+      ],
+      claims: [{ claim_id: 'c1', text: 'Tests run with npm test.', confidence: 'high', evidence }],
+      fixes: [
+        {
+          fix_id: 'codeowners',
+          fix_kind: 'codeowners',
+          title: 'Add a CODEOWNERS file',
+          why: 'Code review needs an owner for every path.',
+          files: [{ path: '.github/CODEOWNERS', content: '* @alice\n' }],
+          manual_steps: [],
+        },
+        {
+          fix_id: 'protect-main',
+          fix_kind: 'protect_main_ruleset',
+          title: 'Protect the main branch',
+          why: 'Agents may only open PRs into a protected branch.',
+          files: [],
+          manual_steps: ['On GitHub open Settings, Rules, Rulesets, and import the ruleset.'],
+        },
+      ],
+      questions: ['Does a merge to main deploy?'],
+      gap_suggestions: [
+        { gap_id: 'g1', disposition: 'file_issue', why: 'Blocking for the level.' },
+      ],
+    },
+  ],
   assistant: [
     {
       kind: 'answer',

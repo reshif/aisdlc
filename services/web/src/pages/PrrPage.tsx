@@ -1,13 +1,34 @@
 import { useQuery } from '@tanstack/react-query';
-import { type Autonomy, type PrrVersionView } from '@aisdlc/contracts';
+import { AutonomyValues, type Autonomy, type PrrVersionView } from '@aisdlc/contracts';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { PageError, Loading } from '../components/Notice';
 import { Hash } from '../cards/shared';
-import { bindingCaps } from '../cards/C5Panel';
 import { shortTime } from '../format';
 import { Link } from '../router';
 import { AreaLevels } from './AreaLevels';
+
+const rank = (a: Autonomy): number => AutonomyValues.indexOf(a);
+
+/** Which caps bind the effective autonomy (the lowest wins); none: it is held by probation. */
+export function bindingCaps(
+  a: Readonly<{
+    tier_cap: Autonomy;
+    level_cap: Autonomy;
+    readiness_cap: Autonomy;
+    posture_cap: Autonomy | null;
+    effective: Autonomy;
+  }>,
+): string[] {
+  const caps: Array<[string, Autonomy | null]> = [
+    ['tier', a.tier_cap],
+    ['level', a.level_cap],
+    ['readiness', a.readiness_cap],
+    ['posture', a.posture_cap],
+  ];
+  const hits = caps.filter(([, c]) => c !== null && rank(c) === rank(a.effective)).map(([n]) => n);
+  return hits.length > 0 ? hits : ['probation'];
+}
 
 const STATUS_TONE = {
   proposed: 'attention',
@@ -32,7 +53,7 @@ const cap = (c: Autonomy | null): string => c ?? 'none (green)';
 function Record({ v, repo }: { v: PrrVersionView; repo: string }) {
   const r = v.record;
   const a = r.autonomy;
-  const binds = bindingCaps({ ...a, r3_zones: a.r3_zones });
+  const binds = bindingCaps(a);
   const gaps = {
     total: r.gaps.length,
     blocking: r.gaps.filter((g) => g.severity === 'blocking').length,

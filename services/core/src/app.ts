@@ -83,6 +83,9 @@ import { z } from 'zod';
 import { gateArtefactsView } from './planning/gate-view.js';
 import type { DeletionDeps } from './deletion/engine.js';
 import { registerDeletionRoutes } from './deletion/routes.js';
+import { registerOnboardingV2Routes } from './onboarding-v2/routes.js';
+import type { OnboardingAgentPort } from './onboarding-v2/agent.js';
+import type { PackDeps } from './cards/pack.js';
 import {
   decideGateCard,
   gateCardView,
@@ -262,6 +265,10 @@ export interface CoreAppOptions {
   readonly secretStore?: SecretStorePort;
   /** Delete means delete (docs/specs/deletion.md): the purge login and its object purger; absent: `503`. */
   readonly deletion?: DeletionDeps;
+  /** Portal v2 agent-led onboarding: the onboarding agent ("ask the agent again"); absent: that route answers 503. */
+  readonly onboardingAgent?: OnboardingAgentPort;
+  /** The pack path the agent's fixes take (record, X2); absent: a re-run proposes and the worker renders. */
+  readonly onboardingPack?: PackDeps;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -2318,6 +2325,32 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     pool: o.pool,
     deletion: o.deletion,
     allowed: (req) => allowed(req, 'delete'),
+  });
+
+  // ------------------------------------------------------------ agent-led onboarding (portal v2, N11-N13)
+
+  registerOnboardingV2Routes({
+    app,
+    cards: o.cards,
+    config: o.config ?? o.cards?.config,
+    agent: o.onboardingAgent,
+    pack: o.onboardingPack,
+    allowed: (req, scope) => allowed(req, scope as CoreScope),
+    guard,
+    // each card the sign-off decides is the PDP's `card.decide` too (an override allow needs the reason)
+    cardAllowed: async (principal, project, cardId, overridden) => {
+      if (!o.pdp) return false;
+      try {
+        const d = await o.pdp.decide({
+          principal,
+          action: 'card.decide',
+          resource: pdpResource.card(project, cardId),
+        });
+        return d.decision === 'allow' && (!isAdminOverride(d) || overridden);
+      } catch {
+        return false;
+      }
+    },
   });
 
   // ------------------------------------------------------------ the assistant (M18)

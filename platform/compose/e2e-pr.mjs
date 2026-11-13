@@ -4,10 +4,10 @@
 // Every decision is made in the browser by the person whose slot decides it (the design personas; the testbed's role
 // map is `personaRoleMap('payments')`):
 //
-//   lt (factory owner) asks for the Light onboarding of reshif/asf-factory-testbed and, as its bootstrap grantee,
-//   decides card 1, card 2 (the instructions affirmed with a step-up, after the probe passed in a K-exec session),
-//   card 4 (the role map of the personas, release off, two-person off at T0), the settings revision and card 5 (a
-//   step-up) -> dn (requester) types a request on Ask for work -> S1 runs on the real planning port (the gateway's fake
+//   lt (factory owner) asks for the Light onboarding of reshif/asf-factory-testbed (portal v2, agent-led) and, as its
+//   bootstrap grantee, signs the one summary once (card 1 now; card 4 with the personas' role map and two-person off
+//   at T0, and its settings revision, once card 2 is affirmed on its own page with a step-up after the probe passed in
+//   a K-exec session); rb, the onboarding signer of the role map now in force, signs the scorecard (a step-up) -> dn (requester) types a request on Ask for work -> S1 runs on the real planning port (the gateway's fake
 //   answers with the testbed fixtures), dn says Ready -> G0/G1 by the intent slot (ar) -> S3/S5 -> G2, G3 by their
 //   slot holders -> S6 in W sessions (A6 writes the oracle, the coder the implementation) -> S7 in the verify service
 //   -> 7.6 the signed Evidence Pack -> 6.6 the Push Broker's commit on agent/<item>/<unit> and a Draft PR -> gate-check's
@@ -291,83 +291,99 @@ try {
     `SELECT s0_id FROM core.s0_record WHERE status <> 'withdrawn' ORDER BY s0_id DESC LIMIT 1`,
   )[0];
   if (!s0Id) {
+    // portal v2: pick the repo the GitHub App sees (or type it), Small changes, start
     await page.getByRole('link', { name: 'Onboard a repo' }).first().click();
-    await page.getByLabel('Repository owner').fill(REPO.owner);
-    await page.getByLabel('Repository name').fill(REPO.name);
-    await page.getByLabel('Project slug').fill(PROJECT);
-    await page.getByLabel('Light', { exact: true }).check();
-    await page.getByRole('button', { name: 'Request onboarding' }).click();
-    await page.waitForURL(/\/s0\/[0-9a-f-]{36}$/);
+    const listed = page.getByRole('radio', { name: new RegExp(REPO_REF) });
+    await until(
+      async () =>
+        (await listed.count()) > 0 || (await page.getByText('No repos visible').count()) > 0,
+      'the repos the GitHub App can see',
+    );
+    if ((await listed.count()) > 0) await listed.check();
+    else {
+      await page.getByRole('button', { name: /type it/ }).click();
+      await page.getByLabel('Repository owner').fill(REPO.owner);
+      await page.getByLabel('Repository name').fill(REPO.name);
+    }
+    await page.getByLabel('Project name').fill(PROJECT);
+    await page.getByRole('radio', { name: /^Small changes/ }).check();
+    await page.getByRole('button', { name: 'Start onboarding' }).click();
+    await page.waitForURL(/\/onboard\/[0-9a-f-]{36}$/);
     s0Id = page.url().split('/').pop();
-    log(`lt asked for the Light onboarding of ${REPO_REF} in the wizard: s0 ${s0Id}`);
+    log(`lt asked for the Light onboarding of ${REPO_REF}: s0 ${s0Id}`);
   } else log(`the onboarding s0 ${s0Id} is already there: going on from where it is`);
-  const s0Url = `${base}/s0/${s0Id}`;
+  const s0Url = `${base}/onboard/${s0Id}`;
 
   const stepState = async (step) => {
     await page.goto(s0Url);
     await page.locator(`[data-step="${step}"]`).waitFor();
     return page.locator(`[data-step="${step}"]`).getAttribute('data-state');
   };
-  const waitStep = async (step, states) => {
-    let last = '';
-    return until(
-      async () => {
-        const s = await stepState(step);
-        if (s !== last) {
-          log(`step ${step} is ${s}`);
-          last = s;
-        }
-        return states.includes(s) ? s : null;
-      },
-      `step ${step} to be ${states.join(' or ')}`,
-    );
-  };
-  const openCard = async (label) => {
-    const link = page.getByRole('link', { name: `Card ${label}` });
-    await until(async () => {
-      await page.goto(s0Url);
-      await page.waitForLoadState('networkidle');
-      return (await link.count()) > 0;
-    }, `card ${label} to open`);
-    await link.last().click();
-    await page.getByRole('heading', { level: 1 }).waitFor();
-  };
-  /** The step-up at the dev IdP (bound to what the card shows), then back on the card with the form ready. */
+  const signState = (p) => p.getByTestId('sign-off-state').getAttribute('data-state');
+  /** The step-up at the IdP (bound to what the card shows), then back on the card with the form ready. */
   const stepUp = async (p) => {
     await p.page.getByRole('button', { name: 'Confirm my identity' }).click();
     await p.reSignIn();
-    await p.page.waitForURL(/\/cards\/[0-9a-f-]{36}/);
+    await p.page.waitForURL(/\/(cards|decide)\/[0-9a-f-]{36}/);
     await p.page.getByTestId('stepup-ready').waitFor();
     await formReady(p.page);
   };
-
-  // card 1: the census, the tier, the gaps
-  if ((await waitStep('0.1', ['card', 'done'])) === 'card') {
-    await openCard('C1');
-    await formReady(page);
-    const gaps = page.locator('.gap');
-    for (let i = 0; i < (await gaps.count()); i++) {
-      const g = gaps.nth(i);
-      const severity = (await g.locator('.badge').first().innerText()).trim();
-      if (severity === 'blocking') await g.getByRole('radio', { name: /Fix now/ }).check();
-      else if (await g.getByRole('radio', { name: /Fix later/ }).isEnabled())
-        await g.getByRole('radio', { name: /Fix later/ }).check();
-    }
-    const t0 = page.getByLabel('no prod, no real data, no dependants');
+  /** The one summary, filled in as lt: risk, the GitHub settings only a person can state, the personas' role map. */
+  const fillSummary = async (p) => {
+    const t0 = p.getByRole('checkbox', { name: /no production use/ });
     if ((await t0.count()) > 0) await t0.check();
-    const reg = page.getByLabel(/no regulatory obligation/);
+    const reg = p.getByRole('checkbox', { name: /no regulatory obligation/ });
     if ((await reg.count()) > 0) await reg.check();
-    const crit = page.getByLabel(/I attest the criticality/);
+    const crit = p.getByRole('checkbox', { name: /how critical/ });
     if ((await crit.count()) > 0) await crit.check();
-    await press(lt, 'Approve card 1');
-    await page.getByTestId('receipt').waitFor();
-    log('card 1 approved by lt');
+    for (const t of [
+      /bypass list of main/,
+      /selected repositories only/,
+      /GITHUB_TOKEN of workflows is read-only/,
+      /may not create or approve pull requests/,
+      /fork pull requests need approval/,
+      /operations\.md says how this project is run/,
+    ]) {
+      const box = p.getByRole('checkbox', { name: t });
+      if ((await box.count()) > 0) await box.check();
+    }
+    await p.getByRole('combobox', { name: 'Secret scanning' }).selectOption('on');
+    // the plan: a private repo on Free cannot enforce rulesets, so the factory could not write to it at Light
+    await p.getByRole('combobox', { name: 'GitHub plan' }).selectOption('team');
+    const owners = p.locator('[data-slot="g4"] input[type=checkbox]');
+    if (await owners.isChecked()) await owners.uncheck();
+    for (const [slot, people] of Object.entries(ROLE_MAP)) {
+      await p.locator(`[data-slot="${slot}"] input.ui-input`).fill(people.join(', '));
+    }
+    const two = p.getByRole('checkbox', { name: /need two people here/ });
+    if (await two.isChecked()) await two.uncheck();
+  };
+
+  // the one sign-off, as lt (the bootstrap grantee): card 1 now, card 4 and its settings once card 2 is affirmed
+  if ((await stepState('0.5')) !== 'done') {
+    await page.getByTestId('agent-summary').waitFor({ timeout: T });
+    log(
+      `the onboarding agent: ${(await page.getByTestId('agent-summary').innerText()).slice(0, 160)}`,
+    );
+    const st = await signState(page);
+    if (st === 'ready') {
+      await fillSummary(page);
+      await press(lt, 'Sign off');
+      log('lt signed off the summary once');
+    }
   }
 
-  // card 2: the probe ran in a K-exec session (the onboarding image), LF3, LF4 and LF8 met; the claims, the questions,
-  // the instruction text affirmed with a step-up
-  if ((await waitStep('0.2', ['card', 'done'])) === 'card') {
-    await openCard('C2');
+  // card 2 (Light) is its own approval: the probe ran in a K-exec session (the onboarding image), LF3, LF4 and LF8
+  // met; the claims, the questions, the instruction text affirmed with a step-up
+  if ((await stepState('0.2')) !== 'done') {
+    const c2 = page.getByRole('link', { name: 'Repo facts and instructions' });
+    await until(async () => {
+      await page.goto(s0Url);
+      await page.waitForLoadState('networkidle');
+      return (await c2.count()) > 0;
+    }, 'card 2 to open');
+    await c2.first().click();
+    await page.getByRole('heading', { level: 1 }).waitFor();
     await until(async () => {
       await page.reload();
       await formReady(page);
@@ -410,100 +426,47 @@ try {
     log('card 2 affirmed by lt (step-up bound to the affirmed instruction files)');
   }
 
-  // card 4: controls, attestations, the personas' role map, release off, two-person off
-  if ((await waitStep('0.4', ['card', 'done'])) === 'card') {
-    await openCard('C4');
-    await formReady(page);
-    // what the controls report says of the fake testbed's settings: everything met (a report read before a settings
-    // change is read again with the card's own Re-check)
-    await until(
-      async () => {
-        const open = await page.locator('[data-control][data-status="not_met"]').count();
-        if (open === 0) return true;
-        log(`card 4: ${open} control(s) not met; Re-check`);
-        await page.getByRole('button', { name: 'Re-check' }).click();
-        await sleep(5000);
-        await page.reload();
-        await formReady(page);
-        return false;
-      },
-      'card 4 controls to be met',
-      90_000,
-    );
-    for (const t of [
-      'operations.md is in place and describes how this project is run',
-      'the bypass list has no factory App',
-      /installed on selected repositories only/,
-      'the default GITHUB_TOKEN is read-only',
-      '“Actions may create/approve PRs” is off',
-      'fork-PR approval is required',
-      /secret scanning and push protection are on where the plan allows/,
-    ]) {
-      const box = page.getByLabel(t);
-      if ((await box.count()) > 0) await box.check();
-    }
-    // the plan: a private repo on Free cannot enforce rulesets, so the factory could not write to it at Light
-    const plan = page.getByLabel('Team', { exact: true });
-    if ((await plan.count()) > 0) await plan.check();
-    const owners = page.getByRole('checkbox', { name: /^g4:/ });
-    if (await owners.isChecked()) await owners.uncheck();
-    for (const [slot, people] of Object.entries(ROLE_MAP)) {
-      await page.getByRole('textbox', { name: new RegExp(`^${slot}:`) }).fill(people.join(', '));
-    }
-    const two = page.getByLabel(/Require a second person/);
-    if (await two.isChecked()) await two.uncheck();
-    await page.getByRole('radio', { name: 'Off: this project does not release' }).check();
-    await press(lt, 'Approve card 4');
-    await page.getByTestId('receipt').waitFor();
-    log(`card 4 approved by lt: role map ${JSON.stringify(ROLE_MAP)}, release off`);
-  }
-
-  // the settings revision card 4 proposed, decided by lt (the provisional admin) and published
+  // back on the summary, lt's sign-off goes on by itself: card 4, its settings decided and published; then the
+  // scorecard is rb's to sign (admin and m4 of the role map now in force) and lt's sign-off waits for him
   if ((await stepState('0.5')) !== 'done') {
-    const revLink = page.getByRole('link', { name: 'Decide the settings revision' });
-    const pending = await until(async () => {
+    let last = '';
+    await until(async () => {
       await page.goto(s0Url);
-      await page.waitForLoadState('networkidle');
-      if ((await revLink.count()) > 0) return 'pending';
-      return (await page.getByRole('link', { name: 'Card C5' }).count()) > 0 ? 'published' : null;
-    }, 'the settings revision to be pending');
-    if (pending === 'pending') {
-      await revLink.click();
-      await page.getByRole('heading', { level: 1, name: 'Settings revision pending' }).waitFor();
-      const approveRev = page.getByRole('button', { name: 'Approve and publish these settings' });
-      await until(async () => approveRev.isEnabled(), 'the revision decision form');
-      await approveRev.click();
-      await page.getByTestId('receipt').waitFor();
-      log('the settings revision decided and published by lt');
-    }
-    // card 5: the sign-off of the readiness record and M4, by their slot holders now that the role map is published:
-    // rb holds admin (the sign-off) and m4. lt, the grantee who did the rest, is shown why not.
-    await openCard('C5');
-    const c5 = page.url();
-    await page.getByTestId('c5-level').waitFor();
-    const level = await page.getByTestId('c5-level').innerText();
-    const lanes = (await page.getByTestId('c5-lanes').innerText()).replace(/\s+/g, ' ');
-    log(`card 5 shows level "${level}", lanes "${lanes}"`);
-    must(/light/i.test(level), `card 5 level is ${level}`);
-    must(/L3/.test(lanes), `card 5 opens no agent lane (L1-L3): ${lanes}`);
-    await page.getByTestId('not-decidable').waitFor();
+      await page.getByTestId('sign-off-state').waitFor();
+      await sleep(3000);
+      const s = await signState(page);
+      if (s !== last) {
+        log(`lt's sign-off: ${s}`);
+        last = s;
+      }
+      if (s === 'waiting' && (await page.getByRole('button', { name: 'Sign again' }).count())) {
+        const note = await page.getByTestId('sign-off').innerText();
+        if (/GitHub changed|Fill in the summary/.test(note)) {
+          await fillSummary(page);
+          await press(lt, 'Sign again');
+          return null;
+        }
+      }
+      return s === 'waiting' && (await stepState('0.4')) === 'done' ? s : null;
+    }, 'card 4 and its settings to be decided through the sign-off');
     log(
-      `card 5: lt is told "${(await page.getByTestId('not-decidable').innerText()).replace(/\s+/g, ' ')}"`,
+      'lt: cards 1 and 4 and the settings decided by the one sign-off; the scorecard waits for rb',
     );
     const rb = await personOf('rb');
-    await rb.page.goto(c5);
-    await rb.page.getByTestId('c5-level').waitFor();
-    await formReady(rb.page);
-    await rb.page.getByLabel(/I have read this readiness record/).check();
-    await stepUp(rb);
-    await rb.page.getByLabel(/I have read this readiness record/).check();
-    await press(rb, 'Sign off and approve M4');
-    const r5 = rb.page.getByTestId('receipt');
-    await r5.waitFor();
-    must(/M4: approved/.test(await r5.innerText()), 'card 5: no M4 approval in the receipt');
-    log('card 5 signed off by rb (admin and m4) with a step-up: M4 approved');
+    await rb.page.goto(s0Url);
+    await rb.page.getByTestId('sign-off-state').waitFor();
+    await until(async () => (await signState(rb.page)) === 'ready', 'rb to be asked to sign');
+    await press(rb, 'Sign off');
+    await until(
+      async () => (await signState(rb.page)) === 'needs_step_up',
+      'rb to be asked to confirm it is him',
+    );
+    await rb.page.getByRole('button', { name: 'Confirm it’s you' }).click();
+    await rb.reSignIn();
+    await rb.page.waitForURL(/\/onboard\/[0-9a-f-]{36}/);
+    await until(async () => (await signState(rb.page)) === 'done', 'rb’s sign-off to end');
+    log('the scorecard signed by rb (admin and m4) with a step-up: M4 approved');
   }
-  await waitStep('0.5', ['done']);
   await until(
     async () => rows(`SELECT 1 FROM core.s0_record WHERE s0_id = '${s0Id}' AND status = 'done'`)[0],
     'the S0 record to be done',

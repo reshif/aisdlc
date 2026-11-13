@@ -68,4 +68,5 @@ export * from './deletion/engine.js';
 export * from './deletion/match.js';
 export * from './deletion/targets.js';
 export * from './deletion/routes.js';
+export * from './onboarding-v2/index.js';
 export * from './override.js';

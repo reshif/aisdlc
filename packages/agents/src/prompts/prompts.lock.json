@@ -56,6 +56,11 @@
       "sha256": "5251fad4bd108ef4ee0da7f87345176a842360f13d1ea3dd1379dcb3b51779c0",
       "contract_version": "1.0.0"
     },
+    "onboarding@1.0.0": {
+      "file": "onboarding@1.0.0.md",
+      "sha256": "879bf893d35052ca1355399bc7179d6528fbe0bd61c05a7b4e9884581c1f24ac",
+      "contract_version": "1.0.0"
+    },
     "unspecified@1.0.0": {
       "file": "unspecified@1.0.0.md",
       "sha256": "cb5e251a5ccd030898d820df96d2a6a94ceba9b97657e02199389af30ac20b60",

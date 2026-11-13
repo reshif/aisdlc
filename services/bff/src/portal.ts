@@ -1,4 +1,7 @@
 import {
+  OnboardingSummaryView,
+  SignOffRequest,
+  SignOffResult,
   ADMIN_OVERRIDE_POLICY_ID,
   AgentId,
   SettingPreview,
@@ -118,6 +121,9 @@ import type { Levels } from './levels.js';
 //   GET  /api/evals/runs                  the eval run history                         (audit.read)
 //   GET  /api/s0/:id                      the S0 record with its steps                (project.view)
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
+//   GET  /api/s0/:id/summary              portal v2: the one onboarding summary        (project.view)
+//   POST /api/s0/:id/sign-off             portal v2: the one sign-off                  (card.decide, in core)
+//   POST /api/s0/:id/agent/run            portal v2: ask the onboarding agent again    (project.onboard, in core)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
 //   GET  /api/cards/:id/kind              P3-8: onboarding card or work-item gate card (project.view): the
 //                                         page asks once, so no browser request ends in a 404 probe
@@ -1284,6 +1290,51 @@ export function registerPortalRoutes(d: PortalDeps): void {
   app.post('/api/cards/:id/gate/decide', (req, reply) =>
     gateMove(req, reply, PortalGateDecideBody, 'decide'),
   );
+
+  // ------------------------------------------------------------ agent-led onboarding (portal v2, N11-N13)
+
+  /** The one summary, as the person sees it (`may_sign` is theirs); core asks the PDP's `project.view` too. */
+  app.get('/api/s0/:id/summary', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    if (!(await viewableS0(req, reply, c, id))) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('GET', `/v1/s0/${id}/summary?on_behalf_of=${encodeURIComponent(who)}`),
+      (v) => OnboardingSummaryView.parse(v),
+    )?.value;
+  });
+
+  /** The one sign-off: the PDP's `card.decide` here and in core; the decision kernel decides each card. */
+  app.post('/api/s0/:id/sign-off', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const body = SignOffRequest.omit({ on_behalf_of: true }).safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    const s0 = await viewableS0(req, reply, c, id);
+    if (!s0) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('POST', `/v1/s0/${id}/sign-off`, { ...body.data, on_behalf_of: who }),
+      (v) => SignOffResult.parse(v),
+    )?.value;
+  });
+
+  /** "Ask the agent again" (`project.onboard`, decided by core on the record's team). */
+  app.post('/api/s0/:id/agent/run', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    if (!(await viewableS0(req, reply, c, id))) return;
+    return upstream(
+      reply,
+      await c.call('POST', `/v1/s0/${id}/agent/run`, { on_behalf_of: d.principalOf(req) }),
+    )?.value;
+  });
 
   // ------------------------------------------------------------ the card moves
 

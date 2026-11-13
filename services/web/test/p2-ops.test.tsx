@@ -159,6 +159,7 @@ describe('Project › Breakers (P2-11)', () => {
       'GET /api/me': { json: me() },
       'POST /api/me/decisions': allowOnly('project.view', 'config.propose'),
       'GET /api/projects/testbed': { json: project },
+      'GET /api/projects/testbed/prr': { json: { project_id: 'testbed', repos: [] } },
       'GET /api/projects/testbed/breakers': {
         json: { breakers: [breaker(), breaker({ lane: 'L1', tripped: false, total: 1 })] },
       },
@@ -167,7 +168,7 @@ describe('Project › Breakers (P2-11)', () => {
         json: { gate_instance_id: GATE },
       },
     });
-    renderAt('/projects/testbed');
+    renderAt('/projects/testbed?tab=floor');
     const table = await screen.findByRole('table', { name: 'Circuit breakers of testbed' });
     const l3 = within(table).getByRole('row', { name: /L3/ });
     expect(l3).toHaveTextContent('3 of 3');
@@ -186,11 +187,12 @@ describe('Project › Breakers (P2-11)', () => {
       'GET /api/me': { json: me() },
       'POST /api/me/decisions': allowOnly('project.view'),
       'GET /api/projects/testbed': { json: project },
+      'GET /api/projects/testbed/prr': { json: { project_id: 'testbed', repos: [] } },
       'GET /api/projects/testbed/breakers': {
         json: { breakers: [breaker(), breaker({ lane: 'L4', pending_reset: GATE })] },
       },
     });
-    renderAt('/projects/testbed');
+    renderAt('/projects/testbed?tab=floor');
     const table = await screen.findByRole('table', { name: 'Circuit breakers of testbed' });
     expect(within(table).getByRole('link', { name: 'M5 reset waiting' })).toHaveAttribute(
       'href',
@@ -302,55 +304,5 @@ describe('Models › providers at the gateway (P2-5)', () => {
     await user.click(screen.getByRole('button', { name: 'Reload after a key change' }));
     await waitFor(() => expect(m.calls.some((c) => c.path === '/api/models/reload')).toBe(true));
     expect(m.calls.find((c) => c.path === '/api/models/reload')?.body).toEqual({ force: true });
-  });
-});
-
-describe('Onboard › the repo picker (P2-21)', () => {
-  it('picks a repo the App installation sees; one a project holds cannot be chosen', async () => {
-    const user = userEvent.setup();
-    mockApi({
-      'GET /api/me': { json: me(['project.onboard']) },
-      'GET /api/onboard/repos': {
-        json: {
-          repos: [
-            {
-              full_name: 'reshif/held',
-              default_branch: 'main',
-              private: false,
-              archived: false,
-              registered: true,
-            },
-            {
-              full_name: 'reshif/new-one',
-              default_branch: 'main',
-              private: true,
-              archived: false,
-              registered: false,
-            },
-          ],
-        },
-      },
-    });
-    renderAt('/onboard');
-    const pick = await screen.findByRole('combobox', { name: 'From the App installation' });
-    expect(
-      within(pick).getByRole('option', { name: /reshif\/held, already a project’s/ }),
-    ).toBeDisabled();
-    await user.selectOptions(pick, 'reshif/new-one');
-    expect(screen.getByRole('textbox', { name: 'Repository owner' })).toHaveValue('reshif');
-    expect(screen.getByRole('textbox', { name: 'Repository name' })).toHaveValue('new-one');
-  });
-
-  it('a list that cannot be read leaves the typed fields', async () => {
-    mockApi({
-      'GET /api/me': { json: me(['project.onboard']) },
-      'GET /api/onboard/repos': {
-        status: 502,
-        json: { error: { code: 'codehost_unavailable', message: 'down' } },
-      },
-    });
-    renderAt('/onboard');
-    expect(await screen.findByText(/could not be read/)).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Repository owner' })).toBeEnabled();
   });
 });

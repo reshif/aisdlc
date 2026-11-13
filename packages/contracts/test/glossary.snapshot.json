@@ -2270,6 +2270,10 @@
     "assistant": {
       "label": "Assistant",
       "explain": "Answers your questions from what you can see."
+    },
+    "onboarding": {
+      "label": "Onboarding agent",
+      "explain": "The agent that reads the repo, works out what is missing and proposes fixes as PRs."
     }
   },
   "sessionState": {
@@ -3617,6 +3621,132 @@
     "govern": {
       "label": "Govern",
       "explain": "Settings, integrations, people and the decision log."
+    }
+  },
+  "fixKind": {
+    "codeowners": {
+      "label": "Code owners file",
+      "explain": "A fix the onboarding agent proposes; a person merges it on GitHub."
+    },
+    "agents_md": {
+      "label": "Agent instructions",
+      "explain": "A fix the onboarding agent proposes; a person merges it on GitHub."
+    },
+    "claude_md": {
+      "label": "Claude instructions",
+      "explain": "A fix the onboarding agent proposes; a person merges it on GitHub."
+    },
+    "protect_main_ruleset": {
+      "label": "Main branch protection",
+      "explain": "A fix the onboarding agent proposes; a person merges it on GitHub."
+    },
+    "test_command": {
+      "label": "Test command",
+      "explain": "A fix the onboarding agent proposes; a person merges it on GitHub."
+    }
+  },
+  "fixState": {
+    "awaiting_approval": {
+      "label": "Waiting to open",
+      "explain": "Where a proposed fix stands."
+    },
+    "opening": {
+      "label": "Opening the PR",
+      "explain": "Where a proposed fix stands."
+    },
+    "pr_open": {
+      "label": "PR open",
+      "explain": "Where a proposed fix stands."
+    },
+    "pr_merged": {
+      "label": "Merged",
+      "explain": "Where a proposed fix stands."
+    },
+    "pr_closed": {
+      "label": "PR closed",
+      "explain": "Where a proposed fix stands."
+    },
+    "refused": {
+      "label": "Not opened",
+      "explain": "Where a proposed fix stands."
+    },
+    "manual": {
+      "label": "Do it on GitHub",
+      "explain": "Where a proposed fix stands."
+    }
+  },
+  "signOffState": {
+    "not_ready": {
+      "label": "Agent working",
+      "explain": "Where the one onboarding sign-off stands."
+    },
+    "ready": {
+      "label": "Ready to sign",
+      "explain": "Where the one onboarding sign-off stands."
+    },
+    "in_progress": {
+      "label": "Signing",
+      "explain": "Where the one onboarding sign-off stands."
+    },
+    "needs_step_up": {
+      "label": "Confirm it is you",
+      "explain": "Where the one onboarding sign-off stands."
+    },
+    "waiting": {
+      "label": "Waiting",
+      "explain": "Where the one onboarding sign-off stands."
+    },
+    "done": {
+      "label": "Signed off",
+      "explain": "Where the one onboarding sign-off stands."
+    },
+    "closed": {
+      "label": "Closed",
+      "explain": "Where the one onboarding sign-off stands."
+    }
+  },
+  "onboardingTopic": {
+    "owners": {
+      "label": "Owners",
+      "explain": "What the onboarding agent looked at."
+    },
+    "tests": {
+      "label": "Tests",
+      "explain": "What the onboarding agent looked at."
+    },
+    "branch_protection": {
+      "label": "Branch protection",
+      "explain": "What the onboarding agent looked at."
+    },
+    "app_permissions": {
+      "label": "GitHub App access",
+      "explain": "What the onboarding agent looked at."
+    },
+    "secrets": {
+      "label": "Secrets",
+      "explain": "What the onboarding agent looked at."
+    },
+    "instructions": {
+      "label": "Agent instructions",
+      "explain": "What the onboarding agent looked at."
+    },
+    "code_map": {
+      "label": "Code map",
+      "explain": "What the onboarding agent looked at."
+    }
+  },
+  "learnedStatus": {
+    "ok": {
+      "label": "Fine",
+      "explain": "What the onboarding agent found about one topic."
+    },
+    "needs_fix": {
+      "label": "Needs a fix",
+      "explain": "What the onboarding agent found about one topic."
+    },
+    "unknown": {
+      "label": "Unknown",
+      "explain": "What the onboarding agent found about one topic."
     }
   }
 }

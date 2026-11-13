@@ -95,7 +95,7 @@ describe('Project > Settings (P1-5)', () => {
       },
     });
     renderAt(`/projects/${P}/settings`);
-    expect(await screen.findByRole('tab', { name: 'Gates' })).toHaveAttribute(
+    expect(await screen.findByRole('tab', { name: 'Approvals on or off' })).toHaveAttribute(
       'aria-selected',
       'true',
     );

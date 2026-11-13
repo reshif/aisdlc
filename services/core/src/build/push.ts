@@ -3,6 +3,7 @@ import {
   ONBOARDING_PACK_LANE,
   ONBOARDING_PACK_UNIT,
   ONBOARDING_FULL_PACK_UNIT,
+  ONBOARDING_FIXES_UNIT,
   PACK_KINDS,
   PrRedraftIntendedPayload,
   PrRedraftedPayload,
@@ -169,6 +170,8 @@ export class CorePushGuards implements PushGuardsPort {
         return readOk(await packLeaseFacts(this.pool, item_id, 'light'));
       if (unit_key === ONBOARDING_FULL_PACK_UNIT)
         return readOk(await packLeaseFacts(this.pool, item_id, 'full'));
+      if (unit_key === ONBOARDING_FIXES_UNIT)
+        return readOk(await packLeaseFacts(this.pool, item_id, 'fixes'));
       return readOk(await unitLeaseFacts(this.pool, item_id, unit_key, () => this.lane(item_id)));
     } catch {
       return readUnknown('server_error', 'the lease could not be read');

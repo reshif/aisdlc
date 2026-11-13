@@ -462,6 +462,91 @@ export const AssistantOutput = z.strictObject({
   noticed: z.array(z.enum(['planted_instruction', 'outside_view', 'secret_requested'])).max(3),
 });
 
+// ---------------------------------------------------------------- the onboarding agent (portal v2, no step)
+
+/** The kinds of fix the onboarding agent may propose; the FACTORY decides which paths each may write. */
+export const OnboardingFixKind = z.enum([
+  'codeowners',
+  'agents_md',
+  'claude_md',
+  'protect_main_ruleset',
+  'test_command',
+]);
+export type OnboardingFixKind = z.infer<typeof OnboardingFixKind>;
+
+/** What the onboarding agent learned, by topic (the live checklist of the onboarding page). */
+export const OnboardingTopic = z.enum([
+  'owners',
+  'tests',
+  'branch_protection',
+  'app_permissions',
+  'secrets',
+  'instructions',
+  'code_map',
+]);
+export type OnboardingTopic = z.infer<typeof OnboardingTopic>;
+
+/**
+ * What the onboarding agent may say about a repo it reads at onboarding (intent §4): what it learned per topic, its
+ * claims (each with evidence at the census commit), the fixes it proposes (files for a draft PR, or the steps a person
+ * takes on GitHub), its questions, and its suggestion for the gaps of card 1. It decides nothing: the factory checks
+ * every file path against the fix's kind, scans every file for secrets, and a person signs off. No field sets a
+ * level, a tier above the floor, a gate, tools, egress or a budget.
+ */
+export const OnboardingOutput = z.strictObject({
+  kind: z.literal('onboarding'),
+  summary: Text(2000),
+  learned: z
+    .array(
+      z.strictObject({
+        topic: OnboardingTopic,
+        status: z.enum(['ok', 'needs_fix', 'unknown']),
+        text: Text(1000),
+        evidence: z.array(Evidence).max(10),
+      }),
+    )
+    .max(20),
+  claims: z
+    .array(
+      z.strictObject({
+        claim_id: Text(64),
+        text: Text(1000),
+        confidence: z.enum(['low', 'medium', 'high']),
+        evidence: z.array(Evidence).min(1).max(10),
+      }),
+    )
+    .max(50),
+  fixes: z
+    .array(
+      z.strictObject({
+        fix_id: z
+          .string()
+          .min(1)
+          .max(64)
+          .regex(/^[a-z0-9_-]+$/),
+        fix_kind: OnboardingFixKind,
+        title: Text(200),
+        why: Text(1000),
+        /** The files of the draft PR; empty when only a person can fix it (on GitHub). */
+        files: z.array(z.strictObject({ path: Text(300), content: Text(20_000) })).max(3),
+        /** What a person does on GitHub, step by step (protect-main cannot be a PR: the App never holds administration). */
+        manual_steps: Items(500, 10),
+      }),
+    )
+    .max(8),
+  questions: Items(500, 10),
+  /** The disposition the agent suggests for each census gap; the person adjusts it in the summary. */
+  gap_suggestions: z
+    .array(
+      z.strictObject({
+        gap_id: Text(128),
+        disposition: z.enum(['file_issue', 'track_only', 'waive']),
+        why: Text(500),
+      }),
+    )
+    .max(200),
+});
+
 /** The output schemas by id. One schema may serve several agents (A4 and `coder`). */
 export const OUTPUT_SCHEMAS = {
   'triage.v1': TriageOutput,
@@ -475,5 +560,6 @@ export const OUTPUT_SCHEMAS = {
   'implementation.v1': ImplementationOutput,
   'unspecified.v1': UnspecifiedOutput,
   'assistant.v1': AssistantOutput,
+  'onboarding.v1': OnboardingOutput,
 } as const;
 export type OutputSchemaId = keyof typeof OUTPUT_SCHEMAS;
