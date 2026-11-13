@@ -205,7 +205,8 @@ export async function bootCoreWorker(
     };
     // portal v2 (`codehost.polls`, H25; `ops.health`, H23): the env intervals are the bootstrap default until the
     // factory publishes other values; read when the loops start (a change takes effect at the next start)
-    const startCfg = await ensureReader();
+    // a deployment without the config schema (the polls-only bundle) keeps the env intervals
+    const startCfg = await ensureReader().catch(() => null);
     const polls = codehostPollsFrom(startCfg, {
       fast_ms: cfg.headIntervalMs,
       hourly_ms: cfg.rulesInFlightIntervalMs,
@@ -387,7 +388,7 @@ export async function bootCoreWorker(
               }),
               execAllowedRepos: execAllowedReposFrom(rd),
               model: session.model,
-              // portal v2: the coder's model, turns and times from `agents.settings`, read on every session
+              // portal v2: the coder's model, turns and times from `agents.config`, read on every session
               modelOf: coderModelFrom(rd, session.model),
               limits: coderLimitsFrom(rd),
               // M13.6: the Push Broker's client, with the record first and the receipt in the record and the ledger
@@ -488,7 +489,7 @@ export async function bootCoreWorker(
                 }
               : {}),
             settings: workSettingsFrom(rd),
-            // portal v2: agents on or off, their models and budgets (`agents.settings`), read on every dispatch
+            // portal v2: agents on or off, their models and budgets (`agents.config`), read on every dispatch
             agentSettings: agentSettingsOf(rd),
             decisions: {
               pool,
