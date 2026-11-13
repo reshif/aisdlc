@@ -259,6 +259,76 @@ describe('agent PRs: pass only on the signed pack of exactly this head, and G3 a
     expect(await verdict(mv.number)).toMatchObject({ outcome: 'failure', reason: 'head_moved' });
   });
 
+  it('B11 after the push (owner decision 2026-11-13): the same PR, a new head; pending/failure until the new pack of exactly that head verifies under the new G3', async () => {
+    const c = w.checker();
+    // 7.6 found the approach wrong: the head's pack is a B11 rework, never a pass
+    const a = await agentPr(w, { pack: 'none' });
+    await signPack(w, {
+      item: a.item,
+      head: a.head,
+      number: a.number,
+      lane: 'L3',
+      passing: false,
+      disposition: { kind: 'rework', edge: 'B11', loop: null, reason_code: 'approach_wrong_7.3' },
+      g3: a.g3,
+      receipt_id: a.receipt_id,
+      patch_hash: a.patch_hash,
+    });
+    expect(await verdict(a.number)).toMatchObject({
+      outcome: 'failure',
+      reason: 'pack_not_passing',
+    });
+    await c.syncRepo(w.repo);
+    expect(runOn(a.head)).toMatchObject({ conclusion: 'failure' });
+    // the re-plan: G3 again, and the re-planned Unit's push fast-forwards the SAME branch and PR at a higher epoch
+    const g3b = await g3(w, a.item, 'approve');
+    const p2 = await brokerPush(w, {
+      item: a.item,
+      lane: 'L3',
+      epoch: 2,
+      expected_head: a.head,
+      n: 960,
+    });
+    expect(p2.number).toBe(a.number);
+    expect(p2.head).not.toBe(a.head);
+    // nothing of the old head carries over: its pack is not for this head
+    expect(await verdict(a.number)).toMatchObject({ outcome: 'failure', reason: 'head_moved' });
+    // a pack for the new head that still carries the old G3 is not enough: the newest G3 is what binds
+    await signPack(w, {
+      item: a.item,
+      head: p2.head,
+      number: p2.number,
+      lane: 'L3',
+      passing: true,
+      g3: a.g3,
+      receipt_id: p2.receipt_id,
+      patch_hash: p2.patch_hash,
+    });
+    expect(await verdict(a.number)).toMatchObject({ outcome: 'failure', reason: 'g3_changed' });
+    // the new pack, signed for exactly the new head under the new G3: green, for that head only
+    const pack2 = await signPack(w, {
+      item: a.item,
+      head: p2.head,
+      number: p2.number,
+      lane: 'L3',
+      passing: true,
+      g3: g3b,
+      receipt_id: p2.receipt_id,
+      patch_hash: p2.patch_hash,
+    });
+    expect(await verdict(a.number)).toMatchObject({
+      outcome: 'success',
+      reason: 'passed',
+      head_sha: p2.head,
+      pack_sha256: pack2.pack_sha256,
+      g3: { gate_instance_id: g3b, status: 'decided', outcome: 'approve' },
+    });
+    await c.syncRepo(w.repo);
+    expect(runOn(p2.head)).toMatchObject({ conclusion: 'success' });
+    // the old head's run stays what it was: a pass is never carried back to it
+    expect(runOn(a.head)).toMatchObject({ conclusion: 'failure' });
+  });
+
   it('a bad signature (the pack changed after signing), a pack for another repo or PR', async () => {
     const a = await agentPr(w, { pack: 'none' });
     await signPack(w, {
