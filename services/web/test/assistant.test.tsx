@@ -368,7 +368,7 @@ describe('notifications', () => {
       },
     });
     renderAt('/me/notifications');
-    expect(await screen.findByRole('link', { name: 'A gate waits for you' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Approval waiting' })).toHaveAttribute(
       'href',
       '/inbox',
     );
@@ -406,10 +406,11 @@ describe('notifications', () => {
       },
     });
     renderAt('/me/notifications');
-    expect(
-      await screen.findByRole('link', { name: 'Your request has questions for you' }),
-    ).toHaveAttribute('href', `/items/${item}`);
-    expect(screen.getByText('round 2 of 2 · parks 2026-11-19 10:00 UTC')).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Questions asked' })).toHaveAttribute(
+      'href',
+      `/items/${item}`,
+    );
+    expect(screen.getByText('round 2 of 2 · waits until 2026-11-19 10:00 UTC')).toBeInTheDocument();
   });
 
   it('says so when the notifier is not there, and nothing else breaks', async () => {
@@ -451,10 +452,10 @@ describe('notifications', () => {
       }),
     });
     renderAt('/me/notifications/preferences');
-    expect(await screen.findByLabelText(/A kill switch was engaged/)).toBeDisabled();
+    expect(await screen.findByLabelText(/Agents stopped/)).toBeDisabled();
     await userEvent.click(screen.getByLabelText(/Use the factory/));
     await userEvent.click(screen.getByLabelText(/Team channel/));
-    await userEvent.click(screen.getByLabelText(/An item was handed off/));
+    await userEvent.click(screen.getByLabelText(/Needs a person/));
     await userEvent.click(screen.getByRole('button', { name: 'Save preferences' }));
     await waitFor(() =>
       expect(api.calls.find((c) => c.method === 'PUT')?.body).toEqual({

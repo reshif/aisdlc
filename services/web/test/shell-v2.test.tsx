@@ -143,7 +143,7 @@ describe('the v2 top bar', () => {
     const box = screen.getByRole('combobox', { name: 'Search' });
     await user.type(box, 'decision log');
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(window.location.pathname).toBe('/ledger'));
+    await waitFor(() => expect(window.location.pathname).toBe('/audit'));
     expect(screen.queryByRole('combobox', { name: 'Search' })).toBeNull();
   });
 

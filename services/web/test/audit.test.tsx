@@ -85,6 +85,14 @@ const decide = (admin: boolean) => (c: Call) => ({
   },
 });
 
+const EMPTY_LOG = { json: { entries: [], head: null, next_before: null } };
+/** What the Decision log & audit page reads besides the panels (portal v2). */
+const LOG = {
+  'GET /api/audit/ledger?filter=all': EMPTY_LOG,
+  'GET /api/audit/ledger?filter=deletions': EMPTY_LOG,
+  'GET /api/people': { json: { people: [] } },
+};
+
 describe('govern: audit (M19)', () => {
   it('lists the signed exports with their anchor and download, and writes one from the form', async () => {
     const user = userEvent.setup();
@@ -94,7 +102,7 @@ describe('govern: audit (M19)', () => {
       'GET /api/audit/exports': { json: { exports: [EXPORT] } },
       'POST /api/audit/exports': { status: 201, json: { ...EXPORT, entry_seq: 42 } },
     });
-    renderAt('/audit');
+    renderAt('/audit?tab=exports');
     const t = await screen.findByRole('table', { name: 'Signed exports' });
     const row = within(t).getAllByRole('row')[1] as HTMLElement;
     expect(row).toHaveTextContent('project acme');
@@ -122,11 +130,12 @@ describe('govern: audit (M19)', () => {
       'GET /api/me': { json: me(['audit.read']) },
       'POST /api/me/decisions': decide(false),
       'GET /api/audit/exports': { json: { exports: [] } },
+      ...LOG,
       'GET /api/audit/erasures': { json: { erasures: [ERASURE] } },
       'GET /api/audit/holds': { json: { holds: [HOLD] } },
     });
     const view = renderAt('/audit');
-    await user.click(await screen.findByRole('tab', { name: 'Erasure' }));
+    await user.click(await screen.findByRole('tab', { name: 'Deletions' }));
     await screen.findByRole('table', { name: 'Erasure requests' });
     expect(await screen.findByRole('button', { name: /Request the erasure/ })).toHaveAttribute(
       'aria-disabled',
@@ -143,6 +152,7 @@ describe('govern: audit (M19)', () => {
       'GET /api/me': { json: me(['audit.read', 'identity.admin']) },
       'POST /api/me/decisions': decide(true),
       'GET /api/audit/exports': { json: { exports: [] } },
+      ...LOG,
       'GET /api/audit/erasures': { json: { erasures: [ERASURE] } },
       [`POST /api/audit/erasures/${ERASURE.erasure_id}/approve`]: {
         json: {
@@ -155,7 +165,7 @@ describe('govern: audit (M19)', () => {
       },
     });
     renderAt('/audit');
-    await user.click(await screen.findByRole('tab', { name: 'Erasure' }));
+    await user.click(await screen.findByRole('tab', { name: 'Deletions' }));
     const approve = await screen.findByRole('button', { name: 'Approve and erase' });
     await user.type(
       screen.getByLabelText(`Matter reference for erasure ${ERASURE.erasure_id}`),
@@ -183,6 +193,7 @@ describe('govern: audit (M19)', () => {
       'GET /api/me': { json: me(['audit.read', 'identity.admin']) },
       'POST /api/me/decisions': decide(true),
       'GET /api/audit/exports': { json: { exports: [] } },
+      ...LOG,
       'GET /api/audit/erasures': { json: { erasures: [ERASURE] } },
       [`POST /api/audit/erasures/${ERASURE.erasure_id}/approve`]: {
         status: 409,
@@ -190,7 +201,7 @@ describe('govern: audit (M19)', () => {
       },
     });
     renderAt('/audit');
-    await user.click(await screen.findByRole('tab', { name: 'Erasure' }));
+    await user.click(await screen.findByRole('tab', { name: 'Deletions' }));
     await user.type(
       await screen.findByLabelText(`Matter reference for erasure ${ERASURE.erasure_id}`),
       'LA-2',
@@ -201,10 +212,10 @@ describe('govern: audit (M19)', () => {
   });
 
   it('retention: the classes in force from the published config, with the way to change them', async () => {
-    const user = userEvent.setup();
     mockApi({
       'GET /api/me': { json: me(['audit.read']) },
       'GET /api/audit/exports': { json: { exports: [] } },
+      ...LOG,
       'GET /api/audit/retention': {
         json: {
           config: { classes: { conversation_payload: { days: 365 } } },
@@ -223,10 +234,9 @@ describe('govern: audit (M19)', () => {
         },
       },
     });
-    renderAt('/audit');
-    await user.click(await screen.findByRole('tab', { name: 'Retention' }));
+    renderAt('/audit?tab=retention');
     expect(await screen.findByText('365 days, then erased by the sweep')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Change them in Configuration' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Change them in Settings' })).toHaveAttribute(
       'href',
       '/config/audit.retention',
     );

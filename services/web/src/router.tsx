@@ -48,6 +48,9 @@ export type Route =
   | { name: 'accessGrant'; id: string }
   /** P2-3: one agent (`/agents/<id>`), under the same guard as `/agents`. */
   | { name: 'agent'; id: string }
+  /** portal v2: one person and one team (People, teams & roles). */
+  | { name: 'person'; id: string }
+  | { name: 'team'; id: string }
   | { name: StaticScreen }
   | { name: 'notfound' };
 
@@ -67,7 +70,9 @@ export const STATIC_SCREENS = {
   '/teams': 'teams',
   '/roles': 'roles',
   '/access-requests': 'accessRequests',
-  '/access-explain': 'explain',
+  '/who-can': 'explain',
+  // portal v2: my profile (the avatar menu)
+  '/me': 'profile',
   // PLAN §7a: guarded by `assistant.use` somewhere, so a direct link is the 403 page like the others
   // (portal v2: `/ask` is Ask for work, screen-map §2.8)
   '/assistant': 'ask',
@@ -129,6 +134,10 @@ export function parseRoute(path: string): Route {
   if (grantRoute) return { name: 'accessGrant', id: decodeURIComponent(grantRoute[1] as string) };
   const frev = /^\/config\/revisions\/([^/]+)$/.exec(p);
   if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
+  const person = /^\/people\/([^/]+)$/.exec(p);
+  if (person) return { name: 'person', id: decodeURIComponent(person[1] as string) };
+  const team = /^\/teams\/([^/]+)$/.exec(p);
+  if (team) return { name: 'team', id: decodeURIComponent(team[1] as string) };
   const agent = /^\/agents\/([^/]+)$/.exec(p);
   if (agent) return { name: 'agent', id: decodeURIComponent(agent[1] as string) };
   const decide = /^\/decide\/([^/]+)$/.exec(p);

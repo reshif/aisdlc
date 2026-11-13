@@ -429,6 +429,11 @@ function Account({ me }: { me: Me }) {
           </div>
           <ul>
             <li>
+              <Link to="/me" className="ui-menu-item" onClick={close}>
+                {label('screen', 'my_profile')}
+              </Link>
+            </li>
+            <li>
               <Link to="/me/access" className="ui-menu-item" onClick={close}>
                 {label('screen', 'my_access')}
               </Link>

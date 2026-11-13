@@ -1,0 +1,143 @@
+/*
+ * The admin lifecycle and the People, teams & roles screens (portal v2). Tokens only (ui/tokens.css), both themes.
+ * Phone: every grid falls to one column below 860px; tables scroll inside their own box (ui-tbl-wrap).
+ */
+.adm-sub {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 10px 0 4px;
+}
+.adm-gap {
+  margin-top: 14px;
+}
+.adm-override p {
+  margin: 0 0 12px;
+}
+.adm-stack {
+  display: grid;
+  gap: 16px;
+}
+.adm-form {
+  display: grid;
+  gap: 14px;
+}
+.adm-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.adm-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: var(--hit);
+  color: var(--fg);
+}
+.adm-check input {
+  width: 18px;
+  height: 18px;
+}
+.adm-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin: 0 0 14px;
+}
+.adm-tools > label {
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+}
+.adm-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.adm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.adm-chip {
+  display: inline-block;
+  font-size: 12.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--fg-2);
+}
+.adm-person {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.adm-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--panel-3);
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
+.adm-muted {
+  color: var(--muted);
+}
+.adm-note {
+  border: 1px solid var(--warn-line);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+.adm-status {
+  border: 1px solid var(--ok-line);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+.adm-bad {
+  color: var(--bad);
+}
+.adm-hash {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+}
+.adm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.adm-filters button[aria-pressed='true'],
+.adm-filters a[aria-current='page'] {
+  border-color: var(--focus);
+  color: var(--fg);
+  background: var(--panel-3);
+}
+@media (max-width: 860px) {
+  .adm-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .adm-tools > label {
+    min-width: 0;
+    width: 100%;
+  }
+}
