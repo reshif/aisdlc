@@ -19,7 +19,9 @@
       "display_handle": "admin",
       "display_name": "System Administrator",
       "logins": [],
-      "groups": ["grp-factory-admins"]
+      "groups": [
+        "grp-factory-admins"
+      ]
     }
   ]
 }

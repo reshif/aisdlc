@@ -29,7 +29,9 @@
       "name": "grp-factory-admins",
       "path": "/grp-factory-admins",
       "attributes": {
-        "display": ["Factory admins"]
+        "display": [
+          "Factory admins"
+        ]
       }
     }
   ],
@@ -49,8 +51,12 @@
           "temporary": true
         }
       ],
-      "groups": ["/grp-factory-admins"],
-      "requiredActions": ["UPDATE_PASSWORD"]
+      "groups": [
+        "/grp-factory-admins"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ]
     }
   ],
   "clients": [
@@ -69,8 +75,12 @@
       "frontchannelLogout": false,
       "rootUrl": "${KC_BFF_PUBLIC_URL}",
       "baseUrl": "${KC_BFF_PUBLIC_URL}",
-      "redirectUris": ["${KC_BFF_REDIRECT_URI}"],
-      "webOrigins": ["+"],
+      "redirectUris": [
+        "${KC_BFF_REDIRECT_URI}"
+      ],
+      "webOrigins": [
+        "+"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "+##${KC_BFF_PUBLIC_URL}/"

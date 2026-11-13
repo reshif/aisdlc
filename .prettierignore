@@ -13,3 +13,5 @@ packages/agents/src/prompts
 # generated from the IdP seed by services/bff/test/keycloak-realm.test.ts (npm run gen -w @aisdlc/bff)
 platform/compose/keycloak/realm-aisdlc.json
 platform/compose/config/keycloak-idp-seed.json
+platform/compose/keycloak/realm-aisdlc-enterprise.json
+platform/compose/config/keycloak-idp-seed-enterprise.json
