@@ -6,7 +6,7 @@ import {
   type CheckVerdict,
   type PortalInboxItem,
 } from '@aisdlc/contracts';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ApiError,
   api,
@@ -533,7 +533,7 @@ function WorkDecide({ id, me, csrf }: { id: string; me: Me; csrf: string }) {
             {open ? (
               <section className="wk-detail" aria-label="Detail" data-testid="detail">
                 <h3>{tiles.find((t) => t.id === open)?.title}</h3>
-                {tiles.find((t) => t.id === open)?.body}
+                <DetailBoundary key={open}>{tiles.find((t) => t.id === open)?.body}</DetailBoundary>
               </section>
             ) : tiles.length > 0 ? (
               <p className="wk-muted">Open a tile to read its detail here.</p>
@@ -705,3 +705,24 @@ function CheckBody({ s }: { s: NonNullable<GateContextWire['check']> }) {
 }
 
 export type { GateCardWire };
+
+/**
+ * One evidence detail that cannot be drawn (facts in a shape this portal does not know) says so in its own pane and
+ * leaves the rest of the page, the rail included: it is never read as evidence that passed.
+ */
+class DetailBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override render() {
+    return this.state.failed ? (
+      <p role="alert" className="wk-bad" data-testid="detail-failed">
+        This part of the evidence could not be shown. Treat it as not checked: do not approve on
+        what you cannot read.
+      </p>
+    ) : (
+      this.props.children
+    );
+  }
+}

@@ -155,7 +155,7 @@ export function HomeScreen({ me }: { me: Me }) {
 
         <Card title="Waiting on others" testId="home-waiting">
           {inbox.data && items.data ? (
-            <WaitingOnOthers mine={open} inbox={[...inbox.data.decide, ...inbox.data.view]} />
+            <WaitingOnOthers mine={open} inbox={inbox.data.view} />
           ) : (
             <p className="wk-muted">Loading…</p>
           )}

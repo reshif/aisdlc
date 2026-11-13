@@ -438,7 +438,7 @@ export function FloorPlanView(p: FloorPlanProps) {
                   type="button"
                   className={cls}
                   style={{ left: c.x, top: c.y }}
-                  aria-label={`Item ${it.key}, ${lookupTerm('lane', it.lane)?.label ?? 'Unknown'}, ${FLOOR_STATUS_TEXT[it.status].label} at ${where}${it.title ? `: ${it.title}` : ''}`}
+                  aria-label={`${it.key.slice(0, 4)}: item ${it.key}, ${lookupTerm('lane', it.lane)?.label ?? 'Unknown'}, ${FLOOR_STATUS_TEXT[it.status].label} at ${where}${it.title ? `: ${it.title}` : ''}`}
                   onClick={() => p.onOpen({ kind: 'item', id: it.item_id })}
                   onMouseEnter={() => setFocus(it)}
                   onMouseLeave={() => setFocus(null)}

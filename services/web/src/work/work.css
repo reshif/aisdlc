@@ -1,6 +1,8 @@
 /* The Work squad's screens (portal v2 §2.1-2.8): layout only, every colour and size from tokens.css. */
 .wk-page {
   display: grid;
+  /* one column that may shrink below its content: a long row (the tabs) scrolls inside itself, never the page */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   min-width: 0;
 }

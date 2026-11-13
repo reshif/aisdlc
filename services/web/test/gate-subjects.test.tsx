@@ -377,7 +377,7 @@ describe('G5 release and G6 acceptance (P1-7)', () => {
     );
     renderAt(`/decide/${CARD}`);
     await openFacts();
-    expect(await screen.findByTestId('intent')).toHaveTextContent('needs data class D1');
+    expect(await screen.findByTestId('intent')).toHaveTextContent('needs a higher data class');
     expect(screen.queryByTestId('criteria')).toBeNull();
   });
 });

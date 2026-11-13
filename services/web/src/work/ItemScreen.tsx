@@ -270,8 +270,10 @@ function RouteApprovals({ item, codes }: { item: Item; codes: boolean }) {
               ? 'Not reached yet'
               : state === 'waiting'
                 ? label('gateStatus', 'pending')
-                : (lookupTerm('decision', at?.outcome ?? '')?.label ??
-                  label('gateStatus', 'decided'));
+                : state === 'approved'
+                  ? 'Approved'
+                  : (lookupTerm('decision', at?.outcome ?? '')?.label ??
+                    label('gateStatus', 'decided'));
           return (
             <li key={g} data-gate={g} data-state={state} title={lookupTerm('gate', g)?.explain}>
               <span>{gateName(g)}</span>
