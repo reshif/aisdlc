@@ -48,7 +48,9 @@ describe('the theme', () => {
     const user = userEvent.setup();
     mockApi({ 'GET /api/me': { json: me() }, 'GET /api/projects': { json: [] } });
     renderAt('/projects');
-    const toggle = await screen.findByRole('button', { name: 'Light theme' });
+    // signed in (the shell of a signed-out page has the toggle too)
+    await screen.findByRole('button', { name: 'Account: Alice Admin' });
+    const toggle = screen.getByRole('button', { name: 'Light theme' });
     expect(toggle).toHaveAttribute('aria-pressed', 'false');
     await user.click(toggle);
     expect(document.documentElement.dataset['theme']).toBe('light');
@@ -74,7 +76,8 @@ describe('the theme', () => {
     const user = userEvent.setup();
     mockApi({ 'GET /api/me': { json: me() }, 'GET /api/projects': { json: [] } });
     renderAt('/projects');
-    await user.click(await screen.findByRole('button', { name: 'Light theme' }));
+    await screen.findByRole('button', { name: 'Account: Alice Admin' });
+    await user.click(screen.getByRole('button', { name: 'Light theme' }));
     expect(document.documentElement.dataset['theme']).toBe('dark');
   });
 });

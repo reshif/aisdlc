@@ -1,25 +1,20 @@
-import type { ActionId } from '@aisdlc/contracts';
+import { label, type ActionId, type GlossaryValue } from '@aisdlc/contracts';
 import type { Me } from '../api';
 import type { Route } from '../router';
 
-// The navigation, grouped as in the prototype (Work, Decide, Projects, Operate, Quality, Govern,
-// Admin). An entry is shown only when its guard passes for the person; a group with no entry the
-// person may open is not shown at all.
+// The navigation of portal v2 (docs/design/screen-map.md §1.2): Work (Home, Inbox, Items, Floor), Projects
+// (Projects, Onboard a repo), Run (Operate, Agents), Govern (Settings, Integrations, People, teams & roles,
+// Decision log & audit). Every label is the glossary's (`screen`, `navGroup`). The screens that exist today and
+// have no place of their own in the screen map are sub-entries of the entry they belong to (Operate's tabs are
+// the Emergency stop, Pauses and notices, Queue and capacity, Sandboxes, Health and Spend pages), listed while
+// that entry is current, until the squads build each screen.
 //
-// The guard reads `/api/me` (the PDP's answers for the fleet and per project, computed by the bff). It
-// is a hint: the route itself, and every call it makes, is decided on the server. Operate is `ops.read`
-// and Quality `quality.read` on the fleet, Ask the factory `assistant.use` somewhere (PLAN §7a, 2026-11-12);
-// the factory-wide parts of Govern and Admin are `audit.read` on the fleet.
+// An entry is shown only when its guard passes for the person; an entry whose own page the person may not open
+// still shows (linking to its first sub-entry they may open) when one of its sub-entries passes; a group with no
+// entry is not shown. The guard reads `/api/me` (the PDP's answers for the fleet and per project, computed by the
+// bff). It is a hint: the route itself, and every call it makes, is decided on the server.
 
-export const NAV_GROUPS = [
-  'Work',
-  'Decide',
-  'Projects',
-  'Operate',
-  'Quality',
-  'Govern',
-  'Admin',
-] as const;
+export const NAV_GROUPS = ['work', 'projects', 'run', 'govern'] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
 export type NavGuard =
@@ -30,140 +25,177 @@ export type NavGuard =
   | { readonly kind: 'fleet_any'; readonly actions: readonly ActionId[] }
   /** The PDP allows the action on the fleet or on at least one project (from `actions.projects`). */
   | { readonly kind: 'somewhere'; readonly action: ActionId }
-  /** Any of these guards passes (P1-6: People is the directory's readers and whoever manages access somewhere). */
-  | { readonly kind: 'any'; readonly guards: readonly NavGuard[] };
+  /** Any of these guards passes (People is the directory's readers and whoever manages access somewhere). */
+  | { readonly kind: 'any'; readonly guards: readonly NavGuard[] }
+  /** A section with no page of its own: shown when one of its sub-entries is. */
+  | { readonly kind: 'section' };
+
+export type ScreenId = GlossaryValue<'screen'>;
 
 export interface NavEntry {
-  readonly group: NavGroup;
+  readonly id: ScreenId;
   readonly to: string;
   readonly label: string;
   readonly guard: NavGuard;
   /** The routes this entry is "current" for. */
   readonly current: (r: Route) => boolean;
+  readonly children?: readonly NavEntry[];
+}
+
+export interface NavSection {
+  readonly group: NavGroup;
+  readonly label: string;
+  readonly entries: readonly NavEntry[];
 }
 
 const FLEET_AUDIT: NavGuard = { kind: 'fleet_action', action: 'audit.read' };
 const FLEET_OPS: NavGuard = { kind: 'fleet_action', action: 'ops.read' };
 const FLEET_QUALITY: NavGuard = { kind: 'fleet_action', action: 'quality.read' };
 const SIGNED_IN: NavGuard = { kind: 'signed_in' };
+const SECTION: NavGuard = { kind: 'section' };
 const at =
   (...names: Array<Route['name']>) =>
   (r: Route): boolean =>
     names.includes(r.name);
 
 const entry = (
-  group: NavGroup,
+  id: ScreenId,
   to: string,
-  label: string,
   guard: NavGuard,
   current: (r: Route) => boolean,
-): NavEntry => ({ group, to, label, guard, current });
+  children?: readonly NavEntry[],
+): NavEntry => ({
+  id,
+  to,
+  label: label('screen', id),
+  guard,
+  current,
+  ...(children ? { children } : {}),
+});
 
-export const NAV: readonly NavEntry[] = [
-  entry('Work', '/', 'Home', SIGNED_IN, at('home')),
-  // M19: the floor of a project the person may read (floor.read on the fleet or a project)
-  entry('Work', '/floor', 'Floor', { kind: 'somewhere', action: 'floor.read' }, at('floor')),
-  // M19: every project the person may see, one row each (the bff collapses a confidential one without a role there)
-  entry('Work', '/fleet', 'Fleet', SIGNED_IN, at('fleet')),
-  entry('Work', '/board', 'Board', SIGNED_IN, at('board')),
-  entry('Work', '/items', 'Items', SIGNED_IN, at('items', 'item', 'pack')),
-  // P1-1: a request to a project the person may ask for work on (work.request there)
+export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
+  work: [
+    entry('home', '/', SIGNED_IN, at('home')),
+    entry('inbox', '/inbox', SIGNED_IN, at('inbox', 'card', 'revision', 'factoryRevision')),
+    entry('items', '/items', SIGNED_IN, at('items', 'item', 'pack', 'closeout'), [
+      entry('board', '/board', SIGNED_IN, at('board')),
+    ]),
+    // the floor of a project the person may read (floor.read on the fleet or a project)
+    entry('floor', '/floor', { kind: 'somewhere', action: 'floor.read' }, at('floor'), [
+      // every project the person may see, one row each (the bff collapses a confidential one without a role)
+      entry('fleet', '/fleet', SIGNED_IN, at('fleet')),
+    ]),
+  ],
+  projects: [
+    entry(
+      'projects',
+      '/projects',
+      SIGNED_IN,
+      at(
+        'projects',
+        'project',
+        's0',
+        'readiness',
+        'knowledge',
+        'ledger',
+        'issues',
+        'drift',
+        'reaffirm',
+        'projectSettings',
+        'learn',
+      ),
+    ),
+    entry(
+      'onboard',
+      '/onboard',
+      { kind: 'fleet_action', action: 'project.onboard' },
+      at('onboard'),
+    ),
+  ],
+  run: [
+    entry('operate', '/kill', SECTION, () => false, [
+      entry('emergency_stop', '/kill', FLEET_OPS, at('kill')),
+      entry('controls', '/controls', FLEET_OPS, at('controls')),
+      entry('scheduler', '/scheduler', FLEET_OPS, at('scheduler')),
+      entry('sandboxes', '/sandboxes', FLEET_OPS, at('sandboxes')),
+      entry('health', '/health', FLEET_OPS, at('health')),
+      entry('budgets', '/budgets', FLEET_OPS, at('budgets')),
+      // what the gateway metered, per project and per merged item (quality.read: a measure of the work)
+      entry('spend', '/cost', FLEET_QUALITY, at('cost')),
+    ]),
+    entry('agents', '/agents', FLEET_QUALITY, at('agents', 'agent'), [
+      entry('evals', '/evals', FLEET_QUALITY, at('evals')),
+    ]),
+  ],
+  govern: [
+    entry(
+      'settings',
+      '/config',
+      { kind: 'fleet_any', actions: ['config.propose', 'audit.read'] },
+      at('config', 'configKey'),
+      [entry('catalogue', '/catalogue', SIGNED_IN, at('catalogue'))],
+    ),
+    entry('integrations', '/integrations', FLEET_QUALITY, at('integrations'), [
+      entry('models', '/models', FLEET_QUALITY, at('models')),
+    ]),
+    entry('people_roles', '/people', SECTION, () => false, [
+      // the directory's readers, and whoever holds access.manage somewhere (grant and revoke there)
+      entry(
+        'people',
+        '/people',
+        { kind: 'any', guards: [FLEET_AUDIT, { kind: 'somewhere', action: 'access.manage' }] },
+        at('people'),
+      ),
+      entry('teams', '/teams', FLEET_AUDIT, at('teams')),
+      entry('roles', '/roles', SIGNED_IN, at('roles')),
+      entry('access_requests', '/access-requests', SIGNED_IN, at('accessRequests', 'accessGrant')),
+      entry(
+        'who_can',
+        '/access-explain',
+        { kind: 'somewhere', action: 'access.explain' },
+        at('explain'),
+      ),
+    ]),
+    entry('audit_log', '/ledger', SECTION, () => false, [
+      entry(
+        'decision_log',
+        '/ledger',
+        { kind: 'somewhere', action: 'audit.read' },
+        at('fleetLedger'),
+      ),
+      entry('access_decisions', '/audit', FLEET_AUDIT, at('audit')),
+    ]),
+  ],
+};
+
+/**
+ * Screens reached from the top bar, not the nav: they are guarded the same way (a direct link to one the person
+ * may not open is the 403 page).
+ */
+export const TOP_BAR: readonly NavEntry[] = [
   entry(
-    'Work',
+    'ask_for_work',
     '/ask-for-work',
-    'Ask for work',
     { kind: 'somewhere', action: 'work.request' },
     at('askForWork'),
   ),
-  // M18: the assistant answers only from what the person can see; every thread is checked on its project
+  // the assistant answers only from what the person can see; every thread is checked on its project
+  entry('assistant', '/ask', { kind: 'somewhere', action: 'assistant.use' }, at('ask')),
   entry(
-    'Work',
-    '/ask',
-    'Ask the factory',
-    { kind: 'somewhere', action: 'assistant.use' },
-    at('ask'),
-  ),
-  entry('Decide', '/inbox', 'Inbox', SIGNED_IN, at('inbox', 'card', 'revision')),
-  // M18: what the notifier raised for the person; the inbox stays the record of what waits
-  entry(
-    'Decide',
+    'my_notifications',
     '/me/notifications',
-    'Notifications',
     SIGNED_IN,
     at('notifications', 'notificationPrefs'),
   ),
-  entry(
-    'Projects',
-    '/projects',
-    'Projects',
-    SIGNED_IN,
-    at('projects', 'project', 's0', 'readiness', 'knowledge', 'ledger', 'issues'),
-  ),
-  entry(
-    'Projects',
-    '/onboard',
-    'Onboard a repo',
-    { kind: 'fleet_action', action: 'project.onboard' },
-    at('onboard'),
-  ),
-  entry('Operate', '/scheduler', 'Scheduler', FLEET_OPS, at('scheduler')),
-  entry('Operate', '/sandboxes', 'Sandboxes', FLEET_OPS, at('sandboxes')),
-  entry('Operate', '/controls', 'Controls', FLEET_OPS, at('controls')),
-  entry('Operate', '/kill', 'Kill switch', FLEET_OPS, at('kill')),
-  entry('Operate', '/health', 'Health', FLEET_OPS, at('health')),
-  entry('Operate', '/budgets', 'Budgets', FLEET_OPS, at('budgets')),
-  entry('Quality', '/agents', 'Agents', FLEET_QUALITY, at('agents')),
-  entry('Quality', '/evals', 'Evals', FLEET_QUALITY, at('evals')),
-  entry('Quality', '/models', 'Models and routes', FLEET_QUALITY, at('models')),
-  entry('Quality', '/integrations', 'Integrations', FLEET_QUALITY, at('integrations')),
-  entry(
-    'Govern',
-    '/ledger',
-    'Ledger',
-    { kind: 'somewhere', action: 'audit.read' },
-    at('fleetLedger'),
-  ),
-  entry('Govern', '/audit', 'Audit', FLEET_AUDIT, at('audit')),
-  entry('Govern', '/catalogue', 'Catalogue', SIGNED_IN, at('catalogue')),
-  // P2-8: what the gateway metered, per project and per merged item (quality.read: a measure of the work)
-  entry('Govern', '/cost', 'Cost', FLEET_QUALITY, at('cost')),
-  entry(
-    'Govern',
-    '/config',
-    'Configuration',
-    { kind: 'fleet_any', actions: ['config.propose', 'audit.read'] },
-    at('config', 'configKey'),
-  ),
-  // P1-6: the directory's readers, and whoever holds access.manage somewhere (grant and revoke there)
-  entry(
-    'Admin',
-    '/people',
-    'People',
-    { kind: 'any', guards: [FLEET_AUDIT, { kind: 'somewhere', action: 'access.manage' }] },
-    at('people'),
-  ),
-  entry('Admin', '/teams', 'Teams', FLEET_AUDIT, at('teams')),
-  entry('Admin', '/roles', 'Roles', SIGNED_IN, at('roles')),
-  entry(
-    'Admin',
-    '/access-requests',
-    'Access requests',
-    SIGNED_IN,
-    at('accessRequests', 'accessGrant'),
-  ),
-  entry(
-    'Admin',
-    '/access-explain',
-    'Who can do what',
-    { kind: 'somewhere', action: 'access.explain' },
-    at('explain'),
-  ),
+  entry('my_access', '/me/access', SIGNED_IN, at('access')),
 ];
 
 export const guardPasses = (g: NavGuard, me: Me): boolean => {
   switch (g.kind) {
     case 'signed_in':
       return true;
+    case 'section':
+      return false;
     case 'fleet_action':
       return me.actions.fleet.includes(g.action);
     case 'fleet_any':
@@ -178,12 +210,25 @@ export const guardPasses = (g: NavGuard, me: Me): boolean => {
   }
 };
 
-/** The guard of the nav entry at `to`; a direct link to a screen the nav hides is then a 403 page. */
-export const guardOf = (to: string): NavGuard | null => NAV.find((e) => e.to === to)?.guard ?? null;
+/** Every entry with a page of its own, sub-entries included, then the top bar's. */
+export function flatNav(): NavEntry[] {
+  const out: NavEntry[] = [];
+  const walk = (e: NavEntry) => {
+    if (e.guard.kind !== 'section') out.push(e);
+    for (const c of e.children ?? []) walk(c);
+  };
+  for (const g of NAV_GROUPS) for (const e of NAV[g]) walk(e);
+  for (const e of TOP_BAR) walk(e);
+  return out;
+}
+
+/** The guard of the page at `to`; a direct link to a screen the nav hides is then a 403 page. */
+export const guardOf = (to: string): NavGuard | null =>
+  flatNav().find((e) => e.to === to)?.guard ?? null;
 
 /** The action a guard names, for the 403's reason. */
 export const guardAction = (g: NavGuard): ActionId | null =>
-  g.kind === 'signed_in'
+  g.kind === 'signed_in' || g.kind === 'section'
     ? null
     : g.kind === 'fleet_any'
       ? (g.actions[0] ?? null)
@@ -191,10 +236,32 @@ export const guardAction = (g: NavGuard): ActionId | null =>
         ? (g.guards.map(guardAction).find((a) => a !== null) ?? null)
         : g.action;
 
-/** The groups and entries this person may open, in prototype order; empty groups dropped. */
-export function navFor(me: Me): ReadonlyArray<{ group: NavGroup; entries: readonly NavEntry[] }> {
+/** An entry as this person sees it: `null` when neither it nor any sub-entry may be opened. */
+function visible(e: NavEntry, me: Me): NavEntry | null {
+  const kids = (e.children ?? [])
+    .map((c) => visible(c, me))
+    .filter((c): c is NavEntry => c !== null);
+  const own = guardPasses(e.guard, me);
+  if (!own && kids.length === 0) return null;
+  const first = kids[0];
+  return {
+    ...e,
+    // a section, or a page the person may not open, links to its first sub-entry they may open
+    to: own || !first ? e.to : first.to,
+    children: kids,
+  };
+}
+
+/** The groups and entries this person may open, in screen-map order; empty groups dropped. */
+export function navFor(me: Me): readonly NavSection[] {
   return NAV_GROUPS.map((group) => ({
     group,
-    entries: NAV.filter((e) => e.group === group && guardPasses(e.guard, me)),
+    label: label('navGroup', group),
+    entries: NAV[group].map((e) => visible(e, me)).filter((e): e is NavEntry => e !== null),
   })).filter((g) => g.entries.length > 0);
+}
+
+/** The pages this person may open (for the search palette): the nav's and the top bar's, no sections. */
+export function openablePages(me: Me): NavEntry[] {
+  return flatNav().filter((e) => guardPasses(e.guard, me));
 }

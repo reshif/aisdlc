@@ -76,6 +76,9 @@ export function mockApi(routes: Record<string, Handler>) {
     'POST /api/me/decisions': (c: Call) => ({ json: denyAll(c) }),
     // P1-6: My access lists the person's own access requests
     'GET /api/access/grants': { json: { grants: [] } },
+    // portal v2: the shell counts the inbox and, for ops readers, shows the emergency stop's state
+    'GET /api/inbox': { json: { decide: [], view: [] } },
+    'GET /api/kills/active': { json: { kills: [] } },
     ...routes,
   };
   vi.stubGlobal(

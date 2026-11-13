@@ -33,13 +33,23 @@ describe('the shell', () => {
       'POST /api/logout': { json: { ok: true } },
     });
     renderAt('/projects');
-    expect(await screen.findByText('Alice Admin')).toBeInTheDocument();
     const list = await screen.findByRole('list', { name: 'Projects' });
     const row = within(list).getByRole('link', { name: 'testbed' });
     expect(row).toHaveAttribute('href', '/projects/testbed');
+    // the person is the avatar menu: their name, My access, My notifications, sign-out
+    const account = screen.getByRole('button', { name: 'Account: Alice Admin' });
+    expect(account).toHaveAttribute('aria-expanded', 'false');
+    await user.click(account);
+    expect(account).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Alice Admin')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'My access' })).toHaveAttribute('href', '/me/access');
+    await user.keyboard('{Escape}');
+    expect(account).toHaveAttribute('aria-expanded', 'false');
+    expect(account).toHaveFocus();
 
     // Once the session is gone the bff answers 401 to /api/me, and the shell goes back to sign-in.
     m.table['GET /api/me'] = unauth;
+    await user.click(account);
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     await screen.findByRole('link', { name: 'Sign in' });
     const logout = m.calls.find((c) => c.path === '/api/logout');
@@ -121,6 +131,8 @@ describe('the shell', () => {
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main');
     expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
     await user.tab();
-    expect(screen.getByRole('link', { name: 'AISDLC Factory' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Menu' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('link', { name: 'AISDLC home' })).toHaveFocus();
   });
 });

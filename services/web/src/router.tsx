@@ -73,6 +73,8 @@ export const STATIC_SCREENS = {
   '/access-explain': 'explain',
   // PLAN §7a: guarded by `assistant.use` somewhere, so a direct link is the 403 page like the others
   '/ask': 'ask',
+  // portal v2: every component in both themes, for review (a factory admin, or a dev build)
+  '/design': 'design',
 } as const;
 export type StaticScreen = (typeof STATIC_SCREENS)[keyof typeof STATIC_SCREENS];
 
