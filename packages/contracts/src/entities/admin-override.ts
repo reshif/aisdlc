@@ -50,6 +50,13 @@ export const AdminOverrideReason = z
   .transform((s) => s.trim())
   .pipe(z.string().min(1, 'an override needs a reason').max(2000));
 
+/**
+ * The HTTP header that carries an override's reason (URI-encoded) from the portal through the bff to core: one way for
+ * every route, so a route whose PDP allow is the override (`isAdminOverride`) refuses without it
+ * (`override_reason_required`) and records it with it; a decide route also hands it to the decision kernel.
+ */
+export const OVERRIDE_REASON_HEADER = 'x-aisdlc-override-reason';
+
 /** What a caller sends with an act it does as the factory admin, outside a rule. */
 export const AdminOverrideRequest = z.strictObject({ reason: AdminOverrideReason });
 export type AdminOverrideRequest = z.infer<typeof AdminOverrideRequest>;

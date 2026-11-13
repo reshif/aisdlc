@@ -26,6 +26,7 @@ import {
   readCardState,
   readGateState,
   recordEvidenceViewed,
+  type OverrideInput,
 } from '@aisdlc/decisions';
 import { err, ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
 import { EVENT_COLUMNS, toRecordEvent, type EventRow } from '@aisdlc/record';
@@ -145,11 +146,12 @@ export async function revisionOfS0(
 
 export async function prepareRevision(
   deps: { config: ConfigDeps },
-  input: { gate: string; principal: PrincipalId },
+  input: { gate: string; principal: PrincipalId; override?: OverrideInput | undefined },
 ) {
   const p = await prepareGate(deps.config, {
     gate_instance_id: input.gate,
     principal: input.principal,
+    ...(input.override ? { override: input.override } : {}),
   });
   return p.ok
     ? ok({
@@ -185,12 +187,19 @@ export interface RevisionDecision {
  */
 export async function decideRevision(
   deps: { pool: pg.Pool; config: ConfigDeps },
-  input: { nonce: string; decision: string; step_up?: { proof: string } | undefined },
+  input: {
+    nonce: string;
+    decision: string;
+    step_up?: { proof: string } | undefined;
+    /** The factory admin applies the change alone: the M1 decided by the override (docs/specs/deletion.md §8). */
+    override?: OverrideInput | undefined;
+  },
 ): Promise<Result<RevisionDecision, CoreError>> {
   const d = await decideGate(deps.config, {
     nonce: input.nonce,
     decision: input.decision,
     ...(input.step_up ? { step_up: input.step_up } : {}),
+    ...(input.override ? { override: input.override } : {}),
   });
   if (!d.ok) return err(decisionRefusal(d.error));
   const { entry, after } = d.value;

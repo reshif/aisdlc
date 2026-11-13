@@ -28,6 +28,7 @@ import { CORE_STATUS, coreError, type CoreError } from './errors.js';
 import { factoryRevisionView } from './factory-m1.js';
 import type { CoreDeps } from './journal.js';
 import { decideRevision, prepareRevision, recordRevisionEvidence } from './portal-reads.js';
+import { overrideOf } from './override.js';
 import { reviewerUnsure } from './review/g4.js';
 import { readItem } from './work-items.js';
 
@@ -268,7 +269,7 @@ export function registerGovernanceRoutes(r: GovernanceRouteDeps): void {
 
   app.post('/v1/config/revisions/:gate/prepare', (req, reply) =>
     factoryAction(req, reply, RevisionPrepareRequest, (d, gate, b) =>
-      prepareRevision(d, { gate, principal: b.on_behalf_of }),
+      prepareRevision(d, { gate, principal: b.on_behalf_of, override: overrideOf(req) }),
     ),
   );
   app.post('/v1/config/revisions/:gate/evidence', (req, reply) =>
@@ -278,7 +279,12 @@ export function registerGovernanceRoutes(r: GovernanceRouteDeps): void {
   );
   app.post('/v1/config/revisions/:gate/decide', (req, reply) =>
     factoryAction(req, reply, RevisionDecideRequest, (d, _g, b) =>
-      decideRevision(d, { nonce: b.nonce, decision: b.decision, step_up: b.step_up }),
+      decideRevision(d, {
+        nonce: b.nonce,
+        decision: b.decision,
+        step_up: b.step_up,
+        override: overrideOf(req),
+      }),
     ),
   );
 }

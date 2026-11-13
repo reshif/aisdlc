@@ -24,6 +24,7 @@ import {
   recordCardEvidenceViewed,
   readCardOpened,
   type CardDecisionResult,
+  type OverrideInput,
 } from '@aisdlc/decisions';
 import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import { boundHashOf, defaultBoundHash, planC2, planC3 } from '@aisdlc/onboarding';
@@ -273,7 +274,7 @@ export interface PreparedOnboardingCard {
 
 export async function prepareOnboardingCard(
   deps: CardDeps,
-  input: { card_id: string; principal: PrincipalId },
+  input: { card_id: string; principal: PrincipalId; override?: OverrideInput | undefined },
 ): Promise<Result<PreparedOnboardingCard, CoreError>> {
   const r = await resolve(deps, input.card_id);
   if (!r.ok) return r;
@@ -287,6 +288,7 @@ export async function prepareOnboardingCard(
     card_id: input.card_id,
     principal: input.principal,
     evidence_hash: evidence as Sha256Hex,
+    ...(input.override ? { override: input.override } : {}),
   });
   if (!p.ok) return err(decisionRefusal(p.error));
   if (r.value.card.kind === 'C5') {
@@ -360,6 +362,8 @@ export async function decideOnboardingCard(
     reason?: string;
     /** Card 5: the step-up proof the M4 gate needs, bound to the PRR's `record_hash`. */
     step_up?: { proof: string };
+    /** The factory admin decides the card alone, outside its rules (docs/specs/deletion.md §8). */
+    override?: OverrideInput | undefined;
   },
 ): Promise<Result<OnboardingDecision, CoreError>> {
   const vote = VoteDecision.safeParse(input.decision);
@@ -441,6 +445,7 @@ export async function decideOnboardingCard(
             .map((x) => ({ step: x.step, decision: vote.data })),
           ...(payload.length > 0 ? { payload } : {}),
           steps_first: true,
+          ...(input.override ? { override: input.override } : {}),
         })
       : await decideCard(decisions, {
           card_id: input.card_id,
@@ -449,6 +454,7 @@ export async function decideOnboardingCard(
           step_evidence_hash: evidence as Sha256Hex,
           steps: [{ step: STEP_OF_CARD[card.kind], decision: vote.data }],
           ...(payload.length > 0 ? { payload } : {}),
+          ...(input.override ? { override: input.override } : {}),
         });
   if (!d.ok) return err(decisionRefusal(d.error));
 
