@@ -1,8 +1,11 @@
 import { primaryAgentFor } from '@aisdlc/agents';
 import { catalogueFor } from '@aisdlc/catalogue';
 import {
+  PLANNING_EVENT,
   UNIT_EVENT,
   UnitAdmittedPayload,
+  UnitsPlannedPayload,
+  planningStream,
   unitBranchOf,
   unitStream,
   type AdmissionHold,
@@ -30,7 +33,7 @@ import { budgetEnvelope } from '../planning/plan.js';
 import { listUnits, planUnits } from '../planning/units.js';
 import { emitUnitEvent } from './events.js';
 import { unitLockKey } from './fold.js';
-import { ACTIVE_SESSIONS_SQL, activeGrantCount } from './read.js';
+import { ACTIVE_SESSIONS_SQL, activeGrantCount, listGrants } from './read.js';
 
 // 6.0 admission (PLAN M13.1; FL "SCHEDULED: admission needs lease + slot + envelope"; DM §6.4 `Planned -> Admitted`).
 //
@@ -183,7 +186,11 @@ export async function approverSlot(
  */
 async function ensureUnits(d: CoreDeps, s: ItemState): Promise<Result<Unit[], CoreError>> {
   const have = await listUnits(d.pool, s.item_id);
-  if (have.length > 0) return ok(have);
+  if (have.length > 0) {
+    const again = await replanRetired(d, s.item_id, have);
+    if (!again.ok) return again;
+    return ok(again.value ? await listUnits(d.pool, s.item_id) : have);
+  }
   const cat = catalogueFor(s.catalogue_ref);
   if (!cat.ok)
     return err(coreError('refused', 'the item is pinned to a catalogue this build lacks'));
@@ -223,6 +230,53 @@ async function ensureUnits(d: CoreDeps, s: ItemState): Promise<Result<Unit[], Co
   });
   if (!planned.ok) return planned;
   return ok(await listUnits(d.pool, s.item_id));
+}
+
+/**
+ * A back-edge retired the item's Units (`replanned`, `syncUnits`) and the planning that followed recorded no new
+ * Units for them (the implicit Unit of an item with no plan, or a re-plan whose hash is the plan's own: the same
+ * event, folded once): the item's current plan, its latest `units.planned`, is recorded again as a re-plan (a new
+ * hash over the plan's and the retired grants'), which `foldPlan` folds back to `Planned` under the same ids. A
+ * plan that already has a `Planned` Unit is the re-plan: nothing to do. `true` when it recorded one.
+ */
+async function replanRetired(
+  d: CoreDeps,
+  itemId: string,
+  have: readonly Unit[],
+): Promise<Result<boolean, CoreError>> {
+  if (have.some((u) => u.state === 'Planned')) return ok(false);
+  const newest = new Map<string, { grant_id: string; lease_epoch: number; cause: string | null }>();
+  for (const g of await listGrants(d.pool, itemId)) {
+    const cur = newest.get(g.unit_id);
+    if (!cur || g.lease_epoch > cur.lease_epoch)
+      newest.set(g.unit_id, {
+        grant_id: g.grant_id,
+        lease_epoch: g.lease_epoch,
+        cause: g.release_cause,
+      });
+  }
+  const retired = have
+    .filter((u) => u.state === 'GrantReleased' && newest.get(u.unit_id)?.cause === 'replanned')
+    .map((u) => newest.get(u.unit_id)?.grant_id as string)
+    .sort();
+  if (retired.length === 0) return ok(false);
+  const q = await d.pool.query<{ body: unknown }>(
+    `SELECT body FROM record.record_event WHERE stream = $1 AND type = $2
+      ORDER BY global_seq DESC LIMIT 1`,
+    [planningStream(itemId), PLANNING_EVENT.units_planned],
+  );
+  const row = q.rows[0];
+  if (!row) return ok(false);
+  const plan = UnitsPlannedPayload.parse(row.body);
+  const planned = await planUnits(d, {
+    item_id: plan.item_id,
+    project_id: plan.project_id,
+    repo: plan.repo,
+    plan_sha256: hashCanonical({ replans: plan.plan_sha256, retired }),
+    base_sha: plan.base_sha,
+    units: plan.units,
+  });
+  return planned.ok ? ok(true) : planned;
 }
 
 /** The next Unit to admit: the first `Planned` one, in DAG order, whose dependencies have a pushed head. */
