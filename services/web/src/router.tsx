@@ -60,6 +60,9 @@ export const STATIC_SCREENS = {
   '/controls': 'controls',
   '/kill': 'kill',
   '/health': 'health',
+  // P2-8: Operate › Budgets and Govern › Cost
+  '/budgets': 'budgets',
+  '/cost': 'cost',
   '/ledger': 'fleetLedger',
   '/audit': 'audit',
   '/catalogue': 'catalogue',

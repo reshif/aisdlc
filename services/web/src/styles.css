@@ -4,7 +4,7 @@
  */
 :root {
   --accent: var(--hand);
-  --accent-fg: #0b1117;
+  --accent-fg: var(--hand-ink);
   --focus: var(--gate);
   --good-bg: var(--ok-bg);
   --good-fg: var(--ok-fg);
@@ -54,6 +54,12 @@ code {
   padding: 0.05em 0.3em;
   border-radius: 3px;
   overflow-wrap: anywhere;
+}
+/* a disclosure's summary is a pointer target: at least 24px tall (WCAG 2.5.8) */
+summary {
+  min-height: 24px;
+  padding-block: 2px;
+  cursor: pointer;
 }
 :focus-visible {
   outline: 3px solid var(--focus);
@@ -677,6 +683,9 @@ textarea {
   padding: 0;
   font-size: inherit;
   color: var(--accent);
+  /* a link inside a sentence is told by more than its colour (WCAG 1.4.1; axe link-in-text-block) */
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ---- the assistant (M18): the onboarding assistant beside the S0 page and "Ask the factory" ---- */

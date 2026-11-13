@@ -1,4 +1,5 @@
 import { pdpResource } from '@aisdlc/contracts';
+import { BreakersPanel } from './BreakersPanel';
 import { useQuery } from '@tanstack/react-query';
 import { useCan } from '../access';
 import { api } from '../api';
@@ -45,7 +46,7 @@ function AreaLevelSettings({ project }: { project: string }) {
   );
 }
 
-export function ProjectDetailPage({ id }: { id: string }) {
+export function ProjectDetailPage({ id, csrf }: { id: string; csrf: string }) {
   const q = useQuery({
     queryKey: ['project', id],
     queryFn: () => api.project(id),
@@ -139,6 +140,9 @@ export function ProjectDetailPage({ id }: { id: string }) {
         <span className="muted">(each change is an M1 decided by the project&rsquo;s admins)</span>
       </p>
       <AreaLevelSettings project={project.project_id} />
+
+      <h2>Breakers</h2>
+      <BreakersPanel project={project.project_id} csrf={csrf} />
 
       <h2>Onboarding records</h2>
       {s0.length === 0 ? (

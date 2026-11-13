@@ -133,7 +133,8 @@ export const inPod = (i: FloorItem): boolean =>
   i.node.kind === 'station' && i.node.stage === 'S6' && i.in_session && i.status === 'working';
 
 const CHIP_W = 56;
-const CHIP_H = 32;
+/** The height of a chip cell at 100%: also how large a chip is as a pointer target. */
+export const CHIP_H = 32;
 
 /** Where each item's chip is: in a grid inside its station or room, in a column below its gate, or in a pod. */
 export function layoutChips(

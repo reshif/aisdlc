@@ -24,7 +24,15 @@ afterAll(async () => {
 
 describe('the web bundle served by the bff', () => {
   it('serves the shell at / and at any route of the single-page app, with the strict policy', async () => {
-    for (const path of ['/', '/projects/acme', '/s0/abc']) {
+    // P2-13: a dotted last segment (a config key) is a route too
+    for (const path of [
+      '/',
+      '/projects/acme',
+      '/s0/abc',
+      '/config/gateway.models',
+      '/config/project.role_map/',
+      '/items/abc.def',
+    ]) {
       const r = await fetch(`${s.base}${path}`);
       expect(r.status).toBe(200);
       expect(r.headers.get('content-type')).toMatch(/^text\/html/);
@@ -45,6 +53,9 @@ describe('the web bundle served by the bff', () => {
     expect(a.headers.get('content-type')).toMatch(/^text\/javascript/);
     expect(a.headers.get('cache-control')).toMatch(/immutable/);
     expect((await fetch(`${s.base}/assets/gone.js`)).status).toBe(404);
+    expect((await fetch(`${s.base}/assets/deep/gone.css`)).status).toBe(404);
+    expect((await fetch(`${s.base}/favicon.ico`)).status).toBe(404);
+    expect((await fetch(`${s.base}/robots.txt`)).status).toBe(404);
   });
 
   it('does not leave the directory, and does not serve the shell for the bff routes it does not have', async () => {

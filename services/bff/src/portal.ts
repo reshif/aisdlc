@@ -9,6 +9,7 @@ import {
   GateCardDecideRequest,
   GateCardEvidenceRequest,
   GateCardView,
+  CardKindView,
   ConfigKeySummary,
   ConfigKeyView,
   ConfigProposeRequest,
@@ -115,6 +116,8 @@ import type { Levels } from './levels.js';
 //   GET  /api/s0/:id                      the S0 record with its steps                (project.view)
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
+//   GET  /api/cards/:id/kind              P3-8: onboarding card or work-item gate card (project.view): the
+//                                         page asks once, so no browser request ends in a 404 probe
 //   GET  /api/cards/:id/artefacts         a work-item gate card's artefacts, rendered (project.view)
 //   POST /api/cards/:id/prepare|evidence|decide|recheck|probe/retry                   (card.decide)
 //   GET  /api/cards/:id/gate              a work-item gate card as something to decide  (project.view)
@@ -1094,6 +1097,34 @@ export function registerPortalRoutes(d: PortalDeps): void {
       return deny(reply, 'project.view');
     }
     return got.value;
+  });
+
+  app.get('/api/cards/:id/kind', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const who = d.principalOf(req);
+    // an onboarding card first; core's 404 there is this route's question, not the browser's
+    const onb = await c.call('GET', `/v1/cards/${id}/summary`);
+    let project: string;
+    let kind: CardKindView['kind'];
+    if (onb.reached && onb.status === 404) {
+      const gate = upstream(reply, await c.call('GET', `/v1/cards/${id}/gate`), (v) =>
+        GateCardView.parse(v),
+      );
+      if (!gate) return;
+      project = gate.value.project_id;
+      kind = 'work_gate';
+    } else {
+      const head = upstream(reply, onb, (v) => OnboardingCardSummary.parse(v));
+      if (!head) return;
+      project = head.value.project_id;
+      kind = 'onboarding';
+    }
+    if (!(await allowed(who, 'project.view', pdpResource.project(project)))) {
+      return deny(reply, 'project.view');
+    }
+    return CardKindView.parse({ card_id: id, kind });
   });
 
   app.get('/api/cards/:id', async (req, reply) => {

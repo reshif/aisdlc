@@ -145,21 +145,24 @@ export function ToastProvider({ children, ms = 6000 }: { children: ReactNode; ms
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <ul className="ui-toasts" role="status" aria-live="polite" aria-label="Notifications">
-        {items.map((t) => (
-          <li key={t.id} className={`ui-toast${t.tone === 'ok' ? '' : ` ui-toast-${t.tone}`}`}>
-            <span style={{ flex: 1 }}>{t.text}</span>
-            <button
-              type="button"
-              className="ui-btn ui-btn-ghost ui-btn-sm"
-              aria-label={`Dismiss: ${t.text}`}
-              onClick={() => dismiss(t.id)}
-            >
-              ×
-            </button>
-          </li>
-        ))}
-      </ul>
+      {/* a live region is a div: a list may not take the status role (axe aria-allowed-role) */}
+      <div className="ui-toasts" role="status" aria-live="polite" aria-label="Notifications">
+        <ul>
+          {items.map((t) => (
+            <li key={t.id} className={`ui-toast${t.tone === 'ok' ? '' : ` ui-toast-${t.tone}`}`}>
+              <span style={{ flex: 1 }}>{t.text}</span>
+              <button
+                type="button"
+                className="ui-btn ui-btn-ghost ui-btn-sm"
+                aria-label={`Dismiss: ${t.text}`}
+                onClick={() => dismiss(t.id)}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </ToastContext.Provider>
   );
 }

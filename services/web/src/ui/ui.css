@@ -614,6 +614,8 @@
   right: 16px;
   bottom: 16px;
   z-index: 90;
+}
+.ui-toasts ul {
   display: flex;
   flex-direction: column;
   gap: 8px;

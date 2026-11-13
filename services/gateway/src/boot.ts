@@ -23,7 +23,10 @@ import { GatewayService } from './service.js';
 
 const Callers = z.record(
   z.string(),
-  z.strictObject({ token_ref: z.string(), scopes: z.array(z.enum(['admin', 'read'])) }),
+  z.strictObject({
+    token_ref: z.string(),
+    scopes: z.array(z.enum(['admin', 'read', 'operate'])),
+  }),
 );
 
 const Refs = z.array(z.string().min(1)).max(32);
@@ -45,7 +48,7 @@ const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
  *   GATEWAY_DATABASE_URL         the record database, as the least-privilege role `gateway` (the gateway writes
  *                                `gateway.*` record events and reads the published config; it cannot read anything else)
  *   GATEWAY_ENVIRONMENT          local | staging | prod: which routes apply
- *   GATEWAY_CALLERS              JSON {caller: {token_ref, scopes: [admin|read]}} for the admin API
+ *   GATEWAY_CALLERS              JSON {caller: {token_ref, scopes: [admin|read|operate]}} for the admin API
  *   GATEWAY_SECRET_REFS          JSON ["file:/run/secrets/anthropic-api-key", ...]: the key references this deployment
  *                                lets a registry row name (its mounted files). The registry holds references only
  *   GATEWAY_EGRESS_HOSTS         JSON ["api.anthropic.com", ...]: the hosts a vendor key may be sent to
@@ -180,6 +183,7 @@ export async function bootGateway(env: Env): Promise<RunningService> {
         return snapshot();
       },
       integrations: snapshot,
+      bounds: { secret_refs: secretRefs, egress_hosts: egressHosts },
     });
     const url = await listen(app, listenOpts);
     const r = reader;

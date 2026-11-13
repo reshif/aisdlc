@@ -1,7 +1,11 @@
 /*
  * Design tokens of the portal, taken from the prototype (docs/design/portal-prototype/src/base.css).
- * Components read only these custom properties, never a literal colour, so a light theme is one more
- * block below (`:root[data-theme='light'] { ... }`) and nothing else. Dark is the only theme today.
+ * Components read only these custom properties, never a literal colour, so a theme is one block.
+ *
+ * WCAG 2.2 AA (P2-19): every text token is at least 4.5:1 on every ground it sits on (--bg, --panel, --panel-2,
+ * --panel-3, --sunk) and every tinted ink on its tint; white on a lane fill is 4.5:1 too. The light theme (P3-1)
+ * holds to the same rule. `src/theme.ts` sets `data-theme` on <html> before the first render: the stored choice,
+ * else what the system prefers (`prefers-color-scheme`). Without it the dark block below applies.
  */
 :root,
 :root[data-theme='dark'] {
@@ -19,18 +23,20 @@
   /* text */
   --fg: #e7eaef;
   --fg-2: #c4cad3;
-  --muted: #949daa;
-  --faint: #6a7381;
+  --muted: #a1aab6;
+  --faint: #8a93a0;
   /* semantic, from the floor legend */
   --gate: #f2b51d;
   --gate-ink: #2a1e00;
+  /* the ink on an accent (--hand) fill */
+  --hand-ink: #0b1117;
   --back: #f39c34;
   --hand: #4f9be8;
-  --quar: #e2574f;
+  --quar: #ef6c64;
   --ok: #3faf6b;
   --warn: #e6b23a;
-  --bad: #e2574f;
-  --agent: #8f80f7;
+  --bad: #ef6c64;
+  --agent: #9d90f8;
   --det: #9aa5b4;
   --human: #2fb7a6;
   /* tinted grounds and their ink */
@@ -61,9 +67,9 @@
   --lane-l0: #c8460f;
   --lane-l13: #1f6fbf;
   --lane-l45: #6a3fb8;
-  --lane-l6: #2e8b3e;
+  --lane-l6: #2a7f39;
   --lane-l7: #8a5a12;
-  --lane-l8: #22857d;
+  --lane-l8: #1e7a72;
   /* overlays */
   --scrim: rgba(5, 7, 10, 0.6);
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
@@ -74,4 +80,59 @@
   --r: 8px;
   --top-h: 52px;
   --rail-w: 224px;
+}
+
+/* P3-1: the light theme. Only what differs from the dark block; lane fills and type are shared. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --panel-2: #f0f2f5;
+  --panel-3: #e6e9ee;
+  --sunk: #eceff3;
+  --line: #d5dae1;
+  --line-2: #b9c1cc;
+  --belt: #c7ced8;
+  --belt-2: #aeb7c3;
+  --fg: #14181f;
+  --fg-2: #2f3743;
+  --muted: #4b5563;
+  --faint: #5f6977;
+  --gate: #7f5700;
+  --gate-ink: #ffffff;
+  --hand-ink: #ffffff;
+  --back: #a24d00;
+  --hand: #0a5fb4;
+  --quar: #b42318;
+  --ok: #166b2f;
+  --warn: #8a5a00;
+  --bad: #b42318;
+  --agent: #5b45d6;
+  --det: #4f5b6b;
+  --human: #08695f;
+  --ok-bg: #e6f4ea;
+  --ok-fg: #14632b;
+  --ok-line: #a6d8b4;
+  --warn-bg: #fdf3d7;
+  --warn-fg: #6e4a00;
+  --warn-line: #e8cf85;
+  --bad-bg: #fdecea;
+  --bad-fg: #a01b12;
+  --bad-line: #f0b4ae;
+  --info-bg: #e7f0fb;
+  --info-fg: #0b4f94;
+  --info-line: #a9c8ee;
+  --agent-bg: #efecfd;
+  --agent-fg: #4a35c0;
+  --agent-line: #c6bdf5;
+  --human-bg: #e3f5f2;
+  --human-fg: #0a6359;
+  --human-line: #9fd8cf;
+  --gate-bg: #fdf3d7;
+  --gate-line: #e2c46e;
+  --back-bg: #fdeedd;
+  --back-fg: #8a3f00;
+  --back-line: #f0c08f;
+  --scrim: rgba(15, 18, 22, 0.35);
+  --shadow: 0 18px 40px rgba(16, 24, 40, 0.18);
 }

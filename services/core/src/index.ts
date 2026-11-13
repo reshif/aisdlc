@@ -61,3 +61,4 @@ export * from './health.js';
 export * from './degraded.js';
 export * from './knowledge-defects.js';
 export * from './portal-knowledge.js';
+export * from './portal-ops.js';

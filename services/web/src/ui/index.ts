@@ -18,3 +18,4 @@ export {
 } from './sequence';
 export { Drawer, Modal, ToastProvider, useToast, type ToastTone } from './overlay';
 export { EmptyState, ErrorState, LockedButton } from './states';
+export { useScrollable } from './scroll';
