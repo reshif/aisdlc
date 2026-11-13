@@ -271,7 +271,7 @@ const PROVIDER_SECRET: Readonly<Record<string, SecretName>> = {
 
 function providerRow(f: ProviderDraft): Integration {
   const secret: SecretName | null =
-    f.adapter === 'fake' ? null : f.adapter === 'anthropic' ? 'anthropic-api-key' : f.secret;
+    f.adapter === 'fake' ? null : f.adapter === 'anthropic' ? 'anthropic-api-key' : f.secret_name;
   return {
     integration_id: f.id,
     kind: 'model_provider',
@@ -304,7 +304,7 @@ interface ProviderDraft {
   readonly id: string;
   readonly name: string;
   readonly base_url: string;
-  readonly secret: SecretName;
+  readonly secret_name: SecretName;
   readonly data_class: 'D0' | 'D1' | 'D2';
 }
 
@@ -322,7 +322,7 @@ function AddProvider({ reg, csrf }: { reg: ConfigKeyWire; csrf: string }) {
     id: 'anthropic',
     name: 'Anthropic',
     base_url: '',
-    secret: 'anthropic-api-key',
+    secret_name: 'anthropic-api-key',
     data_class: 'D1',
   });
   const rows = rowsOf(reg);
@@ -352,7 +352,7 @@ function AddProvider({ reg, csrf }: { reg: ConfigKeyWire; csrf: string }) {
               const a = e.target.value as ProviderDraft['adapter'];
               set({
                 adapter: a,
-                secret: PROVIDER_SECRET[a] ?? 'openai-api-key',
+                secret_name: PROVIDER_SECRET[a] ?? 'openai-api-key',
                 ...(a === 'fake' ? { id: 'test-model', name: 'Test model' } : {}),
               });
             }}
@@ -413,8 +413,8 @@ function AddProvider({ reg, csrf }: { reg: ConfigKeyWire; csrf: string }) {
             <select
               id={ids.secret}
               className="ui-input"
-              value={f.secret}
-              onChange={(e) => set({ secret: e.target.value as SecretName })}
+              value={f.secret_name}
+              onChange={(e) => set({ secret_name: e.target.value as SecretName })}
             >
               <option value="openai-api-key">OpenAI-compatible API key</option>
               <option value="deepseek-api-key">DeepSeek API key</option>
