@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CardKind } from '@aisdlc/contracts';
-import { ApiError, api } from '../api';
+import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { PageError, Loading } from '../components/Notice';
 import { C1Form } from '../cards/C1Form';
@@ -40,6 +40,22 @@ const STATUS_TONE = {
  * decider saw, and nothing in it can be sent.
  */
 export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: string }) {
+  // P3-8: the kind is asked once (one route answers both), so no request of the page ends in a 404 probe
+  const kind = useQuery({
+    queryKey: ['card-kind', id],
+    queryFn: () => api.cardKind(id),
+    staleTime: Infinity,
+  });
+  if (kind.isPending) return <Loading what="the card" />;
+  if (kind.isError) return <PageError error={kind.error} retry={() => void kind.refetch()} />;
+  return kind.data.kind === 'work_gate' ? (
+    <WorkGateCard id={id} csrf={csrf} me={me} />
+  ) : (
+    <OnboardingCard id={id} csrf={csrf} me={me} />
+  );
+}
+
+function OnboardingCard({ id, csrf, me }: { id: string; csrf: string; me: string }) {
   const q = useQuery({
     queryKey: ['card', id],
     queryFn: () => api.card(id),
@@ -48,10 +64,6 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
     staleTime: 0,
   });
   if (q.isPending) return <Loading what="the card" />;
-  // not an onboarding card: a work-item gate card (G1f, G2) shows the artefacts it decides
-  if (q.isError && q.error instanceof ApiError && q.error.status === 404) {
-    return <WorkGateCard id={id} csrf={csrf} me={me} />;
-  }
   if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const card = q.data;
   const { summary } = card;

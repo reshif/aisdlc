@@ -38,6 +38,17 @@ const TYPES: Readonly<Record<string, string>> = {
 /** Paths that belong to the bff's own routes: an unknown one is a 404, never the app shell. */
 const SERVER_PREFIXES = ['/api/', '/auth/', '/healthz'];
 
+/**
+ * A missing path that names a file of the bundle (P2-13): anything under `/assets/`, or a top-level name with
+ * a type the bundle serves (`/favicon.ico`, `/robots.txt`). Every other path is a route of the single-page
+ * app, dotted segments included (`/config/gateway.models`): the shell answers it and the router decides.
+ */
+export function looksLikeFile(path: string): boolean {
+  if (path.startsWith('/assets/')) return true;
+  const segments = path.split('/').filter((x) => x !== '');
+  return segments.length === 1 && TYPES[extname(segments[0] as string)] !== undefined;
+}
+
 export function registerWebFiles(app: FastifyInstance, dir: string): void {
   const root = resolve(dir);
 
@@ -75,8 +86,7 @@ export function registerWebFiles(app: FastifyInstance, dir: string): void {
     }
     const s = await stat(file).catch(() => null);
     if (s?.isFile()) return send(reply, file, extname(file) === '.html');
-    // A path with an extension is a missing file; any other path is a route of the single-page app.
-    if (extname(rel) !== '') {
+    if (looksLikeFile(path)) {
       return reply.code(404).send({ error: { code: 'not_found', message: 'no such file' } });
     }
     return send(reply, join(root, 'index.html'), true);

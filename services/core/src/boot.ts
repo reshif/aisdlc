@@ -27,6 +27,7 @@ import { lightTestsFrom } from './cards/spikes.js';
 import { mergeBypassFrom } from './drift/routes.js';
 import { migrateCore } from './migrations.js';
 import { maintenanceFrom, registerCoreConfig } from './settings.js';
+import { workSettingsFrom } from './work-control.js';
 
 /**
  * Starts core from the environment (see `coreConfigFromEnv`). All configuration is read before the
@@ -157,6 +158,8 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
       // M16: a drift restore re-attests the per-repo bypass list in force
       ...(reader ? { bypass: mergeBypassFrom(reader) } : {}),
+      // P2-16: the clarifying deadline is counted on the S0 calendar, as the work driver's timers are
+      ...(reader ? { workSettings: workSettingsFrom(reader) } : {}),
       ...(cfg.admissionUrl
         ? { kill: new HttpAdmissionVerdict({ baseUrl: cfg.admissionUrl }) }
         : {}),

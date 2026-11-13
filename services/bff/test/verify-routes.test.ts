@@ -7,6 +7,7 @@ import { signIn, startBffStack, type BffStack, type Browser } from '../src/testi
 import {
   CARD_ID,
   CORE_TOKEN,
+  cardSummary,
   ITEM_ID,
   gateCardFixture,
   itemViewFixture,
@@ -202,6 +203,84 @@ const g6Subject = () => ({
   merged: [{ unit_key: 'main', pr: prLink, head_sha: HEAD, pack: packSummary, steps: [] }],
   release: null,
 });
+// P2-1: the item page's tabs, as core answers them (uncut)
+const requestView = () => ({
+  item_id: ITEM_ID,
+  project_id: 'acme',
+  repo: 'acme/web',
+  request_id: ITEM_ID,
+  requester: 'carol',
+  channel: 'N1',
+  request_text: {
+    text: 'Export the orders as CSV',
+    taint: 'untrusted',
+    origin: 'request',
+    provenance: {
+      channel: 'N1',
+      source: null,
+      received_at: '2026-11-12T10:00:00.000Z',
+      submitted_by: 'carol',
+      raw_sha256: PACK,
+      normalised_sha256: PACK,
+    },
+    flags: [],
+  },
+  text_withheld: false,
+  text_sha256: PACK,
+  injection: null,
+  dedupe_links: [],
+  conflict_candidates: [],
+  asked_lane: 'L4',
+  proposed_lane: 'L4',
+  lane: 'L4',
+  lane_bound_by: 'gate:g-0',
+  intake_route: 'normal',
+  eligibility_reason: 'eligible',
+  lane_opens_at: 'light',
+  data_class: 'D2',
+});
+const documentsView = () => ({
+  item_id: ITEM_ID,
+  project_id: 'acme',
+  documents: [
+    {
+      type: 'spec_delta',
+      group: 'spec',
+      versions: [
+        {
+          version: 1,
+          sha256: PACK,
+          step: '3.2',
+          stored_at: '2026-11-12T10:00:00.000Z',
+          bytes: 12,
+          author: { kind: 'factory' },
+          markdown: '# The spec of the CSV export',
+          withheld: false,
+          gates: [],
+        },
+      ],
+    },
+  ],
+  not_intact: 0,
+  data_class: 'D2',
+});
+const timelineView = () => ({
+  item_id: ITEM_ID,
+  project_id: 'acme',
+  entries: [
+    {
+      global_seq: 1,
+      at: '2026-11-12T10:00:00.000Z',
+      kind: 'item.created',
+      actor: 'carol',
+      by: null,
+      step: null,
+      gates: [],
+      codes: [],
+    },
+  ],
+});
+
 const withSubject = (gate: string, subject: unknown) => ({
   status: 200,
   json: { ...gateContext(), gate, station: gate, check: null, quarantine: null, subject },
@@ -254,6 +333,9 @@ beforeAll(async () => {
     if (p === `/v1/items/${ITEM_ID}`)
       return { status: 200, json: { ...itemViewFixture(), project_id: 'acme' } };
     if (p === `/v1/items/${ITEM_ID}/verify`) return { status: 200, json: verifyView() };
+    if (p === `/v1/items/${ITEM_ID}/request`) return { status: 200, json: requestView() };
+    if (p === `/v1/items/${ITEM_ID}/documents`) return { status: 200, json: documentsView() };
+    if (p === `/v1/items/${ITEM_ID}/timeline`) return { status: 200, json: timelineView() };
     if (p === `/v1/items/${ITEM_ID}/evidence`) return { status: 200, json: evidenceView() };
     if (p === `/v1/items/${ITEM_ID}/evidence/${PACK}/signed`) return { status: 200, json: SIGNED };
     if (p === `/v1/cards/${CARD_ID}/gate/context`) return { status: 200, json: gateContext() };
@@ -327,6 +409,41 @@ async function get(who: 'alice' | 'bob' | 'carol' | 'dora', path: string) {
   }
   return { status: res.status, json, text, res };
 }
+
+describe("the item page's tabs (P2-1)", () => {
+  it('the request: the text from D1 up; a V1/D0 viewer gets the marks and hashes without it', async () => {
+    const a = await get('alice', `/api/items/${ITEM_ID}/request`);
+    expect(a.status).toBe(200);
+    expect(a.json.request_text.text).toBe('Export the orders as CSV');
+    expect(a.json.data_class).toBe('D1');
+    expect(core.seen).toContain(`GET /v1/items/${ITEM_ID}/request?on_behalf_of=alice`);
+    const d = await get('dora', `/api/items/${ITEM_ID}/request`);
+    expect(d.status).toBe(200);
+    expect(d.json).toMatchObject({ request_text: null, text_withheld: true, text_sha256: PACK });
+    expect(d.text).not.toContain('Export the orders');
+    expect((await get('carol', `/api/items/${ITEM_ID}/request`)).status).toBe(403);
+  });
+
+  it('the documents need V2 and their text D1; the timeline needs project.view only', async () => {
+    const a = await get('alice', `/api/items/${ITEM_ID}/documents`);
+    expect(a.status).toBe(200);
+    expect(a.json.documents[0].versions[0].markdown).toBe('# The spec of the CSV export');
+    const d = await get('dora', `/api/items/${ITEM_ID}/documents`);
+    expect(d.status).toBe(403);
+    expect(d.json.error.code).toBe('view_level');
+    expect(d.text).not.toContain('CSV export');
+    expect((await get('carol', `/api/items/${ITEM_ID}/documents`)).status).toBe(403);
+    const t = await get('dora', `/api/items/${ITEM_ID}/timeline`);
+    expect(t.status).toBe(200);
+    expect(t.json.entries[0].kind).toBe('item.created');
+    expect((await get('carol', `/api/items/${ITEM_ID}/timeline`)).status).toBe(403);
+  });
+
+  it('a core answer that breaks its contract is a 502', async () => {
+    core.override.set(`/v1/items/${ITEM_ID}/timeline`, { status: 200, json: { entries: 'x' } });
+    expect((await get('alice', `/api/items/${ITEM_ID}/timeline`)).status).toBe(502);
+  });
+});
 
 describe('GET /api/items/:id/verify', () => {
   it('cuts finding text to the data class: D1 sees ordinary findings, not tripwire evidence or secrets', async () => {
@@ -478,6 +595,25 @@ describe('the gate screens', () => {
       withSubject('G4', { ...g4Subject(), b13: { used: -1 } }),
     );
     expect((await get('alice', `/api/cards/${CARD_ID}/gate/context`)).status).toBe(502);
+  });
+
+  it('P3-8: GET /api/cards/:id/kind answers both kinds after project.view, with one route', async () => {
+    const gate = await get('alice', `/api/cards/${CARD_ID}/kind`);
+    expect(gate.status).toBe(200);
+    expect(gate.json).toEqual({ card_id: CARD_ID, kind: 'work_gate' });
+    expect((await get('carol', `/api/cards/${CARD_ID}/kind`)).status).toBe(403);
+    core.override.set(`/v1/cards/${CARD_ID}/summary`, {
+      status: 200,
+      json: cardSummary('acme'),
+    });
+    const onb = await get('alice', `/api/cards/${CARD_ID}/kind`);
+    expect(onb.json).toEqual({ card_id: CARD_ID, kind: 'onboarding' });
+    expect((await get('carol', `/api/cards/${CARD_ID}/kind`)).status).toBe(403);
+    // neither kind: the one 404
+    expect(
+      (await get('alice', `/api/cards/${'0'.repeat(8)}-0000-4000-8000-${'0'.repeat(12)}/kind`))
+        .status,
+    ).toBe(404);
   });
 
   it('GET /api/cards/:id/gate says why not: the PDP’s reasons first, then the slot', async () => {

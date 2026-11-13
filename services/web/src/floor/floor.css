@@ -415,6 +415,11 @@
   cursor: pointer;
   transition: opacity 0.3s;
 }
+/* too small to be a target at this zoom (WCAG 2.5.8): a picture; a click lands on the station or room below */
+.fl-chip.fl-chip-pic {
+  pointer-events: none;
+  cursor: default;
+}
 .fl-chip b {
   font-size: 15px;
   min-width: 42px;
@@ -714,7 +719,7 @@
   border-radius: 10px;
   background: var(--panel);
 }
-.fx-name h3 {
+.fx-name h2 {
   margin: 0 0 4px;
   font-size: 16px;
 }
@@ -768,7 +773,7 @@
 .fx-g.fx-on {
   background: var(--gate);
   border-color: var(--gate);
-  color: var(--bg);
+  color: var(--gate-ink);
 }
 .fx-g b {
   transform: rotate(-45deg);

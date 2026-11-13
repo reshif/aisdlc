@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { Loading, PageError } from '../components/Notice';
 import { Link } from '../router';
-import { EmptyState, PageHead, Pill, Stat, Stats, laneFill, laneText } from '../ui';
+import { EmptyState, PageHead, Pill, Stat, Stats, laneFill, laneText, useScrollable } from '../ui';
 import { FLOOR_STAGE_TEXT } from '../vocab';
 import './floor.css';
 
@@ -15,6 +15,7 @@ import './floor.css';
 export const FLEET_POLL_MS = 15_000;
 
 function Belt({ row, view }: { row: FloorProject; view: FleetView }) {
+  const { ref, scrolls } = useScrollable<HTMLOListElement>();
   // the stations in plan order, each followed by the gates the plan puts after it
   const cells: Array<{ kind: 'st'; s: FloorStage } | { kind: 'g'; key: string }> = [];
   for (const s of view.plan.stations) {
@@ -24,7 +25,12 @@ function Belt({ row, view }: { row: FloorProject; view: FleetView }) {
     }
   }
   return (
-    <ol className="fx-belt" aria-label={`Stations of ${row.name}`}>
+    <ol
+      className="fx-belt"
+      aria-label={`Stations of ${row.name}`}
+      ref={ref}
+      {...(scrolls ? { tabIndex: 0 } : {})}
+    >
       {cells.map((c) => {
         if (c.kind === 'g') {
           const n = row.gates[c.key] ?? 0;
@@ -60,13 +66,13 @@ function Belt({ row, view }: { row: FloorProject; view: FleetView }) {
 function Row({ row, view }: { row: FloorProject; view: FleetView }) {
   const head = (
     <div className="fx-name">
-      <h3>
+      <h2>
         {row.collapsed === null ? (
           <Link to={`/floor?project=${encodeURIComponent(row.project_id)}`}>{row.name}</Link>
         ) : (
           row.name
         )}
-      </h3>
+      </h2>
       <div className="fx-tags">
         {row.level ? <Pill tone={row.level === 'full' ? 'ok' : 'info'}>{row.level}</Pill> : null}
         {row.classification === 'confidential' ? <Pill tone="mute">confidential</Pill> : null}

@@ -1,4 +1,12 @@
 import type {
+  CardKindView,
+  BreakersView,
+  BudgetsView,
+  CostView,
+  GatewayReloadView,
+  OnboardReposView,
+  ProviderTestResult,
+  PublishBannerBody,
   AccessBindingList,
   AccessChange,
   AccessDecideResult,
@@ -63,6 +71,14 @@ import type {
   GateCardContext,
   GateCheckRunsView,
   ItemVerifyView,
+  AgentDetailView,
+  AgentRecentRunsView,
+  AgentRunsView,
+  AgentScoresView,
+  AgentStats,
+  ItemDocumentsView,
+  ItemRequestView,
+  ItemTimelineView,
   AccessExplainView,
   AdmissionView,
   AgentRegistryView,
@@ -440,6 +456,8 @@ export const api = {
   cards: (s0Id: string) =>
     request<PortalCardSummary[]>('GET', `/api/s0/${encodeURIComponent(s0Id)}/cards`),
   card: (id: string) => request<CardDetailWire>('GET', `/api/cards/${encodeURIComponent(id)}`),
+  cardKind: (id: string) =>
+    request<CardKindView>('GET', `/api/cards/${encodeURIComponent(id)}/kind`),
   cardArtefacts: (id: string) =>
     request<GateArtefactsWire>('GET', `/api/cards/${encodeURIComponent(id)}/artefacts`),
   gateCard: (id: string) =>
@@ -547,6 +565,15 @@ export const api = {
   askForWork: (b: PortalAskRequest, csrf: string) =>
     request<PortalRequestReceipt>('POST', '/api/requests', b, csrf),
   item: (id: string) => request<PortalItemView>('GET', `/api/items/${encodeURIComponent(id)}`),
+  /** P2-1: the item page's tabs (the bff cuts each to the person's view level and data class). */
+  itemRequest: (id: string) =>
+    request<ItemRequestView>('GET', `/api/items/${encodeURIComponent(id)}/request`),
+  itemDocuments: (id: string) =>
+    request<ItemDocumentsView>('GET', `/api/items/${encodeURIComponent(id)}/documents`),
+  itemTimeline: (id: string) =>
+    request<ItemTimelineView>('GET', `/api/items/${encodeURIComponent(id)}/timeline`),
+  itemAgentRuns: (id: string) =>
+    request<AgentRunsView>('GET', `/api/agent-runs?item=${encodeURIComponent(id)}`),
   itemVerify: (id: string, head?: string) =>
     request<ItemVerifyView>(
       'GET',
@@ -729,6 +756,16 @@ export const api = {
       `/api/items${project ? `?project=${encodeURIComponent(project)}` : ''}`,
     ),
   agents: () => request<AgentRegistryView>('GET', '/api/agents'),
+  /** P2-3: one agent's page. */
+  agent: (id: string) => request<AgentDetailView>('GET', `/api/agents/${encodeURIComponent(id)}`),
+  agentRecentRuns: (id: string) =>
+    request<AgentRecentRunsView>('GET', `/api/agents/${encodeURIComponent(id)}/runs?limit=50`),
+  agentStats: (id: string) =>
+    request<AgentStats>('GET', `/api/agents/${encodeURIComponent(id)}/stats`),
+  agentScores: (id: string) =>
+    request<AgentScoresView>('GET', `/api/agents/${encodeURIComponent(id)}/scores`),
+  agentEvalRuns: (id: string) =>
+    request<EvalRunsView>('GET', `/api/evals/runs?agent=${encodeURIComponent(id)}&limit=50`),
   evalSummary: () => request<EvalSummaryView>('GET', '/api/evals/summary'),
   evalRuns: () => request<EvalRunsView>('GET', '/api/evals/runs?limit=50'),
   integrations: () => request<IntegrationsView>('GET', '/api/integrations'),
@@ -925,7 +962,37 @@ export const api = {
       'GET',
       `/api/projects/${encodeURIComponent(project)}/ledger${s0 ? `?s0=${encodeURIComponent(s0)}` : ''}`,
     ),
+  // the P2 operate and govern gaps (bff ops.ts)
+  budgets: () => request<BudgetsView>('GET', '/api/budgets'),
+  cost: (days: number) => request<CostView>('GET', `/api/cost?days=${days}`),
+  breakers: (project: string) =>
+    request<BreakersView>('GET', `/api/projects/${encodeURIComponent(project)}/breakers`),
+  resetBreaker: (project: string, lane: string, csrf: string) =>
+    request<{ gate_instance_id: string }>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/breakers/${encodeURIComponent(lane)}/reset`,
+      {},
+      csrf,
+    ),
+  publishBanner: (b: PublishBannerBody, csrf: string) =>
+    request<unknown>('POST', '/api/banners', b, csrf),
+  onboardRepos: () => request<OnboardReposView>('GET', '/api/onboard/repos'),
+  modelProviders: () => request<ModelProvidersWire>('GET', '/api/models/providers'),
+  testProvider: (id: string, csrf: string) =>
+    request<ProviderTestResult>(
+      'POST',
+      `/api/models/providers/${encodeURIComponent(id)}/test`,
+      {},
+      csrf,
+    ),
+  reloadProviders: (force: boolean, csrf: string) =>
+    request<GatewayReloadView>('POST', '/api/models/reload', { force }, csrf),
 };
+
+/** `GET /api/models/providers`: the gateway's adapters and the deployment's bounds. */
+export interface ModelProvidersWire extends GatewayReloadView {
+  readonly bounds: { readonly secret_refs: string[]; readonly egress_hosts: string[] };
+}
 
 /** Where the browser downloads a pack's signed bytes (a plain GET with the session cookie). */
 export const signedPackHref = (item: string, pack: string): string =>

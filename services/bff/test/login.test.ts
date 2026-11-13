@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pkceChallenge } from '@aisdlc/ports';
 import { bindProject, grantFleetRole, setStatusForTest } from '@aisdlc/identity/testing';
+import { safeReturnTo } from '../src/app.js';
 import { Browser, CLIENT, SUBJECTS, signIn, startBffStack, type BffStack } from '../src/testing.js';
 
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -185,12 +186,35 @@ describe('login', () => {
       ['https://evil.example/', '/'],
       ['/\\evil.example', '/'],
       ['floor', '/'],
+      ['/config/gateway.models', '/config/gateway.models'],
     ] as const) {
       const { chain } = await signIn(s, 'alice', new Browser(), given);
       expect(
         new URL(chain[chain.length - 1] as string).pathname +
           new URL(chain[chain.length - 1] as string).search,
       ).toBe(want);
+    }
+  });
+
+  it('P2-18: return_to keeps a same-origin path and nothing that could leave the site', () => {
+    for (const [given, want] of [
+      [undefined, '/'],
+      ['', '/'],
+      ['/items/abc?tab=verify#gates', '/items/abc?tab=verify#gates'],
+      ['/config/gateway.models', '/config/gateway.models'],
+      ['/a/../b', '/b'],
+      ['//evil.example', '/'],
+      ['/\\evil.example', '/'],
+      ['/x\\y', '/'],
+      ['/\tevil', '/'],
+      ['/%0d%0aSet-Cookie:x', '/%0d%0aSet-Cookie:x'],
+      ['https://evil.example/', '/'],
+      ['javascript:alert(1)', '/'],
+      ['/auth/login?return_to=//evil', '/'],
+      ['/auth/logout', '/'],
+      [`/${'a'.repeat(3000)}`, '/'],
+    ] as const) {
+      expect(safeReturnTo(given)).toBe(want);
     }
   });
 

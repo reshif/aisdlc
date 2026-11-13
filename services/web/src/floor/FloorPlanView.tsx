@@ -16,6 +16,7 @@ import { FLOOR_ROOM_TEXT, FLOOR_STAGE_TEXT, FLOOR_STATUS_TEXT } from '../vocab';
 import {
   BB,
   BT,
+  CHIP_H,
   PLAN_H,
   PLAN_W,
   ROOMS,
@@ -115,6 +116,7 @@ export function FloorPlanView(p: FloorPlanProps) {
     return () => ro.disconnect();
   }, []);
   const scale = p.fit && width > 0 ? Math.min(1.2, width / PLAN_W) : 1;
+  const chipTargets = CHIP_H * scale >= MIN_TARGET_PX;
 
   const spots = useMemo(() => gateSpots(view.plan.gates), [view.plan.gates]);
   const offGates = useMemo(() => new Set(view.gates_off ?? []), [view.gates_off]);
@@ -231,7 +233,9 @@ export function FloorPlanView(p: FloorPlanProps) {
                 className={`fl-st${id === 'S6' ? ' fl-s6' : ''}${route?.has(id) ? ' fl-onroute' : ''}`}
                 role="button"
                 tabIndex={0}
-                aria-label={`${id} ${FLOOR_STAGE_TEXT[id]}: ${items.length} here. Open the station`}
+                // the name is the text shown, id and stage (WCAG 2.5.3: no aria-label to drift from it); the
+                // count, the score and the pods, hidden from the tree inside, are its description
+                aria-describedby={`fl-st-d-${id}`}
                 onClick={() => p.onOpen({ kind: 'station', stage: id })}
                 onKeyDown={press(() => p.onOpen({ kind: 'station', stage: id }))}
                 style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
@@ -243,13 +247,15 @@ export function FloorPlanView(p: FloorPlanProps) {
                   />
                   <span className="ui-mono">{id}</span>
                   <span className="fl-sp" />
-                  <ScoreChip chips={view.scores.filter((c) => c.stage === id)} />
-                  <span className="fl-acts">
+                  <span aria-hidden="true">
+                    <ScoreChip chips={view.scores.filter((c) => c.stage === id)} />
+                  </span>
+                  <span className="fl-acts" aria-hidden="true">
                     {actorsOf(id).map((a) => (
                       <ActorGlyph key={a} actor={a} />
                     ))}
                   </span>
-                </div>
+                </div>{' '}
                 <div className="fl-stname">{FLOOR_STAGE_TEXT[id]}</div>
                 {id === 'S6'
                   ? pods.map((pod, i) => {
@@ -270,6 +276,7 @@ export function FloorPlanView(p: FloorPlanProps) {
                             height: pod.h,
                           }}
                           data-pod={i + 1}
+                          aria-hidden="true"
                         >
                           <span className="fl-podlbl ui-mono">{label}</span>
                         </div>
@@ -279,6 +286,11 @@ export function FloorPlanView(p: FloorPlanProps) {
               </div>
             );
           })}
+          {view.plan.stations.map((id) => (
+            <span key={`d-${id}`} id={`fl-st-d-${id}`} className="ui-sr">
+              {`${here(id).length} here${scoreText(view.scores.filter((c) => c.stage === id))}${id === 'S6' ? podText(pods.length, podItems, p.pods.known) : ''}. Open the station`}
+            </span>
+          ))}
 
           {(Object.keys(ROOMS) as FloorRoom[]).map((r) => {
             const b = ROOMS[r];
@@ -290,14 +302,23 @@ export function FloorPlanView(p: FloorPlanProps) {
                 className={`fl-room fl-room-${r.toLowerCase()}`}
                 role="button"
                 tabIndex={0}
-                aria-label={`${t.title}: ${n} here. Open the room`}
+                // named by its visible title and line (WCAG 2.5.3), the count is its description
+                aria-describedby={`fl-room-d-${r}`}
                 onClick={() => p.onOpen({ kind: 'room', room: r })}
                 onKeyDown={press(() => p.onOpen({ kind: 'room', room: r }))}
                 style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
                 data-room={r}
               >
                 <div className="fl-rt">{t.title}</div>
-                {r === 'DONE' ? null : <div className="fl-rs">{t.sub}</div>}
+                {r === 'DONE' ? null : (
+                  <>
+                    {' '}
+                    <div className="fl-rs">{t.sub}</div>
+                  </>
+                )}
+                <span id={`fl-room-d-${r}`} className="ui-sr" aria-hidden="true">
+                  {`${n} here. Open the room`}
+                </span>
               </div>
             );
           })}
@@ -392,13 +413,31 @@ export function FloorPlanView(p: FloorPlanProps) {
               ]
                 .filter(Boolean)
                 .join(' ');
+              if (!chipTargets) {
+                // smaller than a 24px target at this zoom: a picture of the item; its station, room or gate (whose
+                // drawer lists it) is the control, and 100% makes every chip a button again (WCAG 2.5.8 equivalent)
+                return (
+                  <span
+                    key={it.item_id}
+                    className={`${cls} fl-chip-pic`}
+                    style={{ left: c.x, top: c.y }}
+                    aria-hidden="true"
+                    data-chip={it.key}
+                  >
+                    <b className={`ui-chip-key ui-lane-${laneFill(it.lane)}`}>
+                      {it.key.slice(0, 4)}
+                    </b>
+                    <u />
+                  </span>
+                );
+              }
               return (
                 <button
                   key={it.item_id}
                   type="button"
                   className={cls}
                   style={{ left: c.x, top: c.y }}
-                  aria-label={`Item ${it.key}, lane ${laneText(it.lane)}, ${FLOOR_STATUS_TEXT[it.status].label} at ${where}${it.title ? `: ${it.title}` : ''}`}
+                  aria-label={`${it.key.slice(0, 4)}: item ${it.key}, lane ${laneText(it.lane)}, ${FLOOR_STATUS_TEXT[it.status].label} at ${where}${it.title ? `: ${it.title}` : ''}`}
                   onClick={() => p.onOpen({ kind: 'item', id: it.item_id })}
                   onMouseEnter={() => setFocus(it)}
                   onMouseLeave={() => setFocus(null)}
@@ -447,6 +486,28 @@ export function FloorPlanView(p: FloorPlanProps) {
  * there, its eval pass rate (or production acceptance) as `.NN`, marked low under the line in force. Agents with no
  * score yet draw no chip (the station drawer lists them as unknown).
  */
+/** The smallest pointer target WCAG 2.2 AA allows (2.5.8), in CSS pixels. */
+const MIN_TARGET_PX = 24;
+
+/** The score chip of a station as words, for the station's name (the chip itself is hidden from the tree). */
+function scoreText(chips: readonly FloorScoreChip[]): string {
+  const w = chips
+    .map((c) => ({ c, v: c.pass_rate ?? c.accept_rate }))
+    .filter((x): x is { c: FloorScoreChip; v: number } => x.v !== null)
+    .sort((a, b) => Number(b.c.low) - Number(a.c.low) || a.v - b.v)[0];
+  return w ? `, agent ${w.c.agent_id} scores ${w.v.toFixed(2)}${w.c.low ? ' (low)' : ''}` : '';
+}
+
+function podText(
+  count: number,
+  items: ReadonlyArray<FloorItem | undefined>,
+  known: boolean,
+): string {
+  if (!known) return `, ${count} coding slots, state unknown`;
+  const busy = items.filter((x): x is FloorItem => x !== undefined);
+  return `, ${count} coding slots, ${busy.length} busy${busy.length ? ` (${busy.map((x) => x.key.slice(0, 4)).join(', ')})` : ''}`;
+}
+
 export function ScoreChip({ chips }: { chips: readonly FloorScoreChip[] }) {
   const scored = chips
     .map((c) => ({ c, v: c.pass_rate ?? c.accept_rate }))

@@ -2,8 +2,12 @@ import {
   BudgetExhaustedPayload,
   BudgetGroupSpec,
   GATEWAY_ADMIN_STREAM,
+  GATEWAY_CONFIG_KEYS,
   GATEWAY_EVENT,
   ModelCallPayload,
+  ProviderTestedPayload,
+  type GatewayModels,
+  type ProviderTestResult,
   ReservationAbandonedPayload,
   ModelCompleteRequest,
   ModelMessage,
@@ -270,6 +274,91 @@ export class GatewayService {
 
   get providerCallCount(): number {
     return this.providerCalls;
+  }
+
+  // ------------------------------------------------------------ admin: an operator's connection test (P2-5)
+
+  /**
+   * One tiny call (one word in, at most one token out) to one provider, asked for by a person the bff's PDP admitted.
+   * It passes the same process spend guard and kill switch (the fleet) as any call, uses the provider's cheapest
+   * model of the routing table, and is metered: `gateway.provider_tested` on the admin stream, with tokens, cost and
+   * the vendor's error class, never any text. It spends no budget group's money (it is not a Unit's call).
+   */
+  async testProvider(integration_id: string, tested_by: string): Promise<ProviderTestResult> {
+    const at = this.clock.now().toISOString();
+    const base = {
+      integration_id,
+      model_id: null,
+      code: null,
+      tokens_in: 0,
+      tokens_out: 0,
+      cost_micro_usd: 0,
+      latency_ms: 0,
+      at,
+    };
+    const record = async (r: ProviderTestResult): Promise<ProviderTestResult> => {
+      const payload = ProviderTestedPayload.parse({ ...r, tested_by });
+      await withTransaction(this.d.pool, (tx) =>
+        this.append(
+          tx,
+          GATEWAY_ADMIN_STREAM,
+          GATEWAY_EVENT.provider_tested,
+          payload as unknown as JsonObject,
+          `provider-test:${newId<'ModelCall'>()}`,
+        ),
+      );
+      return r;
+    };
+    const adapter = this.d.adapters.get(integration_id);
+    if (!adapter) return record({ ...base, outcome: 'not_built', code: 'not_built' });
+    const models = (this.d.config.current().get<GatewayModels>(GATEWAY_CONFIG_KEYS.models) ?? [])
+      .filter((m) => m.provider_id === integration_id)
+      .sort(
+        (a, b) => a.usd_in_per_mtok + a.usd_out_per_mtok - (b.usd_in_per_mtok + b.usd_out_per_mtok),
+      );
+    const model = models[0];
+    if (!model) return record({ ...base, outcome: 'no_model', code: 'no_model' });
+    if (this.providerCalls >= this.d.maxProviderCalls) {
+      return record({ ...base, model_id: model.model_id, outcome: 'refused', code: 'spend_guard' });
+    }
+    const admitted = await admitAgentWork(this.d.kill, { project_id: 'factory' });
+    if (!admitted.admitted) {
+      const code = admitted.why === 'killed' ? 'killed' : 'kill_switch_unreachable';
+      return record({ ...base, model_id: model.model_id, outcome: 'refused', code });
+    }
+    this.providerCalls += 1;
+    const started = performance.now();
+    const reply = await adapter
+      .complete({
+        model: model.provider_model,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1,
+        metadata: { purpose: 'provider_test' },
+      })
+      .catch(() => err(modelProviderError('unavailable', 'the adapter threw')));
+    const latency_ms = Math.max(0, Math.round(performance.now() - started));
+    this.noteProvider(integration_id, reply.ok ? 'ok' : reply.error.code);
+    if (!reply.ok) {
+      return record({
+        ...base,
+        model_id: model.model_id,
+        outcome: 'provider_error',
+        code: reply.error.code,
+        latency_ms,
+      });
+    }
+    const { input_tokens, output_tokens } = reply.value.usage;
+    return record({
+      ...base,
+      model_id: model.model_id,
+      outcome: 'ok',
+      tokens_in: input_tokens,
+      tokens_out: output_tokens,
+      cost_micro_usd: Math.ceil(
+        input_tokens * model.usd_in_per_mtok + output_tokens * model.usd_out_per_mtok,
+      ),
+      latency_ms,
+    });
   }
 
   // ------------------------------------------------------------ admin: budget groups and keys

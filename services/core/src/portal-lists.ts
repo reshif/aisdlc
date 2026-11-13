@@ -1,6 +1,7 @@
 import { AGENT_DEFINITIONS, PROMPTS_LOCK } from '@aisdlc/agents';
 import { CATALOGUE_VERSION, catalogueFor, releasedCatalogues } from '@aisdlc/catalogue';
 import {
+  AgentId,
   AuditDecisionRow,
   CODING_SESSION_CAP,
   ITEM_EVENT,
@@ -14,6 +15,9 @@ import {
   pdpResource,
   type ActionId,
   type AdmissionView,
+  type AgentDetailView,
+  type AgentRecentRunsView,
+  type AgentRegistryRow,
   type AgentRegistryView,
   type CatalogueView,
   type HeldItemRow,
@@ -27,6 +31,7 @@ import { sendError } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { activeGrantCount, grantsWithStatus } from './admission/read.js';
+import { recentAgentRunsOf } from './agent-runs.js';
 import { activeBanners, activeControls } from './controls.js';
 import { readItem } from './work-items.js';
 import { catchUpWork } from './work-projection.js';
@@ -38,6 +43,9 @@ import { catchUpWork } from './work-projection.js';
 //
 //   GET /v1/items?on_behalf_of=[&project=]       work    item.view_floor per row
 //   GET /v1/agents?on_behalf_of=                 work    quality.read on the fleet (the registry is code)
+//   GET /v1/agents/:id?on_behalf_of=             work    quality.read on the fleet: the row with its JSON Schemas (P2-3)
+//   GET /v1/agents/:id/runs?on_behalf_of=[&limit=]  work quality.read on the fleet; runs of a project the person may
+//                                                not view (project.view) are left out
 //   GET /v1/catalogue                            work    every released catalogue, with its pinned items
 //   GET /v1/admission?on_behalf_of=              work    ops.read on the fleet
 //   GET /v1/controls?on_behalf_of=               portal  ops.read on the fleet (every scope's controls)
@@ -51,6 +59,22 @@ export interface PortalListDeps {
   readonly now: () => Date;
   readonly allowed: (req: FastifyRequest, scope: 'work' | 'portal') => boolean;
 }
+
+/** The registry row of one agent definition (the registry is code: `packages/agents`). */
+const registryRow = (a: (typeof AGENT_DEFINITIONS)[number]): AgentRegistryRow => ({
+  agent_id: a.agent_id,
+  name: a.name,
+  role: a.role,
+  note: a.note,
+  steps: [...a.steps],
+  specialist_steps: [...a.specialist_steps],
+  contract_version: a.contract.contract_version,
+  output_schema_id: a.contract.output_schema_id,
+  tools: [...a.contract.tools],
+  data_class_max: a.contract.data_class_max,
+  models: [...a.contract.models],
+  prompt: a.prompt,
+});
 
 export function registerPortalListRoutes(d: PortalListDeps): void {
   const { app } = d;
@@ -185,21 +209,57 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     if (!(await fleetReader(req, reply, 'work', 'quality.read'))) return;
     const view: AgentRegistryView = {
       lock_format: PROMPTS_LOCK.format,
-      agents: AGENT_DEFINITIONS.map((a) => ({
-        agent_id: a.agent_id,
-        name: a.name,
-        role: a.role,
-        note: a.note,
-        steps: [...a.steps],
-        specialist_steps: [...a.specialist_steps],
-        contract_version: a.contract.contract_version,
-        output_schema_id: a.contract.output_schema_id,
-        tools: [...a.contract.tools],
-        data_class_max: a.contract.data_class_max,
-        models: [...a.contract.models],
-        prompt: a.prompt,
-      })),
+      agents: AGENT_DEFINITIONS.map(registryRow),
     };
+    return view;
+  });
+
+  /** One agent with its contract's schemas (P2-3). */
+  app.get('/v1/agents/:id', async (req, reply) => {
+    const agent = AgentId.safeParse((req.params as { id?: string }).id);
+    if (!agent.success) return sendError(reply, 400, 'invalid_input', 'unknown agent');
+    if (!(await fleetReader(req, reply, 'work', 'quality.read'))) return;
+    const a = AGENT_DEFINITIONS.find((x) => x.agent_id === agent.data);
+    if (!a) return sendError(reply, 404, 'not_found', 'no such agent');
+    const view: AgentDetailView = {
+      agent: registryRow(a),
+      input_schema_id: a.contract.input_schema_id,
+      input_schema: { ...a.contract.input_schema },
+      output_schema: { ...a.contract.output_schema },
+      lock_format: PROMPTS_LOCK.format,
+    };
+    return view;
+  });
+
+  /** The agent's newest production runs (P2-3), each with its item; a project the person may not view is left out. */
+  app.get('/v1/agents/:id/runs', async (req, reply) => {
+    const agent = AgentId.safeParse((req.params as { id?: string }).id);
+    if (!agent.success) return sendError(reply, 400, 'invalid_input', 'unknown agent');
+    const raw = (req.query as Record<string, string>)['limit'];
+    const limit = raw === undefined ? 50 : Number(raw);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+      return sendError(reply, 400, 'invalid_input', 'limit is 1 to 200');
+    }
+    const p = await fleetReader(req, reply, 'work', 'quality.read');
+    if (!p) return;
+    let got: Awaited<ReturnType<typeof recentAgentRunsOf>>;
+    try {
+      got = await recentAgentRunsOf(d.pool, agent.data);
+    } catch {
+      return unavailable(reply, 'the agent runs');
+    }
+    const viewable = new Map<string, boolean>();
+    const runs = [];
+    for (const r of got) {
+      if (runs.length >= limit) break;
+      let ok = viewable.get(r.project_id);
+      if (ok === undefined) {
+        ok = await may(p, 'project.view', pdpResource.project(r.project_id));
+        viewable.set(r.project_id, ok);
+      }
+      if (ok) runs.push(r);
+    }
+    const view: AgentRecentRunsView = { agent_id: agent.data, runs, total: got.length };
     return view;
   });
 

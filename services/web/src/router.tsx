@@ -39,6 +39,8 @@ export type Route =
   | { name: 'projectSettings'; id: string }
   | { name: 'factoryRevision'; id: string }
   | { name: 'accessGrant'; id: string }
+  /** P2-3: one agent (`/agents/<id>`), under the same guard as `/agents`. */
+  | { name: 'agent'; id: string }
   | { name: StaticScreen }
   | { name: 'notfound' };
 
@@ -58,6 +60,9 @@ export const STATIC_SCREENS = {
   '/controls': 'controls',
   '/kill': 'kill',
   '/health': 'health',
+  // P2-8: Operate › Budgets and Govern › Cost
+  '/budgets': 'budgets',
+  '/cost': 'cost',
   '/ledger': 'fleetLedger',
   '/audit': 'audit',
   '/catalogue': 'catalogue',
@@ -97,6 +102,8 @@ export function parseRoute(path: string): Route {
   if (grantRoute) return { name: 'accessGrant', id: decodeURIComponent(grantRoute[1] as string) };
   const frev = /^\/config\/revisions\/([^/]+)$/.exec(p);
   if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
+  const agent = /^\/agents\/([^/]+)$/.exec(p);
+  if (agent) return { name: 'agent', id: decodeURIComponent(agent[1] as string) };
   const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
   if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
   const reaffirm = /^\/projects\/([^/]+)\/reaffirm\/([^/]+)\/([^/]+)$/.exec(p);

@@ -242,12 +242,12 @@ describe('the floor screen', () => {
     // a project admin sees the title in the chip's name
     expect(
       within(plan).getByRole('button', {
-        name: /^Item 0190a1b2, lane L3, waiting at gate G0\+G1: Export invoices as CSV/,
+        name: /^0190: item 0190a1b2, lane L3, waiting at gate G0\+G1: Export invoices as CSV/,
       }),
     ).toBeInTheDocument();
     expect(
-      within(plan).getByRole('button', { name: /^Holding shelf: 1 here/ }),
-    ).toBeInTheDocument();
+      within(plan).getByRole('button', { name: /^Holding shelf held/ }),
+    ).toHaveAccessibleDescription('1 here. Open the room');
     // counts, recent back-edges, the stations table, sessions per class
     expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 working');
     expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 held');
@@ -261,7 +261,7 @@ describe('the floor screen', () => {
     renderAt('/floor');
     expect(await screen.findByText(/You see this floor as a viewer/)).toBeInTheDocument();
     const plan = screen.getByRole('region', { name: 'Floor plan' });
-    const chip = within(plan).getByRole('button', { name: /^Item 0190a1b2/ });
+    const chip = within(plan).getByRole('button', { name: /^0190: item 0190a1b2/ });
     expect(chip.getAttribute('aria-label')).not.toContain('Export');
     expect(document.body.textContent).not.toContain('Export invoices');
     await userEvent.click(chip);
@@ -319,7 +319,7 @@ describe('the floor screen', () => {
     expect(await screen.findByText(/could not be refreshed since/)).toBeInTheDocument();
     // the last positions stay, greyed, never fresh-looking
     expect(screen.getByRole('region', { name: 'Floor plan' })).toHaveClass('fl-stale');
-    expect(screen.getByRole('button', { name: /^Item 0190a1b2/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^0190: item 0190a1b2/ })).toBeInTheDocument();
   });
 
   it('is a keyboard map: a station opens with Enter, a gate drawer lists who decides, Escape closes', async () => {
@@ -364,8 +364,12 @@ describe('the floor screen', () => {
       'false',
     );
     const plan = screen.getByRole('region', { name: 'Floor plan' });
-    expect(within(plan).getByRole('button', { name: /^Item 0190a1b2/ })).toHaveClass('fl-dim');
-    expect(within(plan).getByRole('button', { name: /^Item 0190b222/ })).not.toHaveClass('fl-dim');
+    expect(within(plan).getByRole('button', { name: /^0190: item 0190a1b2/ })).toHaveClass(
+      'fl-dim',
+    );
+    expect(within(plan).getByRole('button', { name: /^0190: item 0190b222/ })).not.toHaveClass(
+      'fl-dim',
+    );
   });
 
   it('shows the pods as unknown when the sandbox-controller could not be asked', async () => {
@@ -434,7 +438,7 @@ describe('the floor overlays (M19)', () => {
     floorApi(admin(), () => ({ json: { ...v, items } }));
     renderAt('/floor');
     const plan = await screen.findByRole('region', { name: 'Floor plan' });
-    const b = within(plan).getByRole('button', { name: /^Item 0190b222, lane L4, stuck/ });
+    const b = within(plan).getByRole('button', { name: /^0190: item 0190b222, lane L4, stuck/ });
     expect(b).toHaveClass('fl-stuck');
     expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 stuck');
     expect(screen.getByText(/silent for more than 30 min/)).toBeInTheDocument();

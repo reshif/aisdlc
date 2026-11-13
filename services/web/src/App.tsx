@@ -32,6 +32,7 @@ import { BoardPage, ItemsPage } from './pages/ItemsPage';
 import { FloorPage } from './floor/FloorPage';
 import { FleetPage } from './floor/FleetPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
+import { AgentPage } from './pages/AgentPage';
 import {
   ControlsPage,
   HealthPage,
@@ -40,6 +41,7 @@ import {
   SchedulerPage,
 } from './pages/OperatePages';
 import { AuditPage, CataloguePage, FleetLedgerPage } from './pages/GovernPages';
+import { BudgetsPage, CostPage } from './pages/SpendPages';
 import { ExplainPage, PeoplePage, RolesPage, TeamsPage } from './pages/AdminPages';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
@@ -107,6 +109,14 @@ function Portal() {
   );
 }
 
+/** `/auth/login`, with the page in the address bar as where to come back to (not for `/`, which is the default). */
+export function signInHref(loc: Pick<Location, 'pathname' | 'search' | 'hash'> = window.location) {
+  const here = `${loc.pathname}${loc.search}${loc.hash}`;
+  return here === '/' || here === ''
+    ? '/auth/login'
+    : `/auth/login?return_to=${encodeURIComponent(here)}`;
+}
+
 function SignedOut() {
   return (
     <section aria-labelledby="signin-h" className="signin">
@@ -114,8 +124,9 @@ function SignedOut() {
         title={<span id="signin-h">Sign in</span>}
         sub="The factory takes work through a governed lifecycle, and people decide the gates. Sign in to see your projects and cards."
       />
-      {/* A plain link: the bff starts the sign-in and sends the browser to the identity provider. */}
-      <a className="btn" href="/auth/login">
+      {/* A plain link: the bff starts the sign-in and sends the browser to the identity provider, then
+          back to the page that was asked for (P2-18; the bff keeps only a same-origin path). */}
+      <a className="btn" href={signInHref()}>
         Sign in
       </a>
     </section>
@@ -127,7 +138,11 @@ function SignedOut() {
  * call: the server refuses the reads anyway, this only saves the person a broken page.
  */
 function Screen({ me, route, children }: { me: Me; route: Route; children: ReactNode }) {
-  const path = Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
+  // an agent's page is guarded as the agent list is
+  const path =
+    route.name === 'agent'
+      ? '/agents'
+      : Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
   const guard = path ? guardOf(path) : null;
   if (guard && !guardPasses(guard, me)) {
     const action = guardAction(guard);
@@ -168,10 +183,12 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <BoardPage />;
     case 'agents':
       return <AgentsPage />;
+    case 'agent':
+      return <AgentPage id={route.id} />;
     case 'evals':
       return <EvalsPage />;
     case 'models':
-      return <ModelsPage />;
+      return <ModelsPage csrf={csrf} />;
     case 'integrations':
       return <IntegrationsPage />;
     case 'scheduler':
@@ -184,6 +201,10 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <KillPage csrf={csrf} />;
     case 'health':
       return <HealthPage />;
+    case 'budgets':
+      return <BudgetsPage />;
+    case 'cost':
+      return <CostPage />;
     case 'fleetLedger':
       return <FleetLedgerPage me={me} />;
     case 'audit':
@@ -203,7 +224,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'onboard':
       return <OnboardPage csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':
-      return <ProjectDetailPage id={route.id} />;
+      return <ProjectDetailPage id={route.id} csrf={csrf} />;
     case 's0':
       return <S0Page id={route.id} csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'card':

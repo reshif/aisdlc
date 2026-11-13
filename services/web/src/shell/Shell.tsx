@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { api, type Me } from '../api';
 import { Link, type Route } from '../router';
+import { useTheme } from '../theme';
 import { navFor } from './nav';
 
 // The app shell: a top bar (brand, menu toggle on narrow screens, the person, My access, sign-out),
@@ -52,7 +53,10 @@ export function Shell({
               Menu
             </button>
           ) : null}
-          <div className="who">{me ? <Account me={me} /> : null}</div>
+          <div className="who">
+            {me ? <Account me={me} /> : null}
+            <ThemeToggle />
+          </div>
         </div>
       </header>
       <div className={me ? 'shell' : 'shell shell-signed-out'}>
@@ -120,6 +124,21 @@ function Rail({ me, route }: { me: Me; route: Route }) {
         <Link to="/me/access">What can I do?</Link>
       </div>
     </>
+  );
+}
+
+/** P3-1: light or dark for this browser; pressed means light. The default follows the system. */
+function ThemeToggle() {
+  const [theme, set] = useTheme();
+  return (
+    <button
+      type="button"
+      className="btn btn-quiet"
+      aria-pressed={theme === 'light'}
+      onClick={() => set(theme === 'light' ? 'dark' : 'light')}
+    >
+      Light theme
+    </button>
   );
 }
 

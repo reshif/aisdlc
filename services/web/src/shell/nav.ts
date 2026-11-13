@@ -111,6 +111,7 @@ export const NAV: readonly NavEntry[] = [
   entry('Operate', '/controls', 'Controls', FLEET_OPS, at('controls')),
   entry('Operate', '/kill', 'Kill switch', FLEET_OPS, at('kill')),
   entry('Operate', '/health', 'Health', FLEET_OPS, at('health')),
+  entry('Operate', '/budgets', 'Budgets', FLEET_OPS, at('budgets')),
   entry('Quality', '/agents', 'Agents', FLEET_QUALITY, at('agents')),
   entry('Quality', '/evals', 'Evals', FLEET_QUALITY, at('evals')),
   entry('Quality', '/models', 'Models and routes', FLEET_QUALITY, at('models')),
@@ -124,6 +125,8 @@ export const NAV: readonly NavEntry[] = [
   ),
   entry('Govern', '/audit', 'Audit', FLEET_AUDIT, at('audit')),
   entry('Govern', '/catalogue', 'Catalogue', SIGNED_IN, at('catalogue')),
+  // P2-8: what the gateway metered, per project and per merged item (quality.read: a measure of the work)
+  entry('Govern', '/cost', 'Cost', FLEET_QUALITY, at('cost')),
   entry(
     'Govern',
     '/config',

@@ -1,7 +1,7 @@
 import { canonicalJson, sha256Hex } from '@aisdlc/kernel';
 import { z } from 'zod';
 import { GitSha, IsoDateTime, Sha256Hex, WorkItemId } from './ids.js';
-import { RepoFullName } from './codehost.js';
+import { PullRequestState, RepoFullName } from './codehost.js';
 import { UnitKey } from './planning.js';
 
 // The Push Broker's vocabulary (PLAN M13.6; DM §3.6 Branch, Commit, PullRequest, PushReceipt; OB §5.5, §6.5 and §6.6;
@@ -255,7 +255,7 @@ export const PullRequest = z.strictObject({
   unit_key: UnitKey,
   head_ref: z.string().min(1),
   head_sha: GitSha,
-  state: z.enum(['open', 'closed']),
+  state: PullRequestState,
   draft: z.boolean(),
 });
 export type PullRequest = z.infer<typeof PullRequest>;

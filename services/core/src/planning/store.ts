@@ -203,6 +203,9 @@ export interface LoadedArtefact {
     readonly step: StepId;
     readonly stored_at: string;
     readonly command_key: string;
+    /** The agent run that proposed it; `null` for a deterministic step or a person's plan (B5). */
+    readonly run_id: string | null;
+    readonly bytes: number;
     /** Orders every artefact of the table in the order it was stored. */
     readonly seq: number;
   };
@@ -235,6 +238,8 @@ async function verified(pool: pg.Pool, r: Row): Promise<LoadedArtefact | null> {
       step: r.step as StepId,
       stored_at: r.stored_at.toISOString(),
       command_key: r.command_key,
+      run_id: r.run_id,
+      bytes: r.bytes,
       seq: Number(r.seq),
     },
     content,
@@ -283,6 +288,27 @@ export async function artefactOfCommand(
   );
   const r = q.rows[0];
   return r ? verified(pool, r) : null;
+}
+
+/**
+ * Every artefact of an item in the order it was stored, verified (P2-1's Documents tab), and how many stored rows are
+ * not intact (their bytes do not hash to their hash, or their event is missing): those are never served.
+ */
+export async function loadItemArtefacts(
+  pool: pg.Pool,
+  itemId: string,
+): Promise<{ artefacts: LoadedArtefact[]; not_intact: number }> {
+  const q = await pool.query<Row>('SELECT * FROM core.artefact WHERE item_id = $1 ORDER BY seq', [
+    itemId,
+  ]);
+  const artefacts: LoadedArtefact[] = [];
+  let notIntact = 0;
+  for (const r of q.rows) {
+    const v = await verified(pool, r);
+    if (v) artefacts.push(v);
+    else notIntact += 1;
+  }
+  return { artefacts, not_intact: notIntact };
 }
 
 /** Every artefact of an item, oldest first, with its rendering (the portal and the audit read this). */

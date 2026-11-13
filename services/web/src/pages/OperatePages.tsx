@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  BannerSeverity,
   ControlKindValues,
   HOLD_DESCRIPTIONS,
   KillScope,
@@ -428,6 +429,120 @@ function ControlForm({ csrf }: { csrf: string }) {
   );
 }
 
+/** A `datetime-local` value `hours` from now, in the browser's time zone. */
+function localIn(hours: number): string {
+  const d = new Date(Date.now() + hours * 3_600_000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * P2-12: publish a banner on the fleet or a project, until a time. `banner.publish` on the scope (a fleet banner is a
+ * factory admin's alone); the bff and core decide again, and the banner lands on the record.
+ */
+function BannerForm({ csrf }: { csrf: string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [scopeKind, setScopeKind] = useState<'fleet' | 'project'>('project');
+  const [ref, setRef] = useState('');
+  const [severity, setSeverity] = useState<BannerSeverity>('info');
+  const [text, setText] = useState('');
+  const [until, setUntil] = useState(() => localIn(4));
+  const scope =
+    scopeKind === 'fleet'
+      ? ({ kind: 'fleet', ref: '*' } as const)
+      : ({ kind: 'project', ref: ref.trim() } as const);
+  const resource =
+    scopeKind === 'fleet'
+      ? pdpResource.fleet()
+      : ref.trim()
+        ? pdpResource.project(ref.trim())
+        : null;
+  const publish = useMutation({
+    mutationFn: () => {
+      const at = new Date(until);
+      if (Number.isNaN(at.getTime())) throw new Error('Give a time the banner ends.');
+      return api.publishBanner(
+        { scope: scope as never, severity, text: text.trim(), expires_at: at.toISOString() },
+        csrf,
+      );
+    },
+    onSuccess: () => {
+      setText('');
+      toast('The banner is published.', 'ok');
+      void qc.invalidateQueries({ queryKey: ['controls'] });
+    },
+  });
+  return (
+    <Card title="Publish a banner">
+      <form
+        className="pg-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          publish.mutate();
+        }}
+      >
+        <label>
+          Banner scope{' '}
+          <select
+            value={scopeKind}
+            onChange={(e) => setScopeKind(e.target.value as 'fleet' | 'project')}
+          >
+            <option value="project">project</option>
+            <option value="fleet">fleet</option>
+          </select>
+        </label>
+        {scopeKind === 'project' ? (
+          <label>
+            Banner project{' '}
+            <input
+              value={ref}
+              onChange={(e) => setRef(e.target.value)}
+              placeholder="payments"
+              required
+            />
+          </label>
+        ) : null}
+        <label>
+          Banner severity{' '}
+          <select value={severity} onChange={(e) => setSeverity(e.target.value as BannerSeverity)}>
+            {BannerSeverity.options.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Banner text{' '}
+          <input value={text} onChange={(e) => setText(e.target.value)} maxLength={500} required />
+        </label>
+        <label>
+          Shown until{' '}
+          <input
+            type="datetime-local"
+            value={until}
+            onChange={(e) => setUntil(e.target.value)}
+            required
+          />
+        </label>
+        {resource ? (
+          <Guarded action="banner.publish" resource={resource} label="Publish">
+            <button type="submit" className="ui-btn" disabled={publish.isPending}>
+              Publish
+            </button>
+          </Guarded>
+        ) : (
+          <button type="submit" className="ui-btn" disabled>
+            Publish
+          </button>
+        )}
+      </form>
+      {publish.isError ? <ErrorNote error={publish.error} /> : null}
+    </Card>
+  );
+}
+
 function LiftButton({ c, csrf }: { c: OpsControl; csrf: string }) {
   const qc = useQueryClient();
   const [reason, setReason] = useState('');
@@ -481,6 +596,7 @@ export function ControlsPage({ csrf }: { csrf: string }) {
         }
       />
       <ControlForm csrf={csrf} />
+      <BannerForm csrf={csrf} />
       <Read q={q} what="the controls">
         {(v) => (
           <>
@@ -529,8 +645,7 @@ export function ControlsPage({ csrf }: { csrf: string }) {
       </Read>
       <NotBuilt title="Step-up on a control" milestone="M9.7 follow-up">
         Core&rsquo;s control routes take the preview&rsquo;s nonce but no step-up proof yet, so the
-        portal asks for none. Publishing a banner from the portal is not built either (core has the
-        route).
+        portal asks for none.
       </NotBuilt>
     </>
   );

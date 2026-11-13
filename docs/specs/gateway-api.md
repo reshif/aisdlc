@@ -85,8 +85,11 @@ Errors: `{"error":{"code","message"}}`.
 | `POST /v1/admin/vkeys` | admin | `VKeyMint` -> `201 {vkey: VKeyView, key}`; the budget group must exist |
 | `GET /v1/admin/vkeys/:id` | read | `VKeyView` (never the secret) |
 | `POST /v1/admin/vkeys/:id/revoke` | admin | `VKeyView`; effective on the next call |
-| `POST /v1/admin/reload` | admin | `{force?: bool}` -> `{revision, integrations:[{integration_id, adapter, state: built\|refused, detail}]}`: re-reads the published config now and rebuilds the adapters that changed (all of them with `force`, which is how a rotated key file is picked up); reports health straight away. Without it the gateway follows the config by itself (NOTIFY and a poll) |
-| `GET /v1/admin/integrations` | read | the same view, without reloading |
+| `POST /v1/admin/reload` | admin or operate | `{force?: bool}` -> `{revision, integrations:[{integration_id, adapter, state: built\|refused, detail}]}`: re-reads the published config now and rebuilds the adapters that changed (all of them with `force`, which is how a rotated key file is picked up); reports health straight away. Without it the gateway follows the config by itself (NOTIFY and a poll) |
+| `GET /v1/admin/integrations` | read or operate | the same view, without reloading, and `bounds {secret_refs, egress_hosts}`: what this deployment lets a registry row name (`GATEWAY_SECRET_REFS`, `GATEWAY_EGRESS_HOSTS`; references and hosts, never a key) |
+| `POST /v1/admin/providers/:id/test` | admin or operate | `{tested_by}` -> `ProviderTestResult` (P2-5): one call to that provider's cheapest model (`ping`, `max_tokens: 1`), through the process spend guard and the kill switch (fleet), metered as `gateway.provider_tested` on `gateway:admin` (tokens, cost, latency, the vendor's error class; no text). `outcome`: `ok`, `provider_error`, `not_built` (no adapter for that row), `no_model` (no model of it in `gateway.models`), `refused` (`spend_guard`, `killed`, `kill_switch_unreachable`). It spends no budget group |
+
+`operate` is the bff's scope (the portal's Test and Reload buttons, P2-5): the bff asks its PDP (`config.propose` on the fleet) for the person first and names them in `tested_by`; it holds no other scope.
 
 `VKeyMint`: `scope {kind: unit|job|session, ref}`, `project_id`, `lane?`, `data_class_max`, `models[]` (factory model ids), `tools[]`, `budget_group`, `expires_at`, `item_id?`, `unit_id?`, `step?` (where ET1 is attributed; default 6.4). The kill switch is asked with `{project_id, lane?, session_id (scope session)}`.
 
@@ -98,7 +101,7 @@ Errors: `{"error":{"code","message"}}`.
 - **Redaction**: the shared ruleset (`@aisdlc/secrets-rules`) runs over the system prompt, message text, tool results, tool-call inputs and tool descriptions before anything leaves for the vendor; a found value becomes `[REDACTED:<rule>]` and the count is in the `ModelCall` event.
 - **Tool allow-list**: the key's, fixed at mint. A request cannot widen it (text in a prompt changes nothing; naming a tool outside it is a refusal), and a `tool_use` the model returns outside it is dropped.
 - **Reservations.** A call's hold on its budget group is a row (`gateway.reservation`: `open`, `settled`, `abandoned`). A recovery sweep (every `GATEWAY_SWEEP_INTERVAL_MS`) settles the rows still open after `GATEWAY_RESERVATION_MAX_AGE_MS` (default 15 minutes: longer than any call) as `abandoned`: the hold is released under the group's row lock and a `gateway.reservation_abandoned` event is recorded. A call that completes after that adds its usage and does not release the hold again, so nothing is counted twice; a call that settled first leaves nothing for the sweep.
-- **Record events** (`gateway.*`, no text ever): `model_call` (ids, hashes of the redacted request and of the response content, token counts, cost, latency, outcome `ok|refused|provider_error|tool_blocked|aborted`, redaction counts, `stream`), `budget_exhausted`, `vkey_minted`, `vkey_revoked`, `reservation_abandoned`.
+- **Record events** (`gateway.*`, no text ever): `model_call` (ids, hashes of the redacted request and of the response content, token counts, cost, latency, outcome `ok|refused|provider_error|tool_blocked|aborted`, redaction counts, `stream`), `budget_exhausted`, `vkey_minted`, `vkey_revoked`, `reservation_abandoned`, `provider_tested` (an operator's connection test: tokens, cost, outcome, who asked).
 
 ## 5. Configuration (environment)
 
