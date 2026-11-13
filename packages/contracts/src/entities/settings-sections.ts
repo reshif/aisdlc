@@ -188,6 +188,16 @@ export const SETTING_PLACEMENTS: Readonly<Record<string, SettingPlacement>> = {
     'new_onboardings',
     'The image the onboarding test run uses.',
   ),
+  'onboarding.console': p(
+    'agents',
+    'now',
+    'Whether the onboarding agent runs, and which of its checks it does by itself.',
+  ),
+  'onboarding.agent_guidelines': p(
+    'agents',
+    'now',
+    'The factory’s guidelines for the onboarding agent.',
+  ),
   'onboarding.light_tests': p(
     'sandboxes',
     'now',

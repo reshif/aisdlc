@@ -4440,6 +4440,274 @@
         "ref": "onboarding@1.0.0",
         "sha256": "88da91e3d9382e7a59375483c814b1faa2fc563c4a83710e679d3df56fac1373"
       }
+    },
+    {
+      "agent_id": "onboarder",
+      "name": "onboarder",
+      "role": "onboarder",
+      "note": "Onboarding console (docs/design/onboarding-console.md): the conversational onboarder for ONE S0 record and ONE person. No step; decides nothing. Reads state, searches and reads the repo at the census commit (D2), proposes (a person accepts, edits or rejects) and runs the factory's own re-checks as `onboarding.console` allows. Key per S0 record (scope job). Core runs its tools.",
+      "steps": [],
+      "specialist_steps": [],
+      "contract": {
+        "contract_version": "1.0.0",
+        "input_schema_id": "onboarder_input.v1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "item_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "0.1",
+                "0.2",
+                "0.3",
+                "0.4",
+                "0.5",
+                "1.1",
+                "1.2",
+                "1.3",
+                "1.4",
+                "1.5",
+                "1.6",
+                "2.1",
+                "2.1b",
+                "2.2",
+                "2.3",
+                "2.4",
+                "2.5",
+                "3.1",
+                "3.2",
+                "3.3",
+                "3.4",
+                "3.5",
+                "4.1",
+                "4.2",
+                "4.3",
+                "4.4",
+                "4.5",
+                "4.6",
+                "5.1",
+                "5.2",
+                "5.3",
+                "5.4",
+                "5.5",
+                "5.6",
+                "5.7",
+                "5.8",
+                "6.0",
+                "6.1",
+                "6.2",
+                "6.3",
+                "6.4",
+                "6.5",
+                "6.6",
+                "7.1",
+                "7.2",
+                "7.3",
+                "7.4",
+                "7.5",
+                "7.6",
+                "8.1",
+                "8.2",
+                "S8b",
+                "9.2",
+                "9.3",
+                "9.4",
+                "9.5"
+              ]
+            },
+            "attempt": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "artefacts": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "repo_snapshot",
+                      "context_brief"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "ref",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "item_id",
+            "step",
+            "attempt",
+            "artefacts"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema_id": "onboarder.v1",
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "turn"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "citations": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "file"
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "pattern": "^[^\\0\\n]+$"
+                      },
+                      "commit_sha": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$"
+                      },
+                      "line_from": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "line_to": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "path",
+                      "commit_sha",
+                      "line_from",
+                      "line_to"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "record"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "pattern": "^(s0|card|item|step|project):[A-Za-z0-9_.:/-]{1,200}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "ledger"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "pattern": "^ledger:[A-Za-z0-9_.:-]{1,128}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "next": {
+              "type": "string",
+              "enum": [
+                "await_person",
+                "working",
+                "done"
+              ]
+            },
+            "noticed": {
+              "maxItems": 2,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "planted_instruction",
+                  "secret_requested"
+                ]
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "text",
+            "citations",
+            "next",
+            "noticed"
+          ],
+          "additionalProperties": false
+        },
+        "tools": [
+          "OnboardingRead",
+          "KnowledgeSearch",
+          "RepoRead",
+          "OnboardingPropose",
+          "OnboardingAct"
+        ],
+        "data_class_max": "D2",
+        "models": [
+          "claude-sonnet-5-5"
+        ],
+        "budget": {
+          "max_tokens": 600000,
+          "max_cost_micro_usd": 6000000,
+          "ttl_seconds": 7200
+        }
+      },
+      "prompt": {
+        "ref": "onboarder@1.0.0",
+        "sha256": "d4740163bc169aa6a1fbda62544d9d24f8b27eb453b8ead302c13a76db34bee4"
+      }
     }
   ]
 }

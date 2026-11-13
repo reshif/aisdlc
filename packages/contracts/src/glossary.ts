@@ -1327,6 +1327,7 @@ const agent: Readonly<Record<AgentId, Term>> = {
     'Onboarding agent',
     'The agent that reads the repo, works out what is missing and proposes fixes as PRs.',
   ),
+  onboarder: t('Onboarder', 'The agent you work with in the console; it proposes, you decide.'),
 };
 
 const SESSION_TIP = 'The live sandbox session.';
@@ -1486,6 +1487,8 @@ export const CONFIG_KEY_TERMS = [
   'onboarding.reonboard_triggers',
   'onboarding.sandbox_image',
   'onboarding.light_tests',
+  'onboarding.console',
+  'onboarding.agent_guidelines',
   'factory.constitution',
   'factory.m1_policy',
   'factory.learn',
@@ -1586,6 +1589,16 @@ const configKey: Readonly<Record<ConfigKeyTerm, Term>> = {
   'onboarding.sandbox_image': t(
     'Test-run image',
     "The sandbox image used to run a repo's tests.",
+    'audit',
+  ),
+  'onboarding.console': t(
+    'Onboarding agent autonomy',
+    'Whether the onboarding agent runs and which checks it makes without asking.',
+    'audit',
+  ),
+  'onboarding.agent_guidelines': t(
+    'Onboarding agent guidelines',
+    'The factory’s own words to the onboarding agent.',
     'audit',
   ),
   'onboarding.light_tests': t(

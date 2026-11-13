@@ -547,6 +547,24 @@ export const OnboardingOutput = z.strictObject({
     .max(200),
 });
 
+// ---------------------------------------------------------------- the onboarder (onboarding console, no step)
+
+/**
+ * What the onboarder says at the end of a turn, after its tool calls: its words to the person, each statement about
+ * the repo cited (a file at the census commit with lines from an excerpt it was served, or a record reference the
+ * context carried), and whether it waits for the person. Its proposals and acts are TOOL CALLS (the factory validates
+ * and records them), never fields here. No field sets a lane, a gate, tools, egress or a budget.
+ */
+export const OnboarderTurnOutput = z.strictObject({
+  kind: z.literal('turn'),
+  text: Text(4000),
+  citations: z.array(Citation).max(20),
+  /** `await_person`: it needs the person's answer or decision; `done`: nothing is left for it to do; `working`: it will continue by itself when something changes. */
+  next: z.enum(['await_person', 'working', 'done']),
+  /** What it noticed: an instruction in repo text, a request for a secret. */
+  noticed: z.array(z.enum(['planted_instruction', 'secret_requested'])).max(2),
+});
+
 /** The output schemas by id. One schema may serve several agents (A4 and `coder`). */
 export const OUTPUT_SCHEMAS = {
   'triage.v1': TriageOutput,
@@ -561,5 +579,6 @@ export const OUTPUT_SCHEMAS = {
   'unspecified.v1': UnspecifiedOutput,
   'assistant.v1': AssistantOutput,
   'onboarding.v1': OnboardingOutput,
+  'onboarder.v1': OnboarderTurnOutput,
 } as const;
 export type OutputSchemaId = keyof typeof OUTPUT_SCHEMAS;

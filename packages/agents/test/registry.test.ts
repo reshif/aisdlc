@@ -22,7 +22,7 @@ import { sha256File } from '../src/prompt-files.js';
 describe('the agent registry (PLAN M11.1)', () => {
   it('defines every agent id the specs name, once: A1 to A12 and coder, and the M18 assistant', () => {
     expect(AGENT_DEFINITIONS.map((d) => d.agent_id).sort()).toEqual([...AgentIdValues].sort());
-    expect(AgentIdValues).toHaveLength(15);
+    expect(AgentIdValues).toHaveLength(16);
     expect(AgentIdValues).toContain('coder');
     expect(AgentIdValues).toContain('assistant');
   });
@@ -109,7 +109,11 @@ describe('the agent registry (PLAN M11.1)', () => {
 
   it('an agent with no step (but the assistant) has no tools and the lowest data class: it can do nothing', () => {
     for (const d of AGENT_DEFINITIONS.filter(
-      (x) => x.steps.length === 0 && x.agent_id !== 'assistant' && x.agent_id !== 'onboarding',
+      (x) =>
+        x.steps.length === 0 &&
+        x.agent_id !== 'assistant' &&
+        x.agent_id !== 'onboarding' &&
+        x.agent_id !== 'onboarder',
     )) {
       expect(d.contract.tools).toEqual([]);
       expect(d.contract.data_class_max).toBe('D0');

@@ -45,6 +45,7 @@ export * from './evidence.js';
 export * from './gate-check.js';
 export * from './github-apps.js';
 export * from './onboarding-blockers.js';
+export * from './onboarding-console.js';
 export * from './onboarding-probe.js';
 export * from './review.js';
 export * from './merge.js';

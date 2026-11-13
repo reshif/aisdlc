@@ -36,6 +36,9 @@ export const AgentId = z.enum([
   // portal v2 (intent §4): the onboarding agent. It reads an S0 record's census and controls, proposes the cards'
   // contents and fix PRs; it acts at no lifecycle step and decides nothing (a person signs off).
   'onboarding',
+  // onboarding console (docs/design/onboarding-console.md): the conversational onboarder. It acts at no lifecycle
+  // step and decides nothing; it reads, proposes and runs the factory's own re-checks for ONE person.
+  'onboarder',
 ]);
 export type AgentId = z.infer<typeof AgentId>;
 export const AgentIdValues: readonly AgentId[] = AgentId.options;
@@ -52,6 +55,11 @@ export const AgentTool = z.enum([
   'Write',
   'Bash',
   'KnowledgeSearch',
+  // onboarding console: the onboarder's own tools (core runs them; the gateway's key carries the names)
+  'OnboardingRead',
+  'RepoRead',
+  'OnboardingPropose',
+  'OnboardingAct',
 ]);
 export type AgentTool = z.infer<typeof AgentTool>;
 export const AgentToolValues: readonly AgentTool[] = AgentTool.options;

@@ -2274,6 +2274,10 @@
     "onboarding": {
       "label": "Onboarding agent",
       "explain": "The agent that reads the repo, works out what is missing and proposes fixes as PRs."
+    },
+    "onboarder": {
+      "label": "Onboarder",
+      "explain": "The agent you work with in the console; it proposes, you decide."
     }
   },
   "sessionState": {
@@ -2683,6 +2687,16 @@
     "onboarding.sandbox_image": {
       "label": "Test-run image",
       "explain": "The sandbox image used to run a repo's tests.",
+      "code": "audit"
+    },
+    "onboarding.console": {
+      "label": "Onboarding agent autonomy",
+      "explain": "Whether the onboarding agent runs and which checks it makes without asking.",
+      "code": "audit"
+    },
+    "onboarding.agent_guidelines": {
+      "label": "Onboarding agent guidelines",
+      "explain": "The factory’s own words to the onboarding agent.",
       "code": "audit"
     },
     "onboarding.light_tests": {

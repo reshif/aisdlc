@@ -222,6 +222,17 @@ export const SAMPLE_OUTPUTS: Readonly<Record<AgentId, readonly Record<string, un
       ],
     },
   ],
+  onboarder: [
+    {
+      kind: 'turn',
+      text: 'The tests cannot run yet: the repo has no test command I can find. I propose one for you to accept or change.',
+      citations: [
+        { kind: 'file', path: 'package.json', commit_sha: SHA, line_from: 1, line_to: 6 },
+      ],
+      next: 'await_person',
+      noticed: [],
+    },
+  ],
   assistant: [
     {
       kind: 'answer',

@@ -11,6 +11,7 @@ import {
   registerGovernanceConfig,
   registerReleaseConfig,
   registerNotificationsConfig,
+  registerOnboardingConsoleConfig,
   registerSandboxConfig,
   registerSettingsConfig,
   type ConfigDeps,
@@ -86,6 +87,8 @@ import { getProjectState } from './queries.js';
 export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   // M14.2: the sandbox caps are the sandbox-controller's to enforce; core's revisions must validate them
   registerSandboxConfig(registry);
+  // onboarding console: whether the onboarder runs, how much it does by itself, the factory's guidelines
+  registerOnboardingConsoleConfig(registry);
   // M14.5: the per-repo merge bypass list is gate-check's to read; core's revisions must validate it
   registerGateCheckConfig(registry);
   // M15.3: a project's release choice (off or a deploy target), part of its project layer like its other settings

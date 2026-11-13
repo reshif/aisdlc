@@ -4294,7 +4294,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "contract_version": {
@@ -4331,7 +4332,11 @@
               "Edit",
               "Write",
               "Bash",
-              "KnowledgeSearch"
+              "KnowledgeSearch",
+              "OnboardingRead",
+              "RepoRead",
+              "OnboardingPropose",
+              "OnboardingAct"
             ]
           }
         },
@@ -4424,7 +4429,11 @@
               "Edit",
               "Write",
               "Bash",
-              "KnowledgeSearch"
+              "KnowledgeSearch",
+              "OnboardingRead",
+              "RepoRead",
+              "OnboardingPropose",
+              "OnboardingAct"
             ]
           }
         },
@@ -4506,7 +4515,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "name": {
@@ -4717,7 +4727,11 @@
                   "Edit",
                   "Write",
                   "Bash",
-                  "KnowledgeSearch"
+                  "KnowledgeSearch",
+                  "OnboardingRead",
+                  "RepoRead",
+                  "OnboardingPropose",
+                  "OnboardingAct"
                 ]
               }
             },
@@ -4833,7 +4847,8 @@
                 "A12",
                 "coder",
                 "assistant",
-                "onboarding"
+                "onboarding",
+                "onboarder"
               ]
             },
             "name": {
@@ -5001,7 +5016,11 @@
                   "Edit",
                   "Write",
                   "Bash",
-                  "KnowledgeSearch"
+                  "KnowledgeSearch",
+                  "OnboardingRead",
+                  "RepoRead",
+                  "OnboardingPropose",
+                  "OnboardingAct"
                 ]
               }
             },
@@ -5088,6 +5107,19 @@
       ],
       "additionalProperties": false
     },
+    "AgentGuidelines": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "AgentId": {
       "type": "string",
       "enum": [
@@ -5105,7 +5137,8 @@
         "A12",
         "coder",
         "assistant",
-        "onboarding"
+        "onboarding",
+        "onboarder"
       ]
     },
     "AgentInputArtefact": {
@@ -5752,7 +5785,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "runs": {
@@ -5876,7 +5910,8 @@
                   "A12",
                   "coder",
                   "assistant",
-                  "onboarding"
+                  "onboarding",
+                  "onboarder"
                 ]
               },
               "contract_version": {
@@ -6349,7 +6384,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "name": {
@@ -6517,7 +6553,11 @@
               "Edit",
               "Write",
               "Bash",
-              "KnowledgeSearch"
+              "KnowledgeSearch",
+              "OnboardingRead",
+              "RepoRead",
+              "OnboardingPropose",
+              "OnboardingAct"
             ]
           }
         },
@@ -6601,7 +6641,8 @@
                   "A12",
                   "coder",
                   "assistant",
-                  "onboarding"
+                  "onboarding",
+                  "onboarder"
                 ]
               },
               "name": {
@@ -6769,7 +6810,11 @@
                     "Edit",
                     "Write",
                     "Bash",
-                    "KnowledgeSearch"
+                    "KnowledgeSearch",
+                    "OnboardingRead",
+                    "RepoRead",
+                    "OnboardingPropose",
+                    "OnboardingAct"
                   ]
                 }
               },
@@ -6951,7 +6996,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "contract_version": {
@@ -7209,7 +7255,8 @@
                 "A12",
                 "coder",
                 "assistant",
-                "onboarding"
+                "onboarding",
+                "onboarder"
               ]
             },
             "contract_version": {
@@ -7246,7 +7293,11 @@
                   "Edit",
                   "Write",
                   "Bash",
-                  "KnowledgeSearch"
+                  "KnowledgeSearch",
+                  "OnboardingRead",
+                  "RepoRead",
+                  "OnboardingPropose",
+                  "OnboardingAct"
                 ]
               }
             },
@@ -7478,7 +7529,8 @@
                 "A12",
                 "coder",
                 "assistant",
-                "onboarding"
+                "onboarding",
+                "onboarder"
               ]
             },
             "contract_version": {
@@ -7515,7 +7567,11 @@
                   "Edit",
                   "Write",
                   "Bash",
-                  "KnowledgeSearch"
+                  "KnowledgeSearch",
+                  "OnboardingRead",
+                  "RepoRead",
+                  "OnboardingPropose",
+                  "OnboardingAct"
                 ]
               }
             },
@@ -8040,7 +8096,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "contract_version": {
@@ -8612,7 +8669,8 @@
                   "A12",
                   "coder",
                   "assistant",
-                  "onboarding"
+                  "onboarding",
+                  "onboarder"
                 ]
               },
               "contract_version": {
@@ -9084,7 +9142,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "prompt_sha256": {
@@ -9253,7 +9312,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "scores": {
@@ -9282,7 +9342,8 @@
                   "A12",
                   "coder",
                   "assistant",
-                  "onboarding"
+                  "onboarding",
+                  "onboarder"
                 ]
               },
               "prompt_sha256": {
@@ -9532,7 +9593,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "project_id": {
@@ -9685,7 +9747,11 @@
         "Edit",
         "Write",
         "Bash",
-        "KnowledgeSearch"
+        "KnowledgeSearch",
+        "OnboardingRead",
+        "RepoRead",
+        "OnboardingPropose",
+        "OnboardingAct"
       ]
     },
     "AgentsSettingsConfig": {
@@ -9707,7 +9773,8 @@
           "A12",
           "coder",
           "assistant",
-          "onboarding"
+          "onboarding",
+          "onboarder"
         ]
       },
       "additionalProperties": {
@@ -32519,6 +32586,352 @@
         "rejected"
       ]
     },
+    "ConsoleActTool": {
+      "type": "string",
+      "enum": [
+        "recheck_controls",
+        "rerun_census",
+        "run_probe",
+        "render_fix_pack",
+        "sync_cards"
+      ]
+    },
+    "ConsoleAutonomy": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "ask",
+        "off"
+      ]
+    },
+    "ConsoleProposal": {
+      "type": "object",
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "tier",
+            "gap_disposition",
+            "role_map",
+            "settings",
+            "claim",
+            "instruction_text",
+            "fix_file",
+            "manual_step",
+            "test_command"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "why": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "value": {}
+      },
+      "required": [
+        "proposal_id",
+        "kind",
+        "target",
+        "title",
+        "why",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "ConsoleProposalKind": {
+      "type": "string",
+      "enum": [
+        "tier",
+        "gap_disposition",
+        "role_map",
+        "settings",
+        "claim",
+        "instruction_text",
+        "fix_file",
+        "manual_step",
+        "test_command"
+      ]
+    },
+    "ConsoleProposalState": {
+      "type": "string",
+      "enum": [
+        "open",
+        "accepted",
+        "edited",
+        "rejected",
+        "superseded"
+      ]
+    },
+    "ConsoleReadTopic": {
+      "type": "string",
+      "enum": [
+        "census_facts",
+        "controls",
+        "floors",
+        "probe",
+        "cards",
+        "blockers",
+        "signoff_feasibility"
+      ]
+    },
+    "ConsoleSessionState": {
+      "type": "string",
+      "enum": [
+        "running",
+        "awaiting_person",
+        "paused",
+        "stopped",
+        "done"
+      ]
+    },
+    "ConsoleSessionView": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "awaiting_person",
+            "paused",
+            "stopped",
+            "done"
+          ]
+        },
+        "cause": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "person",
+                "agent_asked",
+                "kill_switch",
+                "budget",
+                "disabled",
+                "onboarding_closed",
+                "error"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "agent",
+                  "observation"
+                ]
+              },
+              "text": {
+                "type": "string"
+              },
+              "observed": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "seq",
+              "role",
+              "text",
+              "observed",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "proposals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "proposal_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "tier",
+                  "gap_disposition",
+                  "role_map",
+                  "settings",
+                  "claim",
+                  "instruction_text",
+                  "fix_file",
+                  "manual_step",
+                  "test_command"
+                ]
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "why": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "value": {},
+              "state": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "accepted",
+                  "edited",
+                  "rejected",
+                  "superseded"
+                ]
+              },
+              "proposal_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "turn_seq": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "proposal_id",
+              "kind",
+              "target",
+              "title",
+              "why",
+              "value",
+              "state",
+              "proposal_sha256",
+              "turn_seq"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "tier_floor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "T0",
+                "T1",
+                "T2"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "s0_id",
+        "state",
+        "cause",
+        "turns",
+        "proposals",
+        "tier_floor"
+      ],
+      "additionalProperties": false
+    },
+    "ConsoleStateCause": {
+      "type": "string",
+      "enum": [
+        "person",
+        "agent_asked",
+        "kill_switch",
+        "budget",
+        "disabled",
+        "onboarding_closed",
+        "error"
+      ]
+    },
+    "ConsoleTurn": {
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent",
+            "observation"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "observed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "seq",
+        "role",
+        "text",
+        "observed",
+        "at"
+      ],
+      "additionalProperties": false
+    },
     "Constitution": {
       "type": "object",
       "properties": {
@@ -38575,7 +38988,8 @@
                     "A12",
                     "coder",
                     "assistant",
-                    "onboarding"
+                    "onboarding",
+                    "onboarder"
                   ]
                 },
                 {
@@ -38865,7 +39279,8 @@
                         "A12",
                         "coder",
                         "assistant",
-                        "onboarding"
+                        "onboarding",
+                        "onboarder"
                       ]
                     },
                     {
@@ -41708,7 +42123,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "profile": {
@@ -41848,7 +42264,8 @@
                   "A12",
                   "coder",
                   "assistant",
-                  "onboarding"
+                  "onboarding",
+                  "onboarder"
                 ]
               },
               "profile": {
@@ -41990,7 +42407,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "profile": {
@@ -42612,7 +43030,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "profile": {
@@ -42782,7 +43201,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "profile": {
@@ -43036,7 +43456,8 @@
                   "A12",
                   "coder",
                   "assistant",
-                  "onboarding"
+                  "onboarding",
+                  "onboarder"
                 ]
               },
               "profile": {
@@ -43268,7 +43689,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "profile": {
@@ -51742,7 +52164,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "name": {
@@ -53056,7 +53479,8 @@
                   "A12",
                   "coder",
                   "assistant",
-                  "onboarding"
+                  "onboarding",
+                  "onboarder"
                 ]
               },
               "name": {
@@ -75565,7 +75989,8 @@
                               "A12",
                               "coder",
                               "assistant",
-                              "onboarding"
+                              "onboarding",
+                              "onboarder"
                             ]
                           },
                           {
@@ -75948,7 +76373,8 @@
                                     "A12",
                                     "coder",
                                     "assistant",
-                                    "onboarding"
+                                    "onboarding",
+                                    "onboarder"
                                   ]
                                 },
                                 {
@@ -97631,6 +98057,84 @@
         "opened_at",
         "payload_hash",
         "actionable"
+      ],
+      "additionalProperties": false
+    },
+    "OnboardingConsoleConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "autonomy": {
+          "type": "object",
+          "properties": {
+            "recheck_controls": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "ask",
+                "off"
+              ]
+            },
+            "rerun_census": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "ask",
+                "off"
+              ]
+            },
+            "run_probe": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "ask",
+                "off"
+              ]
+            },
+            "render_fix_pack": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "ask",
+                "off"
+              ]
+            },
+            "sync_cards": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "ask",
+                "off"
+              ]
+            }
+          },
+          "required": [
+            "recheck_controls",
+            "rerun_census",
+            "run_probe",
+            "render_fix_pack",
+            "sync_cards"
+          ],
+          "additionalProperties": false
+        },
+        "max_model_calls_per_wake": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 40
+        },
+        "max_tool_calls_per_wake": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        }
+      },
+      "required": [
+        "enabled",
+        "autonomy",
+        "max_model_calls_per_wake",
+        "max_tool_calls_per_wake"
       ],
       "additionalProperties": false
     },
@@ -120485,7 +120989,8 @@
             "A12",
             "coder",
             "assistant",
-            "onboarding"
+            "onboarding",
+            "onboarder"
           ]
         },
         "attempt": {
@@ -139210,6 +139715,37 @@
       ],
       "additionalProperties": false
     },
+    "SessionOpenedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "started_by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "opened_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "project_id",
+        "started_by",
+        "opened_at"
+      ],
+      "additionalProperties": false
+    },
     "SessionPolicyConfig": {
       "type": "object",
       "properties": {
@@ -139227,6 +139763,253 @@
       "required": [
         "idle_s",
         "absolute_s"
+      ],
+      "additionalProperties": false
+    },
+    "SessionProposalDecidedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "proposal_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "proposal_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "edited",
+            "rejected"
+          ]
+        },
+        "edited_value": {},
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "proposal_id",
+        "proposal_sha256",
+        "state",
+        "by",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "SessionProposalRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "proposal": {
+          "type": "object",
+          "properties": {
+            "proposal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "tier",
+                "gap_disposition",
+                "role_map",
+                "settings",
+                "claim",
+                "instruction_text",
+                "fix_file",
+                "manual_step",
+                "test_command"
+              ]
+            },
+            "target": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "why": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "value": {}
+          },
+          "required": [
+            "proposal_id",
+            "kind",
+            "target",
+            "title",
+            "why",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "proposal_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "turn_seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "proposal",
+        "proposal_sha256",
+        "turn_seq",
+        "recorded_at"
+      ],
+      "additionalProperties": false
+    },
+    "SessionStateChangedPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "awaiting_person",
+            "paused",
+            "stopped",
+            "done"
+          ]
+        },
+        "cause": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent_asked",
+            "kill_switch",
+            "budget",
+            "disabled",
+            "onboarding_closed",
+            "error"
+          ]
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "state",
+        "cause",
+        "by",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "SessionToolCalledPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "tool": {
+          "type": "string",
+          "enum": [
+            "OnboardingRead",
+            "KnowledgeSearch",
+            "RepoRead",
+            "OnboardingPropose",
+            "OnboardingAct"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "refused",
+            "error",
+            "asked"
+          ]
+        },
+        "result_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "seq",
+        "tool",
+        "name",
+        "outcome",
+        "result_sha256",
+        "recorded_at"
       ],
       "additionalProperties": false
     },
@@ -139279,6 +140062,129 @@
         "detail"
       ],
       "additionalProperties": false
+    },
+    "SessionTurnPayload": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent",
+            "observation"
+          ]
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "payload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "redactions": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rule_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "rule_id",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "payload_id",
+            "sha256",
+            "redactions"
+          ],
+          "additionalProperties": false
+        },
+        "prompt_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "guidelines_revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "seq",
+        "role",
+        "payload",
+        "prompt_sha256",
+        "guidelines_revision",
+        "observed",
+        "recorded_at"
+      ],
+      "additionalProperties": false
+    },
+    "SessionTurnRole": {
+      "type": "string",
+      "enum": [
+        "person",
+        "agent",
+        "observation"
+      ]
     },
     "SetCodeownerMembersRequest": {
       "type": "object",
@@ -144382,7 +145288,8 @@
                 "A12",
                 "coder",
                 "assistant",
-                "onboarding"
+                "onboarding",
+                "onboarder"
               ]
             },
             "contract_version": {
@@ -144419,7 +145326,11 @@
                   "Edit",
                   "Write",
                   "Bash",
-                  "KnowledgeSearch"
+                  "KnowledgeSearch",
+                  "OnboardingRead",
+                  "RepoRead",
+                  "OnboardingPropose",
+                  "OnboardingAct"
                 ]
               }
             },
@@ -151929,7 +152840,8 @@
                         "A12",
                         "coder",
                         "assistant",
-                        "onboarding"
+                        "onboarding",
+                        "onboarder"
                       ]
                     },
                     "contract_version": {
@@ -151966,7 +152878,11 @@
                           "Edit",
                           "Write",
                           "Bash",
-                          "KnowledgeSearch"
+                          "KnowledgeSearch",
+                          "OnboardingRead",
+                          "RepoRead",
+                          "OnboardingPropose",
+                          "OnboardingAct"
                         ]
                       }
                     },
