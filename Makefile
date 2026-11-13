@@ -7,6 +7,8 @@
 #   GITHUB=fake|real      which GitHub the stack talks to (default fake: the in-repo fake GitHub)
 #   PROJECT=aisdlc        the compose project name (COMPOSE_PROJECT_NAME)
 #   REPO=owner/name       for `up-full`: the one repository agents may run code on (DEC-18: one you own)
+#   IDP=enterprise|local  for `up` and `up-full`: the sign-in profile (default enterprise: one system administrator, admin / admin,
+#                         changed at the first sign-in, no test people; local: the 13 test people, what smoke and the e2e runs use)
 #   TAG=local             for `images` and `up-full`: the tag of the four images (AISDLC_IMAGE_TAG)
 #   RUNTIME_IMAGE=...  EXTRA_CA=/path/ca.pem  BUILD_PROXY=1  BUILD_NETWORK=host
 #                         for `images`, behind a proxy or without apt (platform/compose/build-images.sh)
@@ -34,10 +36,15 @@ GITHUB_APP_ID ?=
 GITHUB_INSTALLATION_ID ?=
 REPO ?=
 TAG ?= local
+IDP ?= enterprise
 RUNTIME_IMAGE ?=
 EXTRA_CA ?=
 BUILD_PROXY ?=
 BUILD_NETWORK ?=
+
+ifeq ($(filter $(IDP),local enterprise),)
+  $(error IDP must be local or enterprise, not '$(IDP)')
+endif
 
 ifeq ($(GITHUB),fake)
   GITHUB_PROFILE := --profile fake-github
@@ -52,6 +59,8 @@ PROFILE_FLAGS := $(GITHUB_PROFILE) $(foreach p,$(PROFILES),--profile $(p))
 ALL_PROFILES := --profile fake-github --profile full --profile gate-check --profile gate-relay --profile notifier \
   --profile audit --profile telemetry --profile dev-oidc
 DC := cd $(COMPOSE_DIR) && COMPOSE_PROJECT_NAME=$(PROJECT) docker compose
+# the same with the sign-in profile (platform/compose/idp-profile.sh): only what starts Keycloak needs it
+DCI := cd $(COMPOSE_DIR) && . ./idp-profile.sh && idp_profile $(IDP) && COMPOSE_PROJECT_NAME=$(PROJECT) docker compose
 # the sandboxes and session networks this project's two Docker proxies made (labelled with their owner): a session that
 # outlived its controller (`down` mid-session) is removed with the stack, never left running
 SWEEP := for o in cvw coding; do \
@@ -129,12 +138,12 @@ images: ## build the four images up-full runs: factory, sandbox, W (coding), onb
 	  BUILD_NETWORK="$(BUILD_NETWORK)" bash $(COMPOSE_DIR)/build-images.sh
 
 up: ## the LIGHT stack: portal, onboarding, the record; no coding sessions and no PRs (that is up-full)
-	$(DC) $(PROFILE_FLAGS) up -d --wait
-	@$(MAKE) --no-print-directory portal
+	$(DCI) $(PROFILE_FLAGS) up -d --wait
+	@$(MAKE) --no-print-directory portal IDP=$(IDP)
 
 up-full: ## the full factory for real work on one repo: make up-full REPO=owner/name [GITHUB=real] (needs make images)
 	@test -n "$(REPO)" || { echo "name the repository agents may work on: make up-full REPO=owner/name [GITHUB=real]"; exit 1; }
-	COMPOSE_PROJECT_NAME=$(PROJECT) AISDLC_IMAGE_TAG="$(TAG)" bash $(COMPOSE_DIR)/up-full.sh --repo "$(REPO)" --github "$(GITHUB)"
+	COMPOSE_PROJECT_NAME=$(PROJECT) AISDLC_IMAGE_TAG="$(TAG)" bash $(COMPOSE_DIR)/up-full.sh --repo "$(REPO)" --github "$(GITHUB)" --idp "$(IDP)"
 
 down: ## stop the local factory (up or up-full); keeps the database, the ledger and the keys
 	$(DC) $(ALL_PROFILES) down --remove-orphans
@@ -167,8 +176,13 @@ portal: ## print the portal's address and how to sign in (Keycloak)
 	  idp=$${AISDLC_OIDC_PORT:-$$(grep -E '^AISDLC_OIDC_PORT=' $(COMPOSE_DIR)/.env 2>/dev/null | cut -d= -f2 || true)}; \
 	  echo "Portal:   http://localhost:$${port:-8340}"; \
 	  echo "Sign-in:  Keycloak at http://keycloak.localhost:$${idp:-8390} (the portal sends you there)"; \
-	  echo "  test people (alice, lt, oh, ...): password in $(COMPOSE_DIR)/secrets/keycloak-persona-password"; \
-	  echo "  break-glass factory admin 'factory-admin': password in $(COMPOSE_DIR)/secrets/keycloak-factory-admin-password"; \
+	  if [ "$(IDP)" = enterprise ]; then \
+	    echo "  system administrator: username admin, password admin (temporary: Keycloak asks for a new one at the first sign-in)"; \
+	    echo "  (a stack made with IDP=local has the test people instead: make portal IDP=local)"; \
+	  else \
+	    echo "  test people (alice, lt, oh, ...): password in $(COMPOSE_DIR)/secrets/keycloak-persona-password"; \
+	    echo "  break-glass factory admin 'factory-admin': password in $(COMPOSE_DIR)/secrets/keycloak-factory-admin-password"; \
+	  fi; \
 	  echo "  who is who: docs/getting-started.md section 3"
 
 verify-ledger: ## verify the ledger offline (Notary and Witness signatures)

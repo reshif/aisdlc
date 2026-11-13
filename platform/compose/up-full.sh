@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The owner's factory: the full stack, persistent, wired for real work on ONE repository (`make up-full`).
 #
-#   platform/compose/up-full.sh --repo owner/name [--github fake|real]
+#   platform/compose/up-full.sh --repo owner/name [--github fake|real] [--idp enterprise|local]
 #
 # What it does (the setup is full-env.sh, the same code e2e-pr.sh runs, so the owner's stack and the tested one cannot
 # drift):
@@ -16,6 +16,10 @@
 #
 # It runs again safely: the volumes (the record, the ledger, the keys) are kept, and so is every M1 decision (the seed
 # never reverts the model routes the owner pointed at Claude). `make down` stops it, `make reset` deletes it.
+#
+# --idp (default enterprise): the sign-in profile (idp-profile.sh). enterprise: ONE system administrator `admin`, password
+# `admin`, temporary (Keycloak forces a new one at the first sign-in), no test people. local: the 13 test people. Keycloak
+# imports its realm only once: an existing stack keeps the one it has (README.md, "Switching a running stack's sign-in profile").
 #
 # Environment (all optional):
 #   COMPOSE_PROJECT_NAME    default aisdlc
@@ -33,18 +37,23 @@ cd "$(dirname "$0")"
 FULL_WHO=up-full
 # shellcheck source=full-env.sh
 . ./full-env.sh
+# shellcheck source=idp-profile.sh
+. ./idp-profile.sh
 
-REPO="" GITHUB=fake
+REPO="" GITHUB=fake IDP=enterprise
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
     --github) GITHUB="${2:-}"; shift 2 ;;
-    -h | --help) sed -n '2,32p' "$0"; exit 0 ;;
-    *) full_fail "unknown argument $1 (--repo owner/name [--github fake|real])" ;;
+    --idp) IDP="${2:-}"; shift 2 ;;
+    -h | --help) sed -n '2,36p' "$0"; exit 0 ;;
+    *) full_fail "unknown argument $1 (--repo owner/name [--github fake|real] [--idp enterprise|local])" ;;
   esac
 done
 [[ "$REPO" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]] || full_fail "name the repository agents may work on: --repo owner/name (make up-full REPO=owner/name)"
 case "$GITHUB" in fake | real) ;; *) full_fail "--github is fake or real, not '$GITHUB'" ;; esac
+case "$IDP" in enterprise | local) ;; *) full_fail "--idp is enterprise or local, not '$IDP'" ;; esac
+idp_profile "$IDP"
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc}"
 export AISDLC_BFF_PORT="${AISDLC_BFF_PORT:-8340}" AISDLC_OIDC_PORT="${AISDLC_OIDC_PORT:-8390}"
@@ -103,7 +112,7 @@ routes=$(docker compose exec -T -e PGPASSWORD="$(cat secrets/pg-superuser)" post
 key_ref="${AISDLC_ANTHROPIC_KEY_REF:-vault:gateway/anthropic-api-key#value}"
 if [ "${key_ref#vault:}" != "$key_ref" ]; then
   vault_key=$(docker compose exec -T -e TOKEN="$(cat secrets/tok-operator-core)" core node -e '
-fetch("http://127.0.0.1:8380/v1/secrets?on_behalf_of=alice", { headers: { authorization: `Bearer ${process.env.TOKEN}` } })
+fetch("http://127.0.0.1:8380/v1/secrets?on_behalf_of=${AISDLC_SEED_ADMIN:-alice}", { headers: { authorization: `Bearer ${process.env.TOKEN}` } })
   .then((r) => r.json()).then((j) => { const s = (j.secrets ?? []).find((x) => x.name === "anthropic-api-key");
     console.log(s?.set ? `in Vault (version ${s.version}, ${s.updated_at})` : "not set yet: paste it in the portal (Integrations, or PUT /api/secrets/anthropic-api-key)"); })
   .catch(() => console.log("unknown (core did not answer)"));' 2>/dev/null || echo unknown)
@@ -114,6 +123,18 @@ case "$routes" in
   *) models="the deterministic FAKE provider answers every agent (fixtures ${SEED_FAKE_FIXTURES:-planning}): no model does the work until you route to Claude (docs/getting-started.md §5)" ;;
 esac
 if [ "$GITHUB" = fake ]; then gh="FAKE: the in-repo fake GitHub (one repository, reshif/asf-factory-testbed); PRs are opened there"; else gh="REAL: api.github.com with your factory App (reads, pushes agent/* branches and Draft PRs) and gate-check App (aisdlc/gate)"; fi
+
+if [ "$IDP" = enterprise ]; then
+  signin="Keycloak (http://keycloak.localhost:$AISDLC_OIDC_PORT), enterprise profile: the system administrator \`admin\`, password \`admin\`,
+                TEMPORARY (Keycloak asks for a new password at the first sign-in; a realm already imported keeps its old people);
+                no test people; Keycloak's own admin is kc-admin (secrets/keycloak-bootstrap-admin)"
+  next="sign in as admin (change the password), add people under People"
+else
+  signin="Keycloak (http://keycloak.localhost:$AISDLC_OIDC_PORT), local profile: the test people (alice, lt, ...; password in
+                secrets/keycloak-persona-password) and the break-glass factory admin \`factory-admin\` (password in
+                secrets/keycloak-factory-admin-password); Keycloak's own admin is kc-admin (secrets/keycloak-bootstrap-admin)"
+  next="sign in as alice (factory admin)"
+fi
 
 cat <<EOF
 
@@ -126,14 +147,12 @@ cat <<EOF
   Coding (S6)   REAL: W sandbox sessions on this Docker daemon (one at a time), scratch $SANDBOX_SCRATCH
   Verify (S7)   REAL: the verify service, the signed Evidence Pack, gate-check's aisdlc/gate
   Push (6.6)    REAL against the GitHub above: the Push Broker writes agent/<item>/<unit> and a Draft PR; a person merges
-  Sign-in       Keycloak (http://keycloak.localhost:$AISDLC_OIDC_PORT): the test people (alice, lt, ...; password in
-                secrets/keycloak-persona-password) and the break-glass factory admin \`factory-admin\` (password in
-                secrets/keycloak-factory-admin-password); Keycloak's own admin is kc-admin (secrets/keycloak-bootstrap-admin)
+  Sign-in       $signin
   Secrets       Vault (LOCAL PROD ONLY: one unseal key in secrets/vault/$COMPOSE_PROJECT_NAME/, it unseals itself); paste a
                 key once in the portal (PUT /api/secrets/<name>), it is never shown again
   Stubbed       key custody (kms-local), the first admin (the seed), Vault's auto-unseal and plain-http Keycloak;
                 release is the fake unless CORE_WORKER_RELEASE=gate-relay (README.md, "What local-prod stubs")
-  Next          sign in as alice (factory admin), Integrations (/integrations) › Repositories › Onboard $REPO
+  Next          $next, Integrations (/integrations) › Repositories › Onboard $REPO
                 (Light for agent lanes: docs/getting-started.md §6); route the models to Claude first (§5)
   Logs          make logs SERVICE=core-worker   (make ps: every container and its health)
   Stop          make down (keeps everything)   Delete: make reset

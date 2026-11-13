@@ -42,7 +42,7 @@
 
   <main>
     <div class="card">
-      <span class="env">LOCAL · KEYCLOAK</span>
+      <#if properties.envBadge?has_content><span class="env">${properties.envBadge}</span></#if>
       <#if auth?has_content && auth.showUsername() && !auth.showResetCredentials()>
         <div class="who">
           <span>Signing in as <b id="kc-attempted-username">${auth.attemptedUsername}</b></span>

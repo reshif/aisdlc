@@ -5,7 +5,8 @@
 #                                multi-line value like a GitHub App's .pem), PUTs it to /api/secrets/<name>
 #   secret.sh list           names and metadata only (a value is never shown again once saved)
 #
-# It signs in through Keycloak as the break-glass factory admin `factory-admin` (password in
+# (Local sign-in profile only: the enterprise profile has no `factory-admin`; there the system administrator pastes the
+# key in the portal.) It signs in through Keycloak as the break-glass factory admin `factory-admin` (password in
 # secrets/keycloak-factory-admin-password; `make secret` runs on the owner's machine), takes the session's CSRF token
 # from /api/me, and calls the bff: bff -> core -> Vault, the PDP decides `config.propose` on the fleet, the record keeps
 # {name, version, by, at} only. The value goes to curl through a 0600 file that is removed at exit: never on a command
@@ -31,7 +32,9 @@ jar="$tmp/jar"
 curl -fsS -o /dev/null "http://localhost:$bff/healthz" 2>/dev/null ||
   { echo "secret: the portal does not answer on http://localhost:$bff: start the stack first (make up or make up-full)" >&2; exit 1; }
 kc_login "$bff" "$idp" factory-admin "$pw" "$jar" ||
-  { echo "secret: could not sign in as factory-admin through Keycloak (http://keycloak.localhost:$idp)" >&2; exit 1; }
+  { echo "secret: could not sign in as factory-admin through Keycloak (http://keycloak.localhost:$idp)" >&2
+    echo "secret: a stack of the ENTERPRISE sign-in profile has no factory-admin (only the system administrator \`admin\`, whose password you changed): paste the key in the portal instead (Integrations), signed in as admin" >&2
+    exit 1; }
 csrf="$(curl -fsS -b "$jar" "http://localhost:$bff/api/me" |
   node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).csrf_token??""))')"
 [ -n "$csrf" ] || { echo "secret: no CSRF token from /api/me" >&2; exit 1; }

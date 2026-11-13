@@ -6,6 +6,7 @@ ARG KEYCLOAK_IMAGE=keycloak/keycloak:26.0.7@sha256:4388e2379b7e870a447adbe7b80bd
 FROM ${KEYCLOAK_IMAGE} AS build
 ENV KC_DB=postgres KC_HEALTH_ENABLED=true KC_METRICS_ENABLED=false KC_CACHE=local
 COPY --chown=1000:0 themes/aisdlc /opt/keycloak/themes/aisdlc
+COPY --chown=1000:0 themes/aisdlc-enterprise /opt/keycloak/themes/aisdlc-enterprise
 RUN /opt/keycloak/bin/kc.sh build
 
 FROM ${KEYCLOAK_IMAGE}

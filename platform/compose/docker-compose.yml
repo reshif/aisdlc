@@ -686,7 +686,8 @@ services:
       KC_BFF_PUBLIC_URL: http://localhost:${AISDLC_BFF_PORT:-8340}
       JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=60
     volumes:
-      - ./keycloak/realm-aisdlc.json:/opt/keycloak/data/import/realm-aisdlc.json:ro
+      # the profile's realm (idp-profile.sh): the test people by default, or the enterprise system administrator
+      - ${AISDLC_KEYCLOAK_REALM_FILE:-./keycloak/realm-aisdlc.json}:/opt/keycloak/data/import/realm-aisdlc.json:ro
     secrets:
       [
         pg-pass-keycloak,
@@ -885,7 +886,7 @@ services:
         "operator":{"token_ref":"file:/run/secrets/tok-operator-killswitch","scopes":["act","read"]},
         "gateway":{"token_ref":"file:/run/secrets/tok-gateway-killswitch","scopes":["read"]},
         "bff":{"token_ref":"file:/run/secrets/tok-bff-killswitch","scopes":["act","read"]}}
-      KILLSWITCH_FACTORY_ADMINS: '["alice","bob"]'
+      KILLSWITCH_FACTORY_ADMINS: '${AISDLC_KILLSWITCH_ADMINS:-["alice","bob"]}'
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-killswitch-kms
       KILLSWITCH_HOST: 0.0.0.0
@@ -1082,10 +1083,10 @@ services:
       KMS_TOKEN_REF: file:/run/secrets/tok-core-kms
       SEED_IDENTITY_URL: http://identity:8330
       SEED_IDENTITY_TOKEN_REF: file:/run/secrets/tok-seed-identity
-      SEED_FACTORY_ADMIN: alice
+      SEED_FACTORY_ADMIN: ${AISDLC_SEED_ADMIN:-alice}
       # the design personas (lt, oh, nf, mw, tb, ...): their IdP groups (config/idp-seed.json) bound to their fleet,
       # team and viewer roles; project slot roles come from a project's role map once it is onboarded
-      SEED_PERSONAS: '1'
+      SEED_PERSONAS: '${AISDLC_SEED_PERSONAS:-1}'
       # The GitHub App is the first code-host row of the integration registry (ids and a key REFERENCE;
       # the key itself stays in the codehost's own file).
       SEED_GITHUB_APP_ID: ${GITHUB_APP_ID:?run ./init-secrets first}

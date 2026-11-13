@@ -1,4 +1,4 @@
-import type { IdpSnapshot } from '@aisdlc/ports';
+import { IdpSnapshot } from '@aisdlc/ports';
 import { PERSONAS } from './personas.js';
 
 // Keycloak for local prod (portal v2 intent, 2026-11-13: "sign-in via Keycloak OIDC, local username and password
@@ -36,6 +36,25 @@ export const FACTORY_ADMIN_ACCOUNT = {
   email: 'factory-admin@example.test',
 } as const;
 
+/**
+ * The ENTERPRISE profile's one person: the system administrator every other account is made through. Default username
+ * and password `admin` / `admin`, TEMPORARY: Keycloak forces a new password (UPDATE_PASSWORD) at the first sign-in.
+ * A factory admin (`grp-factory-admins`), like the break-glass `factory-admin` of the local profile. No test people.
+ */
+export const ENTERPRISE_ADMIN = {
+  subject: '00000000-0000-4000-8000-000000000100',
+  username: 'admin',
+  principal_id: 'admin',
+  display_name: 'System Administrator',
+  email: 'admin@aisdlc.local',
+  /** The default password the realm import sets (temporary: changed at the first sign-in). */
+  default_password: 'admin',
+} as const;
+
+/** The two sign-in profiles: `local` keeps the test people, `enterprise` has the system administrator only. */
+export type IdpProfile = 'local' | 'enterprise';
+export const ENTERPRISE_LOGIN_THEME = 'aisdlc-enterprise';
+
 /** The placeholders the realm import resolves from Keycloak's environment (compose: from secret files). */
 export const KEYCLOAK_ENV = {
   personaPasswordName: 'KC_PERSONA_PASSWORD',
@@ -45,6 +64,31 @@ export const KEYCLOAK_ENV = {
   portalUrl: 'KC_BFF_PUBLIC_URL',
 } as const;
 const ph = (name: string): string => `\${${name}}`;
+
+/** identity's IdP seed of the enterprise profile: the system administrator and the factory admins' group, nobody else. */
+export function keycloakEnterpriseIdpSeed(
+  dev: IdpSnapshot,
+  issuer = KEYCLOAK_DEFAULT_ISSUER,
+): IdpSnapshot {
+  return IdpSnapshot.parse({
+    issuer,
+    groups: dev.groups.filter((g) => g.group_id === 'grp-factory-admins'),
+    subjects: [
+      {
+        issuer,
+        subject: ENTERPRISE_ADMIN.subject,
+        principal_id: ENTERPRISE_ADMIN.principal_id,
+        kind: 'human',
+        status: 'active',
+        upn: ENTERPRISE_ADMIN.email,
+        display_handle: ENTERPRISE_ADMIN.username,
+        display_name: ENTERPRISE_ADMIN.display_name,
+        logins: [],
+        groups: ['grp-factory-admins'],
+      },
+    ],
+  });
+}
 
 /** identity's IdP seed for Keycloak: the dev seed's people with Keycloak's issuer, and the break-glass account. */
 export function keycloakIdpSeed(dev: IdpSnapshot, issuer = KEYCLOAK_DEFAULT_ISSUER): IdpSnapshot {
@@ -85,9 +129,30 @@ export function keycloakNames(display: string): { firstName: string; lastName: s
 }
 
 /** The realm import (Keycloak 26 JSON). */
-export function keycloakRealm(dev: IdpSnapshot): Record<string, unknown> {
-  const seed = keycloakIdpSeed(dev);
+export function keycloakRealm(
+  dev: IdpSnapshot,
+  profile: IdpProfile = 'local',
+): Record<string, unknown> {
+  const enterprise = profile === 'enterprise';
+  const seed = enterprise ? keycloakEnterpriseIdpSeed(dev) : keycloakIdpSeed(dev);
   const users = seed.subjects.map((s) => {
+    if (enterprise) {
+      // the default credentials the owner asked for: `admin` / `admin`, temporary (Keycloak forces UPDATE_PASSWORD)
+      return {
+        id: s.subject,
+        username: s.principal_id,
+        enabled: true,
+        emailVerified: true,
+        email: s.upn ?? ENTERPRISE_ADMIN.email,
+        firstName: 'System',
+        lastName: 'Administrator',
+        credentials: [
+          { type: 'password', value: ENTERPRISE_ADMIN.default_password, temporary: true },
+        ],
+        groups: s.groups.map((g) => `/${g}`),
+        requiredActions: ['UPDATE_PASSWORD'],
+      };
+    }
     const breakGlass = s.principal_id === FACTORY_ADMIN_ACCOUNT.principal_id;
     return {
       id: s.subject,
@@ -113,7 +178,7 @@ export function keycloakRealm(dev: IdpSnapshot): Record<string, unknown> {
     realm: KEYCLOAK_REALM,
     displayName: 'AISDLC',
     enabled: true,
-    loginTheme: 'aisdlc',
+    loginTheme: enterprise ? ENTERPRISE_LOGIN_THEME : 'aisdlc',
     // plain http is allowed from loopback and private addresses only (the browser on localhost, the bff on the
     // compose network); behind TLS in production this is `all`
     sslRequired: 'external',

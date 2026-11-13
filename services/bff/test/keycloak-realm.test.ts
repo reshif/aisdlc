@@ -4,11 +4,13 @@ import { IdpSnapshot } from '@aisdlc/ports';
 import { describe, expect, it } from 'vitest';
 import {
   DEV_IDP_BASE_USERS,
+  ENTERPRISE_ADMIN,
   FACTORY_ADMIN_ACCOUNT,
   KEYCLOAK_CLIENT_ID,
   KEYCLOAK_DEFAULT_ISSUER,
   PERSONAS,
   PERSONA_GROUPS,
+  keycloakEnterpriseIdpSeed,
   keycloakIdpSeed,
   keycloakRealm,
   keycloakTestPeopleFtl,
@@ -33,6 +35,12 @@ describe('the Keycloak realm and IdP seed', () => {
   it('matches the committed files (regenerate with npm run gen -w @aisdlc/bff)', async () => {
     await expect(json(realm)).toMatchFileSnapshot(join(COMPOSE, 'keycloak', 'realm-aisdlc.json'));
     await expect(json(seed)).toMatchFileSnapshot(join(COMPOSE, 'config', 'keycloak-idp-seed.json'));
+    await expect(json(keycloakRealm(dev, 'enterprise'))).toMatchFileSnapshot(
+      join(COMPOSE, 'keycloak', 'realm-aisdlc-enterprise.json'),
+    );
+    await expect(json(keycloakEnterpriseIdpSeed(dev))).toMatchFileSnapshot(
+      join(COMPOSE, 'config', 'keycloak-idp-seed-enterprise.json'),
+    );
     await expect(keycloakTestPeopleFtl(dev)).toMatchFileSnapshot(
       join(COMPOSE, 'keycloak', 'themes', 'aisdlc', 'login', 'test-people.ftl'),
     );
@@ -101,5 +109,49 @@ describe('the Keycloak realm and IdP seed', () => {
       failureFactor: 5,
       registrationAllowed: false,
     });
+  });
+});
+
+describe('the enterprise profile', () => {
+  const realm = keycloakRealm(dev, 'enterprise') as Json;
+  const seed = IdpSnapshot.parse(keycloakEnterpriseIdpSeed(dev));
+
+  it('has one user, the system administrator: admin / admin, temporary, a factory admin', () => {
+    expect(realm.users).toHaveLength(1);
+    expect(realm.users[0]).toMatchObject({
+      id: ENTERPRISE_ADMIN.subject,
+      username: 'admin',
+      groups: ['/grp-factory-admins'],
+      requiredActions: ['UPDATE_PASSWORD'],
+      credentials: [{ type: 'password', value: 'admin', temporary: true }],
+    });
+    expect(realm.loginTheme).toBe('aisdlc-enterprise');
+    expect(seed.subjects.map((s) => s.principal_id)).toEqual(['admin']);
+    expect(seed.subjects[0]?.groups).toEqual(['grp-factory-admins']);
+    expect(seed.groups.map((g) => g.group_id)).toEqual(['grp-factory-admins']);
+    expect(seed.issuer).toBe(KEYCLOAK_DEFAULT_ISSUER);
+  });
+
+  it('keeps the client, PKCE and brute-force protection of the local realm', () => {
+    const local = keycloakRealm(dev) as Json;
+    expect(realm.clients).toEqual(local.clients);
+    expect(realm.bruteForceProtected).toBe(true);
+    expect(realm.passwordPolicy).toBe(local.passwordPolicy);
+  });
+
+  it('shows no test people and no local-stack wording on the sign-in page', () => {
+    const theme = join(
+      COMPOSE,
+      'keycloak',
+      'themes',
+      'aisdlc-enterprise',
+      'login',
+      'theme.properties',
+    );
+    const props = readFileSync(theme, 'utf8');
+    expect(props).toMatch(/^parent=aisdlc$/m);
+    expect(props).toMatch(/^envBadge=$/m);
+    expect(props).toMatch(/^profile=enterprise$/m);
+    expect(JSON.stringify(realm)).not.toMatch(/alice|persona|test people/i);
   });
 });

@@ -124,9 +124,11 @@ full_check_real_github() {
 # full_idp_seed DIR: the IdP seed names the issuer (Keycloak's realm) with its port; on another port than 8390 the stack
 # gets its own copy
 full_idp_seed() {
+  local seed=config/keycloak-idp-seed.json
+  [ "${AISDLC_IDP_PROFILE:-local}" = enterprise ] && seed=config/keycloak-idp-seed-enterprise.json
   if [ "${AISDLC_OIDC_PORT:-8390}" != 8390 ]; then
     export AISDLC_IDP_SEED_FILE="$1/idp-seed.json"
-    sed "s#http://keycloak.localhost:8390/#http://keycloak.localhost:$AISDLC_OIDC_PORT/#g" config/keycloak-idp-seed.json >"$AISDLC_IDP_SEED_FILE"
+    sed "s#http://keycloak.localhost:8390/#http://keycloak.localhost:$AISDLC_OIDC_PORT/#g" "$seed" >"$AISDLC_IDP_SEED_FILE"
     chmod 644 "$AISDLC_IDP_SEED_FILE"
   fi
 }

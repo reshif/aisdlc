@@ -237,7 +237,28 @@ before `up`. See `platform/compose/README.md`, "Networks".
 
 ---
 
-## 3. Sign in: the test people
+## 3. Sign in: the system administrator (enterprise) or the test people (local)
+
+`make up` and `make up-full` start the **enterprise** sign-in profile by default (`IDP=enterprise`). Its Keycloak realm
+has ONE person, the **system administrator**:
+
+| Username | Password | |
+|---|---|---|
+| `admin` | `admin` | **temporary**: Keycloak makes you choose a new password (12 characters or more) at the first sign-in |
+
+`admin` is a factory admin. Sign in, change the password, then add everyone else through the portal's People screens.
+The default password is public (it is in this repository), so change it first and do not expose the stack's ports to a
+network before you have. Where the rest of this guide says to sign in as `alice` (the factory admin of the local
+profile), sign in as `admin`; the personas it names for other roles exist only in the local profile, so on an enterprise stack
+add people and grant them those roles yourself. The enterprise sign-in page has no test people and no "local stack" wording.
+
+The test people below belong to the **local** profile: `make up IDP=local` (or `up-full ... IDP=local`). The smoke test,
+the e2e runs, the demo and the load test always use it, whatever you chose for your own stack. Keycloak imports its realm
+once, so a stack you already have keeps its profile; `platform/compose/README.md`, "Switching a running stack's sign-in
+profile", moves it. `make secret` works on the local profile only (it signs in as `factory-admin`); on an enterprise stack
+paste the key in the portal.
+
+### The test people (local profile)
 
 Sign-in goes through **Keycloak** (`make portal` prints both addresses). The portal sends you to Keycloak's page at
 <http://keycloak.localhost:8390>; type a username from the table below. Every test person has the same password, in

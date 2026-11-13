@@ -8,7 +8,11 @@
   <#if section = "header">
     Sign in
   <#elseif section = "form">
-    <p class="sub">Use your company account. A local account is only for setup and emergencies.</p>
+    <#if (properties.profile!'local') == 'enterprise'>
+      <p class="sub">Sign in with your account.</p>
+    <#else>
+      <p class="sub">Use your company account. A local account is only for setup and emergencies.</p>
+    </#if>
 
     <#if social?? && social.providers?has_content>
       <#list social.providers as p>
@@ -45,16 +49,25 @@
         </div>
         <div class="row"><span>Forgot it? A factory admin resets local accounts.</span></div>
         <input type="hidden" id="id-hidden-input" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
-        <button class="btn btn-local" name="login" id="kc-login" type="submit">Sign in with local account</button>
+        <button class="btn btn-local" name="login" id="kc-login" type="submit"><#if (properties.profile!'local') == 'enterprise'>Sign in<#else>Sign in with local account</#if></button>
       </form>
     </#if>
 
+    <#if (properties.profile!'local') == 'enterprise'>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v5M12 16.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Every sign-in is recorded. An authenticator app (one-time codes) can be added to your account.</span>
+    </div>
+    <#else>
     <div class="note">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v5M12 16.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <span>Local accounts can set up the factory and recover access. Every sign-in is recorded, and an authenticator app (one-time codes) can be added to any account.</span>
     </div>
 
+    </#if>
+    <#if (properties.profile!'local') != 'enterprise'>
     <@people.testPeople/>
+    </#if>
 
     <script>
       (function () {
