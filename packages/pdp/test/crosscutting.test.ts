@@ -191,7 +191,7 @@ describe('fail closed', () => {
   it('an unknown action, an invalid resource or an action that does not apply to the resource type deny', async () => {
     const { pdp, entities } = rig();
     entities.addPrincipal('alice').bind('alice', 'factory.admin', FLEET);
-    expect((await ask(pdp, 'project.delete')).reasons).toEqual(['unknown_action']);
+    expect((await ask(pdp, 'project.obliterate')).reasons).toEqual(['unknown_action']);
     expect(
       (
         await pdp.decide({

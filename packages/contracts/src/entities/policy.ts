@@ -518,6 +518,68 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'view_level', min: 'V1' }],
     log_allow: false,
   },
+  // Portal v2 (owner decision 2026-11-13, "delete means delete"; docs/specs/deletion.md): one delete per kind. The
+  // factory admin holds every one; a project admin deletes the project's own items and repos and the project.
+  'project.delete': {
+    action_id: 'project.delete',
+    description: 'Delete a project and everything of it (the ledger keeps only hashes)',
+    class: 'config',
+    resource_types: ['Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'repo.delete': {
+    action_id: 'repo.delete',
+    description: 'Remove a repository from its project and delete its data',
+    class: 'config',
+    resource_types: ['Repo'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'item.delete': {
+    action_id: 'item.delete',
+    description: 'Delete a work item and everything of it',
+    class: 'config',
+    resource_types: ['Item'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
+  'person.delete': {
+    action_id: 'person.delete',
+    description: 'Delete a person: name, handles, links, bindings (their decisions stay as hashes)',
+    class: 'config',
+    resource_types: ['Fleet'],
+    grants: [{ kind: 'roles', roles: [...ADMINS] }],
+    log_allow: true,
+  },
+  'team.delete': {
+    action_id: 'team.delete',
+    description: 'Delete a team and its bindings',
+    class: 'config',
+    resource_types: ['Fleet'],
+    grants: [{ kind: 'roles', roles: [...ADMINS] }],
+    log_allow: true,
+  },
+  'binding.delete': {
+    action_id: 'binding.delete',
+    description: 'Delete a role binding and its history',
+    class: 'config',
+    resource_types: ['Fleet', 'Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS] },
+    ],
+    log_allow: true,
+  },
 } as const satisfies Record<string, z.input<typeof ActionDef>>;
 
 export type ActionId = keyof typeof ACTION_CATALOGUE;
@@ -532,7 +594,7 @@ export const LOGGED_ALLOW_ACTIONS: readonly ActionId[] = ACTION_IDS.filter(
 );
 
 /** Bump with any change to the actions, their grants, the entity model or the cross-cutting rules. */
-export const PDP_POLICY_VERSION = '1.5.0';
+export const PDP_POLICY_VERSION = '1.6.0';
 
 const VIEW_RANK: Readonly<Record<ViewLevel, number>> = { V1: 1, V2: 2, V3: 3 };
 
@@ -662,7 +724,10 @@ export const PdpDecisionRecord = z.strictObject({
   at: IsoDateTime,
   /** Why the caller asked (a card decision's note, a kill reason); never trusted by a policy. */
   justification: z.string().min(1).nullable(),
-  /** `always` (a deny, or an action in `LOGGED_ALLOW_ACTIONS`) or `sampled`. */
-  logged_because: z.enum(['deny', 'action', 'sampled']),
+  /**
+   * `deny`, `action` (an action in `LOGGED_ALLOW_ACTIONS`), `override` (an allow only the factory admin's override
+   * permitted: always logged, docs/specs/deletion.md §8) or `sampled`.
+   */
+  logged_because: z.enum(['deny', 'action', 'override', 'sampled']),
 });
 export type PdpDecisionRecord = z.infer<typeof PdpDecisionRecord>;
