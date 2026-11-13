@@ -698,26 +698,22 @@ as_login aisdlc aisdlc 'SET ROLE aisdlc_purge' | grep -q 'permission denied' || 
 as_login purge core_purge "BEGIN; SET LOCAL ROLE aisdlc_purge; DELETE FROM record.record_event WHERE stream LIKE 'config:%'; ROLLBACK;" | grep -q 'append-only' ||
   fail "the purge role deleted a record event no purge accounts for"
 echo "  core_purge may SET ROLE aisdlc_purge, aisdlc may not; a delete no purge accounts for is refused by the trigger"
-# the deletion's object-store user (object-store-init): it lifts a legal hold and removes the versions, reads nothing
-osmc() { # root|purge mc-args: mc inside the store's container (its image ships mc), as that credential
-  local who="$1" ak sk
-  shift
-  if [ "$who" = root ]; then ak="$(cat secrets/object-store-access-key)"; sk="$(cat secrets/object-store-secret-key)"
-  else ak="$(cat secrets/object-store-purge-access-key)"; sk="$(cat secrets/object-store-purge-secret-key)"; fi
-  dc exec -T -e MC_CONFIG_DIR=/tmp/mc -e "MC_HOST_s=http://$ak:$sk@127.0.0.1:9000" object-store mc --quiet "$@" 2>&1
+# the deletion's object-store user (object-store-init): from core, the one service that mounts it, exactly the requests
+# S3ObjectStore.purge sends: it lifts a legal hold and removes the version, and is refused a read and a write
+osmc() { # mc inside the store's container (its image ships mc), as the store's root credential
+  dc exec -T -e MC_CONFIG_DIR=/tmp/mc -e "MC_HOST_s=http://$(cat secrets/object-store-access-key):$(cat secrets/object-store-secret-key)@127.0.0.1:9000" \
+    object-store mc --quiet "$@" 2>&1
 }
-osmc root mb --ignore-existing --with-lock s/evidence-packs >/dev/null || fail "no evidence-packs bucket"
+osmc mb --ignore-existing --with-lock s/evidence-packs >/dev/null || fail "no evidence-packs bucket"
 dc exec -T object-store bash -c 'printf "smoke pack %s" "$RANDOM" >/tmp/smoke-pack'
 obj="smoke-$(openssl rand -hex 8)"
-osmc root cp --legal-hold on /tmp/smoke-pack "s/evidence-packs/$obj" >/dev/null || fail "could not store a held object"
-case "$(osmc purge cat "s/evidence-packs/$obj" || true)" in *nsufficient*|*ccess*enied*) ;; *) fail "the purge user can read an object" ;; esac
-case "$(osmc purge cp /tmp/smoke-pack s/evidence-packs/smoke-written || true)" in *nsufficient*|*ccess*enied*) ;; *) fail "the purge user can write an object" ;; esac
-osmc root rm --versions --force "s/evidence-packs/$obj" >/dev/null 2>&1 || true
-[ -n "$(osmc root ls --versions "s/evidence-packs/$obj")" ] || fail "a held object was removed before its hold was lifted"
-osmc purge legalhold clear --versions "s/evidence-packs/$obj" >/dev/null || fail "the purge user could not lift the legal hold"
-osmc purge rm --versions --force "s/evidence-packs/$obj" >/dev/null || fail "the purge user could not remove the versions: $(osmc purge rm --versions --force "s/evidence-packs/$obj")"
-[ -z "$(osmc root ls --versions "s/evidence-packs/$obj")" ] || fail "the object is still in the store"
-echo "  the purge user (aisdlc-core-purge): read and write refused, the legal hold lifted, every version removed"
+osmc cp --legal-hold on /tmp/smoke-pack "s/evidence-packs/$obj" >/dev/null || fail "could not store a held object"
+osmc rm --versions --force "s/evidence-packs/$obj" >/dev/null 2>&1 || true
+[ -n "$(osmc ls --versions "s/evidence-packs/$obj")" ] || fail "a held object was removed before its hold was lifted"
+dc exec -T -e BUCKET=evidence-packs -e KEY="$obj" core node --input-type=module -e "$(cat purge-probe.mjs)" ||
+  fail "the deletion's store credential did not lift the hold and remove the version, or it may read or write"
+[ -z "$(osmc ls --versions "s/evidence-packs/$obj")" ] || fail "the object is still in the store"
+echo "  the purge user (aisdlc-core-purge, from core): read and write refused, the legal hold lifted, the version removed"
 ./verify-ledger.sh --wait 150 --allow-redacted || fail "the ledger did not verify with the deletions' redactions"
 
 step "memory at idle (docker stats, once)"

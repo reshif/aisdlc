@@ -289,7 +289,8 @@ uses the store's root credential: narrowing those is not part of this.
 The portal's people, team, group and binding writes go to identity's API under scope `admin` (`BFF_IDENTITY_URL`,
 `tok-bff-identity`, held by the bff alone), which identity's PDP decides for the person (`identity.admin`,
 `access.manage`); the bff reaches identity on `data-record`, which both already joined. smoke.sh creates, previews and
-deletes a team, a binding and a person through the bff as a factory admin and runs `verify-ledger.sh --allow-redacted`
+deletes a team, a binding and a person through the bff as a factory admin, probes the store credential from core
+(`purge-probe.mjs`: the three requests a purge sends; a read and a write refused) and runs `verify-ledger.sh --allow-redacted`
 (the deletions' redacted entries are checked by their stored hash).
 
 ## Backup and restore (RC-OPS-1)
