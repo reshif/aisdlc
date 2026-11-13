@@ -1,0 +1,67 @@
+# Onboarding Agent Console: design and the owner's decisions (2026-11-13)
+
+## Owner's decisions (these override the design's recommendations below)
+1. **Chat, and the agent acts more.** The onboarder is conversational. Beyond explaining, it may take low-risk onboarding actions itself. Gates (C5/M4 sign-off, step-ups, M1 config changes, X2) stay human-decided, because AGENTS.md says humans decide gates. Wherever "acts more" meets a gate, the agent prepares everything and the person presses one button in the console.
+2. **Autonomy: the agent checks the repo, figures out what's missing, proposes changes and creates PRs to get the repo ready for onboarding.** Then it prompts the person for everything else needed (tier, role map, settings, attestations), explains each, records the answers and walks the onboarding to sign-off. Automatic: reading the census, facts, floors and probe; re-check controls; re-census; running the probe (DEC-18 and B1 guards unchanged); drafting the fix PR. The fix PR still goes through X2 before the Push Broker pushes. The factory never merges; the person merges.
+3. **Test command missing: the agent proposes one and the human decides** (accept, edit or reject in the console). If accepted, it goes into the fix PR (package.json script / Makefile target that the detector reads) and/or a person-attested `s0` event the probe uses, decided by the person.
+4. **/assistant ("Ask the factory"): the owner wants the right mental model, not this page.** Working model: the Console is the factory's ONE agent surface. A session has a subject (an onboarding today; a project or an item later). /assistant becomes the console's session list, with "start a session". The old one-shot Q&A page is removed. Write this mental model up in the design doc so the owner can change it.
+5. Guidelines: factory-level config `onboarding.agent_guidelines`, M1-gated (the factory admin may act alone, recorded); per-session person notes may only narrow.
+
+## Diagnosis (from the design pass, checked in code)
+- The `onboarding` agent (services/core/src/onboarding-v2/agent.ts) is one batch call per census from the `onboarding_agent` loop. No tools are wired (KnowledgeSearch is in its contract but not offered), it is D1 so it can't read repo text, and "Ask the agent again" reruns the batch. Locally it is FakeOnboardingAgent, the same canned AGENTS.md for every repo.
+- The assistant (services/core/src/conversation/, web assistant/OnboardingAssistant.tsx, AskPage.tsx) is a separate agent. Its grounding has census counts plus "card Cx open", with no floors, probe, SECR or agent proposal. It can only act through five closed navigation buttons (ProposalActionId).
+- The person is the integrator: census, then C1, C2, C4, C5, SECR and X2, decided in different places; OB §6.4 says "not a chat, buttons only".
+- Owner-hit failures:
+  - Tier is raise-only (packages/onboarding/src/fold.ts raiseAttestations). Nothing checks M4 quorum feasibility before C1 (gateFeasibility exists in packages/decisions/src/feasibility.ts but isn't used here).
+  - **Bug:** the agent's test_command fix writes `.factory/test-command`, but planProbe (packages/onboarding/src/light/probe.ts) reads only task_command facts from services/knowledge/src/detectors/task-contract.ts, which never reads that file. LF3 can never unblock that way.
+  - Probe b1_blocked from an open SECR finding becomes LF3 unknown with no explanation chain.
+- There is no "what blocks sign-off and whose move" layer anywhere.
+
+## The console (/onboard/:id), three panes
+- **Plan (left):** a live checklist from a deterministic blocker graph `explainS0(state)` (new, packages/onboarding/src/explain.ts). Nodes: steps, floors, cards, findings, controls, feasibility; edges "blocked by"; each node has an owner (agent | you | security | signer | github), a reason code and a next action. Includes `signoffFeasibility(tier, roleMap)` via gateFeasibility over the M4/C5 quorum the choice would freeze.
+- **Conversation (centre):** person turns, agent turns, tool calls folded. Proposals render inline as chips (Accept / Edit / Reject). Accepted chips write the person's choice into a server-side summary draft (N12 `PATCH /v1/s0/:id/summary`, new). The one sign-off (onboarding-v2/sign-off.ts) then decides the cards with today's ledger semantics. SECR and X2 chips call the existing card routes, with the same decider, PDP, step-up and ledger.
+- **Evidence (right):** facts with path and commit, controls rows, probe log tail, AGENTS.md diff against the template, PR patch, sign-off package hash.
+
+## The agent `onboarder` (replaces `onboarding`, and `assistant` for S0)
+- A server-side tool loop in core, on the pattern of services/core/src/conversation/assistant.ts runTool. Driven by person turns and by record events: census, probe or card changes append an observation turn and wake the session.
+- Scope enforcement, with existing mechanisms:
+  - The contract (packages/agents/src/spec-data.ts) has steps [] and tools OnboardingRead, KnowledgeSearch, RepoRead, OnboardingPropose, OnboardingAct; D2 to read repo text.
+  - The key comes from agentKeyRequest with scope job `onboarding:<s0>` and is revoked on stop.
+  - The gateway refuses tools off the key (tool_not_allowed).
+  - Tool handlers bind s0, repo, commit and card ids from the session; the model supplies only ids from closed sets the session listed.
+  - The PDP: the agent actor holds no grant; every state change is a person's request (card.decide, config.propose, step-up). New actions `onboarding.console.use` and `onboarding.console.steer`.
+  - Repo text is data: quoteAsData, text-lint, planted-instruction flags.
+- **Control:** session states running | awaiting_person | paused | stopped | done. Pause stops new model calls; stop revokes the key; the kill switch reads as paused. Autonomy per act tool comes from config `onboarding.console` (M1-gated). Budget goes through agents.config. The transcript is `onboarding-session:<s0>` events with text as a RedactablePayload (reuse conversation/store.ts and erasable.ts); each turn records the prompt sha and guideline revision.
+- **Tools:**
+  - OnboardingRead (census_facts, controls, floors, probe, cards, blockers, signoff_feasibility)
+  - KnowledgeSearch
+  - RepoRead (new knowledge route GET /v1/repos/:o/:n/file?path=&sha=; secret-hit files are never served)
+  - OnboardingPropose (tier, gap_disposition, role_map, settings, claim, instruction_text, fix_file, manual_step, test_command)
+  - OnboardingAct (recheck_controls, rerun_census, run_probe, render_fix_pack: record plus X2, never pushes before X2; sync_cards)
+
+## Phases (each shippable, push each to main once `npm run check` passes)
+- **P0, why is it stuck (no LLM):**
+  - explainS0 and signoffFeasibility
+  - core GET /v1/s0/:id/blockers, the bff passthrough, and a blocker list on the current S0 page
+  - fix the test-command bug (the proposal must target what the detector reads, or a person-attested `s0.test_command_declared` that planProbe uses)
+  - a tier infeasibility warning on C1
+  - tests for the three owner scenarios
+- **P1:** contracts `onboarding-console.ts`; agent `onboarder` (spec, OutputSchema `onboarder.turn.v1` with no lane/gate/tools/egress/budget fields, prompt, npm run gen); config keys `onboarding.console` and `onboarding.agent_guidelines`.
+- **P2:** session engine in core (services/core/src/onboarding-console/: store, tools, loop, port with a scripted fake, routes, wake loop), the bff passthrough, scope, pause, budget and rebuild tests.
+- **P3:** the console UI (services/web/src/onboard/Console.tsx with plan, evidence and chips); /assistant becomes the console session list; the e2e onboards through the console on the fake.
+- **P4:** proposals and acts, the summary draft, chips wired to the card routes and signOff, the fix PR through render_fix_pack, X2 and the Push Broker, Inbox rows collapsed to one per onboarding.
+- **P5:** guidelines, onboarder evals (packages/evals), RepoRead on.
+- **P6:** delete the old `onboarding` agent loop and route, OnboardingAssistant and the assistant's `s0` subject (keep the event folds); update docs (AGENTS.md layout entry, PLAN, the OB §6.4 amendment).
+
+## Mental model: /assistant and the Console (decision 4, for the owner to review)
+
+- The Console is the factory's ONE agent surface: a single agent runtime (tool loop, key, budget, transcript, pause and stop) and a single place to see it.
+- A **session** has a **subject**. Today the only subject is an onboarding (`s0`); later a project or a work item. The subject fixes what the session may read and which closed sets of ids its tools accept. A session is never free-floating.
+- `/assistant` stops being a Q&A page. It becomes the **session list**: every session the person may see, its subject, its state (running, awaiting_person, paused, stopped, done) and a "start a session" button. Opening a session opens its console (`/onboard/:id` for an onboarding).
+- The old one-shot "Ask the factory" is removed (P6). Its event folds stay, so history is still rebuildable.
+- Unchanged: an agent never decides a gate; a session's actions are a person's requests through the same PDP, step-up and ledger.
+- Open question for the owner: should a subject-less session (a general question) exist at all? This draft says no.
+
+## Deviations from the design (code wins)
+
+(Kept up to date per phase.)
