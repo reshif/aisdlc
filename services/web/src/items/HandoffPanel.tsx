@@ -1,8 +1,6 @@
 import {
-  HANDOFF_DESCRIPTIONS,
-  HandoffId,
-  TRIGGER_DESCRIPTIONS,
-  TriggerId,
+  label,
+  lookupTerm,
   type HandoffChoice,
   type HumanWorkReference,
   type PortalItemHandoffView,
@@ -13,46 +11,45 @@ import { api } from '../api';
 import { ErrorNote, Loading } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
-import { Card, GateTag, KeyValue, Pill } from '../ui';
+import { Card, KeyValue, Pill } from '../ui';
+import { ago, wire } from '../work/words';
 import { newKey } from './waiting';
 
-// The handoff panel of an item (P1-4, FL "HANDOFFS"): what was handed off and why (the trigger, the phase it came
-// from, the Handoff Pack by hash), its E4 card, the choices the flow allows once the owner of record has approved E4,
-// and while a developer has the work (L8): "I have done the work" (D5) with the PR or commit, and the one hand-back
-// (D4). Every button is shown only when the bff says the person may; the server decides every write again (the PDP,
-// then the ledger: only who approved E4 records the choice).
+// When the agents stop and hand the work to a person (glossary §9.2): why they stopped, the approval "Choose what
+// happens next" that its owner takes first, the choices the flow allows once it is approved, and while a person does
+// the work: "Mark my work done" with the PR or commit, and the one "Hand back". Every button is shown only when the
+// bff says the person may; the server decides every write again (the PDP, then the decision log: only who approved
+// the handover records the choice).
 
 /** What each choice does, in words (the vocabulary is the contract's `HandoffChoice`). */
 const CHOICE_TEXT: Readonly<Record<HandoffChoice, { label: string; desc: string }>> = {
   resume: {
     label: 'Answer and resume',
-    desc: 'The agent builds again (6.4) in a new session, in the same envelope.',
+    desc: 'The agent builds again in a new sandbox, within the same budget.',
   },
   extend: {
-    label: 'One envelope extension',
-    desc: 'Ask for more budget; E3 or E5 decides it, then the agent builds again.',
+    label: 'Ask for more budget',
+    desc: 'Once only: an approver decides "Allow more budget", then the agent builds again.',
   },
-  replan: { label: 'Re-plan', desc: 'Back to the plan (5.1); G3 decides the new plan.' },
-  respec: { label: 'Re-spec', desc: 'Back to the spec (3.2); G2 decides the new spec.' },
+  replan: { label: 'Re-plan', desc: 'Back to the plan; "Approve the plan" decides the new one.' },
+  respec: {
+    label: 'Rewrite spec',
+    desc: 'Back to the spec; "Approve the spec" decides the new one.',
+  },
   takeover: {
-    label: 'A developer takes over',
-    desc: 'The item goes to lane L8 (human-led) in a fresh environment; it can be handed back once.',
+    label: 'Take over',
+    desc: 'A person does the work ("Done by a person" track); it can be handed back once.',
   },
   hand_over_close: {
     label: 'Take it outside the factory',
     desc: 'A developer does the work outside the factory and the item closes here.',
   },
-  abandon: { label: 'Abandon', desc: 'The item ends as Abandoned (cause e4.abandon).' },
+  abandon: { label: 'Stop the work', desc: 'The item ends as abandoned.' },
 };
 
-const handoffText = (code: string): string => {
-  const id = HandoffId.safeParse(code);
-  return id.success ? HANDOFF_DESCRIPTIONS[id.data] : 'straight to the owner of record (E4)';
-};
-const triggerText = (t: string): string | null => {
-  const id = TriggerId.safeParse(t);
-  return id.success ? TRIGGER_DESCRIPTIONS[id.data] : null;
-};
+const handoffText = (code: string): string =>
+  lookupTerm('handoff', code)?.label ?? 'Handed straight to its owner';
+const triggerText = (t: string): string | null => lookupTerm('trigger', t)?.label ?? null;
 const short = (h: string, n = 16) => `${h.slice(0, n)}…`;
 
 /** Whether the item's view says the panel has something to show. */
@@ -67,11 +64,11 @@ export function HandoffPanel({ id, csrf }: { id: string; csrf: string }) {
     queryFn: () => api.itemHandoff(id),
     refetchInterval: 5_000,
   });
-  if (q.isPending) return <Loading what="the handoff" />;
+  if (q.isPending) return <Loading what="the handover" />;
   if (q.isError) return <ErrorNote error={q.error} retry={() => void q.refetch()} />;
   const v = q.data;
   return (
-    <section aria-label="Handoff" className="decide" data-testid="handoff-panel">
+    <section aria-label="Handover" className="wk-page" data-testid="handoff-panel">
       {v.handoff ? <HandoffFacts v={v} /> : null}
       {v.handoff && v.handoff.status === 'open' ? <E4Card v={v} /> : null}
       {v.may.choose && v.handoff ? <ChooseForm v={v} csrf={csrf} /> : null}
@@ -86,41 +83,40 @@ function HandoffFacts({ v }: { v: PortalItemHandoffView }) {
   const why = triggerText(h.trigger);
   return (
     <Card
-      title={`Handed off (${h.code})`}
+      title={handoffText(h.code)}
       actions={
         <Pill tone={h.status === 'open' ? 'warn' : 'mute'}>
-          {h.status === 'open' ? 'waiting for the owner of record' : `chosen: ${h.choice ?? '-'}`}
+          {h.status === 'open'
+            ? 'Waiting for its owner'
+            : `Chosen: ${h.choice ? CHOICE_TEXT[h.choice].label : 'unknown'}`}
         </Pill>
       }
       testId="handoff-facts"
     >
       <KeyValue
-        label="What was handed off"
+        label="Why the agents stopped"
         rows={[
-          ['Handoff', `${h.code}: ${handoffText(h.code)} (#${h.n})`],
+          ['Why', why ?? 'The factory does not say why.'],
           [
-            'Trigger',
-            <span key="t">
-              <code>{h.trigger}</code>
-              {why ? ` (${why})` : ''}
-            </span>,
+            'Where',
+            `${wire('phase', h.origin_phase)}${h.origin_step ? `: ${wire('step', h.origin_step)}` : ''}`,
           ],
-          ['From', `${h.origin_phase}${h.origin_step ? ` at ${h.origin_step}` : ''}`],
           [
-            'Handoff Pack',
+            'Handover notes',
             <span key="p">
-              <code>{h.pack.pack_id}</code> sha256{' '}
+              Kept and fingerprinted{' '}
               <code title={h.pack.content_sha256} data-testid="pack-sha">
                 {short(h.pack.content_sha256)}
               </code>
             </span>,
           ],
-          ['Opened', shortTime(h.opened_at)],
-          ...(h.chosen_by
-            ? ([
-                ['Chosen by', `${h.chosen_by}${h.chosen_at ? `, ${shortTime(h.chosen_at)}` : ''}`],
-              ] as const)
-            : []),
+          [
+            'Since',
+            <span key="o" title={shortTime(h.opened_at)}>
+              {ago(h.opened_at)}
+            </span>,
+          ],
+          ...(h.chosen_at ? ([['Chosen', ago(h.chosen_at)]] as const) : []),
         ]}
       />
     </Card>
@@ -130,41 +126,31 @@ function HandoffFacts({ v }: { v: PortalItemHandoffView }) {
 function E4Card({ v }: { v: PortalItemHandoffView }) {
   const e4 = v.e4;
   return (
-    <Card
-      title={
-        <>
-          The owner of record decides <GateTag gate="E4" />
-        </>
-      }
-      testId="handoff-e4"
-    >
+    <Card title={<>{label('gate', 'E4')}</>} testId="handoff-e4">
       {e4 === null ? (
-        <p className="muted">E4 has not opened yet. Nothing happens until it does.</p>
+        <p className="muted">This approval has not opened yet. Nothing happens until it does.</p>
       ) : e4.status === 'pending' ? (
         <>
           <p>
-            E4 is open. The owner of record approves it on its card first, then records what happens
-            next here. Expiry never chooses anything.
+            Its owner takes it first, then chooses here what happens next. Nothing is chosen if
+            nobody decides.
           </p>
           {e4.card_id ? (
             <p>
-              <Link to={`/cards/${e4.card_id}`}>
-                {v.may.decide_e4 ? 'Open the E4 card to decide it' : 'See the E4 card'}
+              <Link to={`/decide/${e4.card_id}`}>
+                {v.may.decide_e4 ? 'Decide it' : 'See the approval'}
               </Link>
             </p>
           ) : (
-            <p className="muted">The E4 card is not in the record yet.</p>
+            <p className="muted">Its approval is not in the record yet.</p>
           )}
         </>
       ) : (
         <>
-          <p>
-            E4 is decided ({e4.outcome ?? 'unknown'})
-            {e4.approvers.length > 0 ? ` by ${e4.approvers.join(', ')}` : ''}.
-          </p>
+          <p>Decided: {wire('decision', e4.outcome)}.</p>
           {v.choices.length > 0 && !v.may.choose ? (
             <p className="muted" data-testid="choose-not-mine">
-              Only who approved E4 records the choice ({v.choices.length} open).
+              Only who approved the handover chooses what happens next ({v.choices.length} open).
             </p>
           ) : null}
         </>
@@ -202,7 +188,7 @@ function ChooseForm({ v, csrf }: { v: PortalItemHandoffView; csrf: string }) {
   return (
     <Card title="What happens next" testId="handoff-choose">
       <fieldset className="plain-fieldset">
-        <legend>The choices the flow allows now</legend>
+        <legend>The choices open now</legend>
         {v.choices.map((c) => (
           <label key={c} className="choice">
             <input
@@ -220,7 +206,7 @@ function ChooseForm({ v, csrf }: { v: PortalItemHandoffView; csrf: string }) {
       {choice === 'extend' ? (
         <div className="field">
           <label htmlFor={`${name}-pct`}>
-            How much more envelope, in percent{max !== null ? ` (at most ${max})` : ''}
+            How much more budget, in percent{max !== null ? ` (at most ${max})` : ''}
           </label>
           <input
             id={`${name}-pct`}
@@ -288,14 +274,15 @@ function HumanLed({ v, csrf }: { v: PortalItemHandoffView; csrf: string }) {
   });
   if (!hl) return null;
   return (
-    <Card title="A developer has the work (L8, human-led)" testId="handoff-human-led">
+    <Card title={label('lane', 'L8')} testId="handoff-human-led">
       <p className="muted">
         The factory does not build this item: a person does. When the work is in a pull request or a
-        commit, say so; S7 then checks it and G4 decides it. The factory never merges.
+        commit, say so; the factory then checks it and a code owner reviews it. The factory never
+        merges.
       </p>
       {v.may.human_done ? (
-        <fieldset className="plain-fieldset" aria-label="I have done the work (D5)">
-          <legend>I have done the work (D5)</legend>
+        <fieldset className="plain-fieldset" aria-label={label('decideWord', 'mark_done')}>
+          <legend>{label('decideWord', 'mark_done')}</legend>
           <div className="field">
             <label htmlFor={`${base}-kind`}>Where the work is</label>
             <select
@@ -327,7 +314,7 @@ function HumanLed({ v, csrf }: { v: PortalItemHandoffView; csrf: string }) {
             </p>
           ) : null}
           {d5.isError ? <ErrorNote error={d5.error} /> : null}
-          {d5.isSuccess ? <p role="status">Recorded: S7 checks the work next.</p> : null}
+          {d5.isSuccess ? <p role="status">Recorded: the factory checks the work next.</p> : null}
           <div className="actions">
             <button
               type="button"
@@ -335,17 +322,19 @@ function HumanLed({ v, csrf }: { v: PortalItemHandoffView; csrf: string }) {
               disabled={ref === null || d5.isPending || d5.isSuccess}
               onClick={() => d5.mutate()}
             >
-              I have done the work
+              {label('decideWord', 'mark_done')}
             </button>
           </div>
         </fieldset>
       ) : null}
       {hl.taken_over ? (
         v.may.hand_back ? (
-          <fieldset className="plain-fieldset" aria-label="Hand it back (D4)">
-            <legend>Hand it back to the factory (D4, once)</legend>
+          <fieldset className="plain-fieldset" aria-label={label('decideWord', 'hand_back')}>
+            <legend>{label('decideWord', 'hand_back')} (once)</legend>
             <p className="muted">
-              The item goes back to lane {hl.lane_before ?? 'it came from'} with a new envelope.
+              The item goes back to the{' '}
+              {hl.lane_before ? wire('lane', hl.lane_before) : 'track it came from'} track with a
+              new budget.
               {` ${hl.hand_backs_left} hand-back${hl.hand_backs_left === 1 ? '' : 's'} left.`}
             </p>
             <label className="choice">
@@ -354,7 +343,7 @@ function HumanLed({ v, csrf }: { v: PortalItemHandoffView; csrf: string }) {
                 checked={planChanged}
                 onChange={(e) => setPlanChanged(e.target.checked)}
               />
-              <span>The plan changed: G3 decides it again before the agent builds</span>
+              <span>The plan changed: it is approved again before the agent builds</span>
             </label>
             {d4.isError ? <ErrorNote error={d4.error} /> : null}
             {d4.isSuccess ? <p role="status">Handed back.</p> : null}
@@ -365,21 +354,20 @@ function HumanLed({ v, csrf }: { v: PortalItemHandoffView; csrf: string }) {
                 disabled={d4.isPending || d4.isSuccess}
                 onClick={() => d4.mutate()}
               >
-                Hand it back
+                {label('decideWord', 'hand_back')}
               </button>
             </div>
           </fieldset>
         ) : hl.hand_backs_left === 0 ? (
-          <p className="muted">It was handed back once already; D4 is once per item.</p>
+          <p className="muted">It was handed back once already; that is allowed once per item.</p>
         ) : null
       ) : null}
       {v.done.length > 0 ? (
         <KeyValue
-          label="Work said done (D5)"
+          label="Marked done"
           rows={v.done.map((d) => [
-            shortTime(d.at),
+            ago(d.at),
             <span key={d.at}>
-              {d.by}:{' '}
               {d.reference === null ? (
                 'no reference named'
               ) : d.reference.kind === 'pr' ? (

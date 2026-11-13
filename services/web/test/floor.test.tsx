@@ -220,17 +220,37 @@ afterEach(() => {
 });
 
 describe('the floor screen', () => {
+  it('on a phone: no floor plan, the list of what is stuck, waiting or on hold instead', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((q: string) => ({
+        matches: q.includes('max-width'),
+        media: q,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      })),
+    );
+    floorApi(admin(), () => ({ json: view(), headers: { etag: '"v1"' } }));
+    renderAt('/floor');
+    const list = await screen.findByTestId('floor-phone');
+    expect(screen.queryByRole('region', { name: 'Floor plan' })).toBeNull();
+    expect(list).toHaveTextContent('0190a1b2');
+    vi.unstubAllGlobals();
+  });
+
   it('draws the stations, the gate with who it waits on, the rooms, the pod and the chips', async () => {
     floorApi(admin(), () => ({ json: view(), headers: { etag: '"v1"' } }));
     renderAt('/floor');
     const plan = await screen.findByRole('region', { name: 'Floor plan' });
     expect(screen.getByRole('heading', { name: 'Floor: testbed' })).toBeInTheDocument();
-    for (const s of ['S1 Intake & triage', 'S6 Build in sandbox', 'S9 Close & learn']) {
+    // the stage codes stay off the plan; an approval keeps its code as a small chip (glossary: secondary on Floor)
+    expect(plan.querySelector('.fl-sthd')).not.toHaveTextContent(/\bS[1-9]\b/);
+    for (const s of ['Intake', 'Build', 'Close']) {
       expect(within(plan).getByRole('button', { name: new RegExp(`^${s}`) })).toBeInTheDocument();
     }
     // the gate positions are the plan's, with the initials of who decides
     const gate = within(plan).getByRole('button', {
-      name: /^Gate G0\+G1: 1 waiting, decided by bob/,
+      name: /^Accept the request and Confirm the goal: 1 waiting, decided by bob/,
     });
     expect(gate).toBeInTheDocument();
     expect(plan.querySelector('[data-gate="G0+G1"] .fl-who')).toHaveTextContent('BO');
@@ -242,16 +262,16 @@ describe('the floor screen', () => {
     // a project admin sees the title in the chip's name
     expect(
       within(plan).getByRole('button', {
-        name: /^0190: item 0190a1b2, lane L3, waiting at gate G0\+G1: Export invoices as CSV/,
+        name: /^Item 0190a1b2, Small change, Waiting at an approval: Export invoices as CSV/,
       }),
     ).toBeInTheDocument();
     expect(
-      within(plan).getByRole('button', { name: /^Holding shelf held/ }),
+      within(plan).getByRole('button', { name: /^On hold Paused items/ }),
     ).toHaveAccessibleDescription('1 here. Open the room');
     // counts, recent back-edges, the stations table, sessions per class
     expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 working');
-    expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 held');
-    expect(screen.getByText('B9')).toBeInTheDocument();
+    expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 on hold');
+    expect(screen.getByText('Fixing check findings')).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Items per station' })).toBeInTheDocument();
     expect(screen.queryByText(/Stale/)).toBeNull();
   });
@@ -261,7 +281,7 @@ describe('the floor screen', () => {
     renderAt('/floor');
     expect(await screen.findByText(/You see this floor as a viewer/)).toBeInTheDocument();
     const plan = screen.getByRole('region', { name: 'Floor plan' });
-    const chip = within(plan).getByRole('button', { name: /^0190: item 0190a1b2/ });
+    const chip = within(plan).getByRole('button', { name: /^Item 0190a1b2/ });
     expect(chip.getAttribute('aria-label')).not.toContain('Export');
     expect(document.body.textContent).not.toContain('Export invoices');
     await userEvent.click(chip);
@@ -284,10 +304,10 @@ describe('the floor screen', () => {
     }));
     renderAt('/floor');
     expect(await screen.findByText(/the floor is behind the record/)).toHaveTextContent(
-      'Positions are as of record entry 12; the record is at 40',
+      'Positions are 28 events behind; nothing here is current.',
     );
     expect(screen.getByRole('region', { name: 'Floor plan' })).toHaveClass('fl-stale');
-    expect(screen.getByRole('button', { name: /Stale/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Out of date/ })).toBeInTheDocument();
   });
 
   it('polls with the last ETag, keeps the floor on a 304, and turns stale when a poll fails', async () => {
@@ -319,23 +339,27 @@ describe('the floor screen', () => {
     expect(await screen.findByText(/could not be refreshed since/)).toBeInTheDocument();
     // the last positions stay, greyed, never fresh-looking
     expect(screen.getByRole('region', { name: 'Floor plan' })).toHaveClass('fl-stale');
-    expect(screen.getByRole('button', { name: /^0190: item 0190a1b2/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Item 0190a1b2/ })).toBeInTheDocument();
   });
 
   it('is a keyboard map: a station opens with Enter, a gate drawer lists who decides, Escape closes', async () => {
     floorApi(admin(), () => ({ json: view() }));
     renderAt('/floor');
     const plan = await screen.findByRole('region', { name: 'Floor plan' });
-    const s6 = within(plan).getByRole('button', { name: /^S6 Build in sandbox/ });
+    const s6 = within(plan).getByRole('button', { name: /^Build/ });
     s6.focus();
     await userEvent.keyboard('{Enter}');
-    const d = await screen.findByRole('dialog', { name: 'S6 Build in sandbox' });
+    const d = await screen.findByRole('dialog', { name: 'Build' });
     expect(within(d).getByText('Rename the orders table')).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await userEvent.click(within(plan).getByRole('button', { name: /^Gate G0\+G1/ }));
-    const g = await screen.findByRole('dialog', { name: 'Gate G0+G1' });
-    expect(g).toHaveTextContent('On the route ofL3, L4');
+    await userEvent.click(
+      within(plan).getByRole('button', { name: /^Accept the request and Confirm the goal/ }),
+    );
+    const g = await screen.findByRole('dialog', {
+      name: 'Accept the request and Confirm the goal',
+    });
+    expect(g).toHaveTextContent('On the tracksSmall change, Feature');
     expect(g).toHaveTextContent('bob (BO)');
   });
 
@@ -346,30 +370,30 @@ describe('the floor screen', () => {
     expect(plan.querySelector('[data-gate="G3+G3s"]')).toHaveAttribute('data-off', 'true');
     expect(plan.querySelector('[data-gate="G0+G1"]')).not.toHaveAttribute('data-off');
     await userEvent.click(
-      within(plan).getByRole('button', { name: /^Gate G3\+G3s \(off for this project\)/ }),
+      within(plan).getByRole('button', {
+        name: /^Approve the plan and Approve the outline \(off for this project\)/,
+      }),
     );
-    const g = await screen.findByRole('dialog', { name: 'Gate G3+G3s' });
-    expect(g).toHaveTextContent('off for this project');
+    const g = await screen.findByRole('dialog', {
+      name: 'Approve the plan and Approve the outline',
+    });
+    expect(g).toHaveTextContent('Off for this project');
   });
 
   it('filters by lane group: the other lanes dim, the button says it is pressed', async () => {
     floorApi(admin(), () => ({ json: view() }));
     renderAt('/floor');
-    const lanes = await screen.findByRole('group', { name: 'Lanes' });
-    const l45 = within(lanes).getByRole('button', { name: 'L4' });
+    const lanes = await screen.findByRole('group', { name: 'Tracks' });
+    const l45 = within(lanes).getByRole('button', { name: 'Feature' });
     await userEvent.click(l45);
     expect(l45).toHaveAttribute('aria-pressed', 'true');
-    expect(within(lanes).getByRole('button', { name: 'L3' })).toHaveAttribute(
+    expect(within(lanes).getByRole('button', { name: 'Small change' })).toHaveAttribute(
       'aria-pressed',
       'false',
     );
     const plan = screen.getByRole('region', { name: 'Floor plan' });
-    expect(within(plan).getByRole('button', { name: /^0190: item 0190a1b2/ })).toHaveClass(
-      'fl-dim',
-    );
-    expect(within(plan).getByRole('button', { name: /^0190: item 0190b222/ })).not.toHaveClass(
-      'fl-dim',
-    );
+    expect(within(plan).getByRole('button', { name: /^Item 0190a1b2/ })).toHaveClass('fl-dim');
+    expect(within(plan).getByRole('button', { name: /^Item 0190b222/ })).not.toHaveClass('fl-dim');
   });
 
   it('shows the pods as unknown when the sandbox-controller could not be asked', async () => {
@@ -377,7 +401,7 @@ describe('the floor screen', () => {
     renderAt('/floor');
     const plan = await screen.findByRole('region', { name: 'Floor plan' });
     expect(plan.querySelector('[data-pod="1"]')).toHaveTextContent('coding slot 1 of 1, unknown');
-    expect(screen.getByText(/The sandbox-controller did not answer/)).toBeInTheDocument();
+    expect(screen.getByText(/The sandboxes did not answer/)).toBeInTheDocument();
   });
 });
 
@@ -412,8 +436,8 @@ describe('the floor overlays (M19)', () => {
     expect(plan.querySelector('[data-station="S6"] .fl-score')).not.toHaveClass('fl-score-low');
     // an agent with no score yet draws no chip; the station drawer lists it as unknown
     expect(plan.querySelector('[data-station="S1"] .fl-score')).toBeNull();
-    await userEvent.click(within(plan).getByRole('button', { name: /^S1 Intake/ }));
-    const d = await screen.findByRole('dialog', { name: /^S1/ });
+    await userEvent.click(within(plan).getByRole('button', { name: /^Intake/ }));
+    const d = await screen.findByRole('dialog', { name: 'Intake' });
     expect(within(d).getByText('no score for the current prompt yet')).toBeInTheDocument();
   });
 
@@ -438,7 +462,7 @@ describe('the floor overlays (M19)', () => {
     floorApi(admin(), () => ({ json: { ...v, items } }));
     renderAt('/floor');
     const plan = await screen.findByRole('region', { name: 'Floor plan' });
-    const b = within(plan).getByRole('button', { name: /^0190: item 0190b222, lane L4, stuck/ });
+    const b = within(plan).getByRole('button', { name: /^Item 0190b222, Feature, Stuck/ });
     expect(b).toHaveClass('fl-stuck');
     expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 stuck');
     expect(screen.getByText(/silent for more than 30 min/)).toBeInTheDocument();
@@ -467,12 +491,14 @@ describe('the floor overlays (M19)', () => {
     const plan = await screen.findByRole('region', { name: 'Floor plan' });
     expect(plan.querySelector('[data-gate="G0+G1"]')).toHaveClass('fl-gate-flag');
     const gate = within(plan).getByRole('button', {
-      name: /^Gate G0\+G1: 1 waiting, 2 cannot be decided as things stand/,
+      name: /^Accept the request and Confirm the goal: 1 waiting, 2 cannot be decided as things stand/,
     });
     await userEvent.click(gate);
-    const g = await screen.findByRole('dialog', { name: 'Gate G0+G1' });
+    const g = await screen.findByRole('dialog', {
+      name: 'Accept the request and Confirm the goal',
+    });
     expect(g).toHaveTextContent('Cannot be decided as things stand');
-    expect(g).toHaveTextContent('nobody holds the slot');
+    expect(g).toHaveTextContent('Nobody can decide');
   });
 
   it('shows the kill banner when a kill covers the project, and an unreachable kill switch as killed', async () => {
@@ -488,7 +514,7 @@ describe('the floor overlays (M19)', () => {
     }));
     const { unmount } = renderAt('/floor');
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Kill active on testbed. Agent work is stopped',
+      'Agents stopped on testbed. No agent work starts',
     );
     unmount();
     floorApi(admin(), () => ({
@@ -503,7 +529,7 @@ describe('the floor overlays (M19)', () => {
     }));
     renderAt('/floor');
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Kill switch unreachable: treated as killed',
+      'Agents stopped (cannot reach the stop switch)',
     );
   });
 });
@@ -576,10 +602,10 @@ describe('the fleet screen', () => {
       'href',
       '/floor?project=testbed',
     );
-    expect(within(testbed).getByLabelText(/^S6 Build in sandbox: 1 here, one stuck/)).toHaveClass(
-      'fx-bad',
-    );
-    expect(within(testbed).getByLabelText('Gate G0+G1: 1 waiting')).toHaveClass('fx-on');
+    expect(within(testbed).getByLabelText(/^Build: 1 here, one stuck/)).toHaveClass('fx-bad');
+    expect(
+      within(testbed).getByLabelText('Accept the request and Confirm the goal: 1 waiting'),
+    ).toHaveClass('fx-on');
     expect(testbed).toHaveTextContent('1 held');
     expect(testbed).toHaveTextContent('1 gate nobody can decide');
     expect(rows[1]).toHaveTextContent('killed');

@@ -76,7 +76,12 @@ const entry = (
 export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
   work: [
     entry('home', '/', SIGNED_IN, at('home')),
-    entry('inbox', '/inbox', SIGNED_IN, at('inbox', 'card', 'revision', 'factoryRevision')),
+    entry(
+      'inbox',
+      '/inbox',
+      SIGNED_IN,
+      at('inbox', 'card', 'decide', 'revision', 'factoryRevision'),
+    ),
     entry('items', '/items', SIGNED_IN, at('items', 'item', 'pack', 'closeout'), [
       entry('board', '/board', SIGNED_IN, at('board')),
     ]),
@@ -173,14 +178,9 @@ export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
  * may not open is the 403 page).
  */
 export const TOP_BAR: readonly NavEntry[] = [
-  entry(
-    'ask_for_work',
-    '/ask-for-work',
-    { kind: 'somewhere', action: 'work.request' },
-    at('askForWork'),
-  ),
+  entry('ask_for_work', '/ask', { kind: 'somewhere', action: 'work.request' }, at('askForWork')),
   // the assistant answers only from what the person can see; every thread is checked on its project
-  entry('assistant', '/ask', { kind: 'somewhere', action: 'assistant.use' }, at('ask')),
+  entry('assistant', '/assistant', { kind: 'somewhere', action: 'assistant.use' }, at('ask')),
   entry(
     'my_notifications',
     '/me/notifications',
