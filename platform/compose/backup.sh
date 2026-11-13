@@ -73,8 +73,10 @@ tar_volume() {
   local vol
   vol="$(volume_of "$1")"
   [ -n "$vol" ] || die "no volume $1 in project $project"
+  # tar runs as root in the container (it must read a volume of any uid); the archive is then given to the caller,
+  # who may not be root, so that the chmod below and the drill can handle it
   docker run --rm --network none -v "$vol:/data:ro" -v "$out/volumes:/backup" "$pg_image" \
-    tar --numeric-owner -C /data -czf "/backup/$1.tgz" .
+    sh -c 'tar --numeric-owner -C /data -czf "/backup/$0.tgz" . && chown "$1" "/backup/$0.tgz"' "$1" "$(id -u):$(id -g)"
   say "volume $1: $(du -h "$out/volumes/$1.tgz" | cut -f1)"
 }
 os_id="$(dc ps -q object-store 2>/dev/null || true)"
