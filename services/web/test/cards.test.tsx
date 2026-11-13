@@ -856,6 +856,23 @@ describe('a work-item gate card (G2): the artefacts it decides', () => {
     expect(screen.queryByText(/not intact/i)).toBeNull();
   });
 
+  it('P3-8: asks the card kind once and never probes the onboarding route (no 404 in the console)', async () => {
+    const { calls } = mockApi({
+      'GET /api/me': { json: me() },
+      [`GET /api/cards/${CARD_ID}/kind`]: { json: { card_id: CARD_ID, kind: 'work_gate' } },
+      [`GET /api/cards/${CARD_ID}/artefacts`]: { json: view() },
+      [`GET /api/cards/${CARD_ID}/gate`]: {
+        status: 403,
+        json: { error: { code: 'forbidden', message: 'x' } },
+      },
+    });
+    renderAt(`/cards/${CARD_ID}`);
+    await screen.findByRole('heading', { name: /Spec and oracle-spec approval/ });
+    const paths = calls.map((c) => c.path);
+    expect(paths).toContain(`/api/cards/${CARD_ID}/kind`);
+    expect(paths).not.toContain(`/api/cards/${CARD_ID}`);
+  });
+
   it('says so, loudly, when an artefact is not intact, and shows no text for it', async () => {
     mockApi({
       'GET /api/me': { json: me() },

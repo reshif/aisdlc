@@ -46,6 +46,27 @@ export interface Call {
 type Answer = { status?: number; json?: unknown; headers?: Record<string, string> };
 type Handler = Answer | ((c: Call) => Answer);
 
+/**
+ * P3-8: `GET /api/cards/:id/kind` when a test does not give it, read off what the test mocks for that card: an
+ * onboarding card's route that answers (not 404) is `onboarding`, else a gate card's route is `work_gate`.
+ */
+function cardKindOf(
+  table: Record<string, Handler>,
+  method: string,
+  path: string,
+): Answer | undefined {
+  const m = /^\/api\/cards\/([^/]+)\/kind$/.exec(path);
+  if (method !== 'GET' || !m) return undefined;
+  const id = m[1] as string;
+  const onb = table[`GET /api/cards/${id}`];
+  const status = onb === undefined || typeof onb === 'function' ? undefined : (onb.status ?? 200);
+  if (onb !== undefined && status !== 404) return { json: { card_id: id, kind: 'onboarding' } };
+  if (table[`GET /api/cards/${id}/gate`] !== undefined || table[`GET /api/cards/${id}/artefacts`]) {
+    return { json: { card_id: id, kind: 'work_gate' } };
+  }
+  return undefined;
+}
+
 /** Replaces `fetch` with a table keyed by `METHOD path`; an unknown route is a test failure. */
 export function mockApi(routes: Record<string, Handler>) {
   const calls: Call[] = [];
@@ -69,7 +90,7 @@ export function mockApi(routes: Record<string, Handler>) {
         body: init.body ? JSON.parse(init.body as string) : undefined,
       };
       calls.push(call);
-      const h = table[`${method} ${path}`];
+      const h = table[`${method} ${path}`] ?? cardKindOf(table, method, path);
       if (h === undefined) throw new Error(`unexpected request ${method} ${path}`);
       const a = typeof h === 'function' ? h(call) : h;
       const status = a.status ?? 200;

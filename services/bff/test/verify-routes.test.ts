@@ -7,6 +7,7 @@ import { signIn, startBffStack, type BffStack, type Browser } from '../src/testi
 import {
   CARD_ID,
   CORE_TOKEN,
+  cardSummary,
   ITEM_ID,
   gateCardFixture,
   itemViewFixture,
@@ -478,6 +479,25 @@ describe('the gate screens', () => {
       withSubject('G4', { ...g4Subject(), b13: { used: -1 } }),
     );
     expect((await get('alice', `/api/cards/${CARD_ID}/gate/context`)).status).toBe(502);
+  });
+
+  it('P3-8: GET /api/cards/:id/kind answers both kinds after project.view, with one route', async () => {
+    const gate = await get('alice', `/api/cards/${CARD_ID}/kind`);
+    expect(gate.status).toBe(200);
+    expect(gate.json).toEqual({ card_id: CARD_ID, kind: 'work_gate' });
+    expect((await get('carol', `/api/cards/${CARD_ID}/kind`)).status).toBe(403);
+    core.override.set(`/v1/cards/${CARD_ID}/summary`, {
+      status: 200,
+      json: cardSummary('acme'),
+    });
+    const onb = await get('alice', `/api/cards/${CARD_ID}/kind`);
+    expect(onb.json).toEqual({ card_id: CARD_ID, kind: 'onboarding' });
+    expect((await get('carol', `/api/cards/${CARD_ID}/kind`)).status).toBe(403);
+    // neither kind: the one 404
+    expect(
+      (await get('alice', `/api/cards/${'0'.repeat(8)}-0000-4000-8000-${'0'.repeat(12)}/kind`))
+        .status,
+    ).toBe(404);
   });
 
   it('GET /api/cards/:id/gate says why not: the PDP’s reasons first, then the slot', async () => {

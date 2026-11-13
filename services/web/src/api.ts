@@ -1,4 +1,5 @@
 import type {
+  CardKindView,
   AccessBindingList,
   AccessChange,
   AccessDecideResult,
@@ -440,6 +441,8 @@ export const api = {
   cards: (s0Id: string) =>
     request<PortalCardSummary[]>('GET', `/api/s0/${encodeURIComponent(s0Id)}/cards`),
   card: (id: string) => request<CardDetailWire>('GET', `/api/cards/${encodeURIComponent(id)}`),
+  cardKind: (id: string) =>
+    request<CardKindView>('GET', `/api/cards/${encodeURIComponent(id)}/kind`),
   cardArtefacts: (id: string) =>
     request<GateArtefactsWire>('GET', `/api/cards/${encodeURIComponent(id)}/artefacts`),
   gateCard: (id: string) =>
