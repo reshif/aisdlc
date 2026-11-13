@@ -48,6 +48,12 @@ export interface UnitPlan {
   readonly estimate_ms: number;
   /** The Unit's lease epoch as the live grant holds it (M13.6: the writer's epoch the Push Broker checks). */
   readonly lease_epoch?: number;
+  /**
+   * The head of the Unit's branch, when it has one (owner decision 2026-11-13: a B11 re-plan of a pushed Unit goes on on
+   * the SAME branch and PR). The session then starts from THIS tree, not the base; the patch is still the Unit's whole
+   * diff against `base_sha`, and the Push Broker fast-forwards the branch from this head.
+   */
+  readonly head_sha?: string;
 }
 
 /** A test file bound to the Unit as an oracle (written from the approved spec). It declares which spec it implements, by marker. */
