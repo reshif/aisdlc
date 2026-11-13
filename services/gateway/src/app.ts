@@ -9,11 +9,13 @@ import type { GatewayFailure, GatewayService } from './service.js';
 //     send an API key (`x-api-key: <key>`, or `Authorization: Bearer <key>`). A virtual key opens
 //     nothing else: not the admin API, not another key's budget.
 //   ADMIN (the work engine in core): `/v1/admin/*` with a SERVICE TOKEN and a scope. `admin` mints and
-//     revokes keys and creates budget groups; `read` reads them. A virtual key is not a service token.
+//     revokes keys and creates budget groups; `read` reads them; `operate` (the bff, for a person its PDP
+//     admitted: P2-5) reloads the adapters, tests one provider and reads the adapter list, and nothing
+//     else. A virtual key is not a service token.
 //
 // The exact contract is in docs/specs/gateway-api.md.
 
-export type GatewayScope = 'admin' | 'read';
+export type GatewayScope = 'admin' | 'read' | 'operate';
 
 export interface ReloadResult {
   /** The factory config revision the adapters now follow (null: nothing published yet). */
@@ -38,6 +40,8 @@ export interface GatewayAppOptions {
   reload?: (opts: { force: boolean }) => Promise<ReloadResult>;
   /** What the adapters are, as of the last sync. */
   integrations?: () => ReloadResult;
+  /** The deployment's bounds on a registry row (`GATEWAY_SECRET_REFS`, `GATEWAY_EGRESS_HOSTS`): references and hosts only. */
+  bounds?: { readonly secret_refs: readonly string[]; readonly egress_hosts: readonly string[] };
 }
 
 const header = (req: FastifyRequest, name: string): string | undefined => {
@@ -126,8 +130,14 @@ export function createGatewayApp(o: GatewayAppOptions): FastifyInstance {
     (req as unknown as { caller: string }).caller = caller;
   });
   const callerOf = (req: FastifyRequest) => (req as unknown as { caller: string }).caller;
-  const needs = (req: FastifyRequest, reply: FastifyReply, scope: GatewayScope): boolean => {
-    if ((o.callers[callerOf(req)] ?? []).includes(scope)) return true;
+  const needs = (
+    req: FastifyRequest,
+    reply: FastifyReply,
+    scope: GatewayScope,
+    ...or: GatewayScope[]
+  ): boolean => {
+    const held = o.callers[callerOf(req)] ?? [];
+    if ([scope, ...or].some((s) => held.includes(s))) return true;
     sendError(reply, 403, 'forbidden', `caller may not use scope ${scope}`);
     return false;
   };
@@ -169,16 +179,35 @@ export function createGatewayApp(o: GatewayAppOptions): FastifyInstance {
   });
 
   app.post('/v1/admin/reload', async (req, reply) => {
-    if (!needs(req, reply, 'admin')) return;
+    if (!needs(req, reply, 'admin', 'operate')) return;
     if (!o.reload) return sendError(reply, 404, 'not_found', 'this gateway has no registry reload');
     const force = (req.body as { force?: unknown } | null)?.force === true;
     return reply.send(await o.reload({ force }));
   });
 
   app.get('/v1/admin/integrations', async (req, reply) => {
-    if (!needs(req, reply, 'read')) return;
+    if (!needs(req, reply, 'read', 'operate')) return;
     if (!o.integrations) return sendError(reply, 404, 'not_found', 'this gateway has no registry');
-    return reply.send(o.integrations());
+    return reply.send({
+      ...o.integrations(),
+      bounds: {
+        secret_refs: [...(o.bounds?.secret_refs ?? [])],
+        egress_hosts: [...(o.bounds?.egress_hosts ?? [])],
+      },
+    });
+  });
+
+  // P2-5: one tiny metered call to one provider (the operator's connection test); never any text in or out
+  app.post('/v1/admin/providers/:id/test', async (req, reply) => {
+    if (!needs(req, reply, 'admin', 'operate')) return;
+    const by = (req.body as { tested_by?: unknown } | null)?.tested_by;
+    if (typeof by !== 'string' || by.length === 0 || by.length > 128) {
+      return sendError(reply, 400, 'invalid_request', 'tested_by names who asked');
+    }
+    if (!/^[a-z][a-z0-9_.-]{0,63}$/.test(id(req))) {
+      return sendError(reply, 400, 'invalid_request', 'bad provider id');
+    }
+    return reply.send(await o.service.testProvider(id(req), by));
   });
 
   return app;
