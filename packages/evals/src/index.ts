@@ -6,6 +6,7 @@ export * from './gateway-runner.js';
 export * from './grader.js';
 export * from './layout.js';
 export * from './manifest.js';
+export * from './onboarder-cases.js';
 export * from './pinned.js';
 export * from './repo-guard.js';
 export * from './runner-port.js';

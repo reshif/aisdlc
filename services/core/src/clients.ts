@@ -19,6 +19,8 @@ import {
   type KnowledgeHit,
   type KnowledgeSearchError,
   type KnowledgeSearchPort,
+  type KnowledgeFile,
+  type KnowledgeFileRequest,
   type KnowledgeSearchRequest,
 } from '@aisdlc/ports';
 import { callJson } from '@aisdlc/service-kit';
@@ -673,12 +675,46 @@ const SearchShape = z.looseObject({
   ),
 });
 
+const FileShape = z.looseObject({
+  path: z.string().min(1),
+  blob_sha: z.string().regex(/^[0-9a-f]{40}$/),
+  commit_sha: z.string().regex(/^[0-9a-f]{40}$/),
+  line_from: z.number().int().min(1),
+  line_to: z.number().int().min(1),
+  total_lines: z.number().int().min(0),
+  truncated: z.boolean(),
+  content: z.string(),
+});
+
 /**
  * `KnowledgeSearchPort` over knowledge's read-only `GET /v1/repos/:owner/:name/search` (scope `search`).
  * The commit is the caller's; an index at another commit is `stale_index` (409), none is `not_indexed`.
  */
 export class HttpKnowledgeSearch implements KnowledgeSearchPort {
   constructor(private readonly o: RemoteOptions) {}
+
+  async read(req: KnowledgeFileRequest): Promise<Result<KnowledgeFile, KnowledgeSearchError>> {
+    const q = new URLSearchParams({ path: req.path, sha: req.sha });
+    if (req.line_from !== undefined) q.set('line_from', String(req.line_from));
+    if (req.line_to !== undefined) q.set('line_to', String(req.line_to));
+    const r = await call(this.o, 'GET', `/v1/repos/${req.repo}/file?${q.toString()}`);
+    if (!r.reached) return err(knowledgeSearchError('unavailable', 'knowledge did not answer'));
+    if (r.status === 409) return err(knowledgeSearchError('stale_index', 'the index is stale'));
+    if (r.status === 404) {
+      const code = (r.json as { error?: { code?: string } } | null)?.error?.code;
+      return err(
+        code === 'not_available'
+          ? knowledgeSearchError('not_available', 'that file is not available')
+          : knowledgeSearchError('not_indexed', 'no search index'),
+      );
+    }
+    if (r.status === 400) return err(knowledgeSearchError('invalid', 'the request was refused'));
+    if (r.status !== 200) return err(knowledgeSearchError('unavailable', `knowledge: ${r.status}`));
+    const p = FileShape.safeParse(r.json);
+    return p.success
+      ? ok(p.data)
+      : err(knowledgeSearchError('unavailable', 'knowledge answered with an unexpected shape'));
+  }
 
   async search(req: KnowledgeSearchRequest): Promise<Result<KnowledgeHit[], KnowledgeSearchError>> {
     const q = new URLSearchParams({ q: req.query, sha: req.sha });

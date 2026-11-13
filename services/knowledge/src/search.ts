@@ -106,6 +106,92 @@ export type SearchOutcome =
   | { readonly state: 'not_indexed' }
   | { readonly state: 'stale_index'; readonly indexed_sha: string };
 
+export const FILE_MAX_LINES = 400;
+export const FILE_MAX_CHARS = 32 * 1024;
+
+export const FileQuery = z.strictObject({
+  path: z
+    .string()
+    .min(1)
+    .max(300)
+    .refine((p) => !p.startsWith('/') && !p.split('/').includes('..') && !p.includes('\u0000'), {
+      message: 'a repository-relative path',
+    }),
+  sha: z.string().regex(/^[0-9a-f]{40}$/),
+  /** 1-based, inclusive; at most FILE_MAX_LINES lines are answered. */
+  line_from: z.coerce.number().int().min(1).optional(),
+  line_to: z.coerce.number().int().min(1).optional(),
+});
+export type FileQuery = z.infer<typeof FileQuery>;
+
+export interface FileRead {
+  readonly path: string;
+  readonly blob_sha: string;
+  readonly commit_sha: string;
+  readonly line_from: number;
+  readonly line_to: number;
+  readonly total_lines: number;
+  readonly truncated: boolean;
+  readonly content: string;
+}
+
+export type FileOutcome =
+  | { readonly state: 'ok'; readonly file: FileRead }
+  | { readonly state: 'not_indexed' }
+  | { readonly state: 'stale_index'; readonly indexed_sha: string }
+  /** No such file in the index: absent, binary, too big, or one the secret ruleset hits. The same answer for all. */
+  | { readonly state: 'not_available' };
+
+/**
+ * One file of the indexed head tree, at the commit the caller names (the index's own, else `stale_index`). A file that
+ * holds a secret was never indexed, and is checked again here against the CURRENT ruleset: it is never served. Read-only;
+ * a long file is cut to a window of lines and a character cap. Repo text is data: the caller quotes it.
+ */
+export async function readRepoFile(
+  pool: pg.Pool,
+  repo: string,
+  q: FileQuery,
+  rules: readonly SecretRule[] = RULES,
+): Promise<FileOutcome> {
+  const idx = await pool.query<{ commit_sha: string }>(
+    'SELECT commit_sha FROM knowledge.repo_index WHERE repo = $1',
+    [repo.toLowerCase()],
+  );
+  const at = idx.rows[0];
+  if (!at) return { state: 'not_indexed' };
+  if (at.commit_sha !== q.sha) return { state: 'stale_index', indexed_sha: at.commit_sha };
+  const row = await pool.query<{ blob_sha: string; content: string }>(
+    'SELECT blob_sha, content FROM knowledge.repo_file WHERE repo = $1 AND path = $2',
+    [repo.toLowerCase(), q.path],
+  );
+  const f = row.rows[0];
+  if (!f || scanText(f.content, rules).length > 0) return { state: 'not_available' };
+  const lines = f.content.split('\n');
+  const from = Math.max(1, q.line_from ?? 1);
+  const wanted = Math.min(q.line_to ?? lines.length, lines.length);
+  const to = Math.min(wanted, from + FILE_MAX_LINES - 1);
+  let content = lines.slice(from - 1, to).join('\n');
+  let truncated = to < lines.length || wanted > to;
+  if (content.length > FILE_MAX_CHARS) {
+    content = content.slice(0, FILE_MAX_CHARS);
+    truncated = true;
+  }
+  const shown = content === '' ? 0 : content.split('\n').length;
+  return {
+    state: 'ok',
+    file: {
+      path: q.path,
+      blob_sha: f.blob_sha,
+      commit_sha: at.commit_sha,
+      line_from: from,
+      line_to: Math.max(from, from + shown - 1),
+      total_lines: lines.length,
+      truncated,
+      content,
+    },
+  };
+}
+
 const escapeLike = (s: string): string => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** Read-only: one SELECT of the index row and one of the matching files. */

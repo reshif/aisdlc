@@ -15,7 +15,7 @@ import type { DecisionVerifier } from './decision-ref.js';
 import type { PrincipalDirectory } from './principals.js';
 import { getLatestCensus } from './census/store.js';
 import type { JobRunner } from './runner.js';
-import { SearchQuery, searchRepo } from './search.js';
+import { FileQuery, SearchQuery, readRepoFile, searchRepo } from './search.js';
 import { codeGraphAt } from './codegraph.js';
 import {
   countFindings,
@@ -158,6 +158,29 @@ export function createKnowledgeApp(o: KnowledgeAppOptions): FastifyInstance {
       return sendError(reply, 409, 'stale_index', 'the index is not at the requested commit');
     }
     return { repo: repo.data, commit_sha: q.data.sha, hits: r.hits };
+  });
+
+  /**
+   * One file of the indexed head tree (the onboarder's RepoRead). Same commit rule as the search; a file the index
+   * does not hold, or one the secret ruleset hits, is `404 not_available` (the same answer, so existence is not leaked).
+   */
+  app.get('/v1/repos/:owner/:name/file', async (req, reply) => {
+    if (!allowed(req, 'search')) return forbid(reply, 'search');
+    const repo = RepoFullName.safeParse(`${params(req)['owner']}/${params(req)['name']}`);
+    if (!repo.success) return bad(reply, 'owner/name is not a repository');
+    const q = FileQuery.safeParse(query(req));
+    if (!q.success) return bad(reply, q.error.message);
+    const r = await readRepoFile(o.pool, repo.data, q.data);
+    if (r.state === 'not_indexed') {
+      return fail(reply, knowledgeError('not_found', 'this repository has no search index'));
+    }
+    if (r.state === 'stale_index') {
+      return sendError(reply, 409, 'stale_index', 'the index is not at the requested commit');
+    }
+    if (r.state === 'not_available') {
+      return sendError(reply, 404, 'not_available', 'that file is not available');
+    }
+    return r.file;
   });
 
   /**
