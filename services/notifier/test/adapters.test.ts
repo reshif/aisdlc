@@ -1,6 +1,10 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createServer as createHttpServer, type IncomingMessage } from 'node:http';
 import { createServer as createNetServer, type AddressInfo, type Socket } from 'node:net';
-import type { FakeChannelReceipt } from '@aisdlc/ports';
+import { FakeVault, type FakeChannelReceipt } from '@aisdlc/ports';
+import { primeSecretRefsFromEnv, refreshSecretRefs, resetSecretRefs } from '@aisdlc/service-kit';
 import { notificationChannelContract } from '@aisdlc/ports/testing';
 import { describe, expect, it } from 'vitest';
 import { boundedChannelFactory } from '../src/channels.js';
@@ -323,6 +327,42 @@ describe('the adapters', () => {
     expect(
       f({ ...EMAIL_ROW, username_ref: 'file:/run/secrets/u', password_ref: 'file:/run/secrets/p' }),
     ).toEqual({ ok: false, code: 'secret_unavailable' });
+  });
+
+  it('reads a vault: webhook reference (portal v2): unavailable until pasted, then built', async () => {
+    const v = new FakeVault();
+    const dir = mkdtempSync(join(tmpdir(), 'notifier-vault-'));
+    const roleFile = join(dir, 'approle.json');
+    writeFileSync(roleFile, JSON.stringify(v.approle({ read: ['notifier/'] })));
+    const ref = 'vault:notifier/slack-webhook-url#value';
+    try {
+      await primeSecretRefsFromEnv(
+        {
+          VAULT_ADDR: 'http://vault.test:8200',
+          VAULT_APPROLE_FILE: roleFile,
+          VAULT_REFRESH_SECONDS: '0',
+          NOTIFIER_SECRET_REFS: JSON.stringify([ref]),
+        },
+        { fetchImpl: v.fetch },
+      );
+      const f = boundedChannelFactory({
+        secretRefs: new Set([ref]),
+        egressHosts: new Set(['hooks.slack.com']),
+        plainHosts: new Set(),
+      });
+      expect(f({ ...SLACK_ROW, webhook_ref: ref })).toEqual({
+        ok: false,
+        code: 'secret_unavailable',
+      });
+      v.seed('notifier/slack-webhook-url', {
+        value: 'https://hooks.slack.com/services/T/B/x',
+      });
+      await refreshSecretRefs();
+      expect(f({ ...SLACK_ROW, webhook_ref: ref }).ok).toBe(true);
+    } finally {
+      resetSecretRefs();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

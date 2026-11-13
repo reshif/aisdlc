@@ -1,9 +1,15 @@
-import { createPrivateKey, generateKeyPairSync } from 'node:crypto';
+import { createPrivateKey, createPublicKey, generateKeyPairSync, verify } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { inspect } from 'node:util';
-import { ServiceConfigError } from '@aisdlc/service-kit';
+import { FakeVault } from '@aisdlc/ports';
+import {
+  ServiceConfigError,
+  primeSecretRefsFromEnv,
+  refreshSecretRefs,
+  resetSecretRefs,
+} from '@aisdlc/service-kit';
 import { FakeIdentityLinks } from '../src/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppKey } from '../src/app-key.js';
@@ -80,6 +86,52 @@ describe('AppKey', () => {
     expect(Object.getOwnPropertyNames(Object.getPrototypeOf(key)).sort()).toEqual(
       ['constructor', 'signRs256', 'toJSON', 'toString'].sort(),
     );
+  });
+});
+
+describe('AppKey from Vault (vault: reference)', () => {
+  afterAll(() => resetSecretRefs());
+
+  it('starts without the key, refuses to sign until it is pasted, then follows each new version', async () => {
+    const v = new FakeVault();
+    const roleFile = join(dir, 'approle.json');
+    writeFileSync(roleFile, JSON.stringify(v.approle({ read: ['codehost/'] })));
+    const ref = 'vault:codehost/github-app-key#value';
+    await primeSecretRefsFromEnv(
+      {
+        VAULT_ADDR: 'http://vault.test:8200',
+        VAULT_APPROLE_FILE: roleFile,
+        VAULT_REFRESH_SECONDS: '0',
+        CODEHOST_GITHUB_APP_KEY_REF: ref,
+      },
+      { fetchImpl: v.fetch },
+    );
+    const key = AppKey.fromRef(ref);
+    expect(() => key.signRs256('x')).toThrow(/not set in Vault/);
+    const a = generateTestAppKey();
+    v.seed('codehost/github-app-key', { value: a.privatePem });
+    await refreshSecretRefs();
+    const sigA = key.signRs256('x');
+    expect(verify('RSA-SHA256', Buffer.from('x'), createPublicKey(a.privatePem), sigA)).toBe(true);
+    const b = generateTestAppKey();
+    v.seed('codehost/github-app-key', { value: b.privatePem });
+    await refreshSecretRefs();
+    expect(
+      verify('RSA-SHA256', Buffer.from('x'), createPublicKey(b.privatePem), key.signRs256('x')),
+    ).toBe(true);
+    for (const text of [JSON.stringify(key), String(key), inspect(key, { showHidden: true })]) {
+      expect(text).not.toContain('BEGIN');
+    }
+    v.seed('codehost/github-app-key', { value: 'NOT-A-KEY-SECRET-TEXT' });
+    await refreshSecretRefs();
+    let thrown: unknown;
+    try {
+      key.signRs256('x');
+    } catch (e) {
+      thrown = e;
+    }
+    expect((thrown as Error).message).toMatch(/not a readable private key/);
+    expect((thrown as Error).message).not.toContain('SECRET-TEXT');
   });
 });
 

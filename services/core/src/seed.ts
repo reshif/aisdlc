@@ -16,6 +16,7 @@ import {
   RepoFullName,
   SANDBOX_EXEC_ALLOWED_REPOS_KEY,
   SandboxImageRef,
+  SecretRef,
   Sha256Hex,
   GATEWAY_CONFIG_KEYS,
   INTEGRATION_CONFIG_KEYS,
@@ -91,6 +92,12 @@ const claude = (model_id: string, usd_in_per_mtok: number, usd_out_per_mtok: num
   usd_out_per_mtok,
 });
 
+/**
+ * Where the Anthropic key is, by reference (`SEED_ANTHROPIC_KEY_REF`): a mounted file by default; compose names the
+ * Vault field the owner pastes it into in the portal (`vault:gateway/anthropic-api-key#value`, portal v2).
+ */
+export const DEFAULT_ANTHROPIC_KEY_REF = 'file:/run/secrets/anthropic-api-key';
+
 /** The GitHub App as the seed registers it (all from the compose settings; the KEY is a reference, never a value). */
 export interface SeedGithub {
   readonly app_id: string;
@@ -108,6 +115,7 @@ export interface SeedGithub {
 export function localIntegrationRegistry(
   github: SeedGithub | null,
   fixtures: 'planning' | 'testbed' = 'planning',
+  anthropicKeyRef: string = DEFAULT_ANTHROPIC_KEY_REF,
 ) {
   return [
     modelProviderRow('fake', 'fake', {
@@ -121,7 +129,7 @@ export function localIntegrationRegistry(
       credentials: [
         {
           credential_id: 'anthropic-api-key',
-          secret_ref: 'file:/run/secrets/anthropic-api-key',
+          secret_ref: anthropicKeyRef,
           kind: 'api_key',
         },
       ],
@@ -153,8 +161,9 @@ export function localIntegrationRegistry(
 export const localGatewayRouting = (
   github: SeedGithub | null,
   fixtures: 'planning' | 'testbed' = 'planning',
+  anthropicKeyRef: string = DEFAULT_ANTHROPIC_KEY_REF,
 ) => ({
-  [INTEGRATION_CONFIG_KEYS.registry]: localIntegrationRegistry(github, fixtures),
+  [INTEGRATION_CONFIG_KEYS.registry]: localIntegrationRegistry(github, fixtures, anthropicKeyRef),
   [GATEWAY_CONFIG_KEYS.models]: [
     {
       model_id: 'fake-model',
@@ -234,6 +243,8 @@ interface SeedConfig {
   readonly identityToken: string;
   /** `SEED_GITHUB_*`: the GitHub App row of the registry; null: no code host is registered. */
   readonly github: SeedGithub | null;
+  /** `SEED_ANTHROPIC_KEY_REF`: the reference the registry's Anthropic row names (default the mounted file). */
+  readonly anthropicKeyRef: string;
   /** The local stack's sandbox settings (`seedSandboxFromEnv`); `null`: the seed publishes none. */
   readonly sandbox: SeedSandbox | null;
   /** `SEED_FAKE_FIXTURES`: which canned answers the local fake provider gives (`planning`, the default, or `testbed`). */
@@ -266,6 +277,14 @@ function seedGithub(env: Env): SeedGithub | null {
   };
 }
 
+function anthropicKeyRefOf(v: string | undefined): string {
+  if (v === undefined || v === '') return DEFAULT_ANTHROPIC_KEY_REF;
+  if (!SecretRef.safeParse(v).success || v.startsWith('env:')) {
+    throw new ServiceConfigError('SEED_ANTHROPIC_KEY_REF must be a file: or vault: reference');
+  }
+  return v;
+}
+
 export function seedConfigFromEnv(env: Env): SeedConfig {
   if (env['FACTORY_ENV'] !== 'local') {
     throw new ServiceConfigError('the seed runs only with FACTORY_ENV=local');
@@ -278,6 +297,7 @@ export function seedConfigFromEnv(env: Env): SeedConfig {
     identityUrl: httpUrlEnv(env, 'SEED_IDENTITY_URL'),
     identityToken: resolveSecretRef(requiredEnv(env, 'SEED_IDENTITY_TOKEN_REF'), { env }),
     github: seedGithub(env),
+    anthropicKeyRef: anthropicKeyRefOf(env['SEED_ANTHROPIC_KEY_REF']),
     personas: env['SEED_PERSONAS'] === '1',
     sandbox: seedSandboxFromEnv(env),
     fixtures: fixturesOf(env['SEED_FAKE_FIXTURES']),
@@ -524,7 +544,7 @@ async function bundleStep(env: Env, cfg: SeedConfig, log: (l: string) => void): 
     const effective = await mine();
     const routing = seedRoutingDoc(
       (effective?.doc ?? {}) as JsonObject,
-      localGatewayRouting(cfg.github, cfg.fixtures) as unknown as JsonObject,
+      localGatewayRouting(cfg.github, cfg.fixtures, cfg.anthropicKeyRef) as unknown as JsonObject,
     );
     const same = Object.entries(routing).every(
       ([k, v]) => canonicalJson(effective?.doc[k] ?? null) === canonicalJson(v),

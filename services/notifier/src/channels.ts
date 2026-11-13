@@ -7,6 +7,7 @@ import {
   type NotificationChannelRow,
 } from '@aisdlc/contracts';
 import type { NotificationChannelPort } from '@aisdlc/ports';
+import { resolveSecretRef } from '@aisdlc/service-kit';
 import { SlackWebhookChannel } from './slack.js';
 import { SmtpEmailChannel } from './smtp.js';
 
@@ -56,7 +57,17 @@ export function channelsFrom(reader: ConfigReader): () => NotificationChannelRow
 }
 
 function secret(ref: string | null, b: ChannelBounds): string | null {
-  if (ref === null || !b.secretRefs.has(ref) || !ref.startsWith('file:')) return null;
+  if (ref === null || !b.secretRefs.has(ref)) return null;
+  if (ref.startsWith('vault:')) {
+    // primed from Vault at start and refreshed on a timer (service-kit); absent until the owner pastes it
+    try {
+      const v = resolveSecretRef(ref, { minLength: 1 });
+      return v === '' ? null : v;
+    } catch {
+      return null;
+    }
+  }
+  if (!ref.startsWith('file:')) return null;
   try {
     const v = (b.readFile ?? ((p: string) => readFileSync(p, 'utf8')))(ref.slice(5)).trim();
     return v === '' ? null : v;

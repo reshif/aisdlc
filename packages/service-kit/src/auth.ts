@@ -12,6 +12,8 @@ export class ServiceConfigError extends Error {
 export interface SecretRefDeps {
   env?: Record<string, string | undefined>;
   readFile?: (path: string) => string;
+  /** The shortest value accepted (default MIN_TOKEN_LENGTH: a token; 1 for a password or a URL). */
+  minLength?: number;
 }
 
 /**
@@ -40,8 +42,9 @@ export function resolveSecretRef(ref: string, deps: SecretRefDeps = {}): string 
       `secret reference must be env:NAME, file:PATH or vault:PATH#KEY, got ${ref}`,
     );
   }
-  if (value === undefined || value.length < MIN_TOKEN_LENGTH) {
-    throw new ServiceConfigError(`secret ${ref} is missing or shorter than ${MIN_TOKEN_LENGTH}`);
+  const min = deps.minLength ?? MIN_TOKEN_LENGTH;
+  if (value === undefined || value.length < min) {
+    throw new ServiceConfigError(`secret ${ref} is missing or shorter than ${min}`);
   }
   return value;
 }
