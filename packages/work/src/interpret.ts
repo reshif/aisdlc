@@ -368,7 +368,11 @@ function jumpTo(
   s.skip = [];
   s.relane_pending = null;
   s.cursor = i;
-  setUnderlying(s, (routeOf(s, cat)[i] as Station).phase);
+  const phase = (routeOf(s, cat)[i] as Station).phase;
+  setUnderlying(s, phase);
+  // a jump out of S6 (B8 to 5.1, say) ends the agent lease as leaving it forward does (`afterStepDone`): the
+  // session is over, and the next 6.0 hands out a new epoch
+  if (phase !== 'S6' && phase !== 'Scheduling') s.lease = null;
   return true;
 }
 

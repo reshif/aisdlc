@@ -14,7 +14,7 @@ The notifier reads the record (never core's API) and raises one notification per
 | `card.opened` of a card with no gate (an S0 step card: card 5's sign-off) | `gate_waiting` | the holders of the card's role |
 | `card.escalated` (B21, one business day past) | `sla_escalated` | the backup principals the escalation named (reason `escalated_backup`), then the card's own slot holders |
 | `kill.observed`, kind `kill.requested` / `kill.released` | `kill_engaged` / `kill_released` | a project or lane kill: the project's `admin` and `kill` slot holders; a fleet kill: the fleet's `factory.admin` holders |
-| an `item:<id>` event after which the item waits for answers (1.5) | `questions_waiting` (the rounds left under B1, and the PARK date: B1's business days after the questions) | the item's requester (reason `requester`) |
+| an `item:<id>` event after which the item waits for answers (1.5, and again on each B1 round) | `questions_waiting` (the round, the rounds left under B1, and the PARK date: B1's business days after the questions plus MM-2's frozen time; all three from the work engine's `clarifyState`, the function `ItemView.clarify` uses, P2-16) | the item's requester (reason `requester`) |
 | ... after which it waits for the Ready decision (1.6) | `ready_waiting` | the requester |
 | ... after which it waits on G6 | `acceptance_waiting` | the requester (G6's slot holders are told by its `gate.opened`) |
 | ... after which it is PARKED | `item_parked` (the date PARK ends in ABANDONED) | the requester |

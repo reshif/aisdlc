@@ -11,8 +11,8 @@ import {
 } from '@aisdlc/contracts';
 import { addBusinessDays, businessCalendar, type BusinessCalendar } from '@aisdlc/decisions';
 import {
+  clarifyState,
   interpret,
-  limitValue,
   parkBusinessDays,
   parseItemEvent,
   pinnedCatalogueResolver,
@@ -26,7 +26,7 @@ import type { Audience, NotificationIntent } from './sources.js';
 // (`interpret` over the item's stream, under the catalogue the item pinned), so the notifier says exactly what the
 // item page says it waits for; it decides nothing and moves nothing.
 //
-//   waits for answers (1.5)          questions_waiting   the requester, with the rounds left (B1) and the PARK date
+//   waits for answers (1.5, B1)      questions_waiting   the requester, with the round, the rounds left and the PARK date
 //   waits for Ready (1.6)            ready_waiting       the requester
 //   waits for G6                     acceptance_waiting  the requester
 //   PARKED (B1)                      item_parked         the requester, with the date it is abandoned
@@ -107,15 +107,20 @@ export function itemIntents(
     }
     return out;
   }
+  // P2-16: the round, its limit and the PARK date are the item page's own (`clarifyState`, MM-2's frozen time included)
+  const clarify = clarifyState(after, (from, bd) => addBusinessDays(cal, from, bd));
   if (after.waiting?.kind === 'questions' && questionIds(after) !== questionIds(before)) {
-    const rounds = limitValue(cat, 'B1', 'rounds') ?? 2;
     out.push(
       intent(
         {
           ...base(after, 'questions_waiting'),
-          rounds_left: Math.max(0, rounds - after.rounds),
+          round: clarify?.round ?? null,
+          rounds_left:
+            clarify === null || clarify.rounds_max === null
+              ? null
+              : Math.max(0, clarify.rounds_max - clarify.round),
           // silence parks the item after B1's business days (the clarify timer); the answers stop it
-          due_at: deadline(after.clarify?.since, parkBusinessDays(cat), cal),
+          due_at: clarify?.deadline ?? null,
         },
         [requester(after)],
       ),
@@ -132,8 +137,11 @@ export function itemIntents(
       intent(
         {
           ...base(after, 'item_parked'),
-          // PARK -> ABANDONED after B1's business days unless the answers arrive
-          due_at: deadline(after.park?.since, parkBusinessDays(cat), cal),
+          // PARK -> ABANDONED after B1's business days unless the answers arrive (parked on questions: the item page's date)
+          due_at:
+            clarify?.then === 'abandons'
+              ? clarify.deadline
+              : deadline(after.park?.since, parkBusinessDays(cat), cal),
         },
         [requester(after)],
       ),
