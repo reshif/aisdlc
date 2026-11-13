@@ -158,13 +158,18 @@ describe('the shell and My access', () => {
     mockApi({ 'GET /api/me': { json: me([]) }, 'GET /api/projects': { json: [] } });
     renderAt('/projects');
     const nav = await screen.findByRole('navigation', { name: 'Main' });
-    expect(within(nav).getByRole('heading', { name: 'Decide' })).toBeInTheDocument();
+    expect(within(nav).getByRole('heading', { name: 'Work' })).toBeInTheDocument();
     expect(within(nav).getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
-    // a group with nothing the person may open is not shown: Operate and Quality need audit.read on the fleet
-    expect(within(nav).queryByRole('heading', { name: 'Operate' })).toBeNull();
-    expect(within(nav).queryByRole('heading', { name: 'Quality' })).toBeNull();
+    // a group with nothing the person may open is not shown: Run needs ops.read or quality.read on the fleet
+    expect(within(nav).queryByRole('heading', { name: 'Run' })).toBeNull();
+    expect(within(nav).queryByRole('link', { name: 'Operate' })).toBeNull();
     expect(within(nav).queryByRole('link', { name: 'Onboard a repo' })).toBeNull();
     expect(within(nav).queryByRole('link', { name: 'People' })).toBeNull();
+    // a section shows while one of its pages may be opened, and links to the first such page
+    expect(within(nav).getByRole('link', { name: 'People, teams & roles' })).toHaveAttribute(
+      'href',
+      '/roles',
+    );
     expect(within(nav).getByRole('link', { name: 'Projects' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -248,6 +253,6 @@ describe('the shell and My access', () => {
   it('an unknown path is the same 404 as an invisible thing', async () => {
     mockApi({ 'GET /api/me': { json: me() } });
     renderAt('/nowhere/at/all');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Nothing here');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not found');
   });
 });

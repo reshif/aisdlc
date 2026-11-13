@@ -601,7 +601,7 @@ describe('the fleet screen', () => {
     });
     renderAt('/fleet');
     const nav = await screen.findByRole('navigation', { name: 'Main' });
-    expect(within(nav).getByRole('link', { name: 'Fleet' })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: 'All projects' })).toHaveAttribute(
       'aria-current',
       'page',
     );

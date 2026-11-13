@@ -47,6 +47,7 @@ import { guardAction, guardOf, guardPasses } from './shell/nav';
 
 import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
 import { Shell } from './shell/Shell';
+import { DesignPage } from './design/DesignPage';
 import { ErrorState, PageHead, ToastProvider } from './ui';
 
 export function createQueryClient(): QueryClient {
@@ -94,16 +95,19 @@ function Portal() {
   return (
     <NavContext.Provider value={navigate}>
       <ToastProvider>
-        <Shell me={me.data ?? null} route={route}>
-          {me.isPending ? <Loading what="your session" /> : null}
-          {me.isError ? <ErrorNote error={me.error} retry={() => void me.refetch()} /> : null}
-          {me.data === null ? <SignedOut /> : null}
-          {me.data ? (
-            <AccessProvider me={me.data}>
+        {me.data ? (
+          <AccessProvider me={me.data}>
+            <Shell me={me.data} route={route}>
               <Page route={route} me={me.data} />
-            </AccessProvider>
-          ) : null}
-        </Shell>
+            </Shell>
+          </AccessProvider>
+        ) : (
+          <Shell me={null} route={route}>
+            {me.isPending ? <Loading what="your session" /> : null}
+            {me.isError ? <ErrorNote error={me.error} retry={() => void me.refetch()} /> : null}
+            {me.data === null ? <SignedOut /> : null}
+          </Shell>
+        )}
       </ToastProvider>
     </NavContext.Provider>
   );
@@ -282,6 +286,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <NotificationsPage />;
     case 'notificationPrefs':
       return <NotificationPrefsPage csrf={me.csrf_token} />;
+    case 'design':
+      return <DesignPage />;
     case 'notfound':
       return <ErrorState status={404} action={<Link to="/">Back home</Link>} />;
   }

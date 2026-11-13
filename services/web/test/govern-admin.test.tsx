@@ -50,8 +50,8 @@ describe('govern: ledger', () => {
     expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue('testbed');
     // the nav lists the ledger for a project reader, and not the fleet's audit log
     const nav = screen.getByRole('navigation', { name: 'Main' });
-    expect(within(nav).getByRole('link', { name: 'Ledger' })).toBeInTheDocument();
-    expect(within(nav).queryByRole('link', { name: 'Audit' })).toBeNull();
+    expect(within(nav).getByRole('link', { name: 'Decision log' })).toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: 'Access decisions' })).toBeNull();
   });
 
   it('a broken link on screen is said, never hidden', async () => {
@@ -190,14 +190,19 @@ describe('admin', () => {
     const t = await screen.findByRole('table', { name: 'Roles' });
     expect(within(t).getAllByRole('row')).toHaveLength(ROLE_CATALOGUE.length + 1);
     expect(t).toHaveTextContent('project.admin');
-    expect(calls.map((c) => c.path)).toEqual(['/api/me']);
+    // the shell's inbox count aside, the screen reads nothing
+    expect(calls.map((c) => c.path).filter((p) => p !== '/api/inbox')).toEqual(['/api/me']);
     // a person with no fleet role: the nav keeps what everyone may read and nothing else of Admin
     const nav = screen.getByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: 'Roles' })).toHaveAttribute(
       'aria-current',
       'page',
     );
-    expect(within(nav).getByRole('link', { name: 'Catalogue' })).toBeInTheDocument();
+    // Settings shows for the one page under it everyone may read (Tracks and limits), and links there
+    expect(within(nav).getByRole('link', { name: 'Settings' })).toHaveAttribute(
+      'href',
+      '/catalogue',
+    );
     expect(within(nav).queryByRole('link', { name: 'People' })).toBeNull();
     expect(within(nav).queryByRole('link', { name: 'Who can do what' })).toBeNull();
     v.unmount();

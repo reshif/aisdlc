@@ -179,7 +179,7 @@ describe('the S0 record page', () => {
     });
     renderAt(`/s0/${S0_ID}`);
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/Nothing here/);
+    expect(alert).toHaveTextContent(/Not found/);
     // the same page for something invisible and something that does not exist: no server detail
     expect(alert).not.toHaveTextContent(/no such record/);
     vi.unstubAllGlobals();
