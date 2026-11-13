@@ -343,7 +343,7 @@ export const AGENT_SPECS: readonly AgentSpec[] = [
     agent_id: 'onboarder',
     name: 'onboarder',
     role: 'onboarder',
-    note: "Onboarding console (docs/design/onboarding-console.md): the conversational onboarder for ONE S0 record and ONE person. No step; decides nothing. Reads state, searches and reads the repo at the census commit (D2), proposes (a person accepts, edits or rejects) and runs the factory’s own re-checks as `onboarding.console` allows. Key per S0 record (scope job). Core runs its tools.",
+    note: 'Onboarding console (docs/design/onboarding-console.md): the conversational onboarder for ONE S0 record and ONE person. No step; decides nothing. Reads state, searches and reads the repo at the census commit (D2), proposes (a person accepts, edits or rejects) and runs the factory’s own re-checks as `onboarding.console` allows. Key per S0 record (scope job). Core runs its tools.',
     steps: [],
     contract_version: '1.0.0',
     output_schema_id: 'onboarder.v1',

@@ -58,6 +58,12 @@ permit (principal in Role::"factory.admin", action == Action::"kill.request", re
 @id("role/factory.admin/learn.propose")
 permit (principal in Role::"factory.admin", action == Action::"learn.propose", resource);
 
+@id("role/factory.admin/onboarding.console.steer")
+permit (principal in Role::"factory.admin", action == Action::"onboarding.console.steer", resource);
+
+@id("role/factory.admin/onboarding.console.use")
+permit (principal in Role::"factory.admin", action == Action::"onboarding.console.use", resource);
+
 @id("role/factory.admin/ops.read")
 permit (principal in Role::"factory.admin", action == Action::"ops.read", resource);
 
@@ -109,6 +115,9 @@ permit (principal in Role::"factory.auditor", action == Action::"gate.view", res
 @id("role/factory.auditor/item.view_floor")
 permit (principal in Role::"factory.auditor", action == Action::"item.view_floor", resource);
 
+@id("role/factory.auditor/onboarding.console.use")
+permit (principal in Role::"factory.auditor", action == Action::"onboarding.console.use", resource);
+
 @id("role/factory.auditor/ops.read")
 permit (principal in Role::"factory.auditor", action == Action::"ops.read", resource);
 
@@ -129,6 +138,12 @@ permit (principal in Role::"factory.onboarder", action == Action::"gate.view", r
 
 @id("role/factory.onboarder/item.view_floor")
 permit (principal in Role::"factory.onboarder", action == Action::"item.view_floor", resource);
+
+@id("role/factory.onboarder/onboarding.console.steer")
+permit (principal in Role::"factory.onboarder", action == Action::"onboarding.console.steer", resource);
+
+@id("role/factory.onboarder/onboarding.console.use")
+permit (principal in Role::"factory.onboarder", action == Action::"onboarding.console.use", resource);
 
 @id("role/factory.onboarder/project.onboard")
 permit (principal in Role::"factory.onboarder", action == Action::"project.onboard", resource);
@@ -203,6 +218,12 @@ permit (principal in Role::"project.admin", action == Action::"kill.request", re
 @id("role/project.admin/learn.propose")
 permit (principal in Role::"project.admin", action == Action::"learn.propose", resource);
 
+@id("role/project.admin/onboarding.console.steer")
+permit (principal in Role::"project.admin", action == Action::"onboarding.console.steer", resource);
+
+@id("role/project.admin/onboarding.console.use")
+permit (principal in Role::"project.admin", action == Action::"onboarding.console.use", resource);
+
 @id("role/project.admin/ops.read")
 permit (principal in Role::"project.admin", action == Action::"ops.read", resource);
 
@@ -258,6 +279,9 @@ permit (principal in Role::"project.code_owner", action == Action::"item.unsure"
 @id("role/project.code_owner/item.view_floor")
 permit (principal in Role::"project.code_owner", action == Action::"item.view_floor", resource);
 
+@id("role/project.code_owner/onboarding.console.use")
+permit (principal in Role::"project.code_owner", action == Action::"onboarding.console.use", resource);
+
 @id("role/project.code_owner/project.view")
 permit (principal in Role::"project.code_owner", action == Action::"project.view", resource);
 
@@ -292,6 +316,9 @@ permit (principal in Role::"project.design_approver", action == Action::"item.pl
 @id("role/project.design_approver/item.view_floor")
 permit (principal in Role::"project.design_approver", action == Action::"item.view_floor", resource);
 
+@id("role/project.design_approver/onboarding.console.use")
+permit (principal in Role::"project.design_approver", action == Action::"onboarding.console.use", resource);
+
 @id("role/project.design_approver/project.view")
 permit (principal in Role::"project.design_approver", action == Action::"project.view", resource);
 
@@ -319,6 +346,9 @@ permit (principal in Role::"project.exception_approver", action == Action::"item
 
 @id("role/project.exception_approver/item.view_floor")
 permit (principal in Role::"project.exception_approver", action == Action::"item.view_floor", resource);
+
+@id("role/project.exception_approver/onboarding.console.use")
+permit (principal in Role::"project.exception_approver", action == Action::"onboarding.console.use", resource);
 
 @id("role/project.exception_approver/project.view")
 permit (principal in Role::"project.exception_approver", action == Action::"project.view", resource);
@@ -348,6 +378,9 @@ permit (principal in Role::"project.intent_approver", action == Action::"item.re
 @id("role/project.intent_approver/item.view_floor")
 permit (principal in Role::"project.intent_approver", action == Action::"item.view_floor", resource);
 
+@id("role/project.intent_approver/onboarding.console.use")
+permit (principal in Role::"project.intent_approver", action == Action::"onboarding.console.use", resource);
+
 @id("role/project.intent_approver/project.view")
 permit (principal in Role::"project.intent_approver", action == Action::"project.view", resource);
 
@@ -371,6 +404,9 @@ permit (principal in Role::"project.kill_holder", action == Action::"kill.releas
 
 @id("role/project.kill_holder/kill.request")
 permit (principal in Role::"project.kill_holder", action == Action::"kill.request", resource);
+
+@id("role/project.kill_holder/onboarding.console.use")
+permit (principal in Role::"project.kill_holder", action == Action::"onboarding.console.use", resource);
 
 @id("role/project.kill_holder/project.view")
 permit (principal in Role::"project.kill_holder", action == Action::"project.view", resource);
@@ -400,6 +436,9 @@ permit (principal in Role::"project.onboarding_signer", action == Action::"gate.
 @id("role/project.onboarding_signer/item.view_floor")
 permit (principal in Role::"project.onboarding_signer", action == Action::"item.view_floor", resource);
 
+@id("role/project.onboarding_signer/onboarding.console.use")
+permit (principal in Role::"project.onboarding_signer", action == Action::"onboarding.console.use", resource);
+
 @id("role/project.onboarding_signer/project.view")
 permit (principal in Role::"project.onboarding_signer", action == Action::"project.view", resource);
 
@@ -427,6 +466,9 @@ permit (principal in Role::"project.release_approver", action == Action::"item.r
 
 @id("role/project.release_approver/item.view_floor")
 permit (principal in Role::"project.release_approver", action == Action::"item.view_floor", resource);
+
+@id("role/project.release_approver/onboarding.console.use")
+permit (principal in Role::"project.release_approver", action == Action::"onboarding.console.use", resource);
 
 @id("role/project.release_approver/project.view")
 permit (principal in Role::"project.release_approver", action == Action::"project.view", resource);
@@ -459,6 +501,9 @@ permit (principal in Role::"project.requester", action == Action::"item.ready", 
 @id("role/project.requester/item.view_floor")
 permit (principal in Role::"project.requester", action == Action::"item.view_floor", resource);
 
+@id("role/project.requester/onboarding.console.use")
+permit (principal in Role::"project.requester", action == Action::"onboarding.console.use", resource);
+
 @id("role/project.requester/project.view")
 permit (principal in Role::"project.requester", action == Action::"project.view", resource);
 
@@ -487,6 +532,9 @@ permit (principal in Role::"project.security_approver", action == Action::"gate.
 @id("role/project.security_approver/item.view_floor")
 permit (principal in Role::"project.security_approver", action == Action::"item.view_floor", resource);
 
+@id("role/project.security_approver/onboarding.console.use")
+permit (principal in Role::"project.security_approver", action == Action::"onboarding.console.use", resource);
+
 @id("role/project.security_approver/ops.read")
 permit (principal in Role::"project.security_approver", action == Action::"ops.read", resource);
 
@@ -507,6 +555,9 @@ permit (principal in Role::"project.viewer", action == Action::"gate.view", reso
 
 @id("role/project.viewer/item.view_floor")
 permit (principal in Role::"project.viewer", action == Action::"item.view_floor", resource);
+
+@id("role/project.viewer/onboarding.console.use")
+permit (principal in Role::"project.viewer", action == Action::"onboarding.console.use", resource);
 
 @id("role/project.viewer/project.view")
 permit (principal in Role::"project.viewer", action == Action::"project.view", resource);

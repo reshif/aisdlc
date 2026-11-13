@@ -518,6 +518,27 @@ export const ACTION_CATALOGUE = {
     grants: [{ kind: 'view_level', min: 'V1' }],
     log_allow: false,
   },
+  // Onboarding console (docs/design/onboarding-console.md): chat with the onboarder, and steer it (pause, resume,
+  // stop). Neither decides a gate: every change the agent proposes is a person's request through its own action.
+  'onboarding.console.use': {
+    action_id: 'onboarding.console.use',
+    description: 'Use the onboarding console: read the session and talk to the onboarder',
+    class: 'read',
+    resource_types: ['Fleet', 'Project'],
+    grants: [{ kind: 'view_level', min: 'V1' }],
+    log_allow: false,
+  },
+  'onboarding.console.steer': {
+    action_id: 'onboarding.console.steer',
+    description: 'Pause, resume or stop the onboarder of an onboarding',
+    class: 'write',
+    resource_types: ['Project'],
+    grants: [
+      { kind: 'slots', slots: ['admin'] },
+      { kind: 'roles', roles: [...ADMINS, ...ONBOARDERS] },
+    ],
+    log_allow: true,
+  },
   // Portal v2 (owner decision 2026-11-13, "delete means delete"; docs/specs/deletion.md): one delete per kind. The
   // factory admin holds every one; a project admin deletes the project's own items and repos and the project.
   'project.delete': {

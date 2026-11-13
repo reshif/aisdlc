@@ -57,6 +57,7 @@ export type ConsoleSessionState = z.infer<typeof ConsoleSessionState>;
 export const ConsoleStateCause = z.enum([
   'person',
   'agent_asked',
+  'record_changed',
   'kill_switch',
   'budget',
   'disabled',
@@ -197,6 +198,8 @@ export const SessionTurnPayload = z.strictObject({
   guidelines_revision: z.string().max(80).nullable(),
   /** Observation turns: what changed (`census_ready`, `probe_recorded`, `card_changed`, ...). */
   observed: z.string().max(80).nullable(),
+  /** Observation turns: the hash of the state they describe (the blockers), so the same state is not observed twice. */
+  observed_sha: Sha256Hex.nullable(),
   recorded_at: IsoDateTime,
 });
 export type SessionTurnPayload = z.infer<typeof SessionTurnPayload>;
@@ -283,6 +286,8 @@ export type ConsoleTurn = z.infer<typeof ConsoleTurn>;
 
 export const ConsoleSessionView = z.strictObject({
   s0_id: S0RecordId,
+  project_id: z.string(),
+  started_by: PrincipalId,
   state: ConsoleSessionState,
   cause: ConsoleStateCause.nullable(),
   turns: z.array(ConsoleTurn),
@@ -297,3 +302,36 @@ export const ConsoleSessionView = z.strictObject({
   tier_floor: Tier.nullable(),
 });
 export type ConsoleSessionView = z.infer<typeof ConsoleSessionView>;
+
+// ---------------------------------------------------------------- requests
+
+/** The most a person may type to the onboarder in one message. */
+export const CONSOLE_MESSAGE_MAX = 2000;
+
+/** `POST /v1/s0/:id/console/start`, `.../pause`, `.../resume`, `.../stop`: the person the action is for. */
+export const ConsoleControlRequest = z.strictObject({ on_behalf_of: PrincipalId });
+export type ConsoleControlRequest = z.infer<typeof ConsoleControlRequest>;
+
+/** `POST /v1/s0/:id/console/messages`. */
+export const ConsoleMessageRequest = z.strictObject({
+  on_behalf_of: PrincipalId,
+  text: z.string().min(1).max(CONSOLE_MESSAGE_MAX),
+});
+export type ConsoleMessageRequest = z.infer<typeof ConsoleMessageRequest>;
+
+/** One row of the session list (`/assistant`): a session, what it is about, where it stands. */
+export const ConsoleSessionRow = z.strictObject({
+  s0_id: S0RecordId,
+  project_id: z.string(),
+  subject: z.literal('onboarding'),
+  state: ConsoleSessionState,
+  cause: ConsoleStateCause.nullable(),
+  turns: z.number().int().min(0),
+  started_by: PrincipalId,
+  opened_at: IsoDateTime,
+  updated_at: IsoDateTime,
+});
+export type ConsoleSessionRow = z.infer<typeof ConsoleSessionRow>;
+
+export const ConsoleSessionList = z.strictObject({ sessions: z.array(ConsoleSessionRow) });
+export type ConsoleSessionList = z.infer<typeof ConsoleSessionList>;

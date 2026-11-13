@@ -47,6 +47,8 @@ action "ops.read" appliesTo { principal: [Principal], resource: [Fleet, Project]
 action "session.stop" appliesTo { principal: [Principal], resource: [Fleet, Project] };
 action "quality.read" appliesTo { principal: [Principal], resource: [Fleet, Project] };
 action "assistant.use" appliesTo { principal: [Principal], resource: [Fleet, Project] };
+action "onboarding.console.use" appliesTo { principal: [Principal], resource: [Fleet, Project] };
+action "onboarding.console.steer" appliesTo { principal: [Principal], resource: [Project] };
 action "project.delete" appliesTo { principal: [Principal], resource: [Project] };
 action "repo.delete" appliesTo { principal: [Principal], resource: [Repo] };
 action "item.delete" appliesTo { principal: [Principal], resource: [Item] };

@@ -8,6 +8,7 @@ import { enabledOf, readRegistry } from '@aisdlc/integrations';
 import {
   FakeProvider,
   onboardingFixtureReply,
+  onboarderFixtureReply,
   planningFixtureReply,
   testbedFixtureReply,
   type ModelProviderPort,
@@ -145,10 +146,16 @@ export class RegistryAdapters implements AdapterSource {
         tools_capable: cfg.data.tools_capable ?? row.provider?.tools_capable ?? true,
         // portal v2: the onboarding agent's call has its own canned answer on either fixture set
         ...(cfg.data.fixtures === 'planning'
-          ? { respond: (r) => onboardingFixtureReply(r) ?? planningFixtureReply(r) }
+          ? {
+              respond: (r) =>
+                onboarderFixtureReply(r) ?? onboardingFixtureReply(r) ?? planningFixtureReply(r),
+            }
           : {}),
         ...(cfg.data.fixtures === 'testbed'
-          ? { respond: (r) => onboardingFixtureReply(r) ?? testbedFixtureReply(r) }
+          ? {
+              respond: (r) =>
+                onboarderFixtureReply(r) ?? onboardingFixtureReply(r) ?? testbedFixtureReply(r),
+            }
           : {}),
       });
     }

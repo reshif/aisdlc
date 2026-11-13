@@ -2131,6 +2131,16 @@
       "explain": "Ask the factory questions about what you can see.",
       "code": "audit"
     },
+    "onboarding.console.use": {
+      "label": "Use the onboarding console",
+      "explain": "Read the onboarding session and talk to the onboarder.",
+      "code": "audit"
+    },
+    "onboarding.console.steer": {
+      "label": "Steer the onboarder",
+      "explain": "Pause, resume or stop the onboarder of an onboarding.",
+      "code": "audit"
+    },
     "project.delete": {
       "label": "Delete a project",
       "explain": "Remove the project, its repos and work, and all their data for good; the log keeps hashes only.",

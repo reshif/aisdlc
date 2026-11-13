@@ -10,6 +10,8 @@ export { cardsLoop, type CardsLoopOptions } from './cards/loop.js';
 export { instructionTemplateFrom } from './cards/light.js';
 export { probeFilesOf, probeLoop, runOnboardingProbe, type ProbeDeps } from './cards/probe.js';
 export { packLoop, projectFullPack, projectPack, type PackDeps } from './cards/pack.js';
+export { onboardingConsoleLoop } from './onboarding-console/loop.js';
+export { consoleDepsFrom } from './onboarding-console/wire.js';
 export {
   FakeOnboardingAgent,
   GatewayOnboardingAgent,

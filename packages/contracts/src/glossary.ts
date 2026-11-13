@@ -1259,6 +1259,16 @@ const action: Readonly<Record<ActionId, Term>> = {
     'Ask the factory questions about what you can see.',
     'audit',
   ),
+  'onboarding.console.use': t(
+    'Use the onboarding console',
+    'Read the onboarding session and talk to the onboarder.',
+    'audit',
+  ),
+  'onboarding.console.steer': t(
+    'Steer the onboarder',
+    'Pause, resume or stop the onboarder of an onboarding.',
+    'audit',
+  ),
   // glossary.md "Delete (NEW)": remove the object and all its data for good; the log keeps hashes only.
   'project.delete': t(
     'Delete a project',

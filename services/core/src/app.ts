@@ -157,6 +157,8 @@ import {
   settingsRevision,
 } from './portal-reads.js';
 import type { AssistantDeps } from './conversation/assistant.js';
+import { registerConsoleRoutes } from './onboarding-console/routes.js';
+import type { ConsoleDeps } from './onboarding-console/engine.js';
 import { registerAssistantRoutes } from './conversation/routes.js';
 import { registerIssueTwinRoutes } from './issue-twin/routes.js';
 import { registerDriftRoutes } from './drift/routes.js';
@@ -245,6 +247,8 @@ export interface CoreAppOptions {
   readonly grounding?: GroundingPort;
   /** The assistant (M18): the onboarding assistant and "Ask the factory"; without it those routes answer `unavailable`. */
   readonly assistant?: AssistantDeps;
+  /** The onboarding console (docs/design/onboarding-console.md); without it its routes answer `unavailable`. */
+  readonly console?: ConsoleDeps;
   /** P2-8: the gateway's live view of a budget group (limits, reservations); default: the assistant's admin client. */
   readonly budgets?: BudgetViewPort;
   /** P2-21: the code host's installation repos for the onboard picker; default: the cards' code host reads. */
@@ -2359,6 +2363,23 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     app,
     assistant: o.assistant,
     allowed: (req) => allowed(req, 'work'),
+    guard,
+    decide: async (principal, action, resource) => {
+      if (!o.pdp) return false;
+      try {
+        return (await o.pdp.decide({ principal, action, resource })).decision === 'allow';
+      } catch {
+        return false;
+      }
+    },
+  });
+
+  // ------------------------------------------------------------ the onboarding console
+
+  registerConsoleRoutes({
+    app,
+    console: o.console,
+    allowed: (req, scope) => allowed(req, scope as CoreScope),
     guard,
     decide: async (principal, action, resource) => {
       if (!o.pdp) return false;

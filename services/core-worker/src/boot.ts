@@ -56,6 +56,8 @@ import {
   probeLoop,
   packLoop,
   onboardingAgentLoop,
+  onboardingConsoleLoop,
+  consoleDepsFrom,
   FakeOnboardingAgent,
   GatewayOnboardingAgent,
   driftLoop,
@@ -96,6 +98,7 @@ import { HttpNotary } from '@aisdlc/notary/client';
 import { HttpWitness } from '@aisdlc/witness/client';
 import {
   FakeCapacity,
+  admitAgentWork,
   FakeStagePorts,
   scriptVerifyExceptions,
   FileRegisteredRepos,
@@ -793,6 +796,42 @@ export async function bootCoreWorker(
               },
             },
             { intervalMs: cfg.cardsIntervalMs, startDelayMs: 4_000 },
+          ),
+        );
+      }
+      if (cfg.knowledge && ledger && cfg.stagePorts === 'agents' && cfg.gateway) {
+        // onboarding console: the onboarder answers what moved in an onboarding (an observation turn when its blockers
+        // change). The kill switch is asked per project before every wake (unreachable is a kill); reading only
+        const consoleDeps = consoleDepsFrom({
+          cards: cardDepsFrom({
+            pool,
+            readPool,
+            registry,
+            ledger,
+            eligibility: identityEligibility(readPool, registry),
+            stepUp: new RefusingStepUp(),
+            knowledge: new HttpKnowledge({
+              baseUrl: cfg.knowledge.url,
+              token: cfg.knowledge.token,
+            }),
+            source,
+            settings: s0SettingsFrom(rd),
+            instructionTemplate: instructionTemplateFrom(rd),
+            lightTests: lightTestsFrom(rd),
+            maintenance: maintenanceFrom(rd),
+          }),
+          knowledge: cfg.knowledge,
+          gateway: cfg.gateway,
+          extraModels: cfg.agentExtraModels,
+        });
+        supervisor.add(
+          onboardingConsoleLoop(
+            {
+              ...consoleDeps,
+              admit: async (project_id) =>
+                killState ? (await admitAgentWork(killState, { project_id })).admitted : false,
+            },
+            { intervalMs: cfg.cardsIntervalMs * 2, startDelayMs: 8_000 },
           ),
         );
       }

@@ -27,6 +27,7 @@ import { IdentityFactoryAdmins } from './factory-m1.js';
 import { cardDepsFrom, identityEligibility } from './card-wiring.js';
 import { HttpAccessGrants, HttpKnowledge } from './clients.js';
 import { assistantDepsFrom } from './conversation/wire.js';
+import { consoleDepsFrom } from './onboarding-console/wire.js';
 import { CensusGrounding } from './planning/grounding.js';
 import { coreConfigFromEnv } from './config.js';
 import { s0SettingsFrom } from './driver.js';
@@ -171,6 +172,16 @@ export async function bootCore(env: Env): Promise<RunningService> {
             extraModels: cfg.assistant.extraModels,
           })
         : undefined;
+    // the onboarding console: the same gateway and knowledge as the assistant, the cards' deps for what it reads
+    const onboardingConsole =
+      cfg.assistant && cfg.cards && cards
+        ? consoleDepsFrom({
+            cards,
+            knowledge: cfg.cards.knowledge,
+            gateway: cfg.assistant.gateway,
+            extraModels: cfg.assistant.extraModels,
+          })
+        : undefined;
     const app = createCoreApp({
       pool,
       auth: cfg.auth,
@@ -180,6 +191,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(config ? { config } : {}),
       ...(cards ? { cards } : {}),
       ...(assistant ? { assistant } : {}),
+      ...(onboardingConsole ? { console: onboardingConsole } : {}),
       ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
       // portal v2 N15: the write-only secret API's store
       ...(cfg.vault ? { secretStore: new VaultSecretStore(cfg.vault) } : {}),

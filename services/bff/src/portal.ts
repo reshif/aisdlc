@@ -1,4 +1,7 @@
 import {
+  ConsoleMessageRequest,
+  ConsoleSessionList,
+  ConsoleSessionView,
   OnboardingBlockers,
   OnboardingSummaryView,
   SignOffRequest,
@@ -124,6 +127,9 @@ import type { Levels } from './levels.js';
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/s0/:id/summary              portal v2: the one onboarding summary        (project.view)
 //   GET  /api/s0/:id/blockers             onboarding console: why it is stuck, whose move  (project.view)
+//   GET  /api/s0/:id/console              onboarding console: the session                 (project.view + onboarding.console.use)
+//   POST /api/s0/:id/console/{start,messages,pause,resume,stop}   (steering also onboarding.console.steer, in core)
+//   GET  /api/console/sessions            the console session list                        (the same, per project)
 //   POST /api/s0/:id/sign-off             portal v2: the one sign-off                  (card.decide, in core)
 //   POST /api/s0/:id/agent/run            portal v2: ask the onboarding agent again    (project.onboard, in core)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
@@ -1320,6 +1326,64 @@ export function registerPortalRoutes(d: PortalDeps): void {
       reply,
       await c.call('GET', `/v1/s0/${id}/blockers?on_behalf_of=${encodeURIComponent(who)}`),
       (v) => OnboardingBlockers.parse(v),
+    )?.value;
+  });
+
+  // ------------------------------------------------------------ the onboarding console (P2)
+
+  /** The console session of an onboarding (404 until a person starts it); core asks the PDP's `project.view` and `onboarding.console.use`. */
+  app.get('/api/s0/:id/console', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    if (!(await viewableS0(req, reply, c, id))) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('GET', `/v1/s0/${id}/console?on_behalf_of=${encodeURIComponent(who)}`),
+      (v) => ConsoleSessionView.parse(v),
+    )?.value;
+  });
+
+  app.post('/api/s0/:id/console/messages', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const body = ConsoleMessageRequest.omit({ on_behalf_of: true }).safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    if (!(await viewableS0(req, reply, c, id))) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('POST', `/v1/s0/${id}/console/messages`, { ...body.data, on_behalf_of: who }),
+      (v) => ConsoleSessionView.parse(v),
+    )?.value;
+  });
+
+  for (const action of ['start', 'pause', 'resume', 'stop'] as const) {
+    app.post(`/api/s0/:id/console/${action}`, async (req, reply) => {
+      const c = core(reply);
+      const id = idParam(req, reply);
+      if (!c || !id) return;
+      if (!(await viewableS0(req, reply, c, id))) return;
+      const who = d.principalOf(req);
+      return upstream(
+        reply,
+        await c.call('POST', `/v1/s0/${id}/console/${action}`, { on_behalf_of: who }),
+        (v) => ConsoleSessionView.parse(v),
+      )?.value;
+    });
+  }
+
+  /** The session list (`/assistant`): the sessions this person may see. */
+  app.get('/api/console/sessions', async (req, reply) => {
+    const c = core(reply);
+    if (!c) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('GET', `/v1/console/sessions?on_behalf_of=${encodeURIComponent(who)}`),
+      (v) => ConsoleSessionList.parse(v),
     )?.value;
   });
 

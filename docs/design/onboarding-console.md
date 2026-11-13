@@ -70,3 +70,16 @@
 - The test-command fix now writes a `Makefile` or `justfile` with a `test` target (what the task-contract detector reads), never `.factory/test-command`. Because fix files replace whole files and the factory never replaces an existing one, a task file the census already saw (or an unreadable census: fail closed) drops the fix, and a file with no `test` target is dropped. The person-attested `s0.test_command_declared` event is deferred to P4 (accept/edit/reject chips), where the person's choice is recorded.
 - `explainS0` lives in `packages/onboarding/src/explain.ts` and is pure over an input the core reads (`services/core/src/onboarding-v2/blockers.ts`); the signing arithmetic is `signoffFeasibility` in `@aisdlc/decisions` (the same `planQuorum` the gate applies, asked before the gate opens). It is not `gateFeasibility`, because no gate is open yet at C1 time.
 - The tier warning is per tier on the role map the factory proposes (`role_map.m4_by_tier` in the summary), shown on the Risk selector. It does not yet follow edits to the draft role map: the blocker list and the warning refresh after a save.
+
+### P1
+- The agent's output schema id is `onboarder.v1` (the registry requires `name.vN`), not `onboarder.turn.v1`.
+- The onboarder's tools are named in `AgentTool` (`OnboardingRead`, `RepoRead`, `OnboardingPropose`, `OnboardingAct`) so the gateway key carries them; core runs them and offers only those it can run (P2: `OnboardingRead`, `KnowledgeSearch`).
+- Guidelines (`onboarding.agent_guidelines`) are registered and glossary-listed in P1, but not yet read into the context (P5).
+
+### P2
+- The tool loop is in core (`services/core/src/onboarding-console/engine.ts`) on the assistant's pattern, behind a model port (`OnboarderModelPort`: `GatewayOnboarderModel`, `ScriptedOnboarderModel`). A wake runs inline in the person's request (start, message, resume) and in the `onboarding_console` loop of core-worker (agents mode only, kill switch asked per project, unreachable is a kill).
+- The key is per wake: minted from the contract with scope `job` `onboarding:<s0>` on budget group `onboarding_console:<s0>`, revoked when the wake ends. So "stop revokes the key" holds by construction; pause and stop end new model calls.
+- Session text is kept in `core.console_payload` (own table naming the S0 id, so a deletion of the onboarding sweeps it) rather than the assistant's `conversation_payload`. It is not yet exposed to the audit service's erasure port (`ErasablePayloadsPort`); the stream type `onboarding-session` is in the deletion engine's project stream types.
+- PDP: `onboarding.console.use` (a V1 read, like `assistant.use`) and `onboarding.console.steer` (project admin, factory admin and onboarder roles). The routes ask `project.view` and `onboarding.console.use`, steering also `onboarding.console.steer`.
+- P2 offers read tools only. `RepoRead`, `OnboardingPropose` and `OnboardingAct` are refused if called; the proposal tables and events exist and fold, and are used from P4. Context guidelines come in P5.
+- The observation is the blockers' fingerprint (ids, codes, owners): the same state is never observed twice. Tests do not yet drive a record change through a decided card; that is covered when P4 wires the card routes.

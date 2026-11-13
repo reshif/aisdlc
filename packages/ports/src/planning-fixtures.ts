@@ -221,6 +221,25 @@ export const ONBOARDING_FIXTURE = {
   gap_suggestions: [],
 };
 
+/**
+ * The onboarding console's canned answer on a local stack (its system prompt is the registry's `onboarder@` file): one
+ * valid `onboarder.v1` turn that reads nothing and cites nothing. The factory still judges it like any other answer.
+ */
+export const ONBOARDER_FIXTURE = {
+  kind: 'turn',
+  text: 'I looked at where this onboarding stands. The list on the left says what is in the way and whose move it is; tell me what you want to look at first.',
+  citations: [],
+  next: 'await_person',
+  noticed: [],
+};
+
+/** The fixture reply for the onboarder's call; `undefined` for any other call. */
+export function onboarderFixtureReply(req: ModelCompleteRequest): ScriptedReply | undefined {
+  return req.system?.startsWith('# onboarder @')
+    ? { text: JSON.stringify(ONBOARDER_FIXTURE) }
+    : undefined;
+}
+
 /** The fixture reply for the onboarding agent's call; `undefined` for any other call. */
 export function onboardingFixtureReply(req: ModelCompleteRequest): ScriptedReply | undefined {
   return req.system?.startsWith('# onboarding @')

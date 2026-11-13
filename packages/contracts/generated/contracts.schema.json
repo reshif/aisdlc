@@ -1130,6 +1130,8 @@
                     "session.stop",
                     "quality.read",
                     "assistant.use",
+                    "onboarding.console.use",
+                    "onboarding.console.steer",
                     "project.delete",
                     "repo.delete",
                     "item.delete",
@@ -2879,6 +2881,8 @@
         "session.stop",
         "quality.read",
         "assistant.use",
+        "onboarding.console.use",
+        "onboarding.console.steer",
         "project.delete",
         "repo.delete",
         "item.delete",
@@ -11247,6 +11251,8 @@
                         "session.stop",
                         "quality.read",
                         "assistant.use",
+                        "onboarding.console.use",
+                        "onboarding.console.steer",
                         "project.delete",
                         "repo.delete",
                         "item.delete",
@@ -32604,6 +32610,40 @@
         "off"
       ]
     },
+    "ConsoleControlRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "ConsoleMessageRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "ConsoleProposal": {
       "type": "object",
       "properties": {
@@ -32690,22 +32730,109 @@
         "signoff_feasibility"
       ]
     },
-    "ConsoleSessionState": {
-      "type": "string",
-      "enum": [
-        "running",
-        "awaiting_person",
-        "paused",
-        "stopped",
-        "done"
-      ]
+    "ConsoleSessionList": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "s0_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "project_id": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string",
+                "const": "onboarding"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "awaiting_person",
+                  "paused",
+                  "stopped",
+                  "done"
+                ]
+              },
+              "cause": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "agent_asked",
+                      "record_changed",
+                      "kill_switch",
+                      "budget",
+                      "disabled",
+                      "onboarding_closed",
+                      "error"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "turns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "started_by": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "opened_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "s0_id",
+              "project_id",
+              "subject",
+              "state",
+              "cause",
+              "turns",
+              "started_by",
+              "opened_at",
+              "updated_at"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "sessions"
+      ],
+      "additionalProperties": false
     },
-    "ConsoleSessionView": {
+    "ConsoleSessionRow": {
       "type": "object",
       "properties": {
         "s0_id": {
           "type": "string",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string",
+          "const": "onboarding"
         },
         "state": {
           "type": "string",
@@ -32724,6 +32851,96 @@
               "enum": [
                 "person",
                 "agent_asked",
+                "record_changed",
+                "kill_switch",
+                "budget",
+                "disabled",
+                "onboarding_closed",
+                "error"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "started_by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "opened_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "s0_id",
+        "project_id",
+        "subject",
+        "state",
+        "cause",
+        "turns",
+        "started_by",
+        "opened_at",
+        "updated_at"
+      ],
+      "additionalProperties": false
+    },
+    "ConsoleSessionState": {
+      "type": "string",
+      "enum": [
+        "running",
+        "awaiting_person",
+        "paused",
+        "stopped",
+        "done"
+      ]
+    },
+    "ConsoleSessionView": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "started_by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "awaiting_person",
+            "paused",
+            "stopped",
+            "done"
+          ]
+        },
+        "cause": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "person",
+                "agent_asked",
+                "record_changed",
                 "kill_switch",
                 "budget",
                 "disabled",
@@ -32872,6 +33089,8 @@
       },
       "required": [
         "s0_id",
+        "project_id",
+        "started_by",
         "state",
         "cause",
         "turns",
@@ -32885,6 +33104,7 @@
       "enum": [
         "person",
         "agent_asked",
+        "record_changed",
         "kill_switch",
         "budget",
         "disabled",
@@ -35351,6 +35571,8 @@
             "session.stop",
             "quality.read",
             "assistant.use",
+            "onboarding.console.use",
+            "onboarding.console.steer",
             "project.delete",
             "repo.delete",
             "item.delete",
@@ -35529,6 +35751,8 @@
                   "session.stop",
                   "quality.read",
                   "assistant.use",
+                  "onboarding.console.use",
+                  "onboarding.console.steer",
                   "project.delete",
                   "repo.delete",
                   "item.delete",
@@ -35701,6 +35925,8 @@
                   "session.stop",
                   "quality.read",
                   "assistant.use",
+                  "onboarding.console.use",
+                  "onboarding.console.steer",
                   "project.delete",
                   "repo.delete",
                   "item.delete",
@@ -36068,6 +36294,8 @@
             "session.stop",
             "quality.read",
             "assistant.use",
+            "onboarding.console.use",
+            "onboarding.console.steer",
             "project.delete",
             "repo.delete",
             "item.delete",
@@ -47672,6 +47900,8 @@
               "session.stop",
               "quality.read",
               "assistant.use",
+              "onboarding.console.use",
+              "onboarding.console.steer",
               "project.delete",
               "repo.delete",
               "item.delete",
@@ -94786,6 +95016,8 @@
                   "session.stop",
                   "quality.read",
                   "assistant.use",
+                  "onboarding.console.use",
+                  "onboarding.console.steer",
                   "project.delete",
                   "repo.delete",
                   "item.delete",
@@ -94877,6 +95109,8 @@
                     "session.stop",
                     "quality.read",
                     "assistant.use",
+                    "onboarding.console.use",
+                    "onboarding.console.steer",
                     "project.delete",
                     "repo.delete",
                     "item.delete",
@@ -95100,6 +95334,8 @@
               "session.stop",
               "quality.read",
               "assistant.use",
+              "onboarding.console.use",
+              "onboarding.console.steer",
               "project.delete",
               "repo.delete",
               "item.delete",
@@ -120729,6 +120965,8 @@
             "session.stop",
             "quality.read",
             "assistant.use",
+            "onboarding.console.use",
+            "onboarding.console.steer",
             "project.delete",
             "repo.delete",
             "item.delete",
@@ -139915,6 +140153,7 @@
           "enum": [
             "person",
             "agent_asked",
+            "record_changed",
             "kill_switch",
             "budget",
             "disabled",
@@ -140160,6 +140399,17 @@
             }
           ]
         },
+        "observed_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "recorded_at": {
           "type": "string",
           "format": "date-time",
@@ -140174,6 +140424,7 @@
         "prompt_sha256",
         "guidelines_revision",
         "observed",
+        "observed_sha",
         "recorded_at"
       ],
       "additionalProperties": false
@@ -148119,6 +148370,8 @@
                         "session.stop",
                         "quality.read",
                         "assistant.use",
+                        "onboarding.console.use",
+                        "onboarding.console.steer",
                         "project.delete",
                         "repo.delete",
                         "item.delete",
@@ -149042,6 +149295,8 @@
                   "session.stop",
                   "quality.read",
                   "assistant.use",
+                  "onboarding.console.use",
+                  "onboarding.console.steer",
                   "project.delete",
                   "repo.delete",
                   "item.delete",
@@ -149556,6 +149811,8 @@
                   "session.stop",
                   "quality.read",
                   "assistant.use",
+                  "onboarding.console.use",
+                  "onboarding.console.steer",
                   "project.delete",
                   "repo.delete",
                   "item.delete",

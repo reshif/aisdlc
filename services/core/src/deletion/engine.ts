@@ -93,6 +93,7 @@ export const PROJECT_STREAM_TYPES: readonly string[] = [
   'push',
   'handoff',
   'thread',
+  'onboarding-session',
   'merge',
   'finding',
   'binding',

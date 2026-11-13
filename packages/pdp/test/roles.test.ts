@@ -23,6 +23,8 @@ const VIEWS: ActionId[] = [
   'item.view_floor',
   'gate.view',
   'assistant.use',
+  // onboarding console: reading the session and talking to the onboarder are V1 reads
+  'onboarding.console.use',
 ];
 /** M15.5: the close-out record is a V2 read. */
 const V2: ActionId[] = [...VIEWS, 'closeout.read'];
@@ -63,6 +65,8 @@ const EXPECTED: Record<
       'repo.delete',
       'item.delete',
       'binding.delete',
+      // onboarding console: pause, resume, stop the onboarder
+      'onboarding.console.steer',
     ],
     decides: (g) => GATE_POLICIES[g as keyof typeof GATE_POLICIES].slot === 'admin',
     cards: true,
@@ -135,6 +139,7 @@ const EXPECTED: Record<
       'ops.read',
       'session.stop',
       'quality.read',
+      'onboarding.console.steer',
     ],
     // Owner decision 2026-11-13: nothing applies to the factory admin. Every action on every resource, every gate and
     // card; what the role map does not grant is the override (`xcut/factory_admin_override`), checked below.
@@ -143,7 +148,10 @@ const EXPECTED: Record<
     cards: true,
   },
   // Fleet-bound: onboarding anywhere, and V1 reads. It decides no gate and no card.
-  'factory.onboarder': { actions: [...VIEWS, 'project.onboard'], decides: () => false },
+  'factory.onboarder': {
+    actions: [...VIEWS, 'project.onboard', 'onboarding.console.steer'],
+    decides: () => false,
+  },
   'factory.auditor': {
     // PLAN §7a: the auditor reads Operate and Quality too, and changes nothing
     actions: [...V2, 'audit.read', 'access.explain', 'ops.read', 'quality.read'],

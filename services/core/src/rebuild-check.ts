@@ -8,6 +8,7 @@ import type pg from 'pg';
 import { agentRunProjection } from './agent-runs.js';
 import { rebuildUnits } from './admission/fold.js';
 import { conversationProjection } from './conversation/store.js';
+import { consoleProjection } from './onboarding-console/store.js';
 import { evalRunProjection } from './evals.js';
 import { sessionActivityProjection } from './floor-live.js';
 import { floorProjection } from './floor.js';
@@ -38,6 +39,7 @@ export const CHECKED_PROJECTIONS: readonly Projection[] = [
   sessionActivityProjection,
   evalRunProjection,
   conversationProjection,
+  consoleProjection,
 ] as readonly Projection[];
 
 /** The tables the per-item rebuilds own, hashed row by row (`row::text`, sorted). */
