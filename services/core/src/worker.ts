@@ -11,6 +11,13 @@ export { instructionTemplateFrom } from './cards/light.js';
 export { probeFilesOf, probeLoop, runOnboardingProbe, type ProbeDeps } from './cards/probe.js';
 export { packLoop, projectFullPack, projectPack, type PackDeps } from './cards/pack.js';
 export {
+  FakeOnboardingAgent,
+  GatewayOnboardingAgent,
+  onboardingAgentLoop,
+  runOnboardingAgent,
+  type OnboardingAgentPort,
+} from './onboarding-v2/agent.js';
+export {
   driftLoop,
   checkDrift,
   pollAffirmedFiles,

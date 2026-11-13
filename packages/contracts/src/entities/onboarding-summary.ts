@@ -54,7 +54,17 @@ export const OnboardingSignOffStartedPayload = z.strictObject({
   by: PrincipalId,
   /** The factory admin signed outside the rules: the reason (recorded, never blocking). */
   override_reason: z.string().max(2000).nullable(),
+  /**
+   * What the person signed, recorded once: each card is decided with exactly this content when the driver opens it,
+   * so a page reloaded between two cards loses nothing. No secret: these are the cards' own decision contents.
+   */
+  content: z.strictObject({
+    c1: C1DecisionContent,
+    c4: C4DecisionContent,
+    c2: C2DecisionContent.optional(),
+  }),
 });
+export type OnboardingSignOffStartedPayload = z.infer<typeof OnboardingSignOffStartedPayload>;
 
 // ---------------------------------------------------------------- the summary (N12)
 
@@ -227,16 +237,30 @@ export const OnboardingSummaryView = z.strictObject({
     step_up: z.strictObject({ bound_hash: Sha256Hex, card: CardKind }).nullable(),
     started_by: z.string().nullable(),
   }),
-  /** sha256 of what the person is shown (everything above but `summary_hash` and `sign_off`). */
+  /** `onboardingSummaryHash` of this view. */
   summary_hash: Sha256Hex,
 });
 export type OnboardingSummaryView = z.infer<typeof OnboardingSummaryView>;
 
-/** The hash a sign-off is bound to: the canonical JSON of the summary minus its hash and the sign-off state. */
-export function onboardingSummaryHash(v: object): string {
-  return hashCanonical(
-    Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'summary_hash' && k !== 'sign_off')),
-  );
+/**
+ * The hash a sign-off is bound to: what the person is asked to agree to (the repo, the level, the agent's proposal,
+ * the census, the controls, the role map, card 2's proposal, the readiness to sign, the fixes), never the progress
+ * around it (steps, cards, a PR's state), so the page's polling does not move it.
+ */
+export function onboardingSummaryHash(v: OnboardingSummaryView): string {
+  return hashCanonical({
+    s0_id: v.s0_id,
+    repo: v.repo,
+    requested_level: v.requested_level,
+    signable_level: v.signable_level,
+    agent: v.agent === null ? null : v.agent.output_hash,
+    census: v.census,
+    controls: v.controls,
+    role_map: v.role_map,
+    light: v.light,
+    readiness: v.readiness,
+    fixes: v.fixes.map((f) => ({ fix_id: f.fix_id, fix_kind: f.fix_kind, paths: f.paths })),
+  });
 }
 
 // ---------------------------------------------------------------- the one sign-off (N13)
@@ -249,10 +273,12 @@ export function onboardingSummaryHash(v: object): string {
  */
 export const SignOffRequest = z.strictObject({
   on_behalf_of: PrincipalId,
-  summary_hash: Sha256Hex,
-  c1: C1DecisionContent,
+  /** The summary read; checked when the sign-off starts. */
+  summary_hash: Sha256Hex.optional(),
+  /** Required to start; absent on a continuation (the content recorded at the start is used). */
+  c1: C1DecisionContent.optional(),
   /** `controls_report_hash` is the summary's; a card 4 opened on another report stops the sign-off. */
-  c4: C4DecisionContent,
+  c4: C4DecisionContent.optional(),
   c2: C2DecisionContent.optional(),
   step_up: z.strictObject({ proof: z.string().min(1), bound_hash: Sha256Hex }).optional(),
 });

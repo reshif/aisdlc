@@ -55,6 +55,9 @@ import {
   probeFilesOf,
   probeLoop,
   packLoop,
+  onboardingAgentLoop,
+  FakeOnboardingAgent,
+  GatewayOnboardingAgent,
   driftLoop,
   lightTestsFrom,
   workDriverLoop,
@@ -721,6 +724,75 @@ export async function bootCoreWorker(
                 : {}),
             },
             { intervalMs: cfg.cardsIntervalMs * 2, startDelayMs: 6_000 },
+          ),
+        );
+        // portal v2 (intent §4): the onboarding agent reads each record's census and controls once card 1 is open and
+        // proposes the summary and its fixes; the fixes take the same pack path (recorded, their own X2, a draft PR only
+        // once approved; the factory never merges). Through the gateway with CORE_WORKER_STAGE_PORTS=agents, else the
+        // deterministic fake (the same facts give the same proposal)
+        supervisor.add(
+          onboardingAgentLoop(
+            {
+              cards: cardDepsFrom({
+                pool,
+                readPool,
+                registry,
+                ledger,
+                eligibility: identityEligibility(readPool, registry),
+                stepUp: new RefusingStepUp(),
+                knowledge: new HttpKnowledge({
+                  baseUrl: cfg.knowledge.url,
+                  token: cfg.knowledge.token,
+                }),
+                source,
+                settings: s0SettingsFrom(rd),
+                instructionTemplate: instructionTemplateFrom(rd),
+                lightTests: lightTestsFrom(rd),
+                maintenance: maintenanceFrom(rd),
+              }),
+              agent:
+                cfg.stagePorts === 'agents' && cfg.gateway
+                  ? new GatewayOnboardingAgent({
+                      keys: new GatewayAgentKeys(
+                        new GatewayAdminClient({
+                          baseUrl: cfg.gateway.url,
+                          token: cfg.gateway.token,
+                        }),
+                        { extraModels: cfg.agentExtraModels },
+                      ),
+                      gateway: { baseUrl: cfg.gateway.url },
+                    })
+                  : new FakeOnboardingAgent(),
+              pack: {
+                cards: cardDepsFrom({
+                  pool,
+                  readPool,
+                  registry,
+                  ledger,
+                  eligibility: identityEligibility(readPool, registry),
+                  stepUp: new RefusingStepUp(),
+                  knowledge: new HttpKnowledge({
+                    baseUrl: cfg.knowledge.url,
+                    token: cfg.knowledge.token,
+                  }),
+                  source,
+                  settings: s0SettingsFrom(rd),
+                  instructionTemplate: instructionTemplateFrom(rd),
+                  lightTests: lightTestsFrom(rd),
+                  maintenance: maintenanceFrom(rd),
+                }),
+                push: { pool, ledger },
+                ...(cfg.pushBroker
+                  ? {
+                      broker: new HttpCodeHostPush({
+                        baseUrl: cfg.pushBroker.url,
+                        token: cfg.pushBroker.token,
+                      }),
+                    }
+                  : {}),
+              },
+            },
+            { intervalMs: cfg.cardsIntervalMs, startDelayMs: 4_000 },
           ),
         );
       }
