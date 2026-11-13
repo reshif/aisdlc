@@ -4,7 +4,6 @@
   "assistant/OnboardingAssistant.tsx": 2,
   "cards/C2Form.tsx": 3,
   "cards/C3Form.tsx": 4,
-  "config/ConfigConsole.tsx": 2,
   "floor/FleetPage.tsx": 2,
   "items/DocumentsTab.tsx": 1,
   "items/PlanForm.tsx": 1,
@@ -18,6 +17,5 @@
   "pages/KnowledgePage.tsx": 1,
   "pages/LearnPage.tsx": 5,
   "pages/PackPage.tsx": 1,
-  "pages/PrrPage.tsx": 3,
-  "pages/QualityPages.tsx": 2
+  "pages/PrrPage.tsx": 3
 }

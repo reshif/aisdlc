@@ -2,7 +2,10 @@ import {
   OnboardingSummaryView,
   SignOffRequest,
   SignOffResult,
+  ADMIN_OVERRIDE_POLICY_ID,
   AgentId,
+  SettingPreview,
+  SettingPreviewRequest,
   AgentRunsView,
   AgentScoresView,
   AgentStats,
@@ -199,6 +202,24 @@ export function registerPortalRoutes(d: PortalDeps): void {
   async function allowed(principal: string, action: ActionId, resource: PdpResource) {
     try {
       return (await d.pdp.decide({ principal, action, resource })).decision === 'allow';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Whether the person is a factory admin who may apply a settings change alone (the override: the PDP's reasons
+   * name the factory admin's override policy). A hint for the "Apply now" button; core's decision kernel checks the
+   * person again and records the reason.
+   */
+  async function isFactoryAdmin(principal: string): Promise<boolean> {
+    try {
+      const out = await d.pdp.decide({
+        principal,
+        action: 'config.decide',
+        resource: pdpResource.fleet(),
+      });
+      return out.decision === 'allow' && out.reasons.includes(ADMIN_OVERRIDE_POLICY_ID);
     } catch {
       return false;
     }
@@ -528,7 +549,9 @@ export function registerPortalRoutes(d: PortalDeps): void {
     const got = upstream(reply, await r.c.call('GET', '/v1/config/keys'), (v) =>
       z.array(ConfigKeySummary).parse(v),
     );
-    return got ? { keys: got.value, may_propose: r.propose } : undefined;
+    return got
+      ? { keys: got.value, may_propose: r.propose, may_apply_now: await isFactoryAdmin(r.who) }
+      : undefined;
   });
 
   app.get('/api/config/keys/:key', async (req, reply) => {
@@ -542,7 +565,34 @@ export function registerPortalRoutes(d: PortalDeps): void {
     const ids = new Set<string>();
     for (const h of got.value.history) ids.add(h.proposed_by);
     for (const p of got.value.pending) for (const h of p.deciders.holders) ids.add(h);
-    return { ...got.value, may_propose: r.propose, principal_names: await names([...ids]) };
+    return {
+      ...got.value,
+      may_propose: r.propose,
+      may_apply_now: await isFactoryAdmin(r.who),
+      principal_names: await names([...ids]),
+    };
+  });
+
+  // portal v2 N8: what a draft would change, before it is proposed (core reads; nothing is written)
+  app.post('/api/config/keys/:key/preview', async (req, reply) => {
+    const c = core(reply);
+    const key = c ? configKey(req, reply) : null;
+    if (!c || !key) return;
+    const body = SettingPreviewRequest.safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', 'the body is {value}');
+    const who = d.principalOf(req);
+    if (!(await allowed(who, 'config.propose', pdpResource.fleet()))) {
+      return deny(reply, 'config.propose');
+    }
+    const got = upstream(
+      reply,
+      await c.call('POST', `/v1/config/keys/${key}/preview`, {
+        value: body.data.value,
+        on_behalf_of: who,
+      }),
+      (v) => SettingPreview.parse(v),
+    );
+    return got ? got.value : undefined;
   });
 
   app.post('/api/config/keys/:key/proposals', async (req, reply) => {

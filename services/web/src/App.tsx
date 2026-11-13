@@ -15,7 +15,7 @@ import { OnboardRecord } from './onboard/OnboardRecord';
 import { ProjectPage } from './projects/ProjectPage';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { ProjectsPage } from './projects/ProjectsPage';
-import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
+import { SettingPage, SettingsPage } from './settings/SettingsPage';
 import { MyAccessPage } from './me/MyAccess';
 import { MyNotificationsPage } from './me/MyNotifications';
 import { MyProfilePage } from './me/MyProfile';
@@ -32,18 +32,13 @@ import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
 import { AccessRequestPage, AccessRequestsPage } from './people/AccessRequests';
 import { FloorPage } from './floor/FloorPage';
 import { FleetPage } from './floor/FleetPage';
-import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
-import { AgentPage } from './pages/AgentPage';
-import {
-  ControlsPage,
-  HealthPage,
-  KillPage,
-  SandboxesPage,
-  SchedulerPage,
-} from './pages/OperatePages';
+import { EvalsPage } from './pages/QualityPages';
+import { AgentPage } from './agents/AgentPage';
+import { AgentsPage } from './agents/AgentsPage';
+import { IntegrationsPage } from './integrations/IntegrationsPage';
+import { OperatePage } from './operate/OperatePage';
 import { CataloguePage } from './pages/GovernPages';
 import { AuditPage } from './audit/AuditPage';
-import { BudgetsPage, CostPage } from './pages/SpendPages';
 import { PeoplePage, PersonPage } from './people/People';
 import { TeamPage, TeamsPage } from './people/Teams';
 import { RolesPage, WhoCanPage } from './people/Roles';
@@ -150,7 +145,13 @@ function Screen({ me, route, children }: { me: Me; route: Route; children: React
   const path =
     route.name === 'agent'
       ? '/agents'
-      : Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
+      : route.name === 'settings' || route.name === 'setting'
+        ? '/settings'
+        : route.name === 'operate'
+          ? '/operate'
+          : route.name === 'integrations'
+            ? '/integrations'
+            : Object.entries(STATIC_SCREENS).find(([, n]) => n === route.name)?.[0];
   const guard = path ? guardOf(path) : null;
   if (guard && !guardPasses(guard, me)) {
     const action = guardAction(guard);
@@ -189,29 +190,15 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'board':
       return <ItemsScreen key={route.name} me={me} />;
     case 'agents':
-      return <AgentsPage />;
+      return <AgentsPage csrf={csrf} />;
     case 'agent':
-      return <AgentPage id={route.id} />;
+      return <AgentPage id={route.id} csrf={csrf} />;
     case 'evals':
       return <EvalsPage />;
-    case 'models':
-      return <ModelsPage csrf={csrf} />;
     case 'integrations':
-      return <IntegrationsPage />;
-    case 'scheduler':
-      return <SchedulerPage />;
-    case 'sandboxes':
-      return <SandboxesPage />;
-    case 'controls':
-      return <ControlsPage csrf={csrf} />;
-    case 'kill':
-      return <KillPage csrf={csrf} />;
-    case 'health':
-      return <HealthPage />;
-    case 'budgets':
-      return <BudgetsPage />;
-    case 'cost':
-      return <CostPage />;
+      return <IntegrationsPage key={route.tab ?? ''} tab={route.tab} me={me} />;
+    case 'operate':
+      return <OperatePage tab={route.tab} me={me} />;
     case 'fleetLedger':
     case 'audit':
       return <AuditPage me={me} />;
@@ -281,12 +268,12 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       );
     case 'access':
       return <MyAccessPage />;
+    case 'settings':
+      return <SettingsPage section={route.section} />;
+    case 'setting':
+      return <SettingPage key={route.key} configKey={route.key} csrf={me.csrf_token} />;
     case 'profile':
       return <MyProfilePage me={me} />;
-    case 'config':
-      return <ConfigListPage />;
-    case 'configKey':
-      return <ConfigKeyPage configKey={route.key} csrf={me.csrf_token} />;
     case 'ask':
       return <AskPage csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'askForWork':
