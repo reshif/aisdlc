@@ -571,7 +571,151 @@ try {
       decided.add(card);
     }
   }
-  throw new Error(`reached G4: ${JSON.stringify(item).slice(0, 2000)}`);
+  // ------------------------------------------------------------------- S6, S7, 7.6 and the PR, as the record says
+  const q1 = (q) => rows(q)[0];
+  const pr = JSON.parse(
+    q1(
+      `SELECT row_to_json(p) FROM core.pull_request p WHERE item_id = '${itemId}' ORDER BY number DESC LIMIT 1`,
+    ) ?? 'null',
+  );
+  must(pr, 'no pull request in core.pull_request');
+  must(
+    pr.head_ref === `agent/${itemId}/${pr.unit_key}`,
+    `the PR's branch is ${pr.head_ref}, not agent/<item>/<unit>`,
+  );
+  log(`6.6: the Push Broker pushed ${pr.head_ref} at ${pr.head_sha} and opened PR #${pr.number}`);
+  const done = (step) =>
+    q1(
+      `SELECT count(*) FROM record.record_event WHERE stream = 'item:${itemId}' AND type = 'item.stage_completed' AND body ->> 'step' = '${step}'`,
+    );
+  for (const step of [
+    '6.1',
+    '6.2',
+    '6.3',
+    '6.4',
+    '6.5',
+    '6.6',
+    '7.1',
+    '7.2',
+    '7.3',
+    '7.4',
+    '7.5',
+    '7.6',
+  ])
+    must(Number(done(step)) >= 1, `step ${step} was not completed`);
+  const checks = rows(
+    `SELECT result ->> 'step', result ->> 'verdict' FROM verify.check_result WHERE item_id = '${itemId}' AND head_sha = '${pr.head_sha}' ORDER BY 1`,
+  );
+  log(`S7 in the verify service, on the PR head: ${checks.join(', ')}`);
+  for (const c of checks) must(c.endsWith('|passed'), `a check did not pass: ${c}`);
+  const pack = JSON.parse(
+    q1(
+      `SELECT row_to_json(e) FROM core.evidence_pack e WHERE item_id = '${itemId}' AND head_sha = '${pr.head_sha}' AND passing ORDER BY recorded_at DESC LIMIT 1`,
+    ) ?? 'null',
+  );
+  must(pack, 'no passing Evidence Pack for the PR head');
+  log(
+    `7.6: the Evidence Pack ${pack.pack_sha256.slice(0, 16)} is signed (${pack.key_id}) and stored in ${pack.bucket}`,
+  );
+  const gh = github('GET', `/repos/${REPO_REF}/pulls/${pr.number}`, 'ghp_fake_reshif');
+  must(gh.status === 200, `the fake GitHub does not have PR #${pr.number}: ${gh.status}`);
+  must(gh.json.draft === true && gh.json.state === 'open', `PR #${pr.number} is not an open draft`);
+  must(gh.json.user?.login === 'aisdlc[bot]', `PR #${pr.number} is by ${gh.json.user?.login}`);
+  must(gh.json.head.sha === pr.head_sha, `the PR head on GitHub is ${gh.json.head.sha}`);
+  log(
+    `the fake GitHub: PR #${pr.number} is an open draft by aisdlc[bot] at ${gh.json.head.sha.slice(0, 12)}`,
+  );
+  const verdict = await until(
+    () =>
+      q1(
+        `SELECT outcome || ' ' || profile || ' ' || reason FROM gatecheck.verdict WHERE pr_number = ${pr.number} AND head_sha = '${pr.head_sha}' ORDER BY seq DESC LIMIT 1`,
+      ),
+    'gate-check to write aisdlc/gate on the PR head',
+  );
+  must(verdict.startsWith('success agent'), `aisdlc/gate on the head: ${verdict}`);
+  log(`gate-check wrote aisdlc/gate: ${verdict}`);
+
+  // ------------------------------------------------------------------- G4 in the browser by the g4 slot (ar)
+  const g4 = cardsOf(itemId)['G4']?.at(-1);
+  must(g4, 'no G4 card');
+  await dn.page.goto(`${base}/cards/${g4}`);
+  await dn.page.getByRole('heading', { level: 1, name: 'Merge review' }).waitFor();
+  await dn.page.getByTestId('deciders').waitFor();
+  must(
+    (await dn.page.getByRole('button', { name: 'Approve the merge', exact: true }).count()) === 0 ||
+      (await dn.page.getByRole('button', { name: 'Approve the merge', exact: true }).isDisabled()),
+    'dn (no g4 slot) may approve the merge',
+  );
+  log(
+    `G4: dn is shown who decides: ${(await dn.page.getByTestId('deciders').innerText()).replace(/\s+/g, ' ').slice(0, 120)}`,
+  );
+  people.ar ??= await personOf('ar');
+  const ar = people.ar;
+  await ar.page.goto(`${base}/cards/${g4}`);
+  await ar.page.getByRole('heading', { level: 1, name: 'Merge review' }).waitFor();
+  await ar.page.getByTestId('subject-hash').waitFor();
+  await ar.page.waitForFunction(
+    () => !/Getting the decision form ready/.test(document.body.innerText),
+  );
+  await ar.page.getByLabel(/I have read/).check();
+  await ar.page
+    .getByLabel(/Reason \(required/)
+    .fill('The pack is for exactly this head and every S7 step passed.');
+  await press(ar, 'Approve the merge', 'G4: Approve the merge');
+  await ar.page.getByTestId('decided').waitFor();
+  log(
+    `G4 approved in the browser by ar: ${(await ar.page.getByTestId('decided').innerText()).replace(/\s+/g, ' ').slice(0, 160)}`,
+  );
+
+  // ------------------------------------------------------------------- a person merges on the fake GitHub
+  await waitItem(dn, (v) => !pendingGates(v).includes('G4'), 'G4 to be decided');
+  const ready = github(
+    'POST',
+    `/repos/${REPO_REF}/pulls/${pr.number}/ready_for_review`,
+    'ghp_fake_reshif',
+  );
+  must(ready.status === 200, `ready for review: ${ready.status} ${JSON.stringify(ready.json)}`);
+  const merged = github('PUT', `/repos/${REPO_REF}/pulls/${pr.number}/merge`, 'ghp_fake_reshif', {
+    sha: pr.head_sha,
+  });
+  must(
+    merged.status === 200 && merged.json.merged === true,
+    `the merge: ${merged.status} ${JSON.stringify(merged.json)}`,
+  );
+  log(
+    `reshif (a person, not the factory) merged PR #${pr.number} on the fake GitHub: ${merged.json.sha}`,
+  );
+
+  // ------------------------------------------------------------------- the item closes
+  const closed = await waitItem(
+    dn,
+    (v) =>
+      v.status === 'done' ||
+      v.state === 'done' ||
+      v.waiting === 'done' ||
+      v.closed === true ||
+      v.handoff !== null,
+    'the item to close after the merge',
+  );
+  must(
+    closed.handoff === null,
+    `the item was handed off after the merge: ${JSON.stringify(closed.handoff)}`,
+  );
+  log(
+    `the item closed: ${JSON.stringify({ status: closed.status, waiting: closed.waiting }).slice(0, 200)}`,
+  );
+  const merges = q1(
+    `SELECT count(*) FROM record.record_event WHERE stream = 'item:${itemId}' AND type = 'item.merge_observed'`,
+  );
+  must(Number(merges) === 1, `item.merge_observed recorded ${merges} times`);
+  const gm = q1(
+    `SELECT count(*) FROM record.record_event WHERE type = 'gatecheck.merge_recorded' AND body::text LIKE '%merge_gated%'`,
+  );
+  log(`gate-check recorded the merge as gated (${gm}); no X4`);
+  const x4 = cardsOf(itemId)['X4'] ?? [];
+  must(x4.length === 0, 'an X4 review was opened for the merge');
+  noProblems('the end of the journey');
+  log(`PASS in ${Math.round((Date.now() - started) / 1000)} s`);
 } finally {
   await browser.close();
 }
