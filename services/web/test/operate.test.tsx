@@ -174,41 +174,167 @@ describe('operate: controls', () => {
 });
 
 describe('operate: kill switch and health', () => {
-  it('kill switch: the verified journal, a pending signature flagged; requesting from the portal is marked not built', async () => {
+  const JOURNAL = {
+    observed_head: 2,
+    journal: [
+      {
+        ks_seq: 2,
+        kind: 'kill.requested',
+        subject: 'k-1',
+        actor: 'carol',
+        entry_hash: SHA_A,
+        signed: false,
+        at: T,
+      },
+      {
+        ks_seq: 1,
+        kind: 'kill.holders_synced',
+        subject: 'testbed',
+        actor: null,
+        entry_hash: SHA_A,
+        signed: true,
+        at: T,
+      },
+    ],
+  };
+  const KILL = '66666666-7777-4888-8999-aaaaaaaaaaaa';
+  const active = (over: Record<string, unknown> = {}) => ({
+    kills: [
+      {
+        kill_id: KILL,
+        scope: { kind: 'project', ref: 'testbed' },
+        state: 'release_pending',
+        requested_by: 'carol',
+        reason: 'runaway agent',
+        requested_at: T,
+        release_required: 2,
+        release_approvals: ['dora'],
+        released_at: null,
+        may_release: true,
+        approved_by_me: false,
+        ...over,
+      },
+    ],
+  });
+
+  it('kill switch: the verified journal, a pending signature flagged; no kill button without the right', async () => {
     mockApi({
       'GET /api/me': { json: AUDITOR() },
-      'GET /api/kills': {
-        json: {
-          observed_head: 2,
-          journal: [
-            {
-              ks_seq: 2,
-              kind: 'kill.requested',
-              subject: 'k-1',
-              actor: 'carol',
-              entry_hash: SHA_A,
-              signed: false,
-              at: T,
-            },
-            {
-              ks_seq: 1,
-              kind: 'kill.holders_synced',
-              subject: 'testbed',
-              actor: null,
-              entry_hash: SHA_A,
-              signed: true,
-              at: T,
-            },
-          ],
-        },
-      },
+      'GET /api/kills': { json: JOURNAL },
+      'GET /api/kills/active': { json: active() },
     });
     renderAt('/kill');
     const table = await screen.findByRole('table', { name: 'Kill switch journal' });
     expect(within(table).getByText('pending')).toBeInTheDocument();
     expect(within(table).getByText('the kill switch')).toBeInTheDocument();
-    expect(screen.getByTestId('not-built')).toHaveTextContent('Request or release a kill');
-    expect(screen.queryByRole('button', { name: /kill/i })).toBeNull();
+    const inForce = await screen.findByRole('table', { name: 'Kills in force' });
+    expect(within(inForce).getByText('1 of 2')).toBeInTheDocument();
+    // the PDP said no to kill.request and kill.release: locked, never a live button
+    await userEvent.setup().type(screen.getByLabelText('Project'), 'testbed');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Request the kill' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      ),
+    );
+    await waitFor(() =>
+      expect(within(inForce).getByRole('button', { name: 'Approve the release' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      ),
+    );
+  });
+
+  it('kill switch: request a kill with a step-up bound to exactly the act, then send it with the proof', async () => {
+    const BOUND = 'c'.repeat(64);
+    const m = mockApi({
+      'GET /api/me': { json: AUDITOR() },
+      'GET /api/kills': { json: JOURNAL },
+      'GET /api/kills/active': { json: { kills: [] } },
+      'POST /api/me/decisions': allowOnly('kill.request', 'kill.release'),
+      'POST /api/kills/prepare': { json: { bound_hash: BOUND } },
+      // the reconfirm mode: the proof comes back at once (re-authentication redirects instead)
+      'POST /api/step-up': {
+        json: {
+          status: 'ready',
+          method: 'reconfirm',
+          proof: 'su1.claims.sig',
+          bound_hash: BOUND,
+          expires_at: T,
+        },
+      },
+      'POST /api/kills': {
+        status: 201,
+        json: { ...active().kills[0], state: 'active', release_approvals: [] },
+      },
+    });
+    renderAt('/kill');
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Project'), 'testbed');
+    await user.type(screen.getByLabelText('Reason'), 'runaway agent');
+    const go = await screen.findByRole('button', { name: 'Request the kill' });
+    await waitFor(() => expect(go).toBeEnabled());
+    await user.click(go);
+    await waitFor(() =>
+      expect(m.calls.some((c) => c.method === 'POST' && c.path === '/api/kills')).toBe(true),
+    );
+    const prep = m.calls.find((c) => c.path === '/api/kills/prepare');
+    expect(prep?.body).toEqual({
+      scope: { kind: 'project', ref: 'testbed' },
+      reason: 'runaway agent',
+    });
+    expect(m.calls.find((c) => c.path === '/api/step-up')?.body).toEqual({
+      subject_hash: BOUND,
+      return_to: '/kill',
+    });
+    expect(m.calls.find((c) => c.method === 'POST' && c.path === '/api/kills')?.body).toEqual({
+      scope: { kind: 'project', ref: 'testbed' },
+      reason: 'runaway agent',
+      step_up: { proof: 'su1.claims.sig' },
+    });
+  });
+
+  it('kill switch: a second person approves the release; who already approved is told another must', async () => {
+    const BOUND = 'd'.repeat(64);
+    const m = mockApi({
+      'GET /api/me': { json: AUDITOR() },
+      'GET /api/kills': { json: JOURNAL },
+      'GET /api/kills/active': { json: active() },
+      'POST /api/me/decisions': allowOnly('kill.release'),
+      [`POST /api/kills/${KILL}/release/prepare`]: { json: { bound_hash: BOUND } },
+      'POST /api/step-up': {
+        json: {
+          status: 'ready',
+          method: 'reconfirm',
+          proof: 'su1.b.s',
+          bound_hash: BOUND,
+          expires_at: T,
+        },
+      },
+      [`POST /api/kills/${KILL}/release`]: {
+        json: { ...active().kills[0], state: 'released', release_approvals: ['dora', 'alice'] },
+      },
+    });
+    renderAt('/kill');
+    const user = userEvent.setup();
+    const inForce = await screen.findByRole('table', { name: 'Kills in force' });
+    const btn = within(inForce).getByRole('button', { name: 'Approve the release' });
+    await waitFor(() => expect(btn).toBeEnabled());
+    await user.click(btn);
+    await waitFor(() =>
+      expect(m.calls.find((c) => c.path === `/api/kills/${KILL}/release`)?.body).toEqual({
+        step_up: { proof: 'su1.b.s' },
+      }),
+    );
+
+    mockApi({
+      'GET /api/me': { json: AUDITOR() },
+      'GET /api/kills': { json: JOURNAL },
+      'GET /api/kills/active': { json: active({ approved_by_me: true }) },
+      'POST /api/me/decisions': allowOnly('kill.release'),
+    });
+    renderAt('/kill');
+    expect(await screen.findAllByText('You approved; another person must')).not.toHaveLength(0);
   });
 
   it('health: service and loop tiles from the snapshots, integrations beside them; unknown is never ok', async () => {

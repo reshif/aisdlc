@@ -6,7 +6,7 @@ The kill switch (`services/killswitch`, AR9) stops agent work by scope (fleet, p
 
 | Who | Credential | Scopes | Opens |
 |---|---|---|---|
-| a process that carries a person's act (operator client; the bff once it has kill routes) | service token (`Authorization: Bearer`) | `act`, `read` | `POST /v1/kills`, `POST /v1/kills/:id/release`, `POST /v1/delegations`, `POST /v1/delegations/:id/revoke`, the reads |
+| a process that carries a person's act (operator client; the bff's kill routes, §5) | service token (`Authorization: Bearer`) | `act`, `read` | `POST /v1/kills`, `POST /v1/kills/:id/release`, `POST /v1/delegations`, `POST /v1/delegations/:id/revoke`, the reads |
 | core-worker | service token | `read`, `sync` | `PUT /v1/holders/:project`, `GET /v1/events`, the reads |
 | enforcement points (core-worker's work driver, the gateway) | service token | `read` | `GET /v1/status` |
 | anyone | none | | `GET /healthz` |
@@ -44,6 +44,18 @@ A release is one `KillReleaseApproval` per person. It needs the number of distin
 
 `{"error": {"code", "message", "reasons"?}}`: `invalid_request 400`, `unauthenticated 401` (service token, or the person's proof), `forbidden 403` (scope, or the PDP: `reasons` are its reasons), `not_found 404`, `conflict 409`, `unavailable 503`.
 
-## 5. Not covered here
+## 5. The portal (RC-UI-1)
 
-The bff carries no kill routes yet (RC-UI-1): an operator obtains the step-up proof from the bff and calls the kill switch with the operator client. Key custody is kms-local (RC-SEC-1); in production the bff's step-up key and the kill switch's journal key are KMS keys in separate accounts.
+The bff is the process that carries a person's act from the portal (`services/bff/src/kill.ts`; caller `bff`, scopes `act`, `read`; `BFF_KILLSWITCH_URL`, `BFF_KILLSWITCH_TOKEN_REF`; in compose the network `killswitch-bff`, which holds the bff and the kill switch only). Shapes: contracts `portal-lists.ts`.
+
+| Route | PDP (in the bff, for the session's person) | |
+|---|---|---|
+| `GET /api/kills/active` | `ops.read` on the fleet | the kills that still kill (`/v1/kills?active=1`), each with `may_release` (the PDP's `kill.release` on its scope) and `approved_by_me` |
+| `POST /api/kills/prepare` `{scope, reason}` | `kill.request` on the scope's resource (`killScopeResource`, the same function the kill switch uses) | `{bound_hash}`: `killActHash` of exactly this act |
+| `POST /api/kills` `{scope, reason, step_up: {proof}}` | `kill.request` | forwarded to `POST /v1/kills` |
+| `POST /api/kills/:id/release/prepare` | `kill.release` on the kill's scope | `{bound_hash}` |
+| `POST /api/kills/:id/release` `{step_up: {proof}}` | `kill.release` | forwarded to `POST /v1/kills/:id/release` |
+
+The person steps up between prepare and the act (`POST /api/step-up` with the bound hash: a re-authentication at the identity provider, then `GET /api/step-up/:id`); the Kill switch page keeps the act in the tab's session storage across that redirect. Before forwarding, the bff refuses a proof whose principal is not the session's or whose `bound_hash` is not this act's (`401 step_up_mismatch`), so it never carries someone else's proof; the kill switch then verifies it as in §1 and decides again. A release is approved by each person in their own session; the same person twice is the kill switch's `409`.
+
+The operator token stays, for the path a person has when the bff or core is down (`platform/compose/kill-proof.mjs` stands in for the sign-in there). Key custody is kms-local (RC-SEC-1); in production the bff's step-up key and the kill switch's journal key are KMS keys in separate accounts.

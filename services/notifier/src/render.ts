@@ -70,6 +70,81 @@ function full(c: NotificationContent): { subject: string; line: string } {
         subject: `Kill switch released on ${c.project_id ?? 'the whole factory'}`,
         line: `The kill switch released ${c.project_id === null ? 'the whole factory' : `project ${p}`}.`,
       };
+    case 'questions_waiting': {
+      const left = c.rounds_left ?? null;
+      return {
+        subject: `Your request on ${p} has questions for you`,
+        line:
+          `The factory asked you questions about your request on project ${p} and cannot go on without the answers.` +
+          (left === null
+            ? ''
+            : left === 0
+              ? ' This is the last round: if it is not answered, the item is parked.'
+              : ` ${left} more round${left === 1 ? '' : 's'} of questions may follow before the item is parked.`) +
+          (c.due_at === null ? '' : ` Without an answer it is parked on ${c.due_at}.`),
+      };
+    }
+    case 'ready_waiting':
+      return {
+        subject: `Your request on ${p} waits for your Ready`,
+        line: `Your request on project ${p} is clarified and waits for you to say it is Ready (1.6).`,
+      };
+    case 'acceptance_waiting':
+      return {
+        subject: `Your request on ${p} waits for your acceptance (G6)`,
+        line: `The work you asked for on project ${p} waits for your acceptance (G6).`,
+      };
+    case 'item_parked':
+      return {
+        subject: `Your request on ${p} is parked`,
+        line:
+          `Your request on project ${p} is parked: its questions were not answered.` +
+          (c.due_at === null ? '' : ` It is abandoned on ${c.due_at} unless you answer them.`),
+      };
+    case 'item_done':
+      return {
+        subject: `A work item on ${p} is done`,
+        line: `A work item on project ${p} is done.`,
+      };
+    case 'item_ended':
+      return {
+        subject: `A work item on ${p} ended: ${(c.outcome ?? 'closed').toLowerCase()}`,
+        line: `A work item on project ${p} ended without being done (${(c.outcome ?? 'closed').toLowerCase()}).`,
+      };
+    case 'control_halt':
+      return {
+        subject: `A halt stopped ${c.project_id === null ? 'the factory' : p}`,
+        line: `A halt control stopped new work on ${c.project_id === null ? 'the factory' : `project ${p}`}.`,
+      };
+    case 'breaker_tripped':
+      return {
+        subject: `The breaker tripped on ${p}${c.lane ? ` ${c.lane}` : ''}`,
+        line: `The R3 circuit breaker tripped on project ${p}${c.lane ? `, lane ${c.lane}` : ''}: new items there go to L8 until it is reset.`,
+      };
+    case 'drift_suspended':
+      return {
+        subject: `${p} is suspended by drift`,
+        line: `Drift suspended the governing record of project ${p}: new items go to L8 until it is restored or re-affirmed.`,
+      };
+    case 'release_failed': {
+      const how =
+        c.release === 'refused'
+          ? 'was refused'
+          : c.release === 'rolled_back'
+            ? 'failed and was rolled back'
+            : c.release === 'held'
+              ? 'is held: merged, not deployed'
+              : 'is unhealthy';
+      return {
+        subject: `A release on ${p} ${how}`,
+        line: `A release on project ${p} ${how}.`,
+      };
+    }
+    case 'factory_alert':
+      return {
+        subject: `Factory alert: ${(c.alert_kind ?? 'alert').replace(/_/g, ' ')} (${c.alert_subject ?? 'factory'})`,
+        line: `The factory raised an alert: ${(c.alert_kind ?? 'alert').replace(/_/g, ' ')} on ${c.alert_subject ?? 'the factory'}. See the health page.`,
+      };
   }
 }
 
@@ -79,6 +154,8 @@ function minimal(c: NotificationContent): { subject: string; line: string } {
       return { subject: 'Kill switch engaged', line: 'The kill switch stopped agent work.' };
     case 'kill_released':
       return { subject: 'Kill switch released', line: 'The kill switch released a scope.' };
+    case 'factory_alert':
+      return { subject: 'Factory alert', line: 'The factory raised an alert.' };
     default:
       return {
         subject: 'Something waits for you in the factory portal',

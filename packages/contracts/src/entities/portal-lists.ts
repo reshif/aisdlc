@@ -6,11 +6,18 @@ import { AgentId, AgentTool, PromptRef } from './agent-definitions.js';
 import { PrincipalSummary, ViewLevel } from './access.js';
 import { CatalogueRef } from './config.js';
 import { AdmissionGrant } from './admission.js';
-import { Banner, KillEventKind, OpsControl } from './controls.js';
+import {
+  Banner,
+  KillEventKind,
+  KillRecord,
+  KillScope,
+  OpsControl,
+  projectOfScope,
+} from './controls.js';
 import { Team } from './identity.js';
 import { IsoDateTime, PrincipalId, ProjectId, RoleId, Sha256Hex, WorkItemId } from './ids.js';
 import { IntegrationEvent, IntegrationHealthTiles } from './integrations.js';
-import { ActionId, PdpResource } from './policy.js';
+import { ActionId, PdpResource, pdpResource } from './policy.js';
 import { AuditOutcome, CloseOutRecord, EscapeReportedPayload } from './closeout.js';
 
 // The portal's list and read views (2026-11-12, the screens whose backends were on main). Each is the
@@ -154,6 +161,64 @@ export const KillsView = z.strictObject({
   journal: z.array(KillJournalRow),
 });
 export type KillsView = z.infer<typeof KillsView>;
+
+// RC-UI-1: a kill requested and released in the portal. The bff asks the PDP (the same actions the kill switch asks:
+// `kill.request`, `kill.release` on the scope's resource), the person steps up for exactly the act's hash
+// (`killActHash`), and the bff forwards the act with that proof to the kill switch, which verifies the proof and takes
+// the actor from it. The bff never acts in a name the proof does not carry.
+//
+//   POST /api/kills/prepare                {scope, reason}   -> KillActPrepared
+//   POST /api/kills                        {scope, reason, step_up: {proof}} -> KillRecord
+//   POST /api/kills/:id/release/prepare    {}                -> KillActPrepared
+//   POST /api/kills/:id/release            {step_up: {proof}} -> KillRecord
+//   GET  /api/kills/active                                   -> ActiveKillsView
+
+/** The PDP resource a kill of `scope` is decided on: the fleet, the project, the lane; a session: its project. */
+export function killScopeResource(scope: KillScope): PdpResource {
+  switch (scope.kind) {
+    case 'fleet':
+      return pdpResource.fleet();
+    case 'lane': {
+      const [p, lane] = scope.ref.split('/');
+      return pdpResource.lane(p as string, lane as string);
+    }
+    case 'project':
+      return pdpResource.project(scope.ref);
+    default:
+      return pdpResource.project(projectOfScope(scope) as string);
+  }
+}
+
+export const PortalKillPrepareRequest = z.strictObject({
+  scope: KillScope,
+  reason: KillRecord.shape.reason,
+});
+export type PortalKillPrepareRequest = z.infer<typeof PortalKillPrepareRequest>;
+
+const PortalStepUpProof = z.strictObject({ proof: z.string().min(1).max(8192) });
+
+export const PortalKillRequest = PortalKillPrepareRequest.extend({ step_up: PortalStepUpProof });
+export type PortalKillRequest = z.infer<typeof PortalKillRequest>;
+
+export const PortalKillReleaseRequest = z.strictObject({ step_up: PortalStepUpProof });
+export type PortalKillReleaseRequest = z.infer<typeof PortalKillReleaseRequest>;
+
+/** What the person steps up for: the hash of exactly this act (`killActHash`). */
+export const KillActPrepared = z.strictObject({ bound_hash: Sha256Hex });
+export type KillActPrepared = z.infer<typeof KillActPrepared>;
+
+/** The kills that still kill, as the kill switch says now, and what this person may do about each. */
+export const ActiveKillsView = z.strictObject({
+  kills: z.array(
+    KillRecord.extend({
+      /** The PDP's `kill.release` for this person on the kill's scope (a hint; the kill switch decides again). */
+      may_release: z.boolean(),
+      /** This person already approved its release (a second approval must be someone else's). */
+      approved_by_me: z.boolean(),
+    }),
+  ),
+});
+export type ActiveKillsView = z.infer<typeof ActiveKillsView>;
 
 // ---------------------------------------------------------------- audit (the PDP decision log)
 

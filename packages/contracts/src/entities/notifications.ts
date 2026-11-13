@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { GateId } from '../flow.js';
-import { DataClass } from '../values.js';
-import { CardId, GateInstanceId, IsoDateTime, PrincipalId, ProjectId } from './ids.js';
+import { GateId, TerminalState } from '../flow.js';
+import { DataClass, Lane } from '../values.js';
+import { CardId, GateInstanceId, IsoDateTime, PrincipalId, ProjectId, WorkItemId } from './ids.js';
+import { OpsAlertKind, OpsAlertSubject } from './ops-health.js';
 import { RoleSlot } from './projects.js';
 
 // Notifications (PLAN M18; ADR-0003 §1 Integration plane "notifier"; docs/specs/notifier-api.md). One vocabulary for
@@ -119,6 +120,11 @@ export type NotificationChannels = z.infer<typeof NotificationChannels>;
  * What a notification is about (PLAN M18): a gate waiting on the person (`gate.opened`, and an S0 step card with no
  * gate), B21 (`card.escalated`), a quarantine (Q1, SECT), a handoff (E4: the owner of record chooses) and the kill
  * switch (`kill.observed`: engaged, released).
+ *
+ * RC-HAI-2, RC-NOT-1: what the factory needs from the requester (S1 questions with the rounds left and the PARK date,
+ * the Ready decision, G6 acceptance, a PARK, a handoff to them) and what owners must know (an item done, an item that
+ * ended otherwise, a halt, the R3 breaker tripped, a drift suspension, a release that failed or rolled back). RC-NOT-3:
+ * a factory alert (a service or loop down, the ledger's checkpoint overdue) for the factory admins.
  */
 export const NotificationKind = z.enum([
   'gate_waiting',
@@ -127,14 +133,30 @@ export const NotificationKind = z.enum([
   'handoff',
   'kill_engaged',
   'kill_released',
+  'questions_waiting',
+  'ready_waiting',
+  'acceptance_waiting',
+  'item_parked',
+  'item_done',
+  'item_ended',
+  'control_halt',
+  'breaker_tripped',
+  'drift_suspended',
+  'release_failed',
+  'factory_alert',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
-/** Kinds a person cannot mute: a kill is everyone's business on the scope it stops. */
+/** Kinds a person cannot mute: a kill is everyone's business on the scope it stops, and a page is a page. */
 export const UNMUTABLE_NOTIFICATION_KINDS: readonly NotificationKind[] = [
   'kill_engaged',
   'kill_released',
+  'factory_alert',
 ];
+
+/** How a release failed (`release_failed`): refused by gate-relay, unhealthy, rolled back (B16), or held (RELHOLD). */
+export const NotificationReleaseFailure = z.enum(['refused', 'unhealthy', 'rolled_back', 'held']);
+export type NotificationReleaseFailure = z.infer<typeof NotificationReleaseFailure>;
 
 /** A path inside the portal (never a host: the link is the portal's own). */
 export const PortalPath = z.string().regex(/^\/[A-Za-z0-9/_.-]{0,200}$/, 'a portal path');
@@ -150,9 +172,23 @@ export const NotificationContent = z.strictObject({
   gate_instance_id: GateInstanceId.nullable(),
   card_id: CardId.nullable(),
   kill_id: z.uuid().nullable(),
-  /** B21's due time (an escalation), or the gate's expiry. */
+  /** B21's due time (an escalation), the gate's expiry, the PARK date (questions) or the ABANDON date (parked). */
   due_at: IsoDateTime.nullable(),
   link_path: PortalPath,
+  // RC-NOT-1 (optional, so a notification raised before them still reads):
+  /** The work item it is about. */
+  item_id: WorkItemId.nullable().optional(),
+  /** `questions_waiting`: the clarifying rounds left after this one (B1) before the item is parked. */
+  rounds_left: z.number().int().min(0).max(10).nullable().optional(),
+  /** `item_done` / `item_ended`: the terminal the item reached. */
+  outcome: TerminalState.nullable().optional(),
+  /** `breaker_tripped`: the lane whose breaker tripped. */
+  lane: Lane.nullable().optional(),
+  /** `release_failed`: how. */
+  release: NotificationReleaseFailure.nullable().optional(),
+  /** `factory_alert`: what is wrong, and with what (a tile id or `ledger.checkpoint`; codes, never probed text). */
+  alert_kind: OpsAlertKind.nullable().optional(),
+  alert_subject: OpsAlertSubject.nullable().optional(),
 });
 export type NotificationContent = z.infer<typeof NotificationContent>;
 
@@ -165,6 +201,8 @@ export const NotificationReason = z.enum([
   'escalated_backup',
   'project_admin',
   'factory_admin',
+  /** The person who asked for the work item (RC-HAI-2). */
+  'requester',
 ]);
 export type NotificationReason = z.infer<typeof NotificationReason>;
 
