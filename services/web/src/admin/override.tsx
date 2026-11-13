@@ -145,9 +145,13 @@ export function OverrideDialog({
 export function errorText(e: unknown): string | null {
   if (e instanceof OverrideCancelled) return null;
   if (e instanceof ApiError) {
-    if (e.status === 403) return `Refused: ${e.message}. Nothing was changed.`;
+    const said = /[.!?]$/.test(e.message) ? e.message : `${e.message}.`;
+    if (e.status === 403) return `Refused: ${said} Nothing was changed.`;
     if (e.status === 0) return 'The factory could not be reached. Nothing was changed. Try again.';
-    return `${e.message} Nothing was changed.`;
+    if (e.status === 503 && /_not_configured$|_unavailable$/.test(e.code)) {
+      return 'This part of the factory is not set up in this deployment yet. Nothing was changed.';
+    }
+    return `${said} Nothing was changed.`;
   }
   return e instanceof Error ? e.message : 'Something went wrong. Nothing was changed.';
 }
