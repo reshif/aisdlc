@@ -4,6 +4,7 @@ import { DataClass, Lane } from '../values.js';
 import { CardId, GateInstanceId, IsoDateTime, PrincipalId, ProjectId, WorkItemId } from './ids.js';
 import { OpsAlertKind, OpsAlertSubject } from './ops-health.js';
 import { RoleSlot } from './projects.js';
+import { ItemClarifyState } from './work-lifecycle.js';
 
 // Notifications (PLAN M18; ADR-0003 §1 Integration plane "notifier"; docs/specs/notifier-api.md). One vocabulary for
 // the notifier service, its channel port (`NotificationChannelPort` in `@aisdlc/ports`), the config key of its channel
@@ -180,6 +181,11 @@ export const NotificationContent = z.strictObject({
   item_id: WorkItemId.nullable().optional(),
   /** `questions_waiting`: the clarifying rounds left after this one (B1) before the item is parked. */
   rounds_left: z.number().int().min(0).max(10).nullable().optional(),
+  /**
+   * `questions_waiting` (P2-16): the clarifying round these questions are (1-based, `ItemClarifyState.round`: the item
+   * page's "round 1 of 2" is `round` of `round + rounds_left`).
+   */
+  round: ItemClarifyState.shape.round.nullable().optional(),
   /** `item_done` / `item_ended`: the terminal the item reached. */
   outcome: TerminalState.nullable().optional(),
   /** `breaker_tripped`: the lane whose breaker tripped. */

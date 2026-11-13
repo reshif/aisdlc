@@ -3153,7 +3153,8 @@
                 "item_ended",
                 "g4_decided",
                 "readmitted",
-                "quarantined"
+                "quarantined",
+                "replanned"
               ]
             },
             {
@@ -3431,7 +3432,8 @@
                       "item_ended",
                       "g4_decided",
                       "readmitted",
-                      "quarantined"
+                      "quarantined",
+                      "replanned"
                     ]
                   },
                   {
@@ -3637,7 +3639,8 @@
                       "item_ended",
                       "g4_decided",
                       "readmitted",
-                      "quarantined"
+                      "quarantined",
+                      "replanned"
                     ]
                   },
                   {
@@ -60856,7 +60859,8 @@
         "item_ended",
         "g4_decided",
         "readmitted",
-        "quarantined"
+        "quarantined",
+        "replanned"
       ]
     },
     "GrantRule": {
@@ -92082,6 +92086,18 @@
             }
           ]
         },
+        "round": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "outcome": {
           "anyOf": [
             {
@@ -92369,6 +92385,18 @@
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 10
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "round": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
                       },
                       {
                         "type": "null"
@@ -92951,6 +92979,18 @@
                 }
               ]
             },
+            "round": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "outcome": {
               "anyOf": [
                 {
@@ -93366,6 +93406,18 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 10
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "round": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
                 },
                 {
                   "type": "null"
@@ -141132,7 +141184,8 @@
             "item_ended",
             "g4_decided",
             "readmitted",
-            "quarantined"
+            "quarantined",
+            "replanned"
           ]
         }
       },
