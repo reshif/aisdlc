@@ -1,21 +1,28 @@
-import { pdpResource, type ConfigKeyRevision, type ConfigRevisionState } from '@aisdlc/contracts';
+import {
+  label,
+  lookupTerm,
+  pdpResource,
+  type ConfigKeyRevision,
+  type ConfigRevisionState,
+} from '@aisdlc/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ComponentType } from 'react';
 import { Guarded } from '../access';
 import { api, type ConfigKeyWire } from '../api';
-import { ErrorNote, Loading, PageError } from '../components/Notice';
+import { Loading, PageError } from '../components/Notice';
 import { shortTime } from '../format';
 import { Link } from '../router';
 import { validateAgainst, type JsonSchema } from '../lib/schema';
-import { Card, EmptyState, KeyValue, Pill, Table, useToast, type PillTone } from '../ui';
+import { ChangeActions, changeError } from '../settings/ChangeActions';
+import { fieldWord, valueWord } from '../settings/words';
+import { Card, EmptyState, KeyValue, Pill, Table, WireTerm, useToast, type PillTone } from '../ui';
 import { SchemaField, diffValues, looksLikeSecretRef } from './SchemaForm';
 
-// The configuration console (the one pattern every config screen uses): for one registered key,
-// the effective value and where it came from (its revision and the M1 decision that published it),
-// a draft editor generated from the key's JSON Schema, the diff against the effective value,
-// "Propose" (an ordinary revision with its M1 gate: config.propose, decided by the PDP on the
-// server whatever this page shows), the pending proposals with who must decide, and the history.
-// Nothing here publishes; a value changes only when its M1 gate is decided approve.
+// The configuration console (the one pattern every settings screen uses): for one registered key, the value in
+// force and where it came from (the change and the approval that put it in force), a draft generated from the key's
+// JSON Schema, the change against the value in force, Preview / Propose / Apply now (factory layer), the changes
+// waiting for approval with who decides them, and the history. Nothing here publishes on its own: a value changes
+// only once its settings approval is decided approve (by its deciders, or by the factory admin with a reason).
 
 const STATE_TONE: Readonly<Record<ConfigRevisionState, PillTone>> = {
   proposed: 'warn',
@@ -26,9 +33,26 @@ const STATE_TONE: Readonly<Record<ConfigRevisionState, PillTone>> = {
 };
 
 const short = (h: string | null) => (h === null ? '—' : `${h.slice(0, 12)}…`);
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** A value as people read it: JSON, with a secret reference marked as a reference. */
-export function ValueView({ value, label }: { value: unknown; label: string }) {
+/** The paths of the strings in a value that are secret references. */
+function secretRefPaths(v: unknown, path = ''): string[] {
+  if (looksLikeSecretRef(v)) return [path === '' ? '(value)' : path];
+  if (Array.isArray(v)) return v.flatMap((x, i) => secretRefPaths(x, `${path}[${i}]`));
+  if (isObj(v)) {
+    return Object.entries(v).flatMap(([k, x]) =>
+      secretRefPaths(x, path === '' ? k : `${path}.${k}`),
+    );
+  }
+  return [];
+}
+
+/**
+ * A value as people read it: its top-level fields in plain words, and the full value folded (JSON) for those who
+ * want it. A secret reference is marked as a reference: where a secret lives, never the secret.
+ */
+export function ValueView({ value, label: name }: { value: unknown; label: string }) {
   if (looksLikeSecretRef(value)) {
     return (
       <span>
@@ -37,11 +61,19 @@ export function ValueView({ value, label }: { value: unknown; label: string }) {
     );
   }
   const refs = secretRefPaths(value);
+  const rows = isObj(value)
+    ? Object.entries(value).map(([k, v]) => [fieldWord(k), valueWord(v)] as [string, string])
+    : [['Value', valueWord(value)] as [string, string]];
   return (
     <>
-      <pre className="code cfg-value" aria-label={label}>
-        {JSON.stringify(value, null, 2)}
-      </pre>
+      <KeyValue label={name} rows={rows.slice(0, 12)} />
+      {rows.length > 12 ? <p className="muted">and {rows.length - 12} more.</p> : null}
+      <details className="cfg-raw">
+        <summary>Show the full value</summary>
+        <pre className="code cfg-value" aria-label={name}>
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      </details>
       {refs.length > 0 ? (
         <p className="hint" data-testid="cfg-secret-refs">
           Secret references (where a secret lives, never the secret):{' '}
@@ -54,27 +86,15 @@ export function ValueView({ value, label }: { value: unknown; label: string }) {
   );
 }
 
-/** The paths of the strings in a value that are secret references. */
-function secretRefPaths(v: unknown, path = ''): string[] {
-  if (looksLikeSecretRef(v)) return [path === '' ? '(value)' : path];
-  if (Array.isArray(v)) return v.flatMap((x, i) => secretRefPaths(x, `${path}[${i}]`));
-  if (typeof v === 'object' && v !== null) {
-    return Object.entries(v).flatMap(([k, x]) =>
-      secretRefPaths(x, path === '' ? k : `${path}.${k}`),
-    );
-  }
-  return [];
-}
-
 /**
  * Which layer the console reads and proposes on: the factory's (one document for the fleet; `config.propose`), or one
- * project's (P1-5: `project.settings.edit`, an M1 at the project's admin slot).
+ * project's (P1-5: `project.settings.edit`, a settings approval at the project's admin slot).
  */
 export type ConfigLayer =
   { readonly kind: 'factory' } | { readonly kind: 'project'; readonly project: string };
 const FACTORY_LAYER: ConfigLayer = { kind: 'factory' };
 
-/** A key's own draft editor (the role map as slot by people, the gating profile as toggles); the JSON form stays. */
+/** A key's own draft editor (the role map as slot by people, the gating profile as toggles); the generated form stays. */
 export interface DraftEditorProps {
   readonly value: unknown;
   readonly onChange: (v: unknown) => void;
@@ -83,12 +103,15 @@ export interface DraftEditorProps {
   readonly deploys: boolean | null;
 }
 
+const slotWord = (slot: string) => lookupTerm('roleSlot', slot)?.label ?? 'the deciding role';
+
 export function ConfigConsole({
   configKey,
   csrf,
   layer = FACTORY_LAYER,
   editor: Editor,
   problemsOf,
+  readOnly = false,
 }: {
   configKey: string;
   csrf: string;
@@ -97,6 +120,8 @@ export function ConfigConsole({
   editor?: ComponentType<DraftEditorProps>;
   /** Rules the schema cannot see (the tier floors), the same functions the server runs. */
   problemsOf?: (draft: unknown, ctx: { tier: string | null; deploys: boolean | null }) => string[];
+  /** Shown, never changed here (generated, or changed on another screen). */
+  readOnly?: boolean;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -111,7 +136,7 @@ export function ConfigConsole({
   const [draft, setDraft] = useState<unknown>(undefined);
   const base = q.data?.effective.value;
   const head = q.data?.head_rev_hash ?? null;
-  // A new head (a revision published since) resets the draft to the new effective value.
+  // A new head (a change put in force since) resets the draft to the new value in force.
   const [draftFor, setDraftFor] = useState<string | null>(null);
   const loadedFor = q.data ? `${configKey}@${head ?? 'none'}` : null;
   if (q.data && loadedFor !== draftFor) {
@@ -119,24 +144,23 @@ export function ConfigConsole({
     setDraft(structuredClone(q.data.effective.value));
   }
 
-  const propose = useMutation({
+  // the project layer proposes through its own route (Project › Settings); no preview there yet
+  const proposeProject = useMutation({
     mutationFn: () =>
-      project === null
-        ? api.proposeConfig(configKey, { value: draft, parent_rev_hash: head }, csrf)
-        : api.proposeProjectConfig(
-            project,
-            configKey,
-            { value: draft, parent_rev_hash: head },
-            csrf,
-          ),
-    onSuccess: (r) => {
-      toast(`Proposed. The M1 gate ${short(r.gate_instance_id)} decides it; nothing changed yet.`);
+      api.proposeProjectConfig(
+        project as string,
+        configKey,
+        { value: draft, parent_rev_hash: head },
+        csrf,
+      ),
+    onSuccess: () => {
+      toast('Proposed. It waits for approval; nothing changed yet.', 'ok');
       void qc.invalidateQueries({ queryKey });
     },
   });
   const [asJson, setAsJson] = useState(false);
 
-  if (q.isPending) return <Loading what={`the configuration of ${configKey}`} />;
+  if (q.isPending) return <Loading what="the setting" />;
   if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const v = q.data;
   const names = v.principal_names;
@@ -148,148 +172,175 @@ export function ConfigConsole({
       ? []
       : [...validateAgainst(schema, draft), ...(problemsOf ? problemsOf(draft, ctx) : [])];
   const changes = draft === undefined ? [] : diffValues(base, draft);
-  const layerWords =
-    project === null ? 'the factory configuration' : `the configuration of project ${project}`;
-  const proposeAction = project === null ? 'config.propose' : 'project.settings.edit';
-  const proposeOn = project === null ? pdpResource.fleet() : pdpResource.project(project);
+  const settingsGate = label('gate', 'M1');
   const decideLink = (gate: string) =>
     project === null ? `/config/revisions/${gate}` : `/revisions/${gate}`;
+  const blocked =
+    changes.length === 0
+      ? 'Change a field to send a change.'
+      : problems.length > 0
+        ? 'Fix the problems above first.'
+        : null;
+  const proposer = v.history.find((r) => r.rev_hash === v.effective.rev_hash)?.proposed_by;
 
   return (
     <div className="cfg" data-config-key={configKey}>
-      <Card title="Effective value" testId="cfg-effective">
-        <ValueView value={v.effective.value} label="Effective value" />
-        <KeyValue
-          label="Where it comes from"
-          rows={[
-            [
-              'Source',
-              v.effective.source === 'default'
-                ? 'the registered default (no published revision sets it)'
-                : v.effective.source === 'factory'
-                  ? 'the factory layer (this project does not set it)'
-                  : project === null
-                    ? 'a published revision'
-                    : 'a published revision of this project',
-            ],
-            ['Revision', <code key="r">{short(v.effective.rev_hash)}</code>],
-            ['M1 gate', <code key="g">{short(v.effective.gate_instance_id)}</code>],
-            [
-              'M1 decision (ledger entry)',
-              <code key="l">{short(v.effective.ledger_entry_id)}</code>,
-            ],
-            ['Published', v.effective.published_at ? shortTime(v.effective.published_at) : '—'],
-          ]}
-        />
-      </Card>
-
-      <Card
-        title="Draft a change"
-        footer={
-          <Guarded action={proposeAction} resource={proposeOn} label="Propose this change">
-            <button
-              type="button"
-              className="ui-btn ui-btn-primary"
-              disabled={
-                !v.may_propose || changes.length === 0 || problems.length > 0 || propose.isPending
-              }
-              onClick={() => propose.mutate()}
-            >
-              Propose this change
-            </button>
-          </Guarded>
-        }
-      >
-        <p className="muted">
-          {v.key.description}. A proposal is a new revision of {layerWords} with an M1 gate
-          {project === null ? '' : ` (decided by the project's admin slot)`}; the value changes only
-          once that gate is decided approve.
+      <Card title="In force now" testId="cfg-effective">
+        <ValueView value={v.effective.value} label="Value in force" />
+        <p className="muted" data-testid="cfg-source">
+          {v.effective.source === 'default'
+            ? 'The default: no change has been approved for this setting.'
+            : v.effective.source === 'factory'
+              ? 'The factory-wide value: this project does not set its own.'
+              : project !== null
+                ? `In force: a published revision of this project${
+                    v.effective.published_at ? `, since ${shortTime(v.effective.published_at)}` : ''
+                  }.`
+                : `In force since ${v.effective.published_at ? shortTime(v.effective.published_at) : '—'}${
+                    proposer ? `, proposed by ${who(proposer)}` : ''
+                  }, approved in the decision log.`}
         </p>
-        {draft === undefined ? null : (
-          <form
-            aria-label={`Draft of ${configKey}`}
-            onSubmit={(e) => {
-              e.preventDefault();
-            }}
-          >
-            {Editor && !asJson ? (
-              // keyed by the head: a new head resets the editor's own text with the draft
-              <Editor key={draftFor ?? ''} value={draft} onChange={setDraft} {...ctx} />
-            ) : (
-              <SchemaField schema={schema} value={draft} onChange={setDraft} label={configKey} />
-            )}
-            {Editor ? (
-              <p>
-                <button
-                  type="button"
-                  className="ui-btn ui-btn-sm"
-                  onClick={() => setAsJson((x) => !x)}
-                >
-                  {asJson ? 'Back to the form' : 'Edit every field (generated form)'}
-                </button>
-              </p>
-            ) : null}
-          </form>
-        )}
-        {problems.length > 0 ? (
-          <div className="notice notice-bad" role="alert" aria-label="Problems with the draft">
-            <ul>
-              {problems.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        <h3>Change against the effective value</h3>
-        {changes.length === 0 ? (
-          <p className="muted" data-testid="cfg-nochange">
-            The draft equals the effective value.
-          </p>
-        ) : (
-          <Table
-            caption="Changes in the draft"
-            captionHidden
-            rows={changes}
-            rowKey={(c) => c.path}
-            columns={[
-              { key: 'p', header: 'Field', rowHeader: true, render: (c) => <code>{c.path}</code> },
-              {
-                key: 'b',
-                header: 'Now',
-                render: (c) => (
-                  <code>{c.before === undefined ? '(not set)' : JSON.stringify(c.before)}</code>
-                ),
-              },
-              {
-                key: 'a',
-                header: 'Proposed',
-                render: (c) => (
-                  <code>{c.after === undefined ? '(not set)' : JSON.stringify(c.after)}</code>
-                ),
-              },
+        <details className="cfg-audit">
+          <summary>For auditors</summary>
+          <KeyValue
+            rows={[
+              ['Change', <code key="r">{short(v.effective.rev_hash)}</code>],
+              ['Approval', <code key="g">{short(v.effective.gate_instance_id)}</code>],
+              ['Decision log entry', <code key="l">{short(v.effective.ledger_entry_id)}</code>],
             ]}
           />
-        )}
-        {propose.isError ? <ErrorNote error={propose.error} /> : null}
+        </details>
       </Card>
 
-      <Card title="Waiting for a decision" testId="cfg-pending">
+      {readOnly ? null : (
+        <Card title="Change it">
+          <p className="muted">
+            {v.key.description}. A change waits for “{settingsGate}”
+            {project === null ? '' : ` (decided by the project's admins)`}; the value changes only
+            once it is approved.
+          </p>
+          {draft === undefined ? null : (
+            <form
+              aria-label="Draft of the change"
+              onSubmit={(e) => {
+                e.preventDefault();
+              }}
+            >
+              {Editor && !asJson ? (
+                // keyed by the head: a new head resets the editor's own text with the draft
+                <Editor key={draftFor ?? ''} value={draft} onChange={setDraft} {...ctx} />
+              ) : (
+                <SchemaField
+                  schema={schema}
+                  value={draft}
+                  onChange={setDraft}
+                  label="The setting"
+                />
+              )}
+              {Editor ? (
+                <p>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn-sm"
+                    onClick={() => setAsJson((x) => !x)}
+                  >
+                    {asJson ? 'Back to the form' : 'Edit every field (generated form)'}
+                  </button>
+                </p>
+              ) : null}
+            </form>
+          )}
+          {problems.length > 0 ? (
+            <div className="notice notice-bad" role="alert" aria-label="Problems with the draft">
+              <ul>
+                {problems.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {project === null ? (
+            v.may_propose ? (
+              <ChangeActions
+                configKey={configKey}
+                draft={draft}
+                parent={head}
+                csrf={csrf}
+                mayApplyNow={v.may_apply_now === true}
+                blocked={blocked}
+              />
+            ) : (
+              <p className="muted" data-testid="cfg-read-only">
+                You can read this setting but not change it.
+              </p>
+            )
+          ) : (
+            <>
+              <h3>What changes</h3>
+              {changes.length === 0 ? (
+                <p className="muted" data-testid="cfg-nochange">
+                  The draft is what is in force.
+                </p>
+              ) : (
+                <Table
+                  caption="Changes in the draft"
+                  captionHidden
+                  rows={changes}
+                  rowKey={(c) => c.path}
+                  columns={[
+                    {
+                      key: 'p',
+                      header: 'Field',
+                      rowHeader: true,
+                      // the project squad's screen keeps the field path (Project › Settings)
+                      render: (c) => <code>{c.path}</code>,
+                    },
+                    { key: 'b', header: 'Now', render: (c) => valueWord(c.before) },
+                    { key: 'a', header: 'After the change', render: (c) => valueWord(c.after) },
+                  ]}
+                />
+              )}
+              <Guarded
+                action="project.settings.edit"
+                resource={pdpResource.project(project)}
+                label="Propose this change"
+              >
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-primary"
+                  disabled={!v.may_propose || blocked !== null || proposeProject.isPending}
+                  onClick={() => proposeProject.mutate()}
+                >
+                  Propose this change
+                </button>
+              </Guarded>
+              {proposeProject.isError ? (
+                <p className="ui-help ui-help-bad" role="alert">
+                  {changeError(proposeProject.error)}
+                </p>
+              ) : null}
+            </>
+          )}
+        </Card>
+      )}
+
+      <Card title="Waiting for approval" testId="cfg-pending">
         {v.pending.length === 0 ? (
-          <p className="muted">No proposal is open.</p>
+          <p className="muted">No change is waiting.</p>
         ) : (
-          <ul className="plain" aria-label="Open proposals">
+          <ul className="plain st-pending" aria-label="Changes waiting for approval">
             {v.pending.map((p) => (
               <li key={p.revision.rev_hash} data-rev={p.revision.rev_hash}>
-                <Pill tone="warn">{p.gate_status ?? 'unknown'}</Pill> revision{' '}
-                <code>{short(p.revision.rev_hash)}</code> by {who(p.revision.proposed_by)},{' '}
-                {shortTime(p.revision.proposed_at)}.{' '}
+                <Pill tone="warn">
+                  <WireTerm family="configRevision" value={p.revision.state} />
+                </Pill>{' '}
+                Proposed by {who(p.revision.proposed_by)}, {shortTime(p.revision.proposed_at)}.{' '}
                 {p.revision.changes_key
-                  ? 'It changes this key.'
-                  : `It changes another key of ${layerWords}, not this one.`}
+                  ? 'It changes this setting.'
+                  : 'It changes another setting, not this one.'}
                 <div>
-                  M1 gate <code>{short(p.revision.gate_instance_id)}</code>, decided by the{' '}
-                  {project === null ? 'factory' : 'project'}&rsquo;s{' '}
-                  <strong>{p.deciders.slot}</strong> slot:{' '}
+                  Decided by{' '}
+                  {project === null ? slotWord(p.deciders.slot) : 'the project’s admin slot'}:{' '}
                   {p.deciders.holders.length === 0
                     ? 'nobody holds it yet, so nobody can decide it.'
                     : p.deciders.holders.map(who).join(', ')}
@@ -297,15 +348,9 @@ export function ConfigConsole({
                 {p.revision.gate_instance_id ? (
                   <div>
                     <Link to={decideLink(p.revision.gate_instance_id)}>
-                      Open the revision to decide it
+                      {project === null ? 'Open it to decide' : 'Open the revision to decide it'}
                     </Link>
                   </div>
-                ) : null}
-                {p.revision.changes_key ? (
-                  <ValueView
-                    value={p.revision.value}
-                    label={`Proposed value ${p.revision.rev_hash}`}
-                  />
                 ) : null}
               </li>
             ))}
@@ -315,22 +360,21 @@ export function ConfigConsole({
 
       <Card title="History" flush>
         <Table<ConfigKeyRevision>
-          caption={`Revisions of ${layerWords}, newest first`}
+          caption="Changes to the settings, newest first"
           captionHidden
-          rows={v.history}
+          rows={v.history.filter((r) => r.changes_key)}
           rowKey={(r) => r.rev_hash}
-          empty={<EmptyState title="No revision yet">The key has its default value.</EmptyState>}
+          empty={<EmptyState title="No change yet">The setting has its default value.</EmptyState>}
           columns={[
-            {
-              key: 'rev',
-              header: 'Revision',
-              rowHeader: true,
-              render: (r) => <code>{short(r.rev_hash)}</code>,
-            },
             {
               key: 'state',
               header: 'State',
-              render: (r) => <Pill tone={STATE_TONE[r.state]}>{r.state}</Pill>,
+              rowHeader: true,
+              render: (r) => (
+                <Pill tone={STATE_TONE[r.state]}>
+                  <WireTerm family="configRevision" value={r.state} />
+                </Pill>
+              ),
             },
             {
               key: 'by',
@@ -338,21 +382,14 @@ export function ConfigConsole({
               render: (r) => `${who(r.proposed_by)}, ${shortTime(r.proposed_at)}`,
             },
             {
-              key: 'key',
-              header: 'This key',
-              render: (r) => (r.changes_key ? 'changed' : 'unchanged'),
+              key: 'pub',
+              header: 'In force from',
+              render: (r) => (r.published_at ? shortTime(r.published_at) : '—'),
             },
             {
-              key: 'pub',
-              header: 'Published (M1 entry)',
-              render: (r) =>
-                r.published_at ? (
-                  <>
-                    {shortTime(r.published_at)} <code>{short(r.ledger_entry_id)}</code>
-                  </>
-                ) : (
-                  '—'
-                ),
+              key: 'v',
+              header: 'Value',
+              render: (r) => (r.set ? valueWord(r.value) : 'the default'),
             },
           ]}
         />

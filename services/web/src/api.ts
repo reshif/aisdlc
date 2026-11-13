@@ -1,4 +1,8 @@
 import type {
+  SecretList,
+  SecretName,
+  SecretWriteResult,
+  SettingPreview,
   CardKindView,
   BreakersView,
   BudgetsView,
@@ -118,6 +122,7 @@ import type {
   LearnRunResult,
   ProjectLearnView,
 } from '@aisdlc/contracts';
+import { OVERRIDE_REASON_HEADER } from '@aisdlc/contracts';
 import type { JsonSchema } from './lib/schema';
 
 // The browser's only server is the bff, on this origin: one HttpOnly session cookie (sent by the
@@ -152,6 +157,8 @@ export type AccessGrantWire = AccessGrantView & { readonly may_decide: boolean }
 /** `GET /api/config/keys/:key`: core's view plus what only the bff knows for this person. */
 export type ConfigKeyWire = ConfigKeyView & {
   readonly may_propose: boolean;
+  /** The person is a factory admin and may apply a change alone, with a reason (bff hint; core decides). */
+  readonly may_apply_now?: boolean;
   readonly principal_names: Readonly<Record<string, string>>;
   /** The project layer only (P1-5): the project's tier and deploys, for the floors. */
   readonly project_id?: string;
@@ -317,12 +324,13 @@ export type AskInput =
   | { readonly thread_id: string; readonly text: string };
 
 async function request<T>(
-  method: 'GET' | 'POST' | 'PUT',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
   csrf?: string,
+  extra?: Readonly<Record<string, string>>,
 ): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json' };
+  const headers: Record<string, string> = { accept: 'application/json', ...extra };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (csrf !== undefined) headers['x-csrf-token'] = csrf;
   let res: Response;
@@ -389,6 +397,17 @@ async function conditional<T>(path: string, etag: string | null): Promise<Condit
   return { kind: 'fresh', etag: res.headers.get('etag'), value: json as T };
 }
 
+/** The factory admin's reason for acting outside a rule, carried to core by the bff (deletion.md §8). */
+const overrideHeader = (reason: string | undefined): Record<string, string> | undefined =>
+  reason === undefined ? undefined : { [OVERRIDE_REASON_HEADER]: encodeURIComponent(reason) };
+
+/** What deciding a factory settings change answers. */
+export interface FactoryRevisionDecision {
+  readonly outcome: string | null;
+  readonly published: boolean;
+  readonly publish_error: string | null;
+}
+
 /** A prepared M1 vote: the nonce, what it binds, and the step-up it needs (two people: RC-SEC-4). */
 export interface PreparedRevision {
   nonce: string;
@@ -411,7 +430,25 @@ export const api = {
   decisions: (queries: readonly DecisionQuery[], csrf: string) =>
     request<DecisionBatchView>('POST', '/api/me/decisions', { queries }, csrf),
   configKeys: () =>
-    request<{ keys: ConfigKeySummary[]; may_propose: boolean }>('GET', '/api/config/keys'),
+    request<{ keys: ConfigKeySummary[]; may_propose: boolean; may_apply_now?: boolean }>(
+      'GET',
+      '/api/config/keys',
+    ),
+  /** N8: what a draft would change, before it is proposed (writes nothing). */
+  previewConfig: (key: string, value: unknown, csrf: string) =>
+    request<SettingPreview>(
+      'POST',
+      `/api/config/keys/${encodeURIComponent(key)}/preview`,
+      { value },
+      csrf,
+    ),
+  /** N15: the secrets by name with their metadata; never a value. */
+  secrets: () => request<SecretList>('GET', '/api/secrets'),
+  /** Write-only: the value goes once and only metadata comes back. */
+  putSecret: (name: SecretName, value: string, csrf: string) =>
+    request<SecretWriteResult>('PUT', `/api/secrets/${encodeURIComponent(name)}`, { value }, csrf),
+  deleteSecret: (name: SecretName, csrf: string) =>
+    request<SecretWriteResult>('DELETE', `/api/secrets/${encodeURIComponent(name)}`, {}, csrf),
   configKey: (key: string) =>
     request<ConfigKeyWire>('GET', `/api/config/keys/${encodeURIComponent(key)}`),
   proposeConfig: (
@@ -900,19 +937,27 @@ export const api = {
       'GET',
       `/api/config/revisions/${encodeURIComponent(gate)}`,
     ),
-  prepareFactoryRevision: (gate: string, csrf: string) =>
+  prepareFactoryRevision: (gate: string, csrf: string, override?: string) =>
     request<PreparedRevision>(
       'POST',
       `/api/config/revisions/${encodeURIComponent(gate)}/prepare`,
       {},
       csrf,
+      overrideHeader(override),
     ),
   factoryRevisionEvidence: (
     gate: string,
     b: { nonce: string; evidence_hash: string },
     csrf: string,
+    override?: string,
   ) =>
-    request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/evidence`, b, csrf),
+    request<unknown>(
+      'POST',
+      `/api/config/revisions/${encodeURIComponent(gate)}/evidence`,
+      b,
+      csrf,
+      overrideHeader(override),
+    ),
   decideFactoryRevision: (
     gate: string,
     b: {
@@ -921,8 +966,15 @@ export const api = {
       step_up?: { proof: string };
     },
     csrf: string,
+    override?: string,
   ) =>
-    request<unknown>('POST', `/api/config/revisions/${encodeURIComponent(gate)}/decide`, b, csrf),
+    request<FactoryRevisionDecision>(
+      'POST',
+      `/api/config/revisions/${encodeURIComponent(gate)}/decide`,
+      b,
+      csrf,
+      overrideHeader(override),
+    ),
   // P1-6: role-binding grants, revokes and access requests (each decided by an M1)
   accessGrants: () => request<{ grants: AccessGrantWire[] }>('GET', '/api/access/grants'),
   accessGrant: (id: string) =>
