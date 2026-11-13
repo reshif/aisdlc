@@ -43,6 +43,7 @@ export * from './push.js';
 export * from './verify.js';
 export * from './evidence.js';
 export * from './gate-check.js';
+export * from './github-apps.js';
 export * from './onboarding-probe.js';
 export * from './review.js';
 export * from './merge.js';
