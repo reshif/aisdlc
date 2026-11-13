@@ -7,3 +7,4 @@ export * from './verify.js';
 export * from './projection.js';
 export * from './stream-type-counts.js';
 export * from './migrations.js';
+export * from './purge.js';

@@ -25,7 +25,22 @@ export interface ChainBreak {
   actual: string | number | null;
 }
 
-export type Verification = { valid: true; events: number } | { valid: false; break: ChainBreak };
+export type Verification =
+  | {
+      valid: true;
+      events: number;
+      /** Events a deletion redacted in place, checked by their stored hash and link only. */
+      redacted?: number;
+      /** Global positions a deletion removed, accounted for by `record.purged_event`. */
+      purged?: number;
+    }
+  | { valid: false; break: ChainBreak };
+
+/** Deletion (docs/specs/deletion.md §2): an event redacted in place keeps its link and hash, not its content. */
+interface VerifyRow extends EventRow {
+  redacted_at: Date | null;
+}
+const VERIFY_COLUMNS = `${EVENT_COLUMNS}, redacted_at`;
 
 const BATCH = 1000;
 
@@ -35,7 +50,7 @@ interface Link {
 }
 
 /** Checks one row against its predecessor in the stream. Returns the first fault, if any. */
-function checkRow(row: EventRow, last: Link): ChainBreak | null {
+function checkRow(row: VerifyRow, last: Link): ChainBreak | null {
   const seq = Number(row.seq);
   const global_seq = Number(row.global_seq);
   const at = { stream: row.stream, seq, global_seq };
@@ -45,6 +60,9 @@ function checkRow(row: EventRow, last: Link): ChainBreak | null {
   if (row.prev_hash !== last.hash) {
     return { kind: 'prev_hash_mismatch', ...at, expected: last.hash, actual: row.prev_hash };
   }
+  // A redacted event: its content is gone by design, so its stored hash is taken as is; the next event's link to it
+  // is still checked, which is what keeps the stream a chain.
+  if (row.redacted_at !== null && row.type === 'redacted') return null;
   const recomputed = computeEventHash({
     stream: row.stream,
     seq,
@@ -83,8 +101,8 @@ export async function verifyChain(db: Executor, stream: string): Promise<Verific
     let last: Link = { seq: 0, hash: GENESIS_HASH };
     let count = 0;
     for (;;) {
-      const r = await ex.query<EventRow>(
-        `SELECT ${EVENT_COLUMNS} FROM record.record_event
+      const r = await ex.query<VerifyRow>(
+        `SELECT ${VERIFY_COLUMNS} FROM record.record_event
           WHERE stream = $1 AND seq > $2::bigint ORDER BY record_event.seq LIMIT ${BATCH}`,
         [stream, String(last.seq)],
       );
@@ -108,14 +126,30 @@ export async function verifyAll(db: Executor): Promise<Verification> {
   return inSnapshot(db, async (ex) => {
     const heads = new Map<string, Link>();
     let lastGlobal = 0;
+    let redacted = 0;
+    // Positions a deletion removed (docs/specs/deletion.md §2). The table exists from migration 0005.
+    const purged = new Set<number>();
+    const hasPurged = await ex.query<{ t: string | null }>(
+      `SELECT to_regclass('record.purged_event')::text AS t`,
+    );
+    if (hasPurged.rows[0]?.t) {
+      const p = await ex.query<{ g: string }>(
+        'SELECT global_seq::text AS g FROM record.purged_event',
+      );
+      for (const x of p.rows) purged.add(Number(x.g));
+    }
+    const skipPurged = () => {
+      while (purged.has(lastGlobal + 1)) lastGlobal += 1;
+    };
     for (;;) {
-      const r = await ex.query<EventRow>(
-        `SELECT ${EVENT_COLUMNS} FROM record.record_event
+      const r = await ex.query<VerifyRow>(
+        `SELECT ${VERIFY_COLUMNS} FROM record.record_event
           WHERE global_seq > $1::bigint ORDER BY record_event.global_seq LIMIT ${BATCH}`,
         [String(lastGlobal)],
       );
       for (const row of r.rows) {
         const g = Number(row.global_seq);
+        skipPurged();
         if (g !== lastGlobal + 1) {
           return {
             valid: false,
@@ -132,10 +166,12 @@ export async function verifyAll(db: Executor): Promise<Verification> {
         const broken = checkRow(row, heads.get(row.stream) ?? { seq: 0, hash: GENESIS_HASH });
         if (broken) return { valid: false, break: broken } as const;
         heads.set(row.stream, { seq: Number(row.seq), hash: row.hash });
+        if (row.redacted_at !== null) redacted += 1;
         lastGlobal = g;
       }
       if (r.rows.length < BATCH) break;
     }
+    skipPurged();
     const c = await ex.query<{ last_seq: string }>(
       'SELECT last_seq::text AS last_seq FROM record.global_counter WHERE id',
     );
@@ -153,6 +189,11 @@ export async function verifyAll(db: Executor): Promise<Verification> {
         },
       } as const;
     }
-    return { valid: true, events: lastGlobal } as const;
+    return {
+      valid: true as const,
+      events: lastGlobal - purged.size,
+      ...(redacted > 0 ? { redacted } : {}),
+      ...(purged.size > 0 ? { purged: purged.size } : {}),
+    };
   });
 }
