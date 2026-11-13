@@ -450,18 +450,25 @@ describe('the agent page (P2-3)', () => {
       },
     },
     'GET /api/agents/A3/runs?limit=50': { json: { agent_id: 'A3', runs: [run()], total: 10 } },
+    // the settings tab: this person may not read the settings
+    'GET /api/config/keys/agents.config': {
+      status: 403,
+      json: { error: { code: 'forbidden', message: 'audit.read denied' } },
+    },
   });
 
   it('shows the contract and schemas, production outcomes, pass^k, scores over time and recent runs', async () => {
+    const user = userEvent.setup();
     mockApi(agentRoutes());
     renderAt('/agents/A3');
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'A3 planner' }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Planner' })).toBeInTheDocument();
+    expect(await screen.findByTestId('agent-settings-denied')).toBeVisible();
+    await user.click(screen.getByRole('tab', { name: 'Instructions' }));
     const c = screen.getByTestId('agent-contract');
-    expect(c).toHaveTextContent('a3_input.v1');
     expect(c).toHaveTextContent(SHA_A.slice(0, 12));
+    expect(c).not.toHaveTextContent('A3');
     expect(screen.getByTestId('agent-input-schema')).toHaveTextContent('"item_id"');
+    await user.click(screen.getByRole('tab', { name: 'Quality' }));
     expect(await screen.findByRole('list', { name: 'Production outcomes' })).toHaveTextContent(
       '75%',
     );
@@ -474,6 +481,7 @@ describe('the agent page (P2-3)', () => {
     expect(rates[0]).toHaveTextContent('92%');
     expect(rates[1]).toHaveTextContent('100%');
     expect(hist).toHaveTextContent('other prompt');
+    await user.click(screen.getByRole('tab', { name: 'Runs' }));
     const recent = await screen.findByTestId('agent-recent-runs');
     expect(recent).toHaveTextContent('Recent runs (1 of 10)');
     expect(within(recent).getByRole('link', { name: `item ${ITEM.slice(0, 8)}` })).toHaveAttribute(
