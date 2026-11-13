@@ -12,6 +12,7 @@ import {
   registerReleaseConfig,
   registerNotificationsConfig,
   registerSandboxConfig,
+  registerSettingsConfig,
   type ConfigDeps,
   type ConfigRegistry,
   type ProposeResult,
@@ -97,6 +98,8 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   registerAdmissionConfig(registry);
   // M19: the floor's silence thresholds and score line
   registerFloorConfig(registry);
+  // Portal v2: every setting that was code or an environment variable (H1-H28), the catalogue's sections included
+  registerSettingsConfig(registry);
   return registry
     .setting({
       key: PROJECT_CONFIG_KEYS.role_map,

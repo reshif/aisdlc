@@ -1,4 +1,9 @@
-import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
+import {
+  ConfigReader,
+  ConfigRegistry,
+  followSettings,
+  registerSettingsConfig,
+} from '@aisdlc/config';
 import { STEP_UP_KEY_ID } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
@@ -270,11 +275,16 @@ export async function bootBff(env: Env): Promise<RunningService> {
     await migrateBff(pool);
     reader = await ConfigReader.create({
       pool,
-      registry: registerPdpConfig(new ConfigRegistry()),
+      registry: registerSettingsConfig(registerPdpConfig(new ConfigRegistry())),
       onError: (e) =>
         console.error(`bff: config reader: ${e instanceof Error ? e.message : String(e)}`),
     });
     await reader.start();
+    // Portal v2: the approvals table (`gates.policy`) the PDP's gate attributes read, followed on every revision
+    await followSettings({
+      reader,
+      onError: (e) => console.error(`bff: settings: ${e instanceof Error ? e.message : String(e)}`),
+    });
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
       entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),

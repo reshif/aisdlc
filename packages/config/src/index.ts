@@ -54,3 +54,4 @@ export {
   type CataloguePin,
 } from './catalogue.js';
 export { SETTINGS_KEY_DEFAULTS, registerSettingsConfig } from './settings.js';
+export { applyGatePolicies, followSettings, type FollowSettingsOptions } from './follow.js';

@@ -1,4 +1,5 @@
 import {
+  followSettings,
   ConfigReader,
   ConfigRegistry,
   onboardingImageFrom,
@@ -177,6 +178,12 @@ export async function bootCoreWorker(
           onError: (e) => log(`config reader: ${e instanceof Error ? e.message : String(e)}`),
         });
         await reader.start();
+        // Portal v2: the catalogue's settings releases and the approvals table, followed on every revision
+        await followSettings({
+          reader,
+          pool,
+          onError: (e) => log(`settings: ${e instanceof Error ? e.message : String(e)}`),
+        });
       }
       return reader;
     };

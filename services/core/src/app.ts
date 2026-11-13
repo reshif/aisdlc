@@ -176,6 +176,7 @@ import {
   recordSpike,
   requestProbeRetry,
 } from './cards/index.js';
+import { displayCatalogue } from './catalogue-pin.js';
 
 /**
  * What a caller may do: `read` the model, `onboard` (the BFF, for a signed-in human: the PDP decides
@@ -553,7 +554,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         repo.data,
         lane.data,
         clock,
-        undefined,
+        // what a new request would be judged by: the factory's current catalogue
+        (await displayCatalogue(o.pool)).data.eligibility,
         area?.success ? area.data : undefined,
       );
     } catch {

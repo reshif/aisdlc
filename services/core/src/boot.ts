@@ -1,4 +1,5 @@
 import {
+  followSettings,
   ConfigReader,
   ConfigRegistry,
   registerGatewayConfig,
@@ -85,6 +86,13 @@ export async function bootCore(env: Env): Promise<RunningService> {
         console.error(`core: config reader: ${e instanceof Error ? e.message : String(e)}`),
     });
     await reader.start();
+    // Portal v2: the catalogue's settings releases and the approvals table, followed on every revision
+    await followSettings({
+      reader,
+      pool,
+      onError: (e) =>
+        console.error(`core: settings: ${e instanceof Error ? e.message : String(e)}`),
+    });
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
       entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
