@@ -367,21 +367,29 @@ export class AgentCodingPort implements CodingPort {
     if (stop) return stop;
     const store = this.d.store;
     const have = store.load(req.item_id);
-    // rehydrate: the same session goes on (HUMAN-WAIT, a back-edge, an env fix): its workspace is what the last run left
+    const fromHead = plan.head_sha ?? null;
+    // rehydrate: the same session goes on (HUMAN-WAIT, a back-edge, an env fix): its workspace is what the last run left.
+    // A re-plan of a pushed Unit (owner decision 2026-11-13) is a NEW session from the branch head, never the old one.
     if (
       have !== null &&
       !have.tainted &&
       have.unit_key === plan.unit_key &&
-      have.base_sha === plan.base_sha
+      have.base_sha === plan.base_sha &&
+      (have.from_head ?? null) === fromHead
     ) {
       return done('rehydrated', have.item_id, have.generation, have.tree_sha256);
     }
     const files = await this.d.source.files(req.repo, plan.base_sha);
     if (!files.ok) throw new Error(`the repo at ${plan.base_sha}: ${files.error.message}`);
+    // the Unit has a branch: the work goes on from its head (the same branch and PR), diffed against the base all the same
+    const headFiles = fromHead === null ? null : await this.d.source.files(req.repo, fromHead);
+    if (headFiles !== null && !headFiles.ok)
+      throw new Error(`the Unit's branch at ${fromHead}: ${headFiles.error.message}`);
     // a cold rebuild (SECT false positive) or a new plan: the old workspace is not trusted; its snapshot stays for the record
     if (have !== null)
       store.snapshot(have, { why: have.tainted ? 'tainted_cold_rebuild' : 'replaced' });
     const tree = store.putFiles(files.value);
+    const start = headFiles === null ? tree : store.putFiles(headFiles.value);
     const s: SessionState = {
       item_id: req.item_id,
       repo: req.repo,
@@ -389,7 +397,9 @@ export class AgentCodingPort implements CodingPort {
       base_sha: plan.base_sha,
       generation: (have?.generation ?? 0) + 1,
       base_tree_sha256: tree,
-      tree_sha256: tree,
+      tree_sha256: start,
+      from_head: fromHead,
+      start_tree_sha256: start,
       locks: {},
       oracle_ids: [],
       task_idx: 0,
@@ -454,15 +464,24 @@ export class AgentCodingPort implements CodingPort {
     const deviations: OracleDeviation[] = checkOracleBinding(plan.oracles, bound, repro);
 
     // the oracle files join the workspace (a file already there is replaced: the bound oracle is the source of truth)
-    const m = { ...store.getTree(s.base_tree_sha256) } as Record<
-      string,
-      { sha256: string; size: number; exec: boolean }
-    >;
-    for (const f of oracleFiles) {
-      const buf = Buffer.from(f.content);
-      m[f.path] = { sha256: store.putBlob(buf), size: buf.length, exec: false };
-    }
-    const withOracles = store.putTree(m);
+    const withOraclesOf = (tree: string): string => {
+      const m = { ...store.getTree(tree) } as Record<
+        string,
+        { sha256: string; size: number; exec: boolean }
+      >;
+      for (const f of oracleFiles) {
+        const buf = Buffer.from(f.content);
+        m[f.path] = { sha256: store.putBlob(buf), size: buf.length, exec: false };
+      }
+      return store.putTree(m);
+    };
+    // red is a property of the BASE: each oracle must fail where the change is not made yet. A re-plan of a pushed Unit
+    // (owner decision 2026-11-13) then works from the branch head with the oracles added (`start_tree_sha256`)
+    const withOracles = withOraclesOf(s.base_tree_sha256);
+    const workspace =
+      s.start_tree_sha256 !== undefined && s.start_tree_sha256 !== s.base_tree_sha256
+        ? withOraclesOf(s.start_tree_sha256)
+        : withOracles;
     const test = this.d.source.contract(req.repo, s.base_sha, store.filesOf(withOracles))['test'];
     if (!test) return rework('B6', 'no_test_command');
     // each oracle must FAIL first: an assertion failure is exit 1; anything else that is not green is a broken environment
@@ -479,7 +498,7 @@ export class AgentCodingPort implements CodingPort {
         deviations.push({ kind: 'oracle_not_red', oracle_id: b?.oracle_id ?? null, path: f.path });
       }
     }
-    s.tree_sha256 = withOracles;
+    s.tree_sha256 = workspace;
     s.locks = Object.fromEntries(oracleFiles.map((f) => [f.path, sha256(f.content)]));
     s.oracle_ids = repro ? ['repro'] : plan.oracles.map((o) => o.oracle_id);
     s.stage = 'oracles_red';
@@ -913,6 +932,11 @@ export class AgentCodingPort implements CodingPort {
 
   private taskPrompt(s: SessionState, plan: UnitPlan, task: BuildTask | null): string {
     const parts: string[] = [];
+    // owner decision 2026-11-13: the re-planned Unit goes on from its branch head; the first task undoes what is wrong
+    if ((s.from_head ?? null) !== null && s.task_idx === 0 && task !== null)
+      parts.push(
+        `The workspace is the head of this Unit's branch (${s.from_head}): an earlier approach that review found wrong, and the plan below replaces it. First undo whatever of that approach the new plan does not keep; then do the task.`,
+      );
     if (task) parts.push(`Task ${task.task_id}: ${task.title}\n\n${task.instructions}`);
     else
       parts.push(

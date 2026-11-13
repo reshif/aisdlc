@@ -449,6 +449,8 @@ export async function signPack(
     g3: string | null;
     receipt_id: string;
     patch_hash: string;
+    /** A not-passing pack's disposition (default: a B9 rework). */
+    disposition?: EvidencePack['disposition'];
     /** Change the pack after it was signed (a forgery: the signature no longer matches). */
     tamper?: (p: EvidencePack) => EvidencePack;
     repo?: string;
@@ -470,7 +472,12 @@ export async function signPack(
     head_sha: o.head,
     disposition: o.passing
       ? { kind: 'passed' }
-      : { kind: 'rework', edge: 'B9', loop: 'et3_rounds', reason_code: 'tests_failed' },
+      : (o.disposition ?? {
+          kind: 'rework',
+          edge: 'B9',
+          loop: 'et3_rounds',
+          reason_code: 'tests_failed',
+        }),
     passing: o.passing,
     steps: STEPS.map(([step, check], i) => ({
       step,

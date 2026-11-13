@@ -73,7 +73,9 @@ export class CoreBuildSource implements BuildSourcePort {
     const plan = await latestArtefact(this.d.pool, req.item_id, 'plan');
     const binding = await latestArtefact(this.d.pool, req.item_id, 'verification_binding');
     const specs = await latestArtefact(this.d.pool, req.item_id, 'oracle_specs');
-    const sha = base ?? unit.base_sha;
+    // a Unit with a branch (re-planned after its push, owner decision 2026-11-13) keeps the branch's base: the next push
+    // fast-forwards that branch, and a newer plan base would put the base's own changes into the PR
+    const sha = unit.head_sha !== null ? (unit.base_sha ?? base) : (base ?? unit.base_sha);
     if (!sha) return err(buildSourceError('invalid', 'the plan names no base commit'));
     const planned = list(isObj(plan?.content) ? plan?.content['units'] : undefined).find(
       (u) => u['unit_key'] === unit.unit_key,
@@ -117,6 +119,8 @@ export class CoreBuildSource implements BuildSourcePort {
       estimate_ms: ESTIMATE_MS[unit.size] ?? ESTIMATE_MS['M'] ?? 7_200_000,
       // the epoch of the live grant: the writer's epoch the Push Broker checks against the Unit's lease
       ...(live?.lease_epoch !== undefined ? { lease_epoch: live.lease_epoch } : {}),
+      // the branch head the Unit's work goes on from (the same branch and PR after a re-plan)
+      ...(unit.head_sha !== null ? { head_sha: unit.head_sha } : {}),
     });
   }
 

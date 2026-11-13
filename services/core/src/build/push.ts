@@ -4,6 +4,8 @@ import {
   ONBOARDING_PACK_UNIT,
   ONBOARDING_FULL_PACK_UNIT,
   PACK_KINDS,
+  PrRedraftIntendedPayload,
+  PrRedraftedPayload,
   type PackKind,
   MERGE_EVENT,
   MergeReconciledPayload,
@@ -225,6 +227,15 @@ export async function applyPushEvent(tx: Tx, e: FoldedPush): Promise<void> {
     await tx.query(
       `UPDATE core.pull_request SET head_sha = $3 WHERE lower(repo) = lower($1) AND number = $2 AND item_id = $4`,
       [m.repo, m.pr_number, m.head_sha, m.item_id],
+    );
+    return;
+  }
+  if (e.type === PUSH_EVENT.pr_redrafted) {
+    // owner decision 2026-11-13: a re-plan of the pushed Unit took its PR back to draft (the same PR, kept)
+    const m = PrRedraftedPayload.parse(e.payload);
+    await tx.query(
+      `UPDATE core.pull_request SET draft = true WHERE lower(repo) = lower($1) AND number = $2 AND item_id = $3`,
+      [m.repo, m.pr_number, m.item_id],
     );
     return;
   }
@@ -587,4 +598,138 @@ export function recordPushReceipt(
     pending.push(...l.value.pending);
     return ok({ value: undefined, pending });
   });
+}
+
+// ---------------------------------------------------------------- the re-plan of a pushed Unit (owner decision 2026-11-13)
+
+/** A pushed Unit that a re-plan sent back to `Planned` and whose PR has not been taken back to draft yet. */
+export interface PendingRedraft {
+  readonly item_id: string;
+  readonly unit_key: string;
+  readonly repo: string;
+  readonly pr_number: number;
+  readonly grant_id: string;
+  readonly lease_epoch: number;
+}
+
+/**
+ * The Units of an item that a re-plan sent back with their branch (`Planned` with a head and a PR, their newest grant
+ * released `replanned`: B11 after 6.6) whose PR has no `push.pr_redrafted` for that grant yet. From the rows and the
+ * record only.
+ */
+export async function pendingRedrafts(db: Executor, itemId: string): Promise<PendingRedraft[]> {
+  const q = await db.query<{
+    unit_key: string;
+    repo: string;
+    pr_ref: string;
+    grant_id: string;
+    lease_epoch: number;
+  }>(
+    `SELECT u.unit_key, u.repo, u.pr_ref, g.grant_id, g.lease_epoch
+       FROM core.unit u
+       JOIN LATERAL (SELECT grant_id, lease_epoch, release_cause FROM core.admission_grant
+                      WHERE unit_id = u.unit_id ORDER BY lease_epoch DESC LIMIT 1) g ON true
+      WHERE u.item_id = $1 AND u.state = 'Planned' AND u.head_sha IS NOT NULL AND u.pr_ref IS NOT NULL
+        AND g.release_cause = 'replanned'
+        AND NOT EXISTS (SELECT 1 FROM record.record_event e WHERE e.stream = $2 AND e.type = $3
+                         AND e.body ->> 'grant_id' = g.grant_id)
+      ORDER BY u.position, u.unit_key`,
+    [itemId, pushStream(itemId), PUSH_EVENT.pr_redrafted],
+  );
+  return q.rows.flatMap((r) => {
+    const n = Number(/^pr:(\d+)$/.exec(r.pr_ref)?.[1] ?? NaN);
+    return Number.isInteger(n) && n > 0
+      ? [
+          {
+            item_id: itemId,
+            unit_key: r.unit_key,
+            repo: r.repo,
+            pr_number: n,
+            grant_id: r.grant_id,
+            lease_epoch: r.lease_epoch,
+          },
+        ]
+      : [];
+  });
+}
+
+/**
+ * On entering the re-plan of a pushed Unit, the Push Broker takes the SAME PR back to draft and posts its one ids-only
+ * comment (`redraft_pr`); the PR is never closed and no new one is opened. Record first (DEC-12(a)):
+ * `push.redraft_intended` before the broker is asked, `push.pr_redrafted` with what it did after, folded into
+ * `core.pull_request` (`draft`). No verdict from the broker (unreachable, garbled) records nothing more: the next pass
+ * asks again (the broker posts the comment once). A refusal (a PR a person closed meanwhile) is left as it is and
+ * reported. The re-plan does not wait for it: the old head's pack is not passing, so gate-check fails that head anyway.
+ */
+export async function redraftReplanned(
+  d: CoreDeps,
+  broker: Pick<CodeHostPort, 'redraft_pr'>,
+  itemIds: readonly string[],
+): Promise<{ redrafted: number; refused: number }> {
+  const out = { redrafted: 0, refused: 0 };
+  for (const itemId of itemIds) {
+    for (const p of await pendingRedrafts(d.pool, itemId)) {
+      const intent = PrRedraftIntendedPayload.parse({
+        item_id: p.item_id,
+        unit_key: p.unit_key,
+        repo: p.repo,
+        pr_number: p.pr_number,
+        grant_id: p.grant_id,
+        lease_epoch: p.lease_epoch,
+      });
+      const w = await inCoreTx(d, async (j, tx) => {
+        await lockKeys(tx, [pushLockKey(itemId)]);
+        const e = await j.emitAll(pushStream(itemId), [
+          {
+            type: PUSH_EVENT.redraft_intended,
+            body: intent as unknown as Record<string, unknown>,
+            actor: PUSH_ACTOR,
+            idempotency_key: `push:redraft:intent:${p.grant_id}`,
+          },
+        ]);
+        return e.ok ? ok(undefined) : e;
+      });
+      if (!w.ok) throw new Error(w.error.message);
+      const r = await broker.redraft_pr({
+        repo: p.repo,
+        item_id: p.item_id as never,
+        unit_key: p.unit_key,
+        branch: unitBranchOf(p.item_id, p.unit_key),
+        pr_number: p.pr_number,
+        lease_epoch: p.lease_epoch,
+      });
+      if (r.state !== 'ok') {
+        if (r.state === 'unreadable' && r.reason === 'refused') out.refused += 1;
+        continue;
+      }
+      const done = PrRedraftedPayload.parse({
+        ...intent,
+        comment_id: r.value.comment_id,
+        at: clockOf(d).now().toISOString(),
+      });
+      const rec = await inCoreTx(d, async (j, tx) => {
+        await lockKeys(tx, [pushLockKey(itemId)]);
+        const e = await j.emitAll(pushStream(itemId), [
+          {
+            type: PUSH_EVENT.pr_redrafted,
+            body: done as unknown as Record<string, unknown>,
+            actor: PUSH_ACTOR,
+            idempotency_key: `push:redraft:${p.grant_id}`,
+          },
+        ]);
+        if (!e.ok) return e;
+        if (!e.value.duplicate) {
+          await applyPushEvent(tx, {
+            type: PUSH_EVENT.pr_redrafted,
+            payload: done,
+            global_seq: Number(e.value.events[0]?.global_seq ?? 0),
+          });
+        }
+        return ok(undefined);
+      });
+      if (!rec.ok) throw new Error(rec.error.message);
+      out.redrafted += 1;
+    }
+  }
+  return out;
 }

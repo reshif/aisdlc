@@ -2324,6 +2324,9 @@ stateDiagram-v2
   Verifying --> InReview : G4 pending
   InReview --> Merged : human merge, SHA equals pack SHA
   InReview --> Building : changes requested
+  Pushed --> Planned : B11 re-plan, branch and PR kept (2026-11-13)
+  Verifying --> Planned : B11 re-plan, branch and PR kept
+  InReview --> Planned : B11 re-plan, branch and PR kept
   Merged --> Released : G5
   Released --> [*]
   Building --> HumanHeld : developer takes lease, epoch bumped, agent rows dropped
@@ -2331,8 +2334,10 @@ stateDiagram-v2
   Building --> Tainted : session tainted by policy
   Tainted --> Quarantined : Q1 quarantine
   Building --> Stopped : kill, budget ET1 ET2, or operator stop
-  Admitted --> Released_grant : handoff, item ends, or G4 decided
+  Admitted --> Released_grant : handoff, item ends, G4 decided, or a re-plan before the push
 ```
+
+A re-plan (the `replanned` grant release) of a Unit that has a branch and an open PR (B11 at 7.6 after 6.6; owner decision 2026-11-13, PLAN §7a) takes it back to `Planned` with its branch, head, PR, lease and epoch: the next session starts from the branch head, the Push Broker fast-forwards the same branch and updates the same PR (marked draft again with one ids-only comment on entering the re-plan), and everything after it binds the new head.
 
 Session (agent runtime) alone: `starting -> running -> {idle, waiting_tool, interrupted} -> ended | stopped | tainted`.
 

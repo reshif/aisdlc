@@ -1,10 +1,12 @@
 import {
   ApplyPatchRequest,
+  RedraftPrRequest,
   badPatchPath,
   badPushBranch,
   isWorkflowPath,
   patchHashOf,
   protectedPushPath,
+  replanCommentOf,
   type CodeHostNotOk,
   type CodeHostRead,
   type PushEvidence,
@@ -201,6 +203,31 @@ export async function preflightPush(
     }
   }
   return { ok: true, value: { req, patch_hash, protected_rules: protectedRules, bytes } };
+}
+
+// ---------------------------------------------------------------- The re-plan of a pushed Unit (owner decision 2026-11-13)
+
+/**
+ * What the broker checks before it marks a PR draft again (one function for the fake and the adapter): the request has
+ * the shape, the branch is `agent/<item>/<unit>` of exactly this item and Unit, and the one comment is made of the ids
+ * (`replanCommentOf`), never of a text the caller sent. The PR itself must then be OPEN from exactly that branch (the
+ * host's answer, checked by each implementation): a closed PR is never reopened, another branch's PR is never touched.
+ */
+export function preflightRedraft(
+  input: unknown,
+):
+  | { ok: true; value: { req: RedraftPrRequest; comment: string } }
+  | { ok: false; error: CodeHostNotOk } {
+  const parsed = RedraftPrRequest.safeParse(input);
+  if (!parsed.success)
+    return { ok: false, error: refusal('bad_patch', 'the request is not a valid redraft request') };
+  const req = parsed.data;
+  const badBranch = badPushBranch(req.branch, req.item_id, req.unit_key);
+  if (badBranch) return { ok: false, error: refusal('branch_not_allowed', badBranch) };
+  return {
+    ok: true,
+    value: { req, comment: replanCommentOf(req.item_id, req.unit_key, req.lease_epoch) },
+  };
 }
 
 // ---------------------------------------------------------------- Text the broker writes (commit message, PR body)

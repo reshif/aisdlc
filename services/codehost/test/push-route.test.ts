@@ -131,4 +131,31 @@ describe('HttpCodeHostPush (what core-worker holds) over the route', () => {
     const down = new HttpCodeHostPush({ baseUrl: 'http://127.0.0.1:1', token: TOKENS.push });
     expect(await down.apply_patch(writeRequest([file]))).toMatchObject({ state: 'unknown' });
   });
+
+  it('redraft_pr (owner decision 2026-11-13) round-trips under scope push, for exactly the PR in the path', async () => {
+    const { s } = await start();
+    const client = new HttpCodeHostPush({ baseUrl: s.url, token: TOKENS.push });
+    expect((await client.apply_patch(writeRequest([file]))).state).toBe('ok');
+    const req = {
+      repo: 'acme/app',
+      item_id: WRITE_ITEM,
+      unit_key: WRITE_UNIT,
+      branch: `agent/${WRITE_ITEM}/${WRITE_UNIT}`,
+      pr_number: 1,
+      lease_epoch: 3,
+    };
+    expect(await client.redraft_pr(req)).toMatchObject({
+      state: 'ok',
+      value: { pr_number: 1, draft: true, commented: true },
+    });
+    expect(s.gh.server.pulls[0]?.comments?.map((c) => c.body)).toHaveLength(1);
+    // another scope may not, and the body must name the PR of the path
+    for (const t of [TOKENS.census, TOKENS.posture]) {
+      expect((await s.call(t, 'POST', '/v1/repos/acme/app/pulls/1/redraft', req)).status).toBe(403);
+    }
+    expect(
+      (await s.call(TOKENS.push, 'POST', '/v1/repos/acme/app/pulls/2/redraft', req)).status,
+    ).toBe(400);
+    expect(s.gh.server.pulls[0]?.comments).toHaveLength(1);
+  });
 });

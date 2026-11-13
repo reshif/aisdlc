@@ -1,8 +1,12 @@
 import {
   HUMAN_WAIT_GATES,
   ITEM_EVENT,
+  STEPS,
+  StepIdValues,
   UNIT_EVENT,
   WorkItemPhase,
+  itemStream,
+  unitStream,
   type GrantReleaseCause,
   type HumanWaitGate,
 } from '@aisdlc/contracts';
@@ -21,8 +25,11 @@ import { currentLease, listGrants } from './read.js';
 // idempotency key, so a pass run twice does nothing the second time; none of them holds state of its own.
 //
 //   - the grant ends (GrantReleased, DM §6.4) on a handoff, when the item ends, when G4 is decided, or when a
-//     back-edge sends the item back to planning (B8 from 6.5 to 5.1, R1): `replanned`, the Unit is retired and the
-//     next plan re-plans it under its own id, so 6.0 admits it again at a higher epoch (`foldPlan`, `ensureUnits`);
+//     back-edge sends the item back to planning (B8 from 6.5 to 5.1, R1, B11 from 7.6 to 5.1): `replanned`, seen
+//     while the item is in S1-S5 or, when planning answered within one pass, from a planning step recorded after the
+//     grant (`replannedSince`). A Unit with no branch is retired and the next plan re-plans it under its own id; a
+//     pushed Unit goes back to `Planned` with its branch and PR (owner decision 2026-11-13). Either way 6.0 admits
+//     it again at a higher epoch (`foldPlan`, `ensureUnits`);
 //   - the lease ends when the item leaves S6 (the session is over; the grant lives on to G4);
 //   - TAKEOVER (E4) and D4 hand-back: the engine says who holds the lease now and at what epoch; the Unit
 //     bumps its own epoch to match and never below its own: the epoch only increases. The agent's rows of the
@@ -48,6 +55,41 @@ const PLANNING: readonly WorkItemPhase[] = WorkItemPhase.extract([
   'S5',
 ]).options;
 
+/** The steps of planning (S1 to S5). */
+const PLANNING_STEPS: readonly string[] = StepIdValues.filter((st) =>
+  (PLANNING as readonly string[]).includes(STEPS[st].stage),
+);
+
+/**
+ * Did the item go back to planning after this grant was given? A result of a planning step (S1 to S5) recorded AFTER
+ * the grant's own `unit.admitted`, in record order (never wall time: a pass can take an item from 7.6 back through
+ * 5.1 to 6.0 before the next look, B11 with planning that answers at once). A grant is given at 6.0, so only a
+ * back-edge (B8, B10, B11, R1, an E4 re-plan or re-spec) makes such a result.
+ */
+async function replannedSince(
+  db: AdmissionDeps['pool'],
+  itemId: string,
+  grantId: string,
+): Promise<boolean> {
+  const q = await db.query(
+    `SELECT 1 FROM record.record_event e
+      WHERE e.stream = $1 AND e.type = ANY($2::text[]) AND e.body ->> 'step' = ANY($3::text[])
+        AND e.global_seq > (SELECT a.global_seq FROM record.record_event a
+                             WHERE a.stream = $4 AND a.type = $5 AND a.body ->> 'grant_id' = $6
+                             ORDER BY a.global_seq LIMIT 1)
+      LIMIT 1`,
+    [
+      itemStream(itemId),
+      [ITEM_EVENT.stage_completed, ITEM_EVENT.stage_failed, ITEM_EVENT.stage_gate_needed],
+      PLANNING_STEPS,
+      unitStream(itemId),
+      UNIT_EVENT.admitted,
+      grantId,
+    ],
+  );
+  return q.rows.length > 0;
+}
+
 export async function syncUnits(
   d: AdmissionDeps,
   itemIds: readonly string[],
@@ -68,6 +110,8 @@ export async function syncUnits(
       else if (s.underlying === 'Handoff') cause = 'handoff';
       else if (s.underlying === 'Quarantined') cause = 'quarantined';
       else if (PLANNING.includes(s.underlying)) cause = 'replanned';
+      else if (live.status === 'active' && (await replannedSince(d.pool, id, live.grant_id)))
+        cause = 'replanned';
       else if (live.status === 'active') {
         const ev = await readItemEvents(d.pool, id);
         const decided = ev.some(

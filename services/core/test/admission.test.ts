@@ -38,8 +38,11 @@ import {
   listGrants,
   listLeases,
   listUnits,
+  pendingRedrafts,
   planUnits,
   lockKeys,
+  rebuildPushes,
+  redraftReplanned,
   readItem,
   rebuildUnits,
   recordUnitProgress,
@@ -911,5 +914,187 @@ describe('B8 rework: 6.5 scope drift back to 5.1', () => {
     const live = await read();
     expect(await rebuildUnits(s.deps, x.itemId)).toBe(2);
     expect(await read()).toEqual(live);
+  });
+});
+
+describe('B11 rework: 7.6 approach wrong back to 5.1 (owner decision 2026-11-13: the same branch and PR)', () => {
+  const H1 = 'a1'.repeat(20);
+  /** The item's first 7.6 finds the approach wrong (B11); planning stops answering there, so the test sees it back in S5. */
+  const wrongOnce = (r: Rig, itemId: string) => {
+    let n = 0;
+    r.ports.verify.script((q2) => {
+      if (q2.step !== '7.6' || q2.item_id !== itemId || n++ > 0) return undefined;
+      r.ports.planning.breakIt();
+      return { outcome: 'rework', edge: 'B11', reason_code: 'approach_wrong_7.3' } as StageOutcome;
+    });
+  };
+  /** The first 6.6 of the item pushes, as far as the Unit is concerned: Building, then Pushed with a head and a PR. */
+  const pushOnce = (r: Rig, itemId: string) => {
+    const coding = r.ports.coding;
+    const run = coding.run.bind(coding);
+    let pushed = false;
+    Object.defineProperty(coding, 'run', {
+      value: async (req: Parameters<typeof run>[0]) => {
+        const out = await run(req);
+        if (req.step === '6.6' && req.item_id === itemId && !pushed) {
+          pushed = true;
+          const g = (await listGrants(s.record.pool, itemId)).find((x) => x.status === 'active');
+          for (const [to, extra] of [
+            ['Building', {}],
+            ['Pushed', { head_sha: H1, pr_ref: 'pr:7' }],
+          ] as const) {
+            ok(
+              await recordUnitProgress(s.deps, {
+                item_id: itemId,
+                unit_id: g!.unit_id,
+                lease_epoch: g!.lease_epoch,
+                to,
+                reason: 'test_push',
+                key: `test-push:${to}`,
+                ...extra,
+              }),
+            );
+          }
+        }
+        return out;
+      },
+    });
+  };
+  const read = async (itemId: string) => ({
+    units: await listUnits(s.record.pool, itemId),
+    leases: await listLeases(s.record.pool, itemId),
+    grants: await listGrants(s.record.pool, itemId),
+  });
+
+  it('a pushed Unit goes back to Planned keeping its branch, head and PR; a new plan re-plans it in place (its base kept); re-admitted higher; Done; the rows rebuild', async () => {
+    const r = rigOf();
+    const x = await newItem(r);
+    pushOnce(r, x.itemId);
+    wrongOnce(r, x.itemId);
+    const back = await runItem(s, r.d, x.itemId, {
+      stop: (st) => (st.rework.by_edge['B11'] ?? 0) === 1,
+    });
+    expect(back?.state).toMatchObject({ underlying: 'S5', rework: { by_edge: { B11: 1 } } });
+    await driveWork(r.d);
+    const [g1] = await listGrants(s.record.pool, x.itemId);
+    expect(g1).toMatchObject({ status: 'released', release_cause: 'replanned', lease_epoch: 1 });
+    const [u] = await listUnits(s.record.pool, x.itemId);
+    // Pushed -> Planned: the branch, the head and the PR stay with the Unit, and so does the lease (its epoch)
+    expect(u).toMatchObject({
+      state: 'Planned',
+      head_sha: H1,
+      pr_ref: 'pr:7',
+      branch: `agent/${x.itemId}/main`,
+      lease_epoch: 1,
+    });
+    expect(await pendingRedrafts(s.record.pool, x.itemId)).toEqual([
+      expect.objectContaining({ unit_key: 'main', pr_number: 7, grant_id: g1!.grant_id }),
+    ]);
+    // the Push Broker takes the PR back to draft once: record first, then the result; asked again, nothing to do
+    const asked: unknown[] = [];
+    const broker = {
+      redraft_pr: async (req: { pr_number: number }) => {
+        asked.push(req);
+        return {
+          state: 'ok' as const,
+          value: { pr_number: req.pr_number, draft: true as const, comment_id: 5, commented: true },
+        };
+      },
+    };
+    expect(await redraftReplanned(s.deps, broker as never, [x.itemId])).toEqual({
+      redrafted: 1,
+      refused: 0,
+    });
+    expect(await redraftReplanned(s.deps, broker as never, [x.itemId])).toEqual({
+      redrafted: 0,
+      refused: 0,
+    });
+    expect(asked).toEqual([
+      {
+        repo: u!.repo,
+        item_id: x.itemId,
+        unit_key: 'main',
+        branch: `agent/${x.itemId}/main`,
+        pr_number: 7,
+        lease_epoch: 1,
+      },
+    ]);
+    const pushEvents = await q<{ type: string }>(
+      `SELECT type FROM record.record_event WHERE stream = $1 ORDER BY seq`,
+      [`push:${x.itemId}`],
+    );
+    expect(pushEvents.map((e) => e.type)).toEqual(['push.redraft_intended', 'push.pr_redrafted']);
+    expect(await rebuildPushes(s.deps, x.itemId)).toBe(0);
+
+    // 5.5's re-plan: `main` narrowed with a NEW base, a second Unit beside it: `main` keeps its branch's base and head
+    ok(
+      await planUnits(s.deps, {
+        item_id: x.itemId,
+        project_id: u!.project_id,
+        repo: u!.repo,
+        plan_sha256: 'e'.repeat(64),
+        base_sha: 'b'.repeat(40),
+        units: [
+          { key: 'main', title: 'narrowed', paths: ['src/a/'], position: 0 },
+          { key: 'split', title: 'split', paths: ['src/b/'], position: 1 },
+        ].map((v) => ({
+          unit_key: v.key,
+          title: v.title,
+          paths: v.paths,
+          size: u!.size,
+          depends_on: [],
+          position: v.position,
+          envelope: u!.envelope,
+        })),
+      }),
+    );
+    const replanned = await listUnits(s.record.pool, x.itemId);
+    expect(
+      replanned.map((v) => [v.unit_key, v.state, v.title, v.head_sha, v.pr_ref, v.base_sha]),
+    ).toEqual([
+      ['main', 'Planned', 'narrowed', H1, 'pr:7', u!.base_sha],
+      ['split', 'Planned', 'split', null, null, 'b'.repeat(40)],
+    ]);
+    const live1 = await read(x.itemId);
+    await rebuildUnits(s.deps, x.itemId);
+    expect(await read(x.itemId)).toEqual(live1);
+    r.ports.planning.breakIt(false);
+
+    const done = await settle(r, x.itemId);
+    expect(done?.state.terminal).toBe('Done');
+    const grants = await listGrants(s.record.pool, x.itemId);
+    expect(grants[0]).toMatchObject({ unit_id: `${x.itemId}:main`, release_cause: 'replanned' });
+    const mainGrants = grants.filter((g) => g.unit_id === `${x.itemId}:main`);
+    expect(mainGrants).toHaveLength(2);
+    expect(mainGrants[1]!.lease_epoch).toBeGreaterThan(1);
+    const main = (await listUnits(s.record.pool, x.itemId)).find((v) => v.unit_key === 'main');
+    // the same branch and PR (the fake 6.6 of the second session recorded no new head here)
+    expect(main).toMatchObject({ branch: `agent/${x.itemId}/main`, pr_ref: 'pr:7', head_sha: H1 });
+    const live = await read(x.itemId);
+    await rebuildUnits(s.deps, x.itemId);
+    expect(await read(x.itemId)).toEqual(live);
+  });
+
+  it('a B11 whose Unit was never pushed takes the B8 path: retired, re-planned under its id, re-admitted higher, Done', async () => {
+    const r = rigOf();
+    const x = await newItem(r);
+    wrongOnce(r, x.itemId);
+    await runItem(s, r.d, x.itemId, { stop: (st) => (st.rework.by_edge['B11'] ?? 0) === 1 });
+    await driveWork(r.d);
+    expect((await listUnits(s.record.pool, x.itemId))[0]).toMatchObject({
+      state: 'GrantReleased',
+      head_sha: null,
+      pr_ref: null,
+    });
+    expect(await pendingRedrafts(s.record.pool, x.itemId)).toEqual([]);
+    r.ports.planning.breakIt(false);
+    const done = await settle(r, x.itemId);
+    expect(done?.state.terminal).toBe('Done');
+    const grants = await listGrants(s.record.pool, x.itemId);
+    expect(grants.map((g) => g.release_cause)).toEqual(['replanned', 'g4_decided']);
+    expect(grants[1]!.lease_epoch).toBeGreaterThan(grants[0]!.lease_epoch);
+    const live = await read(x.itemId);
+    await rebuildUnits(s.deps, x.itemId);
+    expect(await read(x.itemId)).toEqual(live);
   });
 });

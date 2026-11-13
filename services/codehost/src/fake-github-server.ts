@@ -51,7 +51,13 @@ export interface FakePull {
   merged_at: string | null;
   /** M15.2: GitHub's `mergeable_state` (`clean` by default; `behind`, `dirty`: `setPullBaseState`). */
   mergeable_state?: string;
+  /** The conversation's comments (the re-plan notice the Push Broker posts, owner decision 2026-11-13). */
+  comments?: Array<{ id: number; by: string; body: string }>;
 }
+
+/** GitHub's global node id of a pull request (opaque; the fake's is the repo and number, base64url). */
+export const pullNodeIdOf = (repo: string, number: number): string =>
+  `PR_${Buffer.from(`${repo.toLowerCase()}#${number}`).toString('base64url')}`;
 
 /** A check run the fake holds (M14.5), with the App that wrote it. */
 export interface FakeCheckRun {
@@ -207,6 +213,7 @@ export class FakeGitHubServer {
   private server: Server | null = null;
   private extra: Server[] = [];
   private readonly revoked = new Set<string>();
+  private prCommentSeq = 0;
   /** When set, every resource request (not token minting) answers with this status. */
   private override: { status: number; headers: Record<string, string> } | null = null;
   /** Permissions to add to every token response, beyond what was requested. */
@@ -537,6 +544,39 @@ export class FakeGitHubServer {
   }
 
   /**
+   * GitHub's GraphQL endpoint, for the ONE mutation the Push Broker sends (owner decision 2026-11-13): it marks an open
+   * pull request a draft (`pull_requests: write`). Any other document is a GraphQL error (200 with `errors`, as GitHub
+   * answers one), so a test sees a request the allow-list should never have let through fail loudly.
+   */
+  private graphql(
+    res: ServerResponse,
+    who: { kind: string; perms?: Record<string, string>; bad?: boolean },
+    raw: string,
+  ): number {
+    if (who.kind !== 'installation' || who.bad)
+      return this.json(res, 401, { message: 'Bad credentials' });
+    const perms = who.perms ?? {};
+    let j: { query?: unknown; variables?: { id?: unknown } };
+    try {
+      j = JSON.parse(raw || '{}') as typeof j;
+    } catch {
+      return this.json(res, 400, { message: 'Problems parsing JSON' });
+    }
+    const fail = (message: string): number => this.json(res, 200, { errors: [{ message }] });
+    if (typeof j.query !== 'string' || !j.query.includes('convertPullRequestToDraft'))
+      return fail('the fake answers convertPullRequestToDraft only');
+    if ((LEVEL[perms['pull_requests'] ?? ''] ?? 0) < 2)
+      return fail('Resource not accessible by integration');
+    const p = this.pulls.find((x) => pullNodeIdOf(x.repo, x.number) === j.variables?.id);
+    if (!p) return fail('Could not resolve to a node with the global id');
+    if (p.state !== 'open') return fail('Pull request is closed');
+    p.draft = true;
+    return this.json(res, 200, {
+      data: { convertPullRequestToDraft: { pullRequest: { number: p.number, isDraft: true } } },
+    });
+  }
+
+  /**
    * What a person does on the host (the compose e2e's human): read a PR, mark it ready for review (on GitHub a GraphQL
    * mutation; here `POST .../pulls/:n/ready_for_review`) and merge it (`PUT .../pulls/:n/merge`). A merge is refused as
    * GitHub refuses it: a closed or draft PR (405), a conflict or a base that moved (405), a required check that has not
@@ -722,6 +762,7 @@ export class FakeGitHubServer {
       return void log(this.json(res, 401, { message: 'Bad credentials' }));
 
     const inst = /^\/app\/installations\/(\d+)$/.exec(path);
+    if (method === 'POST' && path === '/graphql') return void log(this.graphql(res, who, body));
     if (method !== 'GET' && !/^\/repos\//.test(path)) {
       return void log(this.json(res, 405, { message: 'Method Not Allowed' }));
     }
@@ -838,6 +879,24 @@ export class FakeGitHubServer {
           ),
         );
       return void log(this.json(res, 200, this.issueJson(i, true)));
+    }
+    if ((c = /^issues\/(\d+)\/comments$/.exec(rest))) {
+      // a pull request's conversation (GitHub serves a PR's comments here; `pull_requests` read is enough for a PR)
+      const p = this.pulls.find((x) => same(x.repo) && x.number === Number(c![1]));
+      const i = this.issues.find((x) => same(x.repo) && x.number === Number(c![1]));
+      if (p) {
+        if (!needs('pull_requests')) return void log(forbidden());
+        const list = (p.comments ?? []).map((k) => ({
+          id: k.id,
+          body: k.body,
+          user: { login: k.by },
+        }));
+        return void log(this.page(res, url, list, (items) => items));
+      }
+      if (!i) return void log(this.json(res, 404, notFound));
+      if (!needs('issues')) return void log(forbidden());
+      const list = i.comments.map((k) => ({ id: k.id, body: k.body, user: { login: k.by } }));
+      return void log(this.page(res, url, list, (items) => items));
     }
     if ((c = /^pulls\/(\d+)\/commits$/.exec(rest))) {
       if (!needs('pull_requests')) return void log(forbidden());
@@ -1068,6 +1127,7 @@ export class FakeGitHubServer {
     return {
       url: `${this.baseUrl}/repos/${p.repo}/pulls/${p.number}`,
       html_url: `https://github.example/${p.repo}/pull/${p.number}`,
+      node_id: pullNodeIdOf(p.repo, p.number),
       number: p.number,
       state: p.state,
       draft: p.draft,
@@ -1314,6 +1374,21 @@ export class FakeGitHubServer {
         conclusion: run.conclusion,
         app: { id: appId },
       });
+    }
+    if (
+      method === 'POST' &&
+      (c = /^issues\/(\d+)\/comments$/.exec(rest)) &&
+      this.pulls.some((x) => same(x.repo) && x.number === Number(c![1]))
+    ) {
+      // a comment on a PR's conversation: GitHub takes `pull_requests: write` for a pull request
+      if (!canWrite('pull_requests')) return denied();
+      const p = this.pulls.find((x) => same(x.repo) && x.number === Number(c![1])) as FakePull;
+      if (typeof j['body'] !== 'string' || j['body'] === '') return bad('body is required');
+      const login = this.loginOf(appId);
+      this.prCommentSeq += 1;
+      const id = 900_000 + this.prCommentSeq;
+      p.comments = [...(p.comments ?? []), { id, by: login, body: j['body'] }];
+      return this.json(res, 201, { id, body: j['body'], user: { login, type: 'Bot' } });
     }
     if ((c = /^issues(?:\/(\d+)(\/comments)?)?$/.exec(rest))) {
       // M16: what the tracker writes. GitHub needs `issues: write`; an App's issue is authored by its bot.

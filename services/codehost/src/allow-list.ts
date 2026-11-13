@@ -1,4 +1,4 @@
-import type { CodeHostRole } from '@aisdlc/contracts';
+import { REPLAN_COMMENT_PATTERN, type CodeHostRole } from '@aisdlc/contracts';
 
 // The request allow-list (PLAN M5.2, OB §6.5 and §5.5). It is enforced in the transport before any
 // network call: a request is made only if its method and path match a row, with only the query
@@ -115,10 +115,21 @@ const onlyKeys = (o: Record<string, unknown>, keys: readonly string[]): boolean 
 const HEADS_AGENT = /^refs\/heads\/agent\/[0-9a-f-]{36}\/[a-z0-9][a-z0-9._-]{0,62}$/;
 
 /**
+ * The ONE GraphQL document the Push Broker may send (owner decision 2026-11-13: a re-plan marks the Unit's PR draft
+ * again). GitHub's REST API cannot convert a PR to draft; this mutation is the only way. The row accepts exactly this
+ * text with exactly one variable, the PR's node id: no other query, mutation or field can ride along.
+ */
+export const CONVERT_TO_DRAFT_MUTATION =
+  'mutation($id: ID!) { convertPullRequestToDraft(input: {pullRequestId: $id}) { pullRequest { number isDraft } } }';
+const NODE_ID = /^[A-Za-z0-9_=-]{1,128}$/;
+
+/**
  * The Push Broker's rows (M13.6; OB §6.5 `docs` role: contents:write, pull_requests:write, refs `agent/<s0-uuid>/...`
  * only). There is NO row for a merge, a review, a review request, an approval, a ruleset, a workflow, a delete, a
- * label, a comment, an issue, a status or a check: those requests do not exist here, so they are refused before the
- * network (`not_allow_listed`), whatever the code above asks.
+ * label, an issue, a status or a check: those requests do not exist here, so they are refused before the network
+ * (`not_allow_listed`), whatever the code above asks. The re-plan of a pushed Unit (owner decision 2026-11-13) adds
+ * exactly three: list a PR's comments, post the ONE ids-only re-plan comment (its body must match
+ * `REPLAN_COMMENT_PATTERN`), and the ONE GraphQL mutation that marks a PR draft (`CONVERT_TO_DRAFT_MUTATION`).
  */
 export const PUSH_ALLOW_LIST: readonly AllowRow[] = [
   {
@@ -250,6 +261,50 @@ export const PUSH_ALLOW_LIST: readonly AllowRow[] = [
       j['draft'] === true
         ? null
         : 'a pull request is a draft from an agent/** branch',
+  },
+  {
+    // a re-plan's "one comment" is checked against the comments already there (a redelivery posts nothing)
+    id: 'pull_comments_list',
+    template: '/repos/{owner}/{repo}/issues/{number}/comments',
+    method: 'GET',
+    path: new RegExp(`^${R}/issues/(\\d+)/comments$`),
+    auth: 'docs',
+    query: ['per_page', 'page'],
+  },
+  {
+    // owner decision 2026-11-13: the ONE comment of a re-plan, ids only (`replanCommentOf`); any other text is refused
+    id: 'pull_replan_comment',
+    template: '/repos/{owner}/{repo}/issues/{number}/comments',
+    method: 'POST',
+    path: new RegExp(`^${R}/issues/(\\d+)/comments$`),
+    auth: 'docs',
+    query: [],
+    body: (j) =>
+      isObj(j) &&
+      onlyKeys(j, ['body']) &&
+      typeof j['body'] === 'string' &&
+      REPLAN_COMMENT_PATTERN.test(j['body'])
+        ? null
+        : 'a comment is the re-plan notice made of ids, nothing else',
+  },
+  {
+    // owner decision 2026-11-13: a re-plan marks the PR draft again; the one mutation, never ready, never closed
+    id: 'pull_convert_to_draft',
+    template: '/graphql',
+    method: 'POST',
+    path: /^\/graphql$/,
+    auth: 'docs',
+    query: [],
+    body: (j) =>
+      isObj(j) &&
+      onlyKeys(j, ['query', 'variables']) &&
+      j['query'] === CONVERT_TO_DRAFT_MUTATION &&
+      isObj(j['variables']) &&
+      onlyKeys(j['variables'], ['id']) &&
+      typeof j['variables']['id'] === 'string' &&
+      NODE_ID.test(j['variables']['id'])
+        ? null
+        : 'the only GraphQL request is convertPullRequestToDraft of one pull request',
   },
   {
     id: 'pull_update',

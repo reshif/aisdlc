@@ -9,7 +9,13 @@ import {
 } from '@aisdlc/ports/testing';
 import { patchHashOf, patchSetOf } from '@aisdlc/contracts';
 import { describe, expect, it } from 'vitest';
-import { ALLOW_LIST, PUSH_ALLOW_LIST, checkRequest } from '../src/allow-list.js';
+import { replanCommentOf } from '@aisdlc/contracts';
+import {
+  ALLOW_LIST,
+  CONVERT_TO_DRAFT_MUTATION,
+  PUSH_ALLOW_LIST,
+  checkRequest,
+} from '../src/allow-list.js';
 import { startTestCodeHost } from '../src/testing.js';
 
 const R = '/repos/acme/app';
@@ -29,6 +35,9 @@ describe('the Push Broker allow-list rows (push mode)', () => {
       'POST /repos/{owner}/{repo}/git/refs',
       'PATCH /repos/{owner}/{repo}/git/refs/heads/agent/{item}/{unit}',
       'POST /repos/{owner}/{repo}/pulls',
+      'GET /repos/{owner}/{repo}/issues/{number}/comments',
+      'POST /repos/{owner}/{repo}/issues/{number}/comments',
+      'POST /graphql',
       'PATCH /repos/{owner}/{repo}/pulls/{number}',
     ]);
     for (const r of PUSH_ALLOW_LIST.filter((x) => x.method !== 'GET')) {
@@ -194,6 +203,57 @@ describe('the Push Broker allow-list rows (push mode)', () => {
       const v = push('PATCH', `${R}/git/refs/heads/${ref}`, { sha: A });
       expect(!v.ok && v.code, ref).toMatch(/not_allow_listed|bad_path/);
     }
+  });
+});
+
+describe('the re-plan rows (owner decision 2026-11-13): the PR back to draft and ONE ids-only comment', () => {
+  const comment = replanCommentOf(WRITE_ITEM, 'main', 4);
+
+  it('allows exactly the re-plan comment and the convert-to-draft mutation', () => {
+    expect(push('POST', `${R}/issues/7/comments`, { body: comment }).ok).toBe(true);
+    expect(push('GET', `${R}/issues/7/comments?per_page=100&page=1`).ok).toBe(true);
+    expect(
+      push('POST', '/graphql', {
+        query: CONVERT_TO_DRAFT_MUTATION,
+        variables: { id: 'PR_kwDOAbc' },
+      }).ok,
+    ).toBe(true);
+  });
+
+  it('refuses any other comment text, field, mutation or variable', () => {
+    const bad: Array<[string, string, unknown]> = [
+      ['POST', `${R}/issues/7/comments`, { body: 'x' }],
+      ['POST', `${R}/issues/7/comments`, { body: `${comment} @everyone` }],
+      ['POST', `${R}/issues/7/comments`, { body: `${comment}\nlgtm` }],
+      ['POST', `${R}/issues/7/comments`, { body: comment.replace(WRITE_ITEM, 'not-an-id') }],
+      ['POST', `${R}/issues/7/comments`, { body: comment, title: 'x' }],
+      ['POST', '/graphql', { query: 'mutation { markPullRequestReadyForReview }' }],
+      [
+        'POST',
+        '/graphql',
+        {
+          query: CONVERT_TO_DRAFT_MUTATION.replace('convertPullRequestToDraft', 'mergePullRequest'),
+          variables: { id: 'x' },
+        },
+      ],
+      ['POST', '/graphql', { query: CONVERT_TO_DRAFT_MUTATION, variables: { id: 'x', other: 1 } }],
+      ['POST', '/graphql', { query: CONVERT_TO_DRAFT_MUTATION, variables: { id: 'a b' } }],
+      ['POST', '/graphql', { query: CONVERT_TO_DRAFT_MUTATION }],
+      ['POST', '/graphql', { query: `${CONVERT_TO_DRAFT_MUTATION} `, variables: { id: 'x' } }],
+    ];
+    for (const [m, t, b] of bad) {
+      const v = push(m, t, b);
+      expect(!v.ok && v.code, `${m} ${t} ${JSON.stringify(b)}`).toBe('bad_body');
+    }
+    // never in census mode, and no other GraphQL path or comment endpoint
+    expect(checkRequest('census', 'POST', `${R}/issues/7/comments`, { body: comment }).ok).toBe(
+      false,
+    );
+    expect(
+      push('POST', '/api/graphql', { query: CONVERT_TO_DRAFT_MUTATION, variables: { id: 'x' } }).ok,
+    ).toBe(false);
+    expect(push('POST', `${R}/pulls/7/comments`, { body: comment }).ok).toBe(false);
+    expect(push('PATCH', `${R}/issues/comments/1`, { body: comment }).ok).toBe(false);
   });
 });
 

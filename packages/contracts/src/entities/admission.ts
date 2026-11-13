@@ -65,9 +65,10 @@ export const GrantReleaseCause = z.enum([
   /** Q1: the session was stopped and tainted; the coding slot is freed while SECT waits for the security slot. */
   'quarantined',
   /**
-   * A back-edge sent the item back to planning (B8 scope drift from 6.5 to 5.1, an R1 upshift): the session is over and
-   * the Unit is retired (`GrantReleased`); the next plan re-plans it under the same id (its lease epoch kept), and 6.0
-   * admits it again at a higher epoch.
+   * A back-edge sent the item back to planning (B8 scope drift from 6.5 to 5.1, an R1 upshift, B11 approach wrong from
+   * 7.6 to 5.1): the session is over. A Unit with no branch yet is retired (`GrantReleased`) and the next plan re-plans it
+   * under the same id; a Unit already pushed (B11 after 6.6) goes straight back to `Planned` keeping its branch, head and
+   * PR (owner decision 2026-11-13). Either way its lease epoch is kept and 6.0 admits it again at a higher epoch.
    */
   'replanned',
 ]);

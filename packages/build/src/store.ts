@@ -82,6 +82,12 @@ export interface SessionState {
   notes?: string[];
   /** M13.6: the head the last push left on the Unit's branch (the next push must fast-forward from it), and its PR. */
   pushed?: { head_sha: string; pr_number: number; patch_hash: string } | null;
+  /**
+   * The branch head the session was provisioned from (a re-plan of a pushed Unit, owner decision 2026-11-13), and its
+   * tree: the work starts there and 6.3 adds the oracles to it. Absent or `null`: the session started from the base.
+   */
+  from_head?: string | null;
+  start_tree_sha256?: string;
 }
 
 export class SessionStore {

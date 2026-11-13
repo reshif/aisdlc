@@ -1,5 +1,6 @@
 import {
   WorkItemId,
+  replanCommentOf,
   patchHashOf,
   patchSetOf,
   type ApplyPatchRequest,
@@ -28,6 +29,10 @@ export interface CodeHostWriteHarness {
   landPull(repo: string, number: number, by: string): void;
   /** M15.2: the host reports the PR's mergeability as GitHub's `mergeable_state` (`behind`, `dirty`, ...). */
   setPullBaseState(repo: string, number: number, state: string): void;
+  /** A person marks the PR ready for review on the host (the test's hand). */
+  markReady(repo: string, number: number): void;
+  /** The PR as the host holds it now: draft or not, and the bodies of its conversation's comments. */
+  pullView(repo: string, number: number): { draft: boolean; comments: string[] } | null;
   stop?: () => Promise<void>;
 }
 
@@ -102,6 +107,9 @@ export const ALLOWED_WRITES: readonly RegExp[] = [
   /^PATCH \/repos\/acme\/app\/git\/refs\/heads\/agent\/[^/]+\/[^/]+$/,
   /^POST \/repos\/acme\/app\/pulls$/,
   /^PATCH \/repos\/acme\/app\/pulls\/\d+$/,
+  // the re-plan of a pushed Unit (owner decision 2026-11-13): the PR back to draft, its one ids-only comment
+  /^POST \/graphql$/,
+  /^POST \/repos\/acme\/app\/issues\/\d+\/comments$/,
 ];
 
 export function codeHostWriteContract(
@@ -418,6 +426,87 @@ export function codeHostWriteContract(
         });
         expect(m.merge_commit_sha).toMatch(/^[0-9a-f]{40}$/);
         expect(m.merged_at).not.toBeNull();
+      }));
+
+    it('a re-plan marks the same PR draft again with ONE ids-only comment; the next push fast-forwards onto it (2026-11-13)', () =>
+      withHost(async (h) => {
+        const a = okValue(await h.port.apply_patch(writeRequest([put('src/a.js', 'one\n')])));
+        const n = a.pr.number;
+        // a person marked it ready meanwhile: the re-plan takes it back to draft
+        h.markReady('acme/app', n);
+        expect(h.pullView('acme/app', n)?.draft).toBe(false);
+        const before = writes(h).length;
+        const req = {
+          repo: 'acme/app',
+          item_id: WRITE_ITEM,
+          unit_key: WRITE_UNIT,
+          branch: WRITE_BRANCH,
+          pr_number: n,
+          lease_epoch: 3,
+        };
+        const r = okValue(await h.port.redraft_pr(req));
+        expect(r).toMatchObject({ pr_number: n, draft: true, commented: true });
+        const comment = replanCommentOf(WRITE_ITEM, WRITE_UNIT, 3);
+        expect(h.pullView('acme/app', n)).toEqual({ draft: true, comments: [comment] });
+        expect(writes(h).slice(before)).toEqual([
+          'POST /graphql',
+          `POST /repos/acme/app/issues/${n}/comments`,
+        ]);
+        // delivered again: still one comment, and no mutation for a PR that is a draft already
+        const again = okValue(await h.port.redraft_pr(req));
+        expect(again).toMatchObject({ comment_id: r.comment_id, commented: false });
+        expect(h.pullView('acme/app', n)?.comments).toEqual([comment]);
+        expect(writes(h).length).toBe(before + 2);
+        // the re-planned Unit's next push: a new commit on the same branch, the same PR, still a draft
+        h.guards.setLease(WRITE_ITEM, WRITE_UNIT, { held: true, epoch: 4, lane: 'L4' });
+        const b = okValue(
+          await h.port.apply_patch(
+            writeRequest([put('src/a.js', 'two\n')], {
+              lease_epoch: 4,
+              expected_head: a.commit_sha,
+            }),
+          ),
+        );
+        expect(b.parent_sha).toBe(a.commit_sha);
+        expect(b.pr.number).toBe(n);
+        expect(b.pr.draft).toBe(true);
+        expect(b.created).toBe(false);
+        // every write was one the broker may make
+        for (const w of writes(h))
+          expect(
+            ALLOWED_WRITES.some((x) => x.test(w)),
+            w,
+          ).toBe(true);
+      }));
+
+    it('redraft_pr touches nothing for another branch, a bad request, or a PR that is closed', () =>
+      withHost(async (h) => {
+        const a = okValue(await h.port.apply_patch(writeRequest([put('src/a.js', 'one\n')])));
+        const n = a.pr.number;
+        const req = {
+          repo: 'acme/app',
+          item_id: WRITE_ITEM,
+          unit_key: WRITE_UNIT,
+          branch: WRITE_BRANCH,
+          pr_number: n,
+          lease_epoch: 3,
+        };
+        const before = h.requests().length;
+        expect(notOk(await h.port.redraft_pr({ ...req, branch: 'main' }))).toMatchObject({
+          code: 'branch_not_allowed',
+        });
+        expect(notOk(await h.port.redraft_pr({ ...req, unit_key: 'other' }))).toMatchObject({
+          code: 'branch_not_allowed',
+        });
+        expect(
+          notOk(await h.port.redraft_pr({ ...req, body: 'free text' } as never)),
+        ).toMatchObject({ code: 'bad_patch' });
+        expect(h.requests().length).toBe(before);
+        h.landPull('acme/app', n, 'carol-gh');
+        const w = writes(h).length;
+        expect(notOk(await h.port.redraft_pr(req))).toMatchObject({ reason: 'refused' });
+        expect(writes(h).length).toBe(w);
+        expect(h.pullView('acme/app', n)?.comments).toEqual([]);
       }));
 
     it('pr_status of a pull request that is not there is unreadable/not_found', () =>

@@ -60,6 +60,12 @@ import {
   signedPackBytes,
   CorePush,
   CorePushGuards,
+  FakePrincipalLinks,
+  listPullRequests,
+  listPushReceipts,
+  listUnits,
+  rebuildPushes,
+  rebuildUnits,
   planUnits,
   readItem,
   storeArtefact,
@@ -104,7 +110,7 @@ const ok = <T>(r: { ok: true; value: T } | { ok: false; error: unknown }): T => 
   return r.value;
 };
 
-const sessionResult = (files: Record<string, string>, final: string) => {
+const sessionResult = (files: Record<string, string>, final: string, deleted: string[] = []) => {
   const out: Record<string, string> = {};
   const changed = Object.entries(files).map(([path, content]) => {
     const h = sha256b(content);
@@ -124,7 +130,7 @@ const sessionResult = (files: Record<string, string>, final: string) => {
     key_on_disk: false,
     error: null,
     changed,
-    deleted: [],
+    deleted,
     changes_truncated: false,
   };
   out['session.json'] = JSON.stringify(res);
@@ -163,6 +169,8 @@ interface World {
   /** Scripted answers for verify's own sessions (`s7-...`). */
   s7: (spec: SandboxSpec, cmd: string) => { exit_code: number; stdout?: string } | undefined;
   heads: string[];
+  /** B11 worlds: the coding sessions of 6.4, in order, with what each saw (the prompt and whether the old approach was there). */
+  sessions: Array<{ prompt: string; sawOldApproach: boolean }>;
 }
 
 /** The fake write-once store, counting the puts that stored something new. */
@@ -179,7 +187,13 @@ class CountingObjectStore extends FakeObjectStore implements ObjectStorePort {
 let counter = 0;
 const worlds: World[] = [];
 
-async function world(o: { oracleEntry?: typeof synthOracleEntry } = {}): Promise<World> {
+/** B11 worlds: the first approach adds a hack file beside the fix; the re-planned one, from the branch head, undoes it. */
+const HACK = 'src/parser-hack.js';
+const FIXED_V2 = `${FIXED}// approach 2: add stays where it is; the parser is fixed upstream\n`;
+
+async function world(
+  o: { oracleEntry?: typeof synthOracleEntry; b11?: boolean } = {},
+): Promise<World> {
   counter += 1;
   const project = `vfy${counter}`;
   const repo = `acme/${project}`;
@@ -266,7 +280,18 @@ async function world(o: { oracleEntry?: typeof synthOracleEntry } = {}): Promise
   const source = new CoreBuildSource({
     pool: s.record.pool,
     deps: s.deps,
-    repo: { files: async () => kok(synth.files) as never },
+    // the base from the synthetic repo; any other commit (a Unit's branch head) from where it lives: the fake GitHub
+    repo: {
+      files: async (r, sha) => {
+        if (sha === SYNTH_BASE_SHA) return kok(synth.files) as never;
+        const objects = host.server.objects;
+        const paths = objects.pathsAt(r, sha);
+        if (!paths) return err({ code: 'not_found', message: `no commit ${sha}` }) as never;
+        return kok(
+          paths.map((p) => ({ path: p, content: objects.fileAt(r, sha, p) ?? Buffer.alloc(0) })),
+        ) as never;
+      },
+    },
   });
   const dir = mkdtempSync(join(tmpdir(), 'aisdlc-core-verify-'));
   const store = new SessionStore(dir);
@@ -277,6 +302,7 @@ async function world(o: { oracleEntry?: typeof synthOracleEntry } = {}): Promise
     dir,
     tamper: {},
     heads: [],
+    sessions: [],
     s7: () => undefined,
   } as unknown as World;
   const sandbox = new FakeSandbox((spec) => {
@@ -287,12 +313,19 @@ async function world(o: { oracleEntry?: typeof synthOracleEntry } = {}): Promise
         ).toString(),
       ) as { prompt?: string };
       const authoring = (task.prompt ?? '').startsWith('Step 6.3');
-      return authoring
-        ? sessionResult(
-            { [ORACLE_PATH]: synthOracleCode() },
-            '{"status":"completed","summary":"wrote"}',
-          )
-        : sessionResult({ 'src/calc.js': FIXED }, DONE);
+      if (authoring)
+        return sessionResult(
+          { [ORACLE_PATH]: synthOracleCode() },
+          '{"status":"completed","summary":"wrote"}',
+        );
+      if (!o.b11) return sessionResult({ 'src/calc.js': FIXED }, DONE);
+      const prompt = task.prompt ?? '';
+      const sawOldApproach = spec.repo.some((f) => f.path === HACK);
+      w.sessions.push({ prompt, sawOldApproach });
+      // the re-planned session starts from the branch head: it undoes the wrong approach (the hack) and goes on
+      return sawOldApproach
+        ? sessionResult({ 'src/calc.js': FIXED_V2 }, DONE, [HACK])
+        : sessionResult({ 'src/calc.js': FIXED, [HACK]: 'exports.hack = true;\n' }, DONE);
     }
     const cmd = spec.command.join(' ');
     if (spec.session_id.startsWith('s7-')) {
@@ -403,6 +436,16 @@ async function world(o: { oracleEntry?: typeof synthOracleEntry } = {}): Promise
       },
       keys: new FakeAgentKeys(),
       vault,
+      // owner decision 2026-11-13: a re-plan of a pushed Unit takes its PR back to draft through the Push Broker
+      pulls: host.rest,
+      ...(o.b11
+        ? {
+            review: {
+              source: host.rest,
+              links: new FakePrincipalLinks().link('bob', 'bob'),
+            },
+          }
+        : {}),
     } as unknown as WorkDriverDeps,
   });
   worlds.push(w);
@@ -798,6 +841,218 @@ describe('S6 -> S7 through core', () => {
     expect(s73?.findings.items.map((f) => [f.kind, f.repair_class])).toEqual([
       ['conformance_review', 'approach_wrong'],
     ]);
+  });
+
+  it('B11 after the push (owner decision 2026-11-13): re-planned on the SAME branch and PR, fast-forward, a new pack for the new head, G4, merge', async () => {
+    const w = await world({ b11: true });
+    // A5 finds the approach wrong on the first head only
+    let conformance = 0;
+    w.reviewer.scripted((req) => {
+      if (req.check !== 'spec_conformance') return undefined;
+      conformance += 1;
+      return conformance > 1
+        ? undefined
+        : {
+            verdict: 'findings',
+            findings: [
+              {
+                severity: 'high',
+                rule_id: 'approach_wrong',
+                location: { path: 'src/calc.js' },
+                message: 'the plan patches add where the parser is the bug',
+              },
+            ],
+          };
+    });
+    const unitRows = async () =>
+      (
+        await s.record.pool.query(
+          `SELECT u.unit_id, u.state, u.branch, u.lease_epoch, u.head_sha, u.pr_ref, u.base_sha, u.plan_sha256,
+                  l.epoch, l.status, l.holder_kind
+             FROM core.unit u LEFT JOIN core.lease l USING (unit_id) WHERE u.item_id = $1 ORDER BY u.unit_key`,
+          [w.itemId],
+        )
+      ).rows;
+    const grantRows = async () =>
+      (
+        await s.record.pool.query(
+          `SELECT grant_id, unit_id, lease_epoch, status, release_cause, resumes_grant_id
+             FROM core.admission_grant WHERE item_id = $1 ORDER BY lease_epoch`,
+          [w.itemId],
+        )
+      ).rows;
+
+    // ---- to 7.6's B11: the Unit is pushed (branch and draft PR), the pack of the head is a rework, never a pass
+    const first = (
+      await runItem(s, w.d, w.itemId, { stop: (x) => (x.rework.by_edge['B11'] ?? 0) > 0 })
+    )?.state;
+    expect(first?.rework.by_edge['B11']).toBe(1);
+    const [h1receipt] = await listPushReceipts(s.record.pool, w.itemId);
+    const h1 = h1receipt?.head_sha as string;
+    expect(h1).toMatch(/^[0-9a-f]{40}$/);
+    const prNumber = h1receipt?.pr_number as number;
+    expect(w.host.server.objects.pathsAt(w.repo, h1)).toContain(HACK);
+
+    // ---- the re-plan (5.1 again), 6.0 re-admits at a higher epoch, S6 builds on the branch head, 6.6 fast-forwards
+    // the SAME branch and PR, S7 again, G4, merge
+    const done = await runItem(s, w.d, w.itemId);
+    expect(done?.state.terminal, JSON.stringify(done?.state.waiting)).toBe('Done');
+    expect(done?.state.attempts['s:5.1']).toBe(2);
+    // the Unit's record: pushed, sent back to Planned by the `replanned` release (its branch and PR kept), admitted again
+    // at a higher epoch, pushed again on the same PR
+    const unitEvents = (
+      await s.record.pool.query<{ type: string; body: Record<string, unknown> }>(
+        'SELECT type, body FROM record.record_event WHERE stream = $1 ORDER BY seq',
+        [`unit:${w.itemId}`],
+      )
+    ).rows.map((r) =>
+      [
+        r.type.replace('unit.', ''),
+        r.body['to'] ?? r.body['cause'] ?? r.body['lease_epoch'],
+        r.body['pr_ref'] ?? '',
+      ].join(' '),
+    );
+    expect(unitEvents.slice(0, 8)).toEqual([
+      'admitted 1 ',
+      'state_changed Building ',
+      `state_changed Pushed pr:${prNumber}`,
+      'lease_changed left_s6 ',
+      'grant_released replanned ',
+      'admitted 2 ',
+      'state_changed Building ',
+      `state_changed Pushed pr:${prNumber}`,
+    ]);
+    const g1 = (await grantRows())[0] as { lease_epoch: number; release_cause: string };
+    expect(g1.release_cause).toBe('replanned');
+    // on entering the re-plan the PR got ONE ids-only comment, before the new commit was written; nothing was closed or
+    // opened
+    const { replanCommentOf } = await import('@aisdlc/contracts');
+    expect(w.host.server.pulls[0]?.comments?.map((c) => c.body)).toEqual([
+      replanCommentOf(w.itemId, 'main', g1.lease_epoch),
+    ]);
+    const writes = w.host.server.apiRequests
+      .filter((r) => r.method !== 'GET')
+      .map((r) => `${r.method} ${r.path.replace(w.repo, 'R')}`);
+    const commentAt = writes.indexOf(`POST /repos/R/issues/${prNumber}/comments`);
+    const commitsAt = writes.flatMap((x, i) => (x === 'POST /repos/R/git/commits' ? [i] : []));
+    expect(commitsAt).toHaveLength(2);
+    expect(commentAt).toBeGreaterThan(commitsAt[0] as number);
+    expect(commentAt).toBeLessThan(commitsAt[1] as number);
+    expect(writes.filter((x) => x === 'POST /repos/R/pulls')).toHaveLength(1);
+    expect(writes.some((x) => /PATCH .*pulls\/\d+$/.test(x))).toBe(true);
+    // the rows are a fold of the record: rebuilt, the same
+    const beforeRebuild = { units: await unitRows(), grants: await grantRows() };
+    await rebuildUnits(s.deps, w.itemId);
+    expect({ units: await unitRows(), grants: await grantRows() }).toEqual(beforeRebuild);
+    const receipts = (await listPushReceipts(s.record.pool, w.itemId)).filter(
+      (r) => r.status === 'applied',
+    );
+    expect(receipts.map((r) => [r.branch, r.pr_number, r.base_sha])).toEqual([
+      [`agent/${w.itemId}/main`, prNumber, SYNTH_BASE_SHA],
+      [`agent/${w.itemId}/main`, prNumber, SYNTH_BASE_SHA],
+    ]);
+    const h2 = receipts[1]?.head_sha as string;
+    expect(h2).not.toBe(h1);
+    expect(receipts[1]?.lease_epoch).toBeGreaterThan(receipts[0]?.lease_epoch as number);
+    // a fast-forward: the new commit's parent is the old head, never a force
+    expect(w.host.server.objects.commit(w.repo, h2)?.parents).toEqual([h1]);
+    expect(w.host.server.pulls).toHaveLength(1);
+    expect(w.host.server.pulls[0]?.head.sha).toBe(h2);
+    expect(w.host.server.pulls[0]?.commits.map((c) => c.sha)).toEqual([h1, h2]);
+    expect(w.host.server.pulls[0]?.comments).toHaveLength(1);
+    expect(
+      w.host.server.apiRequests.filter(
+        (r) => r.method !== 'GET' && /\/pulls$/.test(r.path) && r.method === 'POST',
+      ),
+    ).toHaveLength(1);
+    // the re-planned session started from the branch head (it saw the old approach) and was told to undo it; the new head
+    // no longer has it
+    expect(w.sessions.map((x) => x.sawOldApproach)).toEqual([false, true]);
+    expect(w.sessions[1]?.prompt).toContain(`head of this Unit's branch (${h1})`);
+    expect(w.host.server.objects.pathsAt(w.repo, h2)).not.toContain(HACK);
+    const [u2] = await listUnits(s.record.pool, w.itemId);
+    expect(u2).toMatchObject({ head_sha: h2, pr_ref: `pr:${prNumber}` });
+    expect(
+      (await listPullRequests(s.record.pool, w.itemId)).map((p) => [p.number, p.head_sha]),
+    ).toEqual([[prNumber, h2]]);
+    // the epoch only increased, and the grants say why each ended
+    const grants = (await grantRows()) as Array<{ lease_epoch: number; release_cause: string }>;
+    expect(grants.map((g) => g.release_cause)).toEqual(['replanned', expect.any(String)]);
+    expect((grants[1]?.lease_epoch ?? 0) > (grants[0]?.lease_epoch ?? 0)).toBe(true);
+    const history = (
+      await s.record.pool.query<{ epoch: number }>(
+        'SELECT epoch FROM core.lease_history WHERE unit_id = $1 ORDER BY n',
+        [`${w.itemId}:main`],
+      )
+    ).rows.map((r) => r.epoch);
+    expect([...history].sort((a, b) => a - b)).toEqual(history);
+
+    // ---- every approval binds the new head; nothing of the old head carries over
+    const rs = await results(w);
+    expect(
+      rs.map((r) => `${r.step}@${r.head_sha === h1 ? 'h1' : r.head_sha === h2 ? 'h2' : '?'}`),
+    ).toEqual([
+      '7.1@h1',
+      '7.2@h1',
+      '7.3@h1',
+      '7.4@h1',
+      '7.5@h1',
+      '7.1@h2',
+      '7.2@h2',
+      '7.3@h2',
+      '7.4@h2',
+      '7.5@h2',
+    ]);
+    const { verifyResultHash } = await import('@aisdlc/contracts');
+    for (const r of rs.filter((x) => x.head_sha === h2))
+      expect(done?.state.outputs[r.step]).toBe(verifyResultHash(r));
+    const packs = await listEvidencePacks(s.record.pool, w.itemId);
+    expect(packs.map((p) => [p.disposition.kind, p.passing, p.head_sha])).toEqual([
+      ['rework', false, h1],
+      ['passed', true, h2],
+    ]);
+    expect(done?.state.outputs['7.6']).toBe(packs[1]?.pack_sha256);
+    // what gate-check checks, with the Notary's public key only: the new pack passes for exactly the new head, the old
+    // pack for neither
+    const { checkSignedEvidencePack } = await import('@aisdlc/contracts');
+    const key = s.deps.ledger?.notaryKey as never;
+    const bytesOf = async (i: number) =>
+      ok(await readSignedPack(w.objects, packs[i] as never)).bytes;
+    expect(
+      await checkSignedEvidencePack(await bytesOf(1), key, { head_sha: h2, item_id: w.itemId }),
+    ).toMatchObject({
+      ok: true,
+    });
+    expect(await checkSignedEvidencePack(await bytesOf(1), key, { head_sha: h1 })).toMatchObject({
+      ok: false,
+      code: 'head_mismatch',
+    });
+    expect(await checkSignedEvidencePack(await bytesOf(0), key, { head_sha: h2 })).toMatchObject({
+      ok: false,
+      code: 'head_mismatch',
+    });
+    expect(await checkSignedEvidencePack(await bytesOf(0), key, { head_sha: h1 })).toMatchObject({
+      ok: false,
+      code: 'not_passing',
+    });
+    const signed2 = ok(await readSignedPack(w.objects, packs[1] as never)).signed.pack;
+    expect(signed2.push_receipt).toMatchObject({ head_sha: h2, pr_number: prNumber });
+    // G4 was asked once, after the new pack, and its review binds the new head and that pack
+    const g4 = done?.state.gates.filter((g) => g.gate === 'G4') ?? [];
+    expect(g4.map((g) => g.outcome)).toEqual(['approve']);
+    const { readGateState } = await import('@aisdlc/decisions');
+    const g4state = await readGateState(s.record.pool, g4[0]?.gate_instance_id as string);
+    const { G4_REVIEW_FACT } = await import('@aisdlc/contracts');
+    const review = (g4state?.open.payload.facts as Record<string, unknown>)[G4_REVIEW_FACT] as {
+      units: Array<{ head_sha: string; pack_sha256: string }>;
+    };
+    expect(review.units.map((u) => [u.head_sha, u.pack_sha256])).toEqual([
+      [h2, packs[1]?.pack_sha256],
+    ]);
+    // and the read models of the push rebuild to the same rows
+    const prs = await listPullRequests(s.record.pool, w.itemId);
+    await rebuildPushes(s.deps, w.itemId);
+    expect(await listPullRequests(s.record.pool, w.itemId)).toEqual(prs);
   });
 
   it('B12: a locked test the approved spec moved away from raises E6 at 7.2, chained to G3o; the 2nd time is D2', async () => {

@@ -181,6 +181,10 @@ flowchart TB
   s76 -. "B9 repairable finding: ET3/ET4/ET5/ET6 limits" .-> s64
   s73 -. "B10 spec ambiguous: G2 portion again, 1×" .-> s32
   s76 -. "B11 approach wrong: G3 again, 1×" .-> s51
+  %% B11 after 6.6 (owner decision 2026-11-13, PLAN §7a): the re-plan goes on on the SAME branch agent/<item>/<unit> and the
+  %% SAME PR: never closed, never a new PR, never a force-push. On entering it the Push Broker marks the PR draft again with
+  %% one ids-only comment; S6 starts from the branch head; 6.6 fast-forwards; 7.1-7.6, the Evidence Pack, gate-check and G4
+  %% all bind the new head, and nothing of the old head carries over.
   s72 -. "B12 locked test must change, 1×" .-> E6 -.-> G3o
   s81 -. "B13 G4 changes requested: ET7 2 rounds" .-> s64
   s81 -. "B14 mode-E approver unsure → mode C" .-> s81

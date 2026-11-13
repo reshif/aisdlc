@@ -9,6 +9,12 @@ import { defineMachine, type TransitionTable } from './machine.js';
  * `Stopped` have no outgoing edge in the diagram, so they are terminal. The `idle`, `waiting_tool`,
  * `interrupted` states of `Building` belong to AgentSession, not here; `Building -> Building` is
  * kept as the drawn self-edge.
+ *
+ * The B11 re-plan of a pushed Unit (owner decision 2026-11-13, PLAN §7a): when 7.6 finds the approach wrong after the
+ * Unit's branch and draft PR exist, the Unit goes from `Pushed` (or `Verifying`, `InReview`: any state with a branch and
+ * an open PR before the merge) back to `Planned` on the `replanned` grant release, KEEPING its branch, head and PR
+ * (`core.unit.head_sha`, `pr_ref`, the `core.pull_request` link), its lease and so its epoch; 6.0 admits it again at a
+ * higher epoch and S6 builds on the branch head, fast-forward, on the same PR. `Merged` never goes back.
  */
 export const UnitState = z.enum([
   'Planned',
@@ -32,9 +38,9 @@ export const UNIT_TRANSITIONS: TransitionTable<UnitState> = {
   Planned: ['Admitted'],
   Admitted: ['Building', 'GrantReleased'],
   Building: ['Building', 'Pushed', 'HumanHeld', 'Tainted', 'Stopped'],
-  Pushed: ['Verifying'],
-  Verifying: ['Building', 'InReview'],
-  InReview: ['Merged', 'Building'],
+  Pushed: ['Verifying', 'Planned'],
+  Verifying: ['Building', 'InReview', 'Planned'],
+  InReview: ['Merged', 'Building', 'Planned'],
   Merged: ['Released'],
   Released: [],
   HumanHeld: ['Building'],
