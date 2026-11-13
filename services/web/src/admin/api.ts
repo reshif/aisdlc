@@ -1,6 +1,5 @@
 import {
   DELETION_ROUTES,
-  OVERRIDE_REASON_HEADER,
   type AccessDecideResult,
   type DeletionKind,
   type DeletionPreview,
@@ -13,7 +12,7 @@ import {
   type TeamDetailView,
   type TeamListView,
 } from '@aisdlc/contracts';
-import { ApiError, type PreparedRevision } from '../api';
+import { ApiError, overrideHeader, type PreparedRevision } from '../api';
 
 // The admin lifecycle's calls (portal v2: people, teams, role assignments, deletion, the factory admin's override).
 // Every write carries the CSRF token and, when the factory admin gives one, the override's reason in its header
@@ -26,10 +25,13 @@ export async function adminRequest<T>(
   path: string,
   o: { body?: unknown; csrf?: string; reason?: string | undefined } = {},
 ): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json' };
+  // the override header exactly as the Decide screen sends it (`overrideHeader` in api.ts)
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    ...overrideHeader(o.reason),
+  };
   if (o.body !== undefined) headers['content-type'] = 'application/json';
   if (o.csrf !== undefined) headers['x-csrf-token'] = o.csrf;
-  if (o.reason !== undefined) headers[OVERRIDE_REASON_HEADER] = encodeURIComponent(o.reason);
   let res: Response;
   try {
     res = await fetch(path, {

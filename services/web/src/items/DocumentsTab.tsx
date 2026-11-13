@@ -1,4 +1,5 @@
 import {
+  label,
   DocumentGroupValues,
   type DocumentGateBinding,
   type DocumentVersion,
@@ -257,41 +258,27 @@ function DocumentsBody({ id, v }: { id: string; v: ItemDocumentsView }) {
   );
 }
 
-/** The Intent tab: the intent block G0/G1 decide (and what the classifier said), from the same documents read. */
+/**
+ * Above the documents: whether the agreed goal was approved, and by which approvals (the goal itself is one of the
+ * documents below, cut to the person's data class there).
+ */
 export function IntentTab({ id }: { id: string }) {
   const q = useQuery({ queryKey: ['item-documents', id], queryFn: () => api.itemDocuments(id) });
+  if (!q.data) return null;
+  const intent = q.data.documents.find((d) => d.type === 'intent_block');
+  if (!intent) return null;
+  const approved = intent.versions.filter((x) =>
+    x.gates.some((g) => g.status === 'decided' && g.outcome === 'approve'),
+  );
+  const last = approved.at(-1);
   return (
-    <Read q={q} what="the intent">
-      {(v) => {
-        const intent = v.documents.find((d) => d.type === 'intent_block');
-        const cls = v.documents.find((d) => d.type === 'classification');
-        if (!intent && !cls) {
-          return (
-            <EmptyState title="No intent block yet">
-              Step 1.5 writes it; G0 and G1 decide it.
-            </EmptyState>
-          );
-        }
-        const approved = intent?.versions.filter((x) =>
-          x.gates.some((g) => g.status === 'decided' && g.outcome === 'approve'),
-        );
-        return (
-          <div data-testid="intent-tab">
-            <p data-testid="intent-status">
-              {approved && approved.length > 0
-                ? `The intent block version ${(approved.at(-1) as DocumentVersion).version} was approved (${(
-                    approved.at(-1) as DocumentVersion
-                  ).gates
-                    .filter((g) => g.outcome === 'approve')
-                    .map((g) => g.gate)
-                    .join(', ')}).`
-                : 'No gate has approved an intent block yet.'}
-            </p>
-            {intent ? <DocumentCard doc={intent} /> : null}
-            {cls ? <DocumentCard doc={cls} /> : null}
-          </div>
-        );
-      }}
-    </Read>
+    <p data-testid="intent-status">
+      {last
+        ? `The agreed goal, version ${last.version}, was approved (${last.gates
+            .filter((g) => g.outcome === 'approve')
+            .map((g) => label('gate', g.gate))
+            .join(', ')}).`
+        : 'No approval has accepted the agreed goal yet.'}
+    </p>
   );
 }

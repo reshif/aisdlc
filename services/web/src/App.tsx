@@ -4,9 +4,6 @@ import { useState, type ReactNode } from 'react';
 import { AccessProvider, reasonText } from './access';
 import { ApiError, api, type Me } from './api';
 import { ErrorNote, Loading } from './components/Notice';
-import { CardPage } from './pages/CardPage';
-import { InboxPage } from './pages/InboxPage';
-import { ItemPage } from './pages/ItemPage';
 import { PackPage } from './pages/PackPage';
 import { LedgerPage } from './pages/LedgerPage';
 import { PrrPage } from './pages/PrrPage';
@@ -23,13 +20,16 @@ import { MyAccessPage } from './me/MyAccess';
 import { MyNotificationsPage } from './me/MyNotifications';
 import { MyProfilePage } from './me/MyProfile';
 import { AskPage } from './assistant/AskPage';
-import { AskForWorkPage } from './pages/AskForWorkPage';
-import { HomePage } from './pages/HomePage';
+import { AskScreen } from './work/AskScreen';
+import { DecideScreen } from './work/DecideScreen';
+import { HomeScreen } from './work/HomeScreen';
+import { InboxScreen } from './work/InboxScreen';
+import { ItemScreen } from './work/ItemScreen';
+import { ItemsScreen } from './work/ItemsScreen';
 import { CloseoutPage } from './pages/CloseoutPage';
 import { LearnPage } from './pages/LearnPage';
 import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
 import { AccessRequestPage, AccessRequestsPage } from './people/AccessRequests';
-import { BoardPage, ItemsPage } from './pages/ItemsPage';
 import { FloorPage } from './floor/FloorPage';
 import { FleetPage } from './floor/FleetPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
@@ -178,7 +178,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
   const csrf = me.csrf_token;
   switch (route.name) {
     case 'home':
-      return <HomePage me={me} />;
+      return <HomeScreen me={me} />;
     case 'projects':
       return <ProjectListPage canOnboard={mayOnboard} />;
     case 'floor':
@@ -186,9 +186,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'fleet':
       return <FleetPage />;
     case 'items':
-      return <ItemsPage />;
     case 'board':
-      return <BoardPage />;
+      return <ItemsScreen key={route.name} me={me} />;
     case 'agents':
       return <AgentsPage />;
     case 'agent':
@@ -239,9 +238,10 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 's0':
       return <S0Page id={route.id} csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'card':
-      return <CardPage id={route.id} csrf={me.csrf_token} me={me.principal.principal_id} />;
+    case 'decide':
+      return <DecideScreen key={route.id} id={route.id} me={me} csrf={csrf} />;
     case 'item':
-      return <ItemPage id={route.id} csrf={me.csrf_token} />;
+      return <ItemScreen key={route.id} id={route.id} me={me} csrf={csrf} />;
     case 'pack':
       return <PackPage id={route.id} />;
     case 'closeout':
@@ -253,7 +253,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'factoryRevision':
       return <FactoryRevisionPage gate={route.id} csrf={csrf} me={me.principal.principal_id} />;
     case 'inbox':
-      return <InboxPage />;
+      return <InboxScreen me={me} />;
     case 'revision':
       return <RevisionPage gate={route.id} csrf={me.csrf_token} />;
     case 'projectSettings':
@@ -290,7 +290,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'ask':
       return <AskPage csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'askForWork':
-      return <AskForWorkPage key={route.project ?? ''} project={route.project} csrf={csrf} />;
+      return <AskScreen key={route.project ?? ''} project={route.project} csrf={csrf} />;
     case 'notifications':
       return <MyNotificationsPage csrf={me.csrf_token} />;
     case 'notificationPrefs':

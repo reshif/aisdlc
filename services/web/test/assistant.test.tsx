@@ -285,7 +285,7 @@ describe('Ask the factory', () => {
         },
       },
     });
-    renderAt('/ask');
+    renderAt('/assistant');
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Ask the factory' }),
     ).toBeInTheDocument();
@@ -303,7 +303,7 @@ describe('Ask the factory', () => {
 
   it('without assistant.use anywhere (PLAN §7a) Ask is not in the nav and a direct link is the 403 page', async () => {
     const { calls } = mockApi({ 'GET /api/me': { json: me(['project.onboard']) } });
-    renderAt('/ask');
+    renderAt('/assistant');
     await waitFor(() => expect(document.querySelector('[data-status="403"]')).not.toBeNull());
     expect(document.querySelector('[data-status="403"]')).toHaveTextContent(
       'Ask the factory and the onboarding assistant',
