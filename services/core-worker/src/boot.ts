@@ -363,8 +363,8 @@ export async function bootCoreWorker(
                           push: new CorePush(
                             { pool, ledger },
                             new HttpCodeHostPush({
-                              baseUrl: cfg.codehostUrl,
-                              token: cfg.codehostToken,
+                              baseUrl: cfg.pushBroker.url,
+                              token: cfg.pushBroker.token,
                             }),
                           ),
                         }
@@ -541,8 +541,8 @@ export async function bootCoreWorker(
               {
                 pool,
                 source: new HttpCodeHostPush({
-                  baseUrl: cfg.codehostUrl,
-                  token: cfg.codehostToken,
+                  baseUrl: cfg.pushBroker.url,
+                  token: cfg.pushBroker.token,
                 }),
                 watched: new DbWatchedPulls(pool),
               },
@@ -664,8 +664,8 @@ export async function bootCoreWorker(
               ...(cfg.pushBroker
                 ? {
                     broker: new HttpCodeHostPush({
-                      baseUrl: cfg.codehostUrl,
-                      token: cfg.codehostToken,
+                      baseUrl: cfg.pushBroker.url,
+                      token: cfg.pushBroker.token,
                     }),
                   }
                 : {}),

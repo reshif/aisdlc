@@ -6,6 +6,7 @@ import {
   ModelCallPayload,
   ReservationAbandonedPayload,
   ModelCompleteRequest,
+  ModelMessage,
   ModelTextBlock,
   VKeyMint,
   VKeyMintedPayload,
@@ -118,9 +119,23 @@ const failure = (code: GatewayRefusal, message: string): GatewayFailure => {
   return { status, code, message, type };
 };
 
+/**
+ * A `system` turn among the messages: the Claude Agent SDK (the coding runner's harness) sends its environment block
+ * this way. It is text only, and it is the caller's own instruction text, like the `system` field: the gateway folds it
+ * into the request's system text (after the `system` field, in order) and forwards only user and assistant turns.
+ */
+const SystemTurn = z.object({
+  role: z.literal('system'),
+  content: z.union([z.string(), z.array(ModelTextBlock).min(1)]),
+});
+
 /** The wire form of a Messages request: ours, plus what Anthropic's clients also send. */
 const MessagesWire = ModelCompleteRequest.omit({ metadata: true }).extend({
   system: z.union([z.string(), z.array(ModelTextBlock)]).optional(),
+  messages: z
+    .array(z.union([ModelMessage, SystemTurn]))
+    .min(1)
+    .max(2_000),
   stream: z.boolean().optional(),
 });
 
@@ -423,12 +438,13 @@ export class GatewayService {
 
     const wire = MessagesWire.safeParse(body);
     if (!wire.success) {
+      // field paths and the rule, never a value (the body is a prompt)
       return refuse(
         'invalid_request',
         wire.error.issues
-          .map((i) => i.message)
+          .map((i) => `${i.path.join('.') || '(body)'}: ${i.message}`)
           .join('; ')
-          .slice(0, 300),
+          .slice(0, 600),
       );
     }
     if ((wire.data.stream === true) !== (mode === 'stream')) {
@@ -485,7 +501,12 @@ export class GatewayService {
     // The allow-list is the key's. Nothing in the request (text, a tool list, a forced tool choice,
     // an earlier tool call in the history) can add to it: a request that names a tool outside it is
     // refused as a whole, never trimmed.
-    const w = wire.data;
+    const turns = wire.data.messages;
+    const conversation = turns.filter((m): m is ModelMessage => m.role !== 'system');
+    if (conversation.length === 0) {
+      return refuse('invalid_request', 'messages: no user or assistant turn');
+    }
+    const w = { ...wire.data, messages: conversation };
     const named = new Set<string>();
     for (const t of w.tools ?? []) named.add(t.name);
     if (w.tool_choice?.type === 'tool') named.add(w.tool_choice.name);
@@ -509,8 +530,13 @@ export class GatewayService {
     const metadata: Record<string, string> = { vkey_id: key.vkey_id };
     if (key.unit_id) metadata['unit_id'] = key.unit_id;
     if (key.item_id) metadata['item_id'] = key.item_id;
-    const system =
-      typeof w.system === 'string' ? w.system : w.system?.map((b) => b.text).join('\n\n');
+    const textOf = (c: string | ReadonlyArray<{ text: string }>): string =>
+      typeof c === 'string' ? c : c.map((b) => b.text).join('\n\n');
+    const systemParts = [
+      ...(w.system === undefined ? [] : [textOf(w.system)]),
+      ...turns.flatMap((m) => (m.role === 'system' ? [textOf(m.content)] : [])),
+    ];
+    const system = systemParts.length === 0 ? undefined : systemParts.join('\n\n');
     const asked: ModelCompleteRequest = {
       model: route.model.provider_model,
       ...(system === undefined ? {} : { system }),

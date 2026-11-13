@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createReadStream } from 'node:fs';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,5 +50,50 @@ describe('the repo at the base commit, from a git bundle', () => {
     expect(r.ok === false && r.error.code).toBe('not_found');
     expect((await g.files('acme/x', 'nope')).ok).toBe(false);
     expect((await g.files('acme/x', 'f'.repeat(40))).ok).toBe(false);
+  });
+  it('a commit off the default branch (a Unit head on agent/*) comes from the bundle of every branch', async () => {
+    const w = join(dir, 'w2');
+    mkdirSync(w, { recursive: true });
+    git(w, 'init', '-q', '-b', 'main');
+    writeFileSync(join(w, 'a.js'), 'base\n');
+    git(w, 'add', '-A');
+    git(w, 'commit', '-q', '-m', 'base');
+    const base = git(w, 'rev-parse', 'HEAD');
+    git(w, 'checkout', '-q', '-b', 'agent/item/main');
+    writeFileSync(join(w, 'a.js'), 'head\n');
+    git(w, 'commit', '-q', '-am', 'head');
+    const head = git(w, 'rev-parse', 'HEAD');
+    git(w, 'checkout', '-q', 'main');
+    const all = join(dir, 'all.bundle');
+    const main = join(dir, 'main.bundle');
+    git(w, 'bundle', 'create', all, '--all');
+    git(w, 'bundle', 'create', main, 'main');
+    const asked: string[] = [];
+    // the host's answers: the default branch only when its head is the commit asked for (else `head_moved`)
+    const g = new GitBundleFiles({
+      bundle: async (req) => {
+        asked.push(`${req.refs}:${req.base_sha ?? '-'}`);
+        if (req.refs === 'default_only' && req.base_sha !== base) return { state: 'unreadable' };
+        const path = req.refs === 'all' ? all : main;
+        return {
+          state: 'ok',
+          value: {
+            manifest: {} as never,
+            stream: createReadStream(path),
+            dispose: () => undefined,
+          },
+        };
+      },
+    });
+    const atBase = await g.files('acme/x', base);
+    expect(atBase.ok && atBase.value.map((f) => Buffer.from(f.content).toString())).toEqual([
+      'base\n',
+    ]);
+    expect(asked).toEqual([`default_only:${base}`]);
+    const atHead = await g.files('acme/x', head);
+    expect(atHead.ok && atHead.value.map((f) => Buffer.from(f.content).toString())).toEqual([
+      'head\n',
+    ]);
+    expect(asked.slice(1)).toEqual([`default_only:${head}`, 'all:-']);
   });
 });

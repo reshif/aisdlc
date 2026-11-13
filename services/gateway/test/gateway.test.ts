@@ -140,6 +140,36 @@ describe('a call through a virtual key', () => {
       ).status,
     ).toBe(400);
     expect(gw.provider.calls.length).toBe(n);
+    // the refusal names the field and the rule, never a value
+    const bad = await gw.messages(
+      key,
+      hello({ messages: [{ role: 'tool', content: 'secret-ish' }] }),
+    );
+    expect(bad.json.error.message).toMatch(/^messages\.0/);
+    expect(JSON.stringify(bad.json)).not.toContain('secret-ish');
+  });
+
+  it("folds the SDK's system turns into the system text and forwards only user and assistant turns", async () => {
+    const { key } = await gw.mint();
+    gw.provider.enqueue({ text: 'ok' });
+    const r = await gw.messages(
+      key,
+      hello({
+        system: [{ type: 'text', text: 'the factory prompt' }],
+        messages: [
+          { role: 'user', content: 'do the task' },
+          { role: 'system', content: '# Environment\nworking directory /work/repo' },
+        ],
+      }),
+    );
+    expect(r.status).toBe(200);
+    const sent = gw.provider.calls.at(-1);
+    expect(sent?.system).toBe('the factory prompt\n\n# Environment\nworking directory /work/repo');
+    expect(sent?.messages).toEqual([{ role: 'user', content: 'do the task' }]);
+    // a request of system turns only has no conversation to send
+    expect(
+      (await gw.messages(key, hello({ messages: [{ role: 'system', content: 'x' }] }))).status,
+    ).toBe(400);
   });
 });
 

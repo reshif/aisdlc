@@ -9,7 +9,14 @@ import {
 import type { ConfigDeps } from '@aisdlc/config';
 import {
   ANTHROPIC_DEFAULT_MODELS,
+  DEFAULT_LIGHT_TESTS,
   FACTORY_SCOPE,
+  ONBOARDING_LIGHT_TESTS_KEY,
+  ONBOARDING_SANDBOX_IMAGE_KEY,
+  RepoFullName,
+  SANDBOX_EXEC_ALLOWED_REPOS_KEY,
+  SandboxImageRef,
+  Sha256Hex,
   GATEWAY_CONFIG_KEYS,
   INTEGRATION_CONFIG_KEYS,
   PDP_CONFIG_KEY,
@@ -98,12 +105,16 @@ export interface SeedGithub {
  * configured (the deterministic fake and Anthropic, whose key stays in the gateway's own file) and, when
  * the seed is told about one, the GitHub App (a code host, adapter `github_app`, key reference only).
  */
-export function localIntegrationRegistry(github: SeedGithub | null) {
+export function localIntegrationRegistry(
+  github: SeedGithub | null,
+  fixtures: 'planning' | 'testbed' = 'planning',
+) {
   return [
     modelProviderRow('fake', 'fake', {
       display_name: 'Deterministic fake (local only)',
-      // answers the planning steps with canned valid outputs, so a local stack can run S1 to S5 without a model
-      config: { fixtures: 'planning' },
+      // answers the planning steps with canned valid outputs, so a local stack can run S1 to S5 without a model;
+      // `testbed` (the request-to-PR e2e) also scripts the coding sessions and the S7 reviews for the fake testbed
+      config: { fixtures },
     }),
     modelProviderRow('anthropic', 'anthropic', {
       display_name: 'Anthropic',
@@ -139,8 +150,11 @@ export function localIntegrationRegistry(github: SeedGithub | null) {
   ];
 }
 
-export const localGatewayRouting = (github: SeedGithub | null) => ({
-  [INTEGRATION_CONFIG_KEYS.registry]: localIntegrationRegistry(github),
+export const localGatewayRouting = (
+  github: SeedGithub | null,
+  fixtures: 'planning' | 'testbed' = 'planning',
+) => ({
+  [INTEGRATION_CONFIG_KEYS.registry]: localIntegrationRegistry(github, fixtures),
   [GATEWAY_CONFIG_KEYS.models]: [
     {
       model_id: 'fake-model',
@@ -205,6 +219,10 @@ interface SeedConfig {
   readonly identityToken: string;
   /** `SEED_GITHUB_*`: the GitHub App row of the registry; null: no code host is registered. */
   readonly github: SeedGithub | null;
+  /** The local stack's sandbox settings (`seedSandboxFromEnv`); `null`: the seed publishes none. */
+  readonly sandbox: SeedSandbox | null;
+  /** `SEED_FAKE_FIXTURES`: which canned answers the local fake provider gives (`planning`, the default, or `testbed`). */
+  readonly fixtures: 'planning' | 'testbed';
   /** `SEED_PERSONAS=1`: bind the design personas' IdP groups to their roles (`PERSONA_GROUPS`). */
   readonly personas: boolean;
 }
@@ -246,6 +264,8 @@ export function seedConfigFromEnv(env: Env): SeedConfig {
     identityToken: resolveSecretRef(requiredEnv(env, 'SEED_IDENTITY_TOKEN_REF'), { env }),
     github: seedGithub(env),
     personas: env['SEED_PERSONAS'] === '1',
+    sandbox: seedSandboxFromEnv(env),
+    fixtures: fixturesOf(env['SEED_FAKE_FIXTURES']),
   };
 }
 
@@ -313,6 +333,68 @@ export async function seedIdentity(
     }
     log(`seed: the design personas' groups are bound (${PERSONA_GROUPS.length})`);
   }
+}
+
+/** The local stack's sandbox settings the seed publishes (each optional). */
+export interface SeedSandbox {
+  readonly exec_allowed_repos: readonly string[] | null;
+  readonly onboarding_image: { readonly image: string; readonly lock_sha256: string } | null;
+  readonly worker_image: string | null;
+}
+
+function fixturesOf(v: string | undefined): 'planning' | 'testbed' {
+  if (v === undefined || v === '' || v === 'planning') return 'planning';
+  if (v === 'testbed') return 'testbed';
+  throw new ServiceConfigError('SEED_FAKE_FIXTURES must be planning or testbed');
+}
+
+/**
+ *   SEED_EXEC_ALLOWED_REPOS        comma-separated owner/name: `sandbox.exec_allowed_repos` (DEC-18's owner allow-list)
+ *   SEED_ONBOARDING_SANDBOX_IMAGE, SEED_ONBOARDING_LOCK_SHA256   `onboarding.sandbox_image` (a digest and its pin lock)
+ *   SEED_WORKER_IMAGE              `onboarding.light_tests.worker_image` (the W image by digest; thresholds the defaults)
+ * All empty: `null` (nothing is published). A value that does not parse is a configuration error.
+ */
+export function seedSandboxFromEnv(env: Env): SeedSandbox | null {
+  const repos = (env['SEED_EXEC_ALLOWED_REPOS'] ?? '')
+    .split(',')
+    .map((r) => r.trim())
+    .filter((r) => r !== '');
+  for (const r of repos) {
+    if (!RepoFullName.safeParse(r).success)
+      throw new ServiceConfigError(`SEED_EXEC_ALLOWED_REPOS: ${r} is not owner/name`);
+  }
+  const image = env['SEED_ONBOARDING_SANDBOX_IMAGE'] ?? '';
+  const lock = env['SEED_ONBOARDING_LOCK_SHA256'] ?? '';
+  if ((image === '') !== (lock === ''))
+    throw new ServiceConfigError(
+      'SEED_ONBOARDING_SANDBOX_IMAGE and SEED_ONBOARDING_LOCK_SHA256 go together',
+    );
+  if (image !== '' && !SandboxImageRef.safeParse(image).success)
+    throw new ServiceConfigError('SEED_ONBOARDING_SANDBOX_IMAGE is not an image by digest');
+  if (lock !== '' && !Sha256Hex.safeParse(lock).success)
+    throw new ServiceConfigError('SEED_ONBOARDING_LOCK_SHA256 is not a sha256');
+  const worker = env['SEED_WORKER_IMAGE'] ?? '';
+  if (worker !== '' && !SandboxImageRef.safeParse(worker).success)
+    throw new ServiceConfigError('SEED_WORKER_IMAGE is not an image by digest');
+  if (repos.length === 0 && image === '' && worker === '') return null;
+  return {
+    exec_allowed_repos: repos.length > 0 ? repos : null,
+    onboarding_image: image === '' ? null : { image, lock_sha256: lock },
+    worker_image: worker === '' ? null : worker,
+  };
+}
+
+/** The config keys a `SeedSandbox` sets (only the ones it names). */
+export function sandboxDoc(s: SeedSandbox): Record<string, unknown> {
+  return {
+    ...(s.exec_allowed_repos
+      ? { [SANDBOX_EXEC_ALLOWED_REPOS_KEY]: [...s.exec_allowed_repos] }
+      : {}),
+    ...(s.onboarding_image ? { [ONBOARDING_SANDBOX_IMAGE_KEY]: { ...s.onboarding_image } } : {}),
+    ...(s.worker_image
+      ? { [ONBOARDING_LIGHT_TESTS_KEY]: { ...DEFAULT_LIGHT_TESTS, worker_image: s.worker_image } }
+      : {}),
+  };
 }
 
 async function adminStepOf(
@@ -422,7 +504,7 @@ async function bundleStep(env: Env, cfg: SeedConfig, log: (l: string) => void): 
     // The model gateway's routing table (M10.2), local-prod only: the fake provider answers for D0-D2 in
     // `local`, and the Anthropic provider and its models are registered but unrouted. Pointing a route at
     // Claude is a later, gated revision (a human decides it like any other config change). D3 has no route.
-    const routing = localGatewayRouting(cfg.github) as unknown as JsonObject;
+    const routing = localGatewayRouting(cfg.github, cfg.fixtures) as unknown as JsonObject;
     const effective = await mine();
     const same = Object.entries(routing).every(
       ([k, v]) => canonicalJson(effective?.doc[k] ?? null) === canonicalJson(v),
@@ -434,6 +516,27 @@ async function bundleStep(env: Env, cfg: SeedConfig, log: (l: string) => void): 
         ...((effective?.doc ?? {}) as JsonObject),
         ...routing,
       });
+    }
+
+    // The local stack's sandbox settings (the compose e2e of request to PR): which repos' code may run (DEC-18), the
+    // onboarding probe image and the W image LF4 is about. Each is an ordinary M1-gated factory revision, decided by the
+    // genesis admin like the two above; a stack that sets none of SEED_EXEC_ALLOWED_REPOS, SEED_ONBOARDING_* and
+    // SEED_WORKER_IMAGE gets none (the defaults: nothing runs).
+    if (cfg.sandbox) {
+      const sandbox = sandboxDoc(cfg.sandbox) as unknown as JsonObject;
+      const now = await mine();
+      if (
+        Object.entries(sandbox).every(
+          ([k, v]) => canonicalJson(now?.doc[k] ?? null) === canonicalJson(v),
+        )
+      ) {
+        log('seed: the local sandbox settings are already effective');
+      } else {
+        await publish('local sandbox settings', {
+          ...((now?.doc ?? {}) as JsonObject),
+          ...sandbox,
+        });
+      }
     }
   } finally {
     await pool.end();

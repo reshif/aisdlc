@@ -1,6 +1,7 @@
 import {
   CONTROLS_SCHEMA_ID,
   ControlsReport,
+  GATE_CHECK_NAME,
   PROTECTED_PATH_PROBES,
   controlsReportHash,
   type BranchRules,
@@ -19,15 +20,19 @@ import type { CardDeps } from './model.js';
 // is never met, and the factory never fixes anything it finds. There is no clock in it: the same
 // reads give the same bytes and the same `report_hash`.
 
-/** The required check protect-main pins to the App (OB §3.3 LF2). */
-export const GATE_CHECK = 'gate-check';
+/**
+ * The required check protect-main pins to an App (OB §3.3 LF2): the check run gate-check writes (`aisdlc/gate`), never
+ * a name of its own. It was `gate-check` (the service's name), which no check run is called: a repo pinned the way
+ * gate-check writes was "not met", and one pinned to a check nobody writes passed.
+ */
+export const GATE_CHECK = GATE_CHECK_NAME;
 
 interface Verdict {
   readonly status: 'met' | 'not_met' | 'unknown';
   readonly reasons: string[];
 }
 
-/** LF2: PR required, at least one approval, last-push approval, `gate-check` pinned, no force push or deletion. */
+/** LF2: PR required, at least one approval, last-push approval, `aisdlc/gate` pinned, no force push or deletion. */
 export function protectMain(rules: CodeHostRead<BranchRules>): Verdict {
   if (rules.state !== 'ok')
     return { status: 'unknown', reasons: [`rules_${rules.state}:${rules.reason}`] };
@@ -50,7 +55,7 @@ const INSTRUCTIONS: Readonly<Record<string, string>> = {
   B4a: 'Remove the `administration`, `workflows` and `statuses` permissions from the factory App on GitHub (Settings, Applications). The factory never changes its own permissions.',
   B4b: 'Pin every required status check of the default branch to the factory App (set its integration in the ruleset on GitHub), or remove the `statuses` permission from the App.',
   protect_main:
-    'Apply the protect-main ruleset on the default branch on GitHub: pull request required, one approval, last-push approval, `gate-check` pinned to the App, no force push, no deletion. The factory never changes rulesets.',
+    'Apply the protect-main ruleset on the default branch on GitHub: pull request required, one approval, last-push approval, `aisdlc/gate` pinned to the gate-check App, no force push, no deletion. The factory never changes rulesets.',
   app_scope:
     'Install the factory App on selected repositories only ("Only select repositories"), not on all of them, on GitHub.',
   unreadable:

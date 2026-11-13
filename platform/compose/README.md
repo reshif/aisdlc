@@ -384,6 +384,28 @@ installation in `.env` and its key at `secrets/gate-check-app.pem`; it is never 
 | ------------ | ---- | -------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `gate-check` | 8450 | data-gatecheck, kms-clients, objectstore-api, gatecheck-github, gatecheck-egress | K, E, I  | the check run `aisdlc/gate` on every PR (ADR-0003 §1 Integration plane, `docs/specs/gate-check-api.md`): a key (its own App, `checks: write`; in codehost, one leak would give both powers), and the gate plane's independence (AR9: no route to core's write or command APIs, so a core outage cannot pass or block a merge by itself; it reads the record as its own role). It verifies each signed Evidence Pack itself with the Notary's public key, never merges, and records every merge (bypass and unauthorised merges get core's X4 review) |
 
+## The Push Broker and request to merged PR (profiles `push-broker` and `full`, RC-E2E-2)
+
+`push-broker` is the codehost image in `CODEHOST_MODE=push` with its OWN App (`secrets/push-broker-app.pem`, contents
+and pull requests write; the read App's key is not in it and its key is in no other container): the factory's one
+writer, a commit on `agent/<item>/<unit>` through the Git Data API and a Draft PR, after its own checks (lease epoch
+and X2 from core, scope `push_guard`). core-worker reaches it with `CORE_WORKER_PUSH_BROKER=1` and
+`CORE_WORKER_PUSH_BROKER_URL=http://push-broker:8350` (its own token there). On the fake GitHub it is a fifth App on
+its own door (8358, network `pushbroker-github`), and what it writes is mirrored into the git server's repository, so
+S7 fetches the Unit head like any branch.
+
+Profile `full` is everything the request-to-PR path needs: the Push Broker, the sandbox plane (both Docker proxies,
+the package mirror, the sandbox-controller), verify and gate-check. `npm run e2e:pr` (`e2e-pr.sh`, `e2e-pr.mjs`) runs
+it on fakes end to end in a real Chromium, every gate decided by its slot holder (the design personas): the Light
+onboarding of the testbed (the probe in a K-exec session, SP-STD-1 recorded for the W image, the seed's
+`SEED_EXEC_ALLOWED_REPOS`, `SANDBOX_ONBOARDING_IMAGE` and `SANDBOX_AGENT_IMAGE_ID`), a request on Ask for work, S1 to
+S5 on the planning port (the gateway's fake provider on `SEED_FAKE_FIXTURES=testbed`), S6 in W sessions through the
+real gateway, S7 in the verify service, the signed Evidence Pack, the Draft PR, `aisdlc/gate`, G4, a person's merge on
+the fake GitHub (a personal token `ghp_fake_<login>` of `FAKE_GITHUB_PEOPLE`; the merge needs `aisdlc/gate` from
+gate-check's App), G6 and Done, then `verify-ledger`. It runs on its own ports (`AISDLC_BFF_PORT` 8640,
+`AISDLC_OIDC_PORT` 8690), project and subnets (10.236), beside another stack. CI: `.github/workflows/e2e-pr.yml`
+(nightly and on demand). `DRILL_DATA=pr npm run drill:restore` backs up and restores that data.
+
 ## gate-relay (profile `gate-relay`, M15.3)
 
 `docker compose --profile fake-github --profile gate-relay up -d --wait` adds it (against the fake GitHub, whose third

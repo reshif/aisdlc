@@ -2,8 +2,9 @@
 # The restore drill (RC-OPS-1; docs/runbooks/backup-restore.md). `npm run drill:restore`.
 #
 #   1. a stack with data: the browser e2e (an onboarding, S1 to S7 with evidence packs, decisions, the ledger) when
-#      Playwright resolves (DRILL_DATA=e2e), else an onboarding through core (DRILL_DATA=seed); then a kill that stays
-#      engaged and a kill released by two people
+#      Playwright resolves (DRILL_DATA=e2e), or the request-to-merged-PR e2e (DRILL_DATA=pr: e2e-pr.sh, profile `full`,
+#      a real signed Evidence Pack in the write-once bucket, a PR, a merge, an item Done), else an onboarding through core
+#      (DRILL_DATA=seed); then a kill that stays engaged and a kill released by two people
 #   2. quiesce (every factory service stopped, Postgres and the object store up) and record what must survive: every
 #      table of every database (count and hash), every read model's digest, the Notary's and the Witness's heads,
 #      the kill switch's kills, the evidence packs
@@ -37,6 +38,12 @@ export CORE_WORKER_STAGE_PORTS="${CORE_WORKER_STAGE_PORTS:-agents}"
 export CORE_WORKER_FAKE_VERIFY="${CORE_WORKER_FAKE_VERIFY:-exceptions}"
 PROFILES=(--profile fake-github)
 dc() { docker compose "${PROFILES[@]}" "$@"; }
+# the request-to-PR data runs the whole stack (the Push Broker, the sandbox plane, verify, gate-check): the drill stops
+# and removes all of it; the restored stack is the base one (those services keep no state outside Postgres and the
+# object store, and every check below reads only those)
+ALL=("${PROFILES[@]}")
+[ "${DRILL_DATA:-}" = pr ] && ALL+=(--profile full)
+dcall() { docker compose "${ALL[@]}" "$@"; }
 T0=$SECONDS
 step() { printf '\n== [%4ss] %s\n' $((SECONDS - T0)) "$*"; }
 say() { printf '  %s\n' "$*"; }
@@ -63,7 +70,7 @@ cleanup() {
   if [ "${DRILL_KEEP:-0}" = 1 ]; then
     echo "== DRILL_KEEP=1: stack left running (project $COMPOSE_PROJECT_NAME); remove it with: docker compose ${PROFILES[*]} down -v"
   else
-    dc down -v --remove-orphans >/dev/null 2>&1 || true
+    dcall down -v --remove-orphans >/dev/null 2>&1 || true
     echo "== stack removed (down -v): $(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) containers, $(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) volumes left"
   fi
   # the secrets this drill moved away come back, whatever happened (the restored copy is the backup's)
@@ -152,7 +159,12 @@ done
 if [ "${DRILL_SKIP_BUILD:-0}" = 1 ]; then
   docker image inspect "$AISDLC_FACTORY_IMAGE" >/dev/null 2>&1 || fail "DRILL_SKIP_BUILD=1 but the image $AISDLC_FACTORY_IMAGE does not exist"
 fi
-if [ "$DRILL_DATA" = e2e ]; then
+if [ "$DRILL_DATA" = pr ]; then
+  step "a stack with data: request to merged PR (a Light onboarding, S1 to S9, a signed Evidence Pack, a PR, a merge), left running"
+  # on the drill's own ports, image, project and subnets; its stage-port settings are e2e-pr's own
+  E2E_KEEP=1 E2E_SKIP_BUILD="${DRILL_SKIP_BUILD:-0}" AISDLC_BFF_PORT=8340 AISDLC_OIDC_PORT=8390 \
+    NODE_PATH="${NODE_PATH:-$(npm root -g)}" PW_CHROMIUM="${PW_CHROMIUM:-}" ./e2e-pr.sh
+elif [ "$DRILL_DATA" = e2e ]; then
   step "a stack with data: the browser e2e (onboarding, S1 to S7, decisions, evidence packs), left running"
   E2E_KEEP=1 E2E_SKIP_BUILD="${DRILL_SKIP_BUILD:-0}" E2E_SCREENSHOT_DIR="$work/screenshots" \
     NODE_PATH="${NODE_PATH:-$(npm root -g)}" PW_CHROMIUM="${PW_CHROMIUM:-}" ./e2e.sh
@@ -189,10 +201,10 @@ say "a checkpoint co-signed by the Witness covers the ledger head, and the ledge
 
 # ---------------------------------------------------------------- 2. quiesce and record
 step "quiesce: every factory service stopped (Postgres and the object store stay up)"
-mapfile -t services < <(dc config --services)
+mapfile -t services < <(dcall config --services)
 stop=()
 for s in "${services[@]}"; do case "$s" in postgres | object-store) ;; *) stop+=("$s") ;; esac; done
-dc stop "${stop[@]}" >/dev/null 2>&1
+dcall stop "${stop[@]}" >/dev/null 2>&1
 facts before
 say "$(cat "$work"/tables-*.before | wc -l) tables in 4 databases, $(grep -o '"rows"' "$work/models.before" | wc -l) read models"
 say "ledger: $(fact ledger before | cut -d'|' -f1-2 | tr '|' ' ') entries/head; checkpoint $(fact checkpoint before | cut -d'|' -f1-2 | tr '|' ' '); packs $(fact packs before)"
@@ -209,7 +221,7 @@ t_backup=$SECONDS
 t_backup=$((SECONDS - t_backup))
 held "backup taken in ${t_backup}s ($(du -sh "$backup" | cut -f1))"
 step "the host is lost: down -v, secrets/ and .env gone"
-dc down -v --remove-orphans >/dev/null 2>&1
+dcall down -v --remove-orphans >/dev/null 2>&1
 mkdir -p "$work/orig"
 mv secrets "$work/orig/secrets"
 [ -e .env ] && mv .env "$work/orig/env"

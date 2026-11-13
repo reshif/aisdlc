@@ -226,6 +226,31 @@ describe('the tree', () => {
     });
   };
 
+  it("the oracle the factory locked at 6.3 is not the Unit's scope drift; an edit of it, or another file, is", () => {
+    const oracle = "test('farewell',()=>assert.strictEqual(farewell('x'),'goodbye x'));\n";
+    const lockedOracle = (changes: Record<string, string>) => {
+      const nowText = { ...baseText, 'test/farewell.oracle.test.js': oracle, ...changes };
+      return evaluateTree(policy({ scope_globs: ['src/', 'src/**'] }), {
+        base,
+        now: manifest(nowText),
+        before: text(baseText),
+        after: text(nowText),
+        locks: { 'test/farewell.oracle.test.js': sha256Hex(oracle) },
+      });
+    };
+    expect(
+      lockedOracle({ 'src/farewell.js': 'export const farewell = (n) => n;\n' }).tripwires,
+    ).toEqual([]);
+    expect(lockedOracle({ 'test/extra.test.js': 'x' }).tripwires.map((t) => t.kind)).toContain(
+      'scope_drift',
+    );
+    expect(
+      lockedOracle({ 'test/farewell.oracle.test.js': "test('x',()=>{});\n" }).tripwires.map(
+        (t) => t.kind,
+      ),
+    ).toEqual(expect.arrayContaining(['locked_test_edit', 'scope_drift']));
+  });
+
   it('a clean change raises nothing', () => {
     const v = run({ 'src/index.js': 'exports.add=(a,b)=>a+b;\n' });
     expect(v.tripwires).toEqual([]);
