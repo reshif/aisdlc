@@ -1,14 +1,28 @@
 /*
- * Design tokens of the portal, taken from the prototype (docs/design/portal-prototype/src/base.css).
+ * Design tokens of the portal v2, from the agreed sign-in page (IBM Plex Sans body, Barlow Condensed headings, IBM
+ * Plex Mono codes; amber accent #f2b51d on the dark #0f1216 ground, #b07d00 in the light theme) and the skeleton.
  * Components read only these custom properties, never a literal colour, so a theme is one block.
  *
- * WCAG 2.2 AA (P2-19): every text token is at least 4.5:1 on every ground it sits on (--bg, --panel, --panel-2,
- * --panel-3, --sunk) and every tinted ink on its tint; white on a lane fill is 4.5:1 too. The light theme (P3-1)
- * holds to the same rule. `src/theme.ts` sets `data-theme` on <html> before the first render: the stored choice,
- * else what the system prefers (`prefers-color-scheme`). Without it the dark block below applies.
+ * WCAG 2.2 AA (test/contrast.test.ts, both themes): every text token is at least 4.5:1 on every ground it sits on
+ * (--bg, --panel, --panel-2, --panel-3, --sunk), every tinted ink on its tint, the ink on the accent and on the
+ * info fill on that fill, white on each lane fill; the accent, the focus ring and the input border are at least
+ * 3:1 on the grounds (non-text contrast, 1.4.11). One deviation from the sign-in mock, for AA: in the light theme
+ * the ink on the amber button is the dark text colour (#14181d, 4.9:1), not white (3.6:1).
+ *
+ * `src/theme.ts` sets `data-theme` on <html> before the first render: the stored choice, else what the system
+ * prefers. Without it the dark block applies. The blocks match any element with `data-theme`, so a part of a page can
+ * show the other theme (the /design review page shows every component in both).
  */
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/barlow-condensed/latin-600.css';
+@import '@fontsource/barlow-condensed/latin-700.css';
+
 :root,
-:root[data-theme='dark'] {
+[data-theme='dark'] {
   color-scheme: dark;
   /* ground and surfaces */
   --bg: #0f1216;
@@ -18,29 +32,37 @@
   --sunk: #13161b;
   --line: #2a3039;
   --line-2: #3a424f;
+  /* the border of a field: 3:1 on the panel it sits on */
+  --field-line: #6b7686;
   --belt: #343c48;
   --belt-2: #454f5d;
   /* text */
   --fg: #e7eaef;
-  --fg-2: #c4cad3;
-  --muted: #a1aab6;
-  --faint: #8a93a0;
+  --fg-2: #c9cfd8;
+  --muted: #a9b1bd;
+  --faint: #8f98a5;
+  /* the accent (amber): a fill with its ink, and as text */
+  --accent: #f2b51d;
+  --accent-ink: #2a1e00;
+  --accent-text: #f2b51d;
+  --link: #8cc0f5;
+  --focus: #8cc0f5;
   /* semantic, from the floor legend */
   --gate: #f2b51d;
   --gate-ink: #2a1e00;
-  /* the ink on an accent (--hand) fill */
+  /* the ink on an info (--hand) fill */
   --hand-ink: #0b1117;
   --back: #f39c34;
   --hand: #4f9be8;
-  --quar: #ef6c64;
-  --ok: #3faf6b;
-  --warn: #e6b23a;
-  --bad: #ef6c64;
-  --agent: #9d90f8;
+  --quar: #ff9d96;
+  --ok: #3ccf8e;
+  --warn: #f2cf73;
+  --bad: #ff9d96;
+  --agent: #a99df9;
   --det: #9aa5b4;
   --human: #2fb7a6;
   /* tinted grounds and their ink */
-  --ok-bg: #15301f;
+  --ok-bg: #12301f;
   --ok-fg: #7fe0a5;
   --ok-line: #2b5e3e;
   --warn-bg: #352a0c;
@@ -73,45 +95,56 @@
   /* overlays */
   --scrim: rgba(5, 7, 10, 0.6);
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-  /* type: the fonts are not loaded (CSP default-src 'self'); the fallbacks are the design */
+  --glow: color-mix(in srgb, var(--accent) 14%, transparent);
+  /* type (self-hosted through @fontsource: the CSP allows fonts from 'self' only) */
   --display: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
   --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* shape and size */
   --r: 8px;
-  --top-h: 52px;
-  --rail-w: 224px;
+  --r-lg: 10px;
+  --top-h: 56px;
+  --rail-w: 236px;
+  --rail-r-w: 320px;
+  --hit: 44px;
 }
 
-/* P3-1: the light theme. Only what differs from the dark block; lane fills and type are shared. */
-:root[data-theme='light'] {
+/* The light theme, as the sign-in page draws it. Only what differs from the dark block; lanes and type are shared. */
+[data-theme='light'] {
   color-scheme: light;
-  --bg: #f5f6f8;
+  --bg: #f4f5f7;
   --panel: #ffffff;
   --panel-2: #f0f2f5;
-  --panel-3: #e6e9ee;
+  --panel-3: #e8ebef;
   --sunk: #eceff3;
-  --line: #d5dae1;
-  --line-2: #b9c1cc;
+  --line: #d9dde3;
+  --line-2: #c2c8d0;
+  --field-line: #7d8693;
   --belt: #c7ced8;
   --belt-2: #aeb7c3;
-  --fg: #14181f;
+  --fg: #14181d;
   --fg-2: #2f3743;
-  --muted: #4b5563;
-  --faint: #5f6977;
-  --gate: #7f5700;
+  --muted: #4a525e;
+  --faint: #5d6672;
+  --accent: #b07d00;
+  --accent-ink: #14181d;
+  --accent-text: #7a5600;
+  --link: #0b5cad;
+  --focus: #0b5cad;
+  --gate: #7a5600;
   --gate-ink: #ffffff;
   --hand-ink: #ffffff;
-  --back: #a24d00;
-  --hand: #0a5fb4;
+  --back: #9a4800;
+  --hand: #0b5cad;
   --quar: #b42318;
-  --ok: #166b2f;
-  --warn: #8a5a00;
+  --ok: #0f6b3f;
+  --warn: #7a5a00;
   --bad: #b42318;
   --agent: #5b45d6;
   --det: #4f5b6b;
   --human: #08695f;
   --ok-bg: #e6f4ea;
-  --ok-fg: #14632b;
+  --ok-fg: #0f6332;
   --ok-line: #a6d8b4;
   --warn-bg: #fdf3d7;
   --warn-fg: #6e4a00;

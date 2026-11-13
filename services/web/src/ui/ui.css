@@ -38,7 +38,7 @@
 .ui-ph h1 {
   font-family: var(--display);
   font-weight: 600;
-  font-size: 34px;
+  font-size: 32px;
   line-height: 1.1;
   margin: 0;
 }
@@ -78,9 +78,9 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 13px;
-  min-height: 36px;
-  border-radius: 6px;
+  padding: 8px 14px;
+  min-height: 40px;
+  border-radius: var(--r);
   border: 1px solid var(--line-2);
   background: var(--panel-2);
   color: var(--fg);
@@ -92,19 +92,37 @@
   text-decoration: none;
 }
 .ui-btn:hover {
-  background: var(--panel-3);
+  border-color: var(--muted);
   text-decoration: none;
 }
-.ui-btn-primary {
-  background: var(--gate);
-  border-color: var(--gate);
-  color: var(--gate-ink);
+.ui-btn:disabled,
+.ui-btn[aria-disabled='true'] {
+  cursor: not-allowed;
 }
-/* a destructive act (erasure): the prototype's `btn danger` */
+.ui-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.ui-btn-primary:hover {
+  border-color: var(--accent);
+  filter: brightness(1.06);
+}
+/* a destructive act: red, and it says what it destroys (glossary §1) */
 .ui-btn-danger {
   background: var(--bad-bg);
   border-color: var(--bad-line);
   color: var(--bad-fg);
+  font-weight: 600;
+}
+.ui-btn-danger:hover {
+  border-color: var(--bad);
+}
+.ui-btn-block {
+  width: 100%;
+  justify-content: center;
+  min-height: var(--hit);
 }
 .ui-btn-ghost {
   background: transparent;
@@ -112,8 +130,8 @@
   color: var(--muted);
 }
 .ui-btn-sm {
-  padding: 4px 9px;
-  min-height: 28px;
+  padding: 4px 10px;
+  min-height: 32px;
   font-size: 12.5px;
 }
 .ui-btn-locked {
@@ -147,7 +165,7 @@
 .ui-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
   min-width: 0;
   margin: 0 0 16px;
 }
@@ -454,7 +472,8 @@
 }
 .ui-tabs button[aria-selected='true'] {
   color: var(--fg);
-  border-bottom-color: var(--gate);
+  border-bottom-color: var(--accent);
+  font-weight: 500;
 }
 .ui-tabs .ui-n {
   font-family: var(--mono);
@@ -555,7 +574,7 @@
 }
 .ui-step-now {
   background: var(--panel-2);
-  box-shadow: inset 2px 0 0 var(--gate);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 .ui-step-todo {
   color: var(--faint);
