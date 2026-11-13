@@ -208,7 +208,7 @@ describe('the issue twin screen', () => {
       [`GET ${PATH}`]: { status: 404, json: { error: { code: 'not_found', message: 'no' } } },
     });
     renderAt('/projects/acme/issues');
-    expect(await screen.findByRole('heading', { name: 'Nothing here' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Not found' })).toBeInTheDocument();
   });
 
   it('a repo with no readiness record offers nothing to file', async () => {

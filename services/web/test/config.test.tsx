@@ -266,7 +266,7 @@ describe('the configuration console', () => {
     });
     renderAt('/config');
     const nav = await screen.findByRole('navigation', { name: 'Main' });
-    expect(within(nav).getByRole('link', { name: 'Configuration' })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: 'Settings' })).toHaveAttribute(
       'aria-current',
       'page',
     );

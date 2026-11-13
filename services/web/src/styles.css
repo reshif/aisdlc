@@ -3,9 +3,7 @@
  * every screen follows one theme; new screens use the ui- components instead of these classes.
  */
 :root {
-  --accent: var(--hand);
-  --accent-fg: var(--hand-ink);
-  --focus: var(--gate);
+  /* --accent, --accent-ink, --link and --focus are tokens (src/ui/tokens.css) */
   --good-bg: var(--ok-bg);
   --good-fg: var(--ok-fg);
   --attention-bg: var(--warn-bg);
@@ -45,10 +43,10 @@ h3 {
   margin: 0 0 0.5rem;
 }
 a {
-  color: var(--accent);
+  color: var(--link);
 }
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 0.9em;
   background: var(--panel);
   padding: 0.05em 0.3em;
@@ -65,9 +63,6 @@ summary {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
-main:focus {
-  outline: none;
-}
 .muted {
   color: var(--muted);
 }
@@ -80,151 +75,7 @@ main:focus {
   padding: 0.25rem 0;
 }
 
-.skip {
-  position: absolute;
-  left: -999px;
-  top: 0;
-  background: var(--bg);
-  padding: 0.5rem 1rem;
-  z-index: 10;
-}
-.skip:focus {
-  left: 0;
-}
-
-.top {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  height: var(--top-h);
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-}
-.top-inner {
-  height: 100%;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.brand {
-  font-family: var(--display);
-  font-weight: 700;
-  font-size: 21px;
-  letter-spacing: 0.04em;
-  color: var(--fg);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.menu-btn {
-  display: none;
-}
-.who {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-.who-name {
-  font-weight: 600;
-  font-size: 13.5px;
-}
-.who a {
-  font-size: 13px;
-}
-.shell {
-  display: grid;
-  grid-template-columns: var(--rail-w) minmax(0, 1fr);
-  min-height: calc(100vh - var(--top-h));
-}
-.shell-signed-out {
-  grid-template-columns: minmax(0, 1fr);
-}
-.rail {
-  position: sticky;
-  top: var(--top-h);
-  align-self: start;
-  max-height: calc(100vh - var(--top-h));
-  overflow: auto;
-  border-right: 1px solid var(--line);
-  padding: 10px 10px 24px;
-}
-.rail h2 {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--faint);
-  padding: 14px 10px 5px;
-  margin: 0;
-  font-weight: 400;
-}
-.rail ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.rail a {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  color: var(--muted);
-  font-size: 13.5px;
-  text-decoration: none;
-}
-.rail a:hover {
-  background: var(--panel);
-  color: var(--fg);
-}
-.rail a[aria-current='page'] {
-  background: var(--panel-2);
-  color: var(--fg);
-  box-shadow: inset 2px 0 0 var(--gate);
-}
-.rail-foot {
-  margin-top: 18px;
-  padding: 10px;
-  border-top: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--faint);
-  line-height: 1.6;
-}
-main {
-  min-width: 0;
-  max-width: 76rem;
-  padding: 22px 28px 64px;
-}
-@media (max-width: 860px) {
-  .shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .rail {
-    display: none;
-    position: fixed;
-    top: var(--top-h);
-    left: 0;
-    bottom: 0;
-    width: 250px;
-    max-height: none;
-    z-index: 70;
-    background: var(--panel);
-  }
-  .rail.rail-open {
-    display: block;
-  }
-  .menu-btn {
-    display: inline-flex;
-  }
-  main {
-    padding: 16px 16px 48px;
-  }
-  .who-name {
-    display: none;
-  }
-}
+/* the shell (top bar, navigation, main) is the library's AppShell: src/ui/v2.css */
 .page-head {
   display: flex;
   flex-wrap: wrap;
@@ -241,10 +92,10 @@ main {
 .btn {
   display: inline-block;
   background: var(--accent);
-  color: var(--accent-fg);
-  border: 2px solid var(--accent);
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
+  color: var(--accent-ink);
+  border: 1px solid var(--accent);
+  border-radius: var(--r);
+  padding: 0.6rem 1rem;
   min-height: 44px;
   font: inherit;
   font-weight: 600;
@@ -256,8 +107,13 @@ main {
   cursor: progress;
 }
 .btn-quiet {
-  background: transparent;
-  color: var(--accent);
+  background: var(--panel-2);
+  border-color: var(--line-2);
+  color: var(--fg);
+  font-weight: 500;
+}
+.btn-quiet:hover {
+  border-color: var(--muted);
 }
 
 .cards {
@@ -612,7 +468,7 @@ textarea {
   border-bottom: 1px solid var(--line);
 }
 .code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 0.85rem;
   background: var(--panel);
   padding: 0.5rem 0.75rem;
@@ -659,35 +515,6 @@ textarea {
 }
 
 /* the top bar on a phone: the account link moves to the rail's foot */
-@media (max-width: 520px) {
-  .top-inner {
-    gap: 8px;
-    padding: 0 10px;
-  }
-  .brand {
-    font-size: 17px;
-  }
-  .who {
-    gap: 0.5rem;
-  }
-  .who a {
-    display: none;
-  }
-  .who .btn {
-    min-height: 36px;
-    padding: 0.25rem 0.6rem;
-  }
-}
-.rail-foot a {
-  display: inline;
-  padding: 0;
-  font-size: inherit;
-  color: var(--accent);
-  /* a link inside a sentence is told by more than its colour (WCAG 1.4.1; axe link-in-text-block) */
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 /* ---- the assistant (M18): the onboarding assistant beside the S0 page and "Ask the factory" ---- */
 .s0-layout {
   display: grid;

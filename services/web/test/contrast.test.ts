@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// P2-19, P3-1: WCAG 2.2 AA contrast as a property of the tokens (src/ui/tokens.css), for both themes. Every text
+// P2-19, P3-1, portal v2: WCAG 2.2 AA contrast as a property of the tokens (src/ui/tokens.css), for both themes. Every text
 // token is at least 4.5:1 on every ground a component puts it on, every tinted ink on its tint, the ink on a gate and
 // on an accent fill on that fill, and white on each lane fill. Components read only these tokens, so a token that
 // passes here passes on every page; the axe crawl in the browser (docs/design/portal-review.md §12) checks the rest.
@@ -33,8 +33,8 @@ const ratio = (a: string, b: string): number => {
   return (x + 0.05) / (y + 0.05);
 };
 
-const dark = block(":root[data-theme='dark']");
-const THEMES = { dark, light: { ...dark, ...block(":root[data-theme='light']") } };
+const dark = block("[data-theme='dark']");
+const THEMES = { dark, light: { ...dark, ...block("[data-theme='light']") } };
 const TEXT = [
   '--fg',
   '--fg-2',
@@ -50,6 +50,8 @@ const TEXT = [
   '--agent',
   '--det',
   '--human',
+  '--accent-text',
+  '--link',
 ];
 const GROUNDS = ['--bg', '--panel', '--panel-2', '--panel-3', '--sunk'];
 const TINTS = ['ok', 'warn', 'bad', 'info', 'agent', 'human', 'back'];
@@ -78,6 +80,18 @@ describe.each(Object.entries(THEMES))('the %s theme meets WCAG 2.2 AA', (_name, 
       expect(ratio(get(`--${k}-fg`), get(`--${k}-bg`))).toBeGreaterThanOrEqual(4.5);
     expect(ratio(get('--gate-ink'), get('--gate'))).toBeGreaterThanOrEqual(4.5);
     expect(ratio(get('--hand-ink'), get('--hand'))).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(get('--accent-ink'), get('--accent'))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('non-text (1.4.11): the accent fill, the focus ring and a field border are 3:1 on the grounds they meet', () => {
+    const fails: string[] = [];
+    for (const k of ['--accent', '--focus', '--field-line']) {
+      for (const g of ['--bg', '--panel', '--panel-2']) {
+        const r = ratio(get(k), get(g));
+        if (r < 3) fails.push(`${k} on ${g}: ${r.toFixed(2)}`);
+      }
+    }
+    expect(fails).toEqual([]);
   });
 
   it('white on every lane fill: 4.5:1', () => {
