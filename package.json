@@ -34,7 +34,7 @@
     "live:census": "bash platform/compose/live-census.sh",
     "drill:compose": "platform/compose/drill.sh",
     "drill:restore": "bash platform/compose/drill-restore.sh",
-    "lint:shell": "bash -n platform/compose/smoke.sh platform/compose/e2e.sh platform/compose/e2e-pr.sh platform/compose/full-env.sh platform/compose/up-full.sh platform/compose/build-images.sh platform/compose/live-census.sh platform/compose/verify-ledger.sh platform/compose/object-store-init.sh platform/compose/drill.sh platform/compose/load.sh platform/compose/backup.sh platform/compose/restore.sh platform/compose/drill-restore.sh platform/sandbox/onboarding/build.sh && (command -v shellcheck >/dev/null && shellcheck -x platform/compose/*.sh platform/compose/init-secrets || echo shellcheck not installed: syntax checked only)"
+    "lint:shell": "bash -n platform/compose/smoke.sh platform/compose/e2e.sh platform/compose/e2e-pr.sh platform/compose/full-env.sh platform/compose/up-full.sh platform/compose/build-images.sh platform/compose/live-census.sh platform/compose/verify-ledger.sh platform/compose/object-store-init.sh platform/compose/drill.sh platform/compose/load.sh platform/compose/backup.sh platform/compose/restore.sh platform/compose/drill-restore.sh platform/compose/secret.sh platform/sandbox/onboarding/build.sh && (command -v shellcheck >/dev/null && shellcheck -x platform/compose/*.sh platform/compose/init-secrets || echo shellcheck not installed: syntax checked only)"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
