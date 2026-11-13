@@ -389,8 +389,10 @@ secrets:
   tok-core-worker-verify: { file: ./secrets/tok-core-worker-verify }
   tok-verify-codehost: { file: ./secrets/tok-verify-codehost }
   tok-verify-sandbox-controller: { file: ./secrets/tok-verify-sandbox-controller }
-  push-broker-app.pem: { file: ./secrets/push-broker-app.pem }
-  push-broker-app.pub.pem: { file: ./secrets/push-broker-app.pub.pem }
+  # the Push Broker's key: the factory App's (setup-github-apps writes the same key here and to github-app.pem);
+  # AISDLC_PUSH_BROKER_KEY lets a run point it at github-app (e2e-pr's two-App layout on the fake GitHub)
+  push-broker-app.pem: { file: './secrets/${AISDLC_PUSH_BROKER_KEY:-push-broker-app}.pem' }
+  push-broker-app.pub.pem: { file: './secrets/${AISDLC_PUSH_BROKER_KEY:-push-broker-app}.pub.pem' }
   tok-core-worker-push-broker: { file: ./secrets/tok-core-worker-push-broker }
   tok-push-broker-core: { file: ./secrets/tok-push-broker-core }
   tok-push-broker-identity: { file: ./secrets/tok-push-broker-identity }
@@ -1978,6 +1980,8 @@ services:
       FAKE_GITHUB_PUSH_INSTALLATION_ID: ${PUSH_BROKER_INSTALLATION_ID:-5}
       FAKE_GITHUB_PUSH_APP_PUBLIC_KEY_FILE: /run/secrets/push-broker-app.pub.pem
       FAKE_GITHUB_PUSH_BROKER_PORT: '8358'
+      # the bot the Push Broker's PRs are authored by (setup-github-apps: the factory App's `<slug>[bot]`)
+      FAKE_GITHUB_BOT_LOGIN: ${PUSH_BROKER_LOGIN:-aisdlc[bot]}
       # the people who may merge on the fake host (the repo's owner; e2e-pr.mjs merges as them), and the branch rule
       # their merge needs: gate-check's `aisdlc/gate` passing on the head
       FAKE_GITHUB_PEOPLE: ${FAKE_GITHUB_PEOPLE:-reshif}

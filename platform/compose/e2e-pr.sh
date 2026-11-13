@@ -20,6 +20,10 @@
 # E2E_KEEP=1         leave the stack running (remove it with `docker compose --profile fake-github --profile full down -v`
 #                    and the same COMPOSE_PROJECT_NAME and AISDLC_SUBNET_PREFIX)
 # E2E_UP_ONLY=1      bring the stack up (with E2E_KEEP implied) and stop before the browser
+# E2E_APPS=two      (the default) the GitHub Apps as ./setup-github-apps writes them (docs/getting-started.md §4): ONE
+#                    factory App for the codehost and the Push Broker (the same id, installation and key, its grant the
+#                    union), gate-check's own App, and gate-check recognising agent PRs by the factory App's bot
+# E2E_APPS=split    the Push Broker on an App of its own (the optional stricter setup)
 # RUNTIME_IMAGE=...  a node:22 bookworm-slim base that already has git, where apt is blocked (see README.md)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -85,6 +89,21 @@ trap 'exit 130' INT TERM
 
 echo "== init-secrets"
 ./init-secrets
+E2E_APPS="${E2E_APPS:-two}"
+case "$E2E_APPS" in
+  two)
+    envv() { sed -n "s/^$1=//p" .env | tail -1; }
+    PUSH_BROKER_APP_ID="$(envv GITHUB_APP_ID)"
+    PUSH_BROKER_INSTALLATION_ID="$(envv GITHUB_INSTALLATION_ID)"
+    # what setup-github-apps writes: the factory App's key for the Push Broker too, its bot as the PR author
+    export PUSH_BROKER_APP_ID PUSH_BROKER_INSTALLATION_ID AISDLC_PUSH_BROKER_KEY=github-app
+    export PUSH_BROKER_LOGIN='aisdlc-factory-e2e[bot]' GATE_CHECK_PUSH_BROKER_LOGIN='aisdlc-factory-e2e[bot]'
+    echo "  two Apps: factory App $PUSH_BROKER_APP_ID (installation $PUSH_BROKER_INSTALLATION_ID) reads and pushes as $PUSH_BROKER_LOGIN; gate-check apart"
+    ;;
+  split) echo "  split Apps: the Push Broker on its own App" ;;
+  *) fail "E2E_APPS is two or split" ;;
+esac
+export E2E_BROKER_LOGIN="${PUSH_BROKER_LOGIN:-aisdlc[bot]}"
 # the IdP seed names the issuer with its port: on another port, the stack gets its own copy (the identities are the same)
 if [ "$AISDLC_OIDC_PORT" != 8390 ]; then
   export AISDLC_IDP_SEED_FILE="$evidence_dir/idp-seed.json"
