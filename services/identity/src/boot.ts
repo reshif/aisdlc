@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
 import { ProjectSettings, type ProjectId } from '@aisdlc/contracts';
+import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
 import { createPool } from '@aisdlc/db';
 import { err, type Result } from '@aisdlc/kernel';
 import { httpKeyCustodyFromEnv } from '@aisdlc/kms-local/client';
@@ -30,6 +32,7 @@ import { z } from 'zod';
 import { startAccessSyncLoop } from './access-sync.js';
 import { IDENTITY_SCOPES, createIdentityApp, type IdentityScope } from './app.js';
 import { migrateIdentity } from './migrations.js';
+import { IdentityPdpEntities } from './pdp-entities.js';
 
 const Callers = z.record(
   z.string(),
@@ -92,8 +95,9 @@ function settingsFromEnv(env: Env): ProjectSettingsPort {
  * Starts the identity service from the environment:
  *   IDENTITY_DATABASE_URL    the record database; the record and ledger schemas must already be migrated,
  *                            the identity schema is migrated at start
- *   IDENTITY_CALLERS         JSON {caller: {token_ref, scopes: [read|write|reconcile|sync|codeowners|grant]}}
- *                            (`grant`: core alone, the decided grant path of P1-6)
+ *   IDENTITY_CALLERS         JSON {caller: {token_ref, scopes: [read|write|reconcile|sync|codeowners|grant|admin]}}
+ *                            (`grant`: core alone, the decided grant path of P1-6; `admin`: the bff, a person's
+ *                            writes decided by the PDP, which then runs here over the published bundle)
  *   IDENTITY_HOST / _PORT    default 127.0.0.1:8330
  *   NOTARY_URL, IDENTITY_NOTARY_TOKEN_REF, KMS_URL, KMS_TOKEN_REF
  *                            the access-sync loop's Notary client and key lookup (required unless
@@ -147,6 +151,25 @@ export async function bootIdentity(env: Env): Promise<RunningService> {
       );
     }
     await migrateIdentity(pool);
+    // Portal v2 gap G6: a person's writes (scope `admin`) are the PDP's to decide, over the published bundle.
+    const wantsPdp = Object.values(callers).some((c) => c.scopes.includes('admin'));
+    const reader = wantsPdp
+      ? await ConfigReader.create({
+          pool,
+          registry: registerPdpConfig(new ConfigRegistry()),
+          onError: (e) =>
+            console.error(`identity: config reader: ${e instanceof Error ? e.message : String(e)}`),
+        })
+      : undefined;
+    await reader?.start();
+    const pdp = reader
+      ? new Pdp({
+          source: new ConfigBundleSource(reader),
+          entities: new IdentityPdpEntities({ pool }),
+          log: new RecordDecisionLog({ pool }),
+          onError: (e) => console.error(`identity: ${e instanceof Error ? e.message : String(e)}`),
+        })
+      : undefined;
     const ledger = notary && notaryKey?.ok ? { notary, notaryKey: notaryKey.value } : undefined;
     const loop = ledger
       ? startAccessSyncLoop(
@@ -167,6 +190,9 @@ export async function bootIdentity(env: Env): Promise<RunningService> {
       idp,
       ledger,
       ...(loop ? { onWrite: () => void loop.runOnce() } : {}),
+      ...(pdp
+        ? { decide: (principal, action, resource) => pdp.decide({ principal, action, resource }) }
+        : {}),
     });
     const url = await listen(app, listenOpts);
     return {
@@ -174,6 +200,7 @@ export async function bootIdentity(env: Env): Promise<RunningService> {
       close: async () => {
         await app.close();
         await loop?.stop();
+        await reader?.stop();
         await pool.end();
       },
     };

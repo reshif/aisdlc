@@ -1,5 +1,7 @@
 import {
   ACTION_CATALOGUE,
+  ADMIN_OVERRIDE_POLICY_ID,
+  ADMIN_OVERRIDE_ROLE,
   ACTION_IDS,
   PDP_POLICY_VERSION,
   ROLES_VERSION,
@@ -16,7 +18,9 @@ import {
 // Generation of the Cedar schema and policies (PLAN M4.3). The role policies come from the role
 // catalogue and the action catalogue and nothing else: `roleGrants` says which actions a role
 // holds, this file only spells them in Cedar. Three hand-written policies carry the rules that cut
-// across roles. The output is deterministic (catalogue order, no clock, no randomness) and a test
+// across roles, and a fourth is the factory admin's override (owner decision 2026-11-13, docs/specs/deletion.md §8:
+// "nothing applies to the factory admin"): a permit of every action on every resource, which only the disabled-principal
+// forbid still stops. An allow that only it permits is an override (`isAdminOverride`), logged as such. The output is deterministic (catalogue order, no clock, no randomness) and a test
 // compares it with the committed files in `packages/pdp/generated/`.
 
 type Actions = Readonly<Record<string, ActionDef>>;
@@ -62,6 +66,7 @@ export const CROSS_CUTTING_POLICY_IDS = {
   disabled: 'xcut/disabled_principal_denied',
   service_decide: 'xcut/service_principal_never_decides',
   fleet_kill: 'xcut/fleet_kill_factory_admin_only',
+  admin_override: ADMIN_OVERRIDE_POLICY_ID,
 } as const;
 
 function crossCutting(actions: Actions): Record<string, string> {
@@ -75,6 +80,10 @@ function crossCutting(actions: Actions): Record<string, string> {
     CROSS_CUTTING_POLICY_IDS.disabled,
     'forbid (principal, action, resource)\nwhen { principal.status != "active" };',
   );
+  out[CROSS_CUTTING_POLICY_IDS.admin_override] = policyText(
+    CROSS_CUTTING_POLICY_IDS.admin_override,
+    `permit (principal in Role::${str(ADMIN_OVERRIDE_ROLE)}, action, resource);`,
+  );
   out[CROSS_CUTTING_POLICY_IDS.service_decide] = policyText(
     CROSS_CUTTING_POLICY_IDS.service_decide,
     `forbid (principal, action in [${ofClass('decide')}], resource)\nwhen { principal.kind == "service" };`,
@@ -86,7 +95,7 @@ function crossCutting(actions: Actions): Record<string, string> {
   return out;
 }
 
-/** The policies by id: one `permit` per (role, action) the catalogue grants, then the three rules. */
+/** The policies by id: one `permit` per (role, action) the catalogue grants, then the cross-cutting rules. */
 export function generatePolicies(
   catalogue: readonly RoleDef[] = ROLE_CATALOGUE,
   actions: Actions = DEFAULT_ACTIONS,

@@ -74,6 +74,9 @@ export const NotaryCheckpointResponse = z.strictObject({
 });
 
 export const NotaryVerifyRequest = z.strictObject({ entry: z.unknown() });
+/** `POST /v1/journal/redact` (scope `ledger`, docs/specs/deletion.md §1): the deletion.performed entry it obeys. */
+export const NotaryRedactRequest = z.strictObject({ entry: z.unknown() });
+export const NotaryRedactResponse = z.strictObject({ redacted: z.number().int().min(0) });
 export const NotaryVerifyResponse = z.strictObject({ valid: z.literal(true) });
 
 /** `POST /v1/evidence/sign` (scope `evidence`, PLAN M14.4): the Notary signs an Evidence Pack id. */

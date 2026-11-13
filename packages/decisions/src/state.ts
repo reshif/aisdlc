@@ -1,4 +1,5 @@
 import {
+  DecisionOverride,
   GATE_EVENT,
   GateOpenedPayload,
   gateStream,
@@ -66,6 +67,10 @@ export interface FoldedGate {
   readonly effective_seqs: readonly number[];
 }
 
+/** A decision entry the kernel wrote as the factory admin's override (`body.override`, `DecisionOverride`). */
+export const isOverride = (body: Record<string, unknown>): boolean =>
+  DecisionOverride.safeParse(body['override']).success;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
@@ -73,7 +78,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
  *  - an entry for another subject hash is ignored (a decision binds the exact subject it was shown);
  *  - once the instance has left `pending`, nothing changes it (a decided instance is never touched);
  *  - `approve` adds its actor once (a repeat counts once) and decides when distinct approvers reach
- *    the quorum frozen at open; an approve by a system actor counts for nothing;
+ *    the quorum frozen at open; an approve by a system actor counts for nothing; an approve that is the factory
+ *    admin's override (`body.override`) decides at once;
  *  - `reject` and `request_changes` decide at once;
  *  - `supersede`, `expire` and `withdraw` end the instance as superseded, expired and closed.
  * It is a function of its arguments only, and does not need the eligibility of the actors: the
@@ -101,7 +107,15 @@ export function foldDecisions(input: FoldInput, rows: readonly DecisionRow[]): F
     if (f.status !== 'pending') break;
     switch (r.decision) {
       case 'approve':
-        if (isSystemActor(r.actor) || f.approvers.includes(r.actor)) break;
+        if (isSystemActor(r.actor)) break;
+        // The factory admin's override (docs/specs/deletion.md §8): the write path accepted it as deciding.
+        if (isOverride(r.body)) {
+          if (!f.approvers.includes(r.actor)) f.approvers.push(r.actor);
+          end('decided', r);
+          f.outcome = 'approve';
+          break;
+        }
+        if (f.approvers.includes(r.actor)) break;
         f.approvers.push(r.actor);
         f.effective_seqs.push(r.ledger_seq);
         if (f.approvers.length >= input.quorum_required) {

@@ -10,6 +10,8 @@ import {
   cardPayloadItemKey,
   cardStream,
   gateStream,
+  pdpResource,
+  type AdminOverrideRule,
   type JsonObject,
   type LedgerEntry,
   type LedgerEntryDraft,
@@ -35,6 +37,13 @@ import {
   type Written,
 } from '../internal.js';
 import { isT2 } from '../policy.js';
+import {
+  acceptOverride,
+  appendOverrideEvent,
+  type AcceptedOverride,
+  type OverrideFacts,
+  type OverrideInput,
+} from '../override.js';
 import { consumeNonce, prepare, recordEvidenceViewed, type Prepared } from '../prepared.js';
 import {
   requirePending,
@@ -44,7 +53,9 @@ import {
   type VoteResult,
 } from '../vote.js';
 import { gateIdsOf, readCardOpened, readCardState, type CardState } from './state.js';
-import { sha256Hex } from '@aisdlc/kernel';
+import { newId, sha256Hex } from '@aisdlc/kernel';
+
+const newOverrideId = (deps: DecisionDeps): string => newId<'AdminOverride'>(clockOf(deps).nowMs());
 
 // Deciding a card (PLAN M3.4, OB §7). A card is decided with the same PreparedDecision machinery as
 // a gate: `prepareCard` issues one nonce per pending gate, `recordCardEvidenceViewed` reports what
@@ -66,6 +77,8 @@ export interface PrepareCardInput {
    * the way a gate is bound to its evidence pack). Required there, ignored on a card with gates.
    */
   readonly evidence_hash?: Sha256Hex;
+  /** The factory admin's override: prepare a card whose slots the principal does not hold (docs/specs/deletion.md §8). */
+  readonly override?: OverrideInput;
 }
 
 /** The nonce of a card without a gate. Only its hash is stored. */
@@ -105,6 +118,7 @@ export async function prepareCard(
     const p = await prepare(deps, {
       gate_instance_id: g.gate_instance_id,
       principal: input.principal,
+      ...(input.override ? { override: input.override } : {}),
     });
     if (!p.ok) return p;
     gates.push(p.value);
@@ -139,7 +153,11 @@ async function prepareStepNonce(
     const holders = await deps.eligibility.holders(state.open.project_id, st.slot as never);
     if (!holders.ok) return err(decisionError('eligibility_unavailable', holders.error.message));
     if (!holders.value.includes(input.principal)) {
-      return err(decisionError('not_eligible', `${input.principal} does not hold the slot`));
+      if (!input.override) {
+        return err(decisionError('not_eligible', `${input.principal} does not hold the slot`));
+      }
+      const o = await acceptOverride(deps, input.principal, input.override);
+      if (!o.ok) return o;
     }
   }
   const clock = clockOf(deps);
@@ -342,6 +360,11 @@ export interface DecideCardInput {
    * entry precedes the M4 entry on the ledger.
    */
   readonly steps_first?: boolean;
+  /**
+   * The factory admin's override (docs/specs/deletion.md §8): every gate and step of the card is decided by this one
+   * decision, whatever the slot, two-person, own-request and step-up rules say; each is recorded as an override.
+   */
+  readonly override?: OverrideInput;
 }
 
 export interface CardDecisionResult {
@@ -451,6 +474,21 @@ export async function decideCard(
       );
     }
 
+    // ---- The override, asked of the admin port for the principal the nonces were issued to.
+    let override: AcceptedOverride | null = null;
+    if (input.override) {
+      const first = input.votes[0]?.nonce ?? input.step_nonce ?? '';
+      const who = await tx.query<{ principal: string }>(
+        `SELECT principal FROM decisions.gate_nonce WHERE nonce_sha256 = $1
+         UNION ALL SELECT principal FROM decisions.card_nonce WHERE nonce_sha256 = $1`,
+        [sha256Hex(first)],
+      );
+      const o = await acceptOverride(deps, who.rows[0]?.principal ?? '', input.override);
+      if (!o.ok) return o;
+      override = o.value;
+    }
+    const overrides: OverrideFacts[] = [];
+
     // ---- Nonces (consumed in this transaction), then the plans. Nothing written yet.
     const planned: PlannedVote[] = [];
     let principal: PrincipalId | null = null;
@@ -464,7 +502,7 @@ export async function decideCard(
       if (!g) return err(decisionError('invalid_input', 'nonce for a gate not on this card'));
       const refusal = requirePending(deps, g.state);
       if (refusal) return err(refusal);
-      const used = await consumeNonce(tx, deps, v.nonce, g.state, v.step_up);
+      const used = await consumeNonce(tx, deps, v.nonce, g.state, v.step_up, override);
       if (!used.ok) return used;
       const who = used.value.row.principal as PrincipalId;
       if (principal !== null && principal !== who) {
@@ -482,9 +520,20 @@ export async function decideCard(
           step_up: used.value.stepUp,
         },
         card: { card_id: input.card_id as never, payload_hash: payloadHash },
+        ...(override
+          ? {
+              override: {
+                // one override per gate decided, each its own event
+                override_id: planned.length === 0 ? override.override_id : newOverrideId(deps),
+                reason: override.reason,
+                bypassed: used.value.bypassed,
+              },
+            }
+          : {}),
       });
       if (!plan.ok) return plan;
       planned.push(plan.value);
+      if (plan.value.override) overrides.push(plan.value.override);
     }
     let stepEvidence: ConsumedStepNonce['evidence'] | null = null;
     if (gateless) {
@@ -504,12 +553,39 @@ export async function decideCard(
     for (const s of undecidedSteps) {
       const holders = await deps.eligibility.holders(state.open.project_id, s.slot as never);
       if (!holders.ok) return err(decisionError('eligibility_unavailable', holders.error.message));
+      const stepBypassed: AdminOverrideRule[] = [];
+      let waiver: Result<boolean, DecisionError>;
       if (!holders.value.includes(actor)) {
-        return err(decisionError('not_eligible', `${actor} does not hold the slot of ${s.step}`));
+        if (!override) {
+          return err(decisionError('not_eligible', `${actor} does not hold the slot of ${s.step}`));
+        }
+        stepBypassed.push('slot');
+        waiver = ok(true);
+      } else {
+        waiver = await stepWaiver(deps, state.open.project_id, s.slot, actor);
+        if (!waiver.ok && override && waiver.error.code === 'quorum_infeasible') {
+          stepBypassed.push('quorum_infeasible');
+          waiver = ok(true);
+        }
       }
-      const waiver = await stepWaiver(deps, state.open.project_id, s.slot, actor);
       if (!waiver.ok) return waiver;
       const entry_id = newEntryId(deps);
+      const stepOverride: OverrideFacts | null = override
+        ? {
+            override_id:
+              planned.length === 0 && overrides.length === 0
+                ? override.override_id
+                : newOverrideId(deps),
+            actor,
+            action: 'card.decide',
+            resource: pdpResource.card(state.open.project_id, input.card_id),
+            gate: null,
+            reason: override.reason,
+            bypassed: stepBypassed,
+            decision_entry_id: entry_id,
+          }
+        : null;
+      if (stepOverride) overrides.push(stepOverride);
       const decision = stepDecisions.get(s.step) as VoteDecision;
       stepDrafts.push({
         step: s.step,
@@ -532,6 +608,15 @@ export async function decideCard(
             step: s.step,
             payload_hash: payloadHash,
             ...(stepEvidence ? { evidence: stepEvidence } : {}),
+            ...(stepOverride
+              ? {
+                  override: {
+                    override_id: stepOverride.override_id,
+                    reason: stepOverride.reason,
+                    bypassed: stepOverride.bypassed,
+                  },
+                }
+              : {}),
           },
           created_at: clockOf(deps).now().toISOString(),
         } as LedgerEntryDraft,
@@ -604,6 +689,10 @@ export async function decideCard(
         clock: clockOf(deps),
       });
       if (!r.ok) return err(decisionError('conflict', JSON.stringify(r.error)));
+    }
+    for (const o of overrides) {
+      const r = await appendOverrideEvent(tx, deps, o);
+      if (!r.ok) return r;
     }
 
     // ---- Ledger entries LAST: gates in id order, then steps.

@@ -86,6 +86,31 @@ export class FakeEligibility implements EligibilityPort {
 }
 
 /**
+ * Is a principal a factory admin (bound to `factory.admin` at fleet scope, active)? The decision kernel asks this
+ * itself before it accepts an override (docs/specs/deletion.md §8). An error is a refusal, never "yes".
+ */
+export interface FactoryAdminPort {
+  isFactoryAdmin(principal: PrincipalId): Promise<Result<boolean, PortError>>;
+}
+
+/** Deterministic `FactoryAdminPort`: the admins named, nobody else. */
+export class FakeFactoryAdmins implements FactoryAdminPort {
+  private readonly admins = new Set<string>();
+  down = false;
+  constructor(admins: readonly string[] = []) {
+    for (const a of admins) this.admins.add(a);
+  }
+  add(principal: string): this {
+    this.admins.add(principal);
+    return this;
+  }
+  async isFactoryAdmin(principal: PrincipalId) {
+    if (this.down) return err(portError('identity unavailable'));
+    return ok(this.admins.has(principal));
+  }
+}
+
+/**
  * Step-up: a fresh strong authentication of the principal, bound to a hash so a proof for one thing
  * cannot confirm another (D37, DEC-11; M4 and release). `Ok(true)` only for a valid proof.
  */

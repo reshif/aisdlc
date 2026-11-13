@@ -1,4 +1,5 @@
 import {
+  ADMIN_OVERRIDE_ROLE,
   FACTORY_PROJECT_ID,
   FACTORY_SCOPE,
   FactoryRevisionView,
@@ -17,6 +18,7 @@ import {
   PortError,
   readGateState,
   type EligibilityPort,
+  type FactoryAdminPort,
   type PolicyContext,
 } from '@aisdlc/decisions';
 import { freshReadModel, queryGrants } from '@aisdlc/identity/read';
@@ -57,6 +59,21 @@ export function identityFleetRoleHolders(
       return err(PortError({ message: `identity: ${e instanceof Error ? e.message : String(e)}` }));
     }
   };
+}
+
+/**
+ * The decision kernel's `FactoryAdminPort` over identity (docs/specs/deletion.md §8): a factory admin is an active
+ * principal with a live `factory.admin` binding at fleet scope. An unreadable read model is an error (a refusal).
+ */
+export class IdentityFactoryAdmins implements FactoryAdminPort {
+  private readonly holders: FleetRoleHolders;
+  constructor(pool: pg.Pool, clock: Clock = systemClock) {
+    this.holders = identityFleetRoleHolders(pool, clock);
+  }
+  async isFactoryAdmin(principal: PrincipalId) {
+    const h = await this.holders(ADMIN_OVERRIDE_ROLE);
+    return h.ok ? ok(h.value.includes(principal)) : h;
+  }
 }
 
 export class FactoryM1Eligibility implements EligibilityPort {

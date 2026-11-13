@@ -13,6 +13,9 @@ permit (principal in Role::"factory.admin", action == Action::"audit.read", reso
 @id("role/factory.admin/banner.publish")
 permit (principal in Role::"factory.admin", action == Action::"banner.publish", resource);
 
+@id("role/factory.admin/binding.delete")
+permit (principal in Role::"factory.admin", action == Action::"binding.delete", resource);
+
 @id("role/factory.admin/closeout.read")
 permit (principal in Role::"factory.admin", action == Action::"closeout.read", resource);
 
@@ -37,6 +40,9 @@ permit (principal in Role::"factory.admin", action == Action::"gate.view", resou
 @id("role/factory.admin/identity.admin")
 permit (principal in Role::"factory.admin", action == Action::"identity.admin", resource);
 
+@id("role/factory.admin/item.delete")
+permit (principal in Role::"factory.admin", action == Action::"item.delete", resource);
+
 @id("role/factory.admin/item.escape")
 permit (principal in Role::"factory.admin", action == Action::"item.escape", resource);
 
@@ -55,6 +61,12 @@ permit (principal in Role::"factory.admin", action == Action::"learn.propose", r
 @id("role/factory.admin/ops.read")
 permit (principal in Role::"factory.admin", action == Action::"ops.read", resource);
 
+@id("role/factory.admin/person.delete")
+permit (principal in Role::"factory.admin", action == Action::"person.delete", resource);
+
+@id("role/factory.admin/project.delete")
+permit (principal in Role::"factory.admin", action == Action::"project.delete", resource);
+
 @id("role/factory.admin/project.onboard")
 permit (principal in Role::"factory.admin", action == Action::"project.onboard", resource);
 
@@ -67,8 +79,14 @@ permit (principal in Role::"factory.admin", action == Action::"project.view", re
 @id("role/factory.admin/quality.read")
 permit (principal in Role::"factory.admin", action == Action::"quality.read", resource);
 
+@id("role/factory.admin/repo.delete")
+permit (principal in Role::"factory.admin", action == Action::"repo.delete", resource);
+
 @id("role/factory.admin/session.stop")
 permit (principal in Role::"factory.admin", action == Action::"session.stop", resource);
+
+@id("role/factory.admin/team.delete")
+permit (principal in Role::"factory.admin", action == Action::"team.delete", resource);
 
 @id("role/factory.auditor/access.explain")
 permit (principal in Role::"factory.auditor", action == Action::"access.explain", resource);
@@ -133,6 +151,9 @@ permit (principal in Role::"project.admin", action == Action::"audit.read", reso
 @id("role/project.admin/banner.publish")
 permit (principal in Role::"project.admin", action == Action::"banner.publish", resource);
 
+@id("role/project.admin/binding.delete")
+permit (principal in Role::"project.admin", action == Action::"binding.delete", resource);
+
 @id("role/project.admin/card.decide")
 permit (principal in Role::"project.admin", action == Action::"card.decide", resource);
 
@@ -158,6 +179,9 @@ when { resource.slot == "admin" };
 @id("role/project.admin/gate.view")
 permit (principal in Role::"project.admin", action == Action::"gate.view", resource);
 
+@id("role/project.admin/item.delete")
+permit (principal in Role::"project.admin", action == Action::"item.delete", resource);
+
 @id("role/project.admin/item.escape")
 permit (principal in Role::"project.admin", action == Action::"item.escape", resource);
 
@@ -182,6 +206,9 @@ permit (principal in Role::"project.admin", action == Action::"learn.propose", r
 @id("role/project.admin/ops.read")
 permit (principal in Role::"project.admin", action == Action::"ops.read", resource);
 
+@id("role/project.admin/project.delete")
+permit (principal in Role::"project.admin", action == Action::"project.delete", resource);
+
 @id("role/project.admin/project.settings.edit")
 permit (principal in Role::"project.admin", action == Action::"project.settings.edit", resource);
 
@@ -190,6 +217,9 @@ permit (principal in Role::"project.admin", action == Action::"project.view", re
 
 @id("role/project.admin/quality.read")
 permit (principal in Role::"project.admin", action == Action::"quality.read", resource);
+
+@id("role/project.admin/repo.delete")
+permit (principal in Role::"project.admin", action == Action::"repo.delete", resource);
 
 @id("role/project.admin/session.stop")
 permit (principal in Role::"project.admin", action == Action::"session.stop", resource);
@@ -484,6 +514,9 @@ permit (principal in Role::"project.viewer", action == Action::"project.view", r
 @id("xcut/disabled_principal_denied")
 forbid (principal, action, resource)
 when { principal.status != "active" };
+
+@id("xcut/factory_admin_override")
+permit (principal in Role::"factory.admin", action, resource);
 
 @id("xcut/fleet_kill_factory_admin_only")
 forbid (principal, action in [Action::"kill.request", Action::"kill.release", Action::"session.stop"], resource is Fleet)
