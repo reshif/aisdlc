@@ -31,6 +31,7 @@ export {
   type ShellNavEntry,
   type ShellNavGroup,
 } from './AppShell';
+export { NavIcon } from './icons';
 export { Breadcrumb, PageHeader } from './page';
 export {
   ITEM_STAGES,

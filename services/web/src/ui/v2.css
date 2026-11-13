@@ -1381,3 +1381,187 @@ button.ui-evidence-tile:hover {
     transition: none !important;
   }
 }
+
+/* ---------- navigation: icons, the collapsible rail, flyouts, section tabs ---------- */
+.ui-icon {
+  flex: none;
+}
+.ui-body {
+  transition: grid-template-columns 0.2s ease;
+}
+.ui-body-rail {
+  grid-template-columns: 60px minmax(0, 1fr);
+}
+.ui-nav-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ui-nav-link {
+  position: relative;
+}
+.ui-nav-link:focus-visible,
+.ui-nav-toggle:focus-visible,
+.ui-rail-btn:focus-visible,
+.ui-sectab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ui-nav-link[aria-current='page'] .ui-icon {
+  color: var(--accent-text);
+}
+.ui-nav-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ui-nav-toggle:hover {
+  background: var(--panel-2);
+  color: var(--fg);
+}
+.ui-nav-rail {
+  overflow: visible;
+  align-items: center;
+  padding: 12px 6px 16px;
+  z-index: 60;
+}
+.ui-nav-rail .ui-nav-toggle {
+  width: 44px;
+  justify-content: center;
+  margin-top: auto;
+  padding: 6px 0;
+}
+.ui-nav-rail .ui-nav-toggle .ui-nav-label {
+  display: none;
+}
+.ui-rail-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ui-rail-group {
+  position: relative;
+}
+.ui-rail-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.ui-rail-btn:hover,
+.ui-rail-btn[aria-expanded='true'] {
+  background: var(--panel-2);
+  color: var(--fg);
+}
+.ui-rail-on {
+  background: var(--panel-3);
+  color: var(--accent-text);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.ui-rail-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--gate-bg);
+  border: 1px solid var(--gate-line);
+  color: var(--accent-text);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 16px;
+  text-align: center;
+}
+.ui-rail-fly {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  padding-left: 8px;
+  z-index: 70;
+}
+.ui-rail-fly[hidden] {
+  display: none;
+}
+.ui-rail-fly-in {
+  min-width: 220px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.ui-rail-fly-h {
+  margin: 0;
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.ui-sectabs {
+  margin: -6px 0 18px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+.ui-sectabs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 4px;
+}
+.ui-sectab {
+  display: block;
+  padding: 10px 14px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ui-sectab:hover {
+  color: var(--fg);
+}
+.ui-sectab-on {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+.ui-sectab[aria-current='page'] {
+  font-weight: 600;
+}
+@media (max-width: 860px) {
+  .ui-nav-toggle {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-body,
+  .ui-rail-btn {
+    transition: none !important;
+  }
+}

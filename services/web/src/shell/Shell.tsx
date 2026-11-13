@@ -216,7 +216,13 @@ function toShellNav(me: Me, route: Route, waiting: number | undefined): ShellNav
       : {}),
     ...(e.children && e.children.length > 0 ? { children: e.children.map(conv) } : {}),
   });
-  return navFor(me).map((g) => ({ id: g.group, label: g.label, entries: g.entries.map(conv) }));
+  return navFor(me).map((g) => ({
+    id: g.group,
+    label: g.label,
+    entries: g.entries.map(conv),
+    // Work's pages are destinations of their own; the other groups are sets of related pages
+    tabs: g.group !== 'work',
+  }));
 }
 
 // ---------------------------------------------------------------- top bar parts

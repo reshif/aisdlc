@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { NavIcon } from './icons';
 
 // The portal's shell (the skeleton's screen 1): a top bar (logo, project switcher, search, emergency-stop state,
 // notifications, the person), the grouped left navigation and the content. Under 860px the navigation collapses
@@ -25,11 +26,52 @@ export interface ShellNavEntry {
   readonly children?: readonly ShellNavEntry[];
 }
 
+const STORE_KEY = 'aisdlc.nav.collapsed';
+const NARROW = '(max-width: 1100px)';
+const PHONE = '(max-width: 859px)';
+
+const media = (q: string): boolean =>
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia(q).matches
+    : false;
+
+/** Follows a media query (false where there is none, as in a test DOM). */
+function useMedia(q: string): boolean {
+  const [on, setOn] = useState(() => media(q));
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const m = window.matchMedia(q);
+    const f = () => setOn(m.matches);
+    m.addEventListener('change', f);
+    return () => m.removeEventListener('change', f);
+  }, [q]);
+  return on;
+}
+
+/** The viewer's choice (per browser): `null` when none or when storage is unavailable. */
+function readCollapsed(): boolean | null {
+  try {
+    const v = window.localStorage.getItem(STORE_KEY);
+    return v === '1' ? true : v === '0' ? false : null;
+  } catch {
+    return null;
+  }
+}
+const writeCollapsed = (v: boolean) => {
+  try {
+    window.localStorage.setItem(STORE_KEY, v ? '1' : '0');
+  } catch {
+    /* the choice lasts until the page closes */
+  }
+};
+
 export interface ShellNavGroup {
   readonly id: string;
   /** `null`: the first, unlabelled group (Home, Inbox). */
   readonly label: string | null;
   readonly entries: readonly ShellNavEntry[];
+  /** Show the group's pages as a tab bar at the top of the content while one of them is current. */
+  readonly tabs?: boolean;
 }
 
 export type RenderLink = (
@@ -72,7 +114,21 @@ export function AppShell({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed() ?? media(NARROW));
+  const narrow = useMedia(NARROW);
+  const phone = useMedia(PHONE);
+  // a screen that becomes narrow collapses the rail (not remembered: the remembered choice is the toggle's)
+  useEffect(() => {
+    if (narrow) setCollapsed(true);
+  }, [narrow]);
+  const toggle = () => {
+    setCollapsed(!collapsed);
+    writeCollapsed(!collapsed);
+  };
+  // the phone's menu is the drawer: always the full list
+  const rail = collapsed && !phone;
   const navId = useId();
+  const tabbed = nav?.find((g) => g.tabs && g.entries.length > 1 && g.entries.some(anyCurrent));
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
   useEffect(() => {
@@ -122,7 +178,7 @@ export function AppShell({
           {account}
         </div>
       </header>
-      <div className={nav ? 'ui-body' : 'ui-body ui-body-bare'}>
+      <div className={nav ? (rail ? 'ui-body ui-body-rail' : 'ui-body') : 'ui-body ui-body-bare'}>
         {nav ? (
           <>
             {open ? (
@@ -130,17 +186,34 @@ export function AppShell({
             ) : null}
             <nav
               id={navId}
-              className={open ? 'ui-nav ui-nav-open' : 'ui-nav'}
+              className={`ui-nav${open ? ' ui-nav-open' : ''}${rail ? ' ui-nav-rail' : ''}`}
               aria-label="Main"
               onKeyDown={onNavKey}
             >
-              <NavTree groups={nav} renderLink={renderLink} />
-              {navFoot ? <div className="ui-nav-foot">{navFoot}</div> : null}
+              {rail ? (
+                <Rail groups={nav} renderLink={renderLink} />
+              ) : (
+                <NavTree groups={nav} renderLink={renderLink} />
+              )}
+              {navFoot && !rail ? <div className="ui-nav-foot">{navFoot}</div> : null}
+              <button
+                type="button"
+                className="ui-nav-toggle"
+                aria-expanded={!collapsed}
+                aria-controls={navId}
+                aria-label="Sidebar"
+                title={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+                onClick={toggle}
+              >
+                <NavIcon id={collapsed ? 'expand' : 'collapse'} />
+                <span className="ui-nav-label">Collapse</span>
+              </button>
             </nav>
           </>
         ) : null}
         <main id="main" tabIndex={-1} ref={mainRef} className="ui-main">
           {banners ? <div className="ui-banners">{banners}</div> : null}
+          {tabbed ? <SectionTabs group={tabbed} renderLink={renderLink} /> : null}
           {children}
         </main>
       </div>
@@ -170,6 +243,7 @@ function NavSection({ group, renderLink }: { group: ShellNavGroup; renderLink: R
     <section {...(group.label ? { 'aria-labelledby': hid } : { 'aria-label': 'Start' })}>
       {group.label ? (
         <h2 id={hid} className="ui-nav-h">
+          <NavIcon id={group.id} size={14} />
           {group.label}
         </h2>
       ) : null}
@@ -202,6 +276,7 @@ function NavItem({
       {renderLink(
         entry.to,
         <>
+          {depth === 0 ? <NavIcon id={entry.id} /> : null}
           <span className="ui-nav-label">{entry.label}</span>
           {entry.count !== undefined && entry.count > 0 ? ' ' : null}
           {entry.count !== undefined && entry.count > 0 ? (
@@ -228,6 +303,183 @@ function NavItem({
           ))}
         </ul>
       ) : null}
+    </li>
+  );
+}
+
+/** The pages of the group the person is in, as links at the top of the content (a nav, not ARIA tabs). */
+function SectionTabs({ group, renderLink }: { group: ShellNavGroup; renderLink: RenderLink }) {
+  return (
+    <nav className="ui-sectabs" aria-label={`${group.label ?? 'Section'} pages`}>
+      <ul>
+        {group.entries.map((e) => {
+          // a section (People, teams & roles) is the current tab while one of its pages is open
+          const on = anyCurrent(e);
+          return (
+            <li key={e.id}>
+              {renderLink(e.to, e.label, {
+                className: `ui-sectab${on ? ' ui-sectab-on' : ''}`,
+                ...(on ? { 'aria-current': 'page' as const } : {}),
+              })}
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+/** The collapsed navigation: one icon per group; it opens a flyout with the group's pages. */
+function Rail({
+  groups,
+  renderLink,
+}: {
+  groups: readonly ShellNavGroup[];
+  renderLink: RenderLink;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  return (
+    <ul className="ui-rail-groups">
+      {groups.map((g) => (
+        <RailGroup
+          key={g.id}
+          group={g}
+          open={openId === g.id}
+          setOpen={(v) => setOpenId((cur) => (v ? g.id : cur === g.id ? null : cur))}
+          renderLink={renderLink}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function RailGroup({
+  group,
+  open,
+  setOpen,
+  renderLink,
+}: {
+  group: ShellNavGroup;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  renderLink: RenderLink;
+}) {
+  const id = useId();
+  const root = useRef<HTMLLIElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const focusFirst = useRef(false);
+  // a flyout opened by a click stays until the next click or Escape; a hover one goes with the pointer
+  const pinned = useRef(false);
+  const name = group.label ?? 'Start';
+  const here = group.entries.some(anyCurrent);
+  const waiting = group.entries.reduce((n, e) => n + (e.count ?? 0), 0);
+  const waitingLabel = group.entries.find((e) => e.count && e.countLabel)?.countLabel;
+  useEffect(() => {
+    if (open && focusFirst.current) {
+      focusFirst.current = false;
+      list.current?.querySelector('a')?.focus();
+    }
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) {
+        pinned.current = false;
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open, setOpen]);
+  const move = (by: number) => {
+    const links = Array.from(list.current?.querySelectorAll('a') ?? []);
+    const at = links.indexOf(document.activeElement as HTMLAnchorElement);
+    links[(at + by + links.length) % links.length]?.focus();
+  };
+  return (
+    <li
+      ref={root}
+      className="ui-rail-group"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => {
+        if (!pinned.current) setOpen(false);
+      }}
+      onBlur={(e) => {
+        if (open && !root.current?.contains(e.relatedTarget as Node | null)) {
+          pinned.current = false;
+          setOpen(false);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && open) {
+          e.stopPropagation();
+          pinned.current = false;
+          setOpen(false);
+          btn.current?.focus();
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (!open) {
+            focusFirst.current = true;
+            setOpen(true);
+          } else move(e.key === 'ArrowDown' ? 1 : -1);
+        } else if (e.key === 'Home' && open) {
+          e.preventDefault();
+          list.current?.querySelector('a')?.focus();
+        }
+      }}
+    >
+      <button
+        ref={btn}
+        type="button"
+        className={`ui-rail-btn${here ? ' ui-rail-on' : ''}`}
+        aria-label={waiting > 0 ? `${name}, ${waiting} ${waitingLabel ?? 'waiting'}` : name}
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => {
+          pinned.current = !(open && pinned.current);
+          setOpen(pinned.current);
+        }}
+      >
+        <NavIcon id={group.id} size={20} />
+        {waiting > 0 ? <span className="ui-rail-badge">{waiting}</span> : null}
+      </button>
+      <div id={id} className="ui-rail-fly" hidden={!open}>
+        {open ? (
+          <div className="ui-rail-fly-in">
+            <p className="ui-rail-fly-h">{name}</p>
+            <ul ref={list} className="ui-nav-list" aria-label={name}>
+              {group.entries.map((e) => (
+                <li key={e.id}>
+                  {renderLink(
+                    e.to,
+                    <>
+                      <NavIcon id={e.id} />
+                      <span className="ui-nav-label">{e.label}</span>
+                      {e.count ? (
+                        <span className="ui-nav-count">
+                          {e.count}
+                          {e.countLabel ? <span className="ui-sr"> {e.countLabel}</span> : null}
+                        </span>
+                      ) : null}
+                    </>,
+                    {
+                      className: 'ui-nav-link',
+                      onClick: () => {
+                        pinned.current = false;
+                        setOpen(false);
+                      },
+                      ...(e.current && !(e.children ?? []).some(anyCurrent)
+                        ? { 'aria-current': 'page' as const }
+                        : {}),
+                    },
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
     </li>
   );
 }
