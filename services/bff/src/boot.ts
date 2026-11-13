@@ -95,6 +95,9 @@ function healthPeersEnv(env: Env): Record<string, string> {
  *   BFF_GATE_CHECK_URL, BFF_GATE_CHECK_TOKEN_REF
  *                            gate-check's read API and the bff's token there (scope read; M14.6: the item page's
  *                            run status); both or neither (without them that status reads `unknown`)
+ *   BFF_GATEWAY_URL, BFF_GATEWAY_TOKEN_REF
+ *                            the model gateway's admin API and the bff's token there (scope operate only; P2-5: the
+ *                            portal's provider test and reload); both or neither (without them those routes answer 503)
  *   BFF_WEB_DIR              the built web bundle to serve (contains index.html); unset: API only
  *   BFF_HOST / BFF_PORT      default 127.0.0.1:8340
  * All configuration is read, and every secret resolved, before the database is touched.
@@ -190,6 +193,22 @@ export async function bootBff(env: Env): Promise<RunningService> {
         token: resolveSecretRef(requiredEnv(env, 'BFF_GATE_CHECK_TOKEN_REF'), { env }),
       })
     : undefined;
+  const gwUrl = env['BFF_GATEWAY_URL'];
+  const hasGateway = gwUrl !== undefined && gwUrl !== '';
+  if (
+    hasGateway !==
+    (env['BFF_GATEWAY_TOKEN_REF'] !== undefined && env['BFF_GATEWAY_TOKEN_REF'] !== '')
+  ) {
+    throw new ServiceConfigError(
+      'BFF_GATEWAY_URL and BFF_GATEWAY_TOKEN_REF are set together or not at all',
+    );
+  }
+  const gateway = hasGateway
+    ? new HttpCoreClient({
+        baseUrl: httpUrlEnv(env, 'BFF_GATEWAY_URL'),
+        token: resolveSecretRef(requiredEnv(env, 'BFF_GATEWAY_TOKEN_REF'), { env }),
+      })
+    : undefined;
   const auditUrl = env['BFF_AUDIT_URL'];
   const hasAudit = auditUrl !== undefined && auditUrl !== '';
   if (
@@ -278,6 +297,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
       ...(notifier ? { notifier } : {}),
       ...(killswitch ? { killswitch } : {}),
       ...(gateCheck ? { gateCheck } : {}),
+      ...(gateway ? { gateway } : {}),
       ...(audit ? { audit } : {}),
       ...(sandboxController ? { sandboxController } : {}),
       ...(webDir ? { webDir } : {}),

@@ -33,6 +33,7 @@ import { registerAssistantRoutes } from './assistant.js';
 import { registerDriftRoutes } from './drift.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
 import { registerKillRoutes } from './kill.js';
+import { registerOpsRoutes } from './ops.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerAuditRoutes } from './audit.js';
 import { registerPortalRoutes } from './portal.js';
@@ -59,6 +60,7 @@ import type { StepUpIssuer } from './stepup/issuer.js';
 //   GET  /api/step-up/:id   collect the proof once, after the re-authentication returned
 //   /api/projects, /api/onboard, /api/s0/*, /api/cards/*   the portal's calls to core (portal.ts)
 //   /api/items, /api/agents, /api/admission, /api/slots, /api/controls, ...  lists and operate (portal-lists.ts)
+//   /api/budgets, /api/cost, /api/banners, /api/models/*, /api/onboard/repos, breakers   P2 operate and govern (ops.ts)
 //   everything else         the web bundle (`webDir`), single-page app, strict CSP (static.ts)
 //
 // Rate limits (rate-limit.ts): `/auth/login` 10 at once then 10 a minute per client IP; the step-up
@@ -103,6 +105,8 @@ export interface BffAppOptions {
   readonly gateCheck?: CoreClient;
   /** The kill switch (RC-UI-1, scopes `act`, `read`), for `/api/kills/*` with the person's step-up; else 503. */
   readonly killswitch?: CoreClient;
+  /** P2-5: the model gateway's admin API (scope `operate`): provider test and reload; without it those answer 503. */
+  readonly gateway?: CoreClient;
   /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it the Sandboxes screen says so. */
   readonly sandboxController?: CoreClient;
   /** The built web bundle (`index.html` and `assets/`) to serve; without it the bff serves only its API. */
@@ -654,6 +658,13 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     killswitch: o.killswitch,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  registerOpsRoutes({
+    app,
+    pdp: o.pdp,
+    core: o.core,
+    ...(o.gateway ? { gateway: o.gateway } : {}),
     principalOf: (req) => ctx(req).session.principal_id,
   });
   registerAuditRoutes({
