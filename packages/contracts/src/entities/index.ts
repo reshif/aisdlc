@@ -57,6 +57,7 @@ export * from './onboarding-pack.js';
 export * from './issue-twin.js';
 export * from './onboarding-drift.js';
 export * from './portal-lists.js';
+export * from './portal-item.js';
 export * from './knowledge-defects.js';
 export * from './portal-knowledge.js';
 export * from './service-env.js';

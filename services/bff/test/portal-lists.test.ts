@@ -112,6 +112,38 @@ const fleetReads: ReadonlyArray<{ path: string; core: string; json: unknown; act
     json: { lock_format: 'aisdlc-prompts-lock/v1', agents: [] },
   },
   {
+    // P2-3: the agent page
+    action: 'quality.read',
+    path: '/api/agents/A1',
+    core: '/v1/agents/A1',
+    json: {
+      agent: {
+        agent_id: 'A1',
+        name: 'triage',
+        role: 'triage',
+        note: null,
+        steps: ['1.3'],
+        specialist_steps: [],
+        contract_version: '1.1.0',
+        output_schema_id: 'triage_output.v1',
+        tools: [],
+        data_class_max: 'D1',
+        models: ['fake-model'],
+        prompt: { ref: 'a1_triage@1.0.0', sha256: 'a'.repeat(64) },
+      },
+      input_schema_id: 'a1_input.v1',
+      input_schema: { type: 'object' },
+      output_schema: { oneOf: [] },
+      lock_format: 'aisdlc-prompts-lock/v1',
+    },
+  },
+  {
+    action: 'quality.read',
+    path: '/api/agents/A1/runs',
+    core: '/v1/agents/A1/runs',
+    json: { agent_id: 'A1', runs: [], total: 0 },
+  },
+  {
     action: 'ops.read',
     path: '/api/admission',
     core: '/v1/admission',

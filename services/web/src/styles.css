@@ -1048,3 +1048,24 @@ section[aria-label] > .ui-eyebrow {
   border: 1px solid var(--line);
   border-radius: 6px;
 }
+
+/* P2-1: the Documents tab's line diff between two versions (a mark repeats the colour: "+ " and "- ") */
+.doc-diff {
+  max-height: 32rem;
+}
+.doc-diff-add {
+  display: block;
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+.doc-diff-del {
+  display: block;
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+.doc-diff-same {
+  display: block;
+}
+.doc-versions ul.plain {
+  margin: 0;
+}

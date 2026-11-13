@@ -1,5 +1,9 @@
 import {
   STEPS,
+  type AgentRunState,
+  type AgentRunVerdict,
+  type DocumentGroup,
+  type ItemTimelineKind,
   type EligibilityReason,
   type EligibilityRoute,
   type WorkIntakeState,
@@ -203,3 +207,87 @@ export const INTAKE_STATE_TEXT: Readonly<Record<WorkIntakeState, string>> = {
   released: 'released from its hold',
   l8_offered: 'offered as L8',
 };
+
+/** P2-1: how the Documents tab names its groups of artefacts. */
+export const DOCUMENT_GROUP_TEXT: Readonly<
+  Record<DocumentGroup, { title: string; blurb: string }>
+> = {
+  intent: { title: 'Intent', blurb: 'the classification and the intent block (S1)' },
+  analysis: { title: 'Analysis', blurb: 'context, impact and the decision brief (S2)' },
+  spec: { title: 'Spec', blurb: 'the spec delta, its oracles, validation and review (S3)' },
+  design: {
+    title: 'Design and decisions',
+    blurb: 'ADR-style decisions, contracts, data and NFRs (S4)',
+  },
+  constitution: {
+    title: 'Constitution report',
+    blurb: 'the factory constitution over the design (4.5)',
+  },
+  plan: { title: 'Plan', blurb: 'Units, sequence, tasks, verification and the envelope (S5)' },
+  build: { title: 'Build', blurb: 'oracle code, the patch and session records (S6)' },
+  evidence: { title: 'Evidence', blurb: 'what S7 signed' },
+  other: { title: 'Other', blurb: 'other records of the item' },
+};
+
+/** P2-1: a timeline entry in words (the record's event kinds are the contracts'). */
+export const TIMELINE_KIND_TEXT: Readonly<Record<ItemTimelineKind, string>> = {
+  'item.created': 'The work item was made from the request',
+  'item.submitted': 'The request was submitted',
+  'item.stage_completed': 'A step finished',
+  'item.stage_failed': 'A step failed',
+  'item.stage_gate_needed': 'A step raised a gate',
+  'item.questions_raised': 'The factory asked the requester questions',
+  'item.question_answered': 'A question was answered',
+  'item.eligibility_checked': 'The lane was checked against the repo’s readiness (1.4)',
+  'item.ready_decided': 'Someone said the request is ready (1.6)',
+  'item.scheduled': 'The work was scheduled',
+  'item.merge_observed': 'A merge was seen on the code host',
+  'item.human_work_done': 'A person said the human-led work is done',
+  'item.gates_opened': 'Gates were opened for a decision',
+  'item.gate_decided': 'A gate was decided',
+  'item.hold_placed': 'The item was held',
+  'item.hold_released': 'A hold was released',
+  'item.abandoned': 'The item was abandoned',
+  'item.withdrawn': 'The item was withdrawn',
+  'item.spawn_requested': 'A follow-up item was asked for',
+  'item.spawned': 'A follow-up item was made',
+  'item.command_done': 'The factory finished a command',
+  'item.stage_held': 'A step was held',
+  'item.rework_requested': 'The work was sent back (a back-edge)',
+  'item.relane_requested': 'A change of lane was asked for',
+  'item.trigger_fired': 'A handoff trigger fired',
+  'item.timer_fired': 'A business-day timer ran out',
+  'item.handoff_chosen': 'The owner of record chose what happens after the handoff',
+  'item.hand_back': 'The developer handed the work back (D4)',
+  'item.env_fixed': 'The environment was fixed',
+  'item.release_re_requested': 'The release was asked for again',
+  'item.assumption_raised': 'An assumption was recorded',
+  'item.assumption_decided': 'An assumption was decided',
+  'artefact.stored': 'A document was stored',
+};
+
+/** P2-1, P2-3: what came of an agent run. */
+export const AGENT_RUN_VERDICT_TEXT: Readonly<
+  Record<AgentRunVerdict, { label: string; tone: 'ok' | 'warn' | 'bad' | 'mute' }>
+> = {
+  pending: { label: 'not judged yet', tone: 'mute' },
+  accepted: { label: 'accepted', tone: 'ok' },
+  rejected: { label: 'rejected', tone: 'bad' },
+  sent_back: { label: 'sent back', tone: 'warn' },
+  reworked: { label: 'reworked', tone: 'warn' },
+  handed_off: { label: 'handed off', tone: 'bad' },
+};
+
+export const AGENT_RUN_STATE_TEXT: Readonly<Record<AgentRunState, string>> = {
+  dispatched: 'running',
+  finished: 'finished',
+  failed: 'failed',
+};
+
+/** Micro-dollars as dollars, for a cost column. */
+export const usd = (micro: number): string =>
+  micro === 0
+    ? '$0'
+    : micro < 10_000
+      ? `$${(micro / 1_000_000).toFixed(4)}`
+      : `$${(micro / 1_000_000).toFixed(2)}`;

@@ -283,6 +283,9 @@ export function evaluateTree(policy: TripwirePolicy, ev: TreeEvidence): TreeVerd
     const w = writeTripwire({ ...policy, locked_paths: [] }, p);
     if (w !== null) t.push(w);
     const locked = ev.locks[p] !== undefined || policy.locked_paths.includes(p);
+    // an oracle file the factory locked at 6.3, exactly as locked: the factory's own addition, never the session's drift
+    const lockedIntact =
+      ev.locks[p] !== undefined && (ev.now[p]?.sha256 ?? 'deleted') === ev.locks[p];
     if (locked) {
       const want = ev.locks[p] ?? ev.base[p]?.sha256;
       if ((ev.now[p]?.sha256 ?? 'deleted') !== want) {
@@ -334,7 +337,12 @@ export function evaluateTree(policy: TripwirePolicy, ev: TreeEvidence): TreeVerd
         path: p,
       });
     }
-    if (policy.scope_globs.length > 0 && !matchesAny(p, policy.scope_globs) && !isLockfile(p)) {
+    if (
+      policy.scope_globs.length > 0 &&
+      !matchesAny(p, policy.scope_globs) &&
+      !isLockfile(p) &&
+      !lockedIntact
+    ) {
       t.push({
         kind: 'scope_drift',
         class: 'scope',

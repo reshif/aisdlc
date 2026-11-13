@@ -165,8 +165,8 @@ export const ADAPTER_CONFIG = {
   }),
   fake: z.strictObject({
     tools_capable: z.boolean().optional(),
-    /** `planning`: answers the planning steps with canned valid outputs (a local stack only). */
-    fixtures: z.literal('planning').optional(),
+    /** `planning`: canned valid outputs of the planning steps; `testbed`: those and the coding sessions and S7 reviews of the fake testbed (a local stack only). */
+    fixtures: z.enum(['planning', 'testbed']).optional(),
   }),
 } as const satisfies Record<IntegrationAdapter, z.ZodType>;
 

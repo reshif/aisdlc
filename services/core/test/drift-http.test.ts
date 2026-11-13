@@ -49,7 +49,7 @@ beforeAll(async () => {
           branch: 'main',
           rules: [
             rawRules.pr({}),
-            rawRules.checks([{ context: 'gate-check', integration_id: 99 }], false),
+            rawRules.checks([{ context: 'aisdlc/gate', integration_id: 99 }], false),
             rawRules.simple('non_fast_forward'),
             rawRules.simple('deletion'),
           ],

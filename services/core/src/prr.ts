@@ -376,6 +376,33 @@ export function closeOwnerCardGaps(
   };
 }
 
+// ---------------------------------------------------------------- the posture at sign-off
+
+/**
+ * The posture the record is signed at (OB §5.2: red on any B1-B5 open). The census is assembled before any card and the
+ * deployed knowledge is told nothing of the code host, so it reads B4 (the App's installation) as unknown and B3
+ * (protect-main) as not evaluated: every record would be red, confined to the Census lanes, whatever card 4 then read.
+ * Card 4's controls report is the factory's own reading of exactly those two (the installation and its B4 checks, the
+ * protect-main ruleset) with the person's bypass attestation, so they replace the census's B3 and B4 here; B1, B2 and B5
+ * and the amber items stay the census's. At a Census sign-off B3 is only recorded (its 0.4 is reduced) and is not part of
+ * the posture. Unknown stays open (fail closed).
+ */
+export function postureAtSignOff(
+  census: CensusRecord,
+  c4: PrrC4,
+  signed: Level,
+): CensusRecord['posture']['state'] {
+  const others = census.posture.reasons.filter(
+    (r) => r.kind !== 'blocker' || (r.blocker !== 'B3' && r.blocker !== 'B4'),
+  );
+  const r = c4.report;
+  const b4Open = r.app_installation.read !== 'ok' || r.b4.b4a.active || r.b4.b4b.active;
+  const pm = r.controls.find((c) => c.id === 'protect_main');
+  const b3Open = signed !== 'census' && !(pm?.status === 'met' && b3Met(c4));
+  if (b4Open || b3Open || others.some((x) => x.kind === 'blocker')) return 'red';
+  return others.some((x) => x.kind === 'amber') || r.b4.amber ? 'amber' : 'green';
+}
+
 // ---------------------------------------------------------------- the builder
 
 export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildError> {
@@ -437,7 +464,7 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
   // ---- readiness and caps
   const pillars = toPrrPillars(census);
   const composite = Math.min(...pillars.map((p) => p.level));
-  const posture = census.posture.state;
+  const posture = postureAtSignOff(census, c4, signed);
   const aut = computeAutonomy({
     tier: c1.tier,
     level: signed,

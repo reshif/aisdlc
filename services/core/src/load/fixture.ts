@@ -1,4 +1,5 @@
 import {
+  GATE_CHECK_NAME,
   CensusRecord,
   censusHash,
   type ControlsReport,
@@ -73,7 +74,7 @@ function host(repo: string): FakeGitHub {
             }),
             rule('required_status_checks', {
               strict_required_status_checks_policy: false,
-              required_status_checks: [{ context: 'gate-check', integration_id: 99 }],
+              required_status_checks: [{ context: GATE_CHECK_NAME, integration_id: 99 }],
             }),
             rule('non_fast_forward'),
             rule('deletion'),

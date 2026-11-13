@@ -69,6 +69,9 @@ const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
  *   CODEHOST_CALLERS              JSON {caller: {token_ref, scopes: [census|posture|codeowners_sync]}}
  *   CODEHOST_IDENTITY_URL, CODEHOST_IDENTITY_TOKEN_REF   identity API and the codehost's token there
  *   CODEHOST_GIT_URL              default https://github.com; plain http only to loopback (tests)
+ *   CODEHOST_GITHUB_PLAIN_HTTP_HOSTS  JSON ["host"]: hosts besides loopback the two URLs above may name over plain http (the
+ *                                 compose stack's fake GitHub, reached from the Push Broker's own container on its own
+ *                                 network); never needed for GitHub itself
  *   CODEHOST_BUNDLE_CAP_BYTES     default 268435456 (256 MiB); CODEHOST_BUNDLE_TIMEOUT_MS  default 180000
  *   CODEHOST_CORE_URL, CODEHOST_CORE_TOKEN_REF   core's API (scope `registry`): the repos that have an
  *                                 S0 record or request (PLAN M7.1)
@@ -85,11 +88,21 @@ export function codeHostConfigFromEnv(env: Env): CodeHostConfig {
   if (!Number.isInteger(installationId) || installationId < 1) {
     throw new ServiceConfigError('CODEHOST_GITHUB_INSTALLATION_ID must be a positive integer');
   }
+  const plainHosts = new Set(
+    env['CODEHOST_GITHUB_PLAIN_HTTP_HOSTS']
+      ? jsonEnv(
+          env,
+          'CODEHOST_GITHUB_PLAIN_HTTP_HOSTS',
+          z.array(z.string().regex(/^[a-z0-9][a-z0-9.-]*$/)).max(8),
+        )
+      : [],
+  );
+  const plainOk = (h: string): boolean => LOOPBACK.has(h) || plainHosts.has(h);
   const apiUrl = env['CODEHOST_GITHUB_API_URL']
     ? httpUrlEnv(env, 'CODEHOST_GITHUB_API_URL')
     : 'https://api.github.com';
   const u = new URL(apiUrl);
-  if (u.protocol !== 'https:' && !LOOPBACK.has(u.hostname)) {
+  if (u.protocol !== 'https:' && !plainOk(u.hostname)) {
     throw new ServiceConfigError(
       'CODEHOST_GITHUB_API_URL must be https (plain http only to loopback): it carries credentials',
     );
@@ -98,7 +111,7 @@ export function codeHostConfigFromEnv(env: Env): CodeHostConfig {
     env['CODEHOST_GIT_URL'] ? httpUrlEnv(env, 'CODEHOST_GIT_URL') : 'https://github.com'
   ).replace(/\/+$/, '');
   const gu = new URL(gitUrl);
-  if (gu.protocol !== 'https:' && !LOOPBACK.has(gu.hostname)) {
+  if (gu.protocol !== 'https:' && !plainOk(gu.hostname)) {
     throw new ServiceConfigError(
       'CODEHOST_GIT_URL must be https (plain http only to loopback): it carries credentials',
     );

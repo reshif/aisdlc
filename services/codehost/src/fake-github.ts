@@ -10,6 +10,7 @@ import {
 } from '@aisdlc/contracts';
 import { buildTestbed, testbedSeed } from './fake-github-testbed.js';
 import { GitHttpTestServer } from './git-server-testing.js';
+import { mirrorRefIntoBareRepo } from './fake-github-mirror.js';
 
 // The compose stack's stand-in for github.com (PLAN M8.0, profile `fake-github`): the in-repo fake
 // GitHub REST server and a real git smart-HTTP server in front of one seeded repository, as one
@@ -38,6 +39,14 @@ import { GitHttpTestServer } from './git-server-testing.js';
 //                                     the login its issues are authored by (`<slug>[bot]`)
 //   FAKE_GITHUB_TRACKER_PORT          (M16, optional) another listener on 0.0.0.0; compose sets none: the codehost holds the tracker
 //                                     App and reaches the fake on loopback (core-worker has no route out, 2026-11-12)
+//   FAKE_GITHUB_PUSH_APP_ID, _INSTALLATION_ID, _APP_PUBLIC_KEY_FILE
+//                                     (optional) the Push Broker's own App (`contents: write`, `pull_requests: write`, metadata
+//                                     read; the main App stays read-only), and FAKE_GITHUB_PUSH_BROKER_PORT its listener on
+//                                     0.0.0.0 (`pushbroker-github`). What its Git Data API writes is also written into the bare
+//                                     repository (objects and the branch), so the git server serves the agent branches too
+//   FAKE_GITHUB_PEOPLE                (optional) comma-separated logins that act with a personal token `ghp_fake_<login>`:
+//                                     mark a PR ready and merge it (the e2e's human; the factory never merges)
+//   FAKE_GITHUB_REQUIRED_CHECKS       (optional) comma-separated check names a person's merge needs `success` on the head
 //
 // Each request is one stdout line: `fake-github api {"method":"GET","path":...}` or `fake-github git ...`.
 
@@ -140,28 +149,66 @@ await runService('fake-github', async () => {
   if (trackerApp && others.some((a) => a.installationId === trackerApp.installationId)) {
     throw new ServiceConfigError('the tracker App needs an installation of its own');
   }
+  const pushApp = secondApp(env, 'FAKE_GITHUB_PUSH', installationId, {
+    contents: 'write',
+    pull_requests: 'write',
+    metadata: 'read',
+  });
+  if (
+    pushApp &&
+    [...others, ...(trackerApp ? [trackerApp] : [])].some(
+      (a) => a.installationId === pushApp.installationId,
+    )
+  ) {
+    throw new ServiceConfigError('the Push Broker App needs an installation of its own');
+  }
+  const list = (name: string): string[] =>
+    (env[name] ?? '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter((x) => x !== '');
+  const people = list('FAKE_GITHUB_PEOPLE');
+  const requiredChecks = list('FAKE_GITHUB_REQUIRED_CHECKS');
   const gcPort = env['FAKE_GITHUB_GATE_CHECK_PORT'];
   const grPort = env['FAKE_GITHUB_GATE_RELAY_PORT'];
   const trPort = env['FAKE_GITHUB_TRACKER_PORT'];
+  const pbPort = env['FAKE_GITHUB_PUSH_BROKER_PORT'];
   const doors = [
     ...(grPort ? [{ host: '0.0.0.0', port: port('FAKE_GITHUB_GATE_RELAY_PORT', 8356) }] : []),
     ...(trPort ? [{ host: '0.0.0.0', port: port('FAKE_GITHUB_TRACKER_PORT', 8357) }] : []),
+    ...(pbPort ? [{ host: '0.0.0.0', port: port('FAKE_GITHUB_PUSH_BROKER_PORT', 8358) }] : []),
   ];
+  // the api server is made below; the hook reads its objects when a branch moves
+  let objectsOf: FakeGitHubServer | null = null;
   const api = await new FakeGitHubServer({
     appId: requiredEnv(env, 'FAKE_GITHUB_APP_ID'),
     appPublicKeyPem: publicKeyPem,
-    seed: testbedSeed({ repo, head, installationId }),
+    seed: testbedSeed({
+      repo,
+      head,
+      installationId,
+      ...(checksApp ? { gateCheckAppId: Number(checksApp.appId) } : {}),
+    }),
     listenHost: '127.0.0.1',
     listenPort: apiPort,
     ...(checksApp ? { checksApp } : {}),
     ...(deployApp ? { deployApp } : {}),
     ...(trackerApp ? { trackerApp } : {}),
+    ...(pushApp ? { pushApp } : {}),
+    ...(people.length > 0 ? { people } : {}),
+    ...(requiredChecks.length > 0 ? { requiredChecks } : {}),
+    onRefChanged: (e) => {
+      if (objectsOf === null) return;
+      mirrorRefIntoBareRepo(join(root, `${e.repo}.git`), objectsOf.objects, e);
+      console.log(`fake-github: mirrored ${e.repo} ${e.branch} at ${e.sha} into git`);
+    },
     ...(doors.length > 0 ? { extraListens: doors } : {}),
     ...(gcPort
       ? { extraListen: { host: '0.0.0.0', port: port('FAKE_GITHUB_GATE_CHECK_PORT', 8355) } }
       : {}),
     onRequest: (r) => console.log(`fake-github api ${JSON.stringify(r)}`),
   }).start();
+  objectsOf = api;
   // The git server accepts exactly the installation tokens the REST side issued (Basic
   // `x-access-token:<token>`, the form the codehost sends) and refuses every push.
   const git_ = await new GitHttpTestServer({

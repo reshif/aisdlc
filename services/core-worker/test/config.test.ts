@@ -130,6 +130,37 @@ describe('core-worker config: real coding sessions (M13.3, M13.4)', () => {
       }),
     ).toThrow(/STAGE_PORTS=agents/);
   });
+  it('the Push Broker: the codehost by default, or its own instance (push mode, its own App) with its own token', () => {
+    const CTL = {
+      CORE_WORKER_SANDBOX_CONTROLLER_URL: 'http://sandbox-controller:8430',
+      CORE_WORKER_SANDBOX_CONTROLLER_TOKEN_REF: 'env:T',
+    };
+    expect(coreWorkerConfigFromEnv({ ...WITH_AGENTS, ...CTL }).pushBroker).toBeNull();
+    expect(
+      coreWorkerConfigFromEnv({ ...WITH_AGENTS, ...CTL, CORE_WORKER_PUSH_BROKER: '1' }).pushBroker,
+    ).toEqual({ url: 'http://127.0.0.1:1', token: 'x'.repeat(32) });
+    expect(
+      coreWorkerConfigFromEnv({
+        ...WITH_AGENTS,
+        ...CTL,
+        CORE_WORKER_PUSH_BROKER: '1',
+        CORE_WORKER_PUSH_BROKER_URL: 'http://push-broker:8350',
+        CORE_WORKER_PUSH_BROKER_TOKEN_REF: 'env:P',
+        P: 'p'.repeat(32),
+      }).pushBroker,
+    ).toEqual({ url: 'http://push-broker:8350', token: 'p'.repeat(32) });
+    expect(() =>
+      coreWorkerConfigFromEnv({
+        ...WITH_AGENTS,
+        ...CTL,
+        CORE_WORKER_PUSH_BROKER_URL: 'http://push-broker:8350',
+        CORE_WORKER_PUSH_BROKER_TOKEN_REF: 'env:T',
+      }),
+    ).toThrow(/only with CORE_WORKER_PUSH_BROKER=1/);
+    expect(() => coreWorkerConfigFromEnv({ ...WITH_AGENTS, CORE_WORKER_PUSH_BROKER: '1' })).toThrow(
+      /needs the sandbox/,
+    );
+  });
   it('real sessions need the agents stage ports, a token reference (never a literal) and a plain scratch directory', () => {
     expect(() =>
       coreWorkerConfigFromEnv({

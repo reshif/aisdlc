@@ -46,7 +46,7 @@ const newestByAgent = (runs: readonly EvalRunHeader[]) => {
   return m;
 };
 
-function StepChips({ a }: { a: AgentRegistryRow }) {
+export function StepChips({ a }: { a: AgentRegistryRow }) {
   if (a.steps.length === 0 && a.specialist_steps.length === 0) {
     return <span className="muted">no step: never run, never gets a key</span>;
   }
@@ -101,7 +101,10 @@ export function AgentsPage() {
               rowHeader: true,
               render: (a) => (
                 <>
-                  <b>{a.agent_id}</b> {a.name ?? <span className="muted">unbound</span>}
+                  <Link to={`/agents/${a.agent_id}`}>
+                    <b>{a.agent_id}</b>
+                  </Link>{' '}
+                  {a.name ?? <span className="muted">unbound</span>}
                   <div className="ui-mono muted">{a.prompt.ref}</div>
                 </>
               ),

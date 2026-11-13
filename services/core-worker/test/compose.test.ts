@@ -63,3 +63,48 @@ describe('core-worker in the compose stack', () => {
     ).toEqual(['core-worker']);
   });
 });
+
+describe('the Push Broker in the compose stack (M13.6)', () => {
+  const pb = compose.services['push-broker'] as Service & { profiles?: string[] };
+  const members = (n: string) =>
+    Object.entries(compose.services)
+      .filter(([, s]) => netsOf(s).includes(n))
+      .map(([k]) => k)
+      .sort();
+  it('is the codehost in push mode with its OWN App key, mounted nowhere else', () => {
+    expect(pb.environment?.['CODEHOST_MODE']).toBe('push');
+    expect(pb.environment?.['CODEHOST_GITHUB_APP_KEY_REF']).toBe(
+      'file:/run/secrets/push-broker-app.pem',
+    );
+    expect(secretsOf(pb)).not.toContain('github-app.pem');
+    for (const [name, svc] of Object.entries(compose.services)) {
+      if (name !== 'push-broker') expect(secretsOf(svc), name).not.toContain('push-broker-app.pem');
+    }
+    expect(secretsOf(compose.services['fake-github'] as Service)).toContain(
+      'push-broker-app.pub.pem',
+    );
+    expect(pb.profiles).toEqual(['push-broker', 'full']);
+    // core-worker is its one caller, with scope push only
+    expect(JSON.parse(pb.environment?.['CODEHOST_CALLERS'] ?? '{}')).toEqual({
+      'core-worker': {
+        token_ref: 'file:/run/secrets/tok-core-worker-push-broker',
+        scopes: ['push'],
+      },
+    });
+  });
+  it('its networks open no new path: core, core-worker and identity share app already', () => {
+    expect(netsOf(pb).sort()).toEqual(['pushbroker', 'pushbroker-egress', 'pushbroker-github']);
+    expect(members('pushbroker')).toEqual(['core', 'core-worker', 'identity', 'push-broker']);
+    for (const s of ['core', 'core-worker', 'identity'])
+      expect(netsOf(compose.services[s] as Service)).toContain('app');
+    expect(members('pushbroker-github')).toEqual(['codehost', 'push-broker']);
+    expect(members('pushbroker-egress')).toEqual(['push-broker']);
+    expect(compose.networks['pushbroker']?.internal).toBe(true);
+    expect(compose.networks['pushbroker-github']?.internal).toBe(true);
+    // core-worker reaches it with its own token there, not the codehost's
+    expect(cw.environment?.['CORE_WORKER_PUSH_BROKER_TOKEN_REF']).toBe(
+      'file:/run/secrets/tok-core-worker-push-broker',
+    );
+    expect(secretsOf(pb)).not.toContain('tok-core-worker-codehost');
+  });
+});
