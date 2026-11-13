@@ -3,6 +3,7 @@ import {
   VoteDecision,
   gatePolicy,
   stepUpOf,
+  type AdminOverrideRule,
   type PrincipalId,
   type Sha256Hex,
 } from '@aisdlc/contracts';
@@ -21,6 +22,7 @@ import {
   type DecisionDeps,
   type Written,
 } from './internal.js';
+import { acceptOverride, type AcceptedOverride, type OverrideInput } from './override.js';
 import { applyVote, enterGate, requirePending, type VoteResult } from './vote.js';
 import { gateHolders } from './ports.js';
 import { readGateState, type GateState } from './state.js';
@@ -48,6 +50,11 @@ const hashOfNonce = (nonce: string): string => sha256Hex(nonce);
 export interface PrepareInput {
   readonly gate_instance_id: string;
   readonly principal: PrincipalId;
+  /**
+   * The factory admin's override (docs/specs/deletion.md §8): a principal who does not hold the slot may prepare
+   * when the kernel's admin port says it is a factory admin. The reason is given again, and recorded, at `decide`.
+   */
+  readonly override?: OverrideInput;
 }
 
 export interface Prepared {
@@ -82,7 +89,9 @@ export async function prepare(
     if (!holders.ok) return err(decisionError('eligibility_unavailable', holders.error.message));
     if (!holders.value.includes(input.principal)) {
       const why = p.deciders ? 'is not one of the deciders of this gate' : 'does not hold the slot';
-      return err(decisionError('not_eligible', `${input.principal} ${why}`));
+      if (!input.override) return err(decisionError('not_eligible', `${input.principal} ${why}`));
+      const o = await acceptOverride(deps, input.principal, input.override);
+      if (!o.ok) return o;
     }
     const nonce = randomBytes(32).toString('base64url');
     const created = clock.now();
@@ -199,6 +208,8 @@ export interface ConsumedNonce {
     readonly evidence_viewed_at: Date;
   };
   readonly stepUp: { bound_hash: Sha256Hex; proof_sha256: Sha256Hex } | null;
+  /** With an override: the rules the consume itself skipped (`step_up` when the gate needs one and none verified). */
+  readonly bypassed: readonly AdminOverrideRule[];
 }
 
 /**
@@ -214,6 +225,8 @@ export async function consumeNonce(
   nonce: string,
   state: GateState,
   stepUpInput: { readonly proof: string } | undefined,
+  /** An accepted factory-admin override: the step-up is not required (the person's own session auth stands). */
+  override: AcceptedOverride | null = null,
 ): Promise<Result<ConsumedNonce, DecisionError>> {
   const clock = clockOf(deps);
   const h = hashOfNonce(nonce);
@@ -240,20 +253,24 @@ export async function consumeNonce(
     return err(decisionError('evidence_not_viewed', 'evidence_viewed was not recorded'));
   }
   let stepUp: ConsumedNonce['stepUp'] = null;
+  const bypassed: AdminOverrideRule[] = [];
   if (stepUpOf(p).required) {
-    if (!stepUpInput?.proof) {
+    const proof = stepUpInput?.proof;
+    const v = proof
+      ? await deps.stepUp.verify(proof, p.step_up.bound_hash, row.principal as PrincipalId)
+      : null;
+    if (proof && v?.ok) {
+      stepUp = {
+        bound_hash: p.step_up.bound_hash,
+        proof_sha256: sha256Hex(proof) as Sha256Hex,
+      };
+    } else if (override) {
+      bypassed.push('step_up');
+    } else if (!proof) {
       return err(decisionError('step_up_required', `${p.gate_id} needs a step-up proof`));
+    } else {
+      return err(decisionError('step_up_invalid', v && !v.ok ? v.error.message : 'rejected'));
     }
-    const v = await deps.stepUp.verify(
-      stepUpInput.proof,
-      p.step_up.bound_hash,
-      row.principal as PrincipalId,
-    );
-    if (!v.ok) return err(decisionError('step_up_invalid', v.error.message));
-    stepUp = {
-      bound_hash: p.step_up.bound_hash,
-      proof_sha256: sha256Hex(stepUpInput.proof) as Sha256Hex,
-    };
   }
   await tx.query('UPDATE decisions.gate_nonce SET consumed_at = $2 WHERE nonce_sha256 = $1', [
     h,
@@ -266,6 +283,7 @@ export async function consumeNonce(
       evidence_viewed_at: row.evidence_viewed_at,
     },
     stepUp,
+    bypassed,
   });
 }
 
@@ -275,6 +293,8 @@ export interface DecideInput {
   readonly decision: string;
   /** The step-up proof, bound to `Prepared.step_up.bound_hash`. */
   readonly step_up?: { readonly proof: string };
+  /** The factory admin's override: decide outside the slot, two-person, own-request and step-up rules, recorded. */
+  readonly override?: OverrideInput;
 }
 
 /** Applies a prepared decision: one transaction, one ledger entry (the last write), then confirm. */
@@ -291,18 +311,24 @@ export async function decide(
   }
   const h = hashOfNonce(input.nonce);
   return inDecisionTx(deps, async (tx) => {
-    const peek = await tx.query<{ gate_instance_id: string }>(
-      'SELECT gate_instance_id FROM decisions.gate_nonce WHERE nonce_sha256 = $1',
+    const peek = await tx.query<{ gate_instance_id: string; principal: string }>(
+      'SELECT gate_instance_id, principal FROM decisions.gate_nonce WHERE nonce_sha256 = $1',
       [h],
     );
     const gateId = peek.rows[0]?.gate_instance_id;
     if (!gateId) return err(decisionError('nonce_unknown', 'unknown nonce'));
+    let override: AcceptedOverride | null = null;
+    if (input.override) {
+      const o = await acceptOverride(deps, peek.rows[0]?.principal ?? '', input.override);
+      if (!o.ok) return o;
+      override = o.value;
+    }
 
     // Lock order: gate, then ledger (enterGate), then the nonce row; the entry is written last.
     const entered = await enterGate(tx, deps, gateId);
     if (!entered.ok) return entered;
     const { state } = entered.value;
-    const used = await consumeNonce(tx, deps, input.nonce, state, input.step_up);
+    const used = await consumeNonce(tx, deps, input.nonce, state, input.step_up, override);
     if (!used.ok) return used;
     const { row, stepUp } = used.value;
     const voted = await applyVote(tx, deps, state, {
@@ -315,6 +341,7 @@ export async function decide(
         nonce_sha256: h as Sha256Hex,
         step_up: stepUp,
       },
+      ...(override ? { override: { ...override, bypassed: used.value.bypassed } } : {}),
     });
     if (!voted.ok) return voted;
     return ok({

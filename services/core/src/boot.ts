@@ -17,6 +17,7 @@ import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/ser
 import { createCoreApp } from './app.js';
 import { HttpAdmissionVerdict } from './floor-live.js';
 import { BootstrapEligibility } from './bootstrap.js';
+import { IdentityFactoryAdmins } from './factory-m1.js';
 import { cardDepsFrom, identityEligibility } from './card-wiring.js';
 import { HttpAccessGrants, HttpKnowledge } from './clients.js';
 import { assistantDepsFrom } from './conversation/wire.js';
@@ -121,6 +122,8 @@ export async function bootCore(env: Env): Promise<RunningService> {
               { pool: eligibilityPool },
             ),
             stepUp,
+            // Owner decision 2026-11-13: the factory admin's override, asked of identity by the kernel itself
+            admins: new IdentityFactoryAdmins(eligibilityPool),
             registry,
             maintenance: maintenanceFrom(reader),
             // portal v2 (`gates.timers`, H8): read on every open and prepare
@@ -136,6 +139,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
             ledger: config.ledger,
             eligibility: identityEligibility(eligibilityPool, registry),
             stepUp: config.stepUp,
+            ...(config.admins ? { admins: config.admins } : {}),
             knowledge: new HttpKnowledge({
               baseUrl: cfg.cards.knowledge.url,
               token: cfg.cards.knowledge.token,
@@ -171,6 +175,18 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(cards ? { cards } : {}),
       ...(assistant ? { assistant } : {}),
       ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
+      // Delete means delete (docs/specs/deletion.md): the purge login and the store credential that lifts a hold
+      ...(cfg.deletion && config
+        ? {
+            deletion: {
+              purgePool: createPool(cfg.deletion.databaseUrl, 2),
+              ledger: config.ledger,
+              ...(cfg.deletion.objectStore
+                ? { objects: new S3ObjectStore(cfg.deletion.objectStore) }
+                : {}),
+            },
+          }
+        : {}),
       // P2-4: the GitHub Apps panel asks the services that hold the keys (never a key itself)
       githubApps: {
         codehost: reportOf(cfg.cards?.codehost ?? null),

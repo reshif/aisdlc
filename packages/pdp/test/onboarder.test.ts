@@ -1,9 +1,15 @@
-import { GateIdValues, pdpResource, type ActionId } from '@aisdlc/contracts';
+import {
+  ADMIN_OVERRIDE_POLICY_ID,
+  GateIdValues,
+  isAdminOverride,
+  pdpResource,
+  type ActionId,
+} from '@aisdlc/contracts';
 import { describe, expect, it } from 'vitest';
 import { FLEET, RESOURCES, proj, rig, team } from './helpers.js';
 
 // M9.0 (user decision): `factory.onboarder` holds `project.onboard` at fleet or team scope;
-// `factory.admin` holds every administrative action and decides nothing it holds no slot for.
+// `factory.admin` holds every action (owner decision 2026-11-13); what no role grant permits is the override.
 
 const ask = async (
   r: ReturnType<typeof rig>,
@@ -63,7 +69,7 @@ describe('factory.onboarder', () => {
   });
 });
 
-describe('factory.admin holds every administrative action and decides no gate it holds no slot for', () => {
+describe('factory.admin holds every action; what the role map does not grant is the override', () => {
   it('holds onboard, settings, kill, config, audit, explain and floor', async () => {
     const r = rig();
     r.entities.addPrincipal('ada').bind('ada', 'factory.admin', FLEET);
@@ -83,19 +89,39 @@ describe('factory.admin holds every administrative action and decides no gate it
     expect(await ask(r, 'ada', 'project.settings.edit', pdpResource.project('p1'))).toBe('allow');
   });
 
-  it('cannot decide any gate or card through factory.admin alone', async () => {
+  // Owner decision 2026-11-13 (docs/specs/deletion.md §8): nothing applies to the factory admin. It decides every
+  // gate and card, and an allow that only the override permits says so (`isAdminOverride`), so callers record it.
+  it('decides every gate and card through the override alone, and the allow says it is an override', async () => {
     const r = rig();
     r.entities.addPrincipal('ada').bind('ada', 'factory.admin', FLEET);
     for (const g of GateIdValues) {
-      expect(
-        await ask(r, 'ada', 'gate.decide', pdpResource.gate('p1', `gi-${g}`, g, { item: 'i1' })),
-        g,
-      ).toBe('deny');
+      const d = await r.pdp.decide(
+        {
+          principal: 'ada',
+          action: 'gate.decide',
+          resource: pdpResource.gate('p1', `gi-${g}`, g, { item: 'i1' }),
+        },
+        { log: false },
+      );
+      expect(d.decision, g).toBe('allow');
+      expect(d.reasons, g).toEqual([ADMIN_OVERRIDE_POLICY_ID]);
+      expect(isAdminOverride(d), g).toBe(true);
     }
-    expect(await ask(r, 'ada', 'card.decide', pdpResource.card('p1', 'c1'))).toBe('deny');
+    const c = await r.pdp.decide(
+      { principal: 'ada', action: 'card.decide', resource: pdpResource.card('p1', 'c1') },
+      { log: false },
+    );
+    expect(isAdminOverride(c)).toBe(true);
+    // An administrative action the role holds outright is not an override.
+    const o = await r.pdp.decide(
+      { principal: 'ada', action: 'project.onboard', resource: pdpResource.fleet() },
+      { log: false },
+    );
+    expect(o.decision).toBe('allow');
+    expect(isAdminOverride(o)).toBe(false);
   });
 
-  it('decides a gate only when a project role map gives it the slot', async () => {
+  it('a gate whose slot the role map gives it is a normal allow; one it does not hold is an override', async () => {
     const r = rig();
     r.entities
       .addPrincipal('ada')
@@ -103,12 +129,29 @@ describe('factory.admin holds every administrative action and decides no gate it
       .bind('ada', 'project.intent_approver', proj('p1'));
     const g0 = pdpResource.gate('p1', 'gi-g0', 'G0', { item: 'i1' });
     const g5 = pdpResource.gate('p1', 'gi-g5', 'G5', { item: 'i1' });
-    expect(await ask(r, 'ada', 'gate.decide', g0)).toBe('allow');
-    expect(await ask(r, 'ada', 'gate.decide', g5)).toBe('deny');
-    // The slot is per project: p2's G0 is still not hers.
+    const d0 = await r.pdp.decide({ principal: 'ada', action: 'gate.decide', resource: g0 });
+    const d5 = await r.pdp.decide({ principal: 'ada', action: 'gate.decide', resource: g5 });
+    expect(d0.decision).toBe('allow');
+    expect(isAdminOverride(d0)).toBe(false);
+    expect(d5.decision).toBe('allow');
+    expect(isAdminOverride(d5)).toBe(true);
+    // The override is always logged as one (decide-class allows are logged anyway; the reason says why).
+    expect(r.log.records.map((x) => x.logged_because)).toEqual(['action', 'override']);
+  });
+
+  it('a non-admin is unchanged: no override for a project admin outside its slot', async () => {
+    const r = rig();
+    r.entities.addPrincipal('pat').bind('pat', 'project.admin', proj('p1'));
     expect(
-      await ask(r, 'ada', 'gate.decide', pdpResource.gate('p2', 'gi-p2', 'G0', { item: 'i1' })),
+      await ask(r, 'pat', 'gate.decide', pdpResource.gate('p1', 'gi-g5', 'G5', { item: 'i1' })),
     ).toBe('deny');
+    expect(await ask(r, 'pat', 'person.delete', pdpResource.fleet())).toBe('deny');
+  });
+
+  it('a suspended factory admin is denied (the disabled-principal forbid still applies)', async () => {
+    const r = rig();
+    r.entities.addPrincipal('ada', { status: 'disabled' }).bind('ada', 'factory.admin', FLEET);
+    expect(await ask(r, 'ada', 'project.delete', pdpResource.project('p1'))).toBe('deny');
   });
 
   it('the fleet kill stays factory.admin only (an onboarder and a project kill holder cannot)', async () => {

@@ -11,7 +11,7 @@ export interface CliIo {
   err(line: string): void;
 }
 
-const USAGE = `usage: aisdlc verify-ledger --db <postgres-url> --notary-key <jwk-file> --witness-key <jwk-file> [--allow-tail]
+const USAGE = `usage: aisdlc verify-ledger --db <postgres-url> --notary-key <jwk-file> --witness-key <jwk-file> [--allow-tail] [--allow-redacted]
 
 Verifies the ledger offline, read-only: chain links, entry hashes, every Notary signature, every
 checkpoint's Merkle root and both signatures, and that the latest checkpoint covers the head.
@@ -21,6 +21,9 @@ or the database could not be read.
   --notary-key    public JWK of the Notary key
   --witness-key   public JWK of the Witness key
   --allow-tail    accept entries newer than the latest checkpoint (a live ledger)
+  --allow-redacted  accept entries a deletion redacted: each is checked by its stored hash (link,
+                  Notary signature over that hash, Merkle root) and must be named by a later
+                  verified deletion.performed entry
 
 usage: aisdlc verify-export --file <signed-export.json> --notary-key <jwk-file> --witness-key <jwk-file> [--object-key <sha256>]
 
@@ -75,6 +78,7 @@ export async function main(
         'notary-key': { type: 'string' },
         'witness-key': { type: 'string' },
         'allow-tail': { type: 'boolean', default: false },
+        'allow-redacted': { type: 'boolean', default: false },
         help: { type: 'boolean', default: false },
       },
       strict: true,
@@ -105,6 +109,7 @@ export async function main(
         await client.query('BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ');
         const r = await verifyLedger(client, keys, {
           allowUncoveredTail: values['allow-tail'] === true,
+          allowRedacted: values['allow-redacted'] === true,
         });
         await client.query('ROLLBACK');
         if (!r.ok) {
@@ -114,7 +119,11 @@ export async function main(
         io.out(
           r.value.entries === 0
             ? 'ledger OK: empty'
-            : `ledger OK: ${r.value.entries} entries, chain intact, every Notary signature valid`,
+            : `ledger OK: ${r.value.entries} entries, chain intact, every Notary signature valid${
+                r.value.redacted > 0
+                  ? ` (${r.value.redacted} redacted by a deletion, verified by their stored hash)`
+                  : ''
+              }`,
         );
         io.out(
           `checkpoints OK: ${r.value.checkpoints}, Merkle roots and both signatures valid, latest covers entry ${r.value.covered_to}${

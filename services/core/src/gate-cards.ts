@@ -17,6 +17,7 @@ import {
   readCardState,
   recordCardEvidenceViewed,
   type DecisionDeps,
+  type OverrideInput,
 } from '@aisdlc/decisions';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import type pg from 'pg';
@@ -135,12 +136,16 @@ export async function gateCardView(
 
 export async function prepareGateCard(
   d: DecisionDeps,
-  o: { card_id: string; principal: PrincipalId },
+  o: { card_id: string; principal: PrincipalId; override?: OverrideInput | undefined },
 ): Promise<Result<GateCardPrepared, CoreError>> {
   if (!(await itemCardHead(d.pool, o.card_id))) {
     return err(coreError('not_found', `${o.card_id} is not a work item card`));
   }
-  const p = await prepareCard(d, { card_id: o.card_id, principal: o.principal });
+  const p = await prepareCard(d, {
+    card_id: o.card_id,
+    principal: o.principal,
+    ...(o.override ? { override: o.override } : {}),
+  });
   if (!p.ok) return err(decisionRefusal(p.error));
   const state = await readCardState(d.pool, o.card_id);
   return ok(
@@ -178,7 +183,7 @@ export async function recordGateCardEvidence(
  */
 export async function decideGateCard(
   d: DecisionDeps,
-  o: { card_id: string; principal: PrincipalId } & Pick<
+  o: { card_id: string; principal: PrincipalId; override?: OverrideInput | undefined } & Pick<
     GateCardDecideRequest,
     'decision' | 'reason' | 'votes'
   >,
@@ -197,6 +202,7 @@ export async function decideGateCard(
       ...(v.step_up ? { step_up: { proof: v.step_up.proof } } : {}),
     })),
     ...(reason === '' ? {} : { payload: [{ kind: 'decision_reason', text: reason }] }),
+    ...(o.override ? { override: o.override } : {}),
   });
   return r.ok ? ok(r.value) : err(decisionRefusal(r.error));
 }

@@ -60,7 +60,13 @@ async function failsWith(tamper: string[], code: VerifyFailureCode, opts = {}) {
 describe('verifyLedger', () => {
   it('passes on a good ledger', async () => {
     const r = await verifyLedger(s.record.pool, s.keys);
-    expect(r.ok && r.value).toEqual({ entries: 6, checkpoints: 2, head_seq: 6, covered_to: 6 });
+    expect(r.ok && r.value).toEqual({
+      entries: 6,
+      checkpoints: 2,
+      head_seq: 6,
+      covered_to: 6,
+      redacted: 0,
+    });
   });
 
   it('fails on a tampered row', async () => {
@@ -168,7 +174,13 @@ describe('verifyLedger', () => {
       ['DELETE FROM ledger.checkpoint', 'DELETE FROM ledger.ledger_entry'],
       (tx) => verifyLedger(tx, s.keys),
     );
-    expect(r.ok && r.value).toEqual({ entries: 0, checkpoints: 0, head_seq: 0, covered_to: 0 });
+    expect(r.ok && r.value).toEqual({
+      entries: 0,
+      checkpoints: 0,
+      head_seq: 0,
+      covered_to: 0,
+      redacted: 0,
+    });
   });
 
   it('works in small batches', async () => {

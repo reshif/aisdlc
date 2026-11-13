@@ -111,6 +111,20 @@ async function setCheckpoint(tx: Tx, p: Projection, last: number, name = p.name)
   );
 }
 
+/** How many positions in [from, to) a deletion purged (0 before migration 0005). */
+async function purgedBetween(tx: Tx, from: number, to: number): Promise<number> {
+  if (to <= from) return 0;
+  const t = await tx.query<{ t: string | null }>(
+    `SELECT to_regclass('record.purged_event')::text AS t`,
+  );
+  if (!t.rows[0]?.t) return 0;
+  const q = await tx.query<{ n: string }>(
+    `SELECT count(*)::text AS n FROM record.purged_event WHERE global_seq >= $1 AND global_seq < $2`,
+    [String(from), String(to)],
+  );
+  return Number(q.rows[0]?.n ?? 0);
+}
+
 /** Folds up to `batch` events after `from`, in global order. Returns how many and the new position. */
 async function foldBatch(tx: Tx, p: Projection, from: number, batch: number): Promise<RunStats> {
   const r = await tx.query<EventRow>(
@@ -121,11 +135,15 @@ async function foldBatch(tx: Tx, p: Projection, from: number, batch: number): Pr
   let expected = from;
   for (const row of r.rows) {
     expected += 1;
-    if (Number(row.global_seq) !== expected) {
+    const g = Number(row.global_seq);
+    // A deletion's purge (docs/specs/deletion.md §2) leaves positions that `record.purged_event` names: those are
+    // not a hole. Anything else is.
+    if (g !== expected && (await purgedBetween(tx, expected, g)) !== g - expected) {
       throw new ProjectionGapError(
         `${p.name}: expected global_seq ${expected}, found ${row.global_seq}`,
       );
     }
+    expected = g;
     await p.apply(tx, toRecordEvent(row));
   }
   return { applied: r.rows.length, last_global_seq: expected };

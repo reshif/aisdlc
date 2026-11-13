@@ -231,7 +231,7 @@ export const AuditDecisionRow = z.strictObject({
   reasons: z.array(z.string()),
   bundle_version: z.string().nullable(),
   at: IsoDateTime,
-  logged_because: z.enum(['deny', 'action', 'sampled']),
+  logged_because: z.enum(['deny', 'action', 'override', 'sampled']),
 });
 export type AuditDecisionRow = z.infer<typeof AuditDecisionRow>;
 

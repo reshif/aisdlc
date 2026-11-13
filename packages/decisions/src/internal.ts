@@ -23,7 +23,7 @@ import { appendEvents, type NewEvent, type Tx } from '@aisdlc/record';
 import type pg from 'pg';
 import { decisionError, type DecisionError } from './errors.js';
 import type { BusinessCalendar } from './inbox/calendar.js';
-import type { EligibilityPort, StepUpPort } from './ports.js';
+import type { EligibilityPort, FactoryAdminPort, StepUpPort } from './ports.js';
 
 export const DEFAULT_POLICY_BUNDLE_VERSION = 'decisions-1.0.0';
 /** `facts.expires_at` default: seven days after opening (portal v2: `gates.timers.expires_after_s`). */
@@ -44,6 +44,11 @@ export interface DecisionDeps {
   readonly ledger: LedgerClientDeps;
   readonly eligibility: EligibilityPort;
   readonly stepUp: StepUpPort;
+  /**
+   * Who is a factory admin, for the override (owner decision 2026-11-13, docs/specs/deletion.md §8). Absent: every
+   * override is refused (fail closed).
+   */
+  readonly admins?: FactoryAdminPort;
   readonly clock?: Clock;
   readonly policyBundleVersion?: string;
   /** A gate's expiry when its facts name none; a function is read on every open (portal v2 `gates.timers`). */

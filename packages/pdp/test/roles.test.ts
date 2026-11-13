@@ -30,7 +30,7 @@ const V2: ActionId[] = [...VIEWS, 'closeout.read'];
 /** Actions a role holds outright, and the gates it may decide (`decide`), by role. */
 const EXPECTED: Record<
   string,
-  { actions: ActionId[]; decides: (g: string) => boolean; cards?: boolean }
+  { actions: ActionId[]; decides: (g: string) => boolean; cards?: boolean; all?: true }
 > = {
   'project.admin': {
     actions: [
@@ -58,6 +58,11 @@ const EXPECTED: Record<
       'ops.read',
       'quality.read',
       'session.stop',
+      // Portal v2 (2026-11-13): the project admin deletes the project, its repos, items and bindings
+      'project.delete',
+      'repo.delete',
+      'item.delete',
+      'binding.delete',
     ],
     decides: (g) => GATE_POLICIES[g as keyof typeof GATE_POLICIES].slot === 'admin',
     cards: true,
@@ -131,7 +136,11 @@ const EXPECTED: Record<
       'session.stop',
       'quality.read',
     ],
-    decides: () => false,
+    // Owner decision 2026-11-13: nothing applies to the factory admin. Every action on every resource, every gate and
+    // card; what the role map does not grant is the override (`xcut/factory_admin_override`), checked below.
+    all: true,
+    decides: () => true,
+    cards: true,
   },
   // Fleet-bound: onboarding anywhere, and V1 reads. It decides no gate and no card.
   'factory.onboarder': { actions: [...VIEWS, 'project.onboard'], decides: () => false },
@@ -155,6 +164,7 @@ function expectAllowed(
   // Does the binding reach the resource? Independent of the generator: scope containment only.
   const reach = resourceScopes(res.res).some((s) => scopeCovers(scope, s));
   if (!reach) return false;
+  if (e.all) return true;
   if (action === 'gate.decide') return res.res.gate_id !== null && e.decides(res.res.gate_id);
   if (action === 'card.decide') return e.cards === true;
   return e.actions.includes(action);
@@ -183,8 +193,8 @@ describe('every role is allowed exactly its actions at its scope, denied elsewhe
             `${role.role_id} ${action} on ${res.name}: ${d.reasons.join(',')}`,
           ).toBe(want ? 'allow' : 'deny');
           if (want) allowed++;
-          // The generated grant agrees with the independent expectation.
-          if (applicable(action, res.res) && want)
+          // The generated grant agrees with the independent expectation (the override is not a role grant).
+          if (applicable(action, res.res) && want && !EXPECTED[role.role_id]?.all)
             expect(roleHolds(role, action, res.res)).toBe(true);
         }
       }

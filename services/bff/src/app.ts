@@ -33,6 +33,8 @@ import { registerAssistantRoutes } from './assistant.js';
 import { registerDriftRoutes } from './drift.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
 import { registerKillRoutes } from './kill.js';
+import { registerAdminRoutes } from './admin.js';
+import { carryOverride } from './override.js';
 import { registerOpsRoutes } from './ops.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerAuditRoutes } from './audit.js';
@@ -107,6 +109,8 @@ export interface BffAppOptions {
   readonly gateCheck?: CoreClient;
   /** The kill switch (RC-UI-1, scopes `act`, `read`), for `/api/kills/*` with the person's step-up; else 503. */
   readonly killswitch?: CoreClient;
+  /** Identity's API with scope `admin` (portal v2: people, teams and bindings, the PDP deciding each write there). */
+  readonly identity?: CoreClient;
   /** P2-5: the model gateway's admin API (scope `operate`): provider test and reload; without it those answer 503. */
   readonly gateway?: CoreClient;
   /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it the Sandboxes screen says so. */
@@ -421,6 +425,9 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
   }
   const authed = new WeakMap<FastifyRequest, Authed>();
 
+  // the factory admin's override reason rides along on every upstream call of the request (override.ts)
+  carryOverride(app);
+
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return;
     const now = clock.now();
@@ -665,6 +672,13 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     killswitch: o.killswitch,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  // portal v2: delete means delete, and people, teams and bindings written through identity's PDP
+  registerAdminRoutes({
+    app,
+    core: o.core,
+    identity: o.identity,
     principalOf: (req) => ctx(req).session.principal_id,
   });
   registerOpsRoutes({
