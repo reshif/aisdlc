@@ -2,6 +2,7 @@ export * from './errors.js';
 export * from './migrations.js';
 export {
   ConfigRegistry,
+  type ConfigDerivation,
   type ConfigDocRule,
   type ConfigKeyDef,
   type ConfigKind,

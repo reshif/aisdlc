@@ -90,7 +90,11 @@ export async function proposeRevision(
     );
   }
   const lineage = lineageOf(input.layer, scope);
-  const valid = deps.registry.validate(input.layer, input.doc);
+  // portal v2: derived keys (a regenerated policy bundle) are part of the revision the M1 approver decides
+  const valid = deps.registry.validate(
+    input.layer,
+    input.layer === 'factory' ? deps.registry.prepare(input.doc) : input.doc,
+  );
   if (!valid.ok) return valid;
   const doc = valid.value;
 

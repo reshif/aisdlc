@@ -68,6 +68,7 @@ import {
   type ProjectSettingsError,
   type ProjectSettingsPort,
 } from '@aisdlc/ports';
+import { registerRolesConfig } from '@aisdlc/pdp';
 import { runProjection } from '@aisdlc/record';
 import { z } from 'zod';
 import type pg from 'pg';
@@ -100,6 +101,8 @@ export function registerCoreConfig(registry: ConfigRegistry): ConfigRegistry {
   registerFloorConfig(registry);
   // Portal v2: every setting that was code or an environment variable (H1-H28), the catalogue's sections included
   registerSettingsConfig(registry);
+  // portal v2 (H11): roles and what they can do; a change regenerates the policy bundle in the same revision
+  registerRolesConfig(registry);
   return registry
     .setting({
       key: PROJECT_CONFIG_KEYS.role_map,
