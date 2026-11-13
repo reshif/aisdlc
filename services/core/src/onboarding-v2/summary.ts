@@ -188,6 +188,12 @@ export async function onboardingSummary(
         baseline_sha: c1.value.census.baseline_sha as never,
         posture: c1.value.census.posture.state,
         tier_floor: c1.value.floor,
+        t0_required: c1.value.t0_required,
+        attest: (['regulatory', 'criticality'] as const).filter((k) =>
+          (c1.value.census.risk_category.blocks_m4_reasons as readonly string[]).includes(
+            `${k}_unattested`,
+          ),
+        ),
         blockers_open: c1.value.census.blockers
           .filter((b) => b.status === 'blocked' || b.status === 'unknown')
           .map((b) => b.id),

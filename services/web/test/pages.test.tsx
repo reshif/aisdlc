@@ -4,7 +4,7 @@ import { EMPTY_ROLE_MAP } from '@aisdlc/contracts';
 import { describe, expect, it } from 'vitest';
 import { validateAgainst } from '../src/lib/schema';
 import { ENTRY_HASH, RECORD_HASH } from './cardFixtures';
-import { CARD_ID, NOW, S0_ID, me, mockApi, projectOf, renderAt, repoOf, s0 } from './helpers';
+import { CARD_ID, NOW, S0_ID, me, mockApi, renderAt } from './helpers';
 
 const GATE = '01a1bc26-f0e5-719a-a52b-a88a4b6cbe77';
 
@@ -308,27 +308,6 @@ describe('the settings revision (card 4 proposed it)', () => {
     );
     renderAt(`/revisions/${GATE}`);
     expect(await screen.findByText('Published: this role map is in force.')).toBeInTheDocument();
-  });
-
-  it('the S0 page says a revision is pending and links to it', async () => {
-    mockApi({
-      'GET /api/me': { json: me() },
-      [`GET /api/s0/${S0_ID}`]: {
-        json: s0({ status: 'running', states: { '0.4': 'done', '0.5': 'running' } }),
-      },
-      [`GET /api/s0/${S0_ID}/cards`]: { json: [] },
-      [`GET /api/s0/${S0_ID}/revision`]: { json: { revision: revision() } },
-      'GET /api/projects/testbed': { json: { project: projectOf(), repos: [repoOf()], s0: [] } },
-    });
-    renderAt(`/s0/${S0_ID}`);
-    const callout = await screen.findByRole('region', { name: 'Settings revision pending' });
-    expect(
-      within(callout).getByRole('link', { name: 'Decide the settings revision' }),
-    ).toHaveAttribute('href', `/revisions/${GATE}`);
-    expect(screen.getByRole('link', { name: 'Ledger entries of this onboarding' })).toHaveAttribute(
-      'href',
-      `/projects/testbed/ledger?s0=${S0_ID}`,
-    );
   });
 });
 

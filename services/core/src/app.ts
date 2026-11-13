@@ -2316,6 +2316,20 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     pack: o.onboardingPack,
     allowed: (req, scope) => allowed(req, scope as CoreScope),
     guard,
+    // each card the sign-off decides is the PDP's `card.decide` too (an override allow needs the reason)
+    cardAllowed: async (principal, project, cardId, overridden) => {
+      if (!o.pdp) return false;
+      try {
+        const d = await o.pdp.decide({
+          principal,
+          action: 'card.decide',
+          resource: pdpResource.card(project, cardId),
+        });
+        return d.decision === 'allow' && (!isAdminOverride(d) || overridden);
+      } catch {
+        return false;
+      }
+    },
   });
 
   // ------------------------------------------------------------ the assistant (M18)

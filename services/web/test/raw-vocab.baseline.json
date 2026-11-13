@@ -2,11 +2,8 @@
   "assistant/AskPage.tsx": 3,
   "assistant/Conversation.tsx": 1,
   "assistant/OnboardingAssistant.tsx": 2,
-  "cards/C1Form.tsx": 2,
   "cards/C2Form.tsx": 3,
   "cards/C3Form.tsx": 4,
-  "cards/C4Form.tsx": 4,
-  "cards/C5Panel.tsx": 4,
   "cards/ExceptionGate.tsx": 11,
   "cards/ReleaseGates.tsx": 6,
   "config/ConfigConsole.tsx": 2,
@@ -31,7 +28,6 @@
   "pages/LearnPage.tsx": 5,
   "pages/MyAccessPage.tsx": 5,
   "pages/PackPage.tsx": 1,
-  "pages/ProjectDetail.tsx": 3,
   "pages/PrrPage.tsx": 3,
   "pages/QualityPages.tsx": 2
 }

@@ -94,7 +94,7 @@ export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
       at(
         'projects',
         'project',
-        's0',
+        'onboardRecord',
         'readiness',
         'knowledge',
         'ledger',

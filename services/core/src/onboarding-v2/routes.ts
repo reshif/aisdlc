@@ -38,6 +38,13 @@ export interface OnboardingV2RouteDeps {
     resource: PdpResource,
     opts?: { readonly kernel?: boolean },
   ) => Promise<boolean>;
+  /** The PDP's `card.decide` on one card, without answering the request (any error is a no). */
+  readonly cardAllowed?: (
+    principal: string,
+    project: string,
+    cardId: string,
+    overridden: boolean,
+  ) => Promise<boolean>;
 }
 
 const Who = z.strictObject({ on_behalf_of: PrincipalId });
@@ -104,9 +111,18 @@ export function registerOnboardingV2Routes(r: OnboardingV2RouteDeps): void {
     ) {
       return;
     }
+    const override = overrideOf(req);
+    const cardAllowed = r.cardAllowed;
+    const project = loaded.s0.record.project_id;
     const v = await signOff({ cards, ...(r.config ? { config: r.config } : {}) }, id, {
       ...b.data,
-      override: overrideOf(req),
+      override,
+      ...(cardAllowed
+        ? {
+            mayDecide: (cardId: string) =>
+              cardAllowed(b.data.on_behalf_of, project, cardId, override !== undefined),
+          }
+        : {}),
     });
     return v.ok ? v.value : fail(reply, v.error);
   });

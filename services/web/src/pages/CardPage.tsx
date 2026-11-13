@@ -3,11 +3,8 @@ import type { CardKind } from '@aisdlc/contracts';
 import { api } from '../api';
 import { Badge } from '../components/Badge';
 import { PageError, Loading } from '../components/Notice';
-import { C1Form } from '../cards/C1Form';
 import { C2Form } from '../cards/C2Form';
 import { C3Form } from '../cards/C3Form';
-import { C4Form } from '../cards/C4Form';
-import { C5Panel } from '../cards/C5Panel';
 import { GateArtefacts } from '../cards/GateArtefacts';
 import { EXCEPTION_GATES, ExceptionGate } from '../cards/ExceptionGate';
 import { SecrForm } from '../cards/SecrForm';
@@ -51,11 +48,11 @@ export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: strin
   return kind.data.kind === 'work_gate' ? (
     <WorkGateCard id={id} csrf={csrf} me={me} />
   ) : (
-    <OnboardingCard id={id} csrf={csrf} me={me} />
+    <OnboardingCard id={id} csrf={csrf} />
   );
 }
 
-function OnboardingCard({ id, csrf, me }: { id: string; csrf: string; me: string }) {
+function OnboardingCard({ id, csrf }: { id: string; csrf: string }) {
   const q = useQuery({
     queryKey: ['card', id],
     queryFn: () => api.card(id),
@@ -71,7 +68,7 @@ function OnboardingCard({ id, csrf, me }: { id: string; csrf: string; me: string
   return (
     <>
       <p className="crumbs">
-        <Link to="/inbox">Inbox</Link> / <Link to={`/s0/${summary.s0_id}`}>Onboarding record</Link>
+        <Link to="/inbox">Inbox</Link> / <Link to={`/onboard/${summary.s0_id}`}>Onboarding</Link>
       </p>
       <h1>{TITLE[summary.card] ?? `Card ${summary.card}`}</h1>
       <p className="status-line">
@@ -81,11 +78,14 @@ function OnboardingCard({ id, csrf, me }: { id: string; csrf: string; me: string
         </span>
       </p>
       <fieldset className="plain-fieldset" disabled={!decidable} aria-label="Card">
-        {summary.card === 'C1' ? <C1Form card={card} csrf={csrf} me={me} /> : null}
+        {['C1', 'C4', 'C5'].includes(summary.card) ? (
+          <p data-testid="decided-on-summary">
+            This step is decided by the one onboarding sign-off.{' '}
+            <Link to={`/onboard/${summary.s0_id}`}>Open the onboarding summary</Link>
+          </p>
+        ) : null}
         {summary.card === 'C2' ? <C2Form card={card} csrf={csrf} /> : null}
         {summary.card === 'C3' ? <C3Form card={card} csrf={csrf} /> : null}
-        {summary.card === 'C4' ? <C4Form card={card} csrf={csrf} me={me} /> : null}
-        {summary.card === 'C5' ? <C5Panel card={card} csrf={csrf} /> : null}
         {summary.card === 'SECR' ? <SecrForm card={card} csrf={csrf} /> : null}
         {!['C1', 'C2', 'C3', 'C4', 'C5', 'SECR'].includes(summary.card) ? (
           <p className="muted">The portal does not show this kind of card yet.</p>

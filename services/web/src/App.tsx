@@ -13,11 +13,11 @@ import { PrrPage } from './pages/PrrPage';
 import { IssueTwinPage } from './pages/IssueTwinPage';
 import { DriftPage, ReaffirmPage } from './pages/DriftPage';
 import { RevisionPage } from './pages/RevisionPage';
-import { OnboardPage } from './pages/Onboard';
-import { ProjectDetailPage } from './pages/ProjectDetail';
+import { OnboardStart } from './onboard/OnboardStart';
+import { OnboardRecord } from './onboard/OnboardRecord';
+import { ProjectPage } from './projects/ProjectPage';
 import { KnowledgePage } from './pages/KnowledgePage';
-import { ProjectListPage } from './pages/ProjectList';
-import { S0Page } from './pages/S0Page';
+import { ProjectsPage } from './projects/ProjectsPage';
 import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
 import { MyAccessPage } from './pages/MyAccessPage';
 import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsPage';
@@ -176,7 +176,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'home':
       return <HomePage me={me} />;
     case 'projects':
-      return <ProjectListPage canOnboard={mayOnboard} />;
+      return <ProjectsPage canOnboard={mayOnboard} />;
     case 'floor':
       return <FloorPage me={me} />;
     case 'fleet':
@@ -226,11 +226,11 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'explain':
       return <ExplainPage me={me} />;
     case 'onboard':
-      return <OnboardPage csrf={me.csrf_token} mayOnboard={mayOnboard} />;
+      return <OnboardStart csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':
-      return <ProjectDetailPage id={route.id} csrf={csrf} />;
-    case 's0':
-      return <S0Page id={route.id} csrf={me.csrf_token} who={me.principal.display_name} />;
+      return <ProjectPage key={route.id} id={route.id} me={me} />;
+    case 'onboardRecord':
+      return <OnboardRecord key={route.id} id={route.id} me={me} />;
     case 'card':
       return <CardPage id={route.id} csrf={me.csrf_token} me={me.principal.principal_id} />;
     case 'item':

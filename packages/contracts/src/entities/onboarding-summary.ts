@@ -179,6 +179,10 @@ export const OnboardingSummaryView = z.strictObject({
       baseline_sha: GitSha,
       posture: z.string(),
       tier_floor: Tier,
+      /** Signing the lowest risk needs the owner's "no prod, no real data, no dependants". */
+      t0_required: z.boolean(),
+      /** What only the owner can attest before the scorecard can be signed. */
+      attest: z.array(z.enum(['regulatory', 'criticality'])),
       blockers_open: z.array(z.string()),
       gaps: z.array(
         z.strictObject({

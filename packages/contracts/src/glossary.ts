@@ -1,4 +1,6 @@
 import type {
+  SignOffState,
+  SummaryFixState,
   AgentId,
   ActionId,
   BannerSeverity,
@@ -1919,6 +1921,59 @@ const navGroup = {
   govern: t('Govern', 'Settings, integrations, people and the decision log.'),
 } as const satisfies Readonly<Record<string, Term>>;
 
+// ---------------------------------------------------------------- agent-led onboarding (portal v2, PROPOSED_TERMS)
+
+const FIX_TIP = 'A fix the onboarding agent proposes; a person merges it on GitHub.';
+/** The kinds of fix the onboarding agent proposes (`@aisdlc/agents` `OnboardingFixKind`). */
+const fixKind = {
+  codeowners: t('Code owners file', FIX_TIP),
+  agents_md: t('Agent instructions', FIX_TIP),
+  claude_md: t('Claude instructions', FIX_TIP),
+  protect_main_ruleset: t('Main branch protection', FIX_TIP),
+  test_command: t('Test command', FIX_TIP),
+} as const satisfies Readonly<Record<string, Term>>;
+
+const FIX_STATE_TIP = 'Where a proposed fix stands.';
+const fixState: Readonly<Record<SummaryFixState, Term>> = {
+  awaiting_approval: t('Waiting to open', FIX_STATE_TIP),
+  opening: t('Opening the PR', FIX_STATE_TIP),
+  pr_open: t('PR open', FIX_STATE_TIP),
+  pr_merged: t('Merged', FIX_STATE_TIP),
+  pr_closed: t('PR closed', FIX_STATE_TIP),
+  refused: t('Not opened', FIX_STATE_TIP),
+  manual: t('Do it on GitHub', FIX_STATE_TIP),
+};
+
+const SIGN_OFF_TIP = 'Where the one onboarding sign-off stands.';
+const signOffState: Readonly<Record<SignOffState, Term>> = {
+  not_ready: t('Agent working', SIGN_OFF_TIP),
+  ready: t('Ready to sign', SIGN_OFF_TIP),
+  in_progress: t('Signing', SIGN_OFF_TIP),
+  needs_step_up: t('Confirm it is you', SIGN_OFF_TIP),
+  waiting: t('Waiting', SIGN_OFF_TIP),
+  done: t('Signed off', SIGN_OFF_TIP),
+  closed: t('Closed', SIGN_OFF_TIP),
+};
+
+const TOPIC_TIP = 'What the onboarding agent looked at.';
+/** The topics of what the onboarding agent learned (`@aisdlc/agents` `OnboardingTopic`). */
+const onboardingTopic = {
+  owners: t('Owners', TOPIC_TIP),
+  tests: t('Tests', TOPIC_TIP),
+  branch_protection: t('Branch protection', TOPIC_TIP),
+  app_permissions: t('GitHub App access', TOPIC_TIP),
+  secrets: t('Secrets', TOPIC_TIP),
+  instructions: t('Agent instructions', TOPIC_TIP),
+  code_map: t('Code map', TOPIC_TIP),
+} as const satisfies Readonly<Record<string, Term>>;
+
+const LEARNED_TIP = 'What the onboarding agent found about one topic.';
+const learnedStatus = {
+  ok: t('Fine', LEARNED_TIP),
+  needs_fix: t('Needs a fix', LEARNED_TIP),
+  unknown: t('Unknown', LEARNED_TIP),
+} as const satisfies Readonly<Record<string, Term>>;
+
 // ---------------------------------------------------------------- the record
 
 export const GLOSSARY = {
@@ -1997,6 +2052,11 @@ export const GLOSSARY = {
   concept,
   screen,
   navGroup,
+  fixKind,
+  fixState,
+  signOffState,
+  onboardingTopic,
+  learnedStatus,
 } as const;
 
 export type Glossary = typeof GLOSSARY;
@@ -2048,6 +2108,36 @@ export const PROPOSED_TERMS: ReadonlyArray<readonly [GlossaryFamily, string]> = 
   ['configKey', 'sandbox.profiles'],
   ['configKey', 'planning.size_share'],
   ['configKey', 'access.roles'],
+  // portal v2 agent-led onboarding (Projects squad)
+  ['fixKind', 'codeowners'],
+  ['fixKind', 'agents_md'],
+  ['fixKind', 'claude_md'],
+  ['fixKind', 'protect_main_ruleset'],
+  ['fixKind', 'test_command'],
+  ['fixState', 'awaiting_approval'],
+  ['fixState', 'opening'],
+  ['fixState', 'pr_open'],
+  ['fixState', 'pr_merged'],
+  ['fixState', 'pr_closed'],
+  ['fixState', 'refused'],
+  ['fixState', 'manual'],
+  ['signOffState', 'not_ready'],
+  ['signOffState', 'ready'],
+  ['signOffState', 'in_progress'],
+  ['signOffState', 'needs_step_up'],
+  ['signOffState', 'waiting'],
+  ['signOffState', 'done'],
+  ['signOffState', 'closed'],
+  ['onboardingTopic', 'owners'],
+  ['onboardingTopic', 'tests'],
+  ['onboardingTopic', 'branch_protection'],
+  ['onboardingTopic', 'app_permissions'],
+  ['onboardingTopic', 'secrets'],
+  ['onboardingTopic', 'instructions'],
+  ['onboardingTopic', 'code_map'],
+  ['learnedStatus', 'ok'],
+  ['learnedStatus', 'needs_fix'],
+  ['learnedStatus', 'unknown'],
 ];
 
 /** The term of a value. Typed: a value the family does not have does not compile. */

@@ -65,7 +65,11 @@ const seqsOf = (x: { decision: { entries: ReadonlyArray<{ ledger_seq: number }> 
 export async function signOff(
   d: SignOffDeps,
   s0Id: string,
-  input: SignOffRequest & { override?: OverrideInput | undefined },
+  input: SignOffRequest & {
+    override?: OverrideInput | undefined;
+    /** The PDP's `card.decide` for this person on each card before it is decided (the HTTP layer's); absent: the kernel only. */
+    mayDecide?: (cardId: string) => Promise<boolean>;
+  },
 ): Promise<Result<SignOffResult, CoreError>> {
   const who = input.on_behalf_of as PrincipalId;
   if (who === ONBOARDING_AGENT_ACTOR || NOT_A_PERSON.test(who)) {
@@ -205,6 +209,11 @@ export async function signOff(
     }
 
     const card = next.card;
+    if (input.mayDecide && !(await input.mayDecide(card.card_id))) {
+      return err(
+        coreError('forbidden', `card.decide is not allowed on ${card.kind} for this person`),
+      );
+    }
     const prep = await prepareOnboardingCard(d.cards, {
       card_id: card.card_id,
       principal: who,

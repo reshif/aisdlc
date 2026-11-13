@@ -33,7 +33,7 @@ describe('the shell', () => {
       'POST /api/logout': { json: { ok: true } },
     });
     renderAt('/projects');
-    const list = await screen.findByRole('list', { name: 'Projects' });
+    const list = await screen.findByRole('table', { name: 'Projects' });
     const row = within(list).getByRole('link', { name: 'testbed' });
     expect(row).toHaveAttribute('href', '/projects/testbed');
     // the person is the avatar menu: their name, My access, My notifications, sign-out
@@ -57,7 +57,7 @@ describe('the shell', () => {
     expect(logout?.headers['x-csrf-token']).toBe('csrf-token-of-alice');
   });
 
-  it('the project list shows repos, level, tier and the latest S0 status; an unsigned level reads "Not signed yet"', async () => {
+  it('the project list shows repo, level and risk in plain words; an unsigned risk reads "Not signed yet"', async () => {
     mockApi({
       'GET /api/me': { json: me() },
       'GET /api/projects': {
@@ -76,16 +76,15 @@ describe('the shell', () => {
       },
     });
     renderAt('/projects');
-    const list = await screen.findByRole('list', { name: 'Projects' });
-    const rows = within(list).getAllByRole('listitem');
+    const list = await screen.findByRole('table', { name: 'Projects' });
+    const rows = within(list).getAllByRole('row').slice(1);
     const first = within(rows[0] as HTMLElement);
     expect(first.getByText('reshif/asf-factory-testbed')).toBeInTheDocument();
-    expect(first.getByText('Waiting for a decision')).toBeInTheDocument();
-    expect(first.getAllByText('Not signed yet')).toHaveLength(2);
+    expect(first.getByText('Not signed yet')).toBeInTheDocument();
     const second = within(rows[1] as HTMLElement);
-    expect(second.getByText('Light')).toBeInTheDocument();
-    expect(second.getByText('T1')).toBeInTheDocument();
-    expect(second.getByText('No onboarding')).toBeInTheDocument();
+    expect(second.getByText('Small changes')).toBeInTheDocument();
+    expect(second.getByText('Standard risk')).toBeInTheDocument();
+    expect(second.getByText('None')).toBeInTheDocument();
   });
 
   it('the onboard link is shown only to those the PDP lets onboard (cosmetic: the route decides)', async () => {
@@ -98,10 +97,10 @@ describe('the shell', () => {
   it('an empty list invites the first onboarding for an admin', async () => {
     mockApi({ 'GET /api/me': { json: me() }, 'GET /api/projects': { json: [] } });
     renderAt('/projects');
-    expect(await screen.findByRole('link', { name: 'Onboard the first repo.' })).toHaveAttribute(
-      'href',
-      '/onboard',
-    );
+    await screen.findByText('No projects yet');
+    for (const l of screen.getAllByRole('link', { name: 'Onboard a repo' })) {
+      expect(l).toHaveAttribute('href', '/onboard');
+    }
   });
 
   it('a failed list is an alert with a retry, not a blank page', async () => {
@@ -125,7 +124,7 @@ describe('the shell', () => {
     const user = userEvent.setup();
     mockApi({ 'GET /api/me': { json: me() }, 'GET /api/projects': { json: [summaryOf()] } });
     renderAt('/projects');
-    await screen.findByRole('list', { name: 'Projects' });
+    await screen.findByRole('table', { name: 'Projects' });
     await user.tab();
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveFocus();
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main');

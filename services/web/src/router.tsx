@@ -13,8 +13,9 @@ import {
 export type Route =
   | { name: 'home' }
   | { name: 'onboard' }
+  /** Portal v2: one onboarding, agent-led (`/onboard/<s0 id>`; `/s0/<id>` is the same page). */
+  | { name: 'onboardRecord'; id: string }
   | { name: 'project'; id: string }
-  | { name: 's0'; id: string }
   | { name: 'card'; id: string }
   | { name: 'item'; id: string }
   | { name: 'pack'; id: string }
@@ -82,6 +83,8 @@ export function parseRoute(path: string): Route {
   const p = path.replace(/\/+$/, '') || '/';
   if (p === '/') return { name: 'home' };
   if (p === '/onboard') return { name: 'onboard' };
+  const ob = /^\/onboard\/([^/]+)$/.exec(p);
+  if (ob) return { name: 'onboardRecord', id: decodeURIComponent(ob[1] as string) };
   const fixed = (STATIC_SCREENS as Readonly<Record<string, StaticScreen>>)[p];
   if (fixed) return { name: fixed };
   if (p === '/inbox') return { name: 'inbox' };
@@ -139,7 +142,7 @@ export function parseRoute(path: string): Route {
     return m[1] === 'projects'
       ? { name: 'project', id }
       : m[1] === 's0'
-        ? { name: 's0', id }
+        ? { name: 'onboardRecord', id }
         : m[1] === 'revisions'
           ? { name: 'revision', id }
           : m[1] === 'items'

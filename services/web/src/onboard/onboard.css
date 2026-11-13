@@ -1,0 +1,100 @@
+/* Onboard a repo and the project page (portal v2): layout only, on the design system's tokens and `ui-` parts. */
+
+.ob-split {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  margin-top: 16px;
+}
+.ob-main,
+.ob-rail {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.ob-rail {
+  position: sticky;
+  top: 12px;
+}
+.ob-list,
+.ob-check {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.ob-list > li {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.ob-list > li:last-child {
+  border-bottom: 0;
+}
+.ob-text {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.ob-steps {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+.ob-h3 {
+  font-size: 14px;
+  margin: 16px 0 8px;
+}
+.ob-repos {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.ob-repo,
+.ob-check-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 6px 0;
+}
+.ob-repo label,
+.ob-check-row label {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.ob-repo input,
+.ob-check-row input {
+  margin-top: 3px;
+  min-width: 18px;
+  min-height: 18px;
+}
+.ob-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.ob-main .ui-select,
+.ob-main .ui-input {
+  max-width: 100%;
+}
+.ob-assist {
+  padding: 14px;
+}
+.ob-slot {
+  min-width: 0;
+}
+.ob-tracks td,
+.ob-tracks th {
+  vertical-align: top;
+}
+
+@media (max-width: 860px) {
+  .ob-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ob-rail {
+    position: static;
+  }
+}

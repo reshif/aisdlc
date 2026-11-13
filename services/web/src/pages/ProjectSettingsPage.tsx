@@ -20,13 +20,13 @@ import { EmptyState, PageHead, Tabs } from '../ui';
 // pending revisions and the history.
 
 const LABEL: Readonly<Record<Key, string>> = {
-  'project.gating_profile': 'Gates',
+  'project.gating_profile': 'Approvals on or off',
   'project.role_map': 'Who decides',
-  'project.two_person': 'Two-person',
-  'project.release': 'Release (G5)',
-  'project.wip_limit': 'WIP limit',
-  'project.default_envelope': 'Default envelope',
-  'project.kill_delegations': 'Kill delegations',
+  'project.two_person': 'Two-person approvals',
+  'project.release': 'Releases',
+  'project.wip_limit': 'Work-in-progress limit',
+  'project.default_envelope': 'Default budget',
+  'project.kill_delegations': 'Who can stop agents',
 };
 
 const EDITORS: Partial<Record<Key, ComponentType<DraftEditorProps>>> = {
@@ -35,24 +35,31 @@ const EDITORS: Partial<Record<Key, ComponentType<DraftEditorProps>>> = {
 };
 
 export function ProjectSettingsPage({ id, csrf }: { id: string; csrf: string }) {
+  return (
+    <>
+      <PageHead
+        crumbs={[
+          { label: 'Projects', to: '/projects' },
+          { label: id, to: `/projects/${id}` },
+          { label: 'Settings' },
+        ]}
+        renderLink={(to, label) => <Link to={to}>{label}</Link>}
+        eyebrow="Project"
+        title="Settings"
+        sub="This project's approvals, who decides them and its limits. A change is proposed here and takes effect once the project's admin approves it."
+      />
+      <ProjectSettingsPanel id={id} csrf={csrf} />
+    </>
+  );
+}
+
+/** The project layer's keys, one tab each (portal v2: also the Settings tab of the project page). */
+export function ProjectSettingsPanel({ id, csrf }: { id: string; csrf: string }) {
   const q = useQuery({
     queryKey: ['project-config-keys', id],
     queryFn: () => api.projectConfigKeys(id),
   });
   const [tab, setTab] = useState<string | null>(null);
-  const head = (
-    <PageHead
-      crumbs={[
-        { label: 'Projects', to: '/projects' },
-        { label: id, to: `/projects/${id}` },
-        { label: 'Settings' },
-      ]}
-      renderLink={(to, label) => <Link to={to}>{label}</Link>}
-      eyebrow="Project"
-      title="Settings"
-      sub="This project's gates, who decides them and its limits. A change is proposed here and takes effect only after its M1 gate is decided by the project's admin slot."
-    />
-  );
   if (q.isPending) return <Loading what="the project's settings" />;
   if (q.isError) return <PageError error={q.error} retry={() => void q.refetch()} />;
   const keys = q.data.keys.filter(
@@ -60,17 +67,13 @@ export function ProjectSettingsPage({ id, csrf }: { id: string; csrf: string }) 
   );
   if (keys.length === 0) {
     return (
-      <>
-        {head}
-        <EmptyState title="No settings">The factory has no project settings registered.</EmptyState>
-      </>
+      <EmptyState title="No settings">The factory has no project settings registered.</EmptyState>
     );
   }
   const selected = keys.find((k) => k.key === tab)?.key ?? (keys[0] as { key: Key }).key;
   const editor = EDITORS[selected];
   return (
     <>
-      {head}
       {!q.data.may_propose ? (
         <p className="muted" data-testid="settings-read-only">
           You may read these settings; only the project&rsquo;s admins propose a change.
