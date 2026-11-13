@@ -3,8 +3,8 @@
 # no credentials. Run it as `npm run smoke:compose` or `platform/compose/smoke.sh`.
 #
 #   1. init-secrets (a no-op when the secrets exist), build the image
-#   2. `up -d --wait`: every service healthy, the one-shot jobs (db-init, volume-init, vault-init, migrate, seed)
-#      exited 0
+#   2. `up -d --wait`: every service healthy, the one-shot jobs (db-init, volume-init, vault-init, object-store-init,
+#      migrate, seed) exited 0
 #   3. the boundaries hold: only bff and keycloak publish a port, no Docker socket anywhere, the App
 #      key only in codehost, knowledge cannot reach GitHub, the codehost cannot reach the trust plane,
 #      the Notary and the Witness cannot reach each other
@@ -42,17 +42,34 @@
 #      package mirror on its per-session internal network and nothing else); a create body with Privileged=true
 #      (and host network, host PID, an added capability, the socket as a bind, a root user, exec, build, pull) is
 #      refused by the proxy; no sandbox container, network or scratch directory is left behind
+#  11b. delete means delete (portal v2, docs/specs/deletion.md): as a factory admin through the bff (signed in through
+#      Keycloak), a team and a binding are created, previewed and deleted, a person is created and deleted (identity's
+#      write API, scope admin, decided by its PDP; core's delete routes, scope delete, on the purge login); no record
+#      event of the three names them any more, a `deletion.performed` entry per deletion is in the ledger, the purge
+#      login alone may take the purge role, the deletion's object-store user lifts a hold and removes a version but
+#      reads nothing, and verify-ledger --allow-redacted passes
 #  12. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
 #
 # SMOKE_SKIP_BUILD=1   use the image AISDLC_FACTORY_IMAGE (default aisdlc/factory:local) as it is (a network that blocks apt or
 #                      the npm registry: build it yourself, see README.md)
 # SMOKE_KEEP=1         leave the stack running at the end (you remove it with `docker compose down -v`)
+# AISDLC_BFF_PORT, AISDLC_OIDC_PORT   the two published ports (default 8340, 8390), to run beside another stack
 set -euo pipefail
 cd "$(dirname "$0")"
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-smoke}"
 # its own subnets (docker-compose.yml: every network has a /24 under this prefix), so it can run beside another stack
 export AISDLC_SUBNET_PREFIX="${AISDLC_SUBNET_PREFIX:-10.232}"
+# the portal's and Keycloak's published ports; Keycloak's issuer names its port, so another one gets its own IdP seed
+export AISDLC_BFF_PORT="${AISDLC_BFF_PORT:-8340}" AISDLC_OIDC_PORT="${AISDLC_OIDC_PORT:-8390}"
+BFF_PORT=$AISDLC_BFF_PORT OIDC_PORT=$AISDLC_OIDC_PORT
+SMOKE_SEED_DIR=""
+if [ "$OIDC_PORT" != 8390 ]; then
+  SMOKE_SEED_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aisdlc-smoke-idp.XXXXXX")"
+  export AISDLC_IDP_SEED_FILE="$SMOKE_SEED_DIR/idp-seed.json"
+  sed "s#http://keycloak.localhost:8390/#http://keycloak.localhost:$OIDC_PORT/#g" config/keycloak-idp-seed.json >"$AISDLC_IDP_SEED_FILE"
+  chmod 755 "$SMOKE_SEED_DIR"; chmod 644 "$AISDLC_IDP_SEED_FILE"
+fi
 # The checkpointer runs every 5 minutes by default; a smoke test cannot wait that long.
 export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
 # core-worker records the kill switch's journal every few seconds; a smoke test cannot wait for the default.
@@ -93,6 +110,7 @@ cleanup() {
     own_sandboxes ps -aq | xargs -r docker rm -f >/dev/null 2>&1 || true
     own_sandboxes network ls -q | xargs -r docker network rm >/dev/null 2>&1 || true
     rm -rf "$SANDBOX_SCRATCH"
+    [ -z "$SMOKE_SEED_DIR" ] || rm -rf "$SMOKE_SEED_DIR"
     echo "== stack removed (down -v): $(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) containers, $(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) volumes left"
   fi
   exit "$code"
@@ -103,7 +121,7 @@ trap 'exit 130' INT TERM
 step "init-secrets and image"
 ./init-secrets
 # A stack of another project holding the two published ports would fail the start late and obscurely.
-for p in 8340 8390; do
+for p in "$BFF_PORT" "$OIDC_PORT"; do
   if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then fail "port $p is already in use on this host (another stack?)"; fi
 done
 # shellcheck source=kc-login.sh
@@ -135,7 +153,7 @@ step "every service is healthy"
 bad=0
 while IFS='|' read -r svc state health code; do
   case "$svc" in
-    db-init|volume-init|vault-init|migrate|seed)
+    db-init|volume-init|vault-init|object-store-init|migrate|seed)
       if [ "$state" = exited ] && [ "$code" = 0 ]; then printf '  %-12s exited 0\n' "$svc"; else printf '  %-12s %s (exit %s)  <-- not ok\n' "$svc" "$state" "$code"; bad=1; fi ;;
     *)
       if [ "$state" = running ] && [ "$health" = healthy ]; then printf '  %-12s healthy\n' "$svc"; else printf '  %-12s %s/%s  <-- not ok\n' "$svc" "$state" "$health"; bad=1; fi ;;
@@ -310,17 +328,17 @@ echo "  ledger entries signed by the Notary: $entries"
 
 step "login through Keycloak reaches the bff"
 jar=$(mktemp); trap 'rc=$?; rm -f "$jar"; cleanup "$rc"' EXIT
-kc_login 8340 8390 alice secrets/keycloak-persona-password "$jar" || fail "alice could not sign in through Keycloak"
-me=$(curl -fsS -b "$jar" http://localhost:8340/api/me)
+kc_login "$BFF_PORT" "$OIDC_PORT" alice secrets/keycloak-persona-password "$jar" || fail "alice could not sign in through Keycloak"
+me=$(curl -fsS -b "$jar" http://localhost:$BFF_PORT/api/me)
 echo "  /api/me: $(printf '%s' "$me" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s);console.log(`${m.principal.principal_id} (${m.principal.display_name}), fleet actions: ${m.actions.fleet.join(", ")}`)})')"
 printf '%s' "$me" | grep -q '"project.onboard"' || fail "alice is not a factory admin through the bff"
 fa_jar=$(mktemp)
-kc_login 8340 8390 factory-admin secrets/keycloak-factory-admin-password "$fa_jar" || fail "the break-glass account could not sign in"
-curl -fsS -b "$fa_jar" http://localhost:8340/api/me | grep -q '"project.onboard"' || fail "factory-admin is not a factory admin"
+kc_login "$BFF_PORT" "$OIDC_PORT" factory-admin secrets/keycloak-factory-admin-password "$fa_jar" || fail "the break-glass account could not sign in"
+curl -fsS -b "$fa_jar" http://localhost:$BFF_PORT/api/me | grep -q '"project.onboard"' || fail "factory-admin is not a factory admin"
 rm -f "$fa_jar"
 echo "  the break-glass local account factory-admin signs in through Keycloak and is a factory admin"
 wrong=$(mktemp); printf 'not-the-password-%s' "$RANDOM" >"$wrong"
-if kc_login 8340 8390 lt "$wrong" "$(mktemp)" 2>/dev/null; then fail "a wrong password signed lt in"; fi
+if kc_login "$BFF_PORT" "$OIDC_PORT" lt "$wrong" "$(mktemp)" 2>/dev/null; then fail "a wrong password signed lt in"; fi
 rm -f "$wrong"
 echo "  a wrong password is refused by Keycloak"
 
@@ -347,7 +365,7 @@ const r = JSON.parse(require("fs").readFileSync(`/run/secrets/vault-approle-${pr
 echo "  the gateway and the codehost are each refused the other's folder"
 put_status=$(curl -sS -o /dev/null -w '%{http_code}' -b "$jar" -X PUT -H 'content-type: application/json' \
   -H "x-csrf-token: $(printf '%s' "$me" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).csrf_token))')" \
-  --data "{\"value\":\"sk-ant-smoke-$(openssl rand -hex 16)\"}" http://localhost:8340/api/secrets/anthropic-api-key)
+  --data "{\"value\":\"sk-ant-smoke-$(openssl rand -hex 16)\"}" http://localhost:$BFF_PORT/api/secrets/anthropic-api-key)
 [ "$put_status" = 200 ] || fail "alice could not put the Anthropic key through the portal's API ($put_status)"
 echo "  alice put the Anthropic key through /api/secrets (bff -> core -> Vault): 200, metadata only"
 [ "$(vread core core gateway/anthropic-api-key)" = 403 ] || fail "core may read back a value it wrote"
@@ -608,6 +626,95 @@ echo "  left behind: $left sandbox containers, $nets session networks, $dirs scr
 mirror_nets=$(docker inspect "$(dc ps -q package-mirror)" --format '{{len .NetworkSettings.Networks}}')
 [ "$mirror_nets" = 1 ] || fail "the package mirror is still attached to $mirror_nets networks"
 echo "  the package mirror is on its own network only again"
+
+step "delete means delete: a team, a binding and a person, created and deleted through the bff as a factory admin"
+# alice signs in again (a fresh session and CSRF token); every write is the person's, decided by a PDP: identity's for
+# the creates (scope admin), core's for the previews and deletes (scope delete, on the purge login)
+del_jar=$(mktemp)
+kc_login "$BFF_PORT" "$OIDC_PORT" alice secrets/keycloak-persona-password "$del_jar" || fail "alice could not sign in for the deletions"
+csrf_of() { curl -fsS -b "$1" "http://localhost:$BFF_PORT/api/me" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).csrf_token))'; }
+del_csrf=$(csrf_of "$del_jar")
+api() { # method path [json] [jar csrf] -> prints "<status> <body>"
+  local out code jar="${4:-$del_jar}" csrf="${5:-$del_csrf}"
+  out=$(mktemp)
+  code=$(curl -sS -o "$out" -w '%{http_code}' -b "$jar" -X "$1" -H 'content-type: application/json' \
+    -H "x-csrf-token: $csrf" ${3:+--data "$3"} "http://localhost:$BFF_PORT$2")
+  printf '%s %s\n' "$code" "$(cat "$out")"
+  rm -f "$out"
+}
+must() { # expected-status label method path [json] -> the body
+  local r
+  r=$(api "$3" "$4" "${5:-}")
+  [ "${r%% *}" = "$1" ] || fail "$2: expected $1, got ${r:0:400}"
+  printf '%s' "${r#* }"
+}
+jget() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let v=JSON.parse(s);for(const k of process.argv[1].split("."))v=v?.[k];console.log(typeof v==="object"?JSON.stringify(v):v)})' "$1"; }
+DEL_TEAM=smoke-del-team DEL_GROUP=smoke-del-group DEL_PERSON=smoke-del-person
+must 200 "create team" POST /api/teams "{\"team\":{\"team_id\":\"$DEL_TEAM\",\"name\":\"Smoke deletion team\",\"classification\":\"internal\",\"idp_group\":null}}" >/dev/null
+must 200 "create group" POST /api/groups "{\"group\":{\"group_id\":\"$DEL_GROUP\",\"display\":\"Smoke deletion group\",\"pim_managed\":false,\"protected\":false}}" >/dev/null
+DEL_BINDING=$(must 200 "create binding" POST /api/bindings "{\"group_id\":\"$DEL_GROUP\",\"role_id\":\"project.viewer\",\"scope\":{\"kind\":\"project\",\"ref\":\"testbed\"}}" | jget binding_id)
+must 200 "create person" POST /api/people "{\"principal\":{\"principal_id\":\"$DEL_PERSON\",\"kind\":\"human\",\"display_handle\":\"smokedel\",\"display_name\":\"Smoke Deletion Person\"}}" >/dev/null
+echo "  created through identity (scope admin): team $DEL_TEAM, binding $DEL_BINDING (project.viewer on testbed), person $DEL_PERSON"
+# a person who holds no admin role is refused the same writes (the PDPs decide, not the bff)
+rb_jar=$(mktemp)
+kc_login "$BFF_PORT" "$OIDC_PORT" rb secrets/keycloak-persona-password "$rb_jar" || fail "rb could not sign in"
+rb_csrf=$(csrf_of "$rb_jar")
+rb_team=$(api POST /api/teams '{"team":{"team_id":"smoke-rb-team","name":"x","classification":"internal","idp_group":null}}' "$rb_jar" "$rb_csrf")
+rb_del=$(api DELETE "/api/teams/$DEL_TEAM" "{\"reason\":\"not mine to delete\",\"confirm\":\"$DEL_TEAM\"}" "$rb_jar" "$rb_csrf")
+rm -f "$rb_jar"
+[ "${rb_team%% *}" = 403 ] && [ "${rb_del%% *}" = 403 ] || fail "rb (no admin role) was not refused: create team ${rb_team:0:200}, delete team ${rb_del:0:200}"
+echo "  rb (no admin role) is refused both: create team ${rb_team%% *}, delete team ${rb_del%% *}"
+for kv in "team $DEL_TEAM" "binding $DEL_BINDING"; do
+  pv=$(must 200 "preview ${kv%% *}" POST /api/deletions/preview "{\"kind\":\"${kv%% *}\",\"id\":\"${kv#* }\"}")
+  [ "$(printf '%s' "$pv" | jget blockers)" = '[]' ] || fail "the ${kv%% *} preview has blockers: $pv"
+  echo "  preview ${kv%% *}: $(printf '%s' "$pv" | jget counts)"
+done
+for kv in "teams $DEL_TEAM" "bindings $DEL_BINDING" "people $DEL_PERSON"; do
+  bad=$(api DELETE "/api/${kv%% *}/${kv#* }" '{"reason":"smoke test of delete means delete","confirm":"not-the-id"}')
+  [ "${bad%% *}" != 200 ] || fail "a ${kv%% *} delete went through with the wrong confirmation"
+  res=$(must 200 "delete ${kv%% *}" DELETE "/api/${kv%% *}/${kv#* }" "{\"reason\":\"smoke test of delete means delete\",\"confirm\":\"${kv#* }\"}")
+  echo "  DELETE /api/${kv%% *}/<id> (a wrong confirmation first: ${bad%% *}): $(printf '%s' "$res" | jget counts)"
+done
+rm -f "$del_jar"
+naming="stream IN ('team:$DEL_TEAM', 'binding:$DEL_BINDING', 'principal:$DEL_PERSON')
+  OR (redacted_at IS NULL AND (body::text LIKE '%$DEL_TEAM%' OR body::text LIKE '%$DEL_BINDING%' OR body::text LIKE '%$DEL_PERSON%'))"
+left=$(psqlq "SELECT count(*) FROM record.record_event WHERE $naming")
+rows=$(psqlq "SELECT (SELECT count(*) FROM identity.team WHERE team_id = '$DEL_TEAM') + (SELECT count(*) FROM identity.binding WHERE binding_id::text = '$DEL_BINDING') + (SELECT count(*) FROM identity.principal WHERE principal_id = '$DEL_PERSON')")
+performed=$(psqlq "SELECT count(*) FROM ledger.ledger_entry WHERE entry_type = 'deletion.performed'")
+ledger_left=$(psqlq "SELECT count(*) FROM ledger.ledger_entry WHERE redacted_at IS NULL AND entry_type <> 'deletion.performed'
+  AND (to_jsonb(ledger_entry)::text LIKE '%$DEL_TEAM%' OR to_jsonb(ledger_entry)::text LIKE '%$DEL_BINDING%' OR to_jsonb(ledger_entry)::text LIKE '%$DEL_PERSON%')")
+ledger_redacted=$(psqlq "SELECT count(*) FROM ledger.ledger_entry WHERE entry_type = 'redacted'")
+purged=$(psqlq "SELECT count(*) FROM record.purged_event")
+echo "  record events naming the three (unredacted): $left; ledger entries naming them (unredacted): $ledger_left; redacted ledger entries: $ledger_redacted"
+echo "  identity rows left: $rows; deletion.performed entries: $performed; purged events: $purged"
+[ "$ledger_left" = 0 ] && [ "$ledger_redacted" -ge 1 ] || fail "a ledger entry of a deleted object was not redacted (the binding's access.binding_created)"
+[ "$left" = 0 ] || fail "the record still has events of a deleted object: $(psqlq "SELECT stream || ' ' || type FROM record.record_event WHERE $naming" | head -5 | tr '\n' ';')"
+[ "$rows" = 0 ] || fail "identity still has rows of a deleted object"
+[ "$performed" -ge 3 ] && [ "$purged" -gt 0 ] || fail "the deletions left no deletion.performed entries or purged events"
+# the purge role: core's deletion login may take it, core's normal login may not (record/0005, db-init.sh)
+as_login() { local pw; pw="$(cat "secrets/pg-pass-$1")"; dc exec -T -e PGPASSWORD="$pw" postgres psql -h 127.0.0.1 -U "$2" -d aisdlc -At -c "$3" 2>&1 || true; }
+as_login purge core_purge 'BEGIN; SET LOCAL ROLE aisdlc_purge; SELECT current_user; ROLLBACK;' | grep -qx aisdlc_purge || fail "the purge login cannot take the purge role"
+as_login aisdlc aisdlc 'SET ROLE aisdlc_purge' | grep -q 'permission denied' || fail "core's normal login may take the purge role"
+as_login purge core_purge "BEGIN; SET LOCAL ROLE aisdlc_purge; DELETE FROM record.record_event WHERE stream LIKE 'config:%'; ROLLBACK;" | grep -q 'append-only' ||
+  fail "the purge role deleted a record event no purge accounts for"
+echo "  core_purge may SET ROLE aisdlc_purge, aisdlc may not; a delete no purge accounts for is refused by the trigger"
+# the deletion's object-store user (object-store-init): from core, the one service that mounts it, exactly the requests
+# S3ObjectStore.purge sends: it lifts a legal hold and removes the version, and is refused a read and a write
+osmc() { # mc inside the store's container (its image ships mc), as the store's root credential
+  dc exec -T -e MC_CONFIG_DIR=/tmp/mc -e "MC_HOST_s=http://$(cat secrets/object-store-access-key):$(cat secrets/object-store-secret-key)@127.0.0.1:9000" \
+    object-store mc --quiet "$@" 2>&1
+}
+osmc mb --ignore-existing --with-lock s/evidence-packs >/dev/null || fail "no evidence-packs bucket"
+dc exec -T object-store bash -c 'printf "smoke pack %s" "$RANDOM" >/tmp/smoke-pack'
+obj="smoke-$(openssl rand -hex 8)"
+osmc cp --legal-hold on /tmp/smoke-pack "s/evidence-packs/$obj" >/dev/null || fail "could not store a held object"
+osmc rm --versions --force "s/evidence-packs/$obj" >/dev/null 2>&1 || true
+[ -n "$(osmc ls --versions "s/evidence-packs/$obj")" ] || fail "a held object was removed before its hold was lifted"
+dc exec -T -e BUCKET=evidence-packs -e KEY="$obj" core node --input-type=module -e "$(cat purge-probe.mjs)" ||
+  fail "the deletion's store credential did not lift the hold and remove the version, or it may read or write"
+[ -z "$(osmc ls --versions "s/evidence-packs/$obj")" ] || fail "the object is still in the store"
+echo "  the purge user (aisdlc-core-purge, from core): read and write refused, the legal hold lifted, the version removed"
+./verify-ledger.sh --wait 150 --allow-redacted || fail "the ledger did not verify with the deletions' redactions"
 
 step "memory at idle (docker stats, once)"
 docker stats --no-stream --format '  {{printf "%-34s" .Name}} {{.MemUsage}}' $(dc ps -q) | sort

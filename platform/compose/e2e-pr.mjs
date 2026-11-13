@@ -155,6 +155,7 @@ async function personOf(who) {
   await page.getByRole('link', { name: 'Sign in' }).first().click();
   // the identity provider (Keycloak): the person's username and the test people's password
   await idpSignIn(page, who, composeDir);
+  // signed in: the account menu (portal v2: Sign out lives inside it)
   await page.getByRole('button', { name: /^Account: / }).waitFor();
   const csrf = async () => (await (await context.request.get(`${base}/api/me`)).json()).csrf_token;
   const p = {

@@ -37,6 +37,12 @@ export interface S3ObjectStoreConfig {
   readonly accessKeyRef: string;
   readonly secretKeyRef: string;
   readonly maxObjectBytes?: number;
+  /**
+   * Buckets the deployment says exist, with their mode, taken as declared without a request. For a credential that may
+   * not create or configure a bucket: the deletion's, which only lifts holds and deletes versions (a bucket that is
+   * missing then answers `unavailable`, never a success).
+   */
+  readonly knownBuckets?: Readonly<Record<string, BucketMode>>;
   /** Per-request timeout. Default 30 s. */
   readonly timeoutMs?: number;
   /** For tests: a fetch and a clock. */
@@ -76,6 +82,11 @@ export class S3ObjectStore implements ObjectStorePort, ObjectPurgePort {
     this.timeoutMs = cfg.timeoutMs ?? 30_000;
     this.doFetch = cfg.fetch ?? fetch;
     this.now = cfg.now ?? (() => new Date());
+    for (const [bucket, mode] of Object.entries(cfg.knownBuckets ?? {})) {
+      const bad = checkBucket(bucket);
+      if (bad) throw new Error(bad.message);
+      this.modes.set(bucket, mode);
+    }
   }
 
   /** The signed request, for callers that need a call the port does not have (tests, bucket maintenance). Never throws. */

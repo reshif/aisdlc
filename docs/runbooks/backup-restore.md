@@ -9,15 +9,15 @@ demand (`npm run drill:restore`).
 
 | Part | Where it lives | How | Why it matters |
 |---|---|---|---|
-| Roles and memberships | the Postgres cluster | `pg_dumpall --globals-only --no-role-passwords` | every service's least-privilege login role (`gateway`, `sandbox_controller`, `verify`, `gate_check`, `gate_relay`, `notifier`, `audit`) and the group roles the migrations grant to (`aisdlc_app`, `aisdlc_gateway`, ...). Passwords are not in the dump: they are the secret files, and db-init re-applies them on every up |
+| Roles and memberships | the Postgres cluster | `pg_dumpall --globals-only --no-role-passwords` | every service's least-privilege login role (`gateway`, `sandbox_controller`, `verify`, `gate_check`, `gate_relay`, `notifier`, `audit`, and core's deletion login `core_purge`, the one member of `aisdlc_purge`) and the group roles the migrations grant to (`aisdlc_app`, `aisdlc_gateway`, `aisdlc_purge`, ...). Passwords are not in the dump: they are the secret files, and db-init re-applies them on every up |
 | Database `aisdlc` | Postgres | `pg_dump -Fc` | the record (`record_event`, outbox, projections), the ledger and its checkpoints, decisions, config, identity, directory, core, bff, knowledge, and the gateway's, sandbox-controller's, verify's, gate-check's, gate-relay's, notifier's and audit's own schemas |
 | Databases `notary`, `witness`, `killswitch` | Postgres | `pg_dump -Fc` each | the Notary's journal and chain head, the Witness's co-signed checkpoints, the kill switch's signed journal, kills, approvals, delegations and holders |
 | Database `keycloak` | Postgres | `pg_dump -Fc` | the sign-in realm `aisdlc`: its users (the break-glass `factory-admin`, the test people), their passwords and OTP devices, the bff client, sessions |
 | Any other database of the cluster | Postgres | `pg_dump -Fc` | taken too, so a database added later is not silently left out |
-| Object store | volume `objectstore-data` (MinIO) | tar of the volume while the store is paused | the write-once `evidence-packs` bucket (signed Evidence Packs and D2 Handoff Packs, under object lock) and every other bucket |
+| Object store | volume `objectstore-data` (MinIO) | tar of the volume while the store is paused | the write-once `evidence-packs` bucket (signed Evidence Packs and D2 Handoff Packs, under object lock), every other bucket, and the store's users and policies (the deletion's `aisdlc-core-purge`; `object-store-init` puts it back on every up anyway) |
 | Key custody | volume `kms-state` | tar of the volume | the Notary's, Witness's, kill switch's, step-up and fingerprint keys (`dev:` keys locally; KMS in production) |
 | Vault | volume `vault-data` | tar of the volume while Vault is paused | the secrets pasted in the portal (model keys, App keys, webhooks), encrypted by Vault; opened only with the unseal key below |
-| Secrets and settings | `platform/compose/secrets/`, `.env` | tar and copy | service tokens, database passwords, the GitHub App key, the object store's credentials, Vault's unseal key, root token and AppRoles (`secrets/vault/`), Keycloak's passwords, the uid and App settings |
+| Secrets and settings | `platform/compose/secrets/`, `.env` | tar and copy | service tokens, database passwords (the deletion's `pg-pass-purge`, `db-url-purge` among them), the GitHub App key, the object store's credentials (root and the deletion's `object-store-purge-*`), Vault's unseal key, root token and AppRoles (`secrets/vault/`), Keycloak's passwords, the uid and App settings |
 
 Not backed up: `codehost-work` and `knowledge-work` (clones and indexes rebuilt from GitHub at the next census), the
 sandbox scratch directory, logs and telemetry.
@@ -78,6 +78,15 @@ browser e2e when Playwright resolves, `DRILL_DATA=e2e`; else an onboarding throu
 kept engaged and a kill released, quiesce, backup, `down -v` and the secrets moved away, restore, every check above,
 then `down -v`. Its own project (`aisdlc-drill`) and subnets (`10.237`); `DRILL_SKIP_BUILD=1` with `AISDLC_FACTORY_IMAGE` uses
 an image as it is; `DRILL_KEEP=1` leaves the restored stack up; `DRILL_BACKUP_DIR` keeps the backup.
+
+### A restore un-deletes
+
+A backup taken before a deletion (`docs/specs/deletion.md` §6) still holds the deleted object, and restoring it brings
+the object back: the factory cannot reach into a backup. After a restore, list the `deletion.performed` ledger entries
+newer than the backup's `ledger_head` (`manifest.json`) on the stack the backup replaced, and delete those objects
+again through the portal (or core's `DELETE` routes) before anyone uses the factory. Their ids are hashed in the
+ledger, so the plain ids must come from wherever the operator kept the deletion requests; the factory keeps none (an
+owner decision still open, §7.1 of the spec). Expire backups on the schedule the owner sets.
 
 ## 5. RPO and RTO
 
