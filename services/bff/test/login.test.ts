@@ -79,7 +79,11 @@ describe('login', () => {
     expect(seen).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\./); // no JWT of any kind
     expect(seen).not.toMatch(/dev-at-|dev-rt-/); // no access or refresh token
     expect(seen).not.toContain(CLIENT.client_secret);
-    expect(browser.setCookies.join('\n')).not.toMatch(/eyJ|dev-at|dev-rt/);
+    // the cookies hold random ids, which can contain "eyJ" by chance: look for a JWT's shape and the token prefixes
+    const cookies = browser.setCookies.join('\n');
+    expect(cookies).not.toContain(idToken);
+    expect(cookies).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\./);
+    expect(cookies).not.toMatch(/dev-at-|dev-rt-/);
   });
 
   it('GET /api/me: the directory summary, the CSRF token and what the PDP permits at the top level', async () => {
