@@ -375,6 +375,43 @@ describe('notifications', () => {
     expect(screen.getByText('team-slack: delivered')).toBeInTheDocument();
   });
 
+  it('questions raised (P2-16): the round of how many and the PARK date, linked to the item', async () => {
+    const item = '0190a8c4-6d6f-7b8e-9a1b-2c3d4e5f6a80';
+    mockApi({
+      'GET /api/me': { json: me() },
+      'GET /api/me/notifications': {
+        json: {
+          notifications: [
+            {
+              notification_id: '0190a8c4-6d6f-7b8e-9a1b-2c3d4e5f6a81',
+              content: {
+                kind: 'questions_waiting',
+                project_id: 'testbed',
+                gate_id: null,
+                gate_instance_id: null,
+                card_id: null,
+                kill_id: null,
+                due_at: '2026-11-19T10:00:00.000Z',
+                link_path: `/items/${item}`,
+                item_id: item,
+                round: 2,
+                rounds_left: 0,
+              },
+              reason: 'requester',
+              raised_at: NOW,
+              deliveries: [],
+            },
+          ],
+        },
+      },
+    });
+    renderAt('/me/notifications');
+    expect(
+      await screen.findByRole('link', { name: 'Your request has questions for you' }),
+    ).toHaveAttribute('href', `/items/${item}`);
+    expect(screen.getByText('round 2 of 2 · parks 2026-11-19 10:00 UTC')).toBeInTheDocument();
+  });
+
   it('says so when the notifier is not there, and nothing else breaks', async () => {
     mockApi({
       'GET /api/me': { json: me() },

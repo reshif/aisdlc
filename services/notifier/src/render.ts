@@ -72,10 +72,14 @@ function full(c: NotificationContent): { subject: string; line: string } {
       };
     case 'questions_waiting': {
       const left = c.rounds_left ?? null;
+      const round = c.round ?? null;
       return {
         subject: `Your request on ${p} has questions for you`,
         line:
           `The factory asked you questions about your request on project ${p} and cannot go on without the answers.` +
+          (round === null
+            ? ''
+            : ` This is round ${round}${left === null ? '' : ` of ${round + left}`}.`) +
           (left === null
             ? ''
             : left === 0

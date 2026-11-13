@@ -41,10 +41,15 @@ const KIND_TEXT: Readonly<Record<NotificationKind, string>> = {
 function detailOf(n: NotificationView): string {
   const c = n.content;
   const parts: string[] = [];
-  if (c.kind === 'questions_waiting' && c.rounds_left != null)
+  // P2-16: "round 1 of 2 · parks <date>", as the item page says it (`ItemView.clarify`)
+  if (c.kind === 'questions_waiting' && c.round != null)
+    parts.push(
+      c.rounds_left == null ? `round ${c.round}` : `round ${c.round} of ${c.round + c.rounds_left}`,
+    );
+  else if (c.kind === 'questions_waiting' && c.rounds_left != null)
     parts.push(c.rounds_left === 0 ? 'last round' : `${c.rounds_left} round(s) left`);
   if (c.kind === 'questions_waiting' && c.due_at !== null)
-    parts.push(`parked ${shortTime(c.due_at)}`);
+    parts.push(`parks ${shortTime(c.due_at)}`);
   else if (c.kind === 'item_parked' && c.due_at !== null)
     parts.push(`abandoned ${shortTime(c.due_at)}`);
   else if (c.due_at !== null) parts.push(`due ${shortTime(c.due_at)}`);

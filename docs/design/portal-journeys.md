@@ -59,7 +59,7 @@ Persona: alice as requester (she holds `requesters` on testbed), and bob as appr
    - A duplicate is detected (`dedupe_links` names item 70933bc8) but is not shown.
 3. Clarification (1.5, B1): when the classifier asks, "Questions from the factory" lists each question with an answer box and
    "Send answer". An answer that looks like an instruction is flagged.
-   - Rounds left and the PARK date are not shown, and no notification tells the requester a question waits (P2-16).
+   - The round, its limit and the PARK date are shown (`ItemView.clarify`), and the notifier tells the requester each round of questions with the same round and date (`questions_waiting`, P2-16).
    - On this stack the fake asked nothing.
 4. Ready (1.6): "Is this ready?", then **Say it is ready**. The item moves to "Waiting for decisions: G0, G1". `SHOT/alice-item-ready.png`
 5. G0+G1 (bob):
