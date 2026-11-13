@@ -125,7 +125,7 @@ esac
 if [ "$GITHUB" = fake ]; then gh="FAKE: the in-repo fake GitHub (one repository, reshif/asf-factory-testbed); PRs are opened there"; else gh="REAL: api.github.com with your factory App (reads, pushes agent/* branches and Draft PRs) and gate-check App (aisdlc/gate)"; fi
 
 if [ "$IDP" = enterprise ]; then
-  signin="Keycloak (http://keycloak.localhost:$AISDLC_OIDC_PORT), enterprise profile: the system administrator \`admin\`, password \`admin\`,
+  signin="Keycloak (http://keycloak.localhost:$AISDLC_OIDC_PORT), enterprise profile: the system administrator \`admin\`, password \`changeme-admin\`,
                 TEMPORARY (Keycloak asks for a new password at the first sign-in; a realm already imported keeps its old people);
                 no test people; Keycloak's own admin is kc-admin (secrets/keycloak-bootstrap-admin)"
   next="sign in as admin (change the password), add people under People"

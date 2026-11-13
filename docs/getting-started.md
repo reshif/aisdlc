@@ -244,7 +244,7 @@ has ONE person, the **system administrator**:
 
 | Username | Password | |
 |---|---|---|
-| `admin` | `admin` | **temporary**: Keycloak makes you choose a new password (12 characters or more) at the first sign-in |
+| `admin` | `changeme-admin` | **temporary**: Keycloak makes you choose a new password (12 characters or more) at the first sign-in |
 
 `admin` is a factory admin. Sign in, change the password, then add everyone else through the portal's People screens.
 The default password is public (it is in this repository), so change it first and do not expose the stack's ports to a

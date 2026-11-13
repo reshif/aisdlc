@@ -7,7 +7,7 @@
 #   GITHUB=fake|real      which GitHub the stack talks to (default fake: the in-repo fake GitHub)
 #   PROJECT=aisdlc        the compose project name (COMPOSE_PROJECT_NAME)
 #   REPO=owner/name       for `up-full`: the one repository agents may run code on (DEC-18: one you own)
-#   IDP=enterprise|local  for `up` and `up-full`: the sign-in profile (default enterprise: one system administrator, admin / admin,
+#   IDP=enterprise|local  for `up` and `up-full`: the sign-in profile (default enterprise: one system administrator, admin / changeme-admin,
 #                         changed at the first sign-in, no test people; local: the 13 test people, what smoke and the e2e runs use)
 #   TAG=local             for `images` and `up-full`: the tag of the four images (AISDLC_IMAGE_TAG)
 #   RUNTIME_IMAGE=...  EXTRA_CA=/path/ca.pem  BUILD_PROXY=1  BUILD_NETWORK=host
@@ -177,7 +177,7 @@ portal: ## print the portal's address and how to sign in (Keycloak)
 	  echo "Portal:   http://localhost:$${port:-8340}"; \
 	  echo "Sign-in:  Keycloak at http://keycloak.localhost:$${idp:-8390} (the portal sends you there)"; \
 	  if [ "$(IDP)" = enterprise ]; then \
-	    echo "  system administrator: username admin, password admin (temporary: Keycloak asks for a new one at the first sign-in)"; \
+	    echo "  system administrator: username admin, password changeme-admin (temporary: Keycloak asks for a new one at the first sign-in)"; \
 	    echo "  (a stack made with IDP=local has the test people instead: make portal IDP=local)"; \
 	  else \
 	    echo "  test people (alice, lt, oh, ...): password in $(COMPOSE_DIR)/secrets/keycloak-persona-password"; \

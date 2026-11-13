@@ -7,7 +7,7 @@
 #   local       Keycloak's realm has the 13 TEST PEOPLE (alice, bob, the design personas) and the break-glass
 #               `factory-admin`; the sign-in page lists them. What the smoke, the e2e runs, the demo and the load test
 #               sign in as. The default of a bare `docker compose up`.
-#   enterprise  ONE system administrator `admin` (default password `admin`, temporary: Keycloak forces a new one at the
+#   enterprise  ONE system administrator `admin` (default password `changeme-admin`, temporary: Keycloak forces a new one at the
 #               first sign-in), no test people, a plain sign-in page. Everyone else is added through the portal.
 #
 # Keycloak imports its realm only when it does not exist yet, so the profile takes effect on a NEW Keycloak database;

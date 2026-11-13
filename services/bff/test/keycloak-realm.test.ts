@@ -123,7 +123,7 @@ describe('the enterprise profile', () => {
       username: 'admin',
       groups: ['/grp-factory-admins'],
       requiredActions: ['UPDATE_PASSWORD'],
-      credentials: [{ type: 'password', value: 'admin', temporary: true }],
+      credentials: [{ type: 'password', value: 'changeme-admin', temporary: true }],
     });
     expect(realm.loginTheme).toBe('aisdlc-enterprise');
     expect(seed.subjects.map((s) => s.principal_id)).toEqual(['admin']);

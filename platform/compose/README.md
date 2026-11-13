@@ -288,7 +288,7 @@ Both realm files, the identity seeds and the theme's test-people list are GENERA
 (`services/bff/src/dev-oidc/keycloak.ts`); a test fails when one is stale. The enterprise realm keeps the bff client,
 PKCE, brute-force protection (five tries, 15 minutes) and optional OTP of the local one.
 
-**The default credentials are shared and public (`admin` / `admin`, in this repository).** They are safe only because the
+**The default credentials are shared and public (`admin` / `changeme-admin`, in this repository).** They are safe only because the
 password is temporary: Keycloak will not let anyone past the first sign-in without choosing a new one, and the stack
 listens on 127.0.0.1. Sign in as `admin` and change it before you do anything else, and do not publish the stack's port
 to a network before that first sign-in (anyone who reaches the page first chooses the administrator's password).

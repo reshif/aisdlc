@@ -47,7 +47,7 @@
       "credentials": [
         {
           "type": "password",
-          "value": "admin",
+          "value": "changeme-admin",
           "temporary": true
         }
       ],

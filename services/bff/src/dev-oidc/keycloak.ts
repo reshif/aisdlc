@@ -48,7 +48,7 @@ export const ENTERPRISE_ADMIN = {
   display_name: 'System Administrator',
   email: 'admin@aisdlc.local',
   /** The default password the realm import sets (temporary: changed at the first sign-in). */
-  default_password: 'admin',
+  default_password: 'changeme-admin',
 } as const;
 
 /** The two sign-in profiles: `local` keeps the test people, `enterprise` has the system administrator only. */
@@ -137,7 +137,8 @@ export function keycloakRealm(
   const seed = enterprise ? keycloakEnterpriseIdpSeed(dev) : keycloakIdpSeed(dev);
   const users = seed.subjects.map((s) => {
     if (enterprise) {
-      // the default credentials the owner asked for: `admin` / `admin`, temporary (Keycloak forces UPDATE_PASSWORD)
+      // the default credentials: `admin` / `changeme-admin`, temporary (Keycloak forces UPDATE_PASSWORD). Not `admin` / `admin`:
+      // the realm's passwordPolicy (length(12) and notUsername) applies at import too, and Keycloak refuses to start
       return {
         id: s.subject,
         username: s.principal_id,
