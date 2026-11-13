@@ -1,4 +1,3 @@
-import { CATALOGUE, currentCatalogueRef } from '@aisdlc/catalogue';
 import {
   Classification,
   FloorStage,
@@ -32,6 +31,7 @@ import type { CoreDeps } from './journal.js';
 import { catchUp } from './queries.js';
 import { sendError } from '@aisdlc/service-kit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { displayCatalogue } from './catalogue-pin.js';
 
 // The fleet (PLAN M19, DM FloorProject; design reference docs/design/portal-prototype/src/floor.js `fleetRender`): one
 // row per project with counts only, never an item, a key or a title. Core answers the SERVICE's view of every project
@@ -153,7 +153,7 @@ export async function readFleet(d: FloorReadDeps): Promise<FleetView> {
     `SELECT COALESCE(max(global_seq), 0)::text AS head FROM record.record_event`,
   );
   return {
-    plan: floorPlanOf(CATALOGUE, currentCatalogueRef()),
+    plan: await displayCatalogue(d.pool).then((c) => floorPlanOf(c.data, c.ref)),
     projects: out,
     sessions: null,
     liveness,

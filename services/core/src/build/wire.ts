@@ -5,6 +5,7 @@ import {
   SessionStore,
   StoreWaitSnapshots,
   type BundleReads,
+  type CodingLimits,
   type PushPort,
 } from '@aisdlc/build';
 import { err, ok } from '@aisdlc/kernel';
@@ -43,6 +44,9 @@ export function buildStagePorts(o: {
   readonly knowledge: Pick<KnowledgePort, 'openFindings'>;
   readonly execAllowedRepos: () => readonly string[] | null;
   readonly model: string;
+  /** Portal v2 (`agents.config`, H12, H13): the coder's model and its turns and times, read on every session. */
+  readonly modelOf?: () => string;
+  readonly limits?: () => CodingLimits;
   readonly now?: () => number;
   /** M13.6: where artefacts of S6 are stored (A6's oracle code, the patch an X2 decides, the L7 spike report). */
   readonly deps?: CoreDeps;
@@ -71,6 +75,8 @@ export function buildStagePorts(o: {
     fallback: o.base.coding,
     ...(o.push ? { push: o.push } : {}),
     model: o.model,
+    ...(o.modelOf ? { modelOf: o.modelOf } : {}),
+    ...(o.limits ? { limits: o.limits } : {}),
     prompt: readPrompt,
     ...(o.now ? { now: o.now } : {}),
   });

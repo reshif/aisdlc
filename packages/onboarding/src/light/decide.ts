@@ -1,6 +1,6 @@
 import {
   C2DecisionContent,
-  LF6_MIN_AFFIRMED_OR_UNKNOWN,
+  readinessPolicy,
   instructionsBoundHash,
   type CardPayloadItem,
   type InstructionPath,
@@ -141,10 +141,11 @@ export function planC2(
     );
   }
   const share = (affirmed + unknown) / total;
-  if (share < LF6_MIN_AFFIRMED_OR_UNKNOWN) {
+  const lf6 = readinessPolicy().lf6_min_affirmed_or_unknown;
+  if (share < lf6) {
     return refuse(
       'refused',
-      `LF6: ${Math.round(share * 100)}% of the claims are affirmed or unknown, at least ${LF6_MIN_AFFIRMED_OR_UNKNOWN * 100}% are needed: send the card back so the map is redone`,
+      `LF6: ${Math.round(share * 100)}% of the claims are affirmed or unknown, at least ${Math.round(lf6 * 100)}% are needed: send the card back so the map is redone`,
     );
   }
   const verdicts = want.map((id) => {

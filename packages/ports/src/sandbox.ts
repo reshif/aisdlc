@@ -1,6 +1,7 @@
 import {
   CODING_CLASSES,
   CODING_SESSION_CAP,
+  CODING_SESSION_HARD_CEILING,
   SANDBOX_IMAGE_REF,
   SANDBOX_PROFILES,
   SANDBOX_SESSION_ID,
@@ -184,6 +185,31 @@ export function effectiveLimits(
 export interface PreflightOptions {
   /** Commands of the image a class that executes no repo code may run (scanners). */
   readonly trustedCommands?: readonly string[];
+  /**
+   * Portal v2 (`sandbox.profiles`, H28): lowered ceilings per class, read on every spec. A value above the code's
+   * ceiling (`SANDBOX_PROFILES`, the deployment's) is ignored: a setting can only lower a ceiling.
+   */
+  readonly ceilings?: () => SandboxCeilings | null;
+}
+
+/** Lowered ceilings per class (`sandbox.profiles`): a field left out, or `undefined`, keeps the code's ceiling. */
+export type SandboxCeilings = Partial<
+  Record<SandboxClass, { readonly [K in keyof SandboxLimits]?: number | undefined }>
+>;
+
+/** The profile of a class under lowered ceilings (never above the code's). */
+export function profileUnder(
+  cls: SandboxClass,
+  ceilings: SandboxCeilings | null | undefined,
+): SandboxProfile {
+  const base = SANDBOX_PROFILES[cls];
+  const low = ceilings?.[cls];
+  if (!base || !low) return base;
+  const limits: SandboxLimits = { ...base.limits };
+  for (const [k, v] of Object.entries(low) as Array<[keyof SandboxLimits, number | undefined]>) {
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v < limits[k]) limits[k] = v;
+  }
+  return { ...base, limits };
 }
 
 export interface Preflighted {
@@ -207,8 +233,10 @@ export function preflightSpec(
       'session_id must be 6 to 48 characters of [a-z0-9-], starting with a letter or digit',
     );
   }
-  const profile = SANDBOX_PROFILES[spec.class];
-  if (profile === undefined) return bad(`unknown sandbox class ${String(spec.class)}`);
+  if (SANDBOX_PROFILES[spec.class] === undefined) {
+    return bad(`unknown sandbox class ${String(spec.class)}`);
+  }
+  const profile = profileUnder(spec.class, opts.ceilings?.());
   const limits = effectiveLimits(profile, spec.limits);
   if (!limits.ok) return limits;
   if (spec.image !== undefined && !SANDBOX_IMAGE_REF.test(spec.image)) {
@@ -313,14 +341,25 @@ export const outFileOf = (path: string, content: Uint8Array): OutFile => ({
   content,
 });
 
-/** `W` sessions counted against the cap of one (RV §3.4). In-process; the proxy counts across processes. */
+/**
+ * `W` sessions counted against the coding cap (RV §3.4). In-process; the proxy counts across processes. The cap is a
+ * number or a function read on every acquire (portal v2: `sandbox.caps.coding` through the controller), clamped to
+ * `CODING_SESSION_HARD_CEILING`; default `CODING_SESSION_CAP`.
+ */
 export class CodingGate {
   private running = 0;
-  constructor(private readonly cap: number = CODING_SESSION_CAP) {}
+  constructor(private readonly cap: number | (() => number) = CODING_SESSION_CAP) {}
+  /** The cap now (never above the hard ceiling; a bad answer is the default cap). */
+  get limit(): number {
+    const n = typeof this.cap === 'function' ? this.cap() : this.cap;
+    return Number.isInteger(n) && n >= 0
+      ? Math.min(n, CODING_SESSION_HARD_CEILING)
+      : CODING_SESSION_CAP;
+  }
   /** Takes a slot or says no. Never waits: admission queues, the sandbox refuses. */
   tryAcquire(cls: SandboxClass): (() => void) | null {
     if (!CODING_CLASSES.includes(cls)) return () => undefined;
-    if (this.running >= this.cap) return null;
+    if (this.running >= this.limit) return null;
     this.running += 1;
     let released = false;
     return () => {
@@ -357,13 +396,15 @@ export type FakeSandboxScript = (
  */
 export class FakeSandbox implements SandboxPort {
   readonly runs: SandboxSpec[] = [];
-  private readonly gate = new CodingGate();
+  private readonly gate: CodingGate;
   private down = false;
 
   constructor(
     private readonly script: FakeSandboxScript = () => ({ exit_code: 0 }),
-    private readonly opts: PreflightOptions = {},
-  ) {}
+    private readonly opts: PreflightOptions & { readonly codingCap?: number | (() => number) } = {},
+  ) {
+    this.gate = new CodingGate(opts.codingCap);
+  }
 
   breakIt(broken = true): this {
     this.down = broken;
@@ -376,7 +417,7 @@ export class FakeSandbox implements SandboxPort {
     if (this.down) return err(sandboxError('unavailable', 'the sandbox host is unavailable'));
     const release = this.gate.tryAcquire(spec.class);
     if (release === null) {
-      return err(sandboxError('busy', `at most ${CODING_SESSION_CAP} coding session runs at once`));
+      return err(sandboxError('busy', `at most ${this.gate.limit} coding session(s) run at once`));
     }
     try {
       this.runs.push(spec);

@@ -1,4 +1,5 @@
 import {
+  followSettings,
   ConfigReader,
   ConfigRegistry,
   registerGatewayConfig,
@@ -29,6 +30,7 @@ import { mergeBypassFrom } from './drift/routes.js';
 import { migrateCore } from './migrations.js';
 import { maintenanceFrom, registerCoreConfig } from './settings.js';
 import { workSettingsFrom } from './work-control.js';
+import { gateTimersOf } from './settings-v2.js';
 
 /**
  * Starts core from the environment (see `coreConfigFromEnv`). All configuration is read before the
@@ -86,6 +88,13 @@ export async function bootCore(env: Env): Promise<RunningService> {
         console.error(`core: config reader: ${e instanceof Error ? e.message : String(e)}`),
     });
     await reader.start();
+    // Portal v2: the catalogue's settings releases and the approvals table, followed on every revision
+    await followSettings({
+      reader,
+      pool,
+      onError: (e) =>
+        console.error(`core: settings: ${e instanceof Error ? e.message : String(e)}`),
+    });
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
       entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
@@ -117,6 +126,8 @@ export async function bootCore(env: Env): Promise<RunningService> {
             admins: new IdentityFactoryAdmins(eligibilityPool),
             registry,
             maintenance: maintenanceFrom(reader),
+            // portal v2 (`gates.timers`, H8): read on every open and prepare
+            ...gateTimersOf(reader),
           }
         : undefined;
     const cards =

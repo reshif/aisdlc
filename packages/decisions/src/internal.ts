@@ -1,4 +1,5 @@
 import {
+  DEFAULT_GATES_TIMERS,
   gateStream,
   type GateId,
   type LedgerDecision,
@@ -25,10 +26,16 @@ import type { BusinessCalendar } from './inbox/calendar.js';
 import type { EligibilityPort, FactoryAdminPort, StepUpPort } from './ports.js';
 
 export const DEFAULT_POLICY_BUNDLE_VERSION = 'decisions-1.0.0';
-/** `facts.expires_at` default: seven days after opening. */
-export const DEFAULT_GATE_TTL_MS = 7 * 24 * 3600 * 1000;
-/** A PreparedDecision nonce lives ten minutes (PLAN M3.3). */
-export const DEFAULT_NONCE_TTL_MS = 10 * 60 * 1000;
+/** `facts.expires_at` default: seven days after opening (portal v2: `gates.timers.expires_after_s`). */
+export const DEFAULT_GATE_TTL_MS = DEFAULT_GATES_TIMERS.expires_after_s * 1000;
+/** A PreparedDecision nonce lives ten minutes (PLAN M3.3; portal v2: `gates.timers.nonce_ttl_s`). */
+export const DEFAULT_NONCE_TTL_MS = DEFAULT_GATES_TIMERS.nonce_ttl_s * 1000;
+
+/** A TTL setting in force: the number, or the function's answer now (a bad answer is the default). */
+export function ttlMs(v: number | (() => number) | undefined, fallback: number): number {
+  const n = typeof v === 'function' ? v() : v;
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : fallback;
+}
 
 export interface DecisionDeps {
   /** The record database (record, ledger and decisions schemas). */
@@ -44,8 +51,10 @@ export interface DecisionDeps {
   readonly admins?: FactoryAdminPort;
   readonly clock?: Clock;
   readonly policyBundleVersion?: string;
-  readonly gateTtlMs?: number;
-  readonly nonceTtlMs?: number;
+  /** A gate's expiry when its facts name none; a function is read on every open (portal v2 `gates.timers`). */
+  readonly gateTtlMs?: number | (() => number);
+  /** A prepared decision's life; a function is read on every prepare (portal v2 `gates.timers`). */
+  readonly nonceTtlMs?: number | (() => number);
   /** Business days for the B21 SLA (inbox). Default `DEFAULT_CALENDAR`: weekends off, no holidays. */
   readonly calendar?: BusinessCalendar;
   /** B21: business days a gate may stay pending before it escalates. Default 1. */

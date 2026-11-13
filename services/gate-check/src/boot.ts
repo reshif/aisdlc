@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { AppKey } from '@aisdlc/codehost';
-import { ConfigReader, ConfigRegistry, registerGateCheckConfig } from '@aisdlc/config';
+import {
+  ConfigReader,
+  ConfigRegistry,
+  loadSettingsReleases,
+  registerGateCheckConfig,
+} from '@aisdlc/config';
 import { createPool } from '@aisdlc/db';
 import { HttpKeyCustody } from '@aisdlc/kms-local/client';
 import { LoopSupervisor } from '@aisdlc/loops';
@@ -163,6 +168,9 @@ export async function bootGateCheck(
       notaryKey,
       brokerLogin,
       bypass: bypassFrom(reader),
+      loadCatalogueReleases: async () => {
+        await loadSettingsReleases(pool);
+      },
       store: new RecordGateCheckStore(pool),
     });
     const sup = new LoopSupervisor({ log });

@@ -1,4 +1,3 @@
-import { CATALOGUE, currentCatalogueRef } from '@aisdlc/catalogue';
 import { readReleaseSetting, type ConfigRegistry } from '@aisdlc/config';
 import {
   FloorNode,
@@ -68,6 +67,7 @@ import {
 import { getProjectState } from './queries.js';
 import { loadProjectSettings } from './settings.js';
 import { itemView } from './work-view.js';
+import { displayCatalogue } from './catalogue-pin.js';
 
 // The floor's live read model (PLAN M19, DM §3.10 ItemPosition and FlowWindow). `core.floor_position` is one row per
 // item, a fold of its `item:` stream through the interpreter under the item's pinned catalogue; `core.floor_move`
@@ -358,8 +358,9 @@ async function gatesOffFor(d: FloorReadDeps, project: string, plan: FloorPlan): 
     // no signed tier yet: drawn as T2 (more gates on, never fewer)
     const tier = settings.value.tier ?? st.attestations.tier_floor ?? 'T2';
     const on = new Set<string>();
+    const shown = (await displayCatalogue(d.pool)).data;
     for (const lane of LaneValues) {
-      const def = CATALOGUE.lanes[lane];
+      const def = shown.lanes[lane];
       if (!def) continue;
       for (const g of floorRouteOf(laneRoute(def, profile, tier)).gates) on.add(g.key);
     }
@@ -580,7 +581,8 @@ export async function readFloor(
     // no chips rather than no floor: a chip that cannot be read is not drawn (never as fine)
     scores = [];
   }
-  const plan = floorPlanOf(CATALOGUE, currentCatalogueRef());
+  const cat = await displayCatalogue(d.pool);
+  const plan = floorPlanOf(cat.data, cat.ref);
   return {
     project_id: project as never,
     plan,

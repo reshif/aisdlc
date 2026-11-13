@@ -1,11 +1,21 @@
 import {
   ConfigReader,
   ConfigRegistry,
+  followSettings,
   onboardingImageFrom,
   workerImageFrom,
   registerSandboxConfig,
+  registerSettingsConfig,
 } from '@aisdlc/config';
-import { RunnerHostId, SANDBOX_IMAGE_REF } from '@aisdlc/contracts';
+import {
+  DEFAULT_SANDBOX_CAPS,
+  DEFAULT_SANDBOX_PROFILES,
+  RunnerHostId,
+  SANDBOX_IMAGE_REF,
+  SETTINGS_KEYS,
+  SandboxProfilesConfig,
+  settingFrom,
+} from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import type { SandboxPort } from '@aisdlc/ports';
 import { DockerSandboxDriver } from '@aisdlc/sandbox-driver';
@@ -82,7 +92,10 @@ function probeImagesEnv(env: Env): string[] {
 }
 
 /** The driver of this host: the `DockerSandboxDriver` in front of the coding proxy (this process holds its token). */
-function driverFromEnv(env: Env): DockerSandboxDriver {
+function driverFromEnv(
+  env: Env,
+  live: { codingCap: () => number; ceilings: () => SandboxProfilesConfig | null },
+): DockerSandboxDriver {
   const u = new URL(httpUrlEnv(env, 'SANDBOX_CONTROLLER_PROXY_URL'));
   return new DockerSandboxDriver({
     endpoint: {
@@ -91,6 +104,9 @@ function driverFromEnv(env: Env): DockerSandboxDriver {
       token: resolveSecretRef(requiredEnv(env, 'SANDBOX_CONTROLLER_PROXY_TOKEN_REF'), { env }),
     },
     image: env['SANDBOX_CONTROLLER_IMAGE'] || 'aisdlc/sandbox-agent:local',
+    // portal v2: the driver's own gate follows the host's coding cap, and the class ceilings `sandbox.profiles`
+    codingCap: live.codingCap,
+    ceilings: live.ceilings,
     images: probeImagesEnv(env),
     // M16 part 3 (LF4): a W container must be made from exactly this image id (checked on the daemon's answer)
     expectImageId: (cls) => (cls === 'W' ? (workerImageIdEnv(env) ?? '') : undefined),
@@ -154,7 +170,26 @@ export async function bootSandboxController(
   const bodyLimit = intEnv(env, 'SANDBOX_CONTROLLER_BODY_LIMIT_MB', 64, 1) * 1024 * 1024;
   const reloadMs = intEnv(env, 'SANDBOX_CONTROLLER_CAPS_RELOAD_MS', 5_000, 100);
   const listenOpts = listenConfig(env, 'SANDBOX_CONTROLLER', 8430);
-  const docker = deps.driver ? null : driverFromEnv(env);
+  // set once the config reader is up; until then the defaults (never higher)
+  const live: { caps: ConfigCaps | null; reader: ConfigReader | null } = {
+    caps: null,
+    reader: null,
+  };
+  const ceilingsNow = (): SandboxProfilesConfig | null =>
+    live.reader && live.caps && !live.caps.isStale
+      ? settingFrom(
+          live.reader.current(),
+          SETTINGS_KEYS.sandbox_profiles,
+          SandboxProfilesConfig,
+          DEFAULT_SANDBOX_PROFILES,
+        )
+      : null;
+  const docker = deps.driver
+    ? null
+    : driverFromEnv(env, {
+        codingCap: () => live.caps?.current().caps.coding ?? DEFAULT_SANDBOX_CAPS.coding,
+        ceilings: ceilingsNow,
+      });
   const driver: SandboxPort = deps.driver ?? (docker as DockerSandboxDriver);
   const sweepFn: ControllerDeps['sweep'] | undefined =
     deps.sweep ?? (docker ? (keep) => docker.sweep(keep) : undefined);
@@ -199,7 +234,7 @@ export async function bootSandboxController(
       );
     reader = await ConfigReader.create({
       pool,
-      registry: registerSandboxConfig(new ConfigRegistry()),
+      registry: registerSettingsConfig(registerSandboxConfig(new ConfigRegistry())),
       // like the gateway's, this role may not fold the config read model: it reads what core folded
       catchUp: false,
       // the reloads below are this process's own, so a failed one is seen (and the caps fall back)
@@ -211,8 +246,12 @@ export async function bootSandboxController(
       onError,
     });
     await reader.start();
+    // portal v2: `sandbox.probe` (the test-run lease) and the other settings, installed on every reload
+    await followSettings({ reader, gatePolicies: false, onError });
     const caps = new ConfigCaps(reader, host.data, onError);
     const r0 = reader;
+    live.caps = caps;
+    live.reader = reader;
     timer = setInterval(() => void caps.reload(), reloadMs);
     timer.unref();
     const grants = new RecordGrants(pool);
@@ -222,6 +261,8 @@ export async function bootSandboxController(
       caps,
       grants,
       hostId: host.data,
+      // portal v2 (`sandbox.profiles`): the class ceilings in force, lower only; unreadable: the code's ceilings
+      preflight: { ceilings: ceilingsNow },
       onStart: (s) => void reporter?.beat(s),
       // M16: the image M1 approved, from the same reader; a failed last reload reads as none (fail closed)
       probeImage: () => (caps.isStale ? null : (onboardingImageFrom(r0.current())?.image ?? null)),

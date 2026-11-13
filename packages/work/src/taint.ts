@@ -6,6 +6,9 @@ import {
   type PrincipalId,
   type TaintOrigin,
   ENTRY_CHANNEL_SOURCES,
+  DEFAULT_WORK_REQUEST,
+  SETTINGS_KEYS,
+  settingInForce,
 } from '@aisdlc/contracts';
 import { err, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import { scanForInjection } from './injection.js';
@@ -25,7 +28,7 @@ const INVISIBLE = new RegExp(
 /* eslint-enable no-control-regex */
 
 /** A request is a few paragraphs, not a document: longer is refused, not truncated. */
-export const MAX_REQUEST_TEXT_CHARS = 20_000;
+export const MAX_REQUEST_TEXT_CHARS = DEFAULT_WORK_REQUEST.max_text_chars;
 
 /**
  * The text as the factory keeps it: compatibility-folded (NFKC), invisible and control characters
@@ -78,10 +81,12 @@ export interface TaintInput {
 export function taintMark(i: TaintInput): Result<TaintedText, IntakeRefusal> {
   const text = normaliseText(i.raw);
   if (text === '') return err({ code: 'empty', message: 'the request has no text' });
-  if (text.length > MAX_REQUEST_TEXT_CHARS) {
+  // portal v2 (`work.request`, H26): the factory's limit in force
+  const max = settingInForce(SETTINGS_KEYS.work_request, DEFAULT_WORK_REQUEST).max_text_chars;
+  if (text.length > max) {
     return err({
       code: 'too_long',
-      message: `the request is longer than ${MAX_REQUEST_TEXT_CHARS} characters`,
+      message: `the request is longer than ${max} characters`,
     });
   }
   const scan = scanForInjection(text);
