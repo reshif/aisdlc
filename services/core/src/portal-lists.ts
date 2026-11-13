@@ -35,6 +35,7 @@ import { recentAgentRunsOf } from './agent-runs.js';
 import { activeBanners, activeControls } from './controls.js';
 import { readItem } from './work-items.js';
 import { catchUpWork } from './work-projection.js';
+import { sessionCapOf } from './admission/admit.js';
 
 // The portal's list reads (2026-11-12): the thinnest read over what core already holds, for the screens
 // whose backends were on main (contracts `portal-lists.ts`). Each names the human in `on_behalf_of`
@@ -331,7 +332,8 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
       }
       const view: AdmissionView = {
         as_of: d.now().toISOString(),
-        coding_session_cap: CODING_SESSION_CAP,
+        // portal v2: the cap H2 admits under (the published `sandbox.caps.coding` of the runner host)
+        coding_session_cap: await sessionCapOf({ pool: d.pool }).catch(() => CODING_SESSION_CAP),
         sessions_in_slot: inSlot,
         active,
         waiting,

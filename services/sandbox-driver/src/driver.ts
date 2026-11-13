@@ -23,6 +23,7 @@ import {
   preflightSpec,
   sandboxError,
   scanSandboxOutput,
+  type PreflightOptions,
   type SandboxError,
   type SandboxPort,
   type SandboxRun,
@@ -77,6 +78,13 @@ export interface DriverConfig {
   /** Commands of the image a class that runs no repo code may run. */
   readonly trustedCommands?: readonly string[];
   readonly apiTimeoutMs?: number;
+  /**
+   * Portal v2: this driver's own coding gate, read on every W session (the sandbox-controller passes the host's
+   * `sandbox.caps.coding`); clamped to `CODING_SESSION_HARD_CEILING`. Default `CODING_SESSION_CAP`.
+   */
+  readonly codingCap?: () => number;
+  /** Portal v2 (`sandbox.profiles`, H28): the lowered class ceilings, read on every spec. */
+  readonly ceilings?: PreflightOptions['ceilings'];
 }
 
 const MIB = 1024 * 1024;
@@ -92,9 +100,10 @@ export interface SweepReport {
 
 export class DockerSandboxDriver implements SandboxPort {
   private readonly api: DockerApi;
-  private readonly gate = new CodingGate();
+  private readonly gate: CodingGate;
 
   constructor(private readonly cfg: DriverConfig) {
+    this.gate = new CodingGate(cfg.codingCap);
     this.api = new DockerApi(cfg.endpoint, { timeoutMs: cfg.apiTimeoutMs ?? 30_000 });
   }
 
@@ -198,15 +207,21 @@ export class DockerSandboxDriver implements SandboxPort {
   }
 
   async run(spec: SandboxSpec): Promise<Result<SandboxRun, SandboxError>> {
-    const opts =
-      this.cfg.trustedCommands === undefined ? {} : { trustedCommands: this.cfg.trustedCommands };
+    const opts: PreflightOptions = {
+      ...(this.cfg.trustedCommands === undefined
+        ? {}
+        : { trustedCommands: this.cfg.trustedCommands }),
+      ...(this.cfg.ceilings ? { ceilings: this.cfg.ceilings } : {}),
+    };
     const pre = preflightSpec(spec, opts);
     if (!pre.ok) return pre;
     if (spec.image !== undefined && !(this.cfg.images ?? []).includes(spec.image)) {
       return err(sandboxError('refused', 'the image named is not one this host may run'));
     }
     const release = this.gate.tryAcquire(spec.class);
-    if (release === null) return err(sandboxError('busy', 'at most 1 coding session runs at once'));
+    if (release === null) {
+      return err(sandboxError('busy', `at most ${this.gate.limit} coding session(s) run at once`));
+    }
     try {
       return await this.runOne(spec, pre.value.profile, pre.value.limits);
     } finally {

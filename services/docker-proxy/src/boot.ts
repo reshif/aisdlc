@@ -1,4 +1,4 @@
-import { CODING_SESSION_CAP } from '@aisdlc/contracts';
+import { CODING_SESSION_HARD_CEILING } from '@aisdlc/contracts';
 import {
   ServiceConfigError,
   listenConfig,
@@ -68,7 +68,9 @@ export function policyFromEnv(env: Record<string, string | undefined>): {
       scratchRoot,
       allowNetworks: mode === 'coding',
       maxSandboxes: num('DOCKER_PROXY_MAX_SANDBOXES', 4),
-      codingCap: num('DOCKER_PROXY_CODING_CAP', CODING_SESSION_CAP),
+      // portal v2: the sandbox-controller enforces the host's `sandbox.caps.coding`; the proxy is the deployment's
+      // backstop at the documented hard ceiling unless the deployment sets a lower one
+      codingCap: num('DOCKER_PROXY_CODING_CAP', CODING_SESSION_HARD_CEILING),
       archiveGet: [],
       archivePut: [],
       maxArchiveBytes: 256 * 1024 * 1024,
