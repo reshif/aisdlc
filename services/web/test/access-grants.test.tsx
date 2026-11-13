@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { Me } from '../src/api';
-import { hrefOf, titleOf } from '../src/pages/InboxPage';
+import { inboxHref, inboxWhat } from '../src/work/words';
 import { me, mockApi, renderAt, type Call } from './helpers';
 
 // P1-6 in the portal: People grants and revokes behind `access.manage` (hints from the PDP, `Guarded`), the role
@@ -319,8 +319,8 @@ describe('access requests', () => {
       kind: 'access_grant',
       id: GRANT,
       project_id: 'factory',
-    } as Parameters<typeof titleOf>[0];
-    expect(titleOf(item)).toBe('Role grant or revoke on the whole factory');
-    expect(hrefOf(item)).toBe(`/access/grants/${GRANT}`);
+    } as Parameters<typeof inboxWhat>[0];
+    expect(inboxWhat(item)).toBe('Role assignment');
+    expect(inboxHref(item)).toBe(`/access/grants/${GRANT}`);
   });
 });

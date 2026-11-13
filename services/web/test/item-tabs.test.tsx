@@ -242,9 +242,9 @@ describe('the Documents and Intent tabs', () => {
   it('withholds the text below D1 and keeps the hashes; the Intent tab says which gates approved', async () => {
     mockApi(routes({ [`GET ${PATH}/documents`]: { json: documentsView(false) } }));
     renderAt(`/items/${ITEM}`);
-    await open('Intent');
+    await open('Documents');
     expect(await screen.findByTestId('intent-status')).toHaveTextContent(
-      'The intent block version 1 was approved (G0, G1).',
+      'The agreed goal, version 1, was approved (Accept the request, Confirm the goal).',
     );
     const card = screen.getByTestId('doc-intent_block');
     expect(within(card).getByTestId('doc-withheld')).toHaveTextContent('needs data class D1');
@@ -257,7 +257,7 @@ describe('the Documents and Intent tabs', () => {
     await screen.findByRole('tab', { name: 'Request' });
     await waitFor(() => expect(screen.getByTestId('verify-hidden')).toBeInTheDocument());
     expect(screen.queryByRole('tab', { name: 'Documents' })).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'Intent' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Verify' })).toBeNull();
     expect(screen.getByRole('tab', { name: 'Timeline' })).toBeInTheDocument();
   });
 });
@@ -282,7 +282,7 @@ describe('the Timeline and Agent runs tabs', () => {
       }),
     );
     renderAt(`/items/${ITEM}`);
-    await open('Agent runs');
+    await open('Agent console');
     const t = await screen.findByTestId('agent-runs-tab');
     expect(within(t).getByRole('link', { name: 'A3' })).toHaveAttribute('href', '/agents/A3');
     expect(t).toHaveTextContent('3.2');
@@ -331,7 +331,7 @@ describe('the clarifying round (P2-16) and the PR (P3-5) on the item', () => {
     );
     renderAt(`/items/${ITEM}`);
     expect(await screen.findByTestId('clarify-round')).toHaveTextContent(
-      'Round 1 of 2. If nobody answers, the item parks on 2026-11-19 10:00 UTC.',
+      'Round 1 of 2. If nobody answers by 19 Nov 2026, the item pauses.',
     );
   });
 
@@ -367,7 +367,7 @@ describe('the clarifying round (P2-16) and the PR (P3-5) on the item', () => {
       'https://github.com/reshif/asf-factory-testbed/pull/12',
     );
     expect(prs).toHaveTextContent('open');
-    expect(prs).toHaveTextContent('c'.repeat(12));
+    expect(prs).toHaveTextContent(`commit ${'c'.repeat(7)}`);
   });
 });
 

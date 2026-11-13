@@ -8,8 +8,6 @@ import { C2Form } from '../cards/C2Form';
 import { C3Form } from '../cards/C3Form';
 import { C4Form } from '../cards/C4Form';
 import { C5Panel } from '../cards/C5Panel';
-import { GateArtefacts } from '../cards/GateArtefacts';
-import { EXCEPTION_GATES, ExceptionGate } from '../cards/ExceptionGate';
 import { SecrForm } from '../cards/SecrForm';
 import { shortTime } from '../format';
 import { Link } from '../router';
@@ -35,27 +33,11 @@ const STATUS_TONE = {
 } as const;
 
 /**
- * One card: what it shows, who decides it, and the form that decides it. The form is a fieldset that
- * is disabled when the person may not decide (or the card is not open), so what they see is what the
- * decider saw, and nothing in it can be sent.
+ * An onboarding card (C1 to C5, SECR) as Decide shows it: what it shows, who decides it, and the form that decides
+ * it. The form is a fieldset that is disabled when the person may not decide (or the card is not open), so what they
+ * see is what the decider saw, and nothing in it can be sent. Work-item approvals are `work/DecideScreen`.
  */
-export function CardPage({ id, csrf, me }: { id: string; csrf: string; me: string }) {
-  // P3-8: the kind is asked once (one route answers both), so no request of the page ends in a 404 probe
-  const kind = useQuery({
-    queryKey: ['card-kind', id],
-    queryFn: () => api.cardKind(id),
-    staleTime: Infinity,
-  });
-  if (kind.isPending) return <Loading what="the card" />;
-  if (kind.isError) return <PageError error={kind.error} retry={() => void kind.refetch()} />;
-  return kind.data.kind === 'work_gate' ? (
-    <WorkGateCard id={id} csrf={csrf} me={me} />
-  ) : (
-    <OnboardingCard id={id} csrf={csrf} me={me} />
-  );
-}
-
-function OnboardingCard({ id, csrf, me }: { id: string; csrf: string; me: string }) {
+export function OnboardingCard({ id, csrf, me }: { id: string; csrf: string; me: string }) {
   const q = useQuery({
     queryKey: ['card', id],
     queryFn: () => api.card(id),
@@ -92,28 +74,5 @@ function OnboardingCard({ id, csrf, me }: { id: string; csrf: string; me: string
         ) : null}
       </fieldset>
     </>
-  );
-}
-
-/**
- * A work-item gate card: an exception or quarantine gate (Q1 through SECT, E6, X2, X3, E2; M14.6), X1 and G3o, or the
- * merge review, release and acceptance (G4, G5, G6; portal review P1-3, P1-7, P1-8) on its own screen,
- * any other (G0 and G1, G1f, G2, G3d, G3, E1) on the artefacts it decides.
- */
-function WorkGateCard({ id, csrf, me }: { id: string; csrf: string; me: string }) {
-  const q = useQuery({
-    queryKey: ['gate-card', id],
-    queryFn: () => api.gateCard(id),
-    refetchOnWindowFocus: false,
-    staleTime: 0,
-  });
-  if (q.isPending) return <Loading what="the card" />;
-  // the artefacts screen reads (and explains) its own refusals; its decision part says why it cannot decide
-  if (q.isError) return <GateArtefacts id={id} csrf={csrf} />;
-  const exception = q.data.gates.some((g) => EXCEPTION_GATES.includes(g.gate as never));
-  return exception ? (
-    <ExceptionGate id={id} csrf={csrf} me={me} card={q.data} />
-  ) : (
-    <GateArtefacts id={id} csrf={csrf} />
   );
 }

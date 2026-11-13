@@ -98,6 +98,8 @@ export function DecisionRail({
   busy = false,
   result,
   inline = false,
+  allowed,
+  fixedReason,
   onDecide,
 }: {
   /** Who decides this approval and why ("Alex Rivera, Code reviewer"). */
@@ -120,15 +122,21 @@ export function DecisionRail({
   result?: ReactNode;
   /** In the flow of the page, not sticky and not a bottom sheet (the /design review page). */
   inline?: boolean;
+  /** The verbs this approval offers (default all three, always in the same order). */
+  allowed?: readonly DecisionVerb[];
+  /** A reason already bound into the decision (a two-person approval's second approver binds the first one's). */
+  fixedReason?: string;
   onDecide: (verb: DecisionVerb, reason: string) => void;
 }) {
-  const [reason, setReason] = useState('');
+  const [typed, setReason] = useState('');
+  const reason = fixedReason ?? typed;
   const [open, setOpen] = useState(false);
   const [missing, setMissing] = useState(false);
   const id = useId();
   const rid = useId();
   const sheet = useId();
   const may = access.state === 'allow';
+  const offers = (v: DecisionVerb) => allowed === undefined || allowed.includes(v);
   const decide = (v: DecisionVerb) => {
     // a send-back and a refusal say why; so does every decision outside the normal rules
     if ((v !== 'approve' || adminOverride) && reason.trim() === '') {
@@ -193,6 +201,7 @@ export function DecisionRail({
               className="ui-input ui-rail-reason"
               rows={3}
               value={reason}
+              readOnly={fixedReason !== undefined}
               aria-describedby={`${rid}-h`}
               aria-invalid={missing}
               onChange={(e) => setReason(e.target.value)}
@@ -200,7 +209,9 @@ export function DecisionRail({
             <p id={`${rid}-h`} className={missing ? 'ui-help ui-help-bad' : 'ui-help'}>
               {missing
                 ? 'Say why: a reason is saved with this decision.'
-                : term('decideWord', 'reason').explain}
+                : fixedReason !== undefined
+                  ? 'The first approver gave this reason; your approval binds the same one.'
+                  : term('decideWord', 'reason').explain}
             </p>
             {stepUp ? (
               <p className="ui-rail-stepup" title={term('decideWord', 'step_up').explain}>
@@ -216,24 +227,28 @@ export function DecisionRail({
               >
                 {label('decision', 'approve')}
               </button>
-              <button
-                type="button"
-                className="ui-btn ui-btn-block"
-                disabled={!may || busy}
-                onClick={() => decide('request_changes')}
-              >
-                {label('decision', 'request_changes')}
-                {sendBack ? <span className="ui-rail-sub"> · {sendBack}</span> : null}
-              </button>
-              <button
-                type="button"
-                className="ui-btn ui-btn-danger ui-btn-block"
-                disabled={!may || busy}
-                onClick={() => decide('reject')}
-              >
-                {label('decision', 'reject')}
-                {rejectTo ? <span className="ui-rail-sub"> · {rejectTo}</span> : null}
-              </button>
+              {offers('request_changes') ? (
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-block"
+                  disabled={!may || busy}
+                  onClick={() => decide('request_changes')}
+                >
+                  {label('decision', 'request_changes')}
+                  {sendBack ? <span className="ui-rail-sub">: {sendBack}</span> : null}
+                </button>
+              ) : null}
+              {offers('reject') ? (
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-danger ui-btn-block"
+                  disabled={!may || busy}
+                  onClick={() => decide('reject')}
+                >
+                  {label('decision', 'reject')}
+                  {rejectTo ? <span className="ui-rail-sub">: {rejectTo}</span> : null}
+                </button>
+              ) : null}
               {unsure ? (
                 <button
                   type="button"

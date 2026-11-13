@@ -385,6 +385,26 @@ describe('items and the catalogue', () => {
     expect((await api('bob', 'GET', '/api/items?project=Bad Id')).status).toBe(400);
   });
 
+  it('N6: items as CSV for audit readers only, the same rows the list shows, in plain words', async () => {
+    core.override.set('GET /v1/items?on_behalf_of=carol', {
+      status: 200,
+      json: { items: [row('acme', ITEM_ID), { ...row('acme', OTHER), repo: '=cmd|x' }] },
+    });
+    // bob reads items but not the audit trail
+    expect((await api('bob', 'GET', '/api/items/export.csv')).status).toBe(403);
+    const v = await as('carol');
+    const res = await v.browser.request(`${s.base}/api/items/export.csv`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/^text\/csv/);
+    const lines = (await res.text()).trim().split('\r\n');
+    expect(lines[0]).toBe(
+      'item_id,project,repo,track_code,track,status_code,status,on_hold,mine,process_version,created_at,updated_at',
+    );
+    expect(lines[1]).toContain(`${ITEM_ID},acme,acme/acme,L3,Small change,S1,Intake,no,no,1.3.0`);
+    // a value a spreadsheet would run is kept as text
+    expect(lines[2]).toContain(",'=cmd|x,");
+  });
+
   it('the catalogue is for everyone signed in', async () => {
     core.override.set('GET /v1/catalogue', { status: 200, json: { versions: [] } });
     expect((await api(null, 'GET', '/api/catalogue')).status).toBe(401);

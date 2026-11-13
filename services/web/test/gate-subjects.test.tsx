@@ -17,8 +17,8 @@ import {
   prepared,
 } from './verifyFixtures';
 
-// P1-3, P1-7, P1-8 (portal review §12): the G4 merge review, the G5 release, the G6 acceptance, X1 and G3o on the
-// decide screen. What each decides is the gate context's `subject` (core's, cut by the bff); every decision is still
+// P1-3, P1-7, P1-8 (portal review §12): code review, the release, the acceptance, an irreversible action and test
+// changes on the v2 Decide screen. What each decides is the gate context's `subject` (core's, cut by the bff); every decision is still
 // prepare, evidence, decide with a reason through the same routes, and nothing is sent without a press.
 
 const CARD_PATH = `/api/cards/${CARD}`;
@@ -219,20 +219,26 @@ const routes = (
 const decideCalls = (calls: readonly Call[]) =>
   calls.filter((c) => c.method === 'POST' && c.path.endsWith('/gate/decide'));
 
+/** The rail is ready once the approval is prepared and its evidence reported as viewed. */
 async function readyToDecide() {
-  await waitFor(() =>
-    expect(screen.queryByText(/Getting the decision form ready/)).not.toBeInTheDocument(),
-  );
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled());
+}
+
+/** What the approval binds is the evidence tile "What this approval is about"; it opens in the detail pane. */
+async function openFacts() {
+  await userEvent.click(await screen.findByRole('button', { name: /What this approval is about/ }));
 }
 
 describe('G4 merge review (P1-3)', () => {
   it('shows the pack, the PR link, the diff by path flagged, the mode and B13’s rounds left; step-up then decide', async () => {
     const user = userEvent.setup();
     const m = mockApi(routes('G4', g4(), { stepUp: true }));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Merge review' }),
+      await screen.findByRole('heading', { level: 1, name: 'Code review' }),
     ).toBeInTheDocument();
+    expect(screen.getByText('Always required')).toBeInTheDocument();
+    await openFacts();
     expect(screen.getByTestId('review-mode')).toHaveTextContent('mode C');
     expect(screen.getByTestId('review-mode')).toHaveTextContent(/sensitive_path/);
     expect(screen.getByTestId('review-mode')).toHaveTextContent(
@@ -258,15 +264,16 @@ describe('G4 merge review (P1-3)', () => {
     );
     await readyToDecide();
     expect(
-      screen.getByRole('button', { name: 'Request changes (B13: 2 of 2 left)' }),
+      screen.getByRole('button', { name: 'Request changes: 2 of 2 tries left' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Confirm my identity' }));
-    expect(await screen.findByTestId('stepup-ready')).toBeInTheDocument();
-    await user.click(screen.getByLabelText(/I have read the evidence/));
-    await user.type(screen.getByLabelText(/Reason/), 'Read the migration and the pack.');
-    await user.click(screen.getByRole('button', { name: 'Approve the merge' }));
-    expect(await screen.findByTestId('receipt')).toHaveTextContent('#42');
+    expect(
+      screen.getByRole('button', { name: 'Reject: back to the build, then to a person' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: "Confirm it's you" }));
+    expect(await screen.findByText('It is you: decide now.')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Reason'), 'Read the migration and the pack.');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByTestId('receipt')).toHaveTextContent('decision log entry 42');
     expect(decideCalls(m.calls)[0]?.body).toEqual({
       decision: 'approve',
       reason: 'Read the migration and the pack.',
@@ -278,17 +285,19 @@ describe('G4 merge review (P1-3)', () => {
     const s = g4({ used: 2, limit: 2, left: 0, exhausted_to: 'D3' });
     const unit = { ...(s.units[0] as object), paths: null };
     mockApi(routes('G4', { ...s, units: [unit] }));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
+    await openFacts();
     expect(await screen.findByTestId('paths-unknown')).toHaveTextContent('[unknown]');
     await readyToDecide();
     expect(
-      screen.getByRole('button', { name: 'Request changes (no B13 round left: D3)' }),
+      screen.getByRole('button', { name: 'Request changes: none left, goes to a person' }),
     ).toBeInTheDocument();
   });
 
   it('a G4 whose subject facts are missing says so and is not decided blind', async () => {
     mockApi(routes('G4', null));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
+    await openFacts();
     expect(await screen.findByTestId('subject-missing')).toHaveTextContent('Do not decide');
   });
 });
@@ -296,15 +305,18 @@ describe('G4 merge review (P1-3)', () => {
 describe('G5 release and G6 acceptance (P1-7)', () => {
   it('G5: the target, the release evidence, gate-relay’s state; only approve or deny', async () => {
     mockApi(routes('G5', g5(), { stepUp: true }));
-    renderAt(`/cards/${CARD}`);
-    expect(await screen.findByRole('heading', { level: 1, name: 'Release' })).toBeInTheDocument();
+    renderAt(`/decide/${CARD}`);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Approve the release' }),
+    ).toBeInTheDocument();
+    await openFacts();
     expect(screen.getByTestId('release-binding')).toHaveTextContent('production');
     expect(screen.getByTestId('release-evidence')).toHaveTextContent('passing');
     expect(screen.getByTestId('deployment-state')).toHaveTextContent('none');
     await readyToDecide();
-    expect(screen.getByRole('button', { name: 'Confirm my identity' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Deny (release held)' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Request changes' })).toBeNull();
+    expect(screen.getByRole('button', { name: "Confirm it's you" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reject: the release is held' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Request changes/ })).toBeNull();
   });
 
   it('G5: an unbound card and a moved target are said plainly', async () => {
@@ -332,7 +344,8 @@ describe('G5 release and G6 acceptance (P1-7)', () => {
         }),
       ),
     );
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
+    await openFacts();
     expect(await screen.findByTestId('unbound')).toHaveTextContent('pack_head_not_pr_head');
     expect(screen.getByTestId('pack-missing')).toBeInTheDocument();
     expect(screen.getByTestId('deployment')).toHaveTextContent('refused by gate-relay');
@@ -341,18 +354,19 @@ describe('G5 release and G6 acceptance (P1-7)', () => {
   it('G6: the requester sees the intent and its criteria against what merged, and accepts', async () => {
     const user = userEvent.setup();
     const m = mockApi(routes('G6', g6(), { ctx: { requester: 'alice' } }));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Acceptance' }),
+      await screen.findByRole('heading', { level: 1, name: 'Accept the result' }),
     ).toBeInTheDocument();
+    await openFacts();
     expect(screen.getByTestId('criteria')).toHaveTextContent('An admin can download a CSV');
     expect(screen.getByTestId('merged')).toHaveTextContent('acme/web#12');
-    expect(screen.getByText(/G6 is your own acceptance/)).toBeInTheDocument();
     await readyToDecide();
-    expect(screen.getByRole('button', { name: 'Reject (B18)' })).toBeInTheDocument();
-    await user.click(screen.getByLabelText(/I have read the evidence/));
-    await user.type(screen.getByLabelText(/Reason/), 'It does what I asked.');
-    await user.click(screen.getByRole('button', { name: 'Accept' }));
+    expect(
+      screen.getByRole('button', { name: 'Reject: a new linked item carries what is missing' }),
+    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Reason'), 'It does what I asked.');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
     await screen.findByTestId('receipt');
     expect(decideCalls(m.calls)[0]?.body).toMatchObject({ decision: 'approve' });
   });
@@ -361,8 +375,9 @@ describe('G5 release and G6 acceptance (P1-7)', () => {
     mockApi(
       routes('G6', g6({ goal: null, acceptance_criteria: [], non_goals: [], withheld: true })),
     );
-    renderAt(`/cards/${CARD}`);
-    expect(await screen.findByTestId('intent')).toHaveTextContent('needs data class D1');
+    renderAt(`/decide/${CARD}`);
+    await openFacts();
+    expect(await screen.findByTestId('intent')).toHaveTextContent('needs a higher data class');
     expect(screen.queryByTestId('criteria')).toBeNull();
   });
 });
@@ -371,52 +386,55 @@ describe('X1 and G3o in S6 (P1-8)', () => {
   it('X1: the command and its target, two people; deny is D1', async () => {
     const user = userEvent.setup();
     const m = mockApi(routes('X1', x1(), { ctx: { quorum_required: 2 } }));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Irreversible operation' }),
+      await screen.findByRole('heading', { level: 1, name: 'Allow irreversible action' }),
     ).toBeInTheDocument();
+    await openFacts();
     expect(screen.getByTestId('x1-command')).toHaveTextContent('git push --force origin main');
     expect(screen.getByTestId('operation')).toHaveTextContent(/Target\s*\[unknown\]/);
-    expect(screen.getByTestId('two-person')).toHaveTextContent('0 of 2 approvals');
+    expect(screen.getByText(/Needs two people: 0 of 2/)).toBeInTheDocument();
     await readyToDecide();
-    expect(screen.queryByRole('button', { name: 'Request changes' })).toBeNull();
-    await user.click(screen.getByLabelText(/I have read the evidence/));
-    await user.type(screen.getByLabelText(/Reason/), 'Not on main.');
-    await user.click(screen.getByRole('button', { name: 'Deny (D1)' }));
+    expect(screen.queryByRole('button', { name: /^Request changes/ })).toBeNull();
+    await user.type(screen.getByLabelText('Reason'), 'Not on main.');
+    await user.click(screen.getByRole('button', { name: /^Reject/ }));
     await screen.findByTestId('receipt');
     expect(decideCalls(m.calls)[0]?.body).toMatchObject({ decision: 'reject' });
   });
 
   it('X1 below D2: the command is withheld', async () => {
     mockApi(routes('X1', x1(null, true)));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
+    await openFacts();
     expect(await screen.findByTestId('operation')).toHaveTextContent(
-      'withheld: the command needs data class D2',
+      'withheld: the command needs a higher data class than yours',
     );
     expect(screen.queryByTestId('x1-command')).toBeNull();
   });
 
   it('G3o: the oracle diff against the G2-approved specs; at 6.3 a denial asks for an alternative', async () => {
     mockApi(routes('G3o', g3o()));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Oracle deviation' }),
+      await screen.findByRole('heading', { level: 1, name: 'Approve test changes' }),
     ).toBeInTheDocument();
+    await openFacts();
     const t = screen.getByRole('table', { name: 'Oracles against the approved specs' });
     const o2 = within(t).getByRole('rowheader', { name: 'O2' }).closest('tr') as HTMLElement;
     expect(o2).toHaveTextContent('mul multiplies');
     expect(o2).toHaveTextContent('implements another version of the spec');
     expect(within(t).getByText('test/extra.test.js')).toBeInTheDocument();
-    expect(screen.getByTestId('oracle-diff')).toHaveTextContent('approved at G2');
+    expect(screen.getByTestId('oracle-diff')).toHaveTextContent('approved with the spec');
     await readyToDecide();
     expect(
-      screen.getByRole('button', { name: 'Deny (find an alternative, 1×)' }),
+      screen.getByRole('button', { name: 'Reject: the work goes to a person' }),
     ).toBeInTheDocument();
   });
 
   it('G3o with no reported deviations: each oracle reads unknown, never as approved', async () => {
     mockApi(routes('G3o', g3o(false)));
-    renderAt(`/cards/${CARD}`);
+    renderAt(`/decide/${CARD}`);
+    await openFacts();
     expect(await screen.findByTestId('oracle-diff')).toHaveTextContent(/were not reported/);
     expect(screen.queryByText('as approved')).toBeNull();
   });
