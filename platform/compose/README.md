@@ -386,13 +386,17 @@ installation in `.env` and its key at `secrets/gate-check-app.pem`; it is never 
 
 ## The Push Broker and request to merged PR (profiles `push-broker` and `full`, RC-E2E-2)
 
-`push-broker` is the codehost image in `CODEHOST_MODE=push` with its OWN App (`secrets/push-broker-app.pem`, contents
-and pull requests write; the read App's key is not in it and its key is in no other container): the factory's one
-writer, a commit on `agent/<item>/<unit>` through the Git Data API and a Draft PR, after its own checks (lease epoch
-and X2 from core, scope `push_guard`). core-worker reaches it with `CORE_WORKER_PUSH_BROKER=1` and
-`CORE_WORKER_PUSH_BROKER_URL=http://push-broker:8350` (its own token there). On the fake GitHub it is a fifth App on
-its own door (8358, network `pushbroker-github`), and what it writes is mirrored into the git server's repository, so
-S7 fetches the Unit head like any branch.
+`push-broker` is the codehost image in `CODEHOST_MODE=push` with the key `secrets/push-broker-app.pem` (contents and
+pull requests write): the factory's one writer, a commit on `agent/<item>/<unit>` through the Git Data API and a
+Draft PR, after its own checks (lease epoch and X2 from core, scope `push_guard`). In the default two-App layout
+(`./setup-github-apps`, docs/getting-started.md §4) that key is the factory App's, the same as `github-app.pem`, and
+`PUSH_BROKER_APP_ID`/`_INSTALLATION_ID` are the codehost's; in the stricter layout it is an App of its own. Either way
+gate-check's App is never it. core-worker reaches it with `CORE_WORKER_PUSH_BROKER=1` and
+`CORE_WORKER_PUSH_BROKER_URL=http://push-broker:8350` (its own token there). On the fake GitHub it comes in on its own
+door (8358, network `pushbroker-github`): the main App when `PUSH_BROKER_APP_ID` is `GITHUB_APP_ID` (the installation
+then holds the union), else a fifth App; `AISDLC_PUSH_BROKER_KEY=github-app` mounts the main key as the broker's. What
+it writes is mirrored into the git server's repository, so S7 fetches the Unit head like any branch. `npm run e2e:pr`
+runs the two-App layout (`E2E_APPS=split`: the fifth App).
 
 Profile `full` is everything the request-to-PR path needs: the Push Broker, the sandbox plane (both Docker proxies,
 the package mirror, the sandbox-controller), verify and gate-check. `npm run e2e:pr` (`e2e-pr.sh`, `e2e-pr.mjs`) runs
