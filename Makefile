@@ -44,7 +44,7 @@ endif
 PROFILE_FLAGS := $(GITHUB_PROFILE) $(foreach p,$(PROFILES),--profile $(p))
 # `down`, `ps` and `logs` see every profile, so nothing an earlier run started is left out
 ALL_PROFILES := --profile fake-github --profile full --profile gate-check --profile gate-relay --profile notifier \
-  --profile audit --profile telemetry
+  --profile audit --profile telemetry --profile dev-oidc
 DC := cd $(COMPOSE_DIR) && COMPOSE_PROJECT_NAME=$(PROJECT) docker compose
 # the sandboxes and session networks this project's two Docker proxies made (labelled with their owner): a session that
 # outlived its controller (`down` mid-session) is removed with the stack, never left running
