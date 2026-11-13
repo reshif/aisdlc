@@ -3078,6 +3078,14 @@
       "label": "Test",
       "explain": "Try the connection now with the saved secret."
     },
+    "access_request": {
+      "label": "Access request",
+      "explain": "Ask for a role; an admin approves."
+    },
+    "role_assignment": {
+      "label": "Role assignment",
+      "explain": "A person or group given a role on a project, team or the factory."
+    },
     "delete": {
       "label": "Delete",
       "explain": "Remove the object and all its data for good; the log keeps hashes only."
@@ -3235,6 +3243,24 @@
     "design": {
       "label": "Design system",
       "explain": "Every component of the portal in both themes, for review."
+    }
+  },
+  "navGroup": {
+    "work": {
+      "label": "Work",
+      "explain": "Your work: what needs you, the items and the floor."
+    },
+    "projects": {
+      "label": "Projects",
+      "explain": "The onboarded repos and onboarding a new one."
+    },
+    "run": {
+      "label": "Run",
+      "explain": "Running the factory: stops, pauses, capacity and agents."
+    },
+    "govern": {
+      "label": "Govern",
+      "explain": "Settings, integrations, people and the decision log."
     }
   }
 }

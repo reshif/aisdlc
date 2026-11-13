@@ -1775,6 +1775,11 @@ const concept = {
   secret_field: t('Paste secret', 'Paste once; it is stored and never shown again.'),
   rotate: t('Replace secret', 'Paste a new secret; the old one stops working.'),
   test_connection: t('Test', 'Try the connection now with the saved secret.'),
+  access_request: t('Access request', 'Ask for a role; an admin approves.'),
+  role_assignment: t(
+    'Role assignment',
+    'A person or group given a role on a project, team or the factory.',
+  ),
   delete: t('Delete', 'Remove the object and all its data for good; the log keeps hashes only.'),
   forbidden_403: t("You can't open this", 'Says why and who to ask.'),
   not_found_404: t('Not found', 'Shown the same whether it does not exist or you cannot see it.'),
@@ -1821,6 +1826,14 @@ const screen = {
   my_access: t('My access', 'What you can do and why.'),
   my_notifications: t('My notifications', 'What the factory told you.'),
   design: t('Design system', 'Every component of the portal in both themes, for review.'),
+} as const satisfies Readonly<Record<string, Term>>;
+
+/** The groups of the left navigation (screen-map §1.2). */
+const navGroup = {
+  work: t('Work', 'Your work: what needs you, the items and the floor.'),
+  projects: t('Projects', 'The onboarded repos and onboarding a new one.'),
+  run: t('Run', 'Running the factory: stops, pauses, capacity and agents.'),
+  govern: t('Govern', 'Settings, integrations, people and the decision log.'),
 } as const satisfies Readonly<Record<string, Term>>;
 
 // ---------------------------------------------------------------- the record
@@ -1900,6 +1913,7 @@ export const GLOSSARY = {
   status,
   concept,
   screen,
+  navGroup,
 } as const;
 
 export type Glossary = typeof GLOSSARY;
