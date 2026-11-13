@@ -105,9 +105,9 @@ describe('file (the onboarder’s RepoRead)', () => {
   });
 
   it('the commit rule, the path rule and the scope', async () => {
-    expect((await file(s.tokens.search, { path: 'src/audit.ts', sha: 'b'.repeat(40) })).status).toBe(
-      409,
-    );
+    expect(
+      (await file(s.tokens.search, { path: 'src/audit.ts', sha: 'b'.repeat(40) })).status,
+    ).toBe(409);
     for (const path of ['../etc/passwd', '/etc/passwd', 'a/../../b']) {
       expect((await file(s.tokens.search, { path, sha: head })).status).toBe(400);
     }

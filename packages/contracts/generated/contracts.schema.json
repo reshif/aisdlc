@@ -32810,6 +32810,25 @@
       ],
       "additionalProperties": false
     },
+    "ConsoleNoteRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "ConsoleProposal": {
       "type": "object",
       "properties": {
