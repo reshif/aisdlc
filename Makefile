@@ -1,0 +1,156 @@
+# AISDLC: everyday commands. `make` (or `make help`) lists them.
+#
+# Every target wraps a command the repo already has (npm scripts, platform/compose scripts, docker compose), so the
+# behaviour and its documentation stay in one place: docs/getting-started.md and platform/compose/README.md.
+#
+# Variables you can set on the command line, e.g. `make up GITHUB=real`:
+#   GITHUB=fake|real      which GitHub the stack talks to (default fake: the in-repo fake GitHub)
+#   PROJECT=aisdlc        the compose project name (COMPOSE_PROJECT_NAME)
+#   PROFILES=...          extra compose profiles, e.g. PROFILES="gate-check notifier"
+#   SERVICE=core          for `logs`, `restart`, `shell`
+#   DIR=./backups/x       for `backup` and `restore`
+
+SHELL := bash
+.SHELLFLAGS := -eu -o pipefail -c
+.DEFAULT_GOAL := help
+
+COMPOSE_DIR := platform/compose
+GITHUB ?= fake
+PROJECT ?= aisdlc
+PROFILES ?=
+SERVICE ?=
+DIR ?=
+GITHUB_APP_ID ?=
+GITHUB_INSTALLATION_ID ?=
+
+ifeq ($(GITHUB),fake)
+  GITHUB_PROFILE := --profile fake-github
+else ifeq ($(GITHUB),real)
+  GITHUB_PROFILE :=
+else
+  $(error GITHUB must be fake or real, not '$(GITHUB)')
+endif
+
+PROFILE_FLAGS := $(GITHUB_PROFILE) $(foreach p,$(PROFILES),--profile $(p))
+# `down`, `ps` and `logs` see every profile, so nothing an earlier run started is left out
+ALL_PROFILES := --profile fake-github --profile full --profile gate-check --profile gate-relay --profile notifier \
+  --profile audit --profile telemetry
+DC := cd $(COMPOSE_DIR) && COMPOSE_PROJECT_NAME=$(PROJECT) docker compose
+
+.PHONY: help install check check-changed test test-fast lint format typecheck build \
+  secrets secrets-real github-apps up down reset ps logs restart shell portal verify-ledger \
+  smoke e2e e2e-pr demo drill-restore backup restore census
+
+help: ## list the commands
+	@echo "AISDLC: make <target> [GITHUB=fake|real] [PROJECT=aisdlc] [PROFILES=\"...\"] [SERVICE=...] [DIR=...]"
+	@echo
+	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z0-9-]+:.*## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo
+	@echo "First time: make install && make secrets && make up && make portal   (docs/getting-started.md)"
+
+## ---- code ---------------------------------------------------------------------------------------------------
+
+install: ## install dependencies from the lockfile (npm ci)
+	npm ci
+
+check: ## everything that must pass before a commit (typecheck, lint, format, tests)
+	npm run check
+
+check-changed: ## the same over what changed vs origin/main: a fast first pass
+	npm run check:changed
+
+test: ## all tests (starts a throwaway Postgres)
+	npm test
+
+test-fast: ## all tests except the Docker ones
+	npm run test:no-docker
+
+lint: ## ESLint
+	npm run lint
+
+format: ## Prettier, writing the fixes
+	npm run format
+
+typecheck: ## TypeScript, no emit
+	npm run typecheck
+
+build: ## build every package and service bundle
+	npm run build
+
+## ---- local factory ------------------------------------------------------------------------------------------
+
+secrets: ## create the local secrets and .env for the fake GitHub (safe to re-run; never overwrites a real key)
+	cd $(COMPOSE_DIR) && ./init-secrets --fake-github
+
+secrets-real: ## switch the secrets and .env to your real GitHub App: make secrets-real GITHUB_APP_ID=.. GITHUB_INSTALLATION_ID=..
+	@test -n "$(GITHUB_APP_ID)" && test -n "$(GITHUB_INSTALLATION_ID)" || \
+	  { echo "set both: make secrets-real GITHUB_APP_ID=123 GITHUB_INSTALLATION_ID=456"; exit 1; }
+	cd $(COMPOSE_DIR) && GITHUB_APP_ID="$(GITHUB_APP_ID)" GITHUB_INSTALLATION_ID="$(GITHUB_INSTALLATION_ID)" ./init-secrets --real-github
+
+github-apps: ## create the GitHub Apps through GitHub's manifest flow (the setup wizard)
+	@test -x $(COMPOSE_DIR)/setup-github-apps || \
+	  { echo "the setup wizard is not on this branch yet; create the Apps by hand: docs/getting-started.md section 4"; exit 1; }
+	cd $(COMPOSE_DIR) && ./setup-github-apps
+
+up: ## start the local factory and wait until it is healthy (GITHUB=fake by default)
+	$(DC) $(PROFILE_FLAGS) up -d --wait
+	@$(MAKE) --no-print-directory portal
+
+down: ## stop the local factory; keeps the database, the ledger and the keys
+	$(DC) $(ALL_PROFILES) down --remove-orphans
+
+reset: ## stop and DELETE everything: database, ledger, keys' state (asks first)
+	@read -r -p "This deletes the record, the ledger and every volume of project '$(PROJECT)'. Type the project name to go on: " a; \
+	  [ "$$a" = "$(PROJECT)" ] || { echo "nothing deleted"; exit 1; }
+	$(DC) $(ALL_PROFILES) down -v --remove-orphans
+
+ps: ## show every container of the stack and its health
+	$(DC) $(ALL_PROFILES) ps -a
+
+logs: ## follow the logs (all, or SERVICE=core)
+	$(DC) $(ALL_PROFILES) logs -f --tail=200 $(SERVICE)
+
+restart: ## restart one service: make restart SERVICE=core
+	@test -n "$(SERVICE)" || { echo "name the service: make restart SERVICE=core"; exit 1; }
+	$(DC) $(ALL_PROFILES) restart $(SERVICE)
+
+shell: ## a shell in one service: make shell SERVICE=core
+	@test -n "$(SERVICE)" || { echo "name the service: make shell SERVICE=core"; exit 1; }
+	$(DC) $(ALL_PROFILES) exec $(SERVICE) sh
+
+portal: ## print the portal's address
+	@port=$$(grep -E '^AISDLC_BFF_PORT=' $(COMPOSE_DIR)/.env 2>/dev/null | cut -d= -f2 || true); \
+	  echo "Portal: http://127.0.0.1:$${port:-8340}   (sign-in people: docs/getting-started.md section 3)"
+
+verify-ledger: ## verify the ledger offline (Notary and Witness signatures)
+	cd $(COMPOSE_DIR) && COMPOSE_PROJECT_NAME=$(PROJECT) ./verify-ledger.sh
+
+backup: ## back up the whole stack into DIR (holds secrets: keep it safe)
+	@test -n "$(DIR)" || { echo "name the folder: make backup DIR=./backups/$$(date +%Y%m%d-%H%M)"; exit 1; }
+	COMPOSE_PROJECT_NAME=$(PROJECT) bash $(COMPOSE_DIR)/backup.sh "$(abspath $(DIR))"
+
+restore: ## restore a backup from DIR onto an empty stack (docs/runbooks/backup-restore.md)
+	@test -n "$(DIR)" || { echo "name the folder: make restore DIR=./backups/<name>"; exit 1; }
+	cd $(COMPOSE_DIR) && COMPOSE_PROJECT_NAME=$(PROJECT) bash ./restore.sh "$(abspath $(DIR))"
+
+census: ## the live Census run against your real GitHub App (docs/runbooks/m8.5-live-census.md)
+	npm run live:census
+
+## ---- checks of the whole stack ------------------------------------------------------------------------------
+
+smoke: ## start a throwaway stack, check every service, remove it
+	npm run smoke:compose
+
+e2e: ## onboarding end to end in a real browser, on a throwaway stack
+	npm run e2e:compose
+
+e2e-pr: ## a request typed in the portal to a merged PR, every gate in the browser, on a throwaway stack
+	npm run e2e:pr
+
+demo: ## the request-to-PR stack on fakes, left running for you to click through (portal on port 8640)
+	E2E_UP_ONLY=1 npm run e2e:pr
+	@echo "Demo stack up (project aisdlc-e2e-pr): http://127.0.0.1:8640 . Remove it with:"
+	@echo "  cd $(COMPOSE_DIR) && COMPOSE_PROJECT_NAME=aisdlc-e2e-pr AISDLC_SUBNET_PREFIX=10.236 docker compose --profile fake-github --profile full down -v"
+
+drill-restore: ## back up, wipe, restore and prove the ledger, read models, packs and kill state survive
+	npm run drill:restore

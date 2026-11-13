@@ -4,18 +4,33 @@ This guide is for the owner of the factory. It takes you from a clean machine to
 work request submitted and followed. Read it top to bottom once before you start. It describes `origin/main` as of
 2026-11-13.
 
-Two pieces of work are still in progress. Steps that depend on them are marked:
-
-- **Available after `build/e2e-pr` lands**: the Push Broker wired into compose, real coding sessions, and the path from
-  a request to a pull request on GitHub. On `main` today, steps S6 to S9 of an item run on deterministic fakes, and
-  no pull request is written to GitHub.
-- **Available after `build/p1-roles` lands**: granting and changing roles from the portal's People and Roles screens.
-  On `main` today, project roles come only from a project's role map (onboarding card 4, or Project › Settings ›
-  Who decides).
-
-At the time of writing, neither branch is on `origin`.
+The request-to-PR path (the Push Broker, real coding sessions, a draft PR on GitHub) and role grants in the portal
+have both landed. Where a step below still says "available after … lands", it is done; treat the step as available.
 
 The factory never merges. A person merges on GitHub, every time.
+
+## Quick commands
+
+Run `make` in the repository root to list every command. The everyday ones:
+
+| Command | What it does |
+| --- | --- |
+| `make install` | install dependencies (`npm ci`) |
+| `make secrets` | create local secrets and `.env` for the fake GitHub (safe to re-run) |
+| `make secrets-real GITHUB_APP_ID=… GITHUB_INSTALLATION_ID=…` | switch to your real GitHub App |
+| `make github-apps` | create the GitHub Apps with the setup wizard (once it has landed) |
+| `make up` / `make up GITHUB=real` | start the factory and wait until healthy; add `PROFILES="gate-check notifier"` for more |
+| `make portal` | print the portal's address |
+| `make ps` / `make logs SERVICE=core` | see containers and their health / follow logs |
+| `make down` | stop; the database, ledger and keys are kept |
+| `make reset` | stop and delete everything (asks you to type the project name first) |
+| `make verify-ledger` | verify the ledger offline |
+| `make backup DIR=./backups/now` / `make restore DIR=…` | back up / restore the whole stack |
+| `make demo` | the full request-to-PR stack on fakes, left running for you to click through (port 8640) |
+| `make smoke` / `make e2e-pr` / `make drill-restore` | whole-stack checks on a throwaway stack |
+| `make check` | everything that must pass before a commit |
+
+Each target runs a command named in the sections below, so the steps there and the targets stay the same thing.
 
 ---
 
