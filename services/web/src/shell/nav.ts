@@ -48,10 +48,13 @@ export interface NavSection {
   readonly entries: readonly NavEntry[];
 }
 
-const FLEET_AUDIT: NavGuard = { kind: 'fleet_action', action: 'audit.read' };
 const FLEET_OPS: NavGuard = { kind: 'fleet_action', action: 'ops.read' };
 const FLEET_QUALITY: NavGuard = { kind: 'fleet_action', action: 'quality.read' };
 const SIGNED_IN: NavGuard = { kind: 'signed_in' };
+const PEOPLE_READERS: NavGuard = {
+  kind: 'fleet_any',
+  actions: ['audit.read', 'identity.admin', 'access.manage'],
+};
 const SECTION: NavGuard = { kind: 'section' };
 const at =
   (...names: Array<Route['name']>) =>
@@ -144,32 +147,20 @@ export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
       entry('models', '/models', FLEET_QUALITY, at('models')),
     ]),
     entry('people_roles', '/people', SECTION, () => false, [
-      // the directory's readers, and whoever holds access.manage somewhere (grant and revoke there)
-      entry(
-        'people',
-        '/people',
-        { kind: 'any', guards: [FLEET_AUDIT, { kind: 'somewhere', action: 'access.manage' }] },
-        at('people'),
-      ),
-      entry('teams', '/teams', FLEET_AUDIT, at('teams')),
+      // the fleet's readers and whoever runs access or sign-in on the fleet (portal v2, People squad)
+      entry('people', '/people', PEOPLE_READERS, at('people', 'person')),
+      entry('teams', '/teams', PEOPLE_READERS, at('teams', 'team')),
       entry('roles', '/roles', SIGNED_IN, at('roles')),
       entry('access_requests', '/access-requests', SIGNED_IN, at('accessRequests', 'accessGrant')),
-      entry(
-        'who_can',
-        '/access-explain',
-        { kind: 'somewhere', action: 'access.explain' },
-        at('explain'),
-      ),
+      entry('who_can', '/who-can', { kind: 'somewhere', action: 'access.explain' }, at('explain')),
     ]),
-    entry('audit_log', '/ledger', SECTION, () => false, [
-      entry(
-        'decision_log',
-        '/ledger',
-        { kind: 'somewhere', action: 'audit.read' },
-        at('fleetLedger'),
-      ),
-      entry('access_decisions', '/audit', FLEET_AUDIT, at('audit')),
-    ]),
+    // the decision log and its audit tabs; a project's own readers see their projects' log there
+    entry(
+      'audit_log',
+      '/audit',
+      { kind: 'somewhere', action: 'audit.read' },
+      at('audit', 'fleetLedger'),
+    ),
   ],
 };
 
@@ -188,6 +179,7 @@ export const TOP_BAR: readonly NavEntry[] = [
     at('notifications', 'notificationPrefs'),
   ),
   entry('my_access', '/me/access', SIGNED_IN, at('access')),
+  entry('my_profile', '/me', SIGNED_IN, at('profile')),
 ];
 
 export const guardPasses = (g: NavGuard, me: Me): boolean => {

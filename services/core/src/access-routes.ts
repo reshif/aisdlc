@@ -32,6 +32,7 @@ import {
 } from './access-grants.js';
 import type { AccessGrantWriterPort } from './clients.js';
 import { CORE_STATUS, coreError, type CoreError } from './errors.js';
+import { overrideOf } from './override.js';
 
 // P1-6's routes, for the bff acting for a signed-in person (`on_behalf_of`, scope portal). Each write asks the PDP for
 // `access.manage` on the change's scope (the project, or the fleet) first; fail closed: no PDP, an error or anything
@@ -185,7 +186,7 @@ export function registerAccessRoutes(r: AccessRouteDeps): void {
 
   app.post('/v1/access/grants/:id/prepare', (req, reply) =>
     decision(req, reply, RevisionPrepareRequest, (d, id, b) =>
-      prepareAccess(d, { grant_id: id, principal: b.on_behalf_of }),
+      prepareAccess(d, { grant_id: id, principal: b.on_behalf_of, override: overrideOf(req) }),
     ),
   );
   app.post('/v1/access/grants/:id/evidence', (req, reply) =>
@@ -206,6 +207,7 @@ export function registerAccessRoutes(r: AccessRouteDeps): void {
         nonce: b.nonce,
         decision: b.decision,
         step_up: b.step_up,
+        override: overrideOf(req),
       }),
     ),
   );

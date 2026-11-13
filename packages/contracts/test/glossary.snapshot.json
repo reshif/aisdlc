@@ -3188,6 +3188,58 @@
       "label": "Role assignment",
       "explain": "A person or group given a role on a project, team or the factory."
     },
+    "person": {
+      "label": "Person",
+      "explain": "Someone who can sign in to the factory."
+    },
+    "team": {
+      "label": "Team",
+      "explain": "People who work together; a role given to a team reaches every member."
+    },
+    "role": {
+      "label": "Role",
+      "explain": "A named set of things a person may do, and where."
+    },
+    "role_scope_fleet": {
+      "label": "Whole factory",
+      "explain": "The role reaches every project."
+    },
+    "sign_in_sso": {
+      "label": "Company sign-in",
+      "explain": "Signs in through the company identity provider."
+    },
+    "sign_in_local": {
+      "label": "Local account",
+      "explain": "A break-glass account for factory admins."
+    },
+    "person_active": {
+      "label": "Active",
+      "explain": "Can sign in and act."
+    },
+    "person_suspended": {
+      "label": "Suspended",
+      "explain": "Cannot sign in or act until reactivated."
+    },
+    "deleted_person": {
+      "label": "Deleted person",
+      "explain": "Someone who was deleted; their decisions stay in the log."
+    },
+    "override": {
+      "label": "Factory admin override",
+      "explain": "The factory admin acted outside a normal rule; who, what and why are recorded."
+    },
+    "override_reason": {
+      "label": "Reason for the override",
+      "explain": "Kept in the decision log with the act."
+    },
+    "deletion": {
+      "label": "Deletion",
+      "explain": "An object deleted for good; the log keeps only hashes."
+    },
+    "redacted": {
+      "label": "Hash only",
+      "explain": "The entry was deleted; only its hash stays so the log still verifies."
+    },
     "delete": {
       "label": "Delete",
       "explain": "Remove the object and all its data for good; the log keeps hashes only."
@@ -3475,6 +3527,10 @@
     "my_notifications": {
       "label": "My notifications",
       "explain": "What the factory told you."
+    },
+    "my_profile": {
+      "label": "My profile",
+      "explain": "Who you are in the factory: name, sign-in, teams and roles."
     },
     "design": {
       "label": "Design system",

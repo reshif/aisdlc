@@ -359,7 +359,7 @@ describe('Projects and the project page', () => {
     expect(tracks.querySelector('[data-gate="G4"]')).toHaveAttribute('data-on', 'true');
     await user.click(screen.getByRole('button', { name: /repo reshif\/asf-factory-testbed/ }));
     const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent('Decision log entries kept as hashes only');
+    expect(await within(dialog).findByText(/keeps 2 hashes/)).toBeInTheDocument();
     expect(m.calls.find((c) => c.path === '/api/deletions/preview')?.body).toEqual({
       kind: 'repo',
       id: 'reshif__asf-factory-testbed',

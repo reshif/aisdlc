@@ -71,3 +71,4 @@ export * from './settings.js';
 export * from './admin-override.js';
 export * from './deletion.js';
 export * from './onboarding-summary.js';
+export * from './people.js';

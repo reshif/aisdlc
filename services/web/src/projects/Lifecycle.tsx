@@ -1,32 +1,20 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { label, type DeletionPreview, type Level, type ProjectDetail } from '@aisdlc/contracts';
-import { useId, useState } from 'react';
+import { label, type Level, type ProjectDetail } from '@aisdlc/contracts';
 import { api, type Me } from '../api';
 import { describeError } from '../format';
 import { useNavigate } from '../router';
-import { Card, ConfirmDelete, KeyValue, Table } from '../ui';
-import { onboardApi } from '../onboard/api';
+import { DeleteObject } from '../admin';
+import { Card, Table } from '../ui';
 
 // The onboarded repo's whole life (intent §6; screen-map §3): run onboarding again, sign again, raise the level, and
 // delete a repo or the whole project ("delete means delete": the preview says what goes, the person types the name).
 // Every act is the server's decision (`project.onboard`, `repo.delete`, `project.delete`); the factory admin's
 // override reason travels in its header and is recorded.
 
-// TODO(portal v2 merge): replace this delete flow with the People squad's shared `<DeleteObject kind id name csrf
-// onDeleted />` from `services/web/src/admin` (v2/screens-people) once it is on main; same routes, same preview.
-
-type Target = { kind: 'project' | 'repo'; id: string; name: string } | null;
-
 export function Lifecycle({ d, me }: { d: ProjectDetail; me: Me }) {
   const csrf = me.csrf_token;
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [target, setTarget] = useState<Target>(null);
-  const [preview, setPreview] = useState<DeletionPreview | null>(null);
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState<string | undefined>(undefined);
-  const [note, setNote] = useState<string | null>(null);
-  const reasonId = useId();
   const project = d.project.project_id;
 
   const again = useMutation({
@@ -49,29 +37,11 @@ export function Lifecycle({ d, me }: { d: ProjectDetail; me: Me }) {
     onSuccess: (s0) => navigate(`/onboard/${s0}`),
   });
 
-  async function ask(t: NonNullable<Target>) {
-    setError(undefined);
-    setNote(null);
-    setPreview(null);
-    try {
-      setPreview(await onboardApi.deletionPreview(t.kind, t.id, csrf));
-      setTarget(t);
-    } catch (e) {
-      setNote(describeError(e));
-    }
-  }
-
-  const del = useMutation({
-    mutationFn: (t: NonNullable<Target>) =>
-      onboardApi.remove(t.kind, t.id, { reason: reason.trim(), confirm: t.id }, csrf),
-    onSuccess: async (_r, t) => {
-      setTarget(null);
-      await qc.invalidateQueries({ queryKey: ['projects'] });
-      if (t.kind === 'project') navigate('/projects');
-      else await qc.invalidateQueries({ queryKey: ['project', project] });
-    },
-    onError: (e) => setError(describeError(e)),
-  });
+  const deleted = async (kind: 'project' | 'repo') => {
+    await qc.invalidateQueries({ queryKey: ['projects'] });
+    if (kind === 'project') navigate('/projects');
+    else await qc.invalidateQueries({ queryKey: ['project', project] });
+  };
 
   return (
     <>
@@ -129,13 +99,14 @@ export function Lifecycle({ d, me }: { d: ProjectDetail; me: Me }) {
                         Raise the level
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      className="ui-btn ui-btn-sm ui-btn-danger"
-                      onClick={() => void ask({ kind: 'repo', id: r.repo_id, name: r.repo_ref })}
-                    >
-                      {label('concept', 'delete')} repo {r.repo_ref}
-                    </button>
+                    <DeleteObject
+                      kind="repo"
+                      id={r.repo_id}
+                      name={r.repo_ref}
+                      csrf={csrf}
+                      small
+                      onDeleted={() => void deleted('repo')}
+                    />
                   </div>
                 );
               },
@@ -153,60 +124,14 @@ export function Lifecycle({ d, me }: { d: ProjectDetail; me: Me }) {
           Removes the project and everything of it from the factory. The repos on GitHub are not
           touched, and the fix PRs stay there.
         </p>
-        <button
-          type="button"
-          className="ui-btn ui-btn-danger"
-          onClick={() => void ask({ kind: 'project', id: project, name: d.project.name })}
-        >
-          {label('concept', 'delete')} project {d.project.name}
-        </button>
-        {note ? (
-          <p className="ui-help ui-help-bad" role="alert">
-            {note}
-          </p>
-        ) : null}
-      </Card>
-      {target && preview ? (
-        <ConfirmDelete
-          open
-          kind={target.kind}
-          name={target.id}
-          busy={del.isPending}
-          {...(error ? { error } : {})}
-          onClose={() => setTarget(null)}
-          onConfirm={() => del.mutate(target)}
-          consequences={
-            <>
-              {preview.blockers.length > 0 ? (
-                <p className="ui-help ui-help-bad" role="alert">
-                  {preview.blockers.map((b) => b.message).join(' ')}
-                </p>
-              ) : null}
-              <KeyValue
-                rows={[
-                  ['Record entries removed', preview.counts.record_events_removed],
-                  ['Record entries redacted', preview.counts.record_events_redacted],
-                  ['Stored files removed', preview.counts.objects],
-                  [
-                    'Decision log entries kept as hashes only',
-                    preview.counts.ledger_entries_redacted,
-                  ],
-                ]}
-              />
-              <label className="ui-label" htmlFor={reasonId}>
-                Why (recorded)
-              </label>
-              <input
-                id={reasonId}
-                className="ui-input"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-              <p className="ui-help">Type {target.id} below to confirm.</p>
-            </>
-          }
+        <DeleteObject
+          kind="project"
+          id={project}
+          name={d.project.name}
+          csrf={csrf}
+          onDeleted={() => void deleted('project')}
         />
-      ) : null}
+      </Card>
     </>
   );
 }

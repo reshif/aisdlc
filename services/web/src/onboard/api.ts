@@ -1,8 +1,5 @@
 import {
   OVERRIDE_REASON_HEADER,
-  type DeletionKind,
-  type DeletionPreview,
-  type DeletionResult,
   type OnboardingSummaryView,
   type SignOffRequest,
   type SignOffResult,
@@ -10,11 +7,11 @@ import {
 import { ApiError } from '../api';
 
 // Portal v2 agent-led onboarding and the onboarded repo's lifecycle (screen-map §2.9, §2.10, §3; N11-N13, N26): the
-// summary, the one sign-off, "ask the agent again", and the delete preview and delete. The person is always the
+// summary, the one sign-off and "ask the agent again" (delete is the admin lifecycle's `DeleteObject`). The person is always the
 // session's; the factory admin's override reason travels in its header, never in a body.
 
 async function call<T>(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST',
   path: string,
   o: { body?: unknown; csrf?: string; override?: string } = {},
 ): Promise<T> {
@@ -65,18 +62,4 @@ export const onboardApi = {
     }),
   runAgent: (s0: string, csrf: string) =>
     call<{ state: string }>('POST', `/api/s0/${enc(s0)}/agent/run`, { body: {}, csrf }),
-  deletionPreview: (kind: DeletionKind, id: string, csrf: string) =>
-    call<DeletionPreview>('POST', '/api/deletions/preview', { body: { kind, id }, csrf }),
-  remove: (
-    kind: 'project' | 'repo',
-    id: string,
-    b: { reason: string; confirm: string },
-    csrf: string,
-    override?: string,
-  ) =>
-    call<DeletionResult>('DELETE', `/api/${kind === 'project' ? 'projects' : 'repos'}/${enc(id)}`, {
-      body: b,
-      csrf,
-      ...(override ? { override } : {}),
-    }),
 };

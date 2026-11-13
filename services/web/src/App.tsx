@@ -16,8 +16,9 @@ import { ProjectPage } from './projects/ProjectPage';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { ProjectsPage } from './projects/ProjectsPage';
 import { ConfigKeyPage, ConfigListPage } from './pages/ConfigPages';
-import { MyAccessPage } from './pages/MyAccessPage';
-import { NotificationPrefsPage, NotificationsPage } from './pages/NotificationsPage';
+import { MyAccessPage } from './me/MyAccess';
+import { MyNotificationsPage } from './me/MyNotifications';
+import { MyProfilePage } from './me/MyProfile';
 import { AskPage } from './assistant/AskPage';
 import { AskScreen } from './work/AskScreen';
 import { DecideScreen } from './work/DecideScreen';
@@ -28,7 +29,7 @@ import { ItemsScreen } from './work/ItemsScreen';
 import { CloseoutPage } from './pages/CloseoutPage';
 import { LearnPage } from './pages/LearnPage';
 import { FactoryRevisionPage } from './pages/FactoryRevisionPage';
-import { AccessGrantPage, AccessRequestsPage } from './pages/AccessPages';
+import { AccessRequestPage, AccessRequestsPage } from './people/AccessRequests';
 import { FloorPage } from './floor/FloorPage';
 import { FleetPage } from './floor/FleetPage';
 import { AgentsPage, EvalsPage, IntegrationsPage, ModelsPage } from './pages/QualityPages';
@@ -40,9 +41,12 @@ import {
   SandboxesPage,
   SchedulerPage,
 } from './pages/OperatePages';
-import { AuditPage, CataloguePage, FleetLedgerPage } from './pages/GovernPages';
+import { CataloguePage } from './pages/GovernPages';
+import { AuditPage } from './audit/AuditPage';
 import { BudgetsPage, CostPage } from './pages/SpendPages';
-import { ExplainPage, PeoplePage, RolesPage, TeamsPage } from './pages/AdminPages';
+import { PeoplePage, PersonPage } from './people/People';
+import { TeamPage, TeamsPage } from './people/Teams';
+import { RolesPage, WhoCanPage } from './people/Roles';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
 import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
@@ -209,21 +213,24 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'cost':
       return <CostPage />;
     case 'fleetLedger':
-      return <FleetLedgerPage me={me} />;
     case 'audit':
-      return <AuditPage csrf={csrf} />;
+      return <AuditPage me={me} />;
     case 'catalogue':
       return <CataloguePage />;
     case 'people':
       return <PeoplePage me={me} />;
+    case 'person':
+      return <PersonPage key={route.id} id={route.id} me={me} />;
     case 'teams':
-      return <TeamsPage />;
+      return <TeamsPage me={me} />;
+    case 'team':
+      return <TeamPage key={route.id} id={route.id} me={me} />;
     case 'roles':
-      return <RolesPage />;
+      return <RolesPage me={me} />;
     case 'accessRequests':
       return <AccessRequestsPage me={me} />;
     case 'explain':
-      return <ExplainPage me={me} />;
+      return <WhoCanPage me={me} />;
     case 'onboard':
       return <OnboardStart csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':
@@ -242,7 +249,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'learn':
       return <LearnPage project={route.id} csrf={csrf} />;
     case 'accessGrant':
-      return <AccessGrantPage id={route.id} csrf={csrf} />;
+      return <AccessRequestPage key={route.id} id={route.id} me={me} />;
     case 'factoryRevision':
       return <FactoryRevisionPage gate={route.id} csrf={csrf} me={me.principal.principal_id} />;
     case 'inbox':
@@ -274,6 +281,8 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       );
     case 'access':
       return <MyAccessPage />;
+    case 'profile':
+      return <MyProfilePage me={me} />;
     case 'config':
       return <ConfigListPage />;
     case 'configKey':
@@ -283,9 +292,9 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'askForWork':
       return <AskScreen key={route.project ?? ''} project={route.project} csrf={csrf} />;
     case 'notifications':
-      return <NotificationsPage />;
+      return <MyNotificationsPage csrf={me.csrf_token} />;
     case 'notificationPrefs':
-      return <NotificationPrefsPage csrf={me.csrf_token} />;
+      return <MyNotificationsPage csrf={me.csrf_token} prefs />;
     case 'design':
       return <DesignPage />;
     case 'notfound':
