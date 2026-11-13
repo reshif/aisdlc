@@ -87,6 +87,77 @@ describe('Onboard a repo: the summary and the one sign-off', () => {
     ...extra,
   });
 
+  it('says what is in the way and whose move it is, and warns when the chosen risk cannot be signed', async () => {
+    const f = (tier: 'T0' | 'T1' | 'T2', bad: boolean) =>
+      [
+        tier,
+        {
+          state: bad ? 'infeasible' : 'feasible',
+          tier,
+          slot: 'm4',
+          required: bad ? null : 1,
+          eligible: 1,
+          reason: bad ? 'T2 needs two approvers' : null,
+        },
+      ] as const;
+    const base = summary();
+    const s = {
+      ...base,
+      census: { ...base.census!, tier_floor: 'T0' as const },
+      role_map: {
+        ...base.role_map!,
+        m4_by_tier: Object.fromEntries([f('T0', false), f('T1', false), f('T2', true)]),
+      },
+    } as OnboardingSummaryView;
+    mockApi(
+      routes(s, {
+        [`GET /api/s0/${S0_ID}/blockers`]: {
+          json: {
+            s0_id: S0_ID,
+            status: 'in_progress',
+            requested_level: 'light',
+            ready: false,
+            signoff: null,
+            blockers: [
+              {
+                id: 'secret_findings',
+                kind: 'finding',
+                owner: 'security',
+                code: 'secret_finding_open',
+                title: '1 secret finding open',
+                why: 'A secret blocks the tests.',
+                next: 'Rule on it.',
+                blocked_by: [],
+              },
+              {
+                id: 'probe',
+                kind: 'probe',
+                owner: 'security',
+                code: 'b1_blocked',
+                title: 'The tests cannot run while a secret finding is open',
+                why: 'x',
+                next: 'y',
+                blocked_by: ['secret_findings'],
+              },
+            ],
+          },
+        },
+      }) as never,
+    );
+    const user = userEvent.setup();
+    renderAt(`/onboard/${S0_ID}`);
+    const rows = await screen.findAllByTestId('blocker');
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toHaveAttribute('data-code', 'b1_blocked');
+    expect(rows[1]).toHaveTextContent('Waits behind: 1 secret finding open');
+    expect(screen.queryByTestId('tier-infeasible')).toBeNull();
+    const risk = screen.getByRole('combobox', { name: 'Risk' });
+    await user.selectOptions(risk, 'T2');
+    expect(await screen.findByTestId('tier-infeasible')).toHaveTextContent(
+      'T2 needs two approvers',
+    );
+  });
+
   it('shows what the agent learned, the fix PRs and their state, and what a person must do; the factory never merges', async () => {
     mockApi(routes(summary()) as never);
     renderAt(`/onboard/${S0_ID}`);

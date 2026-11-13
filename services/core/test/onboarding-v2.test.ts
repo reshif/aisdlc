@@ -6,7 +6,10 @@ import { ONBOARDING_AGENT_EVENT, onboardingAgentStream } from '@aisdlc/contracts
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   FakeOnboardingAgent,
+  acceptedFixFiles,
+  definesTestTarget,
   latestProposal,
+  onboardingBlockers,
   onboardingSummary,
   rebuildOnboardingProposals,
   runOnboardingAgent,
@@ -216,6 +219,65 @@ describe('the onboarding agent proposes', () => {
     };
     const refused = await runOnboardingAgent({ cards: c.deps, agent: lane }, c.s0, { force: true });
     expect(refused.ok).toBe(false);
+  });
+});
+
+describe('why it is stuck (blockers)', () => {
+  it('a census onboarding at card 1 is ready: only the cards a person decides are left, and none is hidden', async () => {
+    const { c } = await proposed();
+    const r = ok(await onboardingBlockers(c.deps, c.s0)).value;
+    expect(r.s0_id).toBe(c.s0);
+    expect(r.ready).toBe(true);
+    expect(r.blockers.length).toBeGreaterThan(0);
+    expect(r.blockers.every((b) => b.kind === 'card')).toBe(true);
+    expect(r.blockers.map((b) => b.id)).toContain('card:C1');
+  });
+
+  it('before the agent has proposed, the agent’s own move is listed and the record is not ready', async () => {
+    const c = await scenario({ host: { codeowners: null } });
+    expect(await c.drive()).toBe('card');
+    await sync(c);
+    const r = ok(await onboardingBlockers(c.deps, c.s0)).value;
+    expect(r.blockers.find((b) => b.id === 'agent_proposal')?.owner).toBe('agent');
+    expect(r.ready).toBe(false);
+  });
+});
+
+describe('the test_command fix writes a file the detector reads', () => {
+  const out = (path: string, content: string) =>
+    ({
+      fixes: [
+        {
+          fix_id: 't',
+          fix_kind: 'test_command',
+          title: 't',
+          why: 'w',
+          files: [{ path, content }],
+          manual_steps: [],
+        },
+      ],
+    }) as never;
+  const mk = 'test:\n\tnpm test\n';
+
+  it('a Makefile with a test target is kept; the old .factory/test-command path is dropped', () => {
+    expect(acceptedFixFiles(out('Makefile', mk), null, new Set()).files).toHaveLength(1);
+    const old = acceptedFixFiles(out('.factory/test-command', 'npm test\n'), null, new Set());
+    expect(old.files).toHaveLength(0);
+    expect(old.dropped[0]?.why).toMatch(/not a path/);
+  });
+
+  it('never replaces a task file the census saw, and fails closed when it could not tell', () => {
+    expect(acceptedFixFiles(out('Makefile', mk), null, new Set(['Makefile'])).files).toHaveLength(
+      0,
+    );
+    expect(acceptedFixFiles(out('Makefile', mk), null, null).files).toHaveLength(0);
+  });
+
+  it('a file with no test target is dropped', () => {
+    const r = acceptedFixFiles(out('Makefile', 'build:\n\ttsc\n'), null, new Set());
+    expect(r.dropped[0]?.why).toMatch(/no `test` target/);
+    expect(definesTestTarget('justfile', 'test:\n  npm test\n')).toBe(true);
+    expect(definesTestTarget('Makefile', 'tests:\n\tx\n')).toBe(false);
   });
 });
 

@@ -65,3 +65,8 @@
 ## Deviations from the design (code wins)
 
 (Kept up to date per phase.)
+
+### P0
+- The test-command fix now writes a `Makefile` or `justfile` with a `test` target (what the task-contract detector reads), never `.factory/test-command`. Because fix files replace whole files and the factory never replaces an existing one, a task file the census already saw (or an unreadable census: fail closed) drops the fix, and a file with no `test` target is dropped. The person-attested `s0.test_command_declared` event is deferred to P4 (accept/edit/reject chips), where the person's choice is recorded.
+- `explainS0` lives in `packages/onboarding/src/explain.ts` and is pure over an input the core reads (`services/core/src/onboarding-v2/blockers.ts`); the signing arithmetic is `signoffFeasibility` in `@aisdlc/decisions` (the same `planQuorum` the gate applies, asked before the gate opens). It is not `gateFeasibility`, because no gate is open yet at C1 time.
+- The tier warning is per tier on the role map the factory proposes (`role_map.m4_by_tier` in the summary), shown on the Risk selector. It does not yet follow edits to the draft role map: the blocker list and the warning refresh after a save.

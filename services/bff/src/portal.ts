@@ -1,4 +1,5 @@
 import {
+  OnboardingBlockers,
   OnboardingSummaryView,
   SignOffRequest,
   SignOffResult,
@@ -122,6 +123,7 @@ import type { Levels } from './levels.js';
 //   GET  /api/s0/:id                      the S0 record with its steps                (project.view)
 //   GET  /api/s0/:id/cards                its cards, with `may_decide`                (project.view)
 //   GET  /api/s0/:id/summary              portal v2: the one onboarding summary        (project.view)
+//   GET  /api/s0/:id/blockers             onboarding console: why it is stuck, whose move  (project.view)
 //   POST /api/s0/:id/sign-off             portal v2: the one sign-off                  (card.decide, in core)
 //   POST /api/s0/:id/agent/run            portal v2: ask the onboarding agent again    (project.onboard, in core)
 //   GET  /api/cards/:id                   one card with its view and deciders         (project.view)
@@ -1304,6 +1306,20 @@ export function registerPortalRoutes(d: PortalDeps): void {
       reply,
       await c.call('GET', `/v1/s0/${id}/summary?on_behalf_of=${encodeURIComponent(who)}`),
       (v) => OnboardingSummaryView.parse(v),
+    )?.value;
+  });
+
+  /** Why the onboarding is stuck and whose move it is (a read; core asks the PDP's `project.view` too). */
+  app.get('/api/s0/:id/blockers', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    if (!(await viewableS0(req, reply, c, id))) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('GET', `/v1/s0/${id}/blockers?on_behalf_of=${encodeURIComponent(who)}`),
+      (v) => OnboardingBlockers.parse(v),
     )?.value;
   });
 

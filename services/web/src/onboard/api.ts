@@ -1,5 +1,6 @@
 import {
   OVERRIDE_REASON_HEADER,
+  type OnboardingBlockers,
   type OnboardingSummaryView,
   type SignOffRequest,
   type SignOffResult,
@@ -54,6 +55,7 @@ const enc = encodeURIComponent;
 
 export const onboardApi = {
   summary: (s0: string) => call<OnboardingSummaryView>('GET', `/api/s0/${enc(s0)}/summary`),
+  blockers: (s0: string) => call<OnboardingBlockers>('GET', `/api/s0/${enc(s0)}/blockers`),
   signOff: (s0: string, body: SignOffBody, csrf: string, override?: string) =>
     call<SignOffResult>('POST', `/api/s0/${enc(s0)}/sign-off`, {
       body,

@@ -16,11 +16,13 @@ import { overrideOf } from '../override.js';
 import { getProject } from '../queries.js';
 import { runOnboardingAgent, type OnboardingAgentPort } from './agent.js';
 import type { PackDeps } from '../cards/pack.js';
+import { onboardingBlockers } from './blockers.js';
 import { signOff } from './sign-off.js';
 import { onboardingSummary } from './summary.js';
 
 // Portal v2's agent-led onboarding in core (N11-N13): the summary, the one sign-off, and "ask the agent again".
 //   GET  /v1/s0/:id/summary?on_behalf_of=   scope read     PDP project.view on the project
+//   GET  /v1/s0/:id/blockers?on_behalf_of=  scope read     PDP project.view on the project (what stands between it and sign-off)
 //   POST /v1/s0/:id/sign-off                scope onboard  PDP card.decide on card 1 (the kernel decides each card)
 //   POST /v1/s0/:id/agent/run               scope onboard  PDP project.onboard on the record's team (or the fleet)
 
@@ -85,6 +87,28 @@ export function registerOnboardingV2Routes(r: OnboardingV2RouteDeps): void {
       id,
       who.data.on_behalf_of,
     );
+    return v.ok ? v.value : fail(reply, v.error);
+  });
+
+  app.get('/v1/s0/:id/blockers', async (req, reply) => {
+    if (!r.allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');
+    const cards = cardsOr(reply);
+    const id = idOf(req, reply);
+    if (!cards || !id) return;
+    const who = Who.safeParse(req.query);
+    if (!who.success) return fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+    const loaded = await loadS0(cards.pool, id);
+    if (!loaded) return fail(reply, coreError('not_found', `no S0 record ${id}`));
+    if (
+      !(await r.guard(
+        reply,
+        who.data.on_behalf_of,
+        'project.view',
+        pdpResource.project(loaded.s0.record.project_id),
+      ))
+    )
+      return;
+    const v = await onboardingBlockers(cards, id);
     return v.ok ? v.value : fail(reply, v.error);
   });
 

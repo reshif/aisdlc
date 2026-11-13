@@ -14299,6 +14299,78 @@
       ],
       "additionalProperties": false
     },
+    "Blocker": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "step",
+            "floor",
+            "card",
+            "finding",
+            "control",
+            "probe",
+            "feasibility"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "you",
+            "security",
+            "signer",
+            "github"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "why": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "next": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "blocked_by": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "owner",
+        "code",
+        "title",
+        "why",
+        "next",
+        "blocked_by"
+      ],
+      "additionalProperties": false
+    },
     "BlockerId": {
       "type": "string",
       "enum": [
@@ -14308,6 +14380,28 @@
         "B4",
         "B5",
         "B6"
+      ]
+    },
+    "BlockerKind": {
+      "type": "string",
+      "enum": [
+        "step",
+        "floor",
+        "card",
+        "finding",
+        "control",
+        "probe",
+        "feasibility"
+      ]
+    },
+    "BlockerOwner": {
+      "type": "string",
+      "enum": [
+        "agent",
+        "you",
+        "security",
+        "signer",
+        "github"
       ]
     },
     "BlockerStatus": {
@@ -97258,6 +97352,188 @@
       ],
       "additionalProperties": false
     },
+    "OnboardingBlockers": {
+      "type": "object",
+      "properties": {
+        "s0_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "app",
+            "running",
+            "card",
+            "blocked",
+            "starter",
+            "parked",
+            "done",
+            "rejected",
+            "superseded",
+            "withdrawn"
+          ]
+        },
+        "requested_level": {
+          "type": "string",
+          "enum": [
+            "census",
+            "light",
+            "full"
+          ]
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "blockers": {
+          "maxItems": 60,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "step",
+                  "floor",
+                  "card",
+                  "finding",
+                  "control",
+                  "probe",
+                  "feasibility"
+                ]
+              },
+              "owner": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "you",
+                  "security",
+                  "signer",
+                  "github"
+                ]
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "why": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              },
+              "next": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "blocked_by": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                }
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "owner",
+              "code",
+              "title",
+              "why",
+              "next",
+              "blocked_by"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "signoff": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "feasible",
+                    "infeasible"
+                  ]
+                },
+                "tier": {
+                  "type": "string",
+                  "enum": [
+                    "T0",
+                    "T1",
+                    "T2"
+                  ]
+                },
+                "slot": {
+                  "type": "string"
+                },
+                "required": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 2
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "eligible": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "state",
+                "tier",
+                "slot",
+                "required",
+                "eligible",
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "s0_id",
+        "status",
+        "requested_level",
+        "ready",
+        "blockers",
+        "signoff"
+      ],
+      "additionalProperties": false
+    },
     "OnboardingCardSummary": {
       "type": "object",
       "properties": {
@@ -98722,6 +98998,72 @@
                     "T1",
                     "T2"
                   ]
+                },
+                "m4_by_tier": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "enum": [
+                      "T0",
+                      "T1",
+                      "T2"
+                    ]
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "feasible",
+                          "infeasible"
+                        ]
+                      },
+                      "tier": {
+                        "type": "string",
+                        "enum": [
+                          "T0",
+                          "T1",
+                          "T2"
+                        ]
+                      },
+                      "slot": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 2
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "eligible": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "reason": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "tier",
+                      "slot",
+                      "required",
+                      "eligible",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "required": [
@@ -141848,6 +142190,61 @@
         "solo",
         "team"
       ]
+    },
+    "SignoffFeasibility": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "feasible",
+            "infeasible"
+          ]
+        },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "T0",
+            "T1",
+            "T2"
+          ]
+        },
+        "slot": {
+          "type": "string"
+        },
+        "required": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "eligible": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "tier",
+        "slot",
+        "required",
+        "eligible",
+        "reason"
+      ],
+      "additionalProperties": false
     },
     "SlackMemberId": {
       "type": "string",

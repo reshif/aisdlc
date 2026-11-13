@@ -22,6 +22,7 @@ import { useStepUp } from '../cards/StepUp';
 import { describeError } from '../format';
 import { Link } from '../router';
 import { Card, EmptyState, KeyValue, PageHeader, Pill, Stepper, type PillTone } from '../ui';
+import { Blockers } from './Blockers';
 import { onboardApi, type SignOffBody } from './api';
 import { ONBOARD_STEPS } from './OnboardStart';
 import './onboard.css';
@@ -283,6 +284,7 @@ function Summary({
       <Stepper label="Onboarding steps" steps={ONBOARD_STEPS(step)} />
       <div className="ui-split ob-split">
         <div className="ob-main">
+          <Blockers id={v.s0_id} />
           <AgentWorks v={v} csrf={csrf} />
           <Fixes v={v} />
           <PersonMust v={v} refresh={refresh} />
@@ -576,6 +578,13 @@ function Owners({ v, d, set }: { v: OnboardingSummaryView; d: Draft; set: SetDra
           </option>
         ))}
       </select>
+      {v.role_map?.m4_by_tier?.[d.tier]?.state === 'infeasible' ? (
+        <p className="ui-help" role="alert" data-testid="tier-infeasible">
+          At {label('tier', d.tier)} the scorecard could not be signed by the people named for it:{' '}
+          {v.role_map.m4_by_tier[d.tier]?.reason}. The risk only ever goes up, so name more people
+          below, or keep a lower risk if the repo allows it.
+        </p>
+      ) : null}
       {d.tier === 'T0' && v.census.t0_required ? (
         <Check checked={d.t0} onChange={(x) => set('t0', x)}>
           I confirm: no production use, no real data, no dependants

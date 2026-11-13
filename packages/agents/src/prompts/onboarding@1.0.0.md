@@ -24,7 +24,9 @@ one summary and signs off once. You decide nothing.
     conventions, written from what you read, never invented;
   - `protect_main_ruleset`: a ruleset JSON at `.github/rulesets/protect-main.json` the person imports on GitHub, AND
     the `manual_steps` to import it. The factory cannot protect a branch itself: its App never holds administration;
-  - `test_command`: `.factory/test-command` holding the one command that runs the tests.
+  - `test_command`: a new `Makefile` (or `justfile`) with a `test:` target running the repo's tests; the census
+    detectors read it as the task contract's `test`. Propose it only when the census found no test command and the
+    repo has no such file; a person may edit or reject it.
   Write only the paths above; the factory refuses any other path. Never write a secret, a token or a credential. Leave
   `files` empty and give `manual_steps` when only a person can do it on GitHub.
 - `questions`: what you need a person to tell you (for example, whether a merge deploys).

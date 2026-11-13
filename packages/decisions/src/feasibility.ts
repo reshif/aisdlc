@@ -1,6 +1,9 @@
 import {
   gatePolicy,
   type GateFeasibility,
+  type SignoffFeasibility,
+  type Tier,
+  type TwoPerson,
   type GateOpenedPayload,
   type PrincipalId,
 } from '@aisdlc/contracts';
@@ -64,4 +67,39 @@ export async function gateFeasibility(
     };
   }
   return { ...base, state: 'feasible', eligible, reason: null };
+}
+
+/**
+ * Can the onboarding signer gate (M4) be decided at `tier` by `holders` of its slot, for this requester? The same
+ * `planQuorum` the gate applies when it opens, asked BEFORE it opens (card 1's tier choice and card 4's role map
+ * fix who would decide it). Pure.
+ */
+export function signoffFeasibility(i: {
+  readonly tier: Tier;
+  readonly twoPerson: TwoPerson;
+  readonly holders: readonly PrincipalId[];
+  readonly requester: PrincipalId | null;
+}): SignoffFeasibility {
+  const slot = gatePolicy('M4').slot;
+  const holders = [...new Set(i.holders)];
+  const plan = planQuorum('M4', { tier: i.tier, two_person: i.twoPerson }, holders, i.requester);
+  const others = holders.filter((h) => !barredOf(i.requester, []).includes(h)).length;
+  if (!plan.ok) {
+    return {
+      state: 'infeasible',
+      tier: i.tier,
+      slot,
+      required: null,
+      eligible: others,
+      reason: plan.error.message,
+    };
+  }
+  return {
+    state: 'feasible',
+    tier: i.tier,
+    slot,
+    required: plan.value.required,
+    eligible: plan.value.basis === 'own_item' ? holders.length : others,
+    reason: null,
+  };
 }

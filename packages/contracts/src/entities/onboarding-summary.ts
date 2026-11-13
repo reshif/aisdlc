@@ -7,6 +7,7 @@ import { GitSha, PrincipalId, S0RecordId, Sha256Hex } from './ids.js';
 import { C1DecisionContent, C4DecisionContent } from './onboarding-cards.js';
 import { C2DecisionContent } from './onboarding-light.js';
 import { CardKind, OnboardingStepId, OnboardingStepState } from './onboarding.js';
+import { SignoffFeasibility } from './onboarding-blockers.js';
 import { RoleMap } from './projects.js';
 
 // Portal v2, agent-led onboarding (intent §4; screen-map §2.10, N10-N13; gap G4). The onboarding agent reads an S0
@@ -215,7 +216,16 @@ export const OnboardingSummaryView = z.strictObject({
     .nullable(),
   /** The role map the factory proposes (CODEOWNERS and collaborators), or the one in force. */
   role_map: z
-    .strictObject({ proposed: RoleMap, unmapped_logins: z.array(z.string()), tier: Tier })
+    .strictObject({
+      proposed: RoleMap,
+      unmapped_logins: z.array(z.string()),
+      tier: Tier,
+      /**
+       * Could the onboarding signer gate (M4) be decided at each tier by the people this map names for it? Asked
+       * before card 1 chooses the tier (the tier only goes up, so a tier chosen without this cannot be undone).
+       */
+      m4_by_tier: z.partialRecord(Tier, SignoffFeasibility).optional(),
+    })
     .nullable(),
   /** Card 2's proposal (Light): the claims, questions and instruction files to affirm. */
   light: z.record(z.string(), z.unknown()).nullable(),

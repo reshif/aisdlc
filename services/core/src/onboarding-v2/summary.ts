@@ -5,6 +5,7 @@ import {
   OnboardingSummaryView,
   S0CardRequiredPayload,
   S0_EVENT,
+  Tier,
   gatePolicy,
   onboardingAgentStream,
   onboardingSummaryHash,
@@ -26,6 +27,7 @@ import { coreError, type CoreError } from '../errors.js';
 import { prrByHash } from '../m4.js';
 import { revisionOfS0 } from '../portal-reads.js';
 import { gapChoices, latestProposal } from './agent.js';
+import { signoffOf } from './blockers.js';
 
 // The one onboarding summary (portal v2, N12; screen-map §2.10 step 3): everything the agent found and proposes and
 // everything the cards underneath will decide, on one page, read from the record and the code host. A pure read:
@@ -255,10 +257,23 @@ export async function onboardingSummary(
         ],
         operations_md: c4.value.level_needs_operations,
       };
+      const proposed = c4.value.current?.settings.role_map ?? c4.value.proposal.role_map;
+      const m4 = proposed[gatePolicy('M4').slot];
       roleMap = {
-        proposed: c4.value.current?.settings.role_map ?? c4.value.proposal.role_map,
+        proposed,
         unmapped_logins: [...c4.value.proposal.basis.unmapped_logins],
         tier: c4.value.tier,
+        m4_by_tier: Object.fromEntries(
+          Tier.options.flatMap((t) => {
+            const f = signoffOf({
+              tier: t,
+              twoPerson: c4.value.current?.settings.two_person ?? null,
+              m4: m4?.kind === 'principals' ? m4.principals : null,
+              requester: requestedBy,
+            });
+            return f ? [[t, f]] : [];
+          }),
+        ),
       };
     }
   }

@@ -93,7 +93,8 @@ export const FIX_PATHS: Readonly<Record<OnboardingFixKind, readonly string[]>> =
   agents_md: ['AGENTS.md'],
   claude_md: ['CLAUDE.md'],
   protect_main_ruleset: ['.github/rulesets/protect-main.json'],
-  test_command: ['.factory/test-command'],
+  // the task-contract detector reads these (services/knowledge detectors/task-contract.ts): a `test` target
+  test_command: ['Makefile', 'justfile'],
 };
 
 const control = (r: ControlsReport | null, id: string) => r?.controls.find((c) => c.id === id);
@@ -558,10 +559,33 @@ export async function agentInputOf(
   });
 }
 
+/** Whether a Makefile or justfile defines a `test` recipe at column 0 (what the task-contract detector maps to `test`). */
+export function definesTestTarget(path: string, content: string): boolean {
+  return (path === 'Makefile' ? /^test\s*:(?![=:])/m : /^@?test(?:\s+[^:\n]*)?:(?!=)/m).test(
+    content,
+  );
+}
+
+/** The task files the census detectors saw at the census head (`null`: the facts could not be read). */
+export async function existingTaskFiles(
+  d: Pick<CardDeps, 'knowledge'>,
+  jobId: string,
+): Promise<ReadonlySet<string> | null> {
+  const facts = await d.knowledge.detectorFacts(jobId);
+  if (!facts.ok || facts.value === null) return null;
+  return new Set(
+    facts.value.flatMap((f) =>
+      f.kind === 'task_command' && f.source !== null ? [f.source.split('#')[0] as string] : [],
+    ),
+  );
+}
+
 /** Keeps the files the factory accepts; says why each other one was dropped. */
 export function acceptedFixFiles(
   out: OnboardingAgentOutput,
   report: ControlsReport | null,
+  /** The task files the census saw (Makefile, justfile, ...); `null`: unknown, so none may be written (fail closed). */
+  taskFiles: ReadonlySet<string> | null = null,
 ): {
   files: Array<{ fix_id: string; path: string; content: string }>;
   dropped: Array<{ ref: string; why: string }>;
@@ -572,7 +596,8 @@ export function acceptedFixFiles(
   const present = (path: string): boolean =>
     (path === 'AGENTS.md' && report?.instructions.agents_md !== 'absent') ||
     (path === 'CLAUDE.md' && report?.instructions.claude_md !== 'absent') ||
-    (FIX_PATHS.codeowners.includes(path) && report?.codeowners.path !== null);
+    (FIX_PATHS.codeowners.includes(path) && report?.codeowners.path !== null) ||
+    (FIX_PATHS.test_command.includes(path) && (taskFiles === null || taskFiles.has(path)));
   for (const f of out.fixes) {
     for (const file of f.files) {
       const ref = `${f.fix_id}:${file.path}`;
@@ -582,6 +607,8 @@ export function acceptedFixFiles(
         dropped.push({ ref, why: 'another fix already writes this path' });
       } else if (present(file.path)) {
         dropped.push({ ref, why: 'the repo already has this file: the factory never replaces it' });
+      } else if (f.fix_kind === 'test_command' && !definesTestTarget(file.path, file.content)) {
+        dropped.push({ ref, why: 'the file defines no `test` target the detector would read' });
       } else if (scanText(file.content).length > 0) {
         dropped.push({ ref, why: 'the file would hold a secret' });
       } else {
@@ -704,7 +731,11 @@ export async function runOnboardingAgent(
         coreError('refused', 'the onboarding agent wrote something that looks like a secret'),
       );
     }
-    const { dropped } = acceptedFixFiles(output, input.value.controls);
+    const { dropped } = acceptedFixFiles(
+      output,
+      input.value.controls,
+      await existingTaskFiles(d.cards, s0.census.job_id),
+    );
     const outputHash = hashCanonical(output);
     const payload = OnboardingAgentProposedPayload.parse({
       s0_id: s0Id,
@@ -762,7 +793,11 @@ export async function projectFixes(
   const report = await buildControlsReport(d.cards, loaded.s0.repo, {
     reduced: loaded.s0.record.requested_level === 'census',
   });
-  const { files } = acceptedFixFiles(row.output, report);
+  const { files } = acceptedFixFiles(
+    row.output,
+    report,
+    loaded.s0.census ? await existingTaskFiles(d.cards, loaded.s0.census.job_id) : null,
+  );
   const rendered = renderFixes(
     loaded.s0.record.s0_id,
     loaded.s0.repo,
