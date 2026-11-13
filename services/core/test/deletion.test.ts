@@ -233,6 +233,17 @@ describe('deleting a project after a full item lifecycle', () => {
         (await objects.head(EVIDENCE_BUCKET, packSha)),
     ).toMatchObject({ value: null });
     expect(await readItem(s.record.pool, goneItem)).toBeNull();
+    // the Notary's own database: its journal's copies of the redacted entries are erased too
+    const nj = await s.id.notary.database.pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM notary.journal j
+        WHERE position('zebracorn' in j::text) > 0 OR position($1 in j::text) > 0`,
+      [goneItem],
+    );
+    expect(nj.rows[0]?.n).toBe('0');
+    const erased = await s.id.notary.database.pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM notary.journal WHERE entry = '{"redacted": true}'::jsonb`,
+    );
+    expect(Number(erased.rows[0]?.n)).toBe(result.counts.ledger_entries_redacted);
   });
 
   it('the other project is untouched', async () => {

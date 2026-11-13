@@ -109,6 +109,16 @@ export interface NotaryPort {
   verify(entry: LedgerEntry): Promise<Result<true, NotaryError>>;
 }
 
+/**
+ * Delete means delete (docs/specs/deletion.md §1): the Notary's journal keeps a copy of every entry it signed, so a
+ * deletion asks it to erase the copies of the entries it redacted. The request carries the `deletion.performed` entry
+ * itself; the Notary checks that it signed exactly that entry (its journal, its key) and erases only the entries the
+ * entry's body names, keeping each one's seq, hashes and status. Nothing else can make it erase anything.
+ */
+export interface JournalRedactorPort {
+  redactJournal(deletion: LedgerEntry): Promise<Result<{ redacted: number }, NotaryError>>;
+}
+
 /** What 7.6 asks the Notary to sign (PLAN M14.4): a pack id, with the item and head it says it is about (journalled). */
 export interface EvidenceSignRequest {
   pack_sha256: string;
@@ -194,7 +204,9 @@ interface Row {
  * a `KeyCustodyPort` for the signatures (use `fakeKeyCustody()` for a deterministic one). The
  * shared conformance suite in `@aisdlc/ports/testing` runs against it and the real service.
  */
-export class FakeNotary implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort {
+export class FakeNotary
+  implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort, JournalRedactorPort
+{
   private readonly rows = new Map<number, Row>();
   private readonly packs = new Map<string, { req: EvidenceSignRequest; signature: Signature }>();
   private readonly exports = new Map<string, { scope_ref: string; signature: Signature }>();
@@ -350,5 +362,28 @@ export class FakeNotary implements NotaryPort, EvidenceSignerPort, AuditExportSi
     if (!key.ok) return err(notaryError('signer_unavailable', key.error.message));
     const bad = await checkLedgerEntrySignature(parsed.data, key.value);
     return bad === null ? ok(true as const) : err(notaryError('invalid_signature', bad));
+  }
+
+  /** `JournalRedactorPort`, the same rules as `services/notary`: only for a deletion entry this Notary committed. */
+  async redactJournal(entry: LedgerEntry) {
+    const v = await this.verify(entry);
+    if (!v.ok) return v;
+    const seqs = (entry.body as { redacted_ledger_seqs?: unknown }).redacted_ledger_seqs;
+    if (entry.entry_type !== 'deletion.performed' || !Array.isArray(seqs)) {
+      return err(notaryError('invalid_entry', 'only a deletion.performed entry erases'));
+    }
+    const own = this.rows.get(entry.ledger_seq);
+    if (!own || own.status !== 'committed' || own.entry?.entry_hash !== entry.entry_hash) {
+      return err(notaryError('entry_mismatch', 'this Notary did not commit that deletion entry'));
+    }
+    let redacted = 0;
+    for (const n of seqs) {
+      const r = typeof n === 'number' && n < entry.ledger_seq ? this.rows.get(n) : undefined;
+      if (r && r.status === 'committed' && r.entry) {
+        delete r.entry;
+        redacted += 1;
+      }
+    }
+    return ok({ redacted });
   }
 }

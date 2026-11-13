@@ -10,6 +10,7 @@ import {
   NotarySignResponse,
   NotaryUnconfirmedResponse,
   NotaryVerifyResponse,
+  NotaryRedactResponse,
   NOTARY_STATUS,
   notaryError,
   type AuditExportSignRequest,
@@ -17,6 +18,7 @@ import {
   type CheckpointSignRequest,
   type EvidenceSignRequest,
   type EvidenceSignerPort,
+  type JournalRedactorPort,
   type NotaryError,
   type NotaryErrorCode,
   type NotaryPort,
@@ -38,7 +40,9 @@ export interface HttpNotaryOptions {
 const CODES = Object.keys(NOTARY_STATUS) as NotaryErrorCode[];
 
 /** `NotaryPort` over HTTP. A network or protocol failure is `unavailable`, never a success. */
-export class HttpNotary implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort {
+export class HttpNotary
+  implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort, JournalRedactorPort
+{
   constructor(private readonly o: HttpNotaryOptions) {}
 
   private async call<S extends z.ZodType>(
@@ -101,5 +105,10 @@ export class HttpNotary implements NotaryPort, EvidenceSignerPort, AuditExportSi
   async verify(entry: LedgerEntry) {
     const r = await this.call('POST', '/v1/verify', { entry }, NotaryVerifyResponse);
     return r.ok ? ok(true as const) : r;
+  }
+
+  async redactJournal(entry: LedgerEntry) {
+    const r = await this.call('POST', '/v1/journal/redact', { entry }, NotaryRedactResponse);
+    return r.ok ? ok({ redacted: r.value.redacted }) : r;
   }
 }

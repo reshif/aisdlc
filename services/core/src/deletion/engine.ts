@@ -11,9 +11,11 @@ import {
   type DeletionObjectKey,
   type DeletionPreview,
   type JsonObject,
+  type LedgerEntry,
   type LedgerEntryDraft,
   type PrincipalId,
 } from '@aisdlc/contracts';
+import type { JournalRedactorPort } from '@aisdlc/ports';
 import { err, newId, ok, sha256Hex, systemClock, type Clock, type Result } from '@aisdlc/kernel';
 import {
   appendLedgerEntryTx,
@@ -444,6 +446,8 @@ export interface Performed {
   readonly ledger_entry_id: string;
   readonly objects_purged: boolean;
   readonly confirmed: boolean;
+  /** The Notary erased its journal's copies of the redacted entries. */
+  readonly notary_journal_redacted: boolean;
 }
 
 /** Deletes the object: one transaction (see the module note), then the confirm and the object purge. */
@@ -455,7 +459,12 @@ export async function performDeletion(
   const deletionId = newId<'Deletion'>(clock.nowMs());
   const client = await deps.purgePool.connect();
   let pending: readonly PendingConfirm[];
-  let out: { counts: DeletionCounts; entryId: string; objects: DeletionObjectKey[] };
+  let out: {
+    counts: DeletionCounts;
+    entryId: string;
+    entry: LedgerEntry;
+    objects: DeletionObjectKey[];
+  };
   try {
     await client.query('BEGIN');
     try {
@@ -559,7 +568,7 @@ export async function performDeletion(
       if (!w.ok) throw new DeletionAbort(coreError('unavailable', w.error.message));
       pending = [...imported.value.pending, ...w.value.pending];
       await client.query('COMMIT');
-      out = { counts, entryId, objects: p.objects };
+      out = { counts, entryId, entry: w.value.entry, objects: p.objects };
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       if (e instanceof DeletionAbort) return err(e.error);
@@ -571,6 +580,14 @@ export async function performDeletion(
     client.release();
   }
   const confirmed = await confirmAll(deps.ledger.notary, pending);
+  // The Notary's journal keeps a copy of every entry it signed: it erases the ones this deletion redacted, on the word
+  // of the deletion entry itself (which it checks it signed). A Notary that cannot is reported, never fatal: the ledger
+  // row is what readers read, and the request can be made again with the same entry.
+  const notary = deps.ledger.notary as Partial<JournalRedactorPort>;
+  const journal =
+    confirmed.ok && notary.redactJournal
+      ? await notary.redactJournal(out.entry).then((r) => r.ok)
+      : false;
   const purged = await purgeObjects(deps, out.objects);
   return ok({
     deletion_id: deletionId,
@@ -578,6 +595,7 @@ export async function performDeletion(
     ledger_entry_id: out.entryId,
     objects_purged: purged,
     confirmed: confirmed.ok,
+    notary_journal_redacted: journal,
   });
 }
 
