@@ -59,8 +59,8 @@ export const OnboardingSignOffStartedPayload = z.strictObject({
    * so a page reloaded between two cards loses nothing. No secret: these are the cards' own decision contents.
    */
   content: z.strictObject({
-    c1: C1DecisionContent,
-    c4: C4DecisionContent,
+    c1: C1DecisionContent.optional(),
+    c4: C4DecisionContent.optional(),
     c2: C2DecisionContent.optional(),
   }),
 });
@@ -279,7 +279,7 @@ export const SignOffRequest = z.strictObject({
   on_behalf_of: PrincipalId,
   /** The summary read; checked when the sign-off starts. */
   summary_hash: Sha256Hex.optional(),
-  /** Required to start; absent on a continuation (the content recorded at the start is used). */
+  /** Sent with the start (absent once that card is decided); absent on a continuation (the recorded content is used). */
   c1: C1DecisionContent.optional(),
   /** `controls_report_hash` is the summary's; a card 4 opened on another report stops the sign-off. */
   c4: C4DecisionContent.optional(),

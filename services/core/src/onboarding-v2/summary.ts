@@ -18,7 +18,7 @@ import type { ConfigDeps } from '@aisdlc/config';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import { listPushReceipts } from '../build/push.js';
 import { cardDetail } from '../cards/api.js';
-import { decisionsFor, type CardDeps } from '../cards/model.js';
+import { SLOT_OF_CARD, decisionsFor, type CardDeps } from '../cards/model.js';
 import { loadS0, s0Cards, type LoadedS0, type OnboardingCard } from '../cards/read.js';
 import { isLive } from '../cards/sync.js';
 import { c1Context, c4Context } from '../cards/views.js';
@@ -31,8 +31,12 @@ import { gapChoices, latestProposal } from './agent.js';
 // everything the cards underneath will decide, on one page, read from the record and the code host. A pure read:
 // nothing is written. `summary_hash` is what the one sign-off binds to.
 
-/** The cards the one sign-off decides; the others (C3, the security card, X2) are their own approvals. */
-export const SIGN_OFF_CARDS = ['C1', 'C2', 'C4', 'C5'] as const;
+/**
+ * The cards the one sign-off decides; the others are their own approvals: card 2 (Light: the repo facts and the
+ * instruction text, with its own step-up bound to the files affirmed; the sign-off decides it too when the request
+ * carries its content), card 3 (Full, the intent slot), the security card and X2.
+ */
+export const SIGN_OFF_CARDS = ['C1', 'C4', 'C5'] as const;
 const bySignOff = (k: string): boolean => (SIGN_OFF_CARDS as readonly string[]).includes(k);
 const ORDER: Record<string, number> = { C1: 1, C2: 2, C3: 3, C4: 4, C5: 5, SECR: 0 };
 
@@ -372,6 +376,26 @@ export async function signOffStateOf(
   }
   if (!started) return at('ready', null);
   const open = live.filter((x) => x.live && bySignOff(x.card.kind));
+  // the next step must be the viewer's: its slot (card 5 also needs the onboarding signer's) under the role map now
+  const next = open[0];
+  if (next && viewer) {
+    const slots =
+      next.card.kind === 'C5'
+        ? [SLOT_OF_CARD.C5, gatePolicy('M4').slot]
+        : [SLOT_OF_CARD[next.card.kind]];
+    const e = decisionsFor(d.cards, s0Id).eligibility;
+    const holders = await Promise.all(
+      slots.map((sl) => e.holders(s0.record.project_id as never, sl)),
+    );
+    const mine = holders.every((h) => h.ok && h.value.includes(viewer as PrincipalId));
+    if (!mine) {
+      const names = [...new Set(holders.flatMap((h) => (h.ok ? h.value : [])))];
+      return at(
+        'waiting',
+        `The next step is decided by ${names.length > 0 ? names.join(', ') : 'nobody yet'}: they open this page and sign off.`,
+      );
+    }
+  }
   const c5 = open.find((x) => x.card.kind === 'C5');
   if (c5) {
     const g = c5.card.state.gates[0]?.state.open.payload;

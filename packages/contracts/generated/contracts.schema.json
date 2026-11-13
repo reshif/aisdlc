@@ -97676,10 +97676,6 @@
               "additionalProperties": false
             }
           },
-          "required": [
-            "c1",
-            "c4"
-          ],
           "additionalProperties": false
         }
       },
@@ -98142,6 +98138,19 @@
                     "T2"
                   ]
                 },
+                "t0_required": {
+                  "type": "boolean"
+                },
+                "attest": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "regulatory",
+                      "criticality"
+                    ]
+                  }
+                },
                 "blockers_open": {
                   "type": "array",
                   "items": {
@@ -98195,6 +98204,8 @@
                 "baseline_sha",
                 "posture",
                 "tier_floor",
+                "t0_required",
+                "attest",
                 "blockers_open",
                 "gaps"
               ],

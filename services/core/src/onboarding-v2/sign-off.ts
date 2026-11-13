@@ -91,8 +91,7 @@ export async function signOff(
 
   // 1. the start: the summary read, the content adjusted, recorded first
   let started = await startedBy(d.cards, s0Id, who);
-  const restart =
-    input.summary_hash !== undefined && input.c1 !== undefined && input.c4 !== undefined;
+  const restart = input.summary_hash !== undefined;
   if (restart && started?.summary_hash !== input.summary_hash) {
     const now = await onboardingSummary(d, s0Id, who);
     if (!now.ok) return now;
@@ -114,7 +113,11 @@ export async function signOff(
       summary_hash: input.summary_hash,
       by: who,
       override_reason: input.override?.reason ?? null,
-      content: { c1: input.c1, c4: input.c4, ...(input.c2 ? { c2: input.c2 } : {}) },
+      content: {
+        ...(input.c1 ? { c1: input.c1 } : {}),
+        ...(input.c4 ? { c4: input.c4 } : {}),
+        ...(input.c2 ? { c2: input.c2 } : {}),
+      },
     });
     const w = await inCoreTx(d.cards, async (j, tx) => {
       await lockKeys(tx, [onboardingAgentStream(s0Id)]);
@@ -150,8 +153,9 @@ export async function signOff(
     await syncCards(d.cards, s0Id).catch(() => undefined);
     const loaded = await loadS0(pool, s0Id);
     if (!loaded) break;
+    const kinds = content.c2 ? ['C1', 'C2', 'C4', 'C5'] : ['C1', 'C4', 'C5'];
     const live = liveCards(loaded, await s0Cards(pool, s0Id)).filter(
-      (x) => x.live && ['C1', 'C2', 'C4', 'C5'].includes(x.card.kind),
+      (x) => x.live && kinds.includes(x.card.kind),
     );
     const next = live[0];
     if (!next) {
@@ -209,21 +213,50 @@ export async function signOff(
     }
 
     const card = next.card;
+    // the next step is someone else's (the role map now in force names another signer): the sign-off waits for them
+    const theirs = {
+      state: 'waiting' as const,
+      note: 'The next step is decided by another person: the project’s onboarding signer signs the readiness scorecard.',
+    };
     if (input.mayDecide && !(await input.mayDecide(card.card_id))) {
-      return err(
-        coreError('forbidden', `card.decide is not allowed on ${card.kind} for this person`),
-      );
+      if (decided.length === 0 && card.kind === 'C1') {
+        return err(
+          coreError('forbidden', `card.decide is not allowed on ${card.kind} for this person`),
+        );
+      }
+      stop = theirs;
+      break;
     }
     const prep = await prepareOnboardingCard(d.cards, {
       card_id: card.card_id,
       principal: who,
       override,
     });
-    if (!prep.ok) return prep;
+    if (!prep.ok) {
+      if (prep.error.code === 'forbidden' && (decided.length > 0 || card.kind !== 'C1')) {
+        stop = theirs;
+        break;
+      }
+      return prep;
+    }
     let cardContent: unknown = {};
     let stepUp: { proof: string } | undefined;
-    if (card.kind === 'C1') cardContent = content.c1;
+    const missing = {
+      state: 'waiting' as const,
+      note: 'Fill in the summary for this step and sign again.',
+    };
+    if (card.kind === 'C1') {
+      if (!content.c1) {
+        stop = missing;
+        break;
+      }
+      cardContent = content.c1;
+    }
     if (card.kind === 'C4') {
+      if (!content.c4) {
+        stop = missing;
+        break;
+      }
       cardContent = content.c4;
       // the controls the person was shown; a card opened on another report stops here (read it again)
       const det = await cardDetail(d.cards, card.card_id);

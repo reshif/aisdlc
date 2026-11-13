@@ -125,61 +125,81 @@ function initialDraft(v: OnboardingSummaryView, me: string): Draft {
   };
 }
 
+/** Whether a card of the sign-off is already decided (then what it asks is not asked again). */
+const decidedCard = (v: OnboardingSummaryView, k: string) =>
+  v.cards.some((c) => c.card === k && c.status === 'decided');
+
 /** What still stops the sign-off, in words (the server checks it all again). */
 function problemsOf(v: OnboardingSummaryView, d: Draft): string[] {
   const out: string[] = [];
-  if (d.tier === 'T0' && v.census?.t0_required && !d.t0) {
-    out.push('Low risk needs your statement: no production use, no real data, no dependants.');
+  if (!decidedCard(v, 'C1')) {
+    if (d.tier === 'T0' && v.census?.t0_required && !d.t0) {
+      out.push('Low risk needs your statement: no production use, no real data, no dependants.');
+    }
+    if (v.census?.attest.includes('regulatory') && !d.regulatory) {
+      out.push('Say that the repo has no regulatory obligation (or choose a higher risk).');
+    }
+    if (v.census?.attest.includes('criticality') && !d.criticality) {
+      out.push('Confirm how critical the repo is.');
+    }
   }
-  if (v.census?.attest.includes('regulatory') && !d.regulatory) {
-    out.push('Say that the repo has no regulatory obligation (or choose a higher risk).');
-  }
-  if (v.census?.attest.includes('criticality') && !d.criticality) {
-    out.push('Confirm how critical the repo is.');
-  }
-  for (const [k, text] of ATTEST) if (!d.attest[k]) out.push(`Confirm on GitHub: ${text}.`);
-  if (d.secretScanning === '') out.push('Say whether secret scanning is on.');
-  if (d.plan === '') out.push('Say which GitHub plan the owner is on (or that you do not know).');
-  if (v.controls?.operations_md && !d.operationsMd) {
-    out.push('Confirm that operations.md says how this project is run.');
-  }
-  if ((v.controls?.blocking_open.length ?? 0) > 0) {
-    out.push('Something on GitHub must be fixed first; see "What only a person can do".');
+  if (!decidedCard(v, 'C4')) {
+    for (const [k, text] of ATTEST) if (!d.attest[k]) out.push(`Confirm on GitHub: ${text}.`);
+    if (d.secretScanning === '') out.push('Say whether secret scanning is on.');
+    if (d.plan === '') out.push('Say which GitHub plan the owner is on (or that you do not know).');
+    if (v.controls?.operations_md && !d.operationsMd) {
+      out.push('Confirm that operations.md says how this project is run.');
+    }
+    if ((v.controls?.blocking_open.length ?? 0) > 0) {
+      out.push('Something on GitHub must be fixed first; see "What only a person can do".');
+    }
   }
   return out;
 }
 
 function bodyOf(v: OnboardingSummaryView, d: Draft, me: string): SignOffBody {
+  const c1Open = !decidedCard(v, 'C1');
+  const c4Open = !decidedCard(v, 'C4');
   return {
     summary_hash: v.summary_hash,
-    c1: {
-      owners: [me as never],
-      tier: d.tier,
-      ...(d.tier === 'T0' && d.t0 ? { t0_attestation: true } : {}),
-      ...(d.regulatory ? { regulatory_attested: true } : {}),
-      ...(d.criticality ? { criticality_attested: true } : {}),
-      gaps: (v.census?.gaps ?? []).map((g) => ({
-        gap_id: g.gap_id,
-        disposition: (d.gaps[g.gap_id] ?? g.suggested) as never,
-      })),
+    ...(c1Open ? { c1: c1Of(v, d, me) } : {}),
+    ...(c4Open ? { c4: c4Of(v, d) } : {}),
+  };
+}
+
+function c1Of(v: OnboardingSummaryView, d: Draft, me: string): NonNullable<SignOffBody['c1']> {
+  return {
+    owners: [me as never],
+    tier: d.tier,
+    ...(d.tier === 'T0' && d.t0 ? { t0_attestation: true } : {}),
+    ...(d.regulatory ? { regulatory_attested: true } : {}),
+    ...(d.criticality ? { criticality_attested: true } : {}),
+    gaps: (v.census?.gaps ?? []).map((g) => ({
+      gap_id: g.gap_id,
+      disposition: (d.gaps[g.gap_id] ?? g.suggested) as never,
+    })),
+  };
+}
+
+function c4Of(v: OnboardingSummaryView, d: Draft): NonNullable<SignOffBody['c4']> {
+  return {
+    controls_report_hash: v.controls?.report_hash as never,
+    attestations: {
+      bypass_has_no_factory_app: true,
+      app_scope_selected: true,
+      github_token_readonly: true,
+      actions_cannot_approve_prs: true,
+      fork_pr_approval_required: true,
+      secret_scanning: d.secretScanning as 'on',
+      plan: d.plan as RepoPlan,
+      ...(v.controls?.operations_md ? { operations_md: true } : {}),
     },
-    c4: {
-      controls_report_hash: v.controls?.report_hash as never,
-      attestations: {
-        bypass_has_no_factory_app: true,
-        app_scope_selected: true,
-        github_token_readonly: true,
-        actions_cannot_approve_prs: true,
-        fork_pr_approval_required: true,
-        secret_scanning: d.secretScanning as 'on',
-        plan: d.plan as RepoPlan,
-        ...(v.controls?.operations_md ? { operations_md: true } : {}),
-      },
-      role_map: d.roleMap as never,
-      two_person_enabled: d.twoPerson,
-      gating_profile: d.gating as never,
-      kill_delegations: [],
-    },
+    role_map: d.roleMap as never,
+    two_person_enabled: d.twoPerson,
+    gating_profile: d.gating as never,
+    kill_delegations: [],
+    // releases through the factory start off (merged is done); a project turns them on later in Settings
+    release: { mode: 'off' },
   };
 }
 
@@ -751,6 +771,10 @@ function People({ v, d, set }: { v: OnboardingSummaryView; d: Draft; set: SetDra
         </Check>
       ))}
       <p className="ui-help">Off means the approval is not asked for, never that it is approved.</p>
+      <p className="ui-help">
+        Releases through the factory start off: a merged change is done. Turn them on later in the
+        project&rsquo;s settings.
+      </p>
     </Card>
   );
 }
@@ -866,7 +890,9 @@ function SignOff({
   }, [stepUp.proof, so.state, mine]);
 
   const canStart =
-    so.state === 'ready' && (so.may_sign || override !== undefined) && problems.length === 0;
+    (so.state === 'ready' || (so.state === 'waiting' && mine)) &&
+    (so.may_sign || override !== undefined) &&
+    problems.length === 0;
   return (
     <Card title="Sign off" testId="sign-off">
       <p>
@@ -875,7 +901,7 @@ function SignOff({
         </span>
       </p>
       {so.note ? <p className="ui-help">{so.note}</p> : null}
-      {so.state === 'ready' || so.state === 'not_ready' ? (
+      {so.state === 'ready' || so.state === 'not_ready' || (so.state === 'waiting' && mine) ? (
         <>
           <p className="ui-help">
             One sign-off decides every step of this onboarding as you, each recorded in the decision
@@ -919,7 +945,7 @@ function SignOff({
             disabled={!canStart || busy}
             onClick={() => void send(bodyOf(v, draft, who))}
           >
-            {busy ? 'Signing…' : 'Sign off'}
+            {busy ? 'Signing…' : so.state === 'waiting' ? 'Sign again' : 'Sign off'}
           </button>
         </>
       ) : null}

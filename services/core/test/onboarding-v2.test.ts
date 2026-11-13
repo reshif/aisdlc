@@ -12,7 +12,7 @@ import {
   signOff,
   type OnboardingAgentDeps,
 } from '../src/index.js';
-import { decideGate, pr, startCoreStack, type CoreStack } from '../src/testing.js';
+import { decideGate, pr, setSlots, startCoreStack, type CoreStack } from '../src/testing.js';
 import { makeHarness, type Json, type Scn } from './harness.js';
 
 // Portal v2 agent-led onboarding (intent §4; screen-map §2.10): the onboarding agent proposes, a person signs off
@@ -285,6 +285,39 @@ describe('the one sign-off', () => {
     );
     expect(started.rows[0]?.actor).toBe('alice');
     expect(started.rows[0]?.body.summary_hash).toBe(v.summary_hash);
+  });
+
+  it('when the next step is another person’s, the sign-off waits for them; they sign the scorecard themselves', async () => {
+    const { c } = await proposed();
+    const deps = { cards: c.deps, config: s.config };
+    const v = await summary(c);
+    ok(await signOff(deps, c.s0, body(v)));
+    let last = ok(await signOff(deps, c.s0, { on_behalf_of: pr('alice') })).value;
+    for (let i = 0; i < 6 && last.state !== 'needs_step_up'; i++) {
+      await c.drive();
+      last = ok(await signOff(deps, c.s0, { on_behalf_of: pr('alice') })).value;
+    }
+    expect(last.state).toBe('needs_step_up');
+    // the role map now in force names bob as the one who signs: alice's sign-off waits for him
+    setSlots(s, c.project, { admin: ['bob'], m4: ['bob'], sec: ['alice'], intent: ['alice'] });
+    expect(ok(await signOff(deps, c.s0, { on_behalf_of: pr('alice') })).value.state).toBe(
+      'waiting',
+    );
+    expect((await summary(c, 'alice')).sign_off.state).toBe('waiting');
+    // bob reads the summary, signs once, confirms it's him
+    const vb = await summary(c, 'bob');
+    expect(vb.sign_off.state).toBe('ready');
+    const first = ok(await signOff(deps, c.s0, { ...body(vb), on_behalf_of: pr('bob') })).value;
+    expect(first.state).toBe('needs_step_up');
+    const proof = (s.config.stepUp as FakeStepUp).issue(first.step_up?.bound_hash as string, 'bob');
+    const done = ok(
+      await signOff(deps, c.s0, {
+        on_behalf_of: pr('bob'),
+        step_up: { proof, bound_hash: first.step_up?.bound_hash as never },
+      }),
+    ).value;
+    expect(done.decided.map((x) => x.card)).toEqual(['C5']);
+    expect((await summary(c, 'bob')).status).toBe('done');
   });
 
   it('a person who does not hold the slot cannot sign: the kernel refuses card 1', async () => {
