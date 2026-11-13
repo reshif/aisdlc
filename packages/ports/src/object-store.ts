@@ -69,6 +69,16 @@ export interface ObjectStorePort {
   delete(bucket: string, sha256: string): Promise<ObjectStoreResult<void>>;
 }
 
+/**
+ * The deletion's hand on the store (owner decision 2026-11-13, "delete means delete"; docs/specs/deletion.md §1): an
+ * object goes whatever its bucket's mode, every version of it, its legal hold lifted first. Only the deletion builds an
+ * adapter with the purge credential (the one store credential that may lift a legal hold); `delete` stays refused on a
+ * write-once bucket for everyone. Idempotent: an absent object is purged.
+ */
+export interface ObjectPurgePort {
+  purge(bucket: string, sha256: string): Promise<ObjectStoreResult<void>>;
+}
+
 const BUCKET_RE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 const SHA_RE = /^[0-9a-f]{64}$/;
 const CONTENT_TYPE_RE = /^[\x21-\x7e][\x20-\x7e]{0,126}$/;
@@ -120,7 +130,7 @@ export interface FakeObjectStoreOptions {
 }
 
 /** In memory, deterministic, the same rules as a real adapter. */
-export class FakeObjectStore implements ObjectStorePort {
+export class FakeObjectStore implements ObjectStorePort, ObjectPurgePort {
   private readonly modes = new Map<string, BucketMode>();
   private readonly objects = new Map<string, { bytes: Uint8Array; contentType: string }>();
   private readonly max: number;
@@ -178,6 +188,14 @@ export class FakeObjectStore implements ObjectStorePort {
       return err(
         objectStoreError('write_once', `bucket ${bucket} is write-once: delete is refused`),
       );
+    this.objects.delete(`${bucket}/${sha256}`);
+    return ok(undefined);
+  }
+
+  /** Deletion only: removes the object whatever the bucket's mode (see `ObjectPurgePort`). */
+  async purge(bucket: string, sha256: string): Promise<ObjectStoreResult<void>> {
+    const bad = this.checkBucketDeclared(bucket) ?? checkKey(sha256);
+    if (bad) return err(bad);
     this.objects.delete(`${bucket}/${sha256}`);
     return ok(undefined);
   }
