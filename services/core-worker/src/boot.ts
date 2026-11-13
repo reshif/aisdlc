@@ -1,4 +1,7 @@
 import {
+  codehostPollsFrom,
+  followSettings,
+  opsHealthFrom,
   ConfigReader,
   ConfigRegistry,
   onboardingImageFrom,
@@ -39,6 +42,11 @@ import {
   registerCoreConfig,
   constitutionFrom,
   reonboardTriggersFrom,
+  agentSettingsOf,
+  gateTimersOf,
+  coderLimitsFrom,
+  coderModelFrom,
+  sizeShareFrom,
   roleMapSyncLoop,
   s0DriverLoop,
   maintenanceFrom,
@@ -55,6 +63,7 @@ import {
   AlertTracker,
   opsBackfillLoop,
 } from '@aisdlc/core/worker';
+import { DEFAULT_OPS_HEALTH } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import {
   HttpBundleSource,
@@ -177,6 +186,12 @@ export async function bootCoreWorker(
           onError: (e) => log(`config reader: ${e instanceof Error ? e.message : String(e)}`),
         });
         await reader.start();
+        // Portal v2: the catalogue's settings releases and the approvals table, followed on every revision
+        await followSettings({
+          reader,
+          pool,
+          onError: (e) => log(`settings: ${e instanceof Error ? e.message : String(e)}`),
+        });
       }
       return reader;
     };
@@ -188,15 +203,31 @@ export async function bootCoreWorker(
         ? new FileRegisteredRepos(cfg.registeredReposFile)
         : new DbRegisteredRepos(pool),
     };
+    // portal v2 (`codehost.polls`, H25; `ops.health`, H23): the env intervals are the bootstrap default until the
+    // factory publishes other values; read when the loops start (a change takes effect at the next start)
+    // a deployment without the config schema (the polls-only bundle) keeps the env intervals
+    const startCfg = await ensureReader().catch(() => null);
+    const polls = codehostPollsFrom(startCfg, {
+      fast_ms: cfg.headIntervalMs,
+      hourly_ms: cfg.rulesInFlightIntervalMs,
+      daily_ms: cfg.rulesIdleIntervalMs,
+    });
+    const fastInstall =
+      polls.fast_ms === cfg.headIntervalMs ? cfg.installationIntervalMs : polls.fast_ms;
+    const health = opsHealthFrom(startCfg);
+    const healthIntervalMs =
+      health.snapshot_interval_ms === DEFAULT_OPS_HEALTH.snapshot_interval_ms
+        ? cfg.healthIntervalMs
+        : health.snapshot_interval_ms;
     supervisor
-      .add(defaultBranchHeadLoop(poll, { intervalMs: cfg.headIntervalMs }))
-      .add(installationLoop(poll, { intervalMs: cfg.installationIntervalMs, startDelayMs: 1_000 }))
+      .add(defaultBranchHeadLoop(poll, { intervalMs: polls.fast_ms }))
+      .add(installationLoop(poll, { intervalMs: fastInstall, startDelayMs: 1_000 }))
       .add(
         effectiveRulesLoop(
           { ...poll, workInFlight: deps.workInFlight ?? new DbWorkInFlight(pool) },
           {
-            inFlightIntervalMs: cfg.rulesInFlightIntervalMs,
-            idleIntervalMs: cfg.rulesIdleIntervalMs,
+            inFlightIntervalMs: polls.hourly_ms,
+            idleIntervalMs: polls.daily_ms,
             tickMs: cfg.rulesTickMs,
             startDelayMs: 2_000,
           },
@@ -222,7 +253,7 @@ export async function bootCoreWorker(
             alerts: new AlertTracker(),
             checkpointAlerts: Boolean(ledger && cfg.witness),
           },
-          { intervalMs: cfg.healthIntervalMs, startDelayMs: 2_500 },
+          { intervalMs: healthIntervalMs, startDelayMs: 2_500 },
         ),
       );
     }
@@ -312,6 +343,9 @@ export async function bootCoreWorker(
               knowledge: cfg.knowledge,
               constitution: constitutionFrom(rd),
               reonboardTriggers: reonboardTriggersFrom(rd),
+              // portal v2: models and budgets per agent, and the budget share per part size, from config
+              agentSettings: agentSettingsOf(rd),
+              sizeShare: sizeShareFrom(rd),
             })
           : baseStagePorts;
       // M13.3, M13.4: with a sandbox proxy, 6.1 to 6.5 run real coding sessions (the DEC-18 owner allow-list and B1 in
@@ -354,6 +388,9 @@ export async function bootCoreWorker(
               }),
               execAllowedRepos: execAllowedReposFrom(rd),
               model: session.model,
+              // portal v2: the coder's model, turns and times from `agents.config`, read on every session
+              modelOf: coderModelFrom(rd, session.model),
+              limits: coderLimitsFrom(rd),
               // M13.6: the Push Broker's client, with the record first and the receipt in the record and the ledger
               ...(cfg.pushBroker
                 ? {
@@ -452,12 +489,16 @@ export async function bootCoreWorker(
                 }
               : {}),
             settings: workSettingsFrom(rd),
+            // portal v2: agents on or off, their models and budgets (`agents.config`), read on every dispatch
+            agentSettings: agentSettingsOf(rd),
             decisions: {
               pool,
               ledger,
               eligibility: identityEligibility(readPool, registry),
               stepUp: new RefusingStepUp(),
               maintenance: maintenanceFrom(rd),
+              // portal v2 (`gates.timers`, H8): a gate the driver opens expires after the published time
+              ...gateTimersOf(rd),
             },
           },
           {

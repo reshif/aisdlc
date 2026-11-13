@@ -23,9 +23,9 @@ export const AUTONOMY: AutonomyCatalogue = {
 };
 
 /** Cap of a composite readiness level 0-4 (RL4 stands for "RL4+"). `null` is not stated (RL0). */
-export function readinessCap(level: number): Autonomy | null {
+export function readinessCap(level: number, table: AutonomyCatalogue = AUTONOMY): Autonomy | null {
   const key = `RL${Math.min(Math.max(Math.trunc(level), 0), 4)}` as ReadinessLevel;
-  return AUTONOMY.readiness[key];
+  return table.readiness[key];
 }
 
 export type CapInputs = {
@@ -46,15 +46,19 @@ const rank = (a: Autonomy): number => AutonomyValues.indexOf(a);
  * The min over every cap that applies. Fail closed: a readiness level the catalogue does not state
  * (RL0) caps at the lowest autonomy rather than leaving it unconstrained.
  */
-export function effectiveAutonomy(inputs: CapInputs): Autonomy {
+export function effectiveAutonomy(
+  inputs: CapInputs,
+  /** The autonomy table of the catalogue the record is pinned to (portal v2: it may be a settings release). */
+  table: AutonomyCatalogue = AUTONOMY,
+): Autonomy {
   const lowest = AutonomyValues[0] as Autonomy;
-  const caps: Autonomy[] = [AUTONOMY.tier[inputs.tier]];
-  const levelCap = AUTONOMY.level[inputs.level];
+  const caps: Autonomy[] = [table.tier[inputs.tier]];
+  const levelCap = table.level[inputs.level];
   if (levelCap !== null) caps.push(levelCap);
-  caps.push(readinessCap(inputs.readiness) ?? lowest);
-  const posture = AUTONOMY.posture[inputs.posture].cap;
+  caps.push(readinessCap(inputs.readiness, table) ?? lowest);
+  const posture = table.posture[inputs.posture].cap;
   if (posture !== null) caps.push(posture);
-  if (inputs.onProbation) caps.push(AUTONOMY.probation.cap);
+  if (inputs.onProbation) caps.push(table.probation.cap);
   if (inputs.earned !== undefined) caps.push(inputs.earned);
   return caps.reduce((a, b) => (rank(b) < rank(a) ? b : a));
 }

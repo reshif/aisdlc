@@ -32,6 +32,17 @@ export {
 } from './prepared.js';
 export type { VoteResult } from './vote.js';
 export {
+  OVERRIDE_RULE_OF_REFUSAL,
+  acceptOverride,
+  appendOverrideEvent,
+  overrideEvent,
+  recordOverride,
+  recordOverrideTx,
+  type AcceptedOverride,
+  type OverrideFacts,
+  type OverrideInput,
+} from './override.js';
+export {
   DEFAULT_CALENDAR,
   addBusinessDays,
   businessCalendar,

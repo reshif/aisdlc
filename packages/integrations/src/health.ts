@@ -1,7 +1,6 @@
 import {
   aggregateHealth,
   effectiveHealthState,
-  INTEGRATION_HEALTH_STALE_MS,
   type IntegrationHealth,
   type IntegrationHealthReport,
   type IntegrationHealthState,
@@ -9,6 +8,9 @@ import {
   type IntegrationHealthTiles,
   type IntegrationReporter,
   type IntegrationRegistryView,
+  DEFAULT_OPS_HEALTH,
+  SETTINGS_KEYS,
+  settingInForce,
 } from '@aisdlc/contracts';
 import type { Executor } from '@aisdlc/record';
 
@@ -83,7 +85,10 @@ export function buildTiles(
         .map((h) => h.as_of)
         .sort()
         .at(-1) ?? null;
-    const stale = newest !== null && nowMs - Date.parse(newest) > INTEGRATION_HEALTH_STALE_MS;
+    const stale =
+      newest !== null &&
+      nowMs - Date.parse(newest) >
+        settingInForce(SETTINGS_KEYS.ops_health, DEFAULT_OPS_HEALTH).stale_after_ms;
     const worst = reporters.find((r) => r.state === state && state !== 'ok') ?? reporters[0];
     return {
       integration_id: i.integration_id,

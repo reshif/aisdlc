@@ -1,4 +1,3 @@
-import { currentCatalogueRef } from '@aisdlc/catalogue';
 import {
   BOOTSTRAP_CARDS,
   BOOTSTRAP_ENTRY_TYPE,
@@ -49,6 +48,7 @@ import {
   type CoreDeps,
   type Journal,
 } from './journal.js';
+import { catalogueForNew } from './catalogue-pin.js';
 
 // The S0 record's writes (PLAN M7.1, M7.2): the `project.onboard` intake and every transition of the
 // OnboardingRecord state machine (contracts `states/onboarding.ts`, exactly). A write folds the
@@ -207,7 +207,10 @@ export async function requestOnboarding(
   const s0Id = req.request_id
     ? deterministicId<'S0Record'>(`aisdlc.s0:${req.request_id}`)
     : newId<'S0Record'>();
-  const catalogue = opts.catalogue ?? currentCatalogueRef();
+  const pinned = opts.catalogue === undefined ? await catalogueForNew(deps) : null;
+  if (pinned && !pinned.ok) return pinned;
+  const catalogue = opts.catalogue ?? (pinned?.ok ? pinned.value.ref : undefined);
+  if (catalogue === undefined) return err(coreError('unavailable', 'no catalogue to pin'));
   type Done = { value: OnboardResult; pending: readonly PendingConfirm[] };
   const body = async (
     j: Journal,

@@ -2,6 +2,7 @@ export * from './errors.js';
 export * from './migrations.js';
 export {
   ConfigRegistry,
+  type ConfigDerivation,
   type ConfigDocRule,
   type ConfigKeyDef,
   type ConfigKind,
@@ -44,3 +45,31 @@ export {
   registerGovernanceConfig,
   type SettingRead,
 } from './learn.js';
+export {
+  ensureSettingsRelease,
+  loadSettingsReleases,
+  pinCatalogue,
+  readSettingsReleases,
+  recordSettingsRelease,
+  registerCatalogueConfig,
+  type CataloguePin,
+} from './catalogue.js';
+export { SETTINGS_KEY_DEFAULTS, registerSettingsConfig } from './settings.js';
+export {
+  applyGatePolicies,
+  applyScalarSettings,
+  followSettings,
+  type FollowSettingsOptions,
+} from './follow.js';
+export {
+  codehostPollsFrom,
+  evalsGateFrom,
+  gatesTimersFrom,
+  gatewayLimitsFrom,
+  opsHealthFrom,
+  readinessPolicyFrom,
+  sandboxProbeFrom,
+  sessionPolicyFrom,
+  workRequestFrom,
+  type SnapshotSource,
+} from './readers.js';

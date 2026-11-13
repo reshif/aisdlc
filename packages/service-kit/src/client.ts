@@ -5,6 +5,8 @@ export interface CallOptions {
   token: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   path: string;
+  /** Extra request headers (never `authorization`, which is the token's). */
+  headers?: Readonly<Record<string, string>>;
   body?: unknown;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
@@ -22,6 +24,7 @@ export async function callJson(o: CallOptions): Promise<CallResult> {
       headers: {
         // M19: the W3C trace context of the request being served (none outside a request)
         ...traceHeaders(),
+        ...(o.headers ?? {}),
         authorization: `Bearer ${o.token}`,
         ...(o.body === undefined ? {} : { 'content-type': 'application/json' }),
       },

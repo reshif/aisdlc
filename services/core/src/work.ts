@@ -1,4 +1,4 @@
-import { currentCatalogueRef } from '@aisdlc/catalogue';
+import { catalogueFor } from '@aisdlc/catalogue';
 import {
   WORK_EVENT,
   WorkAdmittedPayload,
@@ -28,6 +28,7 @@ import { injectionReportOf } from '@aisdlc/work';
 import { coreError, type CoreError } from './errors.js';
 import { createItemIn, itemIdOfRequest, openItemsOfRepo } from './work-items.js';
 import type { PrrVersion } from './fold.js';
+import { catalogueForNew } from './catalogue-pin.js';
 import { clockOf, inCoreTx, lockKeys, type CoreDeps, type Journal } from './journal.js';
 import { applyGuard, projectGuard } from './breaker.js';
 import { unresolvedR3 } from './knowledge-defects.js';
@@ -131,6 +132,8 @@ export async function requestWork(
     ? deterministicId<'WorkRequest'>(`aisdlc.work:${input.request_id}`)
     : newId<'WorkRequest'>();
   const key = repoKeyOf(input.repo);
+  const pin = await catalogueForNew(deps);
+  if (!pin.ok) return pin;
   return inCoreTx<WorkRequestResult>(deps, async (j, tx) => {
     await lockKeys(tx, [`repo:${key}`, `work:${requestId}`]);
     // A repo core has not registered yet has no PRR, so a request for it is held (N8) like any other;
@@ -160,7 +163,8 @@ export async function requestWork(
         input.lane,
         prr,
         clockOf(deps).now(),
-        undefined,
+        // the request's own pin: the catalogue the factory settings make now
+        pin.value.data.eligibility,
         input.area,
         prr ? await unresolvedR3(tx, repoRef, prr.version) : [],
       ),
@@ -211,7 +215,7 @@ export async function requestWork(
         ...(input.area === undefined ? {} : { area: input.area }),
         channel: input.channel ?? 'N1',
         requester: input.requester,
-        catalogue_ref: currentCatalogueRef(),
+        catalogue_ref: pin.value.ref,
         ...(input.request_text ? { request_text: input.request_text } : {}),
       }),
       actor,
@@ -409,7 +413,11 @@ export async function fanOutHeld(
       h.request.lane,
       o.version,
       o.now,
-      undefined,
+      // the request's pinned catalogue (a settings release included); unknown: the code release's table
+      (() => {
+        const c = catalogueFor(h.request.catalogue_ref);
+        return c.ok ? c.value.eligibility : undefined;
+      })(),
       h.request.area,
       await unresolvedR3(tx, o.repo, o.version.version),
     );

@@ -1,7 +1,6 @@
 import {
   CARD_EVENT,
   CardOpenedPayload,
-  GATE_POLICIES,
   SOLO_CARDS,
   cardStream,
   gatePolicy,
@@ -89,7 +88,7 @@ export function checkConsolidation(gates: readonly GateId[]): DecisionError | nu
     return decisionError('invalid_input', `${gates.join('+')} are not one SOLO card`);
   }
   for (const g of gates) {
-    if (!GATE_POLICIES[g].consolidatable) {
+    if (!gatePolicy(g).consolidatable) {
       return decisionError('invalid_input', `${g} is not consolidatable: it has a card of its own`);
     }
   }
@@ -271,7 +270,7 @@ export async function planCards(
     buckets.get(key)?.push(g);
   };
   for (const g of input.gates) {
-    const solo = GATE_POLICIES[g.gate_id].consolidatable ? soloCardOf(g.gate_id) : null;
+    const solo = gatePolicy(g.gate_id).consolidatable ? soloCardOf(g.gate_id) : null;
     push(solo ?? `alone:${g.gate_id}`, g);
   }
   const plan: CardGateInput[][] = [];

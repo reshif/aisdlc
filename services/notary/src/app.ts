@@ -7,6 +7,8 @@ import {
   NotaryReserveRequest,
   NotarySignRequest,
   NotaryVerifyRequest,
+  NotaryRedactRequest,
+  type JournalRedactorPort,
   type NotaryError,
   type AuditExportSignerPort,
   type EvidenceSignerPort,
@@ -27,7 +29,7 @@ import type { z } from 'zod';
 export type NotaryScope = 'ledger' | 'checkpoint' | 'read' | 'evidence' | 'audit_export';
 
 export interface NotaryAppOptions {
-  service: NotaryPort & EvidenceSignerPort & AuditExportSignerPort;
+  service: NotaryPort & EvidenceSignerPort & AuditExportSignerPort & JournalRedactorPort;
   auth: ServiceAuth;
   /** caller name -> scopes. A caller with no entry may do nothing. */
   callers: Record<string, readonly NotaryScope[]>;
@@ -125,6 +127,14 @@ export function createNotaryApp(opts: NotaryAppOptions): FastifyInstance {
     // An entry that is not even shaped like one is refused by the service as `invalid_entry`.
     (b) => opts.service.verify(b.entry as LedgerEntry),
     () => ({ valid: true }),
+  );
+  route(
+    'post',
+    '/v1/journal/redact',
+    'ledger',
+    NotaryRedactRequest,
+    (b) => opts.service.redactJournal(b.entry as LedgerEntry),
+    (v) => v,
   );
   route(
     'post',

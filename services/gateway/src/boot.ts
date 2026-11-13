@@ -1,4 +1,10 @@
-import { ConfigReader, ConfigRegistry, registerGatewayConfig } from '@aisdlc/config';
+import {
+  ConfigReader,
+  ConfigRegistry,
+  gatewayLimitsFrom,
+  registerGatewayConfig,
+  registerSettingsConfig,
+} from '@aisdlc/config';
 import { GatewayEnvironment, type IntegrationHealthReport } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import { recordHealth } from '@aisdlc/integrations';
@@ -106,7 +112,7 @@ export async function bootGateway(env: Env): Promise<RunningService> {
     }
     reader = await ConfigReader.create({
       pool,
-      registry: registerGatewayConfig(new ConfigRegistry()),
+      registry: registerSettingsConfig(registerGatewayConfig(new ConfigRegistry())),
       // The gateway's role may not write the config read model: it reads what core and core-worker
       // (and every publish) have folded.
       catchUp: false,
@@ -142,13 +148,17 @@ export async function bootGateway(env: Env): Promise<RunningService> {
       );
     });
     await reader.start();
+    const settingsReader = reader;
     const service = new GatewayService({
       pool,
       config: reader,
       adapters,
       kill: new HttpKillState({ baseUrl: killUrl, token: killToken, timeoutMs: 2_000 }),
       environment: environment.data,
-      maxProviderCalls,
+      // portal v2 (`gateway.limits`, H17): the env is the bootstrap default until the factory publishes another value
+      maxProviderCalls: () =>
+        gatewayLimitsFrom(settingsReader, { max_provider_calls: maxProviderCalls })
+          .max_provider_calls,
       reservationMaxAgeMs,
     });
 

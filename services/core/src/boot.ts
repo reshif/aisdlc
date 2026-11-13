@@ -1,4 +1,5 @@
 import {
+  followSettings,
   ConfigReader,
   ConfigRegistry,
   registerGatewayConfig,
@@ -21,6 +22,7 @@ import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/ser
 import { createCoreApp } from './app.js';
 import { HttpAdmissionVerdict } from './floor-live.js';
 import { BootstrapEligibility } from './bootstrap.js';
+import { IdentityFactoryAdmins } from './factory-m1.js';
 import { cardDepsFrom, identityEligibility } from './card-wiring.js';
 import { HttpAccessGrants, HttpKnowledge } from './clients.js';
 import { assistantDepsFrom } from './conversation/wire.js';
@@ -33,6 +35,7 @@ import { mergeBypassFrom } from './drift/routes.js';
 import { migrateCore } from './migrations.js';
 import { maintenanceFrom, registerCoreConfig } from './settings.js';
 import { workSettingsFrom } from './work-control.js';
+import { gateTimersOf } from './settings-v2.js';
 
 /**
  * Starts core from the environment (see `coreConfigFromEnv`). All configuration is read before the
@@ -90,6 +93,13 @@ export async function bootCore(env: Env): Promise<RunningService> {
         console.error(`core: config reader: ${e instanceof Error ? e.message : String(e)}`),
     });
     await reader.start();
+    // Portal v2: the catalogue's settings releases and the approvals table, followed on every revision
+    await followSettings({
+      reader,
+      pool,
+      onError: (e) =>
+        console.error(`core: settings: ${e instanceof Error ? e.message : String(e)}`),
+    });
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
       entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
@@ -117,8 +127,12 @@ export async function bootCore(env: Env): Promise<RunningService> {
               { pool: eligibilityPool },
             ),
             stepUp,
+            // Owner decision 2026-11-13: the factory admin's override, asked of identity by the kernel itself
+            admins: new IdentityFactoryAdmins(eligibilityPool),
             registry,
             maintenance: maintenanceFrom(reader),
+            // portal v2 (`gates.timers`, H8): read on every open and prepare
+            ...gateTimersOf(reader),
           }
         : undefined;
     const cards =
@@ -130,6 +144,7 @@ export async function bootCore(env: Env): Promise<RunningService> {
             ledger: config.ledger,
             eligibility: identityEligibility(eligibilityPool, registry),
             stepUp: config.stepUp,
+            ...(config.admins ? { admins: config.admins } : {}),
             knowledge: new HttpKnowledge({
               baseUrl: cfg.cards.knowledge.url,
               token: cfg.cards.knowledge.token,
@@ -167,6 +182,18 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
       // portal v2 N15: the write-only secret API's store
       ...(cfg.vault ? { secretStore: new VaultSecretStore(cfg.vault) } : {}),
+      // Delete means delete (docs/specs/deletion.md): the purge login and the store credential that lifts a hold
+      ...(cfg.deletion && config
+        ? {
+            deletion: {
+              purgePool: createPool(cfg.deletion.databaseUrl, 2),
+              ledger: config.ledger,
+              ...(cfg.deletion.objectStore
+                ? { objects: new S3ObjectStore(cfg.deletion.objectStore) }
+                : {}),
+            },
+          }
+        : {}),
       // P2-4: the GitHub Apps panel asks the services that hold the keys (never a key itself)
       githubApps: {
         codehost: reportOf(cfg.cards?.codehost ?? null),

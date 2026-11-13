@@ -11,7 +11,11 @@ import {
   Qualification,
   SetCodeownerMembersRequest,
   Team,
+  bindingStream,
   parseScopeKey,
+  pdpResource,
+  type ActionId,
+  type PdpResource,
   type Scope,
 } from '@aisdlc/contracts';
 import { systemClock, type Clock, type Result } from '@aisdlc/kernel';
@@ -47,8 +51,12 @@ import { reconcileProject } from './reconcile.js';
 
 /**
  * What a caller may do: read the model, change principals/groups/bindings, reconcile, sync,
- * (`codeowners`, the codehost only) set the members of a project's g4 group from CODEOWNERS, and
- * (`grant`, core only, P1-6) write or end the binding an approved M1 decided (`m_gate_ref` required).
+ * (`codeowners`, the codehost only) set the members of a project's g4 group from CODEOWNERS,
+ * (`grant`, core only, P1-6) write or end the binding an approved M1 decided (`m_gate_ref` required), and
+ * (`admin`, the bff, portal v2 gap G6) make the same writes as `write` FOR A SIGNED-IN PERSON: every such write names
+ * `on_behalf_of` and the PDP decides it (`identity.admin` on the fleet for people, groups, members, teams, links and
+ * qualifications; `access.manage` on the binding's project, or the fleet, for a binding). `write` stays the machine
+ * path of the seed and the bootstrap, which no person reaches.
  */
 export const IDENTITY_SCOPES = [
   'read',
@@ -57,7 +65,15 @@ export const IDENTITY_SCOPES = [
   'sync',
   'codeowners',
   'grant',
+  'admin',
 ] as const;
+
+/** The PDP's answer for a person's write (`Pdp.decide`, logged). Anything but `allow` refuses. */
+export type IdentityWriteDecider = (
+  principal: string,
+  action: ActionId,
+  resource: PdpResource,
+) => Promise<{ readonly decision: 'allow' | 'deny'; readonly reasons: readonly string[] }>;
 export type IdentityScope = (typeof IDENTITY_SCOPES)[number];
 
 export interface IdentityAppOptions {
@@ -73,7 +89,19 @@ export interface IdentityAppOptions {
   readonly clock?: Clock;
   /** Called after a write committed; the service uses it to run the access-sync loop at once. */
   readonly onWrite?: () => void;
+  /** The PDP for `admin` writes (a person's); absent: every `admin` write answers `unavailable`. */
+  readonly decide?: IdentityWriteDecider;
 }
+
+/** What a person's write is asked as: the action and the resource. `null`: the body does not say (refused). */
+type WriteAccess = (
+  req: FastifyRequest,
+) => Promise<{ action: ActionId; resource: PdpResource } | null>;
+
+const FLEET_ADMIN: WriteAccess = async () => ({
+  action: 'identity.admin',
+  resource: pdpResource.fleet(),
+});
 
 const atOf = (raw: unknown, clock: Clock): Date | null => {
   if (raw === undefined) return clock.now();
@@ -113,17 +141,51 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
   const allowed = (req: FastifyRequest, scope: IdentityScope): boolean =>
     (o.callers[callerOf(req)] ?? []).includes(scope);
 
-  /** A route that needs `scope`. `run` returns a Result; a write also nudges the access-sync loop. */
+  /**
+   * A route that needs `scope`. `run` returns a Result; a write also nudges the access-sync loop. A `write` route with
+   * an `access` rule also takes a caller with scope `admin`, for the person it names (`on_behalf_of`, required), when
+   * the PDP allows that person the rule's action on its resource (fail closed: no PDP, an error or a deny refuses).
+   */
   function route(
     method: 'get' | 'post',
     path: string,
     scope: IdentityScope,
     run: (req: FastifyRequest, caller: string) => Promise<Result<unknown, IdentityError>>,
     write = false,
+    access?: WriteAccess,
   ): void {
     app[method](path, async (req: FastifyRequest, reply: FastifyReply) => {
       if (!allowed(req, scope)) {
-        return sendError(reply, 403, 'forbidden', `caller may not use scope ${scope}`);
+        if (!(scope === 'write' && access && allowed(req, 'admin'))) {
+          return sendError(reply, 403, 'forbidden', `caller may not use scope ${scope}`);
+        }
+        const who = PrincipalId.safeParse(
+          (req.body as { on_behalf_of?: unknown } | null)?.on_behalf_of,
+        );
+        if (!who.success) {
+          return sendError(reply, 403, 'forbidden', 'a write for a person names on_behalf_of');
+        }
+        if (!o.decide) {
+          return sendError(reply, 503, 'unavailable', 'no policy decision point is configured');
+        }
+        let a: Awaited<ReturnType<WriteAccess>>;
+        try {
+          a = await access(req);
+        } catch {
+          a = null;
+        }
+        if (!a) return sendError(reply, 400, 'invalid_input', 'the write does not name its scope');
+        let d: Awaited<ReturnType<IdentityWriteDecider>>;
+        try {
+          d = await o.decide(who.data, a.action, a.resource);
+        } catch {
+          d = { decision: 'deny', reasons: ['evaluator_error'] };
+        }
+        if (d.decision !== 'allow') {
+          return reply.code(403).send({
+            error: { code: 'forbidden', message: `${a.action} denied`, reasons: d.reasons },
+          });
+        }
       }
       const r = await run(req, callerOf(req));
       if (!r.ok) return fail(reply, r.error);
@@ -248,6 +310,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
       return createPrincipal(deps, p.data as never, actorOf(b.value, caller));
     },
     true,
+    FLEET_ADMIN,
   );
 
   route(
@@ -266,6 +329,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
         : b;
     },
     true,
+    FLEET_ADMIN,
   );
 
   route(
@@ -288,6 +352,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
         : b;
     },
     true,
+    FLEET_ADMIN,
   );
 
   route(
@@ -302,6 +367,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
       return grantQualification(deps, b.value.qualification, actorOf(b.value, caller));
     },
     true,
+    FLEET_ADMIN,
   );
 
   route(
@@ -313,6 +379,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
       return b.ok ? linkIdentity(deps, b.value.link, actorOf(b.value, caller)) : b;
     },
     true,
+    FLEET_ADMIN,
   );
 
   route(
@@ -324,6 +391,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
       return b.ok ? createGroup(deps, b.value.group, actorOf(b.value, caller)) : b;
     },
     true,
+    FLEET_ADMIN,
   );
 
   route(
@@ -351,6 +419,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
       );
     },
     true,
+    FLEET_ADMIN,
   );
 
   route(
@@ -373,6 +442,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
         : b;
     },
     true,
+    FLEET_ADMIN,
   );
 
   route(
@@ -404,6 +474,19 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
       );
     },
     true,
+    async (req) => {
+      const sc = z
+        .object({ scope: z.object({ kind: z.string(), ref: z.string() }) })
+        .safeParse(req.body);
+      if (!sc.success) return null;
+      return {
+        action: 'access.manage',
+        resource:
+          sc.data.scope.kind === 'project'
+            ? pdpResource.project(sc.data.scope.ref)
+            : pdpResource.fleet(),
+      };
+    },
   );
 
   route(
@@ -417,6 +500,21 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
         : b;
     },
     true,
+    async (req) => {
+      const r = await o.pool.query<{ scope_kind: string; scope_ref: string }>(
+        // the record, not the read model (which may lag): the binding's creation names its scope
+        `SELECT body -> 'scope' ->> 'kind' AS scope_kind, body -> 'scope' ->> 'ref' AS scope_ref
+           FROM record.record_event WHERE stream = $1 AND seq = 1`,
+        [bindingStream(params(req)['id'] as string)],
+      );
+      const b = r.rows[0];
+      if (!b) return null;
+      return {
+        action: 'access.manage',
+        resource:
+          b.scope_kind === 'project' ? pdpResource.project(b.scope_ref) : pdpResource.fleet(),
+      };
+    },
   );
 
   route(
@@ -428,6 +526,7 @@ export function createIdentityApp(o: IdentityAppOptions): FastifyInstance {
       return b.ok ? createTeam(deps, b.value.team, actorOf(b.value, caller)) : b;
     },
     true,
+    FLEET_ADMIN,
   );
 
   // ------------------------------------------------------------ the decided grant path (P1-6, core only)

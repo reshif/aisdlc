@@ -1,5 +1,5 @@
 import {
-  LF6_MIN_AFFIRMED_OR_UNKNOWN,
+  readinessPolicy,
   LightFloorId,
   type LightFloorReport,
   type LightFloorState,
@@ -125,7 +125,7 @@ export function evaluateLightFloors(i: LightFloorInputs): LightFloorReport {
     LF6:
       i.claims_share === null
         ? unknown('claims_not_decided')
-        : i.claims_share < LF6_MIN_AFFIRMED_OR_UNKNOWN
+        : i.claims_share < readinessPolicy().lf6_min_affirmed_or_unknown
           ? unmet('claims_below_floor')
           : i.intent_attested !== true
             ? i.intent_attested === null

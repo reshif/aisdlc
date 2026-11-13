@@ -33,6 +33,8 @@ import { registerAssistantRoutes } from './assistant.js';
 import { registerDriftRoutes } from './drift.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
 import { registerKillRoutes } from './kill.js';
+import { registerAdminRoutes } from './admin.js';
+import { carryOverride } from './override.js';
 import { registerOpsRoutes } from './ops.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerAuditRoutes } from './audit.js';
@@ -82,8 +84,10 @@ export interface BffAppOptions {
   readonly allowedOrigins?: readonly string[];
   /** `Secure` cookies and the `__Host-` prefix. Only local plain http turns this off. */
   readonly cookieSecure?: boolean;
-  readonly idleSeconds?: number;
-  readonly absoluteSeconds?: number;
+  /** Signed out after this idle time; a function is read on every request (portal v2 `session.policy`, H16). */
+  readonly idleSeconds?: number | (() => number);
+  /** Signed out after this long whatever happens; a function is read at each sign-in (portal v2 `session.policy`). */
+  readonly absoluteSeconds?: number | (() => number);
   /**
    * `reauth` (D37): the principal signs in again at the IdP. `reconfirm` (DEC-11(c-ii)): a plain
    * confirm in the session, no new authentication, stamped as such in the proof and the response.
@@ -111,6 +115,8 @@ export interface BffAppOptions {
   readonly gateCheck?: CoreClient;
   /** The kill switch (RC-UI-1, scopes `act`, `read`), for `/api/kills/*` with the person's step-up; else 503. */
   readonly killswitch?: CoreClient;
+  /** Identity's API with scope `admin` (portal v2: people, teams and bindings, the PDP deciding each write there). */
+  readonly identity?: CoreClient;
   /** P2-5: the model gateway's admin API (scope `operate`): provider test and reload; without it those answer 503. */
   readonly gateway?: CoreClient;
   /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it the Sandboxes screen says so. */
@@ -165,8 +171,12 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
   const app = newApp();
   const clock = o.clock ?? systemClock;
   const secure = o.cookieSecure ?? true;
-  const idleSeconds = o.idleSeconds ?? DEFAULT_IDLE_SECONDS;
-  const absoluteSeconds = o.absoluteSeconds ?? DEFAULT_ABSOLUTE_SECONDS;
+  const secondsOf = (v: number | (() => number) | undefined, fallback: number) => (): number => {
+    const n = typeof v === 'function' ? v() : v;
+    return typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : fallback;
+  };
+  const idleNow = secondsOf(o.idleSeconds, DEFAULT_IDLE_SECONDS);
+  const absoluteNow = secondsOf(o.absoluteSeconds, DEFAULT_ABSOLUTE_SECONDS);
   const mode = o.stepUpMode ?? 'reauth';
   const sidName = cookieName('aisdlc_sid', secure);
   const binderName = cookieName('aisdlc_login', secure);
@@ -362,7 +372,7 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
         auth_time: authTime,
         id_token: id.value.id_token,
         now,
-        absoluteSeconds,
+        absoluteSeconds: absoluteNow(),
       });
       setCookies(reply, [serializeCookie(sidName, s.id, { secure }), clearBinder]);
       return reply.redirect(attempt.return_to);
@@ -370,7 +380,7 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
 
     // Step-up: the same browser session, the same principal, and a sign-in that happened now.
     const sid = readCookie(req.headers.cookie, sidName);
-    const session = sid ? await lookupSession(o.pool, sid, now, idleSeconds) : null;
+    const session = sid ? await lookupSession(o.pool, sid, now, idleNow()) : null;
     if (!session?.ok || sha256b64(sid as string) !== attempt.session_hash) {
       setCookies(reply, [clearBinder]);
       return sendError(reply, 401, 'no_session', 'the session that started this step-up is gone');
@@ -421,12 +431,15 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
   }
   const authed = new WeakMap<FastifyRequest, Authed>();
 
+  // the factory admin's override reason rides along on every upstream call of the request (override.ts)
+  carryOverride(app);
+
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return;
     const now = clock.now();
     const sid = readCookie(req.headers.cookie, sidName);
     if (!sid) return sendError(reply, 401, 'unauthenticated', 'no session');
-    const found = await lookupSession(o.pool, sid, now, idleSeconds);
+    const found = await lookupSession(o.pool, sid, now, idleNow());
     if (!found.ok) {
       setCookies(reply, [serializeCookie(sidName, '', { secure, maxAge: 0 })]);
       return sendError(reply, 401, 'unauthenticated', `session ${found.reason}`);
@@ -485,14 +498,14 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
       const actions = await o.pdp.allowedActions(principal, pdpResource.project(project));
       if (actions.length > 0) perProject.push({ project_id: project, actions });
     }
-    const idleAt = session.last_seen_at.getTime() + idleSeconds * 1000;
+    const idleAt = session.last_seen_at.getTime() + idleNow() * 1000;
     return {
       principal: summary,
       session: {
         auth_time: session.auth_time ? session.auth_time.toISOString() : null,
         expires_at: new Date(Math.min(idleAt, session.absolute_expires_at.getTime())).toISOString(),
         absolute_expires_at: session.absolute_expires_at.toISOString(),
-        idle_timeout_seconds: idleSeconds,
+        idle_timeout_seconds: idleNow(),
       },
       csrf_token: session.csrf_token,
       step_up: { mode },
@@ -667,6 +680,13 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     killswitch: o.killswitch,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  // portal v2: delete means delete, and people, teams and bindings written through identity's PDP
+  registerAdminRoutes({
+    app,
+    core: o.core,
+    identity: o.identity,
     principalOf: (req) => ctx(req).session.principal_id,
   });
   registerOpsRoutes({

@@ -162,8 +162,17 @@ export const SANDBOX_PROFILES: Readonly<Record<SandboxClass, SandboxProfile>> = 
   },
 };
 
-/** At most this many coding (`W`) sessions run at once (RV §3.4: two sessions plus a test run push the host into swap). */
+/**
+ * The default coding (`W`) cap of a runner host (RV §3.4: two sessions plus a test run push the default host into
+ * swap). Portal v2: the factory owner sets `sandbox.caps.coding` (M1-gated) on a host sized for more, up to
+ * `CODING_SESSION_HARD_CEILING`; the sandbox-controller, the driver's own gate and core's admission (H2) all follow it.
+ */
 export const CODING_SESSION_CAP = 1;
+/**
+ * The most coding sessions any runner host may run at once, whatever config says (documented in
+ * docs/design/settings-catalogue.md). The docker socket proxy's default backstop is this number too.
+ */
+export const CODING_SESSION_HARD_CEILING = 8;
 /** Classes that count against the coding-session cap. */
 export const CODING_CLASSES: readonly SandboxClass[] = ['W'];
 
@@ -330,7 +339,7 @@ export type SandboxGrantRef = z.infer<typeof SandboxGrantRef>;
 export const SandboxCaps = z
   .strictObject({
     total: z.number().int().min(1).max(32),
-    coding: z.number().int().min(0).max(8),
+    coding: z.number().int().min(0).max(CODING_SESSION_HARD_CEILING),
   })
   .refine((c) => c.coding <= c.total, { message: 'the coding cap cannot be above the total' });
 export type SandboxCaps = z.infer<typeof SandboxCaps>;
@@ -350,7 +359,7 @@ export const SANDBOX_CAPS_KEY = 'sandbox.caps';
 export const SandboxCapsConfig = z
   .strictObject({
     total: z.number().int().min(1).max(32),
-    coding: z.number().int().min(0).max(8),
+    coding: z.number().int().min(0).max(CODING_SESSION_HARD_CEILING),
     hosts: z.record(RunnerHostId, SandboxCaps).optional(),
   })
   .refine((c) => c.coding <= c.total, { message: 'the coding cap cannot be above the total' });

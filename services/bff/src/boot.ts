@@ -1,4 +1,11 @@
-import { ConfigReader, ConfigRegistry } from '@aisdlc/config';
+import {
+  ConfigReader,
+  ConfigRegistry,
+  followSettings,
+  gatesTimersFrom,
+  registerSettingsConfig,
+  sessionPolicyFrom,
+} from '@aisdlc/config';
 import { STEP_UP_KEY_ID } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
@@ -92,6 +99,8 @@ function healthPeersEnv(env: Env): Record<string, string> {
  *   BFF_KILLSWITCH_URL, BFF_KILLSWITCH_TOKEN_REF
  *                            the kill switch and the bff's token there (scopes act, read; RC-UI-1): the portal's kill
  *                            and release, each act with the person's own step-up proof; both or neither (else 503)
+ *   BFF_IDENTITY_URL, BFF_IDENTITY_TOKEN_REF   (portal v2) identity with scope `admin`: people, teams and bindings
+ *                            written from the portal, the PDP deciding each write in identity
  *   BFF_HEALTH_PEERS         M19: JSON {name: base URL} of the services only the bff reaches whose liveness answer
  *                            `GET /healthz/peer/:name` relays for core-worker's health tiles (the notifier)
  *   BFF_GATE_CHECK_URL, BFF_GATE_CHECK_TOKEN_REF
@@ -182,6 +191,23 @@ export async function bootBff(env: Env): Promise<RunningService> {
     ? new HttpCoreClient({
         baseUrl: httpUrlEnv(env, 'BFF_KILLSWITCH_URL'),
         token: resolveSecretRef(requiredEnv(env, 'BFF_KILLSWITCH_TOKEN_REF'), { env }),
+      })
+    : undefined;
+  // portal v2 (gap G6): identity's API with scope `admin`, for the people, team and binding writes
+  const idUrl = env['BFF_IDENTITY_URL'];
+  const hasIdentity = idUrl !== undefined && idUrl !== '';
+  if (
+    hasIdentity !==
+    (env['BFF_IDENTITY_TOKEN_REF'] !== undefined && env['BFF_IDENTITY_TOKEN_REF'] !== '')
+  ) {
+    throw new ServiceConfigError(
+      'BFF_IDENTITY_URL and BFF_IDENTITY_TOKEN_REF are set together or not at all',
+    );
+  }
+  const identity = hasIdentity
+    ? new HttpCoreClient({
+        baseUrl: httpUrlEnv(env, 'BFF_IDENTITY_URL'),
+        token: resolveSecretRef(requiredEnv(env, 'BFF_IDENTITY_TOKEN_REF'), { env }),
       })
     : undefined;
   const gcUrl = env['BFF_GATE_CHECK_URL'];
@@ -277,11 +303,17 @@ export async function bootBff(env: Env): Promise<RunningService> {
     await migrateBff(pool);
     reader = await ConfigReader.create({
       pool,
-      registry: registerPdpConfig(new ConfigRegistry()),
+      registry: registerSettingsConfig(registerPdpConfig(new ConfigRegistry())),
       onError: (e) =>
         console.error(`bff: config reader: ${e instanceof Error ? e.message : String(e)}`),
     });
     await reader.start();
+    const settingsReader = reader;
+    // Portal v2: the approvals table (`gates.policy`) the PDP's gate attributes read, followed on every revision
+    await followSettings({
+      reader,
+      onError: (e) => console.error(`bff: settings: ${e instanceof Error ? e.message : String(e)}`),
+    });
     const pdp = new Pdp({
       source: new ConfigBundleSource(reader),
       entities: new BootstrapPdpEntities(new IdentityPdpEntities({ pool }), { db: pool }),
@@ -293,17 +325,29 @@ export async function bootBff(env: Env): Promise<RunningService> {
       pool,
       oidc: new HttpOidcClient({ issuer, client_id: clientId, client_secret: clientSecret }),
       pdp,
-      stepUp: new StepUpIssuer({ custody, store: new PgProofStore(pool), keyId: STEP_UP_KEY_ID }),
+      stepUp: new StepUpIssuer({
+        custody,
+        store: new PgProofStore(pool),
+        keyId: STEP_UP_KEY_ID,
+        // portal v2 (`gates.timers`): the life of a confirm-it's-you proof, read on every issue
+        ttlSeconds: () => gatesTimersFrom(settingsReader).step_up_ttl_s,
+      }),
       publicUrl,
       allowedOrigins,
       cookieSecure,
-      idleSeconds,
-      absoluteSeconds,
+      // portal v2 (`session.policy`, H16): the env values are the bootstrap default; a published policy wins
+      idleSeconds: () =>
+        sessionPolicyFrom(settingsReader, { idle_s: idleSeconds, absolute_s: absoluteSeconds })
+          .idle_s,
+      absoluteSeconds: () =>
+        sessionPolicyFrom(settingsReader, { idle_s: idleSeconds, absolute_s: absoluteSeconds })
+          .absolute_s,
       stepUpMode,
       loginHint,
       ...(core ? { core } : {}),
       ...(notifier ? { notifier } : {}),
       ...(killswitch ? { killswitch } : {}),
+      ...(identity ? { identity } : {}),
       ...(gateCheck ? { gateCheck } : {}),
       ...(gateway ? { gateway } : {}),
       ...(audit ? { audit } : {}),

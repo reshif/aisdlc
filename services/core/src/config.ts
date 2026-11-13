@@ -80,6 +80,18 @@ export interface CoreConfig {
    * VAULT_APPROLE_FILE; its policy writes values and reads metadata, never a value); `null`: those routes answer 503.
    */
   readonly vault: VaultClient | null;
+  /**
+   * Delete means delete (docs/specs/deletion.md §4): the purge login (a member of `aisdlc_purge`) and the object
+   * store credential that may lift a legal hold; `null`: the delete routes answer `503 deletion_unavailable`.
+   */
+  readonly deletion: {
+    readonly databaseUrl: string;
+    readonly objectStore: {
+      readonly endpoint: string;
+      readonly accessKeyRef: string;
+      readonly secretKeyRef: string;
+    } | null;
+  } | null;
 }
 
 /**
@@ -109,6 +121,10 @@ export interface CoreConfig {
  *                            the portal's GitHub Apps panel; without it the panel says the push job is not configured
  *   CORE_IDENTITY_URL, CORE_IDENTITY_TOKEN_REF   (P1-6) identity's API, scope `grant`: writes the role binding an
  *                            approved access M1 decided; without it a decided grant waits (`POST .../apply` retries)
+ *   CORE_PURGE_DATABASE_URL  (portal v2, docs/specs/deletion.md §4) the deletion login, a member of `aisdlc_purge`;
+ *                            without it the delete routes answer 503. CORE_PURGE_OBJECT_STORE_URL,
+ *                            CORE_PURGE_OBJECT_STORE_ACCESS_KEY_REF, CORE_PURGE_OBJECT_STORE_SECRET_KEY_REF: the store
+ *                            credential that may lift a legal hold (the purge of a deleted object's packs)
  * Every secret is an `env:NAME` or `file:PATH` reference.
  */
 export function coreConfigFromEnv(env: Env): CoreConfig {
@@ -178,6 +194,21 @@ export function coreConfigFromEnv(env: Env): CoreConfig {
         : httpUrlEnv(env, 'CORE_ADMISSION_URL'),
     identity: remote('IDENTITY'),
     vault: vaultClientFromEnv(env),
+    deletion:
+      env['CORE_PURGE_DATABASE_URL'] === undefined || env['CORE_PURGE_DATABASE_URL'] === ''
+        ? null
+        : {
+            databaseUrl: databaseUrl(env, 'CORE_PURGE_DATABASE_URL'),
+            objectStore:
+              env['CORE_PURGE_OBJECT_STORE_URL'] === undefined ||
+              env['CORE_PURGE_OBJECT_STORE_URL'] === ''
+                ? null
+                : {
+                    endpoint: httpUrlEnv(env, 'CORE_PURGE_OBJECT_STORE_URL'),
+                    accessKeyRef: requiredEnv(env, 'CORE_PURGE_OBJECT_STORE_ACCESS_KEY_REF'),
+                    secretKeyRef: requiredEnv(env, 'CORE_PURGE_OBJECT_STORE_SECRET_KEY_REF'),
+                  },
+          },
   };
 }
 

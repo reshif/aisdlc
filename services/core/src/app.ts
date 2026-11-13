@@ -65,6 +65,8 @@ import {
   Level,
   pdpResource,
   projectOfScope,
+  OVERRIDE_REASON_HEADER,
+  isAdminOverride,
   SIGNED_EVIDENCE_PACK_CONTENT_TYPE,
   type ActionId,
   type MergeBypassConfig,
@@ -78,6 +80,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
 import { gateArtefactsView } from './planning/gate-view.js';
+import type { DeletionDeps } from './deletion/engine.js';
+import { registerDeletionRoutes } from './deletion/routes.js';
 import {
   decideGateCard,
   gateCardView,
@@ -85,7 +89,8 @@ import {
   prepareGateCard,
   recordGateCardEvidence,
 } from './gate-cards.js';
-import type { DecisionDeps } from '@aisdlc/decisions';
+import { recordOverride, type DecisionDeps } from '@aisdlc/decisions';
+import { overrideOf } from './override.js';
 import { CORE_STATUS, coreError, type CoreError } from './errors.js';
 import { listBreakers, requestBreakerReset } from './breaker.js';
 import {
@@ -180,6 +185,7 @@ import {
   recordSpike,
   requestProbeRetry,
 } from './cards/index.js';
+import { displayCatalogue } from './catalogue-pin.js';
 
 /**
  * What a caller may do: `read` the model, `onboard` (the BFF, for a signed-in human: the PDP decides
@@ -197,7 +203,9 @@ import {
  * word, read from the lease and the ledger), `erasure` (M19: the audit service lists the payloads kept off the hash chain
  * and erases one it has the `erasure.execute` entry for; no other caller has a reason to hold it),
  * `activity` (M19: a session's reporter posts its heartbeat; nothing else), `secrets` (portal v2 N15: the BFF puts a
- * value a person pasted into the secret store and lists names and metadata; the PDP decides about the person).
+ * value a person pasted into the secret store and lists names and metadata; the PDP decides about the person),
+ * `delete` (portal v2: the bff deletes an object
+ * for a signed-in person; the PDP decides `<kind>.delete`, docs/specs/deletion.md).
  */
 export type CoreScope =
   | 'read'
@@ -212,7 +220,8 @@ export type CoreScope =
   | 'push_guard'
   | 'erasure'
   | 'activity'
-  | 'secrets';
+  | 'secrets'
+  | 'delete';
 
 export interface CoreAppOptions {
   readonly pool: pg.Pool;
@@ -249,6 +258,8 @@ export interface CoreAppOptions {
   readonly workSettings?: () => WorkSettings;
   /** Portal v2 N15: the secret store (Vault) the write-only secret API writes to; absent: those routes answer 503. */
   readonly secretStore?: SecretStorePort;
+  /** Delete means delete (docs/specs/deletion.md): the purge login and its object purger; absent: `503`. */
+  readonly deletion?: DeletionDeps;
 }
 
 const Reason = z.string().min(1).max(500).optional();
@@ -287,18 +298,70 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       : { ok: false, error: coreError('invalid_input', p.error.message) };
   }
 
-  /** The PDP decides about the human the BFF acts for. Any answer but `allow` is a refusal. */
+  /**
+   * The PDP decides about the human the BFF acts for. Any answer but `allow` is a refusal. An allow that only the
+   * factory admin's override permits (docs/specs/deletion.md §8) needs the override's reason
+   * (`override_reason_required` without it) and is recorded before the act: an `admin.override` record event and
+   * ledger entry (`pdp_grant`), unless the route hands the override to the decision kernel, which records it with the
+   * decision (`kernel`). A record that cannot be written refuses the act: the audit trail has no holes.
+   */
   async function guard(
     reply: FastifyReply,
     principal: string,
     action: ActionId,
     resource: PdpResource,
+    opts: { readonly kernel?: boolean } = {},
   ): Promise<boolean> {
     if (!o.pdp) {
       sendError(reply, 503, 'unavailable', 'no policy decision point is configured');
       return false;
     }
     const d = await o.pdp.decide({ principal, action, resource });
+    if (d.decision === 'allow' && isAdminOverride(d)) {
+      const ov = overrideOf(reply.request);
+      if (!ov) {
+        reply.code(403).send({
+          error: {
+            code: 'override_reason_required',
+            message: `${action} is the factory admin's override here: give a reason (${OVERRIDE_REASON_HEADER})`,
+            reasons: d.reasons,
+          },
+        });
+        return false;
+      }
+      if (opts.kernel) return true;
+      const k = o.config ?? o.cards?.config;
+      if (!k) {
+        sendError(
+          reply,
+          503,
+          'unavailable',
+          'the override cannot be recorded: no ledger is configured',
+        );
+        return false;
+      }
+      const r = await recordOverride(k, {
+        actor: principal,
+        action,
+        resource,
+        gate:
+          resource.type === 'Gate' && resource.gate_id
+            ? { gate_instance_id: resource.id, gate_id: resource.gate_id }
+            : null,
+        reason: ov.reason,
+        bypassed: ['pdp_grant'],
+      });
+      if (!r.ok) {
+        sendError(
+          reply,
+          503,
+          'unavailable',
+          `the override could not be recorded: ${r.error.message}`,
+        );
+        return false;
+      }
+      return true;
+    }
     if (d.decision === 'allow') return true;
     reply.code(403).send({
       error: { code: 'forbidden', message: `${action} denied`, reasons: d.reasons },
@@ -561,7 +624,8 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         repo.data,
         lane.data,
         clock,
-        undefined,
+        // what a new request would be judged by: the factory's current catalogue
+        (await displayCatalogue(o.pool)).data.eligibility,
         area?.success ? area.data : undefined,
       );
     } catch {
@@ -1690,6 +1754,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         b.value.on_behalf_of,
         'card.decide',
         pdpResource.card(head.project_id, id),
+        { kernel: true },
       ))
     ) {
       return;
@@ -1701,6 +1766,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
           b.value.on_behalf_of,
           'gate.decide',
           pdpResource.gate(head.project_id, g.gate_instance_id, g.gate),
+          { kernel: true },
         ))
       ) {
         return;
@@ -1712,7 +1778,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
 
   app.post('/v1/cards/:cardId/gate/prepare', (req, reply) =>
     gateCardAction(req, reply, GateCardPrepareRequest, (k, id, b) =>
-      prepareGateCard(k, { card_id: id, principal: b.on_behalf_of }),
+      prepareGateCard(k, { card_id: id, principal: b.on_behalf_of, override: overrideOf(req) }),
     ),
   );
   app.post('/v1/cards/:cardId/gate/evidence', (req, reply) =>
@@ -1728,6 +1794,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         decision: b.decision,
         votes: b.votes,
         ...(b.reason === undefined ? {} : { reason: b.reason }),
+        override: overrideOf(req),
       }),
     ),
   );
@@ -1754,6 +1821,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         b.value.on_behalf_of,
         'card.decide',
         pdpResource.card(head.project_id, id),
+        { kernel: true },
       ))
     ) {
       return;
@@ -1764,7 +1832,11 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
 
   app.post('/v1/cards/:cardId/prepare', (req, reply) =>
     cardAction(req, reply, CardPrepareRequest, (c, id, b) =>
-      prepareOnboardingCard(c, { card_id: id, principal: b.on_behalf_of }),
+      prepareOnboardingCard(c, {
+        card_id: id,
+        principal: b.on_behalf_of,
+        override: overrideOf(req),
+      }),
     ),
   );
   app.post('/v1/cards/:cardId/evidence', (req, reply) =>
@@ -1786,6 +1858,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         ...(b.content === undefined ? {} : { content: b.content }),
         ...(b.reason === undefined ? {} : { reason: b.reason }),
         ...(b.step_up === undefined ? {} : { step_up: b.step_up }),
+        override: overrideOf(req),
       }),
     ),
   );
@@ -1924,6 +1997,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         b.value.on_behalf_of,
         'gate.decide',
         pdpResource.gate(view.value.project_id, gate, 'M1'),
+        { kernel: true },
       ))
     ) {
       return;
@@ -1934,7 +2008,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
 
   app.post('/v1/revisions/:gate/prepare', (req, reply) =>
     revisionAction(req, reply, RevisionPrepareRequest, (d, gate, b) =>
-      prepareRevision(d, { gate, principal: b.on_behalf_of }),
+      prepareRevision(d, { gate, principal: b.on_behalf_of, override: overrideOf(req) }),
     ),
   );
   app.post('/v1/revisions/:gate/evidence', (req, reply) =>
@@ -1944,7 +2018,12 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   );
   app.post('/v1/revisions/:gate/decide', (req, reply) =>
     revisionAction(req, reply, RevisionDecideRequest, (d, _gate, b) =>
-      decideRevision(d, { nonce: b.nonce, decision: b.decision, step_up: b.step_up }),
+      decideRevision(d, {
+        nonce: b.nonce,
+        decision: b.decision,
+        step_up: b.step_up,
+        override: overrideOf(req),
+      }),
     ),
   );
   /** Retries the publish of an approved revision (the decision is already on the ledger). */
@@ -2209,6 +2288,16 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
   // ------------------------------------------------------------ the erasable payloads (M19, the audit service)
 
   registerErasableRoutes({ app, deps, allowed: (req) => allowed(req, 'erasure') });
+
+  // ------------------------------------------------------------ delete means delete (portal v2)
+
+  registerDeletionRoutes({
+    app,
+    pdp: o.pdp,
+    pool: o.pool,
+    deletion: o.deletion,
+    allowed: (req) => allowed(req, 'delete'),
+  });
 
   // ------------------------------------------------------------ the assistant (M18)
 

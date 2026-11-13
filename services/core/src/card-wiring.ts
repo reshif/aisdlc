@@ -1,6 +1,11 @@
 import { FactoryM1Eligibility } from './factory-m1.js';
 import type { ConfigDeps, ConfigRegistry } from '@aisdlc/config';
-import { PortError, type EligibilityPort, type StepUpPort } from '@aisdlc/decisions';
+import {
+  PortError,
+  type EligibilityPort,
+  type FactoryAdminPort,
+  type StepUpPort,
+} from '@aisdlc/decisions';
 import { IdentityEligibility } from '@aisdlc/identity/read';
 import { err } from '@aisdlc/kernel';
 import { DbPrincipalLinks } from './cards/links.js';
@@ -31,6 +36,8 @@ export interface CardWiring {
   readonly ledger: ConfigDeps['ledger'];
   readonly eligibility: EligibilityPort;
   readonly stepUp: StepUpPort;
+  /** The factory admin's override (docs/specs/deletion.md §8); absent: every override is refused. */
+  readonly admins?: FactoryAdminPort;
   readonly knowledge: KnowledgePort;
   readonly source: CardDeps['source'];
   readonly settings?: () => S0Settings;
@@ -48,6 +55,7 @@ export function cardDepsFrom(w: CardWiring): CardDeps {
     ledger: w.ledger,
     eligibility: w.eligibility,
     stepUp: w.stepUp,
+    ...(w.admins ? { admins: w.admins } : {}),
     registry: w.registry,
     ...(w.maintenance ? { maintenance: w.maintenance } : {}),
   };

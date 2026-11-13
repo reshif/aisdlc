@@ -1,4 +1,5 @@
 import { callJson, type CallResult } from '@aisdlc/service-kit';
+import { overrideHeaders } from './override.js';
 
 /**
  * What the bff needs from core: one JSON request with the bff's own service token. The browser's
@@ -33,6 +34,8 @@ export class HttpCoreClient implements CoreClient {
       token: this.o.token,
       method,
       path,
+      // the factory admin's override reason of the request being served, carried on (docs/specs/deletion.md §8)
+      headers: overrideHeaders(),
       ...(body === undefined ? {} : { body }),
       ...(this.o.fetchImpl ? { fetchImpl: this.o.fetchImpl } : {}),
     });

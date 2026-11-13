@@ -254,6 +254,29 @@ export const KILL_RELEASE_POLICY: GatePolicy = {
   consolidatable: false,
 };
 
+/**
+ * The approvals table in force in this process (portal v2, `gates.policy`, H6/H7): `null` is the default
+ * (`GATE_POLICIES`). A service that reads config installs the published table on every revision
+ * (`installGatePolicies`); every reader of a gate's slot, two-person rule, own-request rule, step-up and card sharing
+ * goes through `gatePolicy`, so one setting answers the same everywhere. An invalid table is refused (the previous
+ * one stays): fail closed.
+ */
+let installedPolicies: Readonly<Record<GateIdType, GatePolicy>> | null = null;
+
+/** Installs a policy table (or `null`: back to `GATE_POLICIES`). Throws on a table that is not one row per gate. */
+export function installGatePolicies(table: Readonly<Record<GateIdType, GatePolicy>> | null): void {
+  if (table === null) {
+    installedPolicies = null;
+    return;
+  }
+  const rows = z.record(GateId, GatePolicy).parse(table);
+  installedPolicies = Object.freeze(rows) as Readonly<Record<GateIdType, GatePolicy>>;
+}
+
+/** The policy table in force (the installed one, else `GATE_POLICIES`). */
+export const gatePolicies = (): Readonly<Record<GateIdType, GatePolicy>> =>
+  installedPolicies ?? GATE_POLICIES;
+
 export function gatePolicy(key: PolicyKey): GatePolicy {
-  return key === TWO_PERSON_KILL_RELEASE ? KILL_RELEASE_POLICY : GATE_POLICIES[key];
+  return key === TWO_PERSON_KILL_RELEASE ? KILL_RELEASE_POLICY : gatePolicies()[key];
 }

@@ -8,3 +8,4 @@ export * from './scores.js';
 export * from './keys.js';
 export * from './context.js';
 export * from './tools.js';
+export * from './settings.js';

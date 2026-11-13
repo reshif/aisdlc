@@ -1129,7 +1129,13 @@
                     "ops.read",
                     "session.stop",
                     "quality.read",
-                    "assistant.use"
+                    "assistant.use",
+                    "project.delete",
+                    "repo.delete",
+                    "item.delete",
+                    "person.delete",
+                    "team.delete",
+                    "binding.delete"
                   ]
                 }
               }
@@ -2872,7 +2878,13 @@
         "ops.read",
         "session.stop",
         "quality.read",
-        "assistant.use"
+        "assistant.use",
+        "project.delete",
+        "repo.delete",
+        "item.delete",
+        "person.delete",
+        "team.delete",
+        "binding.delete"
       ]
     },
     "ActiveKillsView": {
@@ -3037,6 +3049,281 @@
         "D+A",
         "A+H",
         "D+H"
+      ]
+    },
+    "AdminOverrideBody": {
+      "type": "object",
+      "properties": {
+        "override_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "actor": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resource": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "Fleet",
+                    "Team",
+                    "Project",
+                    "Lane",
+                    "Repo",
+                    "Item",
+                    "Gate",
+                    "Card"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "project": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lane": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "item": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "gate_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "G0",
+                        "G1",
+                        "G1f",
+                        "G2",
+                        "G3",
+                        "G3d",
+                        "G3s",
+                        "G3o",
+                        "G4",
+                        "G5",
+                        "G6",
+                        "X1",
+                        "X2",
+                        "X3",
+                        "X4",
+                        "E1",
+                        "E2",
+                        "E3",
+                        "E4",
+                        "E5",
+                        "E6",
+                        "M1",
+                        "M2",
+                        "M3",
+                        "M4",
+                        "M5",
+                        "M6",
+                        "Q1",
+                        "SECT"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "id",
+                "project",
+                "lane",
+                "item",
+                "gate_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "gate_instance_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "gate_id": {
+                  "type": "string",
+                  "enum": [
+                    "G0",
+                    "G1",
+                    "G1f",
+                    "G2",
+                    "G3",
+                    "G3d",
+                    "G3s",
+                    "G3o",
+                    "G4",
+                    "G5",
+                    "G6",
+                    "X1",
+                    "X2",
+                    "X3",
+                    "X4",
+                    "E1",
+                    "E2",
+                    "E3",
+                    "E4",
+                    "E5",
+                    "E6",
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "Q1",
+                    "SECT"
+                  ]
+                }
+              },
+              "required": [
+                "gate_instance_id",
+                "gate_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "bypassed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "pdp_grant",
+              "slot",
+              "own_request",
+              "two_person",
+              "quorum_infeasible",
+              "policy_changed",
+              "already_voted",
+              "step_up",
+              "bootstrap",
+              "m1_second_approver",
+              "kill_two_person"
+            ]
+          }
+        },
+        "decision_entry_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "override_id",
+        "actor",
+        "action",
+        "resource",
+        "gate",
+        "reason",
+        "bypassed",
+        "decision_entry_id",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "AdminOverrideReason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "AdminOverrideRequest": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "AdminOverrideRule": {
+      "type": "string",
+      "enum": [
+        "pdp_grant",
+        "slot",
+        "own_request",
+        "two_person",
+        "quorum_infeasible",
+        "policy_changed",
+        "already_voted",
+        "step_up",
+        "bootstrap",
+        "m1_second_approver",
+        "kill_two_person"
       ]
     },
     "AdmissionGrant": {
@@ -7249,7 +7536,8 @@
             "key_mint_refused",
             "port_error",
             "output_invalid",
-            "secret_in_output"
+            "secret_in_output",
+            "agent_disabled"
           ]
         },
         "detail": {
@@ -7277,7 +7565,8 @@
         "key_mint_refused",
         "port_error",
         "output_invalid",
-        "secret_in_output"
+        "secret_in_output",
+        "agent_disabled"
       ]
     },
     "AgentRunId": {
@@ -9147,6 +9436,66 @@
         "tainted"
       ]
     },
+    "AgentSettingsRow": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "models": {
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000
+            },
+            "max_cost_micro_usd": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000000
+            },
+            "ttl_seconds": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 86400
+            }
+          },
+          "required": [
+            "max_tokens",
+            "max_cost_micro_usd",
+            "ttl_seconds"
+          ],
+          "additionalProperties": false
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "run_time_s": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 14400
+        },
+        "test_time_s": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 14400
+        }
+      },
+      "additionalProperties": false
+    },
     "AgentStats": {
       "type": "object",
       "properties": {
@@ -9321,6 +9670,88 @@
         "Bash",
         "KnowledgeSearch"
       ]
+    },
+    "AgentsSettingsConfig": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6",
+          "A7",
+          "A8",
+          "A9",
+          "A10",
+          "A11",
+          "A12",
+          "coder",
+          "assistant"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "models": {
+            "minItems": 1,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "budget": {
+            "type": "object",
+            "properties": {
+              "max_tokens": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000000
+              },
+              "max_cost_micro_usd": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000000000
+              },
+              "ttl_seconds": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 86400
+              }
+            },
+            "required": [
+              "max_tokens",
+              "max_cost_micro_usd",
+              "ttl_seconds"
+            ],
+            "additionalProperties": false
+          },
+          "max_turns": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "run_time_s": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 14400
+          },
+          "test_time_s": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 14400
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "AmberCode": {
       "type": "string",
@@ -10730,7 +11161,13 @@
                         "ops.read",
                         "session.stop",
                         "quality.read",
-                        "assistant.use"
+                        "assistant.use",
+                        "project.delete",
+                        "repo.delete",
+                        "item.delete",
+                        "person.delete",
+                        "team.delete",
+                        "binding.delete"
                       ]
                     },
                     "resource": {
@@ -11546,7 +11983,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -11737,6 +12175,7 @@
           "enum": [
             "deny",
             "action",
+            "override",
             "sampled"
           ]
         }
@@ -11909,6 +12348,7 @@
                 "enum": [
                   "deny",
                   "action",
+                  "override",
                   "sampled"
                 ]
               }
@@ -21173,7 +21613,8 @@
       "properties": {
         "version": {
           "type": "string",
-          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+          "maxLength": 64,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
         },
         "hash": {
           "type": "string",
@@ -21186,9 +21627,77 @@
       ],
       "additionalProperties": false
     },
+    "CatalogueReleasedPayload": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "base": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
+            },
+            "hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "version",
+            "hash"
+          ],
+          "additionalProperties": false
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "rev_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "catalogue": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "flow": {}
+      },
+      "required": [
+        "version",
+        "hash",
+        "base",
+        "content_hash",
+        "sections",
+        "rev_hash",
+        "catalogue",
+        "flow"
+      ],
+      "additionalProperties": false
+    },
     "CatalogueVersion": {
       "type": "string",
-      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+      "maxLength": 64,
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
     },
     "CatalogueVersionRow": {
       "type": "object",
@@ -21198,7 +21707,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -21416,7 +21926,8 @@
                 "properties": {
                   "version": {
                     "type": "string",
-                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                    "maxLength": 64,
+                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                   },
                   "hash": {
                     "type": "string",
@@ -21783,7 +22294,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -24155,7 +24667,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -25844,7 +26357,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -26336,7 +26850,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -28494,7 +29009,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -28908,7 +29424,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -29679,6 +30196,32 @@
         "python",
         "other"
       ]
+    },
+    "CodehostPollsConfig": {
+      "type": "object",
+      "properties": {
+        "fast_ms": {
+          "type": "integer",
+          "minimum": 60000,
+          "maximum": 86400000
+        },
+        "hourly_ms": {
+          "type": "integer",
+          "minimum": 300000,
+          "maximum": 86400000
+        },
+        "daily_ms": {
+          "type": "integer",
+          "minimum": 3600000,
+          "maximum": 604800000
+        }
+      },
+      "required": [
+        "fast_ms",
+        "hourly_ms",
+        "daily_ms"
+      ],
+      "additionalProperties": false
     },
     "CodeownersError": {
       "type": "object",
@@ -34282,7 +34825,13 @@
             "ops.read",
             "session.stop",
             "quality.read",
-            "assistant.use"
+            "assistant.use",
+            "project.delete",
+            "repo.delete",
+            "item.delete",
+            "person.delete",
+            "team.delete",
+            "binding.delete"
           ]
         },
         "resource": {
@@ -34454,7 +35003,13 @@
                   "ops.read",
                   "session.stop",
                   "quality.read",
-                  "assistant.use"
+                  "assistant.use",
+                  "project.delete",
+                  "repo.delete",
+                  "item.delete",
+                  "person.delete",
+                  "team.delete",
+                  "binding.delete"
                 ]
               },
               "resource": {
@@ -34620,7 +35175,13 @@
                   "ops.read",
                   "session.stop",
                   "quality.read",
-                  "assistant.use"
+                  "assistant.use",
+                  "project.delete",
+                  "repo.delete",
+                  "item.delete",
+                  "person.delete",
+                  "team.delete",
+                  "binding.delete"
                 ]
               },
               "resource": {
@@ -34902,6 +35463,46 @@
         }
       ]
     },
+    "DecisionOverride": {
+      "type": "object",
+      "properties": {
+        "override_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "bypassed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "pdp_grant",
+              "slot",
+              "own_request",
+              "two_person",
+              "quorum_infeasible",
+              "policy_changed",
+              "already_voted",
+              "step_up",
+              "bootstrap",
+              "m1_second_approver",
+              "kill_two_person"
+            ]
+          }
+        }
+      },
+      "required": [
+        "override_id",
+        "reason",
+        "bypassed"
+      ],
+      "additionalProperties": false
+    },
     "DecisionQuery": {
       "type": "object",
       "properties": {
@@ -34941,7 +35542,13 @@
             "ops.read",
             "session.stop",
             "quality.read",
-            "assistant.use"
+            "assistant.use",
+            "project.delete",
+            "repo.delete",
+            "item.delete",
+            "person.delete",
+            "team.delete",
+            "binding.delete"
           ]
         },
         "resource": {
@@ -35197,6 +35804,566 @@
         "kills",
         "notary",
         "read_models"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionBlocker": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "legal_hold",
+            "not_found"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionCounts": {
+      "type": "object",
+      "properties": {
+        "record_events_removed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "record_events_redacted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ledger_entries_redacted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "read_model_rows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "objects": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "record_events_removed",
+        "record_events_redacted",
+        "ledger_entries_redacted",
+        "read_model_rows",
+        "objects"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionKind": {
+      "type": "string",
+      "enum": [
+        "project",
+        "repo",
+        "item",
+        "person",
+        "team",
+        "binding"
+      ]
+    },
+    "DeletionObjectKey": {
+      "type": "object",
+      "properties": {
+        "bucket": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "bucket",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionPerformedBody": {
+      "type": "object",
+      "properties": {
+        "deletion_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "project",
+            "repo",
+            "item",
+            "person",
+            "team",
+            "binding"
+          ]
+        },
+        "root_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "id_hashes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "record_events_removed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "record_events_redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "ledger_entries_redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "read_model_rows": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "objects": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "record_events_removed",
+            "record_events_redacted",
+            "ledger_entries_redacted",
+            "read_model_rows",
+            "objects"
+          ],
+          "additionalProperties": false
+        },
+        "redacted_ledger_seqs": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "reason_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "actor": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "override": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "deletion_id",
+        "kind",
+        "root_hash",
+        "id_hashes",
+        "counts",
+        "redacted_ledger_seqs",
+        "reason_hash",
+        "actor",
+        "override",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionPerformedEvent": {
+      "type": "object",
+      "properties": {
+        "deletion_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "project",
+            "repo",
+            "item",
+            "person",
+            "team",
+            "binding"
+          ]
+        },
+        "root_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "id_hashes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "record_events_removed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "record_events_redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "ledger_entries_redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "read_model_rows": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "objects": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "record_events_removed",
+            "record_events_redacted",
+            "ledger_entries_redacted",
+            "read_model_rows",
+            "objects"
+          ],
+          "additionalProperties": false
+        },
+        "redacted_ledger_seqs": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "reason_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "actor": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "override": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "objects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "bucket": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "bucket",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "deletion_id",
+        "kind",
+        "root_hash",
+        "id_hashes",
+        "counts",
+        "redacted_ledger_seqs",
+        "reason_hash",
+        "actor",
+        "override",
+        "at",
+        "reason",
+        "objects"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionPreview": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "project",
+            "repo",
+            "item",
+            "person",
+            "team",
+            "binding"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "record_events_removed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "record_events_redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "ledger_entries_redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "read_model_rows": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "objects": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "record_events_removed",
+            "record_events_redacted",
+            "ledger_entries_redacted",
+            "read_model_rows",
+            "objects"
+          ],
+          "additionalProperties": false
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "legal_hold",
+                  "not_found"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "counts",
+        "tables",
+        "blockers"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionPreviewRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "project",
+            "repo",
+            "item",
+            "person",
+            "team",
+            "binding"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "confirm": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "on_behalf_of",
+        "reason",
+        "confirm"
+      ],
+      "additionalProperties": false
+    },
+    "DeletionResult": {
+      "type": "object",
+      "properties": {
+        "deletion_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "project",
+            "repo",
+            "item",
+            "person",
+            "team",
+            "binding"
+          ]
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "record_events_removed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "record_events_redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "ledger_entries_redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "read_model_rows": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "objects": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "record_events_removed",
+            "record_events_redacted",
+            "ledger_entries_redacted",
+            "read_model_rows",
+            "objects"
+          ],
+          "additionalProperties": false
+        },
+        "objects_purged": {
+          "type": "boolean"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "deletion_id",
+        "kind",
+        "counts",
+        "objects_purged",
+        "ledger_entry_id"
       ],
       "additionalProperties": false
     },
@@ -42329,6 +43496,32 @@
         "manual"
       ]
     },
+    "EvalsGateConfig": {
+      "type": "object",
+      "properties": {
+        "floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "level": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 0.999
+        },
+        "resamples": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 100000
+        }
+      },
+      "required": [
+        "floor",
+        "level",
+        "resamples"
+      ],
+      "additionalProperties": false
+    },
     "EvidenceDecision": {
       "type": "object",
       "properties": {
@@ -42639,7 +43832,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -43355,7 +44549,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -44659,7 +45854,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -45932,7 +47128,13 @@
               "ops.read",
               "session.stop",
               "quality.read",
-              "assistant.use"
+              "assistant.use",
+              "project.delete",
+              "repo.delete",
+              "item.delete",
+              "person.delete",
+              "team.delete",
+              "binding.delete"
             ]
           }
         }
@@ -47714,7 +48916,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -49568,7 +50771,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -50325,7 +51529,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -60611,6 +61816,188 @@
       ],
       "additionalProperties": false
     },
+    "GatesPolicyConfig": {
+      "type": "object",
+      "properties": {
+        "gates": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "G0",
+              "G1",
+              "G1f",
+              "G2",
+              "G3",
+              "G3d",
+              "G3s",
+              "G3o",
+              "G4",
+              "G5",
+              "G6",
+              "X1",
+              "X2",
+              "X3",
+              "X4",
+              "E1",
+              "E2",
+              "E3",
+              "E4",
+              "E5",
+              "E6",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "M5",
+              "M6",
+              "Q1",
+              "SECT"
+            ]
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "requesters",
+                  "intent",
+                  "design",
+                  "g4",
+                  "g5",
+                  "x",
+                  "sec",
+                  "m4",
+                  "kill"
+                ]
+              },
+              "own_request": {
+                "type": "string",
+                "enum": [
+                  "blocked",
+                  "allowed"
+                ]
+              },
+              "step_up": {
+                "type": "boolean"
+              },
+              "consolidatable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "slot",
+              "own_request",
+              "step_up",
+              "consolidatable"
+            ],
+            "additionalProperties": false
+          },
+          "required": [
+            "G0",
+            "G1",
+            "G1f",
+            "G2",
+            "G3",
+            "G3d",
+            "G3s",
+            "G3o",
+            "G4",
+            "G5",
+            "G6",
+            "X1",
+            "X2",
+            "X3",
+            "X4",
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "Q1",
+            "SECT"
+          ]
+        },
+        "two_person_gates": {
+          "maxItems": 29,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "G0",
+              "G1",
+              "G1f",
+              "G2",
+              "G3",
+              "G3d",
+              "G3s",
+              "G3o",
+              "G4",
+              "G5",
+              "G6",
+              "X1",
+              "X2",
+              "X3",
+              "X4",
+              "E1",
+              "E2",
+              "E3",
+              "E4",
+              "E5",
+              "E6",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "M5",
+              "M6",
+              "Q1",
+              "SECT"
+            ]
+          }
+        }
+      },
+      "required": [
+        "gates",
+        "two_person_gates"
+      ],
+      "additionalProperties": false
+    },
+    "GatesTimersConfig": {
+      "type": "object",
+      "properties": {
+        "expires_after_s": {
+          "type": "integer",
+          "minimum": 3600,
+          "maximum": 7776000
+        },
+        "step_up_ttl_s": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 900
+        },
+        "nonce_ttl_s": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600
+        }
+      },
+      "required": [
+        "expires_after_s",
+        "step_up_ttl_s",
+        "nonce_ttl_s"
+      ],
+      "additionalProperties": false
+    },
     "GatewayAdapterState": {
       "type": "object",
       "properties": {
@@ -60642,6 +62029,20 @@
         "staging",
         "prod"
       ]
+    },
+    "GatewayLimitsConfig": {
+      "type": "object",
+      "properties": {
+        "max_provider_calls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        }
+      },
+      "required": [
+        "max_provider_calls"
+      ],
+      "additionalProperties": false
     },
     "GatewayModel": {
       "type": "object",
@@ -71779,7 +73180,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -72193,7 +73595,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -73171,7 +74574,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -76297,7 +77701,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -79271,7 +80676,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -91104,7 +92510,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -92474,7 +93881,13 @@
                   "ops.read",
                   "session.stop",
                   "quality.read",
-                  "assistant.use"
+                  "assistant.use",
+                  "project.delete",
+                  "repo.delete",
+                  "item.delete",
+                  "person.delete",
+                  "team.delete",
+                  "binding.delete"
                 ]
               }
             }
@@ -92559,7 +93972,13 @@
                     "ops.read",
                     "session.stop",
                     "quality.read",
-                    "assistant.use"
+                    "assistant.use",
+                    "project.delete",
+                    "repo.delete",
+                    "item.delete",
+                    "person.delete",
+                    "team.delete",
+                    "binding.delete"
                   ]
                 }
               }
@@ -92776,7 +94195,13 @@
               "ops.read",
               "session.stop",
               "quality.read",
-              "assistant.use"
+              "assistant.use",
+              "project.delete",
+              "repo.delete",
+              "item.delete",
+              "person.delete",
+              "team.delete",
+              "binding.delete"
             ]
           }
         }
@@ -96131,6 +97556,38 @@
       ],
       "additionalProperties": false
     },
+    "OpsHealthConfig": {
+      "type": "object",
+      "properties": {
+        "stale_after_ms": {
+          "type": "integer",
+          "minimum": 10000,
+          "maximum": 3600000
+        },
+        "snapshot_interval_ms": {
+          "type": "integer",
+          "minimum": 5000,
+          "maximum": 600000
+        },
+        "alert_after_ms": {
+          "type": "integer",
+          "minimum": 10000,
+          "maximum": 3600000
+        },
+        "checkpoint_overdue_ms": {
+          "type": "integer",
+          "minimum": 60000,
+          "maximum": 86400000
+        }
+      },
+      "required": [
+        "stale_after_ms",
+        "snapshot_interval_ms",
+        "alert_after_ms",
+        "checkpoint_overdue_ms"
+      ],
+      "additionalProperties": false
+    },
     "OpsLedgerState": {
       "type": "string",
       "enum": [
@@ -97550,6 +99007,7 @@
           "enum": [
             "deny",
             "action",
+            "override",
             "sampled"
           ]
         }
@@ -97836,6 +99294,32 @@
         "depends_on",
         "position",
         "envelope"
+      ],
+      "additionalProperties": false
+    },
+    "PlanningSizeShareConfig": {
+      "type": "object",
+      "properties": {
+        "small": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "medium": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "large": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "small",
+        "medium",
+        "large"
       ],
       "additionalProperties": false
     },
@@ -100453,7 +101937,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -106325,7 +107810,8 @@
                     "properties": {
                       "version": {
                         "type": "string",
-                        "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                        "maxLength": 64,
+                        "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                       },
                       "hash": {
                         "type": "string",
@@ -108499,7 +109985,8 @@
                           "properties": {
                             "version": {
                               "type": "string",
-                              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                              "maxLength": 64,
+                              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                             },
                             "hash": {
                               "type": "string",
@@ -110556,7 +112043,8 @@
                                 "properties": {
                                   "version": {
                                     "type": "string",
-                                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                                    "maxLength": 64,
+                                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                                   },
                                   "hash": {
                                     "type": "string",
@@ -112550,7 +114038,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -115925,7 +117414,13 @@
             "ops.read",
             "session.stop",
             "quality.read",
-            "assistant.use"
+            "assistant.use",
+            "project.delete",
+            "repo.delete",
+            "item.delete",
+            "person.delete",
+            "team.delete",
+            "binding.delete"
           ]
         },
         "resource": {
@@ -118074,7 +119569,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -118234,7 +119730,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -120828,7 +122325,8 @@
                   "properties": {
                     "version": {
                       "type": "string",
-                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                     },
                     "hash": {
                       "type": "string",
@@ -124024,6 +125522,38 @@
         "ORL",
         "KRL"
       ]
+    },
+    "ReadinessPolicyConfig": {
+      "type": "object",
+      "properties": {
+        "prr_fresh_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        },
+        "max_waiver_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        },
+        "max_light_claims": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "lf6_min_affirmed_or_unknown": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "prr_fresh_days",
+        "max_waiver_days",
+        "max_light_claims",
+        "lf6_min_affirmed_or_unknown"
+      ],
+      "additionalProperties": false
     },
     "ReadinessStatus": {
       "type": "string",
@@ -130793,7 +132323,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -131406,7 +132937,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -131550,7 +133082,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -132939,6 +134472,20 @@
         "mirror"
       ]
     },
+    "SandboxProbeConfig": {
+      "type": "object",
+      "properties": {
+        "grant_ttl_s": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 7200
+        }
+      },
+      "required": [
+        "grant_ttl_s"
+      ],
+      "additionalProperties": false
+    },
     "SandboxProfile": {
       "type": "object",
       "properties": {
@@ -133033,6 +134580,56 @@
         "limits"
       ],
       "additionalProperties": false
+    },
+    "SandboxProfilesConfig": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "K",
+          "K-exec",
+          "P",
+          "W",
+          "O",
+          "V"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "cpus": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 8
+          },
+          "memory_mb": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 8192
+          },
+          "pids": {
+            "type": "integer",
+            "minimum": 16,
+            "maximum": 4096
+          },
+          "time_s": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 14400
+          },
+          "out_bytes": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 268435456
+          },
+          "work_bytes": {
+            "type": "integer",
+            "minimum": 1048576,
+            "maximum": 1073741824
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "SandboxRepoFileWire": {
       "type": "object",
@@ -134799,6 +136396,26 @@
       ],
       "additionalProperties": false
     },
+    "SessionPolicyConfig": {
+      "type": "object",
+      "properties": {
+        "idle_s": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "absolute_s": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 604800
+        }
+      },
+      "required": [
+        "idle_s",
+        "absolute_s"
+      ],
+      "additionalProperties": false
+    },
     "SessionTripwire": {
       "type": "object",
       "properties": {
@@ -136165,7 +137782,8 @@
               "properties": {
                 "version": {
                   "type": "string",
-                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  "maxLength": 64,
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
                 },
                 "hash": {
                   "type": "string",
@@ -139002,7 +140620,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -141357,7 +142976,13 @@
                         "ops.read",
                         "session.stop",
                         "quality.read",
-                        "assistant.use"
+                        "assistant.use",
+                        "project.delete",
+                        "repo.delete",
+                        "item.delete",
+                        "person.delete",
+                        "team.delete",
+                        "binding.delete"
                       ]
                     },
                     "resource": {
@@ -142274,7 +143899,13 @@
                   "ops.read",
                   "session.stop",
                   "quality.read",
-                  "assistant.use"
+                  "assistant.use",
+                  "project.delete",
+                  "repo.delete",
+                  "item.delete",
+                  "person.delete",
+                  "team.delete",
+                  "binding.delete"
                 ]
               },
               "resource": {
@@ -142782,7 +144413,13 @@
                   "ops.read",
                   "session.stop",
                   "quality.read",
-                  "assistant.use"
+                  "assistant.use",
+                  "project.delete",
+                  "repo.delete",
+                  "item.delete",
+                  "person.delete",
+                  "team.delete",
+                  "binding.delete"
                 ]
               },
               "resource": {
@@ -147394,7 +149031,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -147515,7 +149153,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
@@ -147536,6 +149175,20 @@
         "requester",
         "received_at",
         "catalogue_ref"
+      ],
+      "additionalProperties": false
+    },
+    "WorkRequestConfig": {
+      "type": "object",
+      "properties": {
+        "max_text_chars": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 200000
+        }
+      },
+      "required": [
+        "max_text_chars"
       ],
       "additionalProperties": false
     },
@@ -147597,7 +149250,8 @@
           "properties": {
             "version": {
               "type": "string",
-              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(\\+settings\\.[1-9]\\d*)?$"
             },
             "hash": {
               "type": "string",
