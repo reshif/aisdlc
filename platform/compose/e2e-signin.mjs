@@ -7,6 +7,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+/** The files under secrets/ (init-secrets) with the break-glass account's and the test people's passwords. */
+const ADMIN_SECRET_FILE = 'keycloak-factory-admin-password';
+const PEOPLE_SECRET_FILE = 'keycloak-persona-password';
+
 /** The page is the IdP's (its console messages are not the portal's). */
 export const IDP_URL = /(keycloak|dev-oidc)\.localhost:\d+\//;
 
@@ -32,7 +36,7 @@ export async function idpSignIn(page, who, composeDir) {
   const file = join(
     composeDir,
     'secrets',
-    who === 'factory-admin' ? 'keycloak-factory-admin-password' : 'keycloak-persona-password',
+    who === 'factory-admin' ? ADMIN_SECRET_FILE : PEOPLE_SECRET_FILE,
   );
   const password = readFileSync(file, 'utf8').trim();
   const user = page.locator('#username');

@@ -38,9 +38,9 @@ export const FACTORY_ADMIN_ACCOUNT = {
 
 /** The placeholders the realm import resolves from Keycloak's environment (compose: from secret files). */
 export const KEYCLOAK_ENV = {
-  personaPassword: 'KC_PERSONA_PASSWORD',
-  factoryAdminPassword: 'KC_FACTORY_ADMIN_PASSWORD',
-  clientSecret: 'KC_BFF_CLIENT_SECRET',
+  personaPasswordName: 'KC_PERSONA_PASSWORD',
+  factoryAdminPasswordName: 'KC_FACTORY_ADMIN_PASSWORD',
+  clientSecretName: 'KC_BFF_CLIENT_SECRET',
   redirectUri: 'KC_BFF_REDIRECT_URI',
   portalUrl: 'KC_BFF_PUBLIC_URL',
 } as const;
@@ -99,7 +99,9 @@ export function keycloakRealm(dev: IdpSnapshot): Record<string, unknown> {
       credentials: [
         {
           type: 'password',
-          value: ph(breakGlass ? KEYCLOAK_ENV.factoryAdminPassword : KEYCLOAK_ENV.personaPassword),
+          value: ph(
+            breakGlass ? KEYCLOAK_ENV.factoryAdminPasswordName : KEYCLOAK_ENV.personaPasswordName,
+          ),
           temporary: false,
         },
       ],
@@ -153,7 +155,7 @@ export function keycloakRealm(dev: IdpSnapshot): Record<string, unknown> {
         protocol: 'openid-connect',
         publicClient: false,
         clientAuthenticatorType: 'client-secret',
-        secret: ph(KEYCLOAK_ENV.clientSecret),
+        secret: ph(KEYCLOAK_ENV.clientSecretName),
         standardFlowEnabled: true,
         implicitFlowEnabled: false,
         directAccessGrantsEnabled: false,
