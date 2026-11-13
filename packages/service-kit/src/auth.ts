@@ -39,7 +39,7 @@ export function resolveSecretRef(ref: string, deps: SecretRefDeps = {}): string 
     value = hit?.value;
   } else {
     throw new ServiceConfigError(
-      `secret reference must be env:NAME, file:PATH or vault:PATH#KEY, got ${ref}`,
+      `secret reference must be env:NAME or file:PATH (or vault:PATH#KEY), got ${ref}`,
     );
   }
   const min = deps.minLength ?? MIN_TOKEN_LENGTH;

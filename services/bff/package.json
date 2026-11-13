@@ -24,6 +24,7 @@
   "scripts": {
     "build": "node ../../scripts/bundle.mjs main dev-oidc",
     "start": "node --enable-source-maps dist/main.js",
+    "gen": "vitest run -u test/keycloak-realm.test.ts",
     "typecheck": "tsc -p tsconfig.check.json"
   },
   "dependencies": {

@@ -1,0 +1,229 @@
+{
+  "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+  "groups": [
+    {
+      "group_id": "grp-factory-admins",
+      "display": "Factory admins",
+      "pim_managed": false,
+      "protected": false
+    },
+    {
+      "group_id": "grp-factory-auditors",
+      "display": "Internal audit",
+      "pim_managed": false,
+      "protected": false
+    },
+    {
+      "group_id": "grp-web-onboarders",
+      "display": "Web team onboarders",
+      "pim_managed": false,
+      "protected": false
+    },
+    {
+      "group_id": "grp-ledger-viewers",
+      "display": "Ledger Service readers",
+      "pim_managed": false,
+      "protected": false
+    },
+    {
+      "group_id": "grp-web-viewers",
+      "display": "Web Checkout readers",
+      "pim_managed": false,
+      "protected": false
+    },
+    {
+      "group_id": "grp-payments-guests",
+      "display": "Payments API guests",
+      "pim_managed": false,
+      "protected": false
+    }
+  ],
+  "subjects": [
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000001",
+      "principal_id": "alice",
+      "kind": "human",
+      "status": "active",
+      "upn": "alice@example.test",
+      "display_handle": "alice",
+      "display_name": "Alice Example (factory admin)",
+      "logins": [
+        "reshif"
+      ],
+      "groups": []
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000002",
+      "principal_id": "bob",
+      "kind": "human",
+      "status": "active",
+      "upn": "bob@example.test",
+      "display_handle": "bob",
+      "display_name": "Bob Example",
+      "logins": [],
+      "groups": []
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000003",
+      "principal_id": "lt",
+      "kind": "human",
+      "status": "active",
+      "upn": "luis.torres@example.test",
+      "display_handle": "lt",
+      "display_name": "Luis Torres",
+      "logins": [],
+      "groups": [
+        "grp-factory-admins"
+      ]
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000004",
+      "principal_id": "oh",
+      "kind": "human",
+      "status": "active",
+      "upn": "omar.haddad@example.test",
+      "display_handle": "oh",
+      "display_name": "Omar Haddad",
+      "logins": [],
+      "groups": [
+        "grp-factory-admins"
+      ]
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000005",
+      "principal_id": "rb",
+      "kind": "human",
+      "status": "active",
+      "upn": "rana.begum@example.test",
+      "display_handle": "rb",
+      "display_name": "Rana Begum",
+      "logins": [],
+      "groups": []
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000006",
+      "principal_id": "ar",
+      "kind": "human",
+      "status": "active",
+      "upn": "alex.rivera@example.test",
+      "display_handle": "ar",
+      "display_name": "Alex Rivera",
+      "logins": [],
+      "groups": [
+        "grp-ledger-viewers"
+      ]
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000007",
+      "principal_id": "pm",
+      "kind": "human",
+      "status": "active",
+      "upn": "priya.menon@example.test",
+      "display_handle": "pm",
+      "display_name": "Priya Menon",
+      "logins": [],
+      "groups": [
+        "grp-web-viewers"
+      ]
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000008",
+      "principal_id": "dn",
+      "kind": "human",
+      "status": "active",
+      "upn": "daniel.novak@example.test",
+      "display_handle": "dn",
+      "display_name": "Daniel Novak",
+      "logins": [],
+      "groups": []
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000009",
+      "principal_id": "ks",
+      "kind": "human",
+      "status": "active",
+      "upn": "keiko.sato@example.test",
+      "display_handle": "ks",
+      "display_name": "Keiko Sato",
+      "logins": [],
+      "groups": []
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000010",
+      "principal_id": "jm",
+      "kind": "human",
+      "status": "active",
+      "upn": "jonas.meyer@example.test",
+      "display_handle": "jm",
+      "display_name": "Jonas Meyer",
+      "logins": [],
+      "groups": []
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000011",
+      "principal_id": "mw",
+      "kind": "human",
+      "status": "active",
+      "upn": "mei.wong@example.test",
+      "display_handle": "mw",
+      "display_name": "Mei Wong",
+      "logins": [],
+      "groups": [
+        "grp-web-onboarders"
+      ]
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000012",
+      "principal_id": "nf",
+      "kind": "human",
+      "status": "active",
+      "upn": "nora.field@example.test",
+      "display_handle": "nf",
+      "display_name": "Nora Field",
+      "logins": [],
+      "groups": [
+        "grp-factory-auditors"
+      ]
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000013",
+      "principal_id": "tb",
+      "kind": "human",
+      "status": "active",
+      "upn": "tom.becker@example.test",
+      "display_handle": "tb",
+      "display_name": "Tom Becker",
+      "logins": [],
+      "groups": [
+        "grp-payments-guests"
+      ]
+    },
+    {
+      "issuer": "http://keycloak.localhost:8390/realms/aisdlc",
+      "subject": "00000000-0000-4000-8000-000000000014",
+      "principal_id": "factory-admin",
+      "kind": "human",
+      "status": "active",
+      "upn": "factory-admin@example.test",
+      "display_handle": "factory-admin",
+      "display_name": "Factory admin (local account)",
+      "logins": [],
+      "groups": [
+        "grp-factory-admins"
+      ]
+    }
+  ]
+}

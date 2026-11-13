@@ -1,0 +1,396 @@
+{
+  "realm": "aisdlc",
+  "displayName": "AISDLC",
+  "enabled": true,
+  "loginTheme": "aisdlc",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "editUsernameAllowed": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 900,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "permanentLockout": false,
+  "passwordPolicy": "length(12) and notUsername",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 43200,
+  "accessTokenLifespan": 300,
+  "groups": [
+    {
+      "name": "grp-factory-admins",
+      "path": "/grp-factory-admins",
+      "attributes": {
+        "display": [
+          "Factory admins"
+        ]
+      }
+    },
+    {
+      "name": "grp-factory-auditors",
+      "path": "/grp-factory-auditors",
+      "attributes": {
+        "display": [
+          "Internal audit"
+        ]
+      }
+    },
+    {
+      "name": "grp-web-onboarders",
+      "path": "/grp-web-onboarders",
+      "attributes": {
+        "display": [
+          "Web team onboarders"
+        ]
+      }
+    },
+    {
+      "name": "grp-ledger-viewers",
+      "path": "/grp-ledger-viewers",
+      "attributes": {
+        "display": [
+          "Ledger Service readers"
+        ]
+      }
+    },
+    {
+      "name": "grp-web-viewers",
+      "path": "/grp-web-viewers",
+      "attributes": {
+        "display": [
+          "Web Checkout readers"
+        ]
+      }
+    },
+    {
+      "name": "grp-payments-guests",
+      "path": "/grp-payments-guests",
+      "attributes": {
+        "display": [
+          "Payments API guests"
+        ]
+      }
+    }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "alice@example.test",
+      "firstName": "Alice",
+      "lastName": "Example (factory admin)",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "username": "bob",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "bob@example.test",
+      "firstName": "Bob",
+      "lastName": "Example",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "username": "lt",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "luis.torres@example.test",
+      "firstName": "Luis",
+      "lastName": "Torres",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/grp-factory-admins"
+      ],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "username": "oh",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "omar.haddad@example.test",
+      "firstName": "Omar",
+      "lastName": "Haddad",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/grp-factory-admins"
+      ],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "username": "rb",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "rana.begum@example.test",
+      "firstName": "Rana",
+      "lastName": "Begum",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "username": "ar",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "alex.rivera@example.test",
+      "firstName": "Alex",
+      "lastName": "Rivera",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/grp-ledger-viewers"
+      ],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "username": "pm",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "priya.menon@example.test",
+      "firstName": "Priya",
+      "lastName": "Menon",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/grp-web-viewers"
+      ],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "username": "dn",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "daniel.novak@example.test",
+      "firstName": "Daniel",
+      "lastName": "Novak",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "username": "ks",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "keiko.sato@example.test",
+      "firstName": "Keiko",
+      "lastName": "Sato",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "username": "jm",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "jonas.meyer@example.test",
+      "firstName": "Jonas",
+      "lastName": "Meyer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "username": "mw",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "mei.wong@example.test",
+      "firstName": "Mei",
+      "lastName": "Wong",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/grp-web-onboarders"
+      ],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "username": "nf",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "nora.field@example.test",
+      "firstName": "Nora",
+      "lastName": "Field",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/grp-factory-auditors"
+      ],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "username": "tb",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "tom.becker@example.test",
+      "firstName": "Tom",
+      "lastName": "Becker",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_PERSONA_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/grp-payments-guests"
+      ],
+      "requiredActions": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000014",
+      "username": "factory-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "factory-admin@example.test",
+      "firstName": "Factory",
+      "lastName": "admin (local account)",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KC_FACTORY_ADMIN_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/grp-factory-admins"
+      ],
+      "requiredActions": []
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "aisdlc-bff",
+      "name": "AISDLC portal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_BFF_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "rootUrl": "${KC_BFF_PUBLIC_URL}",
+      "baseUrl": "${KC_BFF_PUBLIC_URL}",
+      "redirectUris": [
+        "${KC_BFF_REDIRECT_URI}"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

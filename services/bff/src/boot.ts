@@ -75,6 +75,8 @@ function healthPeersEnv(env: Env): Record<string, string> {
  *   BFF_COOKIE_SECURE        `true` (default) or `false`; only local plain http may use `false`
  *   BFF_IDLE_SECONDS         idle timeout, default 1800;  BFF_ABSOLUTE_SECONDS  default 28800
  *   BFF_STEP_UP_MODE         `reauth` (default, D37) or `reconfirm` (DEC-11(c-ii): plain confirm)
+ *   BFF_OIDC_LOGIN_HINT      what a step-up names as `login_hint`: `subject` (default), `principal` (Keycloak: the
+ *                            usernames are the principal ids) or `none`
  *   BFF_ALLOWED_ORIGINS      comma-separated extra origins allowed on state-changing requests
  *   BFF_PDP_SAMPLE_RATE      fraction (0..1) of other allows to log as pdp.decision, default 0
  *   BFF_CORE_URL, BFF_CORE_TOKEN_REF
@@ -124,6 +126,11 @@ export async function bootBff(env: Env): Promise<RunningService> {
     throw new ServiceConfigError('BFF_STEP_UP_MODE must be reauth or reconfirm');
   }
   const stepUpMode: StepUpMode = modeRaw;
+  const hintRaw = env['BFF_OIDC_LOGIN_HINT'] ?? 'subject';
+  if (hintRaw !== 'subject' && hintRaw !== 'principal' && hintRaw !== 'none') {
+    throw new ServiceConfigError('BFF_OIDC_LOGIN_HINT must be subject, principal or none');
+  }
+  const loginHint: 'subject' | 'principal' | 'none' = hintRaw;
   const allowedOrigins = (env['BFF_ALLOWED_ORIGINS'] ?? '')
     .split(',')
     .map((s) => s.trim())
@@ -293,6 +300,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
       idleSeconds,
       absoluteSeconds,
       stepUpMode,
+      loginHint,
       ...(core ? { core } : {}),
       ...(notifier ? { notifier } : {}),
       ...(killswitch ? { killswitch } : {}),

@@ -89,6 +89,11 @@ export interface BffAppOptions {
    * confirm in the session, no new authentication, stamped as such in the proof and the response.
    */
   readonly stepUpMode?: StepUpMode;
+  /**
+   * What the step-up's `login_hint` names: the session's IdP `subject` (default; the dev IdP preselects that user), its
+   * `principal` id (Keycloak: the realm's usernames are the principal ids, so the form is filled in), or `none`.
+   */
+  readonly loginHint?: 'subject' | 'principal' | 'none';
   readonly clock?: Clock;
   /** Core, for the portal's `/api/*` routes; without it they answer 503 (after the session and CSRF checks). */
   readonly core?: CoreClient;
@@ -544,7 +549,9 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
       code_challenge: pkceChallenge(verifier),
       prompt: 'login',
       max_age: 0,
-      login_hint: session.subject,
+      ...(o.loginHint === 'none'
+        ? {}
+        : { login_hint: o.loginHint === 'principal' ? session.principal_id : session.subject }),
     });
     if (!url.ok) return sendError(reply, 502, 'idp_unavailable', url.error.message);
     const attemptId = await createAttempt(o.pool, {
