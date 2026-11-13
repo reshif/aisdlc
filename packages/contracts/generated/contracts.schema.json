@@ -4518,6 +4518,283 @@
       ],
       "additionalProperties": false
     },
+    "AgentDetailView": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "object",
+          "properties": {
+            "agent_id": {
+              "type": "string",
+              "enum": [
+                "A1",
+                "A2",
+                "A3",
+                "A4",
+                "A5",
+                "A6",
+                "A7",
+                "A8",
+                "A9",
+                "A10",
+                "A11",
+                "A12",
+                "coder",
+                "assistant"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5",
+                  "1.1",
+                  "1.2",
+                  "1.3",
+                  "1.4",
+                  "1.5",
+                  "1.6",
+                  "2.1",
+                  "2.1b",
+                  "2.2",
+                  "2.3",
+                  "2.4",
+                  "2.5",
+                  "3.1",
+                  "3.2",
+                  "3.3",
+                  "3.4",
+                  "3.5",
+                  "4.1",
+                  "4.2",
+                  "4.3",
+                  "4.4",
+                  "4.5",
+                  "4.6",
+                  "5.1",
+                  "5.2",
+                  "5.3",
+                  "5.4",
+                  "5.5",
+                  "5.6",
+                  "5.7",
+                  "5.8",
+                  "6.0",
+                  "6.1",
+                  "6.2",
+                  "6.3",
+                  "6.4",
+                  "6.5",
+                  "6.6",
+                  "7.1",
+                  "7.2",
+                  "7.3",
+                  "7.4",
+                  "7.5",
+                  "7.6",
+                  "8.1",
+                  "8.2",
+                  "S8b",
+                  "9.2",
+                  "9.3",
+                  "9.4",
+                  "9.5"
+                ]
+              }
+            },
+            "specialist_steps": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5",
+                  "1.1",
+                  "1.2",
+                  "1.3",
+                  "1.4",
+                  "1.5",
+                  "1.6",
+                  "2.1",
+                  "2.1b",
+                  "2.2",
+                  "2.3",
+                  "2.4",
+                  "2.5",
+                  "3.1",
+                  "3.2",
+                  "3.3",
+                  "3.4",
+                  "3.5",
+                  "4.1",
+                  "4.2",
+                  "4.3",
+                  "4.4",
+                  "4.5",
+                  "4.6",
+                  "5.1",
+                  "5.2",
+                  "5.3",
+                  "5.4",
+                  "5.5",
+                  "5.6",
+                  "5.7",
+                  "5.8",
+                  "6.0",
+                  "6.1",
+                  "6.2",
+                  "6.3",
+                  "6.4",
+                  "6.5",
+                  "6.6",
+                  "7.1",
+                  "7.2",
+                  "7.3",
+                  "7.4",
+                  "7.5",
+                  "7.6",
+                  "8.1",
+                  "8.2",
+                  "S8b",
+                  "9.2",
+                  "9.3",
+                  "9.4",
+                  "9.5"
+                ]
+              }
+            },
+            "contract_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "output_schema_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Read",
+                  "Grep",
+                  "Glob",
+                  "Edit",
+                  "Write",
+                  "Bash",
+                  "KnowledgeSearch"
+                ]
+              }
+            },
+            "data_class_max": {
+              "type": "string",
+              "enum": [
+                "D0",
+                "D1",
+                "D2",
+                "D3"
+              ]
+            },
+            "models": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "prompt": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "ref",
+                "sha256"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "agent_id",
+            "name",
+            "role",
+            "note",
+            "steps",
+            "specialist_steps",
+            "contract_version",
+            "output_schema_id",
+            "tools",
+            "data_class_max",
+            "models",
+            "prompt"
+          ],
+          "additionalProperties": false
+        },
+        "input_schema_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_schema": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "output_schema": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "lock_format": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "agent",
+        "input_schema_id",
+        "input_schema",
+        "output_schema",
+        "lock_format"
+      ],
+      "additionalProperties": false
+    },
     "AgentId": {
       "type": "string",
       "enum": [
@@ -5158,6 +5435,601 @@
       },
       "required": [
         "pulls"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRecentRunsView": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "coder",
+            "assistant"
+          ]
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "run_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "item_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "project_id": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "unit_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "enum": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5",
+                  "1.1",
+                  "1.2",
+                  "1.3",
+                  "1.4",
+                  "1.5",
+                  "1.6",
+                  "2.1",
+                  "2.1b",
+                  "2.2",
+                  "2.3",
+                  "2.4",
+                  "2.5",
+                  "3.1",
+                  "3.2",
+                  "3.3",
+                  "3.4",
+                  "3.5",
+                  "4.1",
+                  "4.2",
+                  "4.3",
+                  "4.4",
+                  "4.5",
+                  "4.6",
+                  "5.1",
+                  "5.2",
+                  "5.3",
+                  "5.4",
+                  "5.5",
+                  "5.6",
+                  "5.7",
+                  "5.8",
+                  "6.0",
+                  "6.1",
+                  "6.2",
+                  "6.3",
+                  "6.4",
+                  "6.5",
+                  "6.6",
+                  "7.1",
+                  "7.2",
+                  "7.3",
+                  "7.4",
+                  "7.5",
+                  "7.6",
+                  "8.1",
+                  "8.2",
+                  "S8b",
+                  "9.2",
+                  "9.3",
+                  "9.4",
+                  "9.5"
+                ]
+              },
+              "attempt": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "L0",
+                  "L1",
+                  "L2",
+                  "L3",
+                  "L4",
+                  "L5",
+                  "L6",
+                  "L7",
+                  "L8"
+                ]
+              },
+              "agent_id": {
+                "type": "string",
+                "enum": [
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4",
+                  "A5",
+                  "A6",
+                  "A7",
+                  "A8",
+                  "A9",
+                  "A10",
+                  "A11",
+                  "A12",
+                  "coder",
+                  "assistant"
+                ]
+              },
+              "contract_version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "prompt_ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "prompt_sha256": {
+                "type": "string",
+                "minLength": 64,
+                "maxLength": 64
+              },
+              "provider": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "vkey_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "calls": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tokens_in": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tokens_out": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cost_micro_usd": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "dispatched",
+                  "finished",
+                  "failed"
+                ]
+              },
+              "result": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "completed",
+                      "classified",
+                      "questions",
+                      "gate_needed",
+                      "held",
+                      "rework",
+                      "relane",
+                      "trigger",
+                      "failed"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "failure_code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "started_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "ended_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "outcome": {
+                "type": "object",
+                "properties": {
+                  "run_id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "accepted",
+                      "rejected",
+                      "sent_back",
+                      "reworked",
+                      "handed_off"
+                    ]
+                  },
+                  "judgements": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "gate"
+                            },
+                            "gate": {
+                              "type": "string",
+                              "enum": [
+                                "G0",
+                                "G1",
+                                "G1f",
+                                "G2",
+                                "G3",
+                                "G3d",
+                                "G3s",
+                                "G3o",
+                                "G4",
+                                "G5",
+                                "G6",
+                                "X1",
+                                "X2",
+                                "X3",
+                                "X4",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5",
+                                "E6",
+                                "M1",
+                                "M2",
+                                "M3",
+                                "M4",
+                                "M5",
+                                "M6",
+                                "Q1",
+                                "SECT"
+                              ]
+                            },
+                            "gate_instance_id": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "outcome": {
+                              "type": "string",
+                              "enum": [
+                                "approve",
+                                "reject",
+                                "request_changes",
+                                "expired",
+                                "closed",
+                                "superseded"
+                              ]
+                            },
+                            "ledger_entry_id": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "edge": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "B1",
+                                    "B2",
+                                    "B3",
+                                    "B4",
+                                    "B5",
+                                    "B6",
+                                    "B7",
+                                    "B8",
+                                    "B9",
+                                    "B10",
+                                    "B11",
+                                    "B12",
+                                    "B13",
+                                    "B14",
+                                    "B15",
+                                    "B16",
+                                    "B17",
+                                    "B18",
+                                    "B19",
+                                    "B20",
+                                    "B21",
+                                    "B22",
+                                    "B23",
+                                    "B24",
+                                    "B25",
+                                    "B26",
+                                    "B27",
+                                    "B28"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "seq": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "gate",
+                            "gate_instance_id",
+                            "outcome",
+                            "ledger_entry_id",
+                            "edge",
+                            "seq"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "back_edge"
+                            },
+                            "edge": {
+                              "type": "string",
+                              "enum": [
+                                "B1",
+                                "B2",
+                                "B3",
+                                "B4",
+                                "B5",
+                                "B6",
+                                "B7",
+                                "B8",
+                                "B9",
+                                "B10",
+                                "B11",
+                                "B12",
+                                "B13",
+                                "B14",
+                                "B15",
+                                "B16",
+                                "B17",
+                                "B18",
+                                "B19",
+                                "B20",
+                                "B21",
+                                "B22",
+                                "B23",
+                                "B24",
+                                "B25",
+                                "B26",
+                                "B27",
+                                "B28"
+                              ]
+                            },
+                            "seq": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "edge",
+                            "seq"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "trigger"
+                            },
+                            "trigger": {
+                              "type": "string",
+                              "enum": [
+                                "ET1",
+                                "ET2",
+                                "ET3",
+                                "ET4",
+                                "ET5",
+                                "ET6",
+                                "ET7",
+                                "ET8",
+                                "ET9",
+                                "ET10",
+                                "ET11",
+                                "ET12",
+                                "ET13",
+                                "ET14"
+                              ]
+                            },
+                            "seq": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "trigger",
+                            "seq"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "back_edges": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "B1",
+                        "B2",
+                        "B3",
+                        "B4",
+                        "B5",
+                        "B6",
+                        "B7",
+                        "B8",
+                        "B9",
+                        "B10",
+                        "B11",
+                        "B12",
+                        "B13",
+                        "B14",
+                        "B15",
+                        "B16",
+                        "B17",
+                        "B18",
+                        "B19",
+                        "B20",
+                        "B21",
+                        "B22",
+                        "B23",
+                        "B24",
+                        "B25",
+                        "B26",
+                        "B27",
+                        "B28"
+                      ]
+                    }
+                  },
+                  "triggers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "ET1",
+                        "ET2",
+                        "ET3",
+                        "ET4",
+                        "ET5",
+                        "ET6",
+                        "ET7",
+                        "ET8",
+                        "ET9",
+                        "ET10",
+                        "ET11",
+                        "ET12",
+                        "ET13",
+                        "ET14"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "run_id",
+                  "verdict",
+                  "judgements",
+                  "back_edges",
+                  "triggers"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "run_id",
+              "item_id",
+              "project_id",
+              "unit_id",
+              "step",
+              "attempt",
+              "lane",
+              "agent_id",
+              "contract_version",
+              "prompt_ref",
+              "prompt_sha256",
+              "provider",
+              "model",
+              "vkey_id",
+              "calls",
+              "tokens_in",
+              "tokens_out",
+              "cost_micro_usd",
+              "state",
+              "result",
+              "failure_code",
+              "started_at",
+              "ended_at",
+              "outcome"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "agent_id",
+        "runs",
+        "total"
       ],
       "additionalProperties": false
     },
@@ -35392,6 +36264,513 @@
       "required": [
         "principals",
         "teams"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentAuthor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "agent"
+            },
+            "agent_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "A1",
+                    "A2",
+                    "A3",
+                    "A4",
+                    "A5",
+                    "A6",
+                    "A7",
+                    "A8",
+                    "A9",
+                    "A10",
+                    "A11",
+                    "A12",
+                    "coder",
+                    "assistant"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "agent_id",
+            "run_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "person"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "factory"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "DocumentGateBinding": {
+      "type": "object",
+      "properties": {
+        "gate": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G1f",
+            "G2",
+            "G3",
+            "G3d",
+            "G3s",
+            "G3o",
+            "G4",
+            "G5",
+            "G6",
+            "X1",
+            "X2",
+            "X3",
+            "X4",
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "M6",
+            "Q1",
+            "SECT"
+          ]
+        },
+        "gate_instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "decided",
+            "superseded",
+            "expired",
+            "closed"
+          ]
+        },
+        "outcome": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "approvers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          }
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "card_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ledger_entry_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "gate",
+        "gate_instance_id",
+        "subject_hash",
+        "status",
+        "outcome",
+        "approvers",
+        "ended_at",
+        "card_id",
+        "ledger_entry_id"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentGroup": {
+      "type": "string",
+      "enum": [
+        "intent",
+        "analysis",
+        "spec",
+        "design",
+        "constitution",
+        "plan",
+        "build",
+        "evidence",
+        "other"
+      ]
+    },
+    "DocumentVersion": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "step": {
+          "type": "string",
+          "enum": [
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "2.1",
+            "2.1b",
+            "2.2",
+            "2.3",
+            "2.4",
+            "2.5",
+            "3.1",
+            "3.2",
+            "3.3",
+            "3.4",
+            "3.5",
+            "4.1",
+            "4.2",
+            "4.3",
+            "4.4",
+            "4.5",
+            "4.6",
+            "5.1",
+            "5.2",
+            "5.3",
+            "5.4",
+            "5.5",
+            "5.6",
+            "5.7",
+            "5.8",
+            "6.0",
+            "6.1",
+            "6.2",
+            "6.3",
+            "6.4",
+            "6.5",
+            "6.6",
+            "7.1",
+            "7.2",
+            "7.3",
+            "7.4",
+            "7.5",
+            "7.6",
+            "8.1",
+            "8.2",
+            "S8b",
+            "9.2",
+            "9.3",
+            "9.4",
+            "9.5"
+          ]
+        },
+        "stored_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "author": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "agent"
+                },
+                "agent_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "A1",
+                        "A2",
+                        "A3",
+                        "A4",
+                        "A5",
+                        "A6",
+                        "A7",
+                        "A8",
+                        "A9",
+                        "A10",
+                        "A11",
+                        "A12",
+                        "coder",
+                        "assistant"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "run_id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "agent_id",
+                "run_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "person"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "factory"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "markdown": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "withheld": {
+          "type": "boolean"
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "gate": {
+                "type": "string",
+                "enum": [
+                  "G0",
+                  "G1",
+                  "G1f",
+                  "G2",
+                  "G3",
+                  "G3d",
+                  "G3s",
+                  "G3o",
+                  "G4",
+                  "G5",
+                  "G6",
+                  "X1",
+                  "X2",
+                  "X3",
+                  "X4",
+                  "E1",
+                  "E2",
+                  "E3",
+                  "E4",
+                  "E5",
+                  "E6",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "M4",
+                  "M5",
+                  "M6",
+                  "Q1",
+                  "SECT"
+                ]
+              },
+              "gate_instance_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "subject_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "decided",
+                  "superseded",
+                  "expired",
+                  "closed"
+                ]
+              },
+              "outcome": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "approvers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "ended_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "card_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ledger_entry_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "gate",
+              "gate_instance_id",
+              "subject_hash",
+              "status",
+              "outcome",
+              "approvers",
+              "ended_at",
+              "card_id",
+              "ledger_entry_id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "version",
+        "sha256",
+        "step",
+        "stored_at",
+        "bytes",
+        "author",
+        "markdown",
+        "withheld",
+        "gates"
       ],
       "additionalProperties": false
     },
@@ -68499,6 +69878,124 @@
                   "type": "null"
                 }
               ]
+            },
+            "clarify": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "round": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "rounds_max": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "open": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "since": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "deadline": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "then": {
+                      "type": "string",
+                      "enum": [
+                        "parks",
+                        "abandons"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "round",
+                    "rounds_max",
+                    "open",
+                    "since",
+                    "deadline",
+                    "then"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pull_requests": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                  },
+                  "number": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "unit_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "head_ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "head_sha": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "closed"
+                    ]
+                  },
+                  "draft": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "repo",
+                  "number",
+                  "unit_key",
+                  "head_ref",
+                  "head_sha",
+                  "state",
+                  "draft"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [
@@ -68522,7 +70019,9 @@
             "catalogue_ref",
             "injection_suspected",
             "dedupe_links",
-            "profile_gates"
+            "profile_gates",
+            "clarify",
+            "pull_requests"
           ],
           "additionalProperties": false
         },
@@ -68559,6 +70058,66 @@
         "on_behalf_of",
         "question_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "ItemClarifyState": {
+      "type": "object",
+      "properties": {
+        "round": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "rounds_max": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "open": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "deadline": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "then": {
+          "type": "string",
+          "enum": [
+            "parks",
+            "abandons"
+          ]
+        }
+      },
+      "required": [
+        "round",
+        "rounds_max",
+        "open",
+        "since",
+        "deadline",
+        "then"
       ],
       "additionalProperties": false
     },
@@ -69934,6 +71493,781 @@
         "proposed_lane",
         "intake",
         "origin"
+      ],
+      "additionalProperties": false
+    },
+    "ItemDocument": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "request",
+            "intent_block",
+            "context_brief",
+            "decision_brief",
+            "spec_delta",
+            "oracle_specs",
+            "design",
+            "plan",
+            "diff",
+            "evidence_pack",
+            "session_log",
+            "repo_snapshot",
+            "config_history",
+            "reverse_engineering",
+            "impact",
+            "initiative",
+            "affected_requirements",
+            "validation_report",
+            "spec_review",
+            "classification",
+            "adr",
+            "contracts",
+            "data_migration",
+            "nfr_threat_ops",
+            "constitution_report",
+            "unit_split",
+            "unit_sequence",
+            "verification_binding",
+            "budget_envelope",
+            "capacity_input",
+            "oracle_code",
+            "patch",
+            "spike_report"
+          ]
+        },
+        "group": {
+          "type": "string",
+          "enum": [
+            "intent",
+            "analysis",
+            "spec",
+            "design",
+            "constitution",
+            "plan",
+            "build",
+            "evidence",
+            "other"
+          ]
+        },
+        "versions": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "step": {
+                "type": "string",
+                "enum": [
+                  "0.1",
+                  "0.2",
+                  "0.3",
+                  "0.4",
+                  "0.5",
+                  "1.1",
+                  "1.2",
+                  "1.3",
+                  "1.4",
+                  "1.5",
+                  "1.6",
+                  "2.1",
+                  "2.1b",
+                  "2.2",
+                  "2.3",
+                  "2.4",
+                  "2.5",
+                  "3.1",
+                  "3.2",
+                  "3.3",
+                  "3.4",
+                  "3.5",
+                  "4.1",
+                  "4.2",
+                  "4.3",
+                  "4.4",
+                  "4.5",
+                  "4.6",
+                  "5.1",
+                  "5.2",
+                  "5.3",
+                  "5.4",
+                  "5.5",
+                  "5.6",
+                  "5.7",
+                  "5.8",
+                  "6.0",
+                  "6.1",
+                  "6.2",
+                  "6.3",
+                  "6.4",
+                  "6.5",
+                  "6.6",
+                  "7.1",
+                  "7.2",
+                  "7.3",
+                  "7.4",
+                  "7.5",
+                  "7.6",
+                  "8.1",
+                  "8.2",
+                  "S8b",
+                  "9.2",
+                  "9.3",
+                  "9.4",
+                  "9.5"
+                ]
+              },
+              "stored_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "author": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "agent"
+                      },
+                      "agent_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "A1",
+                              "A2",
+                              "A3",
+                              "A4",
+                              "A5",
+                              "A6",
+                              "A7",
+                              "A8",
+                              "A9",
+                              "A10",
+                              "A11",
+                              "A12",
+                              "coder",
+                              "assistant"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "run_id": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "agent_id",
+                      "run_id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "person"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "factory"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "markdown": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "withheld": {
+                "type": "boolean"
+              },
+              "gates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "gate": {
+                      "type": "string",
+                      "enum": [
+                        "G0",
+                        "G1",
+                        "G1f",
+                        "G2",
+                        "G3",
+                        "G3d",
+                        "G3s",
+                        "G3o",
+                        "G4",
+                        "G5",
+                        "G6",
+                        "X1",
+                        "X2",
+                        "X3",
+                        "X4",
+                        "E1",
+                        "E2",
+                        "E3",
+                        "E4",
+                        "E5",
+                        "E6",
+                        "M1",
+                        "M2",
+                        "M3",
+                        "M4",
+                        "M5",
+                        "M6",
+                        "Q1",
+                        "SECT"
+                      ]
+                    },
+                    "gate_instance_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "subject_hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "decided",
+                        "superseded",
+                        "expired",
+                        "closed"
+                      ]
+                    },
+                    "outcome": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[A-Za-z0-9_.@-]+$"
+                      }
+                    },
+                    "ended_at": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "card_id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "ledger_entry_id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "gate",
+                    "gate_instance_id",
+                    "subject_hash",
+                    "status",
+                    "outcome",
+                    "approvers",
+                    "ended_at",
+                    "card_id",
+                    "ledger_entry_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "version",
+              "sha256",
+              "step",
+              "stored_at",
+              "bytes",
+              "author",
+              "markdown",
+              "withheld",
+              "gates"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "type",
+        "group",
+        "versions"
+      ],
+      "additionalProperties": false
+    },
+    "ItemDocumentsView": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "request",
+                  "intent_block",
+                  "context_brief",
+                  "decision_brief",
+                  "spec_delta",
+                  "oracle_specs",
+                  "design",
+                  "plan",
+                  "diff",
+                  "evidence_pack",
+                  "session_log",
+                  "repo_snapshot",
+                  "config_history",
+                  "reverse_engineering",
+                  "impact",
+                  "initiative",
+                  "affected_requirements",
+                  "validation_report",
+                  "spec_review",
+                  "classification",
+                  "adr",
+                  "contracts",
+                  "data_migration",
+                  "nfr_threat_ops",
+                  "constitution_report",
+                  "unit_split",
+                  "unit_sequence",
+                  "verification_binding",
+                  "budget_envelope",
+                  "capacity_input",
+                  "oracle_code",
+                  "patch",
+                  "spike_report"
+                ]
+              },
+              "group": {
+                "type": "string",
+                "enum": [
+                  "intent",
+                  "analysis",
+                  "spec",
+                  "design",
+                  "constitution",
+                  "plan",
+                  "build",
+                  "evidence",
+                  "other"
+                ]
+              },
+              "versions": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "step": {
+                      "type": "string",
+                      "enum": [
+                        "0.1",
+                        "0.2",
+                        "0.3",
+                        "0.4",
+                        "0.5",
+                        "1.1",
+                        "1.2",
+                        "1.3",
+                        "1.4",
+                        "1.5",
+                        "1.6",
+                        "2.1",
+                        "2.1b",
+                        "2.2",
+                        "2.3",
+                        "2.4",
+                        "2.5",
+                        "3.1",
+                        "3.2",
+                        "3.3",
+                        "3.4",
+                        "3.5",
+                        "4.1",
+                        "4.2",
+                        "4.3",
+                        "4.4",
+                        "4.5",
+                        "4.6",
+                        "5.1",
+                        "5.2",
+                        "5.3",
+                        "5.4",
+                        "5.5",
+                        "5.6",
+                        "5.7",
+                        "5.8",
+                        "6.0",
+                        "6.1",
+                        "6.2",
+                        "6.3",
+                        "6.4",
+                        "6.5",
+                        "6.6",
+                        "7.1",
+                        "7.2",
+                        "7.3",
+                        "7.4",
+                        "7.5",
+                        "7.6",
+                        "8.1",
+                        "8.2",
+                        "S8b",
+                        "9.2",
+                        "9.3",
+                        "9.4",
+                        "9.5"
+                      ]
+                    },
+                    "stored_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "bytes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "author": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "agent"
+                            },
+                            "agent_id": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "A1",
+                                    "A2",
+                                    "A3",
+                                    "A4",
+                                    "A5",
+                                    "A6",
+                                    "A7",
+                                    "A8",
+                                    "A9",
+                                    "A10",
+                                    "A11",
+                                    "A12",
+                                    "coder",
+                                    "assistant"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "run_id": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "agent_id",
+                            "run_id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "person"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "factory"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "markdown": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "withheld": {
+                      "type": "boolean"
+                    },
+                    "gates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "gate": {
+                            "type": "string",
+                            "enum": [
+                              "G0",
+                              "G1",
+                              "G1f",
+                              "G2",
+                              "G3",
+                              "G3d",
+                              "G3s",
+                              "G3o",
+                              "G4",
+                              "G5",
+                              "G6",
+                              "X1",
+                              "X2",
+                              "X3",
+                              "X4",
+                              "E1",
+                              "E2",
+                              "E3",
+                              "E4",
+                              "E5",
+                              "E6",
+                              "M1",
+                              "M2",
+                              "M3",
+                              "M4",
+                              "M5",
+                              "M6",
+                              "Q1",
+                              "SECT"
+                            ]
+                          },
+                          "gate_instance_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "subject_hash": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "decided",
+                              "superseded",
+                              "expired",
+                              "closed"
+                            ]
+                          },
+                          "outcome": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "approvers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 128,
+                              "pattern": "^[A-Za-z0-9_.@-]+$"
+                            }
+                          },
+                          "ended_at": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "card_id": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ledger_entry_id": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "gate",
+                          "gate_instance_id",
+                          "subject_hash",
+                          "status",
+                          "outcome",
+                          "approvers",
+                          "ended_at",
+                          "card_id",
+                          "ledger_entry_id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "sha256",
+                    "step",
+                    "stored_at",
+                    "bytes",
+                    "author",
+                    "markdown",
+                    "withheld",
+                    "gates"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "type",
+              "group",
+              "versions"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "not_intact": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "data_class": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2",
+            "D3"
+          ]
+        }
+      },
+      "required": [
+        "item_id",
+        "project_id",
+        "documents",
+        "not_intact",
+        "data_class"
       ],
       "additionalProperties": false
     },
@@ -72056,6 +74390,124 @@
                   "type": "null"
                 }
               ]
+            },
+            "clarify": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "round": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "rounds_max": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "open": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "since": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "deadline": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "then": {
+                      "type": "string",
+                      "enum": [
+                        "parks",
+                        "abandons"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "round",
+                    "rounds_max",
+                    "open",
+                    "since",
+                    "deadline",
+                    "then"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pull_requests": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+                  },
+                  "number": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "unit_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "head_ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "head_sha": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "closed"
+                    ]
+                  },
+                  "draft": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "repo",
+                  "number",
+                  "unit_key",
+                  "head_ref",
+                  "head_sha",
+                  "state",
+                  "draft"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [
@@ -72079,7 +74531,9 @@
             "catalogue_ref",
             "injection_suspected",
             "dedupe_links",
-            "profile_gates"
+            "profile_gates",
+            "clarify",
+            "pull_requests"
           ],
           "additionalProperties": false
         },
@@ -72106,6 +74560,54 @@
         "units",
         "base_sha",
         "outputs"
+      ],
+      "additionalProperties": false
+    },
+    "ItemPullRequest": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "unit_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "head_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "closed"
+          ]
+        },
+        "draft": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "repo",
+        "number",
+        "unit_key",
+        "head_ref",
+        "head_sha",
+        "state",
+        "draft"
       ],
       "additionalProperties": false
     },
@@ -72342,6 +74844,847 @@
       "required": [
         "on_behalf_of",
         "key"
+      ],
+      "additionalProperties": false
+    },
+    "ItemRequestView": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "repo": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "requester": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "channel": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "N1",
+                "N2",
+                "N3",
+                "N4",
+                "N5",
+                "N6",
+                "N7",
+                "N8"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "request_text": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "taint": {
+                  "type": "string",
+                  "const": "untrusted"
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "request",
+                    "answer",
+                    "issue",
+                    "repo",
+                    "dependency"
+                  ]
+                },
+                "provenance": {
+                  "type": "object",
+                  "properties": {
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "N1",
+                        "N2",
+                        "N3",
+                        "N4",
+                        "N5",
+                        "N6",
+                        "N7",
+                        "N8"
+                      ]
+                    },
+                    "source": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "portal_ask",
+                            "teams",
+                            "api",
+                            "code_host_issue",
+                            "factory_proposed",
+                            "onboarding_hold"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "received_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "submitted_by": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.@-]+$"
+                    },
+                    "raw_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "normalised_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "source",
+                    "received_at",
+                    "submitted_by",
+                    "raw_sha256",
+                    "normalised_sha256"
+                  ],
+                  "additionalProperties": false
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "rule": {
+                        "type": "string",
+                        "enum": [
+                          "L-TIER",
+                          "L-AUTONOMY",
+                          "L-LANE",
+                          "L-GATE",
+                          "L-BUDGET",
+                          "L-GRANT",
+                          "L-ADDRESS",
+                          "L-DIRECTIVE",
+                          "L-SECRET",
+                          "L-URL",
+                          "L-PIPE-SH",
+                          "L-PROSE",
+                          "L-FMT-LINES",
+                          "L-FMT-FRONTMATTER"
+                        ]
+                      },
+                      "line": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "rule",
+                      "line"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "text",
+                "taint",
+                "origin",
+                "provenance",
+                "flags"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text_withheld": {
+          "type": "boolean"
+        },
+        "text_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "injection": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "suspected": {
+                  "type": "boolean"
+                },
+                "rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "L-TIER",
+                      "L-AUTONOMY",
+                      "L-LANE",
+                      "L-GATE",
+                      "L-BUDGET",
+                      "L-GRANT",
+                      "L-ADDRESS",
+                      "L-DIRECTIVE",
+                      "L-SECRET",
+                      "L-URL",
+                      "L-PIPE-SH",
+                      "L-PROSE",
+                      "L-FMT-LINES",
+                      "L-FMT-FRONTMATTER"
+                    ]
+                  }
+                },
+                "lines": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "text_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "suspected",
+                "rules",
+                "lines",
+                "text_sha256"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dedupe_links": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "conflict_candidates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "asked_lane": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposed_lane": {
+          "type": "string",
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        "lane": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lane_bound_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "intake_route": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "l8"
+          ]
+        },
+        "eligibility_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lane_opens_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "census",
+                "light",
+                "full"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data_class": {
+          "type": "string",
+          "enum": [
+            "D0",
+            "D1",
+            "D2",
+            "D3"
+          ]
+        }
+      },
+      "required": [
+        "item_id",
+        "project_id",
+        "repo",
+        "request_id",
+        "requester",
+        "channel",
+        "request_text",
+        "text_withheld",
+        "text_sha256",
+        "injection",
+        "dedupe_links",
+        "conflict_candidates",
+        "asked_lane",
+        "proposed_lane",
+        "lane",
+        "lane_bound_by",
+        "intake_route",
+        "eligibility_reason",
+        "lane_opens_at",
+        "data_class"
+      ],
+      "additionalProperties": false
+    },
+    "ItemTimelineEntry": {
+      "type": "object",
+      "properties": {
+        "global_seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "item.created",
+            "item.submitted",
+            "item.stage_completed",
+            "item.stage_failed",
+            "item.stage_gate_needed",
+            "item.questions_raised",
+            "item.question_answered",
+            "item.eligibility_checked",
+            "item.ready_decided",
+            "item.scheduled",
+            "item.merge_observed",
+            "item.human_work_done",
+            "item.gates_opened",
+            "item.gate_decided",
+            "item.hold_placed",
+            "item.hold_released",
+            "item.abandoned",
+            "item.withdrawn",
+            "item.spawn_requested",
+            "item.spawned",
+            "item.command_done",
+            "item.stage_held",
+            "item.rework_requested",
+            "item.relane_requested",
+            "item.trigger_fired",
+            "item.timer_fired",
+            "item.handoff_chosen",
+            "item.hand_back",
+            "item.env_fixed",
+            "item.release_re_requested",
+            "item.assumption_raised",
+            "item.assumption_decided",
+            "artefact.stored"
+          ]
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "0.1",
+                "0.2",
+                "0.3",
+                "0.4",
+                "0.5",
+                "1.1",
+                "1.2",
+                "1.3",
+                "1.4",
+                "1.5",
+                "1.6",
+                "2.1",
+                "2.1b",
+                "2.2",
+                "2.3",
+                "2.4",
+                "2.5",
+                "3.1",
+                "3.2",
+                "3.3",
+                "3.4",
+                "3.5",
+                "4.1",
+                "4.2",
+                "4.3",
+                "4.4",
+                "4.5",
+                "4.6",
+                "5.1",
+                "5.2",
+                "5.3",
+                "5.4",
+                "5.5",
+                "5.6",
+                "5.7",
+                "5.8",
+                "6.0",
+                "6.1",
+                "6.2",
+                "6.3",
+                "6.4",
+                "6.5",
+                "6.6",
+                "7.1",
+                "7.2",
+                "7.3",
+                "7.4",
+                "7.5",
+                "7.6",
+                "8.1",
+                "8.2",
+                "S8b",
+                "9.2",
+                "9.3",
+                "9.4",
+                "9.5"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "G0",
+              "G1",
+              "G1f",
+              "G2",
+              "G3",
+              "G3d",
+              "G3s",
+              "G3o",
+              "G4",
+              "G5",
+              "G6",
+              "X1",
+              "X2",
+              "X3",
+              "X4",
+              "E1",
+              "E2",
+              "E3",
+              "E4",
+              "E5",
+              "E6",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "M5",
+              "M6",
+              "Q1",
+              "SECT"
+            ]
+          }
+        },
+        "codes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:+-]{1,64}$"
+          }
+        }
+      },
+      "required": [
+        "global_seq",
+        "at",
+        "kind",
+        "actor",
+        "by",
+        "step",
+        "gates",
+        "codes"
+      ],
+      "additionalProperties": false
+    },
+    "ItemTimelineKind": {
+      "type": "string",
+      "enum": [
+        "item.created",
+        "item.submitted",
+        "item.stage_completed",
+        "item.stage_failed",
+        "item.stage_gate_needed",
+        "item.questions_raised",
+        "item.question_answered",
+        "item.eligibility_checked",
+        "item.ready_decided",
+        "item.scheduled",
+        "item.merge_observed",
+        "item.human_work_done",
+        "item.gates_opened",
+        "item.gate_decided",
+        "item.hold_placed",
+        "item.hold_released",
+        "item.abandoned",
+        "item.withdrawn",
+        "item.spawn_requested",
+        "item.spawned",
+        "item.command_done",
+        "item.stage_held",
+        "item.rework_requested",
+        "item.relane_requested",
+        "item.trigger_fired",
+        "item.timer_fired",
+        "item.handoff_chosen",
+        "item.hand_back",
+        "item.env_fixed",
+        "item.release_re_requested",
+        "item.assumption_raised",
+        "item.assumption_decided",
+        "artefact.stored"
+      ]
+    },
+    "ItemTimelineView": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "global_seq": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "item.created",
+                  "item.submitted",
+                  "item.stage_completed",
+                  "item.stage_failed",
+                  "item.stage_gate_needed",
+                  "item.questions_raised",
+                  "item.question_answered",
+                  "item.eligibility_checked",
+                  "item.ready_decided",
+                  "item.scheduled",
+                  "item.merge_observed",
+                  "item.human_work_done",
+                  "item.gates_opened",
+                  "item.gate_decided",
+                  "item.hold_placed",
+                  "item.hold_released",
+                  "item.abandoned",
+                  "item.withdrawn",
+                  "item.spawn_requested",
+                  "item.spawned",
+                  "item.command_done",
+                  "item.stage_held",
+                  "item.rework_requested",
+                  "item.relane_requested",
+                  "item.trigger_fired",
+                  "item.timer_fired",
+                  "item.handoff_chosen",
+                  "item.hand_back",
+                  "item.env_fixed",
+                  "item.release_re_requested",
+                  "item.assumption_raised",
+                  "item.assumption_decided",
+                  "artefact.stored"
+                ]
+              },
+              "actor": {
+                "type": "string",
+                "minLength": 1
+              },
+              "by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.@-]+$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "step": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "0.1",
+                      "0.2",
+                      "0.3",
+                      "0.4",
+                      "0.5",
+                      "1.1",
+                      "1.2",
+                      "1.3",
+                      "1.4",
+                      "1.5",
+                      "1.6",
+                      "2.1",
+                      "2.1b",
+                      "2.2",
+                      "2.3",
+                      "2.4",
+                      "2.5",
+                      "3.1",
+                      "3.2",
+                      "3.3",
+                      "3.4",
+                      "3.5",
+                      "4.1",
+                      "4.2",
+                      "4.3",
+                      "4.4",
+                      "4.5",
+                      "4.6",
+                      "5.1",
+                      "5.2",
+                      "5.3",
+                      "5.4",
+                      "5.5",
+                      "5.6",
+                      "5.7",
+                      "5.8",
+                      "6.0",
+                      "6.1",
+                      "6.2",
+                      "6.3",
+                      "6.4",
+                      "6.5",
+                      "6.6",
+                      "7.1",
+                      "7.2",
+                      "7.3",
+                      "7.4",
+                      "7.5",
+                      "7.6",
+                      "8.1",
+                      "8.2",
+                      "S8b",
+                      "9.2",
+                      "9.3",
+                      "9.4",
+                      "9.5"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "gates": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "G0",
+                    "G1",
+                    "G1f",
+                    "G2",
+                    "G3",
+                    "G3d",
+                    "G3s",
+                    "G3o",
+                    "G4",
+                    "G5",
+                    "G6",
+                    "X1",
+                    "X2",
+                    "X3",
+                    "X4",
+                    "E1",
+                    "E2",
+                    "E3",
+                    "E4",
+                    "E5",
+                    "E6",
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "Q1",
+                    "SECT"
+                  ]
+                }
+              },
+              "codes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_.:+-]{1,64}$"
+                }
+              }
+            },
+            "required": [
+              "global_seq",
+              "at",
+              "kind",
+              "actor",
+              "by",
+              "step",
+              "gates",
+              "codes"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "item_id",
+        "project_id",
+        "entries"
       ],
       "additionalProperties": false
     },
@@ -74009,6 +77352,124 @@
               "type": "null"
             }
           ]
+        },
+        "clarify": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "round": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "rounds_max": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "open": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "since": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "deadline": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "then": {
+                  "type": "string",
+                  "enum": [
+                    "parks",
+                    "abandons"
+                  ]
+                }
+              },
+              "required": [
+                "round",
+                "rounds_max",
+                "open",
+                "since",
+                "deadline",
+                "then"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pull_requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "unit_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "head_ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed"
+                ]
+              },
+              "draft": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "repo",
+              "number",
+              "unit_key",
+              "head_ref",
+              "head_sha",
+              "state",
+              "draft"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -74032,7 +77493,9 @@
         "catalogue_ref",
         "injection_suspected",
         "dedupe_links",
-        "profile_gates"
+        "profile_gates",
+        "clarify",
+        "pull_requests"
       ],
       "additionalProperties": false
     },
@@ -94555,6 +98018,124 @@
             }
           ]
         },
+        "clarify": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "round": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "rounds_max": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "open": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "since": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "deadline": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "then": {
+                  "type": "string",
+                  "enum": [
+                    "parks",
+                    "abandons"
+                  ]
+                }
+              },
+              "required": [
+                "round",
+                "rounds_max",
+                "open",
+                "since",
+                "deadline",
+                "then"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pull_requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "unit_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "head_ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed"
+                ]
+              },
+              "draft": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "repo",
+              "number",
+              "unit_key",
+              "head_ref",
+              "head_sha",
+              "state",
+              "draft"
+            ],
+            "additionalProperties": false
+          }
+        },
         "may": {
           "type": "object",
           "properties": {
@@ -94602,6 +98183,8 @@
         "injection_suspected",
         "dedupe_links",
         "profile_gates",
+        "clarify",
+        "pull_requests",
         "may"
       ],
       "additionalProperties": false
@@ -116477,6 +120060,13 @@
       ],
       "additionalProperties": false
     },
+    "PullRequestState": {
+      "type": "string",
+      "enum": [
+        "open",
+        "closed"
+      ]
+    },
     "PushEvidence": {
       "type": "object",
       "properties": {
@@ -134815,6 +138405,10 @@
           "pattern": "^aom\\.[a-z_]+$"
         }
       ]
+    },
+    "TimelineCode": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:+-]{1,64}$"
     },
     "TriggerId": {
       "type": "string",
