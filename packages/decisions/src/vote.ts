@@ -1,6 +1,8 @@
 import {
   GATE_EVENT,
+  pdpResource,
   gatePolicy,
+  type AdminOverrideRule,
   type CardId,
   type LedgerEntry,
   type LedgerEntryDraft,
@@ -26,6 +28,12 @@ import {
   type Written,
 } from './internal.js';
 import { evaluateVote } from './policy.js';
+import {
+  OVERRIDE_RULE_OF_REFUSAL,
+  appendOverrideEvent,
+  type AcceptedOverride,
+  type OverrideFacts,
+} from './override.js';
 import { gateHolders } from './ports.js';
 import {
   decisionRowOf,
@@ -55,6 +63,11 @@ export interface VoteRequest {
   readonly evidence: VoteEvidence;
   /** The card decision this vote is part of; goes into the ledger body (PLAN M3.4). */
   readonly card?: { readonly card_id: CardId; readonly payload_hash: Sha256Hex };
+  /**
+   * An override the kernel accepted (`acceptOverride`), with the rules already bypassed before the vote (the step-up).
+   * The vote then decides the gate whatever the slot, two-person and own-request rules say, and is recorded as such.
+   */
+  readonly override?: AcceptedOverride & { readonly bypassed: readonly AdminOverrideRule[] };
 }
 
 export interface VoteResult {
@@ -103,6 +116,8 @@ export interface PlannedVote {
   readonly marker: NewEvent;
   readonly draft: LedgerEntryDraft;
   readonly entry_id: string;
+  /** The `admin.override` record event to append with the marker, when the vote is an override. */
+  readonly override: OverrideFacts | null;
 }
 
 /**
@@ -137,7 +152,23 @@ export async function planVote(
     approvers: state.approvers as PrincipalId[],
     frozenQuorum: p.quorum.required,
   });
-  if (!verdict.ok) return err(decisionError(verdict.error.code, verdict.error.message));
+  // The override: whatever the rules say, this vote decides. What they would have said is recorded.
+  const o = req.override;
+  if (!verdict.ok && !o) return err(decisionError(verdict.error.code, verdict.error.message));
+  const bypassed: AdminOverrideRule[] = [...(o?.bypassed ?? [])];
+  if (o) {
+    if (!verdict.ok) bypassed.push(OVERRIDE_RULE_OF_REFUSAL[verdict.error.code]);
+    else if (req.decision === 'approve' && verdict.value.outcome === 'pending') {
+      bypassed.push('two_person');
+    }
+  }
+  const sodWaiver = o
+    ? bypassed.length > 0 || (verdict.ok && verdict.value.sod_waiver)
+    : verdict.ok && verdict.value.sod_waiver;
+  const approvalsAfter = verdict.ok
+    ? verdict.value.approvals_after
+    : state.approvers.length +
+      (req.decision === 'approve' && !state.approvers.includes(req.voter) ? 1 : 0);
 
   const entryId = newEntryId(deps);
   const marker: NewEvent = {
@@ -155,7 +186,7 @@ export async function planVote(
     subject_hash: p.subject_hash,
     decision: req.decision,
     actor: req.voter,
-    sod_waiver: verdict.value.sod_waiver,
+    sod_waiver: sodWaiver,
     body: {
       kind: 'vote',
       evidence_hash: req.evidence.evidence_hash,
@@ -163,11 +194,24 @@ export async function planVote(
       nonce_sha256: req.evidence.nonce_sha256,
       step_up: req.evidence.step_up,
       quorum_required: p.quorum.required,
-      approvals_after: verdict.value.approvals_after,
+      approvals_after: approvalsAfter,
       ...(req.card ? { card: req.card } : {}),
+      ...(o ? { override: { override_id: o.override_id, reason: o.reason, bypassed } } : {}),
     },
   });
-  return ok({ state, marker, draft, entry_id: entryId });
+  const override: OverrideFacts | null = o
+    ? {
+        override_id: o.override_id,
+        actor: req.voter,
+        action: 'gate.decide',
+        resource: pdpResource.gate(p.project_id, state.open.gate_instance_id, p.gate_id),
+        gate: { gate_instance_id: state.open.gate_instance_id, gate_id: p.gate_id },
+        reason: o.reason,
+        bypassed,
+        decision_entry_id: entryId,
+      }
+    : null;
+  return ok({ state, marker, draft, entry_id: entryId, override });
 }
 
 /** The gate state after `entry` joined its decisions. */
@@ -195,6 +239,10 @@ export async function applyVote(
     planned.value.marker,
   ]);
   if (!marker.ok) return marker;
+  if (planned.value.override) {
+    const ov = await appendOverrideEvent(tx, deps, planned.value.override);
+    if (!ov.ok) return ov;
+  }
   const w = await writeDecision(tx, deps, planned.value.draft);
   if (!w.ok) return w;
   return ok({

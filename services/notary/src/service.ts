@@ -1,4 +1,6 @@
 import {
+  DELETION_ENTRY_TYPE,
+  DeletionPerformedBody,
   LEDGER_SIGNATURE_ALG,
   LedgerEntry,
   LedgerEntryDraft,
@@ -33,6 +35,7 @@ import {
   type CheckpointSignRequest,
   type EvidenceSignRequest,
   type EvidenceSignerPort,
+  type JournalRedactorPort,
   type NotaryError,
   type NotaryPort,
   type ReserveRequest,
@@ -76,7 +79,9 @@ interface JournalRow {
  * is gap-free in signing order. The KMS call happens while the row lock is held; a failed
  * signature rolls the transaction back and the reservation stays `reserved`.
  */
-export class NotaryService implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort {
+export class NotaryService
+  implements NotaryPort, EvidenceSignerPort, AuditExportSignerPort, JournalRedactorPort
+{
   private readonly keyId: string;
   private readonly clock: Clock;
   private publicKey: Jwk | undefined;
@@ -253,6 +258,44 @@ export class NotaryService implements NotaryPort, EvidenceSignerPort, AuditExpor
       );
       return ok({ root_hash: core.root_hash, head_hash: core.head_hash, signature });
     });
+  }
+
+  /**
+   * Delete means delete (docs/specs/deletion.md §1): erases this journal's copies of the entries a `deletion.performed`
+   * entry names. The entry must be one this Notary signed (its key, its signature) and committed exactly so in this
+   * journal; then each named entry before it, committed here, keeps its seq, hashes and status and loses its content.
+   * Idempotent. Anything else is refused and erases nothing.
+   */
+  async redactJournal(entry: LedgerEntry): Promise<Result<{ redacted: number }, NotaryError>> {
+    const v = await this.verify(entry);
+    if (!v.ok) return v;
+    if (entry.entry_type !== DELETION_ENTRY_TYPE) {
+      return err(notaryError('invalid_entry', 'only a deletion.performed entry erases'));
+    }
+    const body = DeletionPerformedBody.safeParse(entry.body);
+    if (!body.success) return err(notaryError('invalid_entry', 'not a deletion.performed body'));
+    return this.guard(() =>
+      withTransaction(this.o.pool, async (tx) => {
+        const own = await tx.query<JournalRow>(
+          'SELECT * FROM notary.journal WHERE ledger_seq = $1',
+          [entry.ledger_seq],
+        );
+        const row = own.rows[0];
+        if (!row || row.status !== 'committed' || row.entry_hash !== entry.entry_hash) {
+          return err(
+            notaryError('entry_mismatch', 'this Notary did not commit that deletion entry'),
+          );
+        }
+        const seqs = body.data.redacted_ledger_seqs.filter((s) => s < entry.ledger_seq);
+        const r = await tx.query(
+          `UPDATE notary.journal SET entry = '{"redacted": true}'::jsonb
+            WHERE ledger_seq = ANY($1::bigint[]) AND status = 'committed'
+              AND entry IS DISTINCT FROM '{"redacted": true}'::jsonb`,
+          [seqs.map(String)],
+        );
+        return ok({ redacted: r.rowCount ?? 0 });
+      }),
+    );
   }
 
   async verify(entry: LedgerEntry): Promise<Result<true, NotaryError>> {

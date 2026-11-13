@@ -1255,6 +1255,21 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   GithubAppRow: entities.GithubAppRow,
   GithubAppsView: entities.GithubAppsView,
   RepoOnboardingState: entities.RepoOnboardingState,
+  AdminOverrideRule: entities.AdminOverrideRule,
+  AdminOverrideReason: entities.AdminOverrideReason,
+  AdminOverrideRequest: entities.AdminOverrideRequest,
+  AdminOverrideBody: entities.AdminOverrideBody,
+  DecisionOverride: entities.DecisionOverride,
+  DeletionKind: entities.DeletionKind,
+  DeletionRequest: entities.DeletionRequest,
+  DeletionPreviewRequest: entities.DeletionPreviewRequest,
+  DeletionCounts: entities.DeletionCounts,
+  DeletionBlocker: entities.DeletionBlocker,
+  DeletionPreview: entities.DeletionPreview,
+  DeletionObjectKey: entities.DeletionObjectKey,
+  DeletionPerformedBody: entities.DeletionPerformedBody,
+  DeletionPerformedEvent: entities.DeletionPerformedEvent,
+  DeletionResult: entities.DeletionResult,
 };
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';

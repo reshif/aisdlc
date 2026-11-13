@@ -90,6 +90,8 @@ function healthPeersEnv(env: Env): Record<string, string> {
  *   BFF_KILLSWITCH_URL, BFF_KILLSWITCH_TOKEN_REF
  *                            the kill switch and the bff's token there (scopes act, read; RC-UI-1): the portal's kill
  *                            and release, each act with the person's own step-up proof; both or neither (else 503)
+ *   BFF_IDENTITY_URL, BFF_IDENTITY_TOKEN_REF   (portal v2) identity with scope `admin`: people, teams and bindings
+ *                            written from the portal, the PDP deciding each write in identity
  *   BFF_HEALTH_PEERS         M19: JSON {name: base URL} of the services only the bff reaches whose liveness answer
  *                            `GET /healthz/peer/:name` relays for core-worker's health tiles (the notifier)
  *   BFF_GATE_CHECK_URL, BFF_GATE_CHECK_TOKEN_REF
@@ -175,6 +177,23 @@ export async function bootBff(env: Env): Promise<RunningService> {
     ? new HttpCoreClient({
         baseUrl: httpUrlEnv(env, 'BFF_KILLSWITCH_URL'),
         token: resolveSecretRef(requiredEnv(env, 'BFF_KILLSWITCH_TOKEN_REF'), { env }),
+      })
+    : undefined;
+  // portal v2 (gap G6): identity's API with scope `admin`, for the people, team and binding writes
+  const idUrl = env['BFF_IDENTITY_URL'];
+  const hasIdentity = idUrl !== undefined && idUrl !== '';
+  if (
+    hasIdentity !==
+    (env['BFF_IDENTITY_TOKEN_REF'] !== undefined && env['BFF_IDENTITY_TOKEN_REF'] !== '')
+  ) {
+    throw new ServiceConfigError(
+      'BFF_IDENTITY_URL and BFF_IDENTITY_TOKEN_REF are set together or not at all',
+    );
+  }
+  const identity = hasIdentity
+    ? new HttpCoreClient({
+        baseUrl: httpUrlEnv(env, 'BFF_IDENTITY_URL'),
+        token: resolveSecretRef(requiredEnv(env, 'BFF_IDENTITY_TOKEN_REF'), { env }),
       })
     : undefined;
   const gcUrl = env['BFF_GATE_CHECK_URL'];
@@ -296,6 +315,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
       ...(core ? { core } : {}),
       ...(notifier ? { notifier } : {}),
       ...(killswitch ? { killswitch } : {}),
+      ...(identity ? { identity } : {}),
       ...(gateCheck ? { gateCheck } : {}),
       ...(gateway ? { gateway } : {}),
       ...(audit ? { audit } : {}),

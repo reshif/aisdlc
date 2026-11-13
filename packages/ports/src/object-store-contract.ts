@@ -1,13 +1,17 @@
 import { sha256Hex } from '@aisdlc/kernel';
 import { describe, expect, it } from 'vitest';
-import { type ObjectStoreError, type ObjectStorePort } from './object-store.js';
+import {
+  type ObjectPurgePort,
+  type ObjectStoreError,
+  type ObjectStorePort,
+} from './object-store.js';
 
 // The ObjectStorePort contract suite (PLAN M14.1). `objectStoreContract` runs against any adapter: the fake
 // always, `S3ObjectStore` against MinIO when it is reachable. The harness names buckets (a real store keeps a
 // write-once bucket's objects, so each run uses fresh names) and can plant corrupt bytes under a key.
 
 export interface ObjectStoreHarness {
-  readonly port: ObjectStorePort;
+  readonly port: ObjectStorePort & Partial<ObjectPurgePort>;
   /** A bucket name unique to this run and `label` (valid for the port's bucket rules). */
   bucket(label: string): string;
   /** Replaces what the store holds under `sha256` with `bytes` behind the port's back. */
@@ -110,6 +114,23 @@ export function objectStoreContract(name: string, make: () => Promise<ObjectStor
       expect(g.ok && text(g.value)).toBe('evidence');
       // refused for an absent key too: the bucket's rule does not depend on what is in it
       expect(failure(await h.port.delete(b, sha256Hex('absent'))).code).toBe('write_once');
+      await h.stop?.();
+    });
+
+    it('the deletion purge removes an object of a write_once bucket (legal hold lifted), idempotently', async () => {
+      const h = await make();
+      if (!h.port.purge) return; // an adapter without the deletion's hand
+      const b = h.bucket('purge');
+      expect((await h.port.declareBucket(b, 'write_once')).ok).toBe(true);
+      const sha = sha256Hex('a pack of a deleted project');
+      await h.port.put(b, bytes('a pack of a deleted project'), { contentType: 'text/plain' });
+      expect(failure(await h.port.delete(b, sha)).code).toBe('write_once');
+      const p = await h.port.purge(b, sha);
+      expect(p.ok, JSON.stringify(p)).toBe(true);
+      expect(failure(await h.port.get(b, sha)).code).toBe('not_found');
+      const h2 = await h.port.head(b, sha);
+      expect(h2.ok && h2.value).toBeNull();
+      expect((await h.port.purge(b, sha)).ok).toBe(true);
       await h.stop?.();
     });
 

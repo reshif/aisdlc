@@ -21,6 +21,9 @@ const WITHHELD = [
   'role/factory.auditor/quality.read',
   'role/project.admin/assistant.use',
   'role/factory.admin/identity.admin',
+  // owner decision 2026-11-13: the factory admin's override permits everything; withheld here so the test still
+  // proves which action each route asks (a role grant withheld is refused only when the override is too)
+  'xcut/factory_admin_override',
 ] as const;
 
 let s: BffStack;

@@ -3,6 +3,7 @@ import {
   ACTION_IDS,
   ActionId,
   PdpDecisionRecord,
+  isAdminOverride,
   PdpResource,
   actionDef,
   resourceScopes,
@@ -247,15 +248,19 @@ export class Pdp {
   ): Promise<PdpDecision> {
     const log = this.o.log;
     if (!log) return out;
-    const must = out.decision === 'allow' && actionDef(c.action).log_allow;
+    // An override is always logged, and an override that cannot be logged is not given (recording never has holes).
+    const override = isAdminOverride(out);
+    const must = out.decision === 'allow' && (actionDef(c.action).log_allow || override);
     const because: PdpDecisionRecord['logged_because'] | null =
       out.decision === 'deny'
         ? 'deny'
-        : must
-          ? 'action'
-          : sampled(c.decision_id, this.o.sampleRate ?? 0)
-            ? 'sampled'
-            : null;
+        : override
+          ? 'override'
+          : must
+            ? 'action'
+            : sampled(c.decision_id, this.o.sampleRate ?? 0)
+              ? 'sampled'
+              : null;
     if (because === null) return out;
     const rec = PdpDecisionRecord.safeParse({
       decision_id: c.decision_id,

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { err, ok, sha256Hex } from '@aisdlc/kernel';
 import { resolveSecretRef } from '@aisdlc/service-kit';
 import {
@@ -10,6 +11,7 @@ import {
   type BucketMode,
   type ObjectHead,
   type ObjectInfo,
+  type ObjectPurgePort,
   type ObjectStoreError,
   type ObjectStorePort,
   type ObjectStoreResult,
@@ -53,7 +55,7 @@ const errorCodeOf = (body: Uint8Array): string => {
   return m?.[1] ?? '';
 };
 
-export class S3ObjectStore implements ObjectStorePort {
+export class S3ObjectStore implements ObjectStorePort, ObjectPurgePort {
   private readonly endpoint: URL;
   private readonly region: string;
   private readonly creds: SigV4Credentials;
@@ -211,6 +213,57 @@ export class S3ObjectStore implements ObjectStorePort {
       size,
       contentType: r.value.headers.get('content-type') ?? 'application/octet-stream',
     });
+  }
+
+  /**
+   * Deletion only (docs/specs/deletion.md §1): every version of the object, each with its legal hold lifted first
+   * (PutObjectLegalHold OFF, then DeleteObject with the version id), so nothing of it is left behind a delete marker.
+   * The store refuses the hold change to a credential without `s3:PutObjectLegalHold`: only the deletion's adapter
+   * is built with the one that has it. Write-once buckets lock with a legal hold, never a COMPLIANCE retention, which
+   * nobody could lift. Idempotent.
+   */
+  async purge(bucket: string, sha256: string): Promise<ObjectStoreResult<void>> {
+    const bad = this.declared(bucket) ?? checkKey(sha256);
+    if (bad) return err(bad);
+    const listed = await this.request('GET', bucket, null, {
+      query: `versions=&prefix=${sha256}`,
+    });
+    if (!listed.ok) return listed;
+    if (listed.value.status !== 200) return err(this.unexpected(listed.value));
+    const xml = new TextDecoder().decode(listed.value.body);
+    const versions: Array<{ id: string; marker: boolean }> = [];
+    for (const m of xml.matchAll(/<(Version|DeleteMarker)>([\s\S]*?)<\/\1>/g)) {
+      const key = /<Key>([^<]*)<\/Key>/.exec(m[2] ?? '')?.[1];
+      const id = /<VersionId>([^<]*)<\/VersionId>/.exec(m[2] ?? '')?.[1];
+      if (key === sha256 && id) versions.push({ id, marker: m[1] === 'DeleteMarker' });
+    }
+    const mode = this.modes.get(bucket);
+    for (const v of versions) {
+      const vq = `versionId=${encodeURIComponent(v.id)}`;
+      if (mode === 'write_once' && !v.marker) {
+        const body = new TextEncoder().encode(
+          '<LegalHold xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Status>OFF</Status></LegalHold>',
+        );
+        const off = await this.request('PUT', bucket, sha256, {
+          query: `legal-hold=&${vq}`,
+          headers: {
+            'content-md5': createHash('md5').update(body).digest('base64'),
+            'content-type': 'application/xml',
+          },
+          body,
+        });
+        if (!off.ok) return off;
+        if (off.value.status !== 200 && off.value.status !== 204)
+          return err(this.unexpected(off.value));
+      }
+      const del = await this.request('DELETE', bucket, sha256, { query: vq });
+      if (!del.ok) return del;
+      if (del.value.status !== 204 && del.value.status !== 200 && del.value.status !== 404)
+        return err(this.unexpected(del.value));
+    }
+    // A bucket without versioning lists nothing: delete the object itself (a normal bucket).
+    if (versions.length === 0 && mode !== 'write_once') return this.delete(bucket, sha256);
+    return ok(undefined);
   }
 
   async delete(bucket: string, sha256: string): Promise<ObjectStoreResult<void>> {
