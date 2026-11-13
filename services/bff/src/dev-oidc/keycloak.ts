@@ -69,10 +69,19 @@ export function keycloakIdpSeed(dev: IdpSnapshot, issuer = KEYCLOAK_DEFAULT_ISSU
   } as IdpSnapshot;
 }
 
-/** First word, rest: Keycloak's user profile asks for both. */
-function names(display: string): { firstName: string; lastName: string } {
-  const [first, ...rest] = display.split(' ');
-  return { firstName: first ?? display, lastName: rest.join(' ') || first || display };
+/**
+ * First word, rest: Keycloak's user profile asks for both, and its person-name validator refuses characters such as
+ * parentheses (a refused name sends the person to "update your profile" at every sign-in), so a note in parentheses
+ * ("Alice Example (factory admin)") is left out and any other refused character is dropped.
+ */
+export function keycloakNames(display: string): { firstName: string; lastName: string } {
+  const clean = display
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[<>&"$%!#?§;*~/\\|^=[\]{}()]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const [first, ...rest] = clean.split(' ');
+  return { firstName: first || 'Person', lastName: rest.join(' ') || first || 'Person' };
 }
 
 /** The realm import (Keycloak 26 JSON). */
@@ -86,7 +95,7 @@ export function keycloakRealm(dev: IdpSnapshot): Record<string, unknown> {
       enabled: true,
       emailVerified: true,
       email: s.upn ?? `${s.principal_id}@example.test`,
-      ...names(s.display_name),
+      ...keycloakNames(s.display_name),
       credentials: [
         {
           type: 'password',

@@ -88,7 +88,7 @@
       "emailVerified": true,
       "email": "alice@example.test",
       "firstName": "Alice",
-      "lastName": "Example (factory admin)",
+      "lastName": "Example",
       "credentials": [
         {
           "type": "password",
@@ -336,7 +336,7 @@
       "emailVerified": true,
       "email": "factory-admin@example.test",
       "firstName": "Factory",
-      "lastName": "admin (local account)",
+      "lastName": "admin",
       "credentials": [
         {
           "type": "password",

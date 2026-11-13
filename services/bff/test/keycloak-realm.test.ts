@@ -55,6 +55,18 @@ describe('the Keycloak realm and IdP seed', () => {
     expect(seed.subjects.every((s) => s.issuer === KEYCLOAK_DEFAULT_ISSUER)).toBe(true);
   });
 
+  it("gives every user a first and last name Keycloak's person-name validator accepts (no profile update at sign-in)", () => {
+    for (const u of realm.users as Json[]) {
+      for (const n of [u.firstName, u.lastName]) {
+        expect(n, u.username).toMatch(/^[^<>&"$%!#?§;*~/\\|^=[\]{}()]+$/);
+      }
+    }
+    expect(realm.users.find((u: Json) => u.username === 'alice')).toMatchObject({
+      firstName: 'Alice',
+      lastName: 'Example',
+    });
+  });
+
   it('puts every persona in the groups the design gives them, the break-glass account among the factory admins', () => {
     for (const g of PERSONA_GROUPS) {
       const members = realm.users

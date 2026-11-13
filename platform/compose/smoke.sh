@@ -78,7 +78,7 @@ own_sandboxes() { # docker subcommand words: ps -aq | network ls -q
 }
 
 cleanup() {
-  local code=$?
+  local code=${1:-$?}
   trap - EXIT
   if [ "$code" -ne 0 ]; then
     echo; echo "== smoke FAILED (exit $code): service states, then the tail of each log"
@@ -262,7 +262,8 @@ gw_nets=$(docker inspect "$(dc ps -q gateway)" --format '{{range $k, $v := .Netw
 echo "  gateway networks: $gw_nets"
 # telemetry-gateway (M19): its own link to the collector, nobody else of the stack on it; gateway-bff (P2-5): the bff's
 # Test and Reload, the bff and the gateway only
-[ "$gw_nets" = "data-gateway gateway-api gateway-bff gateway-egress killswitch-gateway telemetry-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
+# portal v2: vault-gateway is its link to Vault (its own folder, read only; nothing else is on it)
+[ "$gw_nets" = "data-gateway gateway-api gateway-bff gateway-egress killswitch-gateway telemetry-gateway vault-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
 on_egress=$(docker network inspect "${COMPOSE_PROJECT_NAME}_gateway-egress" --format '{{range .Containers}}{{.Name}} {{end}}')
 [ "$(printf '%s' "$on_egress" | wc -w)" = 1 ] || fail "something else is on the gateway's egress network: $on_egress"
 echo "  nothing but the gateway is on gateway-egress"
@@ -308,7 +309,7 @@ echo "  ledger entries signed by the Notary: $entries"
 [ "$entries" -gt 0 ] || fail "the ledger is empty"
 
 step "login through Keycloak reaches the bff"
-jar=$(mktemp); trap 'rc=$?; rm -f "$jar"; (exit "$rc"); cleanup' EXIT
+jar=$(mktemp); trap 'rc=$?; rm -f "$jar"; cleanup "$rc"' EXIT
 kc_login 8340 8390 alice secrets/keycloak-persona-password "$jar" || fail "alice could not sign in through Keycloak"
 me=$(curl -fsS -b "$jar" http://localhost:8340/api/me)
 echo "  /api/me: $(printf '%s' "$me" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s);console.log(`${m.principal.principal_id} (${m.principal.display_name}), fleet actions: ${m.actions.fleet.join(", ")}`)})')"
@@ -327,7 +328,7 @@ step "Vault: least privilege, the write-only secret API, the gateway reads what 
 vault_nets=$(docker inspect "$(dc ps -q vault)" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}_//" | grep -v '^$' | sort | tr '\n' ' ')
 echo "  vault's networks: $vault_nets"
 for n in $vault_nets; do
-  members=$(docker network inspect "${COMPOSE_PROJECT_NAME}_$n" --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}-//; s/-1$//" | grep -v '^$' | grep -v '^vault$' | sort | tr '\n' ' ')
+  members=$(docker network inspect "${COMPOSE_PROJECT_NAME}_$n" --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}-//; s/-1$//" | grep -v -e '^$' -e '^vault$' | sort | tr '\n' ' ' || true)
   [ "$(printf '%s' "$members" | wc -w)" -le 1 ] || fail "vault network $n is shared by: $members"
 done
 echo "  each Vault network holds Vault and at most one client"
