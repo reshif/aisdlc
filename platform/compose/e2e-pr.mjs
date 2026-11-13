@@ -760,13 +760,17 @@ try {
     `SELECT count(*) FROM record.record_event WHERE stream = 'item:${itemId}' AND type = 'item.merge_observed'`,
   );
   must(Number(merges) === 1, `item.merge_observed recorded ${merges} times`);
-  const gm = q1(
-    `SELECT count(*) FROM record.record_event WHERE type = 'gatecheck.merge_gated' AND body ->> 'item_id' = '${itemId}'`,
-  );
+  // gate-check sees the merge on its own poll and core reconciles it on its own loop: neither waits for the item to
+  // close, so on a slow host they can land after it. Wait for both (bounded), then assert exactly.
+  const gatedSql = `SELECT count(*) FROM record.record_event WHERE type = 'gatecheck.merge_gated' AND body ->> 'item_id' = '${itemId}'`;
+  const recSql = `SELECT body ->> 'outcome' FROM record.record_event WHERE type = 'merge.reconciled' AND stream = 'merge:${itemId}' ORDER BY seq DESC LIMIT 1`;
+  for (let waited = 0; waited < 120_000; waited += 2_000) {
+    if (Number(q1(gatedSql) ?? 0) >= 1 && (q1(recSql) ?? '') !== '') break;
+    await new Promise((r) => setTimeout(r, 2_000));
+  }
+  const gm = q1(gatedSql);
   must(Number(gm) === 1, `gate-check recorded ${gm} gated merges of the item`);
-  const rec = q1(
-    `SELECT body ->> 'outcome' FROM record.record_event WHERE type = 'merge.reconciled' AND stream = 'merge:${itemId}' ORDER BY seq DESC LIMIT 1`,
-  );
+  const rec = q1(recSql);
   must(rec === 'completed', `the merge was reconciled as ${rec}`);
   log(
     'gate-check recorded the merge as gated; core reconciled it as completed for the approved head; no X4',
