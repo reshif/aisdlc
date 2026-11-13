@@ -298,7 +298,7 @@ export function registerPeopleRoutes(d: PeopleRouteDeps): void {
   const FILTERS: Record<FleetLedgerFilter, string> = {
     all: 'TRUE',
     decisions: 'decision IS NOT NULL',
-    overrides: `(entry_type = '${ADMIN_OVERRIDE_ENTRY_TYPE}' OR body -> 'override' IS NOT NULL)`,
+    overrides: `(entry_type = '${ADMIN_OVERRIDE_ENTRY_TYPE}' OR jsonb_typeof(body -> 'override') = 'object')`,
     deletions: `entry_type IN ('${DELETION_ENTRY_TYPE}', 'redacted')`,
     access: `entry_type LIKE 'access.%'`,
   };
