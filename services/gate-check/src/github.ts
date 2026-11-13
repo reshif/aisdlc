@@ -3,6 +3,7 @@ import {
   type CodeHostNotOk,
   type CodeHostRead,
   type GitSha,
+  type GithubAppJobReport,
 } from '@aisdlc/contracts';
 import type { AppKey } from '@aisdlc/codehost';
 import { SecretValue, appJwt, notOkFromFetchError, notOkFromStatus } from '@aisdlc/codehost';
@@ -98,6 +99,12 @@ const Branch = z.looseObject({
   commit: z.looseObject({ sha: z.string().regex(/^[0-9a-f]{40}$/) }),
 });
 const Written = z.looseObject({ id: z.number().int().min(1) });
+const InstallationAnswer = z.looseObject({
+  account: z.looseObject({ login: z.string().min(1) }),
+  repository_selection: z.enum(['all', 'selected']),
+  permissions: z.record(z.string().min(1), z.string().min(1)),
+  suspended_at: z.string().nullable().optional(),
+});
 
 const enc = (repo: string): string =>
   repo
@@ -132,6 +139,8 @@ export class GitHubChecksHost implements GateCheckHostPort {
   private token: { secret: SecretValue; expires_at: number } | null = null;
   /** Tokens minted (cache hits are not mints). */
   mints = 0;
+  /** The last 2xx GitHub answered this App's credential with (for the App report). */
+  private lastOk: Date | null = null;
 
   constructor(private readonly o: GitHubChecksOptions) {
     this.base = checkBaseUrl(o.baseUrl, o.plainHttpHosts);
@@ -180,6 +189,7 @@ export class GitHubChecksHost implements GateCheckHostPort {
     }
     if (res.status < 200 || res.status >= 300)
       return notOkFromStatus(res.status, res.headers, what);
+    this.lastOk = this.clock.now();
     try {
       return {
         status: res.status,
@@ -189,6 +199,42 @@ export class GitHubChecksHost implements GateCheckHostPort {
     } catch {
       return readUnknown('malformed', `${what}: not JSON`);
     }
+  }
+
+  /**
+   * The App report (`GET /v1/app`, the portal's GitHub Apps panel through the bff): the App and installation, the key
+   * as loaded (it parsed at start, or gate-check did not start), the last good answer, and the installation as GitHub
+   * shows it to the App now (a JWT read; unknown when it cannot be read). Never the key or a token.
+   */
+  async report(): Promise<GithubAppJobReport> {
+    const jwt = appJwt(this.o.appKey, this.o.appId, this.clock.now());
+    const r = await this.send(
+      'GET',
+      '/app/installations/{installation_id}',
+      this.url(`/app/installations/${this.o.installationId}`),
+      `Bearer ${jwt}`,
+    );
+    const i = 'state' in r ? null : InstallationAnswer.safeParse(r.json);
+    return {
+      job: 'gate-check',
+      app_id: String(this.app_id),
+      installation_id: this.o.installationId,
+      login: null,
+      key_loaded: true,
+      last_ok_at: this.lastOk === null ? null : this.lastOk.toISOString(),
+      installation:
+        'state' in r
+          ? { state: r.state, reason: r.reason }
+          : i?.success
+            ? {
+                state: 'ok',
+                account_login: i.data.account.login,
+                repository_selection: i.data.repository_selection,
+                permissions: i.data.permissions,
+                suspended: i.data.suspended_at !== null && i.data.suspended_at !== undefined,
+              }
+            : { state: 'unknown', reason: 'malformed' },
+    };
   }
 
   /** The installation token, minted with exactly the App's permissions; one that carries more is discarded. */

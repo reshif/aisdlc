@@ -728,7 +728,22 @@ export class FakeGitHubServer {
     if (inst) {
       if (who.kind !== 'jwt')
         return void log(this.json(res, 401, { message: 'A JSON web token could not be decoded' }));
-      const i = this.seed.installation;
+      // a second App sees its own installation (its own grant); the main App the seed's
+      const second = {
+        checks: this.o.checksApp,
+        deploys: this.o.deployApp,
+        tracker: this.o.trackerApp,
+        push: this.o.pushApp,
+        main: undefined,
+      }[who.app ?? 'main'];
+      const i = second
+        ? {
+            ...this.seed.installation,
+            installation_id: second.installationId,
+            permissions: { ...second.permissions },
+          }
+        : this.seed.installation;
+      if (who.app !== 'main' && !second) return void log(this.json(res, 404, notFound));
       if (Number(inst[1]) !== i.installation_id) return void log(this.json(res, 404, notFound));
       return void log(
         this.json(res, 200, {
@@ -737,7 +752,7 @@ export class FakeGitHubServer {
           repository_selection: i.repository_selection,
           access_tokens_url: `${this.baseUrl}/app/installations/${i.installation_id}/access_tokens`,
           repositories_url: `${this.baseUrl}/installation/repositories`,
-          app_id: Number(this.o.appId) || 1,
+          app_id: second ? Number(second.appId) : Number(this.o.appId) || 1,
           target_id: 1,
           target_type: 'Organization',
           permissions: i.permissions,

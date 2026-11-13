@@ -6,6 +6,8 @@ import {
   RepoFullName,
   type CodeHostNotOk,
   type CodeHostRead,
+  type GithubAppJobReport,
+  type GithubAppReport,
 } from '@aisdlc/contracts';
 import { systemClock, type Clock } from '@aisdlc/kernel';
 import {
@@ -28,10 +30,17 @@ import type { TokenBroker } from './token-broker.js';
  * files, heads, CODEOWNERS) and the credential-free bundle, `posture` reads the posture facts (installation, effective rules,
  * collaborators, CODEOWNERS errors, the B4 verdict), `codeowners_sync` feeds CODEOWNERS owners into
  * the project's g4 group, `reload` re-reads the integration registry now (M10.4), `push` is the Push Broker (M13.6),
- * `tracker` the issue twin's tracker (M16: its own App, `issues: write`; only core-worker holds a token with it).
+ * `tracker` the issue twin's tracker (M16: its own App, `issues: write`; only core-worker holds a token with it),
+ * `status` the App report alone (`GET /v1/app`: the portal's GitHub Apps panel, through core; `posture` may read it too).
  */
 export type CodeHostScope =
-  'census' | 'posture' | 'codeowners_sync' | 'reload' | 'push' | 'tracker';
+  'census' | 'posture' | 'codeowners_sync' | 'reload' | 'push' | 'tracker' | 'status';
+
+/** What the process knows about the App(s) it holds, for `GET /v1/app`: never the key, only whether it loaded. */
+export interface CodeHostAppFacts {
+  readonly main: Omit<GithubAppJobReport, 'installation'> | null;
+  readonly tracker: Omit<GithubAppJobReport, 'installation'> | null;
+}
 
 export interface CodeHostAppOptions {
   /** The host to serve with. With `runtime` it is ignored: the runtime's current host is used per request. */
@@ -59,6 +68,8 @@ export interface CodeHostAppOptions {
    * `unknown`.
    */
   readonly tracker?: IssueTrackerPort;
+  /** The App facts for `GET /v1/app`; absent: the route reports no App. */
+  readonly appFacts?: () => CodeHostAppFacts;
 }
 
 const statusOf = (r: CodeHostNotOk): number => {
@@ -317,6 +328,43 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
   });
 
   // ------------------------------------------------------------ posture
+
+  /**
+   * The App report (the portal's GitHub Apps panel): which App and installation this process uses, whether its key
+   * loaded, its last good answer from GitHub, and the installation as GitHub shows it to the App now (a read with the
+   * App JWT; unknown when it cannot be read). The tracker's installation is not read here (its job shares it or not).
+   */
+  app.get('/v1/app', async (req, reply) => {
+    if (!allowed(req, 'status') && !allowed(req, 'posture')) return forbid(reply, 'status');
+    const facts = o.appFacts?.() ?? { main: null, tracker: null };
+    const reports: GithubAppJobReport[] = [];
+    if (facts.main) {
+      const i = facts.main.key_loaded ? await hostOf().installation() : null;
+      reports.push({
+        ...facts.main,
+        installation:
+          i === null
+            ? { state: 'unknown', reason: 'key_not_loaded' }
+            : i.state === 'ok'
+              ? {
+                  state: 'ok',
+                  account_login: i.value.account_login,
+                  repository_selection: i.value.repository_selection,
+                  permissions: { ...i.value.permissions },
+                  suspended: i.value.suspended,
+                }
+              : { state: i.state, reason: i.reason },
+      });
+    }
+    if (facts.tracker) {
+      reports.push({
+        ...facts.tracker,
+        installation: { state: 'unknown', reason: 'not_read' },
+      });
+    }
+    const body: GithubAppReport = { reports };
+    return body;
+  });
 
   app.get('/v1/installation', async (req, reply) => {
     if (!allowed(req, 'posture')) return forbid(reply, 'posture');

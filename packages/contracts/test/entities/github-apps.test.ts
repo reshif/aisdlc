@@ -6,7 +6,9 @@ import {
   TRACKER_APP_PERMISSIONS,
   comparePermissions,
   forbiddenPermissionsIn,
+  gateRequirementOf,
   githubAppPermissions,
+  githubAppsView,
   unionPermissions,
 } from '../../src/index.js';
 
@@ -75,5 +77,39 @@ describe('the two-App layout', () => {
       extra: ['administration:write', 'checks:write'],
       forbidden: ['administration:write'],
     });
+  });
+});
+
+describe('the GitHub Apps panel view', () => {
+  it('aisdlc/gate is required only when pinned to gate-check’s App; unread is unknown', () => {
+    const gate = [{ context: 'aisdlc/gate', integration_id: 22 }];
+    expect(gateRequirementOf(gate, '22')).toBe('required');
+    expect(gateRequirementOf([{ context: 'aisdlc/gate', integration_id: null }], '22')).toBe(
+      'other_source',
+    );
+    expect(gateRequirementOf(gate, '33')).toBe('other_source');
+    expect(gateRequirementOf([], '22')).toBe('not_required');
+    expect(gateRequirementOf(null, '22')).toBe('unknown');
+    expect(gateRequirementOf(gate, null)).toBe('unknown');
+  });
+
+  it('groups jobs by App id, flags gate-check sharing an App with the pusher, unknown grant stays null', () => {
+    const r = (job: 'read' | 'push' | 'gate-check', app: string) => ({
+      job,
+      app_id: app,
+      installation_id: 1,
+      login: null,
+      key_loaded: true,
+      last_ok_at: null,
+      installation: { state: 'unknown' as const, reason: 'network' },
+    });
+    const v = githubAppsView({
+      sources: [],
+      reports: [r('read', '1'), r('push', '1'), r('gate-check', '1')],
+      branches: [],
+    });
+    expect(v.apps).toHaveLength(1);
+    expect(v.apps[0]?.shares_with_pusher).toBe(true);
+    expect(v.apps[0]?.comparison).toBeNull();
   });
 });

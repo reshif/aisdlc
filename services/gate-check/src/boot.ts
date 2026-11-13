@@ -179,6 +179,7 @@ export async function bootGateCheck(
       pool,
       auth,
       callers: Object.fromEntries(Object.entries(callers).map(([n, c]) => [n, c.scopes])),
+      ...(host instanceof GitHubChecksHost ? { appReport: () => host.report() } : {}),
     });
     const url = await listen(app, listenOpts);
     sup.start();

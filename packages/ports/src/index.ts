@@ -18,6 +18,7 @@ export * from './issue-tracker.js';
 export * from './registered-repos.js';
 export * from './core-clients.js';
 export * from './http-codehost.js';
+export * from './github-app-report.js';
 export * from './http-issue-tracker.js';
 export * from './stage-ports.js';
 export * from './capacity.js';

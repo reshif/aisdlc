@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { Lane } from '../values.js';
+import { OnboardingStatus } from '../states/onboarding.js';
+import { Lane, Level } from '../values.js';
 import { BreakerState } from './breaker.js';
 import { BannerSeverity, BannerTarget } from './controls.js';
 import { InstallationRepo } from './codehost.js';
@@ -159,9 +160,38 @@ export type GatewayReloadView = z.infer<typeof GatewayReloadView>;
 
 // ---------------------------------------------------------------- P2-21: the onboard repo picker
 
+/**
+ * Where a repo of the installation stands (the GitHub Apps panel's Repositories list): never onboarded (or only by a
+ * withdrawn or superseded S0), an S0 in progress (with what it waits for), onboarded (the governing PRR's signed
+ * level and the lanes it opens), archived on GitHub, or unknown (the record could not be read: never a guess).
+ */
+export const RepoOnboardingState = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('not_onboarded') }),
+  z.strictObject({
+    state: z.literal('onboarding'),
+    project_id: ProjectId,
+    s0_id: z.string().min(1),
+    status: OnboardingStatus,
+    waiting: z.string().nullable(),
+  }),
+  z.strictObject({
+    state: z.literal('onboarded'),
+    project_id: ProjectId,
+    s0_id: z.string().min(1),
+    /** `null`: no PRR governs it (yet): unknown, not "none". */
+    level: Level.nullable(),
+    lanes: z.array(Lane).nullable(),
+  }),
+  z.strictObject({ state: z.literal('archived') }),
+  z.strictObject({ state: z.literal('unknown') }),
+]);
+export type RepoOnboardingState = z.infer<typeof RepoOnboardingState>;
+
 export const OnboardRepo = InstallationRepo.extend({
   /** A project already holds this repo (onboarded or being onboarded). */
   registered: z.boolean(),
+  onboarding: RepoOnboardingState.optional(),
 });
+export type OnboardRepo = z.infer<typeof OnboardRepo>;
 export const OnboardReposView = z.strictObject({ repos: z.array(OnboardRepo) });
 export type OnboardReposView = z.infer<typeof OnboardReposView>;

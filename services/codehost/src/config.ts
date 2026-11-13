@@ -20,7 +20,9 @@ const Callers = z.record(
   z.strictObject({
     token_ref: z.string().min(1),
     scopes: z
-      .array(z.enum(['census', 'posture', 'codeowners_sync', 'reload', 'push', 'tracker']))
+      .array(
+        z.enum(['census', 'posture', 'codeowners_sync', 'reload', 'push', 'tracker', 'status']),
+      )
       .min(1),
   }),
 );

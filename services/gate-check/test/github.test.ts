@@ -155,4 +155,36 @@ describe('gate-check’s own App on the host', () => {
   });
 });
 
+describe('the App report (the portal GitHub Apps panel)', () => {
+  it('reports its own App and installation as GitHub shows it, and unknown when GitHub does not answer', async () => {
+    const s = await serve();
+    try {
+      const h = new GitHubChecksHost({
+        baseUrl: s.baseUrl,
+        appId: CHECKS_APP,
+        installationId: 22,
+        appKey: checksKey,
+      });
+      const r = await h.report();
+      expect(r).toMatchObject({
+        job: 'gate-check',
+        app_id: CHECKS_APP,
+        installation_id: 22,
+        key_loaded: true,
+        installation: {
+          state: 'ok',
+          repository_selection: 'selected',
+          permissions: GATE_CHECK_APP_PERMISSIONS,
+        },
+      });
+      expect(r.last_ok_at).not.toBeNull();
+      expect(JSON.stringify(r)).not.toMatch(/PRIVATE KEY|ghs_|eyJ/);
+      s.answerWith(503);
+      expect((await h.report()).installation.state).toBe('unknown');
+    } finally {
+      await s.stop();
+    }
+  });
+});
+
 process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
