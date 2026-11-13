@@ -31,7 +31,7 @@ import {
   linkIdentity,
   setPrincipalStatus,
 } from './commands.js';
-import { createIdentityApp, type IdentityScope } from './app.js';
+import { createIdentityApp, type IdentityScope, type IdentityWriteDecider } from './app.js';
 import { reconcileProject } from './reconcile.js';
 import { migrateIdentity } from './migrations.js';
 import type { IdentityDeps } from './tx.js';
@@ -280,7 +280,13 @@ export async function startTestIdentityApi(
    * Another source of project settings than the stack's fake (core's HTTP adapter, say); the stack's
    * IdP and ledger on request (`POST /v1/idp/sync` and the access-sync routes need them).
    */
-  over: { settings?: ProjectSettingsPort; withIdp?: boolean; withLedger?: boolean } = {},
+  over: {
+    settings?: ProjectSettingsPort;
+    withIdp?: boolean;
+    withLedger?: boolean;
+    /** The PDP for a caller with scope `admin` (a person's writes). */
+    decide?: IdentityWriteDecider;
+  } = {},
 ): Promise<{ url: string; stop(): Promise<void> }> {
   const app = createIdentityApp({
     pool: s.record.pool,
@@ -291,6 +297,7 @@ export async function startTestIdentityApi(
     settings: over.settings ?? s.settings,
     ...(over.withIdp ? { idp: s.idp } : {}),
     ...(over.withLedger ? { ledger: s.ledger } : {}),
+    ...(over.decide ? { decide: over.decide } : {}),
     clock: s.clock,
   });
   const url = await listen(app);

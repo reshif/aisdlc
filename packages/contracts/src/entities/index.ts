@@ -70,3 +70,4 @@ export * from './secrets.js';
 export * from './settings.js';
 export * from './admin-override.js';
 export * from './deletion.js';
+export * from './people.js';

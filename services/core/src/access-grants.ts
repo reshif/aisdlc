@@ -34,6 +34,7 @@ import {
   recordEvidenceViewed,
   type DecisionDeps,
   type GateState,
+  type OverrideInput,
 } from '@aisdlc/decisions';
 import { freshReadModel, getPrincipal, queryGrants } from '@aisdlc/identity/read';
 import {
@@ -459,13 +460,15 @@ async function grantGate(d: AccessDeps, id: string): Promise<Result<Loaded, Core
 
 export async function prepareAccess(
   d: AccessDeps,
-  o: { grant_id: string; principal: PrincipalId },
+  o: { grant_id: string; principal: PrincipalId; override?: OverrideInput | undefined },
 ) {
   const l = await grantGate(d, o.grant_id);
   if (!l.ok) return l;
+  // the factory admin may answer any access request (their own too) with a reason, recorded on the decision
   const p = await prepare(d.decisions, {
     gate_instance_id: l.value.proposed.gate_instance_id,
     principal: o.principal,
+    ...(o.override ? { override: o.override } : {}),
   });
   return p.ok
     ? ok({
@@ -512,6 +515,7 @@ export async function decideAccess(
     nonce: string;
     decision: string;
     step_up?: { proof: string } | undefined;
+    override?: OverrideInput | undefined;
   },
 ): Promise<Result<AccessDecideResult, CoreError>> {
   const l = await grantGate(d, o.grant_id);
@@ -523,6 +527,7 @@ export async function decideAccess(
     nonce: o.nonce,
     decision: o.decision,
     ...(o.step_up ? { step_up: o.step_up } : {}),
+    ...(o.override ? { override: o.override } : {}),
   });
   if (!r.ok) return err(decisionRefusal(r.error));
   const after = r.value.after;
