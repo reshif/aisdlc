@@ -18,6 +18,9 @@ const everything = (): Me => ({
   },
 });
 
+/** The top bar (its landmark is the page's one banner). */
+const topBar = (): HTMLElement => document.querySelector('.ui-top') as HTMLElement;
+
 describe('the v2 navigation', () => {
   it('follows the screen map: Work, Projects, Run, Govern, with the glossary labels', () => {
     const groups = navFor(everything());
@@ -128,10 +131,8 @@ describe('the v2 top bar', () => {
       '/operate/stop',
     );
     expect(screen.getByRole('link', { name: 'Ask for work' })).toHaveAttribute('href', '/ask');
-    expect(screen.getByRole('link', { name: 'My notifications' })).toHaveAttribute(
-      'href',
-      '/me/notifications',
-    );
+    // the bell is the inbox; the notifications live in the account menu
+    expect(within(topBar()).getByRole('link', { name: 'Inbox' })).toHaveAttribute('href', '/inbox');
   });
 
   it('⌘K opens the search; it finds a screen the person may open and goes there', async () => {
@@ -147,16 +148,73 @@ describe('the v2 top bar', () => {
     expect(screen.queryByRole('combobox', { name: 'Search' })).toBeNull();
   });
 
-  it('the project switcher lists the projects the person has', async () => {
+  it('the inbox bell carries the count of what waits on the person', async () => {
+    mockApi({
+      'GET /api/me': { json: everything() },
+      'GET /api/inbox': { json: { decide: [{ id: 1 }, { id: 2 }, { id: 3 }], view: [] } },
+    });
+    renderAt('/projects');
+    await screen.findByRole('button', { name: 'Account: Alice Admin' });
+    const bell = await within(topBar()).findByRole('link', {
+      name: 'Inbox, 3 waiting on you',
+    });
+    expect(bell).toHaveAttribute('href', '/inbox');
+    expect(bell).toHaveTextContent('3');
+  });
+
+  it('the project switcher is a combobox: filter, arrows, Enter opens the project, Escape closes', async () => {
     const user = userEvent.setup();
-    mockApi({ 'GET /api/me': { json: everything() }, 'GET /api/projects': { json: [] } });
+    mockApi({
+      'GET /api/me': {
+        json: {
+          ...everything(),
+          actions: {
+            ...everything().actions,
+            projects: [
+              { project_id: 'payments-api', actions: ['project.view'] },
+              { project_id: 'web-storefront', actions: ['project.view'] },
+            ],
+          },
+        },
+      },
+      'GET /api/projects': { json: [] },
+    });
+    renderAt('/projects');
+    const trigger = await screen.findByRole('button', { name: 'Choose a project' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    const box = screen.getByRole('combobox', { name: 'Find a project' });
+    expect(box).toHaveFocus();
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'All projects',
+      'payments-api',
+      'web-storefront',
+    ]);
+    await user.type(box, 'web');
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    await user.clear(box);
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    expect(screen.getByRole('option', { name: 'web-storefront' })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+    expect(box).toHaveAttribute('aria-activedescendant', expect.stringContaining('web-storefront'));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('combobox', { name: 'Find a project' })).toBeNull();
+    expect(trigger).toHaveFocus();
+    await user.click(trigger);
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    await waitFor(() => expect(window.location.pathname).toBe('/projects/web-storefront'));
+  });
+
+  it('the project switcher lists only the projects the person has, with All projects first', async () => {
+    const user = userEvent.setup();
+    mockApi({ 'GET /api/me': { json: me([]) }, 'GET /api/projects': { json: [] } });
     renderAt('/projects');
     await user.click(await screen.findByRole('button', { name: 'Choose a project' }));
-    expect(screen.getByRole('link', { name: 'payments-api' })).toHaveAttribute(
-      'href',
-      '/projects/payments-api',
-    );
-    expect(screen.getByRole('link', { name: 'All projects' })).toHaveAttribute('href', '/projects');
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['All projects']);
   });
 });
 

@@ -107,6 +107,66 @@ const ICONS: Readonly<Record<string, ReactNode>> = {
       <path d="M14 3v5h5M9 13h7M9 17h7" />
     </>
   ),
+  board: (
+    <>
+      <rect x="3" y="4" width="5" height="16" rx="1" />
+      <rect x="10" y="4" width="5" height="10" rx="1" />
+      <rect x="17" y="4" width="4" height="13" rx="1" />
+    </>
+  ),
+  fleet: (
+    <>
+      <path d="m3 7 9-4 9 4-9 4-9-4Z" />
+      <path d="m3 12 9 4 9-4M3 17l9 4 9-4" />
+    </>
+  ),
+  evals: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
+  catalogue: (
+    <>
+      <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Z" />
+      <path d="M5 17a3 3 0 0 1 3-3h11" />
+    </>
+  ),
+  people: (
+    <>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </>
+  ),
+  teams: (
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.5a6.5 6.5 0 0 1 3.5 5.5" />
+    </>
+  ),
+  roles: <path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6l-7-3Z" />,
+  access_requests: (
+    <>
+      <circle cx="8" cy="12" r="4" />
+      <path d="M12 12h9M18 12v3" />
+    </>
+  ),
+  who_can: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </>
+  ),
+  ask_for_work: <path d="M12 5v14M5 12h14" />,
+  assistant: <path d="M4 5h16v11H9l-5 4V5Z" />,
+  my_notifications: <path d="M6 10a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Zm4 9a2 2 0 0 0 4 0" />,
+  my_access: (
+    <>
+      <rect x="4" y="10" width="16" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </>
+  ),
+  my_profile: (
+    <>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </>
+  ),
   // the sidebar toggle
   collapse: (
     <>

@@ -8,11 +8,13 @@ import {
   type ReactNode,
 } from 'react';
 import { NavIcon } from './icons';
+import { Breadcrumb } from './page';
 
-// The portal's shell (the skeleton's screen 1): a top bar (logo, project switcher, search, emergency-stop state,
-// notifications, the person), the grouped left navigation and the content. Under 860px the navigation collapses
-// into a menu (a drawer over the page). The shell knows nothing of access: the caller passes only the entries the
-// person may open, so "an entry the person cannot open is not listed; an empty group is not shown".
+// The portal's shell: a compact top bar (wordmark, project switcher, search, the person's controls), a slim rail of
+// group icons on the left (collapsed by default; expanded it is a two-level list), and in the page a header band
+// with the breadcrumb and the pages of the current section as tabs. Under 860px the navigation is a drawer. The
+// shell knows nothing of access: the caller passes only the entries the person may open, so an entry the person
+// cannot open is not listed anywhere (rail, flyout, tabs, palette) and an empty group is not shown.
 
 export interface ShellNavEntry {
   readonly id: string;
@@ -22,12 +24,24 @@ export interface ShellNavEntry {
   /** A count after the label (the inbox): its meaning is in `countLabel`. */
   readonly count?: number;
   readonly countLabel?: string;
-  /** Sub-entries, listed under the entry while it (or one of them) is current. */
+  /** Sub-pages: they are tabs of the section's page header, never a second level in the sidebar. */
   readonly children?: readonly ShellNavEntry[];
 }
 
+export interface ShellNavGroup {
+  readonly id: string;
+  /** `null`: an unlabelled first group. */
+  readonly label: string | null;
+  readonly entries: readonly ShellNavEntry[];
+}
+
+export type RenderLink = (
+  to: string,
+  children: ReactNode,
+  props: { className?: string; 'aria-current'?: 'page'; onClick?: () => void },
+) => ReactNode;
+
 const STORE_KEY = 'aisdlc.nav.collapsed';
-const NARROW = '(max-width: 1100px)';
 const PHONE = '(max-width: 859px)';
 
 const media = (q: string): boolean =>
@@ -65,20 +79,18 @@ const writeCollapsed = (v: boolean) => {
   }
 };
 
-export interface ShellNavGroup {
-  readonly id: string;
-  /** `null`: the first, unlabelled group (Home, Inbox). */
-  readonly label: string | null;
-  readonly entries: readonly ShellNavEntry[];
-  /** Show the group's pages as a tab bar at the top of the content while one of them is current. */
-  readonly tabs?: boolean;
-}
+const anyCurrent = (e: ShellNavEntry): boolean => e.current || (e.children ?? []).some(anyCurrent);
 
-export type RenderLink = (
-  to: string,
-  children: ReactNode,
-  props: { className?: string; 'aria-current'?: 'page'; onClick?: () => void },
-) => ReactNode;
+/** A group's pages as tabs: each entry, then its sub-pages; a section that only points at its first page is skipped. */
+function tabsOf(group: ShellNavGroup): ShellNavEntry[] {
+  const out: ShellNavEntry[] = [];
+  for (const e of group.entries) {
+    const first = e.children?.[0];
+    if (!(first && first.to === e.to)) out.push(e);
+    for (const c of e.children ?? []) out.push(c);
+  }
+  return out;
+}
 
 export function AppShell({
   brand,
@@ -90,6 +102,7 @@ export function AppShell({
   nav,
   navFoot,
   banners,
+  here,
   locationKey,
   renderLink,
   children,
@@ -100,7 +113,7 @@ export function AppShell({
   search?: ReactNode;
   /** The emergency-stop state pill. */
   status?: ReactNode;
-  /** Bell, Ask for work, Stop agents. */
+  /** Ask for work, Stop agents, the inbox bell, the theme. */
   actions?: ReactNode;
   /** The avatar menu. */
   account?: ReactNode;
@@ -108,19 +121,16 @@ export function AppShell({
   nav: readonly ShellNavGroup[] | null;
   navFoot?: ReactNode;
   banners?: ReactNode;
+  /** The page's name when it is in no group (the person's own pages): shown as the one breadcrumb. */
+  here?: string;
   /** Changes on every navigation: the menu closes and focus goes to the content. */
   locationKey: string;
   renderLink: RenderLink;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed() ?? media(NARROW));
-  const narrow = useMedia(NARROW);
+  const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed() ?? true);
   const phone = useMedia(PHONE);
-  // a screen that becomes narrow collapses the rail (not remembered: the remembered choice is the toggle's)
-  useEffect(() => {
-    if (narrow) setCollapsed(true);
-  }, [narrow]);
   const toggle = () => {
     setCollapsed(!collapsed);
     writeCollapsed(!collapsed);
@@ -128,7 +138,7 @@ export function AppShell({
   // the phone's menu is the drawer: always the full list
   const rail = collapsed && !phone;
   const navId = useId();
-  const tabbed = nav?.find((g) => g.tabs && g.entries.length > 1 && g.entries.some(anyCurrent));
+  const group = nav?.find((g) => g.entries.some(anyCurrent));
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
   useEffect(() => {
@@ -158,11 +168,11 @@ export function AppShell({
             aria-controls={navId}
             onClick={() => setOpen((v) => !v)}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 d="M4 7h16M4 12h16M4 17h16"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="1.75"
                 strokeLinecap="round"
               />
             </svg>
@@ -171,7 +181,7 @@ export function AppShell({
         ) : null}
         <div className="ui-top-brand">{brand}</div>
         {switcher ? <div className="ui-top-switch">{switcher}</div> : null}
-        {search ? <div className="ui-top-search">{search}</div> : <div className="ui-top-fill" />}
+        <div className="ui-top-search">{search}</div>
         <div className="ui-top-right">
           {status}
           {actions}
@@ -190,12 +200,6 @@ export function AppShell({
               aria-label="Main"
               onKeyDown={onNavKey}
             >
-              {rail ? (
-                <Rail groups={nav} renderLink={renderLink} />
-              ) : (
-                <NavTree groups={nav} renderLink={renderLink} />
-              )}
-              {navFoot && !rail ? <div className="ui-nav-foot">{navFoot}</div> : null}
               <button
                 type="button"
                 className="ui-nav-toggle"
@@ -208,15 +212,74 @@ export function AppShell({
                 <NavIcon id={collapsed ? 'expand' : 'collapse'} />
                 <span className="ui-nav-label">Collapse</span>
               </button>
+              {rail ? (
+                <Rail groups={nav} renderLink={renderLink} />
+              ) : (
+                <NavTree groups={nav} renderLink={renderLink} />
+              )}
+              {navFoot && !rail ? <div className="ui-nav-foot">{navFoot}</div> : null}
             </nav>
           </>
         ) : null}
         <main id="main" tabIndex={-1} ref={mainRef} className="ui-main">
+          {nav ? <PageBand group={group} here={here} renderLink={renderLink} /> : null}
           {banners ? <div className="ui-banners">{banners}</div> : null}
-          {tabbed ? <SectionTabs group={tabbed} renderLink={renderLink} /> : null}
-          {children}
+          <div className="ui-content">{children}</div>
         </main>
       </div>
+    </div>
+  );
+}
+
+/** The page header band: where you are (section, page) and the section's pages as tabs. */
+function PageBand({
+  group,
+  here,
+  renderLink,
+}: {
+  group: ShellNavGroup | undefined;
+  here: string | undefined;
+  renderLink: RenderLink;
+}) {
+  const tabs = group ? tabsOf(group) : [];
+  const exact = tabs.find((t) => t.current);
+  const inside = group ? (exact ?? group.entries.find(anyCurrent)) : undefined;
+  const crumbs = group
+    ? [
+        ...(group.label ? [{ label: group.label }] : []),
+        ...(inside
+          ? [inside === exact ? { label: inside.label } : { label: inside.label, to: inside.to }]
+          : []),
+      ]
+    : here
+      ? [{ label: here }]
+      : [];
+  if (crumbs.length === 0 && tabs.length < 2) return null;
+  return (
+    <div className="ui-band">
+      {crumbs.length > 0 ? (
+        <div className="ui-band-crumbs">
+          <Breadcrumb
+            crumbs={crumbs}
+            label="Location"
+            renderLink={(to, text) => renderLink(to, text, {})}
+          />
+        </div>
+      ) : null}
+      {tabs.length > 1 ? (
+        <nav className="ui-sectabs" aria-label={`${group?.label ?? 'Section'} pages`}>
+          <ul>
+            {tabs.map((e) => (
+              <li key={e.id}>
+                {renderLink(e.to, e.label, {
+                  className: `ui-sectab${e.current ? ' ui-sectab-on' : ''}`,
+                  ...(e.current ? { 'aria-current': 'page' as const } : {}),
+                })}
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
     </div>
   );
 }
@@ -240,92 +303,50 @@ function NavTree({
 function NavSection({ group, renderLink }: { group: ShellNavGroup; renderLink: RenderLink }) {
   const hid = useId();
   return (
-    <section {...(group.label ? { 'aria-labelledby': hid } : { 'aria-label': 'Start' })}>
+    <section
+      className="ui-nav-sec"
+      {...(group.label ? { 'aria-labelledby': hid } : { 'aria-label': 'Start' })}
+    >
       {group.label ? (
         <h2 id={hid} className="ui-nav-h">
-          <NavIcon id={group.id} size={14} />
           {group.label}
         </h2>
       ) : null}
       <ul className="ui-nav-list">
         {group.entries.map((e) => (
-          <NavItem key={e.id} entry={e} renderLink={renderLink} depth={0} />
+          <li key={e.id}>{navLink(e, renderLink)}</li>
         ))}
       </ul>
     </section>
   );
 }
 
-const anyCurrent = (e: ShellNavEntry): boolean => e.current || (e.children ?? []).some(anyCurrent);
-
-function NavItem({
-  entry,
-  renderLink,
-  depth,
-}: {
-  entry: ShellNavEntry;
-  renderLink: RenderLink;
-  depth: number;
-}) {
-  const kids = entry.children ?? [];
-  const expanded = kids.length > 0 && anyCurrent(entry);
-  // the parent of a current child is "in" the section, not the page itself
-  const here = entry.current && !kids.some(anyCurrent);
-  return (
-    <li>
-      {renderLink(
-        entry.to,
-        <>
-          {depth === 0 ? <NavIcon id={entry.id} /> : null}
-          <span className="ui-nav-label">{entry.label}</span>
-          {entry.count !== undefined && entry.count > 0 ? ' ' : null}
-          {entry.count !== undefined && entry.count > 0 ? (
-            <span className="ui-nav-count">
-              {entry.count}
-              {entry.countLabel ? (
-                <>
-                  {' '}
-                  <span className="ui-sr">{entry.countLabel}</span>
-                </>
-              ) : null}
-            </span>
+/** One page of the sidebar or a flyout: icon, name, count. A page whose sub-page is open is still "here". */
+function navLink(e: ShellNavEntry, renderLink: RenderLink, onClick?: () => void): ReactNode {
+  const here = anyCurrent(e);
+  return renderLink(
+    e.to,
+    <>
+      <NavIcon id={e.id} />
+      <span className="ui-nav-label">{e.label}</span>
+      {e.count !== undefined && e.count > 0 ? ' ' : null}
+      {e.count !== undefined && e.count > 0 ? (
+        <span className="ui-nav-count">
+          {e.count}
+          {e.countLabel ? (
+            <>
+              {' '}
+              <span className="ui-sr">{e.countLabel}</span>
+            </>
           ) : null}
-        </>,
-        {
-          className: `ui-nav-link${depth > 0 ? ' ui-nav-sub' : ''}${expanded && !here ? ' ui-nav-in' : ''}`,
-          ...(here ? { 'aria-current': 'page' as const } : {}),
-        },
-      )}
-      {expanded ? (
-        <ul className="ui-nav-list">
-          {kids.map((k) => (
-            <NavItem key={k.id} entry={k} renderLink={renderLink} depth={depth + 1} />
-          ))}
-        </ul>
+        </span>
       ) : null}
-    </li>
-  );
-}
-
-/** The pages of the group the person is in, as links at the top of the content (a nav, not ARIA tabs). */
-function SectionTabs({ group, renderLink }: { group: ShellNavGroup; renderLink: RenderLink }) {
-  return (
-    <nav className="ui-sectabs" aria-label={`${group.label ?? 'Section'} pages`}>
-      <ul>
-        {group.entries.map((e) => {
-          // a section (People, teams & roles) is the current tab while one of its pages is open
-          const on = anyCurrent(e);
-          return (
-            <li key={e.id}>
-              {renderLink(e.to, e.label, {
-                className: `ui-sectab${on ? ' ui-sectab-on' : ''}`,
-                ...(on ? { 'aria-current': 'page' as const } : {}),
-              })}
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    </>,
+    {
+      className: 'ui-nav-link',
+      ...(onClick ? { onClick } : {}),
+      ...(here ? { 'aria-current': 'page' as const } : {}),
+    },
   );
 }
 
@@ -441,8 +462,8 @@ function RailGroup({
           setOpen(pinned.current);
         }}
       >
-        <NavIcon id={group.id} size={20} />
-        {waiting > 0 ? <span className="ui-rail-badge">{waiting}</span> : null}
+        <NavIcon id={group.id} size={18} />
+        {waiting > 0 ? <span className="ui-rail-dot" aria-hidden="true" /> : null}
       </button>
       <div id={id} className="ui-rail-fly" hidden={!open}>
         {open ? (
@@ -451,29 +472,10 @@ function RailGroup({
             <ul ref={list} className="ui-nav-list" aria-label={name}>
               {group.entries.map((e) => (
                 <li key={e.id}>
-                  {renderLink(
-                    e.to,
-                    <>
-                      <NavIcon id={e.id} />
-                      <span className="ui-nav-label">{e.label}</span>
-                      {e.count ? (
-                        <span className="ui-nav-count">
-                          {e.count}
-                          {e.countLabel ? <span className="ui-sr"> {e.countLabel}</span> : null}
-                        </span>
-                      ) : null}
-                    </>,
-                    {
-                      className: 'ui-nav-link',
-                      onClick: () => {
-                        pinned.current = false;
-                        setOpen(false);
-                      },
-                      ...(e.current && !(e.children ?? []).some(anyCurrent)
-                        ? { 'aria-current': 'page' as const }
-                        : {}),
-                    },
-                  )}
+                  {navLink(e, renderLink, () => {
+                    pinned.current = false;
+                    setOpen(false);
+                  })}
                 </li>
               ))}
             </ul>
@@ -484,11 +486,11 @@ function RailGroup({
   );
 }
 
-// ---------------------------------------------------------------- menus and the command palette
+// ---------------------------------------------------------------- menus, the combobox and the command palette
 
 /**
- * A button that opens a small panel (the avatar menu, the project switcher): a disclosure, not an ARIA menu, so
- * its links and buttons are ordinary tab stops. Escape and a click outside close it and focus goes back.
+ * A button that opens a small panel (the avatar menu): a disclosure, not an ARIA menu, so its links and buttons
+ * are ordinary tab stops. Escape and a click outside close it and focus goes back.
  */
 export function MenuButton({
   label,
@@ -550,23 +552,204 @@ export function MenuButton({
   );
 }
 
+export interface ComboOption {
+  readonly id: string;
+  readonly label: string;
+  /** A second, muted word (the kind of thing). */
+  readonly hint?: string;
+}
+
+/**
+ * A select-only combobox with a filter (the project switcher): a button that opens a popover with a search field
+ * and a listbox. Arrows move, Home and End jump, Enter picks, Escape closes and focus returns to the button.
+ */
+export function Combobox({
+  label,
+  button,
+  options,
+  selected,
+  onPick,
+  placeholder = 'Find a project',
+  empty = 'Nothing matches.',
+  className,
+}: {
+  /** The accessible name of the button. */
+  label: string;
+  button: ReactNode;
+  options: readonly ComboOption[];
+  selected: string | null;
+  onPick: (id: string) => void;
+  placeholder?: string;
+  empty?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [at, setAt] = useState(0);
+  const base = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const hits = useMemo(() => {
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return options.filter((o) => {
+      const hay = `${o.label} ${o.hint ?? ''}`.toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
+  }, [options, q]);
+  const active = hits[Math.min(at, hits.length - 1)];
+  useEffect(() => {
+    if (!open) return;
+    input.current?.focus();
+    const away = (e: MouseEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open]);
+  const show = () => {
+    setQ('');
+    setAt(
+      Math.max(
+        0,
+        options.findIndex((o) => o.id === selected),
+      ),
+    );
+    setOpen(true);
+  };
+  const close = (refocus: boolean) => {
+    setOpen(false);
+    if (refocus) btn.current?.focus();
+  };
+  const pick = (o: ComboOption | undefined) => {
+    if (!o) return;
+    close(false);
+    onPick(o.id);
+  };
+  return (
+    <div ref={root} className={`ui-menu ui-combo${className ? ` ${className}` : ''}`}>
+      <button
+        ref={btn}
+        type="button"
+        className="ui-menu-btn ui-combo-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={`${base}-pop`}
+        aria-label={label}
+        onClick={() => (open ? close(false) : show())}
+      >
+        {button}
+      </button>
+      <div id={`${base}-pop`} className="ui-menu-pop ui-menu-start ui-combo-pop" hidden={!open}>
+        {open ? (
+          <>
+            <input
+              ref={input}
+              className="ui-combo-input"
+              type="text"
+              role="combobox"
+              aria-expanded="true"
+              aria-controls={`${base}-list`}
+              aria-autocomplete="list"
+              aria-label={placeholder}
+              placeholder={placeholder}
+              autoComplete="off"
+              spellCheck={false}
+              {...(active ? { 'aria-activedescendant': `${base}-o-${active.id}` } : {})}
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setAt(0);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  close(true);
+                } else if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setAt((v) => Math.min(v + 1, Math.max(hits.length - 1, 0)));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setAt((v) => Math.max(v - 1, 0));
+                } else if (e.key === 'Home') {
+                  e.preventDefault();
+                  setAt(0);
+                } else if (e.key === 'End') {
+                  e.preventDefault();
+                  setAt(Math.max(hits.length - 1, 0));
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  pick(active);
+                } else if (e.key === 'Tab') {
+                  close(false);
+                }
+              }}
+            />
+            <ul id={`${base}-list`} role="listbox" aria-label={label} className="ui-combo-list">
+              {hits.map((o) => (
+                <li
+                  key={o.id}
+                  id={`${base}-o-${o.id}`}
+                  role="option"
+                  aria-selected={o.id === selected}
+                  className={o === active ? 'ui-combo-on' : undefined}
+                  onMouseMove={() => setAt(hits.indexOf(o))}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pick(o);
+                  }}
+                >
+                  <span className="ui-combo-label">{o.label}</span>
+                  {o.hint ? <span className="ui-combo-hint">{o.hint}</span> : null}
+                  {o.id === selected ? (
+                    <svg
+                      className="ui-combo-check"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m5 12 5 5 9-10" />
+                    </svg>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            {hits.length === 0 ? <p className="ui-combo-none">{empty}</p> : null}
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export interface PaletteItem {
   readonly id: string;
   readonly label: string;
-  /** A second line: the group, the project. */
+  /** A second, muted word: the project's kind, the page's section. */
   readonly hint?: string;
+  /** The heading the item is listed under ("Pages", "Projects"); items of one group are kept together. */
+  readonly group?: string;
+  /** A nav icon id. */
+  readonly icon?: string;
   readonly to: string;
 }
 
 /**
- * ⌘K search: a dialog with one field and the matching places, arrow keys to move, Enter to open. It searches what
- * the caller gives it (the screens and projects the person may open); it never shows something the nav would hide.
+ * ⌘K search: a dialog with one field and the matching places under their headings, arrow keys to move, Enter to
+ * open, Escape to close. It searches what the caller gives it (the screens and projects the person may open); it
+ * never shows something the nav would hide.
  */
 export function CommandPalette({
   items,
   onPick,
   onClose,
-  placeholder = 'Search screens and projects',
+  placeholder = 'Search pages and projects',
 }: {
   items: readonly PaletteItem[];
   onPick: (to: string) => void;
@@ -583,14 +766,18 @@ export function CommandPalette({
     input.current?.focus();
     return () => back.current?.focus?.();
   }, []);
+  // the matches, kept in their groups in the order the caller gave the groups
   const hits = useMemo(() => {
     const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return items
+    const found = items
       .filter((i) => {
-        const hay = `${i.label} ${i.hint ?? ''}`.toLowerCase();
+        const hay = `${i.label} ${i.hint ?? ''} ${i.group ?? ''}`.toLowerCase();
         return words.every((w) => hay.includes(w));
       })
-      .slice(0, 12);
+      .slice(0, 30);
+    const order: string[] = [];
+    for (const i of found) if (!order.includes(i.group ?? '')) order.push(i.group ?? '');
+    return order.flatMap((g) => found.filter((i) => (i.group ?? '') === g));
   }, [items, q]);
   const pick = (i: PaletteItem | undefined) => {
     if (!i) return;
@@ -598,6 +785,7 @@ export function CommandPalette({
     onClose();
   };
   const active = hits[Math.min(at, hits.length - 1)];
+  const groups = [...new Set(hits.map((h) => h.group ?? ''))];
   return (
     <div
       className="ui-scrim ui-scrim-center ui-scrim-top"
@@ -606,61 +794,107 @@ export function CommandPalette({
       }}
     >
       <div className="ui-palette" role="dialog" aria-modal="true" aria-label="Search">
-        <input
-          ref={input}
-          className="ui-input ui-palette-input"
-          type="search"
-          role="combobox"
-          aria-expanded="true"
-          aria-controls={listId}
-          aria-autocomplete="list"
-          {...(active ? { 'aria-activedescendant': `${listId}-${active.id}` } : {})}
-          aria-label="Search"
-          placeholder={placeholder}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setAt(0);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation();
-              onClose();
-            } else if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              setAt((v) => Math.min(v + 1, Math.max(hits.length - 1, 0)));
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              setAt((v) => Math.max(v - 1, 0));
-            } else if (e.key === 'Enter') {
-              e.preventDefault();
-              pick(active);
-            } else if (e.key === 'Tab') {
-              e.preventDefault();
-            }
-          }}
-        />
-        <ul id={listId} role="listbox" aria-label="Results" className="ui-palette-list">
-          {hits.map((i) => (
-            <li
-              key={i.id}
-              id={`${listId}-${i.id}`}
-              role="option"
-              aria-selected={i === active}
-              className={i === active ? 'ui-palette-on' : undefined}
-              onMouseDown={(e) => {
+        <div className="ui-palette-bar">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            ref={input}
+            className="ui-palette-input"
+            type="text"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-autocomplete="list"
+            {...(active ? { 'aria-activedescendant': `${listId}-${active.id}` } : {})}
+            aria-label="Search"
+            placeholder={placeholder}
+            autoComplete="off"
+            spellCheck={false}
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setAt(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                onClose();
+              } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                pick(i);
-              }}
-            >
-              <span>{i.label}</span>
-              {i.hint ? <span className="ui-palette-hint">{i.hint}</span> : null}
+                setAt((v) => Math.min(v + 1, Math.max(hits.length - 1, 0)));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setAt((v) => Math.max(v - 1, 0));
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                pick(active);
+              } else if (e.key === 'Tab') {
+                e.preventDefault();
+              }
+            }}
+          />
+          <kbd className="ui-kbd" aria-hidden="true">
+            Esc
+          </kbd>
+        </div>
+        <ul id={listId} role="listbox" aria-label="Results" className="ui-palette-list">
+          {groups.map((g) => (
+            <li key={g || '-'} role="presentation" className="ui-palette-grp">
+              {g ? (
+                <span className="ui-palette-gh" aria-hidden="true">
+                  {g}
+                </span>
+              ) : null}
+              <ul role="group" {...(g ? { 'aria-label': g } : {})}>
+                {hits
+                  .filter((i) => (i.group ?? '') === g)
+                  .map((i) => (
+                    <li
+                      key={i.id}
+                      id={`${listId}-${i.id}`}
+                      role="option"
+                      aria-selected={i === active}
+                      className={i === active ? 'ui-palette-on' : undefined}
+                      onMouseMove={() => setAt(hits.indexOf(i))}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pick(i);
+                      }}
+                    >
+                      {i.icon ? <NavIcon id={i.icon} size={16} /> : null}
+                      <span className="ui-palette-label">{i.label}</span>
+                      {i.hint ? <span className="ui-palette-hint">{i.hint}</span> : null}
+                    </li>
+                  ))}
+              </ul>
             </li>
           ))}
         </ul>
         {hits.length === 0 ? (
           <p className="ui-palette-none">Nothing matches. Try another word.</p>
         ) : null}
+        <div className="ui-palette-foot" aria-hidden="true">
+          <span>
+            <kbd className="ui-kbd">↑</kbd> <kbd className="ui-kbd">↓</kbd> to move
+          </span>
+          <span>
+            <kbd className="ui-kbd">↵</kbd> to open
+          </span>
+          <span>
+            <kbd className="ui-kbd">Esc</kbd> to close
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -8,8 +8,11 @@ import { Link, useNavigate, type Route } from '../router';
 import { useTheme } from '../theme';
 import {
   AppShell,
+  Combobox,
   CommandPalette,
   MenuButton,
+  NavIcon,
+  type ComboOption,
   type PaletteItem,
   type RenderLink,
   type ShellNavEntry,
@@ -172,19 +175,29 @@ function SignedInShell({
             </Link>
           ) : null}
           <Link
-            to="/me/notifications"
+            to="/inbox"
             className="ui-iconbtn"
-            aria-label={label('screen', 'my_notifications')}
-            {...(route.name === 'notifications' ? { 'aria-current': 'page' as const } : {})}
+            aria-label={
+              waiting
+                ? `${label('screen', 'inbox')}, ${waiting} waiting on you`
+                : label('screen', 'inbox')
+            }
+            {...(route.name === 'inbox' ? { 'aria-current': 'page' as const } : {})}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
                 d="M6 10a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Zm4 9a2 2 0 0 0 4 0"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="1.75"
                 strokeLinejoin="round"
+                strokeLinecap="round"
               />
             </svg>
+            {waiting ? (
+              <span className="ui-iconbtn-n" aria-hidden="true">
+                {waiting > 99 ? '99+' : waiting}
+              </span>
+            ) : null}
           </Link>
           <ThemeToggle />
         </>
@@ -197,6 +210,7 @@ function SignedInShell({
         </>
       }
       banners={stopped > 0 ? <KillBanner count={stopped} /> : null}
+      {...(topBarPage(route) ? { here: topBarPage(route) as string } : {})}
       locationKey={here}
       renderLink={renderLink}
     >
@@ -204,6 +218,10 @@ function SignedInShell({
     </AppShell>
   );
 }
+
+/** The name of a page of the top bar (the person's own pages, Ask for work) the route is, if it is one. */
+const topBarPage = (route: Route): string | undefined =>
+  TOP_BAR.find((e) => e.current(route))?.label;
 
 function toShellNav(me: Me, route: Route, waiting: number | undefined): ShellNavGroup[] {
   const conv = (e: NavEntry): ShellNavEntry => ({
@@ -220,8 +238,6 @@ function toShellNav(me: Me, route: Route, waiting: number | undefined): ShellNav
     id: g.group,
     label: g.label,
     entries: g.entries.map(conv),
-    // Work's pages are destinations of their own; the other groups are sets of related pages
-    tabs: g.group !== 'work',
   }));
 }
 
@@ -268,45 +284,38 @@ function KillBanner({ count }: { count: number }) {
 }
 
 function ProjectSwitcher({ me, current }: { me: Me; current: string | null }) {
-  const projects = me.actions.projects;
+  const navigate = useNavigate();
+  const all = label('screen', 'fleet');
+  const options = useMemo<ComboOption[]>(
+    () => [
+      { id: '', label: all },
+      ...me.actions.projects.map((p) => ({ id: p.project_id, label: p.project_id })),
+    ],
+    [me, all],
+  );
   return (
-    <MenuButton
+    <Combobox
       label={current ? `Project: ${current}` : 'Choose a project'}
-      align="start"
+      placeholder="Find a project"
+      options={options}
+      selected={current ?? ''}
+      onPick={(id) => navigate(id === '' ? '/projects' : `/projects/${encodeURIComponent(id)}`)}
       button={
         <>
-          <span className="ui-mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {current ?? label('screen', 'fleet')}
-          </span>
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
+          <NavIcon id="projects" size={16} />
+          <span className="ui-combo-cur">{current ?? all}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="m7 15 5 5 5-5M7 9l5-5 5 5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </>
       }
-    >
-      {(close) => (
-        <ul>
-          <li>
-            <Link to="/projects" className="ui-menu-item" onClick={close}>
-              {label('screen', 'fleet')}
-            </Link>
-          </li>
-          {projects.length > 0 ? <li className="ui-menu-sep" aria-hidden="true" /> : null}
-          {projects.map((p) => (
-            <li key={p.project_id}>
-              <Link
-                to={`/projects/${encodeURIComponent(p.project_id)}`}
-                className="ui-menu-item"
-                onClick={close}
-                {...(p.project_id === current ? { 'aria-current': 'page' as const } : {})}
-              >
-                <span className="ui-mono">{p.project_id}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </MenuButton>
+    />
   );
 }
 
@@ -323,33 +332,50 @@ function Search({ me }: { me: Me }) {
     window.addEventListener('keydown', on);
     return () => window.removeEventListener('keydown', on);
   }, []);
-  const items = useMemo<PaletteItem[]>(
-    () => [
-      ...openablePages(me).map((e) => ({ id: `s-${e.id}`, label: e.label, to: e.to })),
+  // the pages are the nav's (navFor and openablePages): the section each sits in is read off navFor, not listed
+  const items = useMemo<PaletteItem[]>(() => {
+    const sectionOf = new Map<string, string>();
+    const walk = (e: NavEntry, section: string) => {
+      sectionOf.set(e.to, section);
+      for (const c of e.children ?? []) walk(c, section);
+    };
+    for (const g of navFor(me)) for (const e of g.entries) walk(e, g.label);
+    return [
+      ...openablePages(me).map((e) => {
+        const section = sectionOf.get(e.to);
+        return {
+          id: `s-${e.id}`,
+          label: e.label,
+          group: 'Pages',
+          icon: e.id,
+          ...(section ? { hint: section } : {}),
+          to: e.to,
+        };
+      }),
       ...me.actions.projects.map((p) => ({
         id: `p-${p.project_id}`,
         label: p.project_id,
-        hint: label('concept', 'project'),
+        group: 'Projects',
+        icon: 'projects',
         to: `/projects/${encodeURIComponent(p.project_id)}`,
       })),
-    ],
-    [me],
-  );
+    ];
+  }, [me]);
   return (
     <>
       <button
         type="button"
         className="ui-search-btn"
         aria-haspopup="dialog"
-        aria-label="Search screens and projects"
+        aria-label="Search pages and projects"
         aria-keyshortcuts="Meta+K Control+K"
         onClick={() => setOpen(true)}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-          <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.75" />
+          <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
         </svg>
-        <span>Search screens and projects</span>
+        <span>Search</span>
         <kbd className="ui-kbd" aria-hidden="true">
           ⌘K
         </kbd>

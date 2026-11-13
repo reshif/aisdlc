@@ -7,13 +7,16 @@ import type { Crumb } from './layout';
 export function Breadcrumb({
   crumbs,
   renderLink,
+  label = 'Breadcrumb',
 }: {
   crumbs: readonly Crumb[];
+  /** The landmark's name; the shell's own trail is "Location". */
+  label?: string;
   renderLink?: (to: string, label: string) => ReactNode;
 }) {
   if (crumbs.length === 0) return null;
   return (
-    <nav aria-label="Breadcrumb">
+    <nav aria-label={label}>
       <ol className="ui-crumbs">
         {crumbs.map((c, i) => (
           <li key={`${i}:${c.label}`}>

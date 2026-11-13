@@ -630,8 +630,9 @@ describe('the fleet screen', () => {
       'GET /api/fleet': { json: { ...fleet(), projects: [] } },
     });
     renderAt('/fleet');
-    const nav = await screen.findByRole('navigation', { name: 'Main' });
-    expect(within(nav).getByRole('link', { name: 'All projects' })).toHaveAttribute(
+    // the fleet is a page of the Work section: a tab of its header, not a second level of the sidebar
+    const tabs = await screen.findByRole('navigation', { name: 'Work pages' });
+    expect(within(tabs).getByRole('link', { name: 'All projects' })).toHaveAttribute(
       'aria-current',
       'page',
     );

@@ -103,8 +103,19 @@
   /* shape and size */
   --r: 8px;
   --r-lg: 10px;
-  --top-h: 56px;
-  --rail-w: 236px;
+  --top-h: 48px;
+  --rail-w: 232px;
+  --rail-c: 52px;
+  /* the type scale of the chrome (px) and the 4/8 spacing rhythm */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+  --ctl: 32px;
   --rail-r-w: 320px;
   --hit: 44px;
 }

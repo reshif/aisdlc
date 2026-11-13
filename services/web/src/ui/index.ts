@@ -4,6 +4,7 @@
 import './tokens.css';
 import './ui.css';
 import './v2.css';
+import './shell.css';
 
 export { Card, KeyValue, PageHead, Stat, Stats, type Crumb, type StatTone } from './layout';
 export { Table, type Column } from './Table';
@@ -24,9 +25,11 @@ export { useScrollable } from './scroll';
 // portal v2 (the skeleton and the sign-in look)
 export {
   AppShell,
+  Combobox,
   CommandPalette,
   MenuButton,
   type PaletteItem,
+  type ComboOption,
   type RenderLink,
   type ShellNavEntry,
   type ShellNavGroup,

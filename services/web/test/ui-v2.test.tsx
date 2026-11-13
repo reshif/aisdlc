@@ -127,20 +127,48 @@ describe('AppShell', () => {
       </AppShell>,
     );
 
-  it('groups the nav under headings; a section lists its pages only while one is current', () => {
+  it('groups the nav under headings; sub-pages are tabs of the page header, not a second level', () => {
     renderShell();
     const nav = screen.getByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('heading', { name: 'Run' })).toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Inbox 3 waiting on you' })).toBeInTheDocument();
-    expect(within(nav).getByRole('link', { name: 'Emergency stop' })).toHaveAttribute(
+    // a page whose sub-page is open is the page "here"; the sub-pages are not in the sidebar
+    expect(within(nav).getByRole('link', { name: 'Operate' })).toHaveAttribute(
       'aria-current',
       'page',
     );
-    // the parent of the current page is not itself current
-    expect(within(nav).getByRole('link', { name: 'Operate' })).not.toHaveAttribute('aria-current');
-    expect(within(nav).getByRole('link', { name: 'Health' })).toBeInTheDocument();
-    // Agents is not current: its sub-page is not listed
+    expect(within(nav).queryByRole('link', { name: 'Emergency stop' })).toBeNull();
     expect(within(nav).queryByRole('link', { name: 'Evaluations' })).toBeNull();
+    // the header band: the trail, then the section's pages with their sub-pages (Operate points at its first page)
+    const trail = screen.getByRole('navigation', { name: 'Location' });
+    expect(within(trail).getByText('Run')).toBeInTheDocument();
+    expect(within(trail).getByText('Emergency stop')).toHaveAttribute('aria-current', 'page');
+    const tabs = screen.getByRole('navigation', { name: 'Run pages' });
+    expect(
+      within(tabs)
+        .getAllByRole('link')
+        .map((a) => a.textContent),
+    ).toEqual(['Emergency stop', 'Health', 'Agents', 'Evaluations']);
+    expect(within(tabs).getByRole('link', { name: 'Emergency stop' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(tabs).getByRole('link', { name: 'Health' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('starts as a rail of group icons; the toggle at the top of the nav expands it', async () => {
+    const user = userEvent.setup();
+    window.localStorage.removeItem('aisdlc.nav.collapsed');
+    renderShell();
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const toggle = within(nav).getByRole('button', { name: 'Sidebar' });
+    // the first thing in the navigation, before the group icons
+    expect(nav.firstElementChild).toBe(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(nav).queryByRole('link', { name: 'Home' })).toBeNull();
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(within(nav).getByRole('link', { name: 'Home' })).toBeInTheDocument();
   });
 
   it('the menu button opens and closes the nav on a phone; Escape closes it; main is the landmark', async () => {
@@ -248,6 +276,59 @@ describe('AppShell', () => {
     );
     await user.keyboard('{Enter}');
     expect(onPick).toHaveBeenCalledWith('/ledger');
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('CommandPalette groups', () => {
+  it('lists matches under their headings, keeps the groups together, and reads the hint', async () => {
+    const user = userEvent.setup();
+    render(
+      <CommandPalette
+        items={[
+          { id: '1', label: 'Inbox', group: 'Pages', hint: 'Work', to: '/inbox' },
+          { id: '2', label: 'payments-api', group: 'Projects', to: '/projects/payments-api' },
+          { id: '3', label: 'Integrations', group: 'Pages', hint: 'Govern', to: '/integrations' },
+        ]}
+        onPick={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const pages = screen.getByRole('group', { name: 'Pages' });
+    expect(
+      within(pages)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['InboxWork', 'IntegrationsGovern']);
+    expect(
+      within(screen.getByRole('group', { name: 'Projects' })).getAllByRole('option'),
+    ).toHaveLength(1);
+    // the section is searchable too
+    await user.type(screen.getByRole('combobox', { name: 'Search' }), 'govern');
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    await user.clear(screen.getByRole('combobox', { name: 'Search' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search' }), 'zzz');
+    expect(screen.getByText('Nothing matches. Try another word.')).toBeInTheDocument();
+  });
+
+  it('Escape closes it and ArrowUp stops at the first match', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <CommandPalette
+        items={[
+          { id: '1', label: 'Inbox', to: '/inbox' },
+          { id: '2', label: 'Items', to: '/items' },
+        ]}
+        onPick={vi.fn()}
+        onClose={onClose}
+      />,
+    );
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByRole('option', { name: 'Inbox' })).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('option', { name: 'Items' })).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalled();
   });
 });
