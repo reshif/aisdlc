@@ -1254,6 +1254,33 @@ const action: Readonly<Record<ActionId, Term>> = {
     'Ask the factory questions about what you can see.',
     'audit',
   ),
+  // glossary.md "Delete (NEW)": remove the object and all its data for good; the log keeps hashes only.
+  'project.delete': t(
+    'Delete a project',
+    'Remove the project, its repos and work, and all their data for good; the log keeps hashes only.',
+    'audit',
+  ),
+  'repo.delete': t(
+    'Delete a repo',
+    'Remove a repo from its project and delete its data for good; the log keeps hashes only.',
+    'audit',
+  ),
+  'item.delete': t(
+    'Delete a work item',
+    'Remove a work item and all its data for good; the log keeps hashes only.',
+    'audit',
+  ),
+  'person.delete': t(
+    'Delete a person',
+    'Remove a person and their data for good; the log keeps hashes only.',
+    'audit',
+  ),
+  'team.delete': t('Delete a team', 'Remove a team for good; the log keeps hashes only.', 'audit'),
+  'binding.delete': t(
+    'Remove a role',
+    'Take a role away from a person or team and delete the grant.',
+    'audit',
+  ),
 };
 
 const viewLevel: Readonly<Record<ViewLevel, Term>> = {
@@ -1940,6 +1967,12 @@ export const PROPOSED_TERMS: ReadonlyArray<readonly [GlossaryFamily, string]> = 
   ['screen', 'board'],
   ['screen', 'budgets'],
   ['screen', 'design'],
+  ['action', 'project.delete'],
+  ['action', 'repo.delete'],
+  ['action', 'item.delete'],
+  ['action', 'person.delete'],
+  ['action', 'team.delete'],
+  ['action', 'binding.delete'],
 ];
 
 /** The term of a value. Typed: a value the family does not have does not compile. */

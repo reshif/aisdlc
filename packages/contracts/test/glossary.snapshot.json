@@ -2130,6 +2130,36 @@
       "label": "Ask the assistant",
       "explain": "Ask the factory questions about what you can see.",
       "code": "audit"
+    },
+    "project.delete": {
+      "label": "Delete a project",
+      "explain": "Remove the project, its repos and work, and all their data for good; the log keeps hashes only.",
+      "code": "audit"
+    },
+    "repo.delete": {
+      "label": "Delete a repo",
+      "explain": "Remove a repo from its project and delete its data for good; the log keeps hashes only.",
+      "code": "audit"
+    },
+    "item.delete": {
+      "label": "Delete a work item",
+      "explain": "Remove a work item and all its data for good; the log keeps hashes only.",
+      "code": "audit"
+    },
+    "person.delete": {
+      "label": "Delete a person",
+      "explain": "Remove a person and their data for good; the log keeps hashes only.",
+      "code": "audit"
+    },
+    "team.delete": {
+      "label": "Delete a team",
+      "explain": "Remove a team for good; the log keeps hashes only.",
+      "code": "audit"
+    },
+    "binding.delete": {
+      "label": "Remove a role",
+      "explain": "Take a role away from a person or team and delete the grant.",
+      "code": "audit"
     }
   },
   "viewLevel": {
