@@ -9,6 +9,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { gitBlobSha, repoKey, type CodeHostSeed } from '@aisdlc/ports';
 import { GitObjects } from './fake-github-objects.js';
+import { FakeManifestFlow } from './fake-github-manifest.js';
 import { emptySeed } from '@aisdlc/ports';
 import { systemClock, type Clock } from '@aisdlc/kernel';
 
@@ -159,6 +160,8 @@ export interface FakeGitHubServerOptions {
   readonly people?: readonly string[];
   /** The check runs a person's merge needs to have concluded `success` on the PR head (branch protection). */
   readonly requiredChecks?: readonly string[];
+  /** The account an App made through the manifest flow belongs to (default `reshif`, the testbed's owner). */
+  readonly manifestAccount?: string;
   /** A second listener (the compose stack: gate-check reaches the host from another container). */
   readonly extraListen?: { readonly host: string; readonly port: number };
   /** More listeners (M15.3: gate-relay's door, on its own network). */
@@ -199,6 +202,8 @@ export class FakeGitHubServer {
   /** The fields every issue write (POST or PATCH) carried, in order: what the tracker asked GitHub to change. */
   readonly issueWrites: Array<{ method: string; path: string; keys: string[] }> = [];
   readonly deployments: FakeDeployment[] = [];
+  /** The App manifest flow (the setup wizard's): Apps made on this host, their installations. */
+  readonly manifestFlow: FakeManifestFlow;
   private server: Server | null = null;
   private extra: Server[] = [];
   private readonly revoked = new Set<string>();
@@ -212,6 +217,12 @@ export class FakeGitHubServer {
   constructor(private readonly o: FakeGitHubServerOptions) {
     this.seed = o.seed ?? emptySeed();
     this.objects = new GitObjects(this.seed);
+    this.manifestFlow = new FakeManifestFlow({
+      account: o.manifestAccount ?? 'reshif',
+      repos: () => this.seed.repos.map((r) => r.full_name),
+      now: () => this.clock.now(),
+      issue: (t) => this.issued.push(t),
+    });
   }
 
   private get clock(): Clock {
@@ -605,6 +616,15 @@ export class FakeGitHubServer {
       this.requests.push(entry);
       this.o.onRequest?.(entry);
     };
+
+    const flow = this.manifestFlow.handle(method, url, body, req.headers.authorization);
+    if (flow) {
+      if (flow.location !== undefined) {
+        res.writeHead(flow.status, { location: flow.location }).end();
+        return void log(flow.status);
+      }
+      return void log(this.json(res, flow.status, flow.body ?? {}));
+    }
 
     const mint = /^\/app\/installations\/(\d+)\/access_tokens$/.exec(path);
     if (mint) {

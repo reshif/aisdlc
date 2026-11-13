@@ -4,9 +4,11 @@ import { join } from 'node:path';
 import { ServiceConfigError, requiredEnv, runService } from '@aisdlc/service-kit';
 import { FakeGitHubServer } from './fake-github-server.js';
 import {
+  CODEHOST_ROLE_PERMISSIONS,
   GATE_CHECK_APP_PERMISSIONS,
   GATE_RELAY_APP_PERMISSIONS,
   TRACKER_APP_PERMISSIONS,
+  unionPermissions,
 } from '@aisdlc/contracts';
 import { buildTestbed, testbedSeed } from './fake-github-testbed.js';
 import { GitHttpTestServer } from './git-server-testing.js';
@@ -40,10 +42,15 @@ import { mirrorRefIntoBareRepo } from './fake-github-mirror.js';
 //   FAKE_GITHUB_TRACKER_PORT          (M16, optional) another listener on 0.0.0.0; compose sets none: the codehost holds the tracker
 //                                     App and reaches the fake on loopback (core-worker has no route out, 2026-11-12)
 //   FAKE_GITHUB_PUSH_APP_ID, _INSTALLATION_ID, _APP_PUBLIC_KEY_FILE
-//                                     (optional) the Push Broker's own App (`contents: write`, `pull_requests: write`, metadata
+//                                     (optional) the Push Broker's App. The SAME id and installation as the main App is
+//                                     the two-App layout (docs/getting-started.md §4): one factory App that reads and
+//                                     pushes, its installation granted the union (contents and pull requests write,
+//                                     metadata read). Another id is the Push Broker's own App (`contents: write`, `pull_requests: write`, metadata
 //                                     read; the main App stays read-only), and FAKE_GITHUB_PUSH_BROKER_PORT its listener on
 //                                     0.0.0.0 (`pushbroker-github`). What its Git Data API writes is also written into the bare
 //                                     repository (objects and the branch), so the git server serves the agent branches too
+//   FAKE_GITHUB_BOT_LOGIN             (optional) the login the Push Broker's PRs are authored by (default `aisdlc[bot]`;
+//                                     the setup wizard's factory App is `<slug>[bot]`)
 //   FAKE_GITHUB_PEOPLE                (optional) comma-separated logins that act with a personal token `ghp_fake_<login>`:
 //                                     mark a PR ready and merge it (the e2e's human; the factory never merges)
 //   FAKE_GITHUB_REQUIRED_CHECKS       (optional) comma-separated check names a person's merge needs `success` on the head
@@ -149,11 +156,19 @@ await runService('fake-github', async () => {
   if (trackerApp && others.some((a) => a.installationId === trackerApp.installationId)) {
     throw new ServiceConfigError('the tracker App needs an installation of its own');
   }
-  const pushApp = secondApp(env, 'FAKE_GITHUB_PUSH', installationId, {
-    contents: 'write',
-    pull_requests: 'write',
-    metadata: 'read',
-  });
+  const pushPermissions = { ...CODEHOST_ROLE_PERMISSIONS.docs };
+  // one factory App that reads and pushes (the two-App layout): no second App, the main installation holds the union
+  const oneApp =
+    env['FAKE_GITHUB_PUSH_APP_ID'] !== undefined &&
+    env['FAKE_GITHUB_PUSH_APP_ID'] === env['FAKE_GITHUB_APP_ID'];
+  if (oneApp && Number(env['FAKE_GITHUB_PUSH_INSTALLATION_ID']) !== installationId) {
+    throw new ServiceConfigError(
+      'FAKE_GITHUB_PUSH_APP_ID is the main App: FAKE_GITHUB_PUSH_INSTALLATION_ID must be its installation too',
+    );
+  }
+  const pushApp = oneApp
+    ? undefined
+    : secondApp(env, 'FAKE_GITHUB_PUSH', installationId, pushPermissions);
   if (
     pushApp &&
     [...others, ...(trackerApp ? [trackerApp] : [])].some(
@@ -188,6 +203,14 @@ await runService('fake-github', async () => {
       head,
       installationId,
       ...(checksApp ? { gateCheckAppId: Number(checksApp.appId) } : {}),
+      ...(oneApp
+        ? {
+            permissions: unionPermissions(
+              { contents: 'read', metadata: 'read' },
+              pushPermissions,
+            ) as Record<string, 'read' | 'write'>,
+          }
+        : {}),
     }),
     listenHost: '127.0.0.1',
     listenPort: apiPort,
@@ -195,6 +218,7 @@ await runService('fake-github', async () => {
     ...(deployApp ? { deployApp } : {}),
     ...(trackerApp ? { trackerApp } : {}),
     ...(pushApp ? { pushApp } : {}),
+    ...(env['FAKE_GITHUB_BOT_LOGIN'] ? { brokerLogin: env['FAKE_GITHUB_BOT_LOGIN'] } : {}),
     ...(people.length > 0 ? { people } : {}),
     ...(requiredChecks.length > 0 ? { requiredChecks } : {}),
     onRefChanged: (e) => {
@@ -225,7 +249,9 @@ await runService('fake-github', async () => {
     },
     onRequest: (r) => console.log(`fake-github git ${JSON.stringify(r)}`),
   }).start();
-  console.log(`fake-github: ${repo} at ${head}; git on ${git_.baseUrl}`);
+  console.log(
+    `fake-github: ${repo} at ${head}; git on ${git_.baseUrl}${oneApp ? '; one factory App reads and pushes' : ''}`,
+  );
   return {
     url: api.baseUrl,
     close: async () => {
