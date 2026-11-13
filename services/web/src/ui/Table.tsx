@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useScrollable } from './scroll';
 
 export interface Column<T> {
   readonly key: string;
@@ -28,10 +29,16 @@ export function Table<T>({
   rowKey: (row: T) => string;
   empty?: ReactNode;
 }) {
+  const { ref, scrolls } = useScrollable<HTMLDivElement>();
   if (rows.length === 0 && empty !== undefined) return <>{empty}</>;
   const cls = (c: Column<T>) => (c.align === 'right' ? 'ui-r' : undefined);
   return (
-    <div className="ui-tbl-wrap">
+    <div
+      className="ui-tbl-wrap"
+      ref={ref}
+      // a table wider than its box scrolls inside it: then the box is a named stop for the keyboard
+      {...(scrolls ? { tabIndex: 0, role: 'region', 'aria-label': caption } : {})}
+    >
       <table className="ui-tbl">
         <caption className={captionHidden ? 'ui-sr' : undefined}>{caption}</caption>
         <thead>

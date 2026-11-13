@@ -4,7 +4,7 @@
  */
 :root {
   --accent: var(--hand);
-  --accent-fg: #0b1117;
+  --accent-fg: var(--hand-ink);
   --focus: var(--gate);
   --good-bg: var(--ok-bg);
   --good-fg: var(--ok-fg);
@@ -677,6 +677,9 @@ textarea {
   padding: 0;
   font-size: inherit;
   color: var(--accent);
+  /* a link inside a sentence is told by more than its colour (WCAG 1.4.1; axe link-in-text-block) */
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ---- the assistant (M18): the onboarding assistant beside the S0 page and "Ask the factory" ---- */
