@@ -27,6 +27,7 @@ import {
 } from '@aisdlc/decisions';
 import { err, ok, canonicalJson, type Result } from '@aisdlc/kernel';
 import { appendEvents, runProjection, type Executor } from '@aisdlc/record';
+import { recordSettingsRelease } from './catalogue.js';
 import { configError, type ConfigError } from './errors.js';
 import { readLineage } from './lineage.js';
 import { enter, inConfigTx } from './tx.js';
@@ -305,6 +306,12 @@ export async function configPublish(
           { clock: clockOf(deps) },
         );
         if (!w.ok) return err(configError('database', JSON.stringify(w.error)));
+        // Portal v2: a factory revision that changes a catalogue section makes the next catalogue release, recorded
+        // with the publish (one transaction: the settings are never in force without their release).
+        if (lineage.layer === 'factory') {
+          const rel = await recordSettingsRelease(tx, rev.doc, input.rev_hash, clockOf(deps));
+          if (!rel.ok) return rel;
+        }
         // Delivered to listeners when this transaction commits, never before.
         await tx.query('SELECT pg_notify($1, $2)', [
           CONFIG_NOTIFY_CHANNEL,

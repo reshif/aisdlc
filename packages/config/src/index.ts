@@ -44,3 +44,13 @@ export {
   registerGovernanceConfig,
   type SettingRead,
 } from './learn.js';
+export {
+  ensureSettingsRelease,
+  loadSettingsReleases,
+  pinCatalogue,
+  readSettingsReleases,
+  recordSettingsRelease,
+  registerCatalogueConfig,
+  type CataloguePin,
+} from './catalogue.js';
+export { SETTINGS_KEY_DEFAULTS, registerSettingsConfig } from './settings.js';
