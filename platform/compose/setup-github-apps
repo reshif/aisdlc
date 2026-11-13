@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+// The GitHub App setup wizard (docs/getting-started.md §4): creates the factory App (read + push) and the gate-check
+// App from GitHub App manifests in your browser, writes their keys to secrets/ (mode 600) and their ids to .env, and
+// checks each installation. `./setup-github-apps --help` for the options.
+//
+// Needs Node 22 and the repo's node_modules (`npm ci` at the root): the wizard's TypeScript source
+// (services/codehost/src/setup-github-apps.ts) is bundled with esbuild into a temporary directory and run from there,
+// so the permissions it asks for are the contract constants of this checkout, never a copy.
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const composeDir = dirname(fileURLToPath(import.meta.url));
+const root = resolve(composeDir, '..', '..');
+const tmp = mkdtempSync(join(tmpdir(), 'aisdlc-setup-github-apps-'));
+let code = 1;
+try {
+  const b = spawnSync(
+    process.execPath,
+    [join(root, 'scripts', 'bundle.mjs'), `--outdir=${join(tmp, 'dist')}`, 'setup-github-apps'],
+    { cwd: join(root, 'services', 'codehost'), stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  if (b.status !== 0) {
+    console.error(
+      'setup-github-apps: could not build the wizard (run `npm ci` at the repository root first)',
+    );
+  } else {
+    const r = spawnSync(
+      process.execPath,
+      [
+        join(tmp, 'dist', 'setup-github-apps.js'),
+        '--compose-dir',
+        composeDir,
+        ...process.argv.slice(2),
+      ],
+      { stdio: 'inherit' },
+    );
+    code = r.status ?? 1;
+  }
+} finally {
+  rmSync(tmp, { recursive: true, force: true });
+}
+process.exit(code);
