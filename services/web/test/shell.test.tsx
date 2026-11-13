@@ -1,16 +1,25 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { leave } from '../src/leave';
 import { me, mockApi, projectOf, renderAt, summaryOf } from './helpers';
+
+// jsdom does not navigate: the portal's one way out of the document is watched instead
+vi.mock('../src/leave', () => ({ leave: vi.fn() }));
+const left = vi.mocked(leave);
 
 const unauth = { status: 401, json: { error: { code: 'unauthenticated', message: 'no session' } } };
 
 describe('the shell', () => {
-  it('signed out: a sign-in link to the bff, and no API call but /api/me', async () => {
+  beforeEach(() => left.mockClear());
+
+  it('signed out: straight to the bff sign-in (no page of its own), and no API call but /api/me', async () => {
     const { calls } = mockApi({ 'GET /api/me': unauth });
     renderAt('/');
-    const link = await screen.findByRole('link', { name: 'Sign in' });
-    expect(link).toHaveAttribute('href', '/auth/login');
+    await waitFor(() => expect(left).toHaveBeenCalledWith('/auth/login', 'replace'));
+    // the fallback while the browser leaves
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/auth/login');
+    expect(screen.queryByText(/governed lifecycle/)).toBeNull();
     expect(calls.map((c) => c.path)).toEqual(['/api/me']);
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
   });
@@ -18,11 +27,25 @@ describe('the shell', () => {
   it('P2-18: signed out on a deep link, sign-in carries the asked path back', async () => {
     mockApi({ 'GET /api/me': unauth });
     renderAt('/config/gateway.models?x=1');
-    const link = await screen.findByRole('link', { name: 'Sign in' });
-    expect(link).toHaveAttribute(
-      'href',
-      `/auth/login?return_to=${encodeURIComponent('/config/gateway.models?x=1')}`,
-    );
+    const want = `/auth/login?return_to=${encodeURIComponent('/config/gateway.models?x=1')}`;
+    await waitFor(() => expect(left).toHaveBeenCalledWith(want, 'replace'));
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', want);
+  });
+
+  it("sign-out goes to the identity provider's logout when the bff names one", async () => {
+    const user = userEvent.setup();
+    const idpLogout = 'http://idp.test/logout?post_logout_redirect_uri=http%3A%2F%2Flocalhost%2F';
+    mockApi({
+      'GET /api/me': { json: me() },
+      'GET /api/projects': { json: [summaryOf()] },
+      'POST /api/logout': { json: { ok: true, redirect: idpLogout } },
+    });
+    renderAt('/projects');
+    await user.click(await screen.findByRole('button', { name: 'Account: Alice Admin' }));
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(left).toHaveBeenCalledWith(idpLogout));
+    // not also to the sign-in: the IdP sends the browser back to the portal, which goes there itself
+    expect(left).toHaveBeenCalledTimes(1);
   });
 
   it('signed in: the principal name, the project list, and sign-out as a POST with the CSRF token', async () => {
@@ -30,7 +53,7 @@ describe('the shell', () => {
     const m = mockApi({
       'GET /api/me': { json: me() },
       'GET /api/projects': { json: [summaryOf()] },
-      'POST /api/logout': { json: { ok: true } },
+      'POST /api/logout': { json: { ok: true, redirect: null } },
     });
     renderAt('/projects');
     const list = await screen.findByRole('table', { name: 'Projects' });
@@ -47,11 +70,17 @@ describe('the shell', () => {
     expect(account).toHaveAttribute('aria-expanded', 'false');
     expect(account).toHaveFocus();
 
-    // Once the session is gone the bff answers 401 to /api/me, and the shell goes back to sign-in.
+    // Once the session is gone the bff answers 401 to /api/me; with no IdP logout the shell goes to sign-in itself.
     m.table['GET /api/me'] = unauth;
     await user.click(account);
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
-    await screen.findByRole('link', { name: 'Sign in' });
+    // (back to the page it was on once signed in again)
+    await waitFor(() =>
+      expect(left).toHaveBeenCalledWith(
+        `/auth/login?return_to=${encodeURIComponent('/projects')}`,
+        'replace',
+      ),
+    );
     const logout = m.calls.find((c) => c.path === '/api/logout');
     expect(logout?.method).toBe('POST');
     expect(logout?.headers['x-csrf-token']).toBe('csrf-token-of-alice');

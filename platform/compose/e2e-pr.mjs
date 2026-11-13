@@ -152,7 +152,6 @@ async function personOf(who) {
   });
   page.on('pageerror', (e) => problems.push(`pageerror (${who}): ${e.message}`));
   await page.goto(`${base}/`);
-  await page.getByRole('link', { name: 'Sign in' }).first().click();
   // the identity provider (Keycloak): the person's username and the test people's password
   await idpSignIn(page, who, composeDir);
   // signed in: the account menu (portal v2: Sign out lives inside it)

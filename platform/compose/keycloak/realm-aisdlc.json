@@ -374,7 +374,7 @@
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "+"
+        "post.logout.redirect.uris": "+##${KC_BFF_PUBLIC_URL}/"
       },
       "protocolMappers": [
         {

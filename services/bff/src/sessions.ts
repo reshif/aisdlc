@@ -13,6 +13,8 @@ export interface SessionRow {
   readonly issuer: string;
   readonly subject: string;
   readonly auth_time: Date | null;
+  /** The provider's ID token, kept server-side only: the hint of the IdP logout. */
+  readonly id_token: string | null;
   readonly csrf_token: string;
   readonly created_at: Date;
   readonly last_seen_at: Date;
@@ -41,6 +43,7 @@ export async function createSession(
     issuer: i.issuer,
     subject: i.subject,
     auth_time: i.auth_time,
+    id_token: i.id_token,
     csrf_token: randomToken(),
     created_at: i.now,
     last_seen_at: i.now,

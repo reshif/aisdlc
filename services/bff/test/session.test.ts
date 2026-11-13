@@ -87,6 +87,12 @@ describe('logout', () => {
     const out = await post(browser, '/api/logout', { 'x-csrf-token': token });
     expect(out.status).toBe(200);
     expect(browser.cookie(s.base, SID)).toBeUndefined();
+    // and the IdP's session too: the browser is sent to its end-session endpoint, with the ID token as the hint,
+    // to come back to the portal's root
+    const redirect = new URL(((await out.json()) as Json).redirect as string);
+    expect(`${redirect.origin}${redirect.pathname}`).toBe(`${s.oidc.issuer}/logout`);
+    expect(redirect.searchParams.get('post_logout_redirect_uri')).toBe(`${s.base}/`);
+    expect(redirect.searchParams.get('id_token_hint')).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
     const replay = new Browser();
     replay.setCookie(s.base, SID, sid);
     expect(await me(replay)).toBe(401);

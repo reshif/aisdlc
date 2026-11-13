@@ -119,8 +119,8 @@ try {
     `no strict CSP: ${csp}`,
   );
   must(!/unsafe-inline|unsafe-eval/.test(csp), `CSP allows inline code: ${csp}`);
-  await page.getByRole('link', { name: 'Sign in' }).first().click();
-  log('signed out: clicked Sign in (bff /auth/login)');
+  // signed out, the portal goes straight to the sign-in (bff /auth/login): no page of its own to click through
+  log('signed out: sent straight to the sign-in (bff /auth/login)');
 
   // 2. The identity provider (Keycloak): sign in as alice (the first person of the seed, a factory admin).
   await devSignIn();
@@ -487,7 +487,6 @@ try {
     });
     bp.on('pageerror', (e) => problems.push(`pageerror (bob): ${e.message}`));
     await bp.goto(`${base}/`);
-    await bp.getByRole('link', { name: 'Sign in' }).first().click();
     await idpSignIn(bp, 'bob', composeDir);
     await bp.getByRole('button', { name: /^Account: / }).waitFor();
     problems.length = 0;
@@ -666,10 +665,11 @@ try {
   // 13. Sign out ends the session.
   await page.getByRole('button', { name: /^Account: / }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.getByRole('link', { name: 'Sign in' }).first().waitFor();
-  const me = await page.evaluate(() => fetch('/api/me').then((r) => r.status));
+  // the IdP's session ends too: its logout sends the browser back to the portal, which goes to the sign-in form
+  await page.waitForURL(IDP_URL);
+  const me = (await page.context().request.get(`${base}/api/me`)).status();
   must(me === 401, `/api/me after sign-out is ${me}`);
-  log('signed out: /api/me is 401');
+  log('signed out: /api/me is 401, the browser is at the IdP sign-in');
 } finally {
   await browser.close();
 }

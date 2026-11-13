@@ -3,6 +3,7 @@ import { err, ok, systemClock, type Clock, type Result } from '@aisdlc/kernel';
 import {
   oidcError,
   type OidcAuthorizeParams,
+  type OidcEndSessionParams,
   type OidcError,
   type OidcExchangeParams,
   type OidcIdentity,
@@ -33,6 +34,7 @@ const Discovery = z.looseObject({
   authorization_endpoint: z.url(),
   token_endpoint: z.url(),
   jwks_uri: z.url(),
+  end_session_endpoint: z.url().optional(),
 });
 type Discovery = z.infer<typeof Discovery>;
 
@@ -95,6 +97,17 @@ export class HttpOidcClient implements OidcPort {
     if (p.prompt) u.searchParams.set('prompt', p.prompt);
     if (p.max_age !== undefined) u.searchParams.set('max_age', String(p.max_age));
     if (p.login_hint) u.searchParams.set('login_hint', p.login_hint);
+    return ok(u.toString());
+  }
+
+  async endSessionUrl(p: OidcEndSessionParams): Promise<Result<string | null, OidcError>> {
+    const d = await this.discover();
+    if (!d.ok) return d;
+    if (!d.value.end_session_endpoint) return ok(null);
+    const u = new URL(d.value.end_session_endpoint);
+    u.searchParams.set('client_id', this.o.client_id);
+    if (p.id_token_hint) u.searchParams.set('id_token_hint', p.id_token_hint);
+    u.searchParams.set('post_logout_redirect_uri', p.post_logout_redirect_uri);
     return ok(u.toString());
   }
 

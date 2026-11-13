@@ -167,7 +167,8 @@ export function keycloakRealm(dev: IdpSnapshot): Record<string, unknown> {
         webOrigins: ['+'],
         attributes: {
           'pkce.code.challenge.method': 'S256',
-          'post.logout.redirect.uris': '+',
+          // the callback (`+`) and the portal's root, where a sign-out lands (the bff's IdP logout)
+          'post.logout.redirect.uris': `+##${ph(KEYCLOAK_ENV.portalUrl)}/`,
         },
         protocolMappers: [
           {

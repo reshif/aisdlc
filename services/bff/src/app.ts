@@ -515,10 +515,17 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
   });
 
   app.post('/api/logout', async (req, reply) => {
-    const { sessionHash } = ctx(req);
+    const { session, sessionHash } = ctx(req);
     await revokeSession(o.pool, sessionHash, 'logout', clock.now());
     setCookies(reply, [serializeCookie(sidName, '', { secure, maxAge: 0 })]);
-    return { ok: true };
+    // End the session at the IdP too, or the next sign-in would pass straight through its SSO session: the browser
+    // goes to the IdP's logout and comes back to the portal's root, which sends it to the sign-in form. The portal's
+    // session is already revoked, so an IdP that cannot be reached only costs the IdP logout (`redirect: null`).
+    const end = await o.oidc.endSessionUrl({
+      id_token_hint: session.id_token,
+      post_logout_redirect_uri: `${o.publicUrl}/`,
+    });
+    return { ok: true, redirect: end.ok ? end.value : null };
   });
 
   // ------------------------------------------------------------ step-up

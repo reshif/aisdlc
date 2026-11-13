@@ -1,8 +1,9 @@
 import { ProjectSettingsPage } from './pages/ProjectSettingsPage';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AccessProvider, reasonText } from './access';
 import { ApiError, api, type Me } from './api';
+import { leave } from './leave';
 import { ErrorNote, Loading } from './components/Notice';
 import { PackPage } from './pages/PackPage';
 import { LedgerPage } from './pages/LedgerPage';
@@ -47,7 +48,7 @@ import { guardAction, guardOf, guardPasses } from './shell/nav';
 import { Link, NavContext, STATIC_SCREENS, useRoute, type Route } from './router';
 import { Shell } from './shell/Shell';
 import { DesignPage } from './design/DesignPage';
-import { ErrorState, PageHead, ToastProvider } from './ui';
+import { ErrorState, ToastProvider } from './ui';
 
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -120,16 +121,19 @@ export function signInHref(loc: Pick<Location, 'pathname' | 'search' | 'hash'> =
     : `/auth/login?return_to=${encodeURIComponent(here)}`;
 }
 
+/**
+ * Signed out: straight to the sign-in. The bff starts it and sends the browser to the identity provider, then back
+ * to the page that was asked for (P2-18; the bff keeps only a same-origin path). The link is the fallback while the
+ * browser leaves, or where it does not navigate on its own.
+ */
 function SignedOut() {
+  const href = signInHref();
+  useEffect(() => {
+    leave(href, 'replace');
+  }, [href]);
   return (
-    <section aria-labelledby="signin-h" className="signin">
-      <PageHead
-        title={<span id="signin-h">Sign in</span>}
-        sub="The factory takes work through a governed lifecycle, and people decide the gates. Sign in to see your projects and cards."
-      />
-      {/* A plain link: the bff starts the sign-in and sends the browser to the identity provider, then
-          back to the page that was asked for (P2-18; the bff keeps only a same-origin path). */}
-      <a className="btn" href={signInHref()}>
+    <section className="signin" aria-busy="true">
+      <a className="btn" href={href}>
         Sign in
       </a>
     </section>

@@ -125,6 +125,7 @@ export async function startDevOidcProvider(o: DevOidcOptions): Promise<DevOidcPr
     authorization_endpoint: `${issuer}/authorize`,
     token_endpoint: `${issuer}/token`,
     jwks_uri: `${issuer}/jwks`,
+    end_session_endpoint: `${issuer}/logout`,
     response_types_supported: ['code'],
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['ES256'],
@@ -189,6 +190,29 @@ export async function startDevOidcProvider(o: DevOidcOptions): Promise<DevOidcPr
     if (!p['state'] || !p['nonce']) return { error: 'invalid_request' };
     return {};
   };
+
+  // RP-initiated logout: ends this browser's SSO session, then back to the client, but only to an origin one of the
+  // registered redirect URIs has (never an open redirect).
+  app.get('/logout', async (req, reply) => {
+    const p = req.query as Params;
+    const id = cookieOf(req);
+    if (id) sso.delete(id);
+    reply.header('set-cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+    const back = p['post_logout_redirect_uri'];
+    let to: URL | null = null;
+    try {
+      to = back ? new URL(back) : null;
+    } catch {
+      to = null;
+    }
+    const known = o.clients.some(
+      (c) =>
+        (p['client_id'] === undefined || c.client_id === p['client_id']) &&
+        c.redirect_uris.some((r) => to !== null && new URL(r).origin === to.origin),
+    );
+    if (to && known) return reply.redirect(to.toString());
+    return reply.type('text/plain').send('signed out');
+  });
 
   app.get('/authorize', async (req, reply) => {
     const p = req.query as Params;

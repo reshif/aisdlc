@@ -16,6 +16,7 @@ beforeAll(async () => {
   s = await startBffStack({
     wrapOidc: (real): OidcPort => ({
       authorizationUrl: (p) => real.authorizationUrl(p),
+      endSessionUrl: (p) => real.endSessionUrl(p),
       async exchange(p) {
         const r = await real.exchange(p);
         return r.ok && r.value.auth_time !== null && staleness.seconds > 0

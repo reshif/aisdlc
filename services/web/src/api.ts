@@ -487,7 +487,9 @@ export const api = {
       b,
       csrf,
     ),
-  logout: (csrf: string) => request<{ ok: true }>('POST', '/api/logout', {}, csrf),
+  /** `redirect`: the identity provider's logout to send the browser to, `null` when there is none. */
+  logout: (csrf: string) =>
+    request<{ ok: true; redirect: string | null }>('POST', '/api/logout', {}, csrf),
   projects: () => request<ProjectSummary[]>('GET', '/api/projects'),
   project: (id: string) => request<ProjectDetail>('GET', `/api/projects/${encodeURIComponent(id)}`),
   onboard: (input: OnboardInput, csrf: string) =>

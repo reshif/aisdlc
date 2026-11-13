@@ -51,9 +51,19 @@ export interface OidcIdentity {
   readonly id_token: string;
 }
 
+/** RP-initiated logout (OpenID Connect RP-Initiated Logout 1.0): end the person's session at the provider too. */
+export interface OidcEndSessionParams {
+  /** The ID token of the session being ended; `null` when the session kept none. */
+  readonly id_token_hint: string | null;
+  /** Where the provider sends the browser afterwards; it must be registered with the provider. */
+  readonly post_logout_redirect_uri: string;
+}
+
 export interface OidcPort {
   authorizationUrl(p: OidcAuthorizeParams): Promise<Result<string, OidcError>>;
   exchange(p: OidcExchangeParams): Promise<Result<OidcIdentity, OidcError>>;
+  /** The provider's end-session URL for this logout, or `null` when the provider has no end-session endpoint. */
+  endSessionUrl(p: OidcEndSessionParams): Promise<Result<string | null, OidcError>>;
 }
 
 /** `base64url(sha256(verifier))`, the PKCE S256 challenge (RFC 7636). */
@@ -92,6 +102,17 @@ export class FakeOidc implements OidcPort {
     if (this.down) return err(oidcError('unavailable', 'fake IdP down'));
     this.requests.push(p);
     return ok(`${this.issuer}/authorize?state=${encodeURIComponent(p.state)}`);
+  }
+
+  /** The logouts asked for, in order (tests read them). */
+  readonly endSessions: OidcEndSessionParams[] = [];
+
+  async endSessionUrl(p: OidcEndSessionParams) {
+    if (this.down) return err(oidcError('unavailable', 'fake IdP down'));
+    this.endSessions.push(p);
+    return ok(
+      `${this.issuer}/logout?post_logout_redirect_uri=${encodeURIComponent(p.post_logout_redirect_uri)}`,
+    );
   }
 
   /** The user signs in for the request with this `state`; returns the authorization code. */

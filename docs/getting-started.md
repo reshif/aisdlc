@@ -208,8 +208,9 @@ shell. Run the first two steps in every new terminal.
    `EACCES: permission denied` on `/kms` or `/work`, `.env` names another uid than the secrets' owner: run
    `./init-secrets` again as yourself and bring the stack up again.
 
-7. Open the portal at <http://localhost:8340>. Press **Sign in**. You are sent to the stand-in identity provider at
-   `http://dev-oidc.localhost:8390`. Use a browser that resolves `*.localhost` to your own machine; current Chrome
+7. Open the portal at <http://localhost:8340>. You are sent straight to the sign-in page (Keycloak, at
+   `http://keycloak.localhost:8390`; the test people's password is in `platform/compose/secrets/keycloak-persona-password`).
+   **Sign out** (the avatar menu) ends the Keycloak session too and brings you back to that sign-in page. Use a browser that resolves `*.localhost` to your own machine; current Chrome
    and Firefox do. After you sign in, **Operate › Health** (`/health`) shows the service tiles. Tiles for profile
    services read `unknown`, never healthy, because core-worker cannot reach them (`CORE_WORKER_HEALTH_TARGETS`).
 

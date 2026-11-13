@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMe } from '../access';
 import { api, type Me } from '../api';
+import { leave } from '../leave';
 import { Link, useNavigate, type Route } from '../router';
 import { useTheme } from '../theme';
 import {
@@ -402,13 +403,19 @@ function Account({ me }: { me: Me }) {
   const design = useMayOpenDesign();
   const out = useMutation({
     mutationFn: () => api.logout(me.csrf_token),
-    // The session is gone on the server: forget everything it let us read. Whatever happened, the next
-    // question is "who am I", and the bff answers 401 once the session has ended.
-    onSuccess: () => {
+    // The session is gone on the server: forget everything it let us read. With the IdP's logout URL the browser
+    // goes there (it ends the IdP's session and comes back to the portal, signed out, which goes to the sign-in);
+    // without one the shell is signed out here, and goes to the sign-in itself.
+    onSuccess: (r) => {
       qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
+      if (r.redirect) {
+        leave(r.redirect);
+        return;
+      }
       qc.setQueryData(['me'], null);
     },
-    onSettled: () => void qc.invalidateQueries({ queryKey: ['me'] }),
+    // Whatever went wrong, the next question is "who am I": the bff answers 401 once the session has ended.
+    onError: () => void qc.invalidateQueries({ queryKey: ['me'] }),
   });
   const name = me.principal.display_name;
   return (
