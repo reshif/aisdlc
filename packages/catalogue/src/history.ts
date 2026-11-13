@@ -32,6 +32,15 @@ export const CATALOGUE_SNAPSHOTS: readonly CatalogueSnapshot[] = [
   s140 as unknown as CatalogueSnapshot,
 ];
 
+/**
+ * The settings releases (`<base>+settings.<n>`, `settings.ts`) this process has read from the record and checked
+ * (`registerSettingsRelease`). Not a code release: each came from a published settings revision.
+ */
+export const registeredSettingsSnapshots = new Map<
+  string,
+  CatalogueSnapshot & { base: CatalogueRef }
+>();
+
 export const CatalogueUnknown = taggedError('CatalogueUnknown');
 export const CatalogueHashMismatch = taggedError('CatalogueHashMismatch');
 export const CatalogueSnapshotCorrupt = taggedError('CatalogueSnapshotCorrupt');
@@ -60,30 +69,38 @@ function withLaterFields(s: CatalogueSnapshot): Record<string, unknown> {
   return data;
 }
 
-const parsed = new Map<string, CatalogueData>();
+const parsed = new Map<string, CatalogueData>(); // by version and hash
 
 /**
  * The catalogue an item is pinned to. The version must be a released one, the pin's hash must be the
  * released hash, and the snapshot must still hash to it. Cached per version: the result is read-only.
  */
 export function catalogueFor(ref: CatalogueRef): Result<CatalogueData, CatalogueError> {
-  const s = CATALOGUE_SNAPSHOTS.find((x) => x.version === ref.version);
+  const s =
+    CATALOGUE_SNAPSHOTS.find((x) => x.version === ref.version) ??
+    registeredSettingsSnapshots.get(ref.version);
   if (s === undefined) {
     return err(
-      CatalogueUnknown({ version: ref.version, known: CATALOGUE_SNAPSHOTS.map((x) => x.version) }),
+      CatalogueUnknown({
+        version: ref.version,
+        known: [
+          ...CATALOGUE_SNAPSHOTS.map((x) => x.version),
+          ...registeredSettingsSnapshots.keys(),
+        ],
+      }),
     );
   }
   if (s.hash !== ref.hash) {
     return err(CatalogueHashMismatch({ version: ref.version, pinned: ref.hash, released: s.hash }));
   }
-  const hit = parsed.get(s.version);
+  const hit = parsed.get(`${s.version}/${s.hash}`);
   if (hit) return ok(hit);
   const recomputed = snapshotHash(s);
   if (recomputed !== s.hash) {
     return err(CatalogueSnapshotCorrupt({ version: s.version, recomputed }));
   }
   const data = CatalogueData.parse(withLaterFields(s));
-  parsed.set(s.version, data);
+  parsed.set(`${s.version}/${s.hash}`, data);
   return ok(data);
 }
 
