@@ -8,7 +8,7 @@ import { pdpResource } from '@aisdlc/contracts';
 import { runProjection } from '@aisdlc/record';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { dbUrlRef } from '@aisdlc/db/testing';
-import { runSeed, seedConfigFromEnv } from '../src/seed.js';
+import { localGatewayRouting, runSeed, seedConfigFromEnv, seedRoutingDoc } from '../src/seed.js';
 import { registerCoreConfig } from '../src/settings.js';
 import { pr, startCoreStack, type CoreStack } from '../src/testing.js';
 
@@ -175,5 +175,23 @@ describe('aisdlc-seed', () => {
     expect(again.join('\n')).toMatch(/already effective/);
     expect(again.join('\n')).toMatch(/routing table is already effective/);
     expect(await ledgerCount()).toBe(before);
+  });
+});
+
+describe("the seed and the owner's routing decision", () => {
+  it('seeds the models and the routes only while none are effective, and always reconciles the registry', () => {
+    const seeded = localGatewayRouting(null) as unknown as Parameters<typeof seedRoutingDoc>[1];
+    // first run: nothing effective, everything seeded
+    expect(seedRoutingDoc({}, seeded)).toEqual(seeded);
+    // a later run, after the owner pointed D2 at Claude through M1: the routes (and models) stay as decided
+    const decided = [{ environment: 'local', data_class: 'D2', model_id: 'claude-sonnet-5-5' }];
+    const models = [{ model_id: 'claude-sonnet-5-5' }];
+    const next = seedRoutingDoc(
+      { 'gateway.routes': decided, 'gateway.models': models, 'integrations.registry': [] },
+      seeded,
+    );
+    expect(next['gateway.routes']).toEqual(decided);
+    expect(next['gateway.models']).toEqual(models);
+    expect(next['integrations.registry']).toEqual(seeded['integrations.registry']);
   });
 });

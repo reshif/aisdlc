@@ -112,6 +112,39 @@ describe('the vendor key in the compose stack', () => {
     expect(gw.cap_drop).toEqual(['ALL']);
   });
 
+  it('lets the bff reach it for Models › Test and Reload only: its own network, a token of scope operate', () => {
+    // P2-5: `gateway-bff` holds the bff and the gateway and nobody else, and is internal
+    const members = Object.entries(compose.services)
+      .filter(([, svc]) => names(svc).includes('gateway-bff'))
+      .map(([n]) => n)
+      .sort();
+    expect(members).toEqual(['bff', 'gateway']);
+    expect(compose.networks['gateway-bff']?.internal).toBe(true);
+    // the bff is on none of the gateway's other networks
+    const bff = compose.services['bff']!;
+    for (const n of names(compose.services['gateway']!).filter((x) => x !== 'gateway-bff')) {
+      expect(names(bff), `the bff is on ${n}`).not.toContain(n);
+    }
+    // its caller entry carries `operate` alone (never admin or read: no key, no budget group, no /v1/messages)
+    const callers = JSON.parse(
+      (compose.services['gateway']!.environment as Record<string, string>)['GATEWAY_CALLERS']!,
+    ) as Record<string, { token_ref: string; scopes: string[] }>;
+    expect(callers['bff']).toEqual({
+      token_ref: 'file:/run/secrets/tok-bff-gateway',
+      scopes: ['operate'],
+    });
+    const env = bff.environment as Record<string, string>;
+    expect(env['BFF_GATEWAY_URL']).toBe('http://gateway:8410');
+    expect(env['BFF_GATEWAY_TOKEN_REF']).toBe('file:/run/secrets/tok-bff-gateway');
+    // the token file is mounted in those two and no other, and init-secrets makes it
+    const holders = Object.entries(compose.services)
+      .filter(([, svc]) => secretsOf(svc).includes('tok-bff-gateway'))
+      .map(([n]) => n)
+      .sort();
+    expect(holders).toEqual(['bff', 'gateway']);
+    expect(readFileSync(join(dir, 'init-secrets'), 'utf8')).toMatch(/\bbff-gateway\b/);
+  });
+
   it('keeps the other services away from the gateway: only the kill switch grants it a token', () => {
     const ks = compose.services['killswitch']!.environment as Record<string, string>;
     expect(ks['KILLSWITCH_CALLERS']).toMatch(/"gateway":\{[^}]*"scopes":\["read"\]/);

@@ -19,7 +19,9 @@ Run `make` in the repository root to list every command. The everyday ones:
 | `make secrets` | create local secrets and `.env` for the fake GitHub (safe to re-run) |
 | `make secrets-real GITHUB_APP_ID=… GITHUB_INSTALLATION_ID=…` | switch to your real GitHub App |
 | `make github-apps` | create the two GitHub Apps with the setup wizard (§4.1) |
-| `make up` / `make up GITHUB=real` | start the factory and wait until healthy; add `PROFILES="gate-check notifier"` for more |
+| `make images` | build the four images `make up-full` runs (factory, sandbox, W, onboarding probe) |
+| `make up-full REPO=owner/name [GITHUB=real]` | **the factory for real work**: coding sessions, verify, the Push Broker's PRs, on one repository you own |
+| `make up` / `make up GITHUB=real` | the light stack (portal, onboarding, the record; no coding, no PRs); add `PROFILES="gate-check notifier"` for more |
 | `make portal` | print the portal's address |
 | `make ps` / `make logs SERVICE=core` | see containers and their health / follow logs |
 | `make down` | stop; the database, ledger and keys are kept |
@@ -31,6 +33,79 @@ Run `make` in the repository root to list every command. The everyday ones:
 | `make check` | everything that must pass before a commit |
 
 Each target runs a command named in the sections below, so the steps there and the targets stay the same thing.
+
+## The first hour: your factory on your repository
+
+`make up` is the **light** stack: the portal, onboarding (Census) and the record. It runs no coding session and opens
+no pull request. For real work, use `make up-full`: the same compose file with profile `full` (the Push Broker, both
+Docker socket proxies, the package mirror, the sandbox-controller, verify, gate-check) and core-worker on the real
+ports, wired by `platform/compose/full-env.sh`, the same code `npm run e2e:pr` runs. From the repository root:
+
+1. **Install and build the images** (once, and again after you pull changes): the factory image, the sandbox base,
+   the W image (the coding runner and the agent harness) and the onboarding probe.
+
+   ```bash
+   make install
+   make images
+   ```
+
+   Behind a TLS-inspecting proxy or without apt, pass the build's options through:
+   `make images BUILD_PROXY=1 BUILD_NETWORK=host EXTRA_CA=/path/ca.pem RUNTIME_IMAGE=<node:22 bookworm-slim with git>`
+   (`platform/compose/build-images.sh`).
+
+2. **Try it on the fake GitHub first** (no credential; the fake serves `reshif/asf-factory-testbed`):
+
+   ```bash
+   make secrets
+   make up-full REPO=reshif/asf-factory-testbed
+   ```
+
+   The first run also runs SP-STD-1, the W image's isolation test (real W sessions on your Docker daemon, a few
+   minutes), and posts its report: Light's floor LF4 needs it. It is kept per image under
+   `platform/compose/.scratch/<project>/`, with the sandbox scratch directory. At the end it prints the portal's
+   address and what is real and what is fake. `make down` when you are done; `make reset` deletes the fake stack's
+   record before you switch to real GitHub (the two must not share a database).
+
+3. **Create the GitHub Apps** on your account (section 4.1; then require `aisdlc/gate` by hand, 4.2), and put your
+   GitHub login in alice's `"logins"` in `platform/compose/config/idp-seed.json` (4.4):
+
+   ```bash
+   make github-apps
+   ```
+
+4. **Start the factory on your repository**, a testbed you own (DEC-18: agents run code only there):
+
+   ```bash
+   make up-full REPO=<owner>/<repo> GITHUB=real
+   ```
+
+   It refuses to start until both Apps are in place: their ids in `.env`, their keys in `platform/compose/secrets/`,
+   none of them a throwaway. It publishes, each through its own M1 revision decided by the seed's genesis admin,
+   `sandbox.exec_allowed_repos = ["<owner>/<repo>"]`, the onboarding probe image and the W image. The project is
+   `aisdlc` (the portal on <http://localhost:8340>, the sign-in page on 8390); `make ps`, `make logs SERVICE=...`,
+   `make down` and `make reset` act on it. Running `make up-full` again keeps the record, the ledger and every M1
+   decision.
+
+5. **Route the models to Claude** (section 5): put the Anthropic key in its file, then `lt` proposes the routes on
+   `/config/gateway.routes` and `oh` approves (M1). Until then **the deterministic fake provider answers every
+   agent**: the planning steps get canned outputs and a coding session gets no real code. The seed never puts the fake
+   routes back once you have changed them. **Quality › Models** (`/models`) has **Test** and **Reload** for each
+   provider.
+
+6. **Onboard the repository** from **Integrations** (`/integrations` › Repositories › **Onboard**), as `alice`, at
+   **Light** for agent lanes (section 6.2: the probe runs in a K-exec sandbox on its own). Then a requester asks for
+   work (section 7).
+
+What stays stubbed with `make up-full`, and how each becomes real:
+
+| Part | By default | Real when |
+| --- | --- | --- |
+| GitHub | the in-repo fake GitHub | `GITHUB=real`, with the two Apps from `make github-apps` |
+| The models | the deterministic fake provider (fixtures `planning`) | you route `gateway.routes` to Claude through M1 (section 5) |
+| The vendor key | a placeholder in `secrets/anthropic-api-key` | `ANTHROPIC_API_KEY` in `./init-secrets` (section 5), mounted in the gateway only |
+| Coding, verify, the Evidence Pack, the push | real (W sessions on this Docker daemon, one at a time; the verify service; the Notary; the Push Broker) | always, with `make up-full` |
+| Release (S8b) | the fake | `CORE_WORKER_RELEASE=gate-relay` and profile `gate-relay` (section 4.4) |
+| Key custody, sign-in, the first admin | `kms-local`, the dev IdP and its test people, the seed | a cloud deployment (README.md, "What local-prod stubs") |
 
 ---
 
@@ -499,6 +574,11 @@ LF3 needs the onboarding **probe**: a K-exec sandbox session. It runs only when 
 one missing, and nothing runs: the probe records `no_image`, `not_allowed`, `b1_blocked` or `no_test_command`, and
 LF3 stays unknown (`services/core/src/cards/probe.ts`).
 
+**`make up-full REPO=<owner>/<repo>` does steps 1 to 8 for you** (`platform/compose/full-env.sh`): the images
+(`make images`), the scratch directory (`platform/compose/.scratch/<project>/sandbox`), the socket's group, core-worker
+on the sandbox-controller, the profile, the three M1 revisions (the allow-list, the probe image, the W image) and the
+SP-STD-1 report. The steps below are what it does, for a stack you wire by hand.
+
 1. Build the plain sandbox image (from the repository root):
 
    ```bash
@@ -587,9 +667,11 @@ npm ci
 platform/sandbox/build-agent.sh
 ```
 
-It prints `built aisdlc/sandbox-agent:local (runner <sha256>)`. The rest of the wiring is **available after
-`build/e2e-pr` lands**. On `main`, compose sets none of `CORE_WORKER_PUSH_BROKER`, `CORE_WORKER_SESSION_STORE` or
-`CORE_WORKER_CODER_MODEL`, and has no codehost in `CODEHOST_MODE=push` (RC-E2E-2).
+It prints `built aisdlc/sandbox-agent:local (runner <sha256>)` (`make images` builds it with the other three). The rest
+of the wiring is `make up-full`: core-worker with `CORE_WORKER_STAGE_PORTS=agents`, the sandbox-controller
+(`CORE_WORKER_SANDBOX_CONTROLLER_URL`), the verify service (`CORE_WORKER_VERIFY_URL`, real checks, never the scripted
+S7) and the Push Broker (`CORE_WORKER_PUSH_BROKER=1`, the codehost in `CODEHOST_MODE=push`), on profile `full`.
+`make up` sets none of these: on the light stack a request stops before S6.
 
 ---
 
@@ -632,7 +714,7 @@ page (**I have done the work (D5)**, with a PR number or a commit). Then S7 runs
 then G4, then G6. The factory pushing the developer's change as an `agent/*` PR is not built (RC-E2E-3). A person's
 own PR never passes `aisdlc/gate`; gate-check marks it `action_required` (`gate-check.ts`, `GateCheckProfile`).
 
-**On a Light repository (L1 to L3)**, **available after `build/e2e-pr` lands**: S6 codes in the W sandbox, and the
+**On a Light repository (L1 to L3)**, on `make up-full`: S6 codes in the W sandbox, and the
 Push Broker writes the branch `agent/<item>/<unit>` and a **draft pull request** on your repository, authored by the
 App's bot. S7 checks exactly that head. 7.6 signs the Evidence Pack. gate-check passes `aisdlc/gate` only for a pack
 signed for that head. `ar` decides G4 in the portal.
@@ -750,8 +832,9 @@ The Notary, kill switch and Postgres drills are in `docs/runbooks/`.
 The independent review `docs/readiness-challenge.md` lists the full set with evidence. The items that matter for a
 first run:
 
-- **No request has gone end to end to a merged PR** on any deployment. S6 to S9 run on fakes in compose (RC-E2E-2).
-  **Available after `build/e2e-pr` lands.**
+- **No request has gone end to end to a merged PR against real GitHub and Claude.** On the fake GitHub and the fake
+  model it has, in a real browser: `npm run e2e:pr` on a throwaway stack, and `E2E_ATTACH=1` against a running
+  `make up-full REPO=reshif/asf-factory-testbed` started with `SEED_FAKE_FIXTURES=testbed` (RC-E2E-2).
 - **L8 carries no code.** D5 takes a PR number or a commit, but nothing pushes a person's change as an `agent/*` PR
   (RC-E2E-3).
 - **Agent lanes need Light**, and Light needs container execution, which DEC-18 allows only for repositories you
