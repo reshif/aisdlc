@@ -18,7 +18,7 @@ concurrency:
 jobs:
   drill:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -38,7 +38,10 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: the drill
         env:
-          DRILL_DATA: e2e
+          # the request-to-merged-PR journey (e2e-pr.sh): its data holds a real signed Evidence Pack, so a drill that
+          # reads no pack back fails
+          DRILL_DATA: pr
+          DRILL_REQUIRE_PACKS: '1'
           DRILL_REPORT: ${{ runner.temp }}/restore-drill.txt
         run: npm run drill:restore
       - name: the result

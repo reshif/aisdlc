@@ -634,14 +634,19 @@ try {
   log(
     `the fake GitHub: PR #${pr.number} is ${gh.json.merged ? 'merged' : 'an open draft'} by aisdlc[bot] at ${gh.json.head.sha.slice(0, 12)}`,
   );
-  const verdict = await until(
-    () =>
-      q1(
-        `SELECT outcome || ' ' || profile || ' ' || reason FROM gatecheck.verdict WHERE pr_number = ${pr.number} AND head_sha = '${pr.head_sha}' ORDER BY seq DESC LIMIT 1`,
-      ),
-    'gate-check to write aisdlc/gate on the PR head',
-  );
-  must(verdict.startsWith('success agent'), `aisdlc/gate on the head: ${verdict}`);
+  // gate-check looks at the PR as soon as the Push Broker opens it, before 7.6 signs the pack (`failure no_pack`, as its
+  // spec says), and again on every pass: the check must turn to success for exactly this head
+  const seen = new Set();
+  const verdict = await until(() => {
+    const v = q1(
+      `SELECT outcome || ' ' || profile || ' ' || reason FROM gatecheck.verdict WHERE pr_number = ${pr.number} AND head_sha = '${pr.head_sha}' ORDER BY seq DESC LIMIT 1`,
+    );
+    if (v && !seen.has(v)) {
+      seen.add(v);
+      log(`aisdlc/gate on the head: ${v}`);
+    }
+    return v?.startsWith('success agent') ? v : null;
+  }, 'gate-check to write aisdlc/gate success on the PR head');
   log(`gate-check wrote aisdlc/gate: ${verdict}`);
 
   // ------------------------------------------------------------------- G4 in the browser by the g4 slot (ar)
@@ -763,7 +768,9 @@ try {
     `SELECT body ->> 'outcome' FROM record.record_event WHERE type = 'merge.reconciled' AND stream = 'merge:${itemId}' ORDER BY seq DESC LIMIT 1`,
   );
   must(rec === 'completed', `the merge was reconciled as ${rec}`);
-  log('gate-check recorded the merge as gated; core reconciled it as completed for the approved head; no X4');
+  log(
+    'gate-check recorded the merge as gated; core reconciled it as completed for the approved head; no X4',
+  );
   const x4 = cardsOf(itemId)['X4'] ?? [];
   must(x4.length === 0, 'an X4 review was opened for the merge');
   noProblems('the end of the journey');
