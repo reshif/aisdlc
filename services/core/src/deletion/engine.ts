@@ -496,6 +496,16 @@ export async function performDeletion(
         spec.ledger === 'person' && spec.roots[0]
           ? await redactEntriesActor(client, deletionId, spec.roots[0], p.ledgerActor, at)
           : 0;
+      // Fail closed: an entry the plan named that was not redacted (a row-level security policy that hides the row
+      // from the UPDATE answers 0 rows, never an error) would stay readable while the deletion says it went.
+      if (full !== p.ledgerFull.length || actorOnly !== p.ledgerActor.length) {
+        throw new DeletionAbort(
+          coreError(
+            'unavailable',
+            `the ledger redacted ${full + actorOnly} of ${p.ledgerFull.length + p.ledgerActor.length} entries`,
+          ),
+        );
+      }
       const removed = await removeEvents(client, deletionId, p.remove, at);
       const redacted = await redactEvents(client, p.redact, at);
       // The sample projection counts events per stream type: take the removed ones off, and drop a type none is

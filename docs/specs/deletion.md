@@ -91,6 +91,10 @@ requester, a vote marker): those are hash-chained parts of someone else's histor
 - the mutation triggers let a change through only when `current_user` is a member of `aisdlc_purge` **and** the change
   is purge-shaped: a ledger UPDATE only to the redacted shape (hashes, seq, signature and `created_at` unchanged), never
   a ledger DELETE, never a checkpoint change, a record UPDATE only to the redacted shape.
+- the ledger is under row-level security (the audit migration): `ledger/0003_purge_redaction_policy.sql` is the one
+  UPDATE policy, for `aisdlc_purge`, from unredacted to redacted. An UPDATE no policy allows touches no row and raises
+  nothing, so the deletion also refuses (`unavailable`, nothing committed) when fewer entries were redacted than it
+  planned.
 - the purge transaction runs `SET LOCAL ROLE aisdlc_purge`. Core's normal login is **not** a member; the deletion login
   (`CORE_PURGE_DATABASE_URL`) is. Without it core answers `503 deletion_unavailable`.
 
