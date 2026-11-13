@@ -962,17 +962,17 @@ code chip), `reason(edgeOrTrigger, limitsLeft)` for the one-line "what happened 
 
 ---
 
-## 22. Open points for the owner
+## 22. Decided by the owner (2026-11-13, "approve with defaults")
 
-1. **L1 and L3** differ only in catalogue data today (both "small"; the classifier picks L3 for small standard-risk work). The
-   proposed names are "Quick fix" and "Small change". If they mean the same to you, merge them in a new process version.
-2. **"Ledger"** is renamed **Decision log** on screens. The skeleton calls the screen "Ledger & audit"; this file proposes
-   "Decision log & audit". Say which.
-3. **"Gate" → "approval"** and **"lane" → "track"** everywhere, including Settings. Confirm.
-4. **"Unit" → "part"** (one part of the plan = one branch and one PR). Confirm, or prefer "task".
-5. Deliberately shared words: "Security hold" (Q1, Quarantined, Unit quarantined, room QUAR) and "Needs a person" (Handoff, room
-   DESK) are the same thing seen from different places; keep one word each.
-6. **Onboarding blockers B1–B7 clash with back-edges B1–B28** in the code. On screen neither code shows; in exports the onboarding
-   ones are written `OB-B1`…
-7. **E4 "Choose what happens next"**: the flow says the owner of record chooses, `GATE_POLICIES` gives it to the exception approver
-   (coverage §5 item 4). The label works either way; the decider must be settled (Settings › Approvals).
+1. **L1 "Quick fix" and L3 "Small change"** stay separate tracks with those names.
+2. **"Ledger" is "Decision log"** on screens; the screen is **"Decision log & audit"**.
+3. **"Gate" is "approval"** and **"lane" is "track"** everywhere, including Settings.
+4. **"Unit" is "part"** (one part of the plan = one branch and one PR).
+5. One word each for shared concepts: **"Security hold"** and **"Needs a person"**.
+6. Onboarding blockers are written `OB-B1`… in exports; no code shows on screen.
+7. **E4 "Choose what happens next"** is decided by the work's owner of record by default; who decides it is a setting
+   (Settings › Approvals), and the factory admin can always decide it.
+8. **Branch protection** is never set by the factory (its App never holds `administration`): the onboarding agent gives
+   exact steps and a ruleset file the owner imports into GitHub in one step, then checks it is in force.
+9. **Delete means delete** (portal-v2-intent.md): AGENTS.md's record rule gains that deleting an object removes its
+   record data and read models while the ledger keeps entry hashes only.
