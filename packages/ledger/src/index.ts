@@ -7,3 +7,4 @@ export * from './feed.js';
 export * from './checkpoint.js';
 export * from './verify.js';
 export * from './cli.js';
+export * from './redact.js';
