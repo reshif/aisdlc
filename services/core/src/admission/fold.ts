@@ -11,7 +11,7 @@ import {
   planningStream,
   unitBranchOf,
   unitStream,
-  type UnitState,
+  UnitState,
 } from '@aisdlc/contracts';
 import { ok } from '@aisdlc/kernel';
 import type { Tx } from '@aisdlc/record';
@@ -21,6 +21,13 @@ import { foldPlan } from '../planning/unit-fold.js';
 // The Unit, Lease and AdmissionGrant read models (PLAN M13.1). One fold, used twice: by the transaction that
 // writes an event (so the rows are never behind the record) and by `rebuildUnits`, which replays an item's
 // `units.planned` and `unit.*` events in record order into empty tables. A rebuilt table equals the live one.
+
+/** The states of a Unit with a branch and an open PR, before the merge: a re-plan keeps them (`Planned` again). */
+export const PUSHED_BEFORE_MERGE: readonly UnitState[] = UnitState.extract([
+  'Pushed',
+  'Verifying',
+  'InReview',
+]).options;
 
 /** The two lock keys of an item's Unit model: serialise every writer of its rows. */
 export const unitLockKey = (itemId: string): string => `planning:${itemId}`;
@@ -198,7 +205,15 @@ export async function applyUnitEvent(tx: Tx, e: FoldedEvent): Promise<void> {
           WHERE grant_id = $1 AND status <> 'released'`,
         [p.grant_id, p.cause, at],
       );
-      await moveUnit(tx, p.unit_id, 'GrantReleased');
+      // B11 after 6.6 (owner decision 2026-11-13): a Unit with a branch and an open PR goes back to `Planned` and keeps
+      // them (head, PR, lease and epoch); the next plan re-plans it in place and 6.0 admits it again at a higher epoch.
+      // Any other Unit is retired (`GrantReleased`) and re-planned by the next plan under its id (`foldPlan`).
+      const from = await stateOf(tx, p.unit_id);
+      if (p.cause === 'replanned' && from !== null && PUSHED_BEFORE_MERGE.includes(from)) {
+        await moveUnit(tx, p.unit_id, 'Planned');
+      } else {
+        await moveUnit(tx, p.unit_id, 'GrantReleased');
+      }
       return;
     }
     case UNIT_EVENT.wait_entered: {

@@ -30,6 +30,7 @@ import {
   admitAgentWork,
   type AgentKeyPort,
   type CapacityPort,
+  type CodeHostPort,
   type KillStatePort,
   type RunKeyVault,
   type StagePorts,
@@ -85,6 +86,7 @@ import { g6AcceptanceOf } from './closeout/record.js';
 import { gateNeededFor } from './gate-needed.js';
 import { g5Card, releaseBindingOf } from './release/binding.js';
 import { admitUnit, ensureAdmitted, syncUnits, type AdmissionPorts } from './admission/index.js';
+import { redraftReplanned } from './build/push.js';
 import { foldWork, makeItemForRequest, readWork, requestWork } from './work.js';
 import { g4ReviewOf, type ReviewPorts } from './review/index.js';
 
@@ -158,6 +160,13 @@ export interface WorkDriverDeps {
    * plain card.
    */
   readonly review?: ReviewPorts;
+  /**
+   * The Push Broker's redraft (owner decision 2026-11-13): when a back-edge sends an item whose Unit is pushed back to
+   * planning (B11 at 7.6), its SAME PR is taken back to draft with one ids-only comment (`redraftReplanned`), after
+   * `syncUnits`. core-worker wires it with the Push Broker it pushes through; absent, nothing is asked of the host (the
+   * re-plan goes on all the same, on the same branch and PR).
+   */
+  readonly pulls?: Pick<CodeHostPort, 'redraft_pr'>;
 }
 
 const clockOf = (d: { readonly clock?: Clock }): Clock => d.clock ?? systemClock;
@@ -934,9 +943,12 @@ export async function driveWork(
         `SELECT DISTINCT item_id FROM core.admission_grant WHERE status IN ('active', 'waiting')
          UNION SELECT DISTINCT item_id FROM core.lease WHERE status = 'held'`,
       );
-      await syncUnits({ ...coreDeps(d), ...d.admission }, [
+      const ids = [
         ...new Set([...active.map((r) => r.item_id), ...live.rows.map((r) => r.item_id)]),
-      ]);
+      ];
+      await syncUnits({ ...coreDeps(d), ...d.admission }, ids);
+      // a re-plan of a pushed Unit takes its PR back to draft (owner decision 2026-11-13)
+      if (d.pulls) await redraftReplanned(coreDeps(d), d.pulls, ids);
     } catch (e) {
       if (o.onItemError) o.onItemError('units', e);
       else throw e;

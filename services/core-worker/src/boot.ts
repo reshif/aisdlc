@@ -431,6 +431,15 @@ export async function bootCoreWorker(
             // M15.1: with S7's Evidence Packs, G4 opens with its review (mode C or E, the pack of exactly each PR head,
             // CODEOWNERS at the base through the codehost, the owners' principals through identity's links)
             ...(verifying ? { review: { source, links: new DbPrincipalLinks(readPool) } } : {}),
+            // owner decision 2026-11-13: a re-plan of a pushed Unit takes its SAME PR back to draft, one ids-only comment
+            ...(cfg.pushBroker
+              ? {
+                  pulls: new HttpCodeHostPush({
+                    baseUrl: cfg.pushBroker.url,
+                    token: cfg.pushBroker.token,
+                  }),
+                }
+              : {}),
             capacity: deps.capacity ?? realCapacity ?? new FakeCapacity(),
             ...(killState ? { kill: killState } : {}),
             // M11.2: every agent-acted stage command gets a per-Unit key minted from the agent's contract
