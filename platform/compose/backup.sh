@@ -10,14 +10,17 @@
 #                                passwords are the secret files, which db-init re-applies on every up)
 #   postgres/<db>.dump           each database (pg_dump -Fc): aisdlc (record, ledger, decisions, config, identity, core,
 #                                and the gateway's, sandbox-controller's, verify's, gate-check's, gate-relay's,
-#                                notifier's and audit's schemas and roles' grants), notary, witness, killswitch, and
-#                                any other database the cluster holds
+#                                notifier's and audit's schemas and roles' grants), notary, witness, killswitch,
+#                                keycloak (the sign-in realm, its users and their credentials), and any other database
+#                                the cluster holds
 #   volumes/objectstore-data.tgz the object store (MinIO) whole: the write-once `evidence-packs` bucket with its
 #                                object lock, and every other bucket (taken while the store is paused, so consistent)
 #   volumes/kms-state.tgz        key custody's keys (the Notary's, the Witness's, the kill switch's, the step-up and
 #                                fingerprint keys). SECRET
-#   secrets.tgz, env             platform/compose/secrets (service tokens, database passwords, the App key) and .env.
-#                                SECRET
+#   volumes/vault-data.tgz       Vault's storage (the secrets pasted in the portal, encrypted by Vault; taken while
+#                                Vault is paused). Opened only with the unseal key in secrets/vault/<project>/. SECRET
+#   secrets.tgz, env             platform/compose/secrets (service tokens, database passwords, the App key, Vault's
+#                                unseal key, root token and AppRoles, Keycloak's passwords) and .env. SECRET
 #   manifest.json, SHA256SUMS    what was taken, from where, the heads it covers, and a checksum of every file
 #
 # Order is what makes an online backup restorable: the record database first, then the Notary's, the Witness's and
@@ -88,6 +91,15 @@ tar_volume objectstore-data
 [ "$os_running" = 1 ] && docker unpause "$os_id" >/dev/null
 os_running=0
 tar_volume kms-state
+# Vault whole, while it is paused (consistent; the services keep the values they read and refresh after)
+v_id="$(dc ps -q vault 2>/dev/null || true)"
+v_running=0
+if [ -n "$v_id" ] && [ "$(docker inspect -f '{{.State.Running}}' "$v_id")" = true ]; then v_running=1; fi
+[ "$v_running" = 1 ] && docker pause "$v_id" >/dev/null
+trap '[ "$v_running" = 1 ] && docker unpause "$v_id" >/dev/null 2>&1 || true' EXIT
+tar_volume vault-data
+[ "$v_running" = 1 ] && docker unpause "$v_id" >/dev/null
+v_running=0
 
 tar -czf "$out/secrets.tgz" secrets
 [ -e .env ] && cp .env "$out/env"
@@ -102,7 +114,7 @@ cat >"$out/manifest.json" <<JSON
   "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "git_sha": "$git_sha",
   "databases": [$(printf '"%s",' $dbs | sed 's/,$//')],
-  "volumes": ["objectstore-data", "kms-state"],
+  "volumes": ["objectstore-data", "kms-state", "vault-data"],
   "covers": { "record_head": $record_head, "ledger_head": $ledger_head, "checkpoint_to": $checkpoint, "evidence_packs": $packs }
 }
 JSON

@@ -3,14 +3,20 @@
 # no credentials. Run it as `npm run smoke:compose` or `platform/compose/smoke.sh`.
 #
 #   1. init-secrets (a no-op when the secrets exist), build the image
-#   2. `up -d --wait`: every service healthy, the one-shot jobs (db-init, volume-init, migrate, seed) exited 0
-#   3. the boundaries hold: only bff and dev-oidc publish a port, no Docker socket anywhere, the App
+#   2. `up -d --wait`: every service healthy, the one-shot jobs (db-init, volume-init, vault-init, migrate, seed)
+#      exited 0
+#   3. the boundaries hold: only bff and keycloak publish a port, no Docker socket anywhere, the App
 #      key only in codehost, knowledge cannot reach GitHub, the codehost cannot reach the trust plane,
 #      the Notary and the Witness cannot reach each other
 #   4. the services talk: a factory admin (alice, from the seed) asks core to onboard the fixture
 #      repo, and step 0.1 runs codehost -> knowledge -> census until the S0 record waits at `card`
 #      with card 1 required; core-worker's cards loop opens that card (no sync call)
-#   5. login through the dev IdP reaches the bff, which knows alice as a factory admin
+#   5. login through Keycloak reaches the bff, which knows alice as a factory admin; the break-glass local account
+#      `factory-admin` is a factory admin too
+#   5b. Vault (portal v2): no published port, only its clients on its networks, each service reads only its own
+#      folder and core may write but never read a value; a factory admin puts the Anthropic key through the portal's
+#      API (bff -> core -> Vault) and the gateway builds its provider from it; the record holds name and version only;
+#      a restarted Vault unseals itself
 #   6. the fake GitHub's request log: its REST API saw GETs only (plus the App's token mint) and
 #      git was only ever fetched from
 #   7. the ledger (M8.0b): core-worker's checkpointer has the Notary sign a tree head and the Witness
@@ -72,7 +78,7 @@ own_sandboxes() { # docker subcommand words: ps -aq | network ls -q
 }
 
 cleanup() {
-  local code=$?
+  local code=${1:-$?}
   trap - EXIT
   if [ "$code" -ne 0 ]; then
     echo; echo "== smoke FAILED (exit $code): service states, then the tail of each log"
@@ -100,6 +106,8 @@ step "init-secrets and image"
 for p in 8340 8390; do
   if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then fail "port $p is already in use on this host (another stack?)"; fi
 done
+# shellcheck source=kc-login.sh
+. ./kc-login.sh
 if [ "${SMOKE_SKIP_BUILD:-0}" = 1 ]; then
   docker image inspect "${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local}" >/dev/null 2>&1 || fail "SMOKE_SKIP_BUILD=1 but the image ${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local} does not exist"
 else
@@ -127,7 +135,7 @@ step "every service is healthy"
 bad=0
 while IFS='|' read -r svc state health code; do
   case "$svc" in
-    db-init|volume-init|migrate|seed)
+    db-init|volume-init|vault-init|migrate|seed)
       if [ "$state" = exited ] && [ "$code" = 0 ]; then printf '  %-12s exited 0\n' "$svc"; else printf '  %-12s %s (exit %s)  <-- not ok\n' "$svc" "$state" "$code"; bad=1; fi ;;
     *)
       if [ "$state" = running ] && [ "$health" = healthy ]; then printf '  %-12s healthy\n' "$svc"; else printf '  %-12s %s/%s  <-- not ok\n' "$svc" "$state" "$health"; bad=1; fi ;;
@@ -141,7 +149,7 @@ step "the boundaries hold"
 # `5432/tcp -> :0` is postgres' EXPOSE, not a published port; a published one reads `-> 127.0.0.1:8340`.
 published=$(dc ps --format '{{.Service}}={{.Publishers}}' | grep -E '=.*-> [0-9.]+:[1-9]' | cut -d= -f1 | sort | tr '\n' ' ')
 echo "  published ports: ${published:-none}"
-[ "$published" = "bff dev-oidc " ] || fail "only bff and dev-oidc may publish ports"
+[ "$published" = "bff keycloak " ] || fail "only bff and keycloak may publish ports"
 # M13.2: the two sandbox proxies are the only containers that mount the Docker socket (an allow-list in front of it)
 sock=$(docker inspect $(dc ps -aq) --format '{{index .Config.Labels "com.docker.compose.service"}} {{range .Mounts}}{{.Source}} {{end}}' | grep 'docker.sock' | cut -d' ' -f1 | sort | tr '\n' ' ')
 echo "  containers mounting the Docker socket: ${sock:-none}"
@@ -194,7 +202,11 @@ refused codehost http://postgres:5432/
 refused notary http://witness:8320/healthz       # the two signers cannot see each other (AR9)
 refused witness http://notary:8310/healthz
 refused bff http://notary:8310/healthz
-refused dev-oidc http://kms-local:8300/healthz
+# Keycloak (no node in its image: bash's /dev/tcp) reaches its database and nothing of the factory
+for target in kms-local:8300 notary:8310 core:8380 vault:8200 identity:8330; do
+  if dc exec -T keycloak bash -c "exec 3<>/dev/tcp/${target%%:*}/${target#*:}" 2>/dev/null; then fail "keycloak reached $target"; fi
+  echo "  keycloak cannot reach $target"
+done
 # AR9: the kill switch is on its own network. It has no route to core (the API with write and command
 # routes) or to anything else but its signer and its database, and core, the Notary and the codehost have
 # none to it. The one core-side process on its network is core-worker, which it must share a network
@@ -250,7 +262,8 @@ gw_nets=$(docker inspect "$(dc ps -q gateway)" --format '{{range $k, $v := .Netw
 echo "  gateway networks: $gw_nets"
 # telemetry-gateway (M19): its own link to the collector, nobody else of the stack on it; gateway-bff (P2-5): the bff's
 # Test and Reload, the bff and the gateway only
-[ "$gw_nets" = "data-gateway gateway-api gateway-bff gateway-egress killswitch-gateway telemetry-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
+# portal v2: vault-gateway is its link to Vault (its own folder, read only; nothing else is on it)
+[ "$gw_nets" = "data-gateway gateway-api gateway-bff gateway-egress killswitch-gateway telemetry-gateway vault-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
 on_egress=$(docker network inspect "${COMPOSE_PROJECT_NAME}_gateway-egress" --format '{{range .Containers}}{{.Name}} {{end}}')
 [ "$(printf '%s' "$on_egress" | wc -w)" = 1 ] || fail "something else is on the gateway's egress network: $on_egress"
 echo "  nothing but the gateway is on gateway-egress"
@@ -295,19 +308,69 @@ entries=$(PGPW="$(cat secrets/pg-superuser)"; dc exec -T -e PGPASSWORD="$PGPW" p
 echo "  ledger entries signed by the Notary: $entries"
 [ "$entries" -gt 0 ] || fail "the ledger is empty"
 
-step "login through the dev IdP reaches the bff"
-jar=$(mktemp); trap 'rc=$?; rm -f "$jar"; (exit "$rc"); cleanup' EXIT
-loc=$(curl -fsS -o /dev/null -D- -c "$jar" http://localhost:8340/auth/login | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
-[ -n "$loc" ] || fail "/auth/login did not redirect"
-back=$(curl -fsS -o /dev/null -D- --resolve dev-oidc.localhost:8390:127.0.0.1 -X POST \
-  -H 'content-type: application/x-www-form-urlencoded' \
-  --data "${loc#*\?}&dev_user=00000000-0000-4000-8000-000000000001" \
-  http://dev-oidc.localhost:8390/authorize | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
-[ -n "$back" ] || fail "the dev IdP did not send the browser back"
-curl -fsS -o /dev/null -b "$jar" -c "$jar" "$back"
+step "login through Keycloak reaches the bff"
+jar=$(mktemp); trap 'rc=$?; rm -f "$jar"; cleanup "$rc"' EXIT
+kc_login 8340 8390 alice secrets/keycloak-persona-password "$jar" || fail "alice could not sign in through Keycloak"
 me=$(curl -fsS -b "$jar" http://localhost:8340/api/me)
 echo "  /api/me: $(printf '%s' "$me" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s);console.log(`${m.principal.principal_id} (${m.principal.display_name}), fleet actions: ${m.actions.fleet.join(", ")}`)})')"
 printf '%s' "$me" | grep -q '"project.onboard"' || fail "alice is not a factory admin through the bff"
+fa_jar=$(mktemp)
+kc_login 8340 8390 factory-admin secrets/keycloak-factory-admin-password "$fa_jar" || fail "the break-glass account could not sign in"
+curl -fsS -b "$fa_jar" http://localhost:8340/api/me | grep -q '"project.onboard"' || fail "factory-admin is not a factory admin"
+rm -f "$fa_jar"
+echo "  the break-glass local account factory-admin signs in through Keycloak and is a factory admin"
+wrong=$(mktemp); printf 'not-the-password-%s' "$RANDOM" >"$wrong"
+if kc_login 8340 8390 lt "$wrong" "$(mktemp)" 2>/dev/null; then fail "a wrong password signed lt in"; fi
+rm -f "$wrong"
+echo "  a wrong password is refused by Keycloak"
+
+step "Vault: least privilege, the write-only secret API, the gateway reads what was pasted, auto-unseal"
+vault_nets=$(docker inspect "$(dc ps -q vault)" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}_//" | grep -v '^$' | sort | tr '\n' ' ')
+echo "  vault's networks: $vault_nets"
+for n in $vault_nets; do
+  members=$(docker network inspect "${COMPOSE_PROJECT_NAME}_$n" --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}-//; s/-1$//" | grep -v -e '^$' -e '^vault$' | sort | tr '\n' ' ' || true)
+  [ "$(printf '%s' "$members" | wc -w)" -le 1 ] || fail "vault network $n is shared by: $members"
+done
+echo "  each Vault network holds Vault and at most one client"
+# each AppRole, from inside its own container: its folder only; core writes and reads metadata, never a value
+vread() { # service approle path -> HTTP status of a read of aisdlc/data/<path>
+  dc exec -T "$1" node -e '
+const r = JSON.parse(require("fs").readFileSync(`/run/secrets/vault-approle-${process.argv[1]}`, "utf8"));
+(async () => {
+  const l = await (await fetch("http://vault:8200/v1/auth/approle/login", { method: "POST", body: JSON.stringify(r) })).json();
+  const g = await fetch(`http://vault:8200/v1/aisdlc/data/${process.argv[2]}`, { headers: { "x-vault-token": l.auth.client_token } });
+  console.log(g.status);
+})();' "$2" "$3"
+}
+[ "$(vread gateway gateway codehost/github-app-key)" = 403 ] || fail "the gateway may read the codehost's folder"
+[ "$(vread codehost codehost gateway/anthropic-api-key)" = 403 ] || fail "the codehost may read the gateway's folder"
+echo "  the gateway and the codehost are each refused the other's folder"
+put_status=$(curl -sS -o /dev/null -w '%{http_code}' -b "$jar" -X PUT -H 'content-type: application/json' \
+  -H "x-csrf-token: $(printf '%s' "$me" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).csrf_token))')" \
+  --data "{\"value\":\"sk-ant-smoke-$(openssl rand -hex 16)\"}" http://localhost:8340/api/secrets/anthropic-api-key)
+[ "$put_status" = 200 ] || fail "alice could not put the Anthropic key through the portal's API ($put_status)"
+echo "  alice put the Anthropic key through /api/secrets (bff -> core -> Vault): 200, metadata only"
+[ "$(vread core core gateway/anthropic-api-key)" = 403 ] || fail "core may read back a value it wrote"
+echo "  core wrote it and may not read it back (403)"
+[ "$(vread gateway gateway gateway/anthropic-api-key)" = 200 ] || fail "the gateway cannot read its key"
+built=""
+for _ in $(seq 1 30); do
+  built=$(dc exec -T -e TOKEN="$(cat secrets/tok-operator-gateway)" gateway node -e '
+fetch("http://127.0.0.1:8410/v1/admin/reload", { method: "POST", headers: { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" }, body: "{}" })
+  .then((r) => r.json()).then((j) => console.log((j.integrations ?? []).find((i) => i.integration_id === "anthropic")?.state ?? "none"));')
+  [ "$built" = built ] && break
+  sleep 2
+done
+[ "$built" = built ] || fail "the gateway did not build the Anthropic provider from the pasted key ($built)"
+echo "  the gateway built its Anthropic provider from the key in Vault (refreshed without a restart)"
+rec=$(dc exec -T -e PGPASSWORD="$(cat secrets/pg-superuser)" postgres psql -U postgres -d aisdlc -At -c \
+  "SELECT type || ' ' || (SELECT string_agg(k, ',' ORDER BY k) FROM jsonb_object_keys(body) k) FROM record.record_event WHERE stream = 'secret:anthropic-api-key'")
+[ "$rec" = "secret.stored at,by,name,version" ] || fail "the record of the secret is not {name, version, by, at}: $rec"
+echo "  the record holds $rec (no value)"
+docker restart "$(dc ps -q vault)" >/dev/null
+for _ in $(seq 1 40); do [ "$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q vault)")" = healthy ] && break; sleep 2; done
+[ "$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q vault)")" = healthy ] || fail "Vault did not unseal itself after a restart"
+echo "  a restarted Vault unsealed itself (local prod)"
 
 step "the fake GitHub's request log"
 log=$(dc logs --no-log-prefix --no-color fake-github 2>&1 | grep -E '^fake-github (api|git) ')

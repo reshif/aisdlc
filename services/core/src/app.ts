@@ -48,6 +48,9 @@ import {
   ReleaseSetting,
   OnboardRequest,
   PrincipalId,
+  SecretDeleteBody,
+  SecretName,
+  SecretPutBody,
   ProjectId,
   RevisionDecideRequest,
   RevisionEvidenceRequest,
@@ -128,7 +131,7 @@ import {
   itemVerifyView,
   signedPackBytes,
 } from './verify/portal.js';
-import type { CodeHostPort, ObjectStorePort } from '@aisdlc/ports';
+import type { CodeHostPort, ObjectStorePort, SecretStorePort } from '@aisdlc/ports';
 import { answerQuestion, decideReady, requestReceipt, submitRequest } from './requests.js';
 import { observeRelane, reRequestRelease, requestRework } from './work-signals.js';
 import { submitHumanPlan } from './planning/human-plan.js';
@@ -164,6 +167,7 @@ import {
   projectConfigKeyView,
   proposeConfigKey,
 } from './config-console.js';
+import { destroySecret, listSecrets, putSecret, type SecretDeps } from './secrets.js';
 import {
   cardDetail,
   cardHeader,
@@ -198,7 +202,9 @@ import { displayCatalogue } from './catalogue-pin.js';
  * Broker asks whether a Unit's lease is held at an epoch and whether an approved X2 is bound to a patch hash: core's own
  * word, read from the lease and the ledger), `erasure` (M19: the audit service lists the payloads kept off the hash chain
  * and erases one it has the `erasure.execute` entry for; no other caller has a reason to hold it),
- * `activity` (M19: a session's reporter posts its heartbeat; nothing else), `delete` (portal v2: the bff deletes an object
+ * `activity` (M19: a session's reporter posts its heartbeat; nothing else), `secrets` (portal v2 N15: the BFF puts a
+ * value a person pasted into the secret store and lists names and metadata; the PDP decides about the person),
+ * `delete` (portal v2: the bff deletes an object
  * for a signed-in person; the PDP decides `<kind>.delete`, docs/specs/deletion.md).
  */
 export type CoreScope =
@@ -214,6 +220,7 @@ export type CoreScope =
   | 'push_guard'
   | 'erasure'
   | 'activity'
+  | 'secrets'
   | 'delete';
 
 export interface CoreAppOptions {
@@ -249,6 +256,8 @@ export interface CoreAppOptions {
   readonly grants?: AccessGrantWriterPort;
   /** P2-16: the calendar the clarifying deadline is counted on (the S0 calendar); absent: the default calendar. */
   readonly workSettings?: () => WorkSettings;
+  /** Portal v2 N15: the secret store (Vault) the write-only secret API writes to; absent: those routes answer 503. */
+  readonly secretStore?: SecretStorePort;
   /** Delete means delete (docs/specs/deletion.md): the purge login and its object purger; absent: `503`. */
   readonly deletion?: DeletionDeps;
 }
@@ -2031,6 +2040,62 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     const k = params(req)['key'];
     return typeof k === 'string' && /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(k) ? k : null;
   };
+
+  // ------------------------------------------------------------ secrets (portal v2 N15: write-only, never a value back)
+
+  const secretDeps = (reply: FastifyReply): SecretDeps | null => {
+    if (!o.secretStore || !o.config) {
+      sendError(reply, 503, 'unavailable', 'no secret store is configured');
+      return null;
+    }
+    return { pool: o.pool, store: o.secretStore, decisions: o.config };
+  };
+  const secretNameOf = (req: FastifyRequest): SecretName | null => {
+    const n = SecretName.safeParse(params(req)['name']);
+    return n.success ? n.data : null;
+  };
+
+  app.get('/v1/secrets', async (req, reply) => {
+    if (!allowed(req, 'secrets'))
+      return sendError(reply, 403, 'forbidden', 'scope secrets is needed');
+    const who = PrincipalId.safeParse((req.query as Record<string, string>)['on_behalf_of']);
+    if (!who.success) return fail(reply, coreError('invalid_input', 'on_behalf_of is needed'));
+    if (!(await guard(reply, who.data, 'config.propose', pdpResource.fleet()))) return;
+    const d = secretDeps(reply);
+    if (!d) return;
+    const r = await listSecrets(d);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  app.put('/v1/secrets/:name', async (req, reply) => {
+    if (!allowed(req, 'secrets'))
+      return sendError(reply, 403, 'forbidden', 'scope secrets is needed');
+    const name = secretNameOf(req);
+    if (!name) return fail(reply, coreError('not_found', 'no such secret name'));
+    // the body is parsed here and never echoed: a refusal names the field, not what it held
+    const b = SecretPutBody.safeParse(req.body ?? {});
+    if (!b.success)
+      return fail(reply, coreError('invalid_input', 'the body is {value, on_behalf_of}'));
+    if (!(await guard(reply, b.data.on_behalf_of, 'config.propose', pdpResource.fleet()))) return;
+    const d = secretDeps(reply);
+    if (!d) return;
+    const r = await putSecret(d, name, b.data.value, b.data.on_behalf_of);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
+
+  app.delete('/v1/secrets/:name', async (req, reply) => {
+    if (!allowed(req, 'secrets'))
+      return sendError(reply, 403, 'forbidden', 'scope secrets is needed');
+    const name = secretNameOf(req);
+    if (!name) return fail(reply, coreError('not_found', 'no such secret name'));
+    const b = parse(SecretDeleteBody, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    if (!(await guard(reply, b.value.on_behalf_of, 'config.propose', pdpResource.fleet()))) return;
+    const d = secretDeps(reply);
+    if (!d) return;
+    const r = await destroySecret(d, name, b.value.on_behalf_of);
+    return r.ok ? r.value : fail(reply, r.error);
+  });
 
   app.get('/v1/config/keys', async (req, reply) => {
     if (!allowed(req, 'read')) return sendError(reply, 403, 'forbidden', 'scope read is needed');

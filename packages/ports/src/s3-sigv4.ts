@@ -17,6 +17,8 @@ export interface SignInput {
   readonly payloadSha256: string;
   readonly region: string;
   readonly now: Date;
+  /** The AWS service the scope names. Default `s3` (`secretsmanager` for the AWS secret store). */
+  readonly service?: string;
 }
 
 const hmac = (key: Buffer | string, data: string): Buffer =>
@@ -67,10 +69,11 @@ export function signV4(creds: SigV4Credentials, input: SignInput): Record<string
     signedHeaders,
     input.payloadSha256,
   ].join('\n');
-  const scope = `${day}/${input.region}/s3/aws4_request`;
+  const service = input.service ?? 's3';
+  const scope = `${day}/${input.region}/${service}/aws4_request`;
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Of(canonicalRequest)].join('\n');
   const kSigning = hmac(
-    hmac(hmac(hmac(`AWS4${creds.secretKey}`, day), input.region), 's3'),
+    hmac(hmac(hmac(`AWS4${creds.secretKey}`, day), input.region), service),
     'aws4_request',
   );
   const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex');

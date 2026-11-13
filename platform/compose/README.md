@@ -209,9 +209,70 @@ The files are read through a bind mount, so the containers must run as their own
 `init-secrets` writes `AISDLC_UID`/`AISDLC_GID` into `.env` (your own uid; 10001 when run as root). Any uid
 works: `volume-init` hands the named volumes to the same uid.
 
+## Secrets pasted in the portal: Vault (portal v2)
+
+The secrets a person enters in the portal (a model provider's API key, a GitHub App's private key, a Slack webhook, an
+SMTP password) go into **HashiCorp Vault** (`vault`, KV version 2 at `aisdlc/`), never into a file, the record, a log or
+the browser after submit. The owner pastes a value once:
+
+    PUT /api/secrets/<name>   {"value": "..."}     (the bff, as the signed-in person; PDP config.propose on the fleet)
+    GET /api/secrets                                (names and metadata only: set, version, when, by whom)
+    DELETE /api/secrets/<name>                      (every version destroyed)
+
+The value travels browser -> bff -> core -> Vault once; core records `secret.stored` {name, version, by, at} with a
+ledger entry over exactly that (never the value or a hash of it). The names are an allow-list
+(`packages/contracts/src/entities/secrets.ts`), each owned by the one service that reads it, and configuration names
+them by reference: `vault:<owner>/<name>#value` (next to `file:` and `env:`). Every service resolves `vault:`
+references at start (`runService` primes the ones its environment names) and refreshes them every 30 s, so a pasted
+or rotated value is picked up without a restart (the gateway rebuilds its provider, an App key re-reads itself).
+
+Least privilege, in Vault's own policies (`vault/policies/*.hcl`) and the networks: one AppRole per service
+(`secrets/vault/approle-<service>`, made by `init-secrets`, registered by `vault-init`), each reads only
+`aisdlc/data/<service>/*`; core is the one writer and has no read of a value (create, update, metadata, destroy);
+one network per client (`vault-<client>`), so Vault's clients do not reach each other through it. Vault's audit device
+writes to its log with every value HMAC'd.
+
+What uses Vault by default: the Anthropic key (`AISDLC_ANTHROPIC_KEY_REF`, default `vault:gateway/anthropic-api-key#value`;
+`file:/run/secrets/anthropic-api-key` keeps the mounted file) and the notifier's channel secrets. The GitHub Apps' keys
+stay files by default (setup-github-apps writes them); `AISDLC_GITHUB_APP_KEY_REF=vault:codehost/github-app-key#value`
+(and `AISDLC_PUSH_BROKER_KEY_REF`, `AISDLC_GATE_CHECK_KEY_REF`, `AISDLC_GATE_RELAY_KEY_REF`) reads them from Vault
+instead (`npm run e2e:pr` does, pasting the key through the portal first).
+
+**LOCAL PROD ONLY.** Vault runs in server mode with file storage on the named volume `vault-data`, plain http on its
+internal networks, ONE unseal key share, and unseals itself: `vault-init` initialises it at the stack's first start and
+writes the unseal key and the root token to `secrets/vault/<project>/` (mode 0600, one pair per compose project), and
+the `vault` container opens itself with that key after every restart. That is convenient on the owner's machine and
+wrong anywhere else: in production the same `SecretStorePort` is AWS Secrets Manager (`AwsSecretsManagerStore`, a
+tested stub, not wired) or a Vault with a KMS seal, no key beside the server. A key pair whose volume was removed
+(`down -v`) is moved aside as `*.orphaned-<time>` at the next first start.
+
+## Sign-in: Keycloak (portal v2)
+
+The bff signs people in against **Keycloak** (`keycloak`) by OpenID Connect discovery (`BFF_OIDC_ISSUER`, default
+`http://keycloak.localhost:<AISDLC_OIDC_PORT>/realms/aisdlc`; any OIDC provider in production, `AISDLC_OIDC_ISSUER`):
+authorization code with PKCE (S256), the bff a confidential client. Keycloak keeps its own database `keycloak` in the
+stack's Postgres under its own role (persistent and in every backup like the other databases; its dev-file H2 mode is
+not supported for production and backup.sh would not see it). The realm `aisdlc` is imported at the first start from
+`keycloak/realm-aisdlc.json`, GENERATED from the one IdP seed (`npm run gen -w @aisdlc/bff`; a test fails when it is
+stale): every test person (alice, bob and the eleven personas) as a user whose id is their IdP subject and whose
+username is their principal id, their groups, the bff client, brute-force protection (five tries, 15 minutes), an
+authenticator app (OTP) available and optional, and the break-glass local account `factory-admin` (a factory admin).
+Passwords are files made by `init-secrets` (`secrets/keycloak-persona-password` for the test people,
+`keycloak-factory-admin-password`, `keycloak-bootstrap-admin` for Keycloak's own `kc-admin`); the realm takes them at
+its first import and they are changed in Keycloak afterwards. Groups become identity bindings as before: identity syncs
+`config/keycloak-idp-seed.json` (the same people with Keycloak's issuer) and the seed binds the groups to their roles.
+The sign-in page is the agreed AISDLC look as a minimal Keycloak theme (`keycloak/themes/aisdlc`). Keycloak is
+published on 127.0.0.1 like the portal (`AISDLC_OIDC_PORT`, default 8390): its issuer is one name for the browser (a
+loopback name) and the bff (a network alias).
+
+The dev IdP stays only as a test fake behind the same configuration: compose profile `dev-oidc` with
+`AISDLC_OIDC_ISSUER=http://dev-oidc.localhost:<port>`, `AISDLC_IDP_SEED_FILE=./config/idp-seed.json` and
+`AISDLC_OIDC_LOGIN_HINT=subject` (the load test runs that way).
+
 ## Backup and restore (RC-OPS-1)
 
-`./backup.sh <dir>` takes every database and role, the object store and key custody's volumes, `secrets/` and
+`./backup.sh <dir>` takes every database and role (Keycloak's too), the object store's, key custody's and Vault's
+volumes, `secrets/` and
 `.env` (a secret itself: keep it encrypted); `./restore.sh <dir>` puts them back onto a fresh stack (no Postgres
 volume) before it is brought up. `npm run drill:restore` (`drill-restore.sh`) proves it end to end. What is taken,
 in which order and why, how to check a restore, and the RPO and RTO: `docs/runbooks/backup-restore.md`. The image
@@ -326,12 +387,12 @@ running it is `docs/runbooks/m8.5-live-census.md`.
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | Record and ledger database    | one Postgres container, three databases and roles; one owner role (`aisdlc`, with CREATEROLE) migrates and runs the record services | Aurora Multi-AZ, IAM auth, separate migrator and service roles |
 | Key custody                   | `kms-local` (`dev:` keys, refuses unless `FACTORY_ENV=local`)                                                                       | AWS KMS asymmetric; Notary and Witness in separate accounts    |
-| Identity provider             | `dev-oidc` plus the seed file (`alice`, `bob`)                                                                                      | Entra                                                          |
+| Identity provider             | Keycloak (realm `aisdlc`, local accounts, plain http on loopback) plus the IdP seed file; `dev-oidc` as a test fake                 | Entra or any OIDC provider                                     |
 | First admin and policy bundle | `seed`, local only                                                                                                                  | provisioned with the account, bundle through the real M1 gate  |
 | Code host                     | `codehost` plus the fake GitHub, or a real non-prod App                                                                             | `codehost-core` on ECS, App keys in KMS                        |
 | Browser edge                  | bff on `localhost`, plain http, secure cookies off                                                                                  | CloudFront, WAF, Verified Access, TLS                          |
 | Network separation            | Docker networks (reach, not packet filtering)                                                                                       | accounts, VPCs, security groups                                |
-| Secrets                       | files in `secrets/`, bind-mounted                                                                                                   | Secrets Manager                                                |
+| Secrets                       | files in `secrets/`, bind-mounted; pasted ones in Vault (one unseal key on disk, auto-unseal)                                       | Secrets Manager                                                |
 | Core and core-worker          | two containers                                                                                                                      | ECS services, same images                                      |
 | Not here yet                  | sandbox pieces, audit services                                                                                                      | later milestones                                               |
 

@@ -40340,7 +40340,7 @@
           "anyOf": [
             {
               "type": "string",
-              "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+              "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
             },
             {
               "type": "null"
@@ -40351,7 +40351,7 @@
           "anyOf": [
             {
               "type": "string",
-              "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+              "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
             },
             {
               "type": "null"
@@ -48661,7 +48661,7 @@
     },
     "FileSecretRef": {
       "type": "string",
-      "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+      "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
     },
     "FindingCounts": {
       "type": "object",
@@ -68433,7 +68433,7 @@
               },
               "secret_ref": {
                 "type": "string",
-                "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+                "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
               },
               "kind": {
                 "type": "string",
@@ -68569,7 +68569,7 @@
         },
         "secret_ref": {
           "type": "string",
-          "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+          "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
         },
         "kind": {
           "type": "string",
@@ -69338,7 +69338,7 @@
                 },
                 "secret_ref": {
                   "type": "string",
-                  "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+                  "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
                 },
                 "kind": {
                   "type": "string",
@@ -69539,7 +69539,7 @@
                     },
                     "secret_ref": {
                       "type": "string",
-                      "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+                      "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
                     },
                     "kind": {
                       "type": "string",
@@ -94300,7 +94300,7 @@
             },
             "webhook_ref": {
               "type": "string",
-              "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+              "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
             }
           },
           "required": [
@@ -94369,7 +94369,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                  "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
                 },
                 {
                   "type": "null"
@@ -94380,7 +94380,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                  "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
                 },
                 {
                   "type": "null"
@@ -94441,7 +94441,7 @@
               },
               "webhook_ref": {
                 "type": "string",
-                "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
               }
             },
             "required": [
@@ -94510,7 +94510,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                    "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
                   },
                   {
                     "type": "null"
@@ -94521,7 +94521,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+                    "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
                   },
                   {
                     "type": "null"
@@ -135554,9 +135554,420 @@
       ],
       "additionalProperties": false
     },
+    "SecretDeleteBody": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "SecretDestroyedPayload": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "anthropic-api-key",
+            "openai-api-key",
+            "deepseek-api-key",
+            "github-app-key",
+            "tracker-app-key",
+            "push-broker-app-key",
+            "gate-check-app-key",
+            "gate-relay-app-key",
+            "slack-webhook-url",
+            "smtp-password"
+          ]
+        },
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "name",
+        "by",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "SecretFormat": {
+      "type": "string",
+      "enum": [
+        "token",
+        "pem_private_key",
+        "url"
+      ]
+    },
+    "SecretList": {
+      "type": "object",
+      "properties": {
+        "store_reachable": {
+          "type": "boolean"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "enum": [
+                  "anthropic-api-key",
+                  "openai-api-key",
+                  "deepseek-api-key",
+                  "github-app-key",
+                  "tracker-app-key",
+                  "push-broker-app-key",
+                  "gate-check-app-key",
+                  "gate-relay-app-key",
+                  "slack-webhook-url",
+                  "smtp-password"
+                ]
+              },
+              "owner": {
+                "type": "string",
+                "enum": [
+                  "gateway",
+                  "codehost",
+                  "push-broker",
+                  "gate-check",
+                  "gate-relay",
+                  "notifier"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "token",
+                  "pem_private_key",
+                  "url"
+                ]
+              },
+              "ref": {
+                "type": "string"
+              },
+              "set": {
+                "type": "boolean"
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "updated_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "updated_by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.@-]+$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "owner",
+              "label",
+              "format",
+              "ref",
+              "set",
+              "version",
+              "updated_at",
+              "updated_by"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "store_reachable",
+        "secrets"
+      ],
+      "additionalProperties": false
+    },
+    "SecretName": {
+      "type": "string",
+      "enum": [
+        "anthropic-api-key",
+        "openai-api-key",
+        "deepseek-api-key",
+        "github-app-key",
+        "tracker-app-key",
+        "push-broker-app-key",
+        "gate-check-app-key",
+        "gate-relay-app-key",
+        "slack-webhook-url",
+        "smtp-password"
+      ]
+    },
+    "SecretOwner": {
+      "type": "string",
+      "enum": [
+        "gateway",
+        "codehost",
+        "push-broker",
+        "gate-check",
+        "gate-relay",
+        "notifier"
+      ]
+    },
+    "SecretPutBody": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "value",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "SecretPutRequest": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "SecretRef": {
       "type": "string",
-      "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63})$"
+      "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|env:[A-Z][A-Z0-9_]{0,63}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
+    },
+    "SecretStoredPayload": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "anthropic-api-key",
+            "openai-api-key",
+            "deepseek-api-key",
+            "github-app-key",
+            "tracker-app-key",
+            "push-broker-app-key",
+            "gate-check-app-key",
+            "gate-relay-app-key",
+            "slack-webhook-url",
+            "smtp-password"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "by": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "by",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "SecretView": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "anthropic-api-key",
+            "openai-api-key",
+            "deepseek-api-key",
+            "github-app-key",
+            "tracker-app-key",
+            "push-broker-app-key",
+            "gate-check-app-key",
+            "gate-relay-app-key",
+            "slack-webhook-url",
+            "smtp-password"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "enum": [
+            "gateway",
+            "codehost",
+            "push-broker",
+            "gate-check",
+            "gate-relay",
+            "notifier"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "token",
+            "pem_private_key",
+            "url"
+          ]
+        },
+        "ref": {
+          "type": "string"
+        },
+        "set": {
+          "type": "boolean"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updated_by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "owner",
+        "label",
+        "format",
+        "ref",
+        "set",
+        "version",
+        "updated_at",
+        "updated_by"
+      ],
+      "additionalProperties": false
+    },
+    "SecretWriteResult": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "anthropic-api-key",
+            "openai-api-key",
+            "deepseek-api-key",
+            "github-app-key",
+            "tracker-app-key",
+            "push-broker-app-key",
+            "gate-check-app-key",
+            "gate-relay-app-key",
+            "slack-webhook-url",
+            "smtp-password"
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "updated_at"
+      ],
+      "additionalProperties": false
     },
     "SecurityConfirmRequest": {
       "type": "object",
@@ -138145,7 +138556,7 @@
         },
         "webhook_ref": {
           "type": "string",
-          "pattern": "^file:\\/[A-Za-z0-9_./-]{1,200}$"
+          "pattern": "^(file:\\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$"
         }
       },
       "required": [

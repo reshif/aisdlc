@@ -1,0 +1,549 @@
+/* The AISDLC sign-in look (portal v2, the agreed sign-in page), for Keycloak's login pages. Colours are the page's
+   tokens, light and dark; the fonts fall back to the system's (the sign-in page loads nothing from elsewhere). */
+:root {
+  --bg: #0f1216;
+  --panel: #181c22;
+  --panel-2: #1e232b;
+  --line: #2a3039;
+  --line-2: #3a424f;
+  --text: #e7eaef;
+  --muted: #a9b1bd;
+  --faint: #8f98a5;
+  --accent: #f2b51d;
+  --accent-ink: #2a1e00;
+  --link: #8cc0f5;
+  --ok: #3ccf8e;
+  --warn: #f2cf73;
+  --bad: #ff9d96;
+  --focus: #8cc0f5;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --panel-2: #f0f2f5;
+    --line: #d9dde3;
+    --line-2: #c2c8d0;
+    --text: #14181d;
+    --muted: #4a525e;
+    --faint: #5d6672;
+    --accent: #b07d00;
+    --accent-ink: #ffffff;
+    --link: #0b5cad;
+    --ok: #137a4b;
+    --warn: #7a5a00;
+    --bad: #b42318;
+    --focus: #0b5cad;
+  }
+}
+:root[data-theme='light'] {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --panel-2: #f0f2f5;
+  --line: #d9dde3;
+  --line-2: #c2c8d0;
+  --text: #14181d;
+  --muted: #4a525e;
+  --faint: #5d6672;
+  --accent: #b07d00;
+  --accent-ink: #ffffff;
+  --link: #0b5cad;
+  --ok: #137a4b;
+  --warn: #7a5a00;
+  --bad: #b42318;
+  --focus: #0b5cad;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+}
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 var(--sans);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+a {
+  color: var(--link);
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* left: what the factory is */
+.brand {
+  padding: 48px 56px;
+  border-right: 1px solid var(--line);
+  background:
+    radial-gradient(
+      circle at 20% 15%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 45%
+    ),
+    var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  justify-content: space-between;
+}
+.wordmark {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 0.05em;
+}
+.wordmark span {
+  color: var(--accent);
+}
+.mini {
+  width: 100%;
+  max-width: 340px;
+  margin: 0 0 30px 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
+  transform: rotate(-2deg);
+}
+.mini .mrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  gap: 8px;
+}
+.mini .mrow-gap {
+  margin-bottom: 10px;
+}
+.mini .ok {
+  color: var(--ok);
+}
+.mini .g {
+  font-family: var(--mono);
+  font-size: 11px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.mini .mtitle {
+  font-weight: 600;
+  font-size: 14.5px;
+  margin: 8px 0 10px;
+  color: var(--text);
+}
+.mini .steps {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.mini .steps i {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ok);
+}
+.mini .steps i.w {
+  background: var(--line-2);
+}
+.mini .btns {
+  display: flex;
+  gap: 8px;
+}
+.mini .btns b {
+  flex: 1;
+  text-align: center;
+  font-size: 12.5px;
+  padding: 7px 0;
+  border-radius: 6px;
+}
+.mini .ap {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.mini .rj {
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+  font-weight: 500;
+}
+.mini .hash {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  margin-top: 10px;
+}
+.brand h1 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 44px;
+  line-height: 1.05;
+  margin: 0 0 14px;
+  max-width: 16ch;
+}
+.brand p {
+  color: var(--muted);
+  max-width: 46ch;
+  margin: 0;
+}
+.lane {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 26px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.lane span {
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: var(--muted);
+}
+.lane span.gate {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.facts {
+  display: grid;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.facts div {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.facts b {
+  color: var(--text);
+  font-weight: 500;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+  transform: translateY(-1px);
+}
+.dot-faint {
+  background: var(--faint);
+}
+
+/* right: the card */
+main {
+  display: grid;
+  place-items: center;
+  padding: 40px 24px;
+}
+.card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.env {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border-radius: 6px;
+  padding: 3px 9px;
+}
+.card h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 32px;
+  margin: 0;
+}
+.sub {
+  color: var(--muted);
+  margin: -12px 0 0;
+}
+.who {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.who b {
+  color: var(--text);
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  font: 600 15px/1 var(--sans);
+  padding: 13px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 46px;
+  text-decoration: none;
+}
+.btn-sso {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 1px solid var(--accent);
+}
+.btn-sso:hover {
+  filter: brightness(1.06);
+}
+.btn-local {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line-2);
+}
+.btn-local:hover {
+  border-color: var(--muted);
+}
+.idp {
+  font-size: 12.5px;
+  color: var(--faint);
+  text-align: center;
+  margin-top: -10px;
+}
+.or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+.or::before,
+.or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+}
+label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 6px;
+}
+.input,
+input[type='text'],
+input[type='password'],
+input[type='email'] {
+  width: 100%;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  padding: 11px 12px;
+  font: 15px var(--sans);
+  min-height: 44px;
+}
+input:focus {
+  border-color: var(--focus);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
+}
+input[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+.pw {
+  position: relative;
+}
+.pw button {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: 0;
+  color: var(--link);
+  font: 500 13px var(--sans);
+  cursor: pointer;
+  padding: 8px;
+  min-height: 32px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.field-error {
+  color: var(--bad);
+  font-size: 13px;
+}
+.note {
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  gap: 10px;
+}
+.note svg {
+  flex: none;
+  margin-top: 2px;
+}
+.alert {
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-2);
+  color: var(--text);
+}
+.alert-error {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 50%, transparent);
+  background: color-mix(in srgb, var(--bad) 8%, transparent);
+}
+.alert-warning {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+.alert-success {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+}
+.linkish {
+  background: none;
+  border: 0;
+  color: var(--link);
+  padding: 0;
+  font: 500 13px var(--sans);
+  cursor: pointer;
+}
+
+details {
+  border: 1px dashed var(--line-2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 500;
+}
+.people-note {
+  color: var(--faint);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+.people-note code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.people {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+.people button {
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--text);
+  font: 13px var(--sans);
+  cursor: pointer;
+  min-height: 40px;
+}
+.people button:hover {
+  border-color: var(--line-2);
+}
+.people small {
+  display: block;
+  color: var(--faint);
+  font-size: 11.5px;
+}
+footer {
+  font-size: 12px;
+  color: var(--faint);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.theme {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font: 12px var(--sans);
+  cursor: pointer;
+}
+
+/* the base pages' other fields (OTP, update password, profile) */
+.form-group,
+.field {
+  display: block;
+}
+#kc-form-buttons,
+#kc-form-options {
+  margin-top: 8px;
+}
+input[type='submit'],
+button[type='submit']:not(.btn) {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  font: 600 15px/1 var(--sans);
+  padding: 13px 16px;
+  min-height: 46px;
+  cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  body {
+    grid-template-columns: 1fr;
+  }
+  .brand {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 28px 16px;
+    gap: 18px;
+  }
+  .brand h1 {
+    font-size: 32px;
+  }
+  .mini,
+  .facts {
+    display: none;
+  }
+  main {
+    padding: 28px 16px 40px;
+  }
+}

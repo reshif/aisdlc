@@ -16,6 +16,7 @@ import {
   listen,
   listenConfig,
   loadServiceAuth,
+  onSecretRefChange,
   requiredEnv,
   resolveSecretRef,
   databaseUrl,
@@ -93,6 +94,7 @@ export async function bootGateway(env: Env): Promise<RunningService> {
   const pool = createPool(dbUrl, 10);
   let reader: ConfigReader | undefined;
   const timers: NodeJS.Timeout[] = [];
+  let unwatch: () => void = () => undefined;
   try {
     const have = await pool.query<Record<string, string | null>>(
       `SELECT to_regclass('record.record_event')::text AS record,
@@ -129,6 +131,16 @@ export async function bootGateway(env: Env): Promise<RunningService> {
       reader,
     );
     adapters.sync();
+    // a `vault:` key the owner pasted (or replaced) in the portal: the adapters are rebuilt from the new value
+    // (service-kit refreshes the references on a timer; the reference names stay what the registry says)
+    unwatch = onSecretRefChange((refs) => {
+      if (!refs.some((r) => secretRefs.includes(r))) return;
+      const st = adapters.sync({ force: true });
+      console.log(
+        `gateway: ${refs.length} secret reference(s) changed in Vault: ${st.map((x) => `${x.integration_id}=${x.state}`).join(' ') || 'no providers'}`,
+      );
+      void report().catch(() => undefined);
+    });
     reader.subscribe(() => {
       const st = adapters.sync();
       console.log(
@@ -201,6 +213,7 @@ export async function bootGateway(env: Env): Promise<RunningService> {
       url,
       close: async () => {
         for (const t of timers) clearInterval(t);
+        unwatch();
         await app.close();
         await r.stop();
         await pool.end();
@@ -208,6 +221,7 @@ export async function bootGateway(env: Env): Promise<RunningService> {
     };
   } catch (e) {
     for (const t of timers) clearInterval(t);
+    unwatch();
     await reader?.stop().catch(() => undefined);
     await pool.end().catch(() => undefined);
     throw e;

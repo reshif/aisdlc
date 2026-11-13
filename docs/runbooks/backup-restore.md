@@ -12,10 +12,12 @@ demand (`npm run drill:restore`).
 | Roles and memberships | the Postgres cluster | `pg_dumpall --globals-only --no-role-passwords` | every service's least-privilege login role (`gateway`, `sandbox_controller`, `verify`, `gate_check`, `gate_relay`, `notifier`, `audit`) and the group roles the migrations grant to (`aisdlc_app`, `aisdlc_gateway`, ...). Passwords are not in the dump: they are the secret files, and db-init re-applies them on every up |
 | Database `aisdlc` | Postgres | `pg_dump -Fc` | the record (`record_event`, outbox, projections), the ledger and its checkpoints, decisions, config, identity, directory, core, bff, knowledge, and the gateway's, sandbox-controller's, verify's, gate-check's, gate-relay's, notifier's and audit's own schemas |
 | Databases `notary`, `witness`, `killswitch` | Postgres | `pg_dump -Fc` each | the Notary's journal and chain head, the Witness's co-signed checkpoints, the kill switch's signed journal, kills, approvals, delegations and holders |
+| Database `keycloak` | Postgres | `pg_dump -Fc` | the sign-in realm `aisdlc`: its users (the break-glass `factory-admin`, the test people), their passwords and OTP devices, the bff client, sessions |
 | Any other database of the cluster | Postgres | `pg_dump -Fc` | taken too, so a database added later is not silently left out |
 | Object store | volume `objectstore-data` (MinIO) | tar of the volume while the store is paused | the write-once `evidence-packs` bucket (signed Evidence Packs and D2 Handoff Packs, under object lock) and every other bucket |
 | Key custody | volume `kms-state` | tar of the volume | the Notary's, Witness's, kill switch's, step-up and fingerprint keys (`dev:` keys locally; KMS in production) |
-| Secrets and settings | `platform/compose/secrets/`, `.env` | tar and copy | service tokens, database passwords, the GitHub App key, the object store's credentials, the uid and App settings |
+| Vault | volume `vault-data` | tar of the volume while Vault is paused | the secrets pasted in the portal (model keys, App keys, webhooks), encrypted by Vault; opened only with the unseal key below |
+| Secrets and settings | `platform/compose/secrets/`, `.env` | tar and copy | service tokens, database passwords, the GitHub App key, the object store's credentials, Vault's unseal key, root token and AppRoles (`secrets/vault/`), Keycloak's passwords, the uid and App settings |
 
 Not backed up: `codehost-work` and `knowledge-work` (clones and indexes rebuilt from GitHub at the next census), the
 sandbox scratch directory, logs and telemetry.
@@ -60,13 +62,15 @@ ledger and checkpoint heads the backup covers; `SHA256SUMS` covers every file.
 
 | Check | How | A failure means |
 |---|---|---|
-| Every table of every database equals the backup | row count and hash of every table of `aisdlc`, `notary`, `witness`, `killswitch` | the dump or the restore lost or changed rows: do not start the stack |
+| Every table of every database equals the backup | row count and hash of every table of `aisdlc`, `notary`, `witness`, `killswitch`, `keycloak` | the dump or the restore lost or changed rows: do not start the stack |
 | Every read model is the same, and rebuilt from the record alone it is the same again | `aisdlc-rebuild-check` (core's bundle): the projections (stream counts, config, identity, directory, gate instances, the inbox, core, work items, agent runs, the floor, session activity, eval runs, conversations) and the per-item Unit, Lease, AdmissionGrant and Evidence Pack rows, as counts and hashes; `--rebuild` drops each and refolds it | a read model that is not a function of the record, or a record that did not come back whole |
 | The Notary's journal agrees with the ledger | `notary.state.last_seq` is the ledger head; the committed journal's entry hashes are the ledger's | the Notary and the record were restored from different moments: the next signature would fork the chain. Stop; restore both from the same backup |
 | The Witness's newest checkpoint is the ledger's | `witness.cosigned` against `ledger.checkpoint` | as above, for the Witness |
 | The ledger verifies offline | `verify-ledger.sh`: every entry's Notary signature and hash chain, every checkpoint's Notary and Witness signatures, with the public keys from key custody | a damaged ledger or the wrong keys (`kms-state`) |
 | The kill switch state survived | a kill that was engaged still refuses admission for its project (423); a released one stays released | the kill switch database or its key did not come back |
 | Every evidence pack still verifies offline | `aisdlc-export-packs` reads every pack `core.evidence_pack` names back from the object store; `aisdlc-verify-pack` checks each (canonical bytes, object key, pack hash, the Notary's signature, the head and item) | the object store volume did not come back, or a pack was changed |
+| Vault came back and opened itself | a secret put through core's API before the backup reads back from the restored Vault with the same value (compared by hash) and is listed with the same version and writer | `vault-data` and `secrets/vault/<project>/unseal-key` are from different moments, or one is missing: the secrets must be pasted again |
+| Keycloak came back | a person signs in through the restored Keycloak and the bff knows them | the `keycloak` database did not come back (or the bff's client secret differs) |
 | The restored factory keeps working | a kill is released by two people: new ledger entries signed by the restored Notary and a new checkpoint co-signed by the restored Witness, and `verify-ledger.sh` passes again | the restored signers cannot continue the chain |
 
 `npm run drill:restore` (`platform/compose/drill-restore.sh`) does all of it end to end: a stack with data (the

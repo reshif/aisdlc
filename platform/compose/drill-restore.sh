@@ -9,7 +9,8 @@
 #      table of every database (count and hash), every read model's digest, the Notary's and the Witness's heads,
 #      the kill switch's kills, the evidence packs
 #   3. backup.sh, then the host is destroyed: `down -v` and secrets/ and .env moved away
-#   4. restore.sh into a fresh stack, then prove:
+#   4. restore.sh into a fresh stack, then prove (portal v2: Keycloak's database is compared like the others, a secret put
+#      into Vault before the backup reads back the same after it, and a person signs in through the restored Keycloak):
 #        - every table of every database equals what was backed up
 #        - every read model is the same, and rebuilt from the record alone it is the same again
 #        - the Notary's journal agrees with the ledger and the Witness's newest checkpoint is the ledger's
@@ -101,7 +102,7 @@ facts() { # what must survive, into $work/<name>.$1
   dc run --rm --no-deps -T migrate node /app/services/core/dist/aisdlc-rebuild-check.js \
     $([ "$1" = before ] && echo --catch-up) >"$work/models.$1"
   local db
-  for db in aisdlc notary witness killswitch; do
+  for db in aisdlc notary witness killswitch keycloak; do
     tables_of "$db" >"$work/tables-$db.$1" || fail "could not read the tables of $db"
     [ -s "$work/tables-$db.$1" ] || fail "database $db has no tables"
   done
@@ -113,6 +114,7 @@ facts() { # what must survive, into $work/<name>.$1
     echo "witness $(sql 'SELECT cp_seq, to_ledger_seq, root_hash, head_hash FROM witness.cosigned ORDER BY cp_seq DESC LIMIT 1' witness)"
     echo "kills $(sql "SELECT string_agg(kill_id || chr(58) || state, ',' ORDER BY kill_id) FROM killswitch.kill" killswitch)"
     echo "packs $(sql 'SELECT count(*) FROM core.evidence_pack')"
+    echo "secret $(sql "SELECT body ->> 'version' FROM record.record_event WHERE stream = 'secret:openai-api-key' ORDER BY seq DESC LIMIT 1")"
   } >"$work/heads.$1"
 }
 fact() { grep "^$1 " "$work/heads.$2" | cut -d' ' -f2-; }
@@ -188,6 +190,21 @@ for (;;) {
 }
 console.log("  onboarded testbed to card 1");' || fail "the onboarding did not reach card 1"
 fi
+step "Vault: a factory admin puts a secret through core's write-only API (it must come back after the restore)"
+umask 077
+openssl rand -hex 24 | tr -d '\n' >"$work/secret.value"
+dc exec -T -e TOKEN="$(cat secrets/tok-operator-core)" -e V="$(cat "$work/secret.value")" core node -e '
+fetch("http://127.0.0.1:8380/v1/secrets/openai-api-key", { method: "PUT",
+  headers: { authorization: `Bearer ${process.env.TOKEN}`, "content-type": "application/json" },
+  body: JSON.stringify({ value: `sk-drill-${process.env.V}`, on_behalf_of: "alice" }) })
+  .then(async (r) => { const j = await r.json(); if (r.status !== 200) { console.error(r.status, JSON.stringify(j)); process.exit(1); } console.log(`  stored openai-api-key version ${j.version}`); });' || fail "the secret was not stored"
+vault_value_sha() { # the sha256 of what Vault holds (the root token of this stack, inside the vault container)
+  dc exec -T vault sh -c "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\"\$(cat /vault/keys/$COMPOSE_PROJECT_NAME/root-token)\" vault kv get -field=value aisdlc/gateway/openai-api-key | sha256sum | cut -d' ' -f1"
+}
+secret_sha="$(printf 'sk-drill-%s' "$(cat "$work/secret.value")" | sha256sum | cut -d' ' -f1)"
+[ "$(vault_value_sha)" = "$secret_sha" ] || fail "Vault does not hold the value just put"
+say "Vault holds it; the record holds its name and version only"
+
 step "the kill switch: one kill engaged (testbed), one released by two people (drill-other)"
 obs0="$(sql "SELECT count(*) FROM record.record_event WHERE type = 'kill.observed'")"
 kill_kept="$(kill_project testbed 'restore drill: stays engaged')" || fail "the kill was refused"
@@ -200,13 +217,13 @@ say "kill $kill_kept engages testbed; kill $kill_gone is released; core-worker r
 say "a checkpoint co-signed by the Witness covers the ledger head, and the ledger verifies"
 
 # ---------------------------------------------------------------- 2. quiesce and record
-step "quiesce: every factory service stopped (Postgres and the object store stay up)"
+step "quiesce: every factory service stopped (Postgres and the object store stay up; Vault and Keycloak stop too)"
 mapfile -t services < <(dcall config --services)
 stop=()
 for s in "${services[@]}"; do case "$s" in postgres | object-store) ;; *) stop+=("$s") ;; esac; done
 dcall stop "${stop[@]}" >/dev/null 2>&1
 facts before
-say "$(cat "$work"/tables-*.before | wc -l) tables in 4 databases, $(grep -o '"rows"' "$work/models.before" | wc -l) read models"
+say "$(cat "$work"/tables-*.before | wc -l) tables in 5 databases, $(grep -o '"rows"' "$work/models.before" | wc -l) read models"
 say "ledger: $(fact ledger before | cut -d'|' -f1-2 | tr '|' ' ') entries/head; checkpoint $(fact checkpoint before | cut -d'|' -f1-2 | tr '|' ' '); packs $(fact packs before)"
 # DRILL_REQUIRE_PACKS=1 fails a drill whose data holds no evidence pack (the compose e2e's scripted S7 signs none yet)
 if [ "$(fact packs before)" = 0 ]; then
@@ -233,10 +250,10 @@ step "restore.sh into a fresh stack"
 t_restore=$SECONDS
 ./restore.sh "$backup"
 facts after
-for db in aisdlc notary witness killswitch; do
+for db in aisdlc notary witness killswitch keycloak; do
   diff -u "$work/tables-$db.before" "$work/tables-$db.after" >&2 || fail "database $db differs from the backup"
 done
-held "every table of aisdlc, notary, witness and killswitch equals the backup ($(cat "$work"/tables-*.after | wc -l) tables, rows and hashes)"
+held "every table of aisdlc, notary, witness, killswitch and keycloak equals the backup ($(cat "$work"/tables-*.after | wc -l) tables, rows and hashes)"
 cmp -s "$work/models.before" "$work/models.after" || fail "a read model differs after the restore"
 dc run --rm --no-deps -T migrate node /app/services/core/dist/aisdlc-rebuild-check.js --rebuild >"$work/models.rebuilt"
 cmp -s "$work/models.before" "$work/models.rebuilt" || {
@@ -244,7 +261,7 @@ cmp -s "$work/models.before" "$work/models.rebuilt" || {
   fail "a read model rebuilt from the record differs from the one backed up"
 }
 held "every read model rebuilt from the restored record alone equals the one backed up ($(grep -o '"rows"' "$work/models.rebuilt" | wc -l) read models)"
-for k in ledger checkpoint notary-state notary-committed witness kills packs; do
+for k in ledger checkpoint notary-state notary-committed witness kills packs secret; do
   [ "$(fact "$k" before)" = "$(fact "$k" after)" ] || fail "$k differs: before [$(fact "$k" before)] after [$(fact "$k" after)]"
 done
 ledger_n="$(fact ledger after | cut -d'|' -f2)"
@@ -262,6 +279,18 @@ held "verify-ledger passes on the restored ledger (Notary and Witness keys)"
 case "$(admission testbed)" in 423*) ;; *) fail "the restored kill switch does not kill testbed" ;; esac
 case "$(admission drill-other)" in 200*) ;; *) fail "the released kill came back" ;; esac
 held "the kill switch state survived: testbed is killed (423), drill-other stays released"
+[ "$(vault_value_sha)" = "$secret_sha" ] || fail "the restored Vault does not hold the secret put before the backup"
+listed=$(dc exec -T -e TOKEN="$(cat secrets/tok-operator-core)" core node -e '
+fetch("http://127.0.0.1:8380/v1/secrets?on_behalf_of=alice", { headers: { authorization: `Bearer ${process.env.TOKEN}` } })
+  .then((r) => r.json()).then((j) => { const s = j.secrets.find((x) => x.name === "openai-api-key"); console.log(`${s.set} ${s.version} ${s.updated_by}`); });')
+[ "$listed" = "true $(fact secret before) alice" ] || fail "core lists the restored secret as [$listed]"
+held "the restored Vault opened by itself with the restored unseal key and holds the secret put before the backup (version $(fact secret before), by alice; the same value)"
+# shellcheck source=kc-login.sh
+. ./kc-login.sh
+jar="$work/jar"
+kc_login "${AISDLC_BFF_PORT:-8340}" "${AISDLC_OIDC_PORT:-8390}" lt secrets/keycloak-persona-password "$jar" || fail "lt cannot sign in through the restored Keycloak"
+curl -fsS -b "$jar" "http://localhost:${AISDLC_BFF_PORT:-8340}/api/me" | grep -q '"project.onboard"' || fail "lt is not a factory admin after the restore"
+held "the restored Keycloak signs lt in (realm, users and passwords restored) and the bff knows lt as a factory admin"
 
 dc exec -T core node -e '
 const { spawnSync } = require("node:child_process");

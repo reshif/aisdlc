@@ -51,17 +51,31 @@ describe('the notifier in the compose stack', () => {
       'notifier-api',
       'notifier-egress',
       'telemetry-notifier',
+      // portal v2: its own link to Vault (it and Vault only; its policy reads its own folder)
+      'vault-notifier',
     ]);
     for (const x of ['data-notifier', 'notifier-api'])
       expect(compose.networks[x]?.internal).toBe(true);
     expect(members('data-notifier')).toEqual(['notifier', 'postgres']);
     expect(members('notifier-api')).toEqual(['bff', 'notifier']);
     expect(members('notifier-egress')).toEqual(['notifier']);
+    expect(members('vault-notifier')).toEqual(['notifier', 'vault']);
     expect(netsOf(n)).not.toContain('data-record');
   });
 
   it('connects as its own role, takes only the bff’s token and holds no channel credential by default', () => {
-    expect(secretsOf(n).sort()).toEqual(['db-url-notifier', 'tok-bff-notifier']);
+    // portal v2: its Vault AppRole reads its own folder, where a channel's secret is pasted in the portal (empty until
+    // then); no channel credential is mounted
+    expect(secretsOf(n).sort()).toEqual([
+      'db-url-notifier',
+      'tok-bff-notifier',
+      'vault-approle-notifier',
+    ]);
+    expect(
+      JSON.parse(
+        n.environment?.['NOTIFIER_SECRET_REFS']?.replace(/^\$\{[A-Z_]+:-(.*)\}$/, '$1') ?? '[]',
+      ),
+    ).toEqual(['vault:notifier/slack-webhook-url#value', 'vault:notifier/smtp-password#value']);
     expect(n.environment?.['NOTIFIER_DATABASE_URL']).toBe('file:/run/secrets/db-url-notifier');
     expect(JSON.parse(n.environment?.['NOTIFIER_CALLERS'] ?? '{}')).toEqual({
       bff: { token_ref: 'file:/run/secrets/tok-bff-notifier', scopes: ['people'] },

@@ -1,4 +1,5 @@
 import { ConfigReader, ConfigRegistry, registerNotificationsConfig } from '@aisdlc/config';
+import { FileSecretRef } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import { LoopSupervisor, type LoopSpec } from '@aisdlc/loops';
 import {
@@ -24,7 +25,8 @@ const Callers = z.record(
   z.strictObject({ token_ref: z.string(), scopes: z.array(z.enum(['people'])) }),
 );
 const Hosts = z.array(z.string().regex(/^[a-z0-9.-]+$/)).max(20);
-const Refs = z.array(z.string().regex(/^file:\/[A-Za-z0-9_./-]{1,200}$/)).max(40);
+// a file: or a vault: reference (the same shape a channel row may carry: FileSecretRef in contracts)
+const Refs = z.array(FileSecretRef).max(40);
 
 const intEnv = (env: Env, name: string, dflt: number, min: number): number => {
   const raw = env[name];
@@ -79,7 +81,7 @@ export function notifierLoops(
  *   NOTIFIER_DATABASE_URL        the record database as the least-privilege role `notifier` (see the migration)
  *   NOTIFIER_CALLERS             JSON {caller: {token_ref, scopes: [people]}} (the bff)
  *   NOTIFIER_PORTAL_URL          the portal's base URL, for the link in every message
- *   NOTIFIER_SECRET_REFS         JSON list of the file: references a channel row may name (default: none)
+ *   NOTIFIER_SECRET_REFS         JSON list of the file: or vault: references a channel row may name (default: none)
  *   NOTIFIER_EGRESS_HOSTS        JSON list of the hosts a webhook or a relay may be (default: hooks.slack.com)
  *   NOTIFIER_PLAIN_HOSTS         JSON list: of those, the ones reachable without TLS (default: none)
  *   NOTIFIER_RAISE_INTERVAL_MS (2000), NOTIFIER_DELIVER_INTERVAL_MS (5000), NOTIFIER_CONFIG_RELOAD_MS (5000)

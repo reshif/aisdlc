@@ -39,7 +39,10 @@ describe('gate-relay in the compose stack', () => {
     expect(secretsOf(gr)).toContain('gate-relay-app.pem');
     expect(secretsOf(gr)).not.toContain('github-app.pem');
     expect(secretsOf(gr)).not.toContain('gate-check-app.pem');
-    expect(gr.environment?.['GATE_RELAY_APP_KEY_REF']).toBe('file:/run/secrets/gate-relay-app.pem');
+    // the mounted file by default; portal v2: the owner may point it at the Vault field (gate-relay's own folder)
+    expect(gr.environment?.['GATE_RELAY_APP_KEY_REF']).toBe(
+      '${AISDLC_GATE_RELAY_KEY_REF:-file:/run/secrets/gate-relay-app.pem}',
+    );
     expect(readFileSync(join(dir, 'init-secrets'), 'utf8')).toContain('secrets/gate-relay-app.pem');
     expect(secretsOf(compose.services['fake-github'] as Service)).toContain(
       'gate-relay-app.pub.pem',
@@ -61,6 +64,8 @@ describe('gate-relay in the compose stack', () => {
         'objectstore-api',
         // M19: its own network to the collector (it and the collector only)
         'telemetry-gate-relay',
+        // portal v2: its own link to Vault (it and Vault only; its policy reads its own folder)
+        'vault-gaterelay',
       ].sort(),
     );
     for (const n of ['data-gaterelay', 'gaterelay-github'])
@@ -71,6 +76,7 @@ describe('gate-relay in the compose stack', () => {
         .map(([k]) => k)
         .sort();
     expect(members('data-gaterelay')).toEqual(['gate-relay', 'postgres']);
+    expect(members('vault-gaterelay')).toEqual(['gate-relay', 'vault']);
     expect(members('gaterelay-github')).toEqual(['codehost', 'gate-relay']);
     expect(members('gaterelay-egress')).toEqual(['gate-relay']);
     expect(compose.services['kms-local']?.environment?.['KMS_CALLERS']).toMatch(

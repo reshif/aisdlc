@@ -26,11 +26,15 @@ export WORK_DRIVER_INTERVAL_MS="${WORK_DRIVER_INTERVAL_MS:-1000}"
 export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-60000}"
 # the published ports move out of the way of another stack on this host (nothing here uses them)
 export BFF_HOST_PORT="${BFF_HOST_PORT:-18340}"
-export DEV_OIDC_HOST_PORT="${DEV_OIDC_HOST_PORT:-18390}"
+export DEV_OIDC_HOST_PORT="${DEV_OIDC_HOST_PORT:-18390}" KEYCLOAK_HOST_PORT="${KEYCLOAK_HOST_PORT:-18391}"
+# the load client signs its people in through the dev IdP (profile `dev-oidc`, the test fake behind the same OIDC
+# configuration): the bff and identity are pointed at it; Keycloak runs too, unused
+export AISDLC_OIDC_ISSUER="http://dev-oidc.localhost:8390" AISDLC_OIDC_LOGIN_HINT=subject
+export AISDLC_IDP_SEED_FILE=./config/idp-seed.json
 out="${LOAD_OUT:-$repo_root/docs/evidence/load-m19}"
 work="$(mktemp -d "${TMPDIR:-/tmp}/aisdlc-load.XXXXXX")"
-dc() { docker compose --profile fake-github "$@"; }
-dcl() { docker compose --profile fake-github --profile load "$@"; }
+dc() { docker compose --profile fake-github --profile dev-oidc "$@"; }
+dcl() { docker compose --profile fake-github --profile dev-oidc --profile load "$@"; }
 fail() { echo "load: FAIL: $*" >&2; exit 1; }
 sampler_pid=""
 # LOAD_BUNDLE: a freshly built services/core/dist/aisdlc-load.js run instead of the image's (iterating on the tool)

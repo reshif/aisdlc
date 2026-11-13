@@ -11,7 +11,8 @@
 #
 #   1. every file is checked against SHA256SUMS (a damaged backup is refused, nothing is touched)
 #   2. secrets/ and .env come back as they were (the passwords, tokens and the App key)
-#   3. the object store's and key custody's volumes come back whole (numeric owners kept)
+#   3. the object store's, key custody's and Vault's volumes come back whole (numeric owners kept; Vault opens with the
+#      restored unseal key in secrets/vault/<project>/)
 #   4. Postgres starts empty with the restored superuser password; the roles, then every database, are restored
 #      (pg_restore --exit-on-error: a single error stops the restore)
 #   5. db-init re-applies the role passwords from the secret files (the backup holds none)
@@ -63,8 +64,8 @@ volume_of() {
 echo "== volumes (project $project)"
 dc up -d --no-deps --wait postgres >/dev/null
 pg_image="$(docker inspect -f '{{.Image}}' "$(dc ps -q postgres)")"
-dc create --no-build object-store kms-local >/dev/null
-for v in objectstore-data kms-state; do
+dc create --no-build object-store kms-local vault >/dev/null
+for v in objectstore-data kms-state vault-data; do
   vol="$(volume_of "$v")"
   [ -n "$vol" ] || die "compose did not create the volume $v"
   # a fresh volume holds what the image had at its mount point: replaced by the backup's whole

@@ -38,7 +38,10 @@ describe('gate-check in the compose stack', () => {
     }
     expect(secretsOf(gc)).toContain('gate-check-app.pem');
     expect(secretsOf(gc)).not.toContain('github-app.pem');
-    expect(gc.environment?.['GATE_CHECK_APP_KEY_REF']).toBe('file:/run/secrets/gate-check-app.pem');
+    // the mounted file by default; portal v2: the owner may point it at the Vault field (gate-check's own folder)
+    expect(gc.environment?.['GATE_CHECK_APP_KEY_REF']).toBe(
+      '${AISDLC_GATE_CHECK_KEY_REF:-file:/run/secrets/gate-check-app.pem}',
+    );
     expect(readFileSync(join(dir, 'init-secrets'), 'utf8')).toContain('secrets/gate-check-app.pem');
     // the fake GitHub verifies gate-check's App JWTs with the public half only
     expect(secretsOf(compose.services['fake-github'] as Service)).toEqual([
@@ -70,6 +73,8 @@ describe('gate-check in the compose stack', () => {
         'objectstore-api',
         // M19: its own network to the collector (it and the collector only)
         'telemetry-gate-check',
+        // portal v2: its own link to Vault (it and Vault only; its policy reads its own folder)
+        'vault-gatecheck',
       ].sort(),
     );
     for (const n of ['data-gatecheck', 'gatecheck-github'])
@@ -83,6 +88,7 @@ describe('gate-check in the compose stack', () => {
     expect(members('data-gatecheck')).toEqual(['gate-check', 'postgres']);
     expect(members('gatecheck-github')).toEqual(['codehost', 'gate-check']);
     expect(members('gatecheck-egress')).toEqual(['gate-check']);
+    expect(members('vault-gatecheck')).toEqual(['gate-check', 'vault']);
     // its read API is reachable by the bff only (M14.6: gate-check verdicts on the item page)
     expect(compose.networks['gatecheck-api']?.internal).toBe(true);
     expect(members('gatecheck-api')).toEqual(['bff', 'gate-check']);

@@ -20,13 +20,17 @@ import { ItemClarifyState } from './work-lifecycle.js';
 /** The config key of the channel rows: factory layer, M1-gated like every revision (`registerNotificationsConfig`). */
 export const NOTIFICATIONS_CONFIG_KEY = 'notifications.channels';
 
-/** A credential reference the notifier reads: a mounted FILE only (never `env:`, never the value). */
-export const FILE_SECRET_REF_PATTERN = /^file:\/[A-Za-z0-9_./-]{1,200}$/;
+/**
+ * A credential reference the notifier reads: a mounted FILE or a Vault field (never `env:`, never the value). The
+ * name stays `FileSecretRef` for the rows already published.
+ */
+export const FILE_SECRET_REF_PATTERN =
+  /^(file:\/[A-Za-z0-9_./-]{1,200}|vault:[a-z0-9][a-z0-9_-]{0,63}(?:\/[a-z0-9][a-z0-9_-]{0,63}){0,7}#[A-Za-z0-9_-]{1,64})$/;
 export const FileSecretRef = z
   .string()
   .regex(
     FILE_SECRET_REF_PATTERN,
-    'a file: reference to a mounted secret (never the secret itself)',
+    'a file: reference to a mounted secret or a vault:path#key reference (never the secret itself)',
   );
 export type FileSecretRef = z.infer<typeof FileSecretRef>;
 

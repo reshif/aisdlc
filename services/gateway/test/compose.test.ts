@@ -54,9 +54,18 @@ describe('the vendor key in the compose stack', () => {
 
   it('is reachable by no other service through a bind mount, an env var or the secrets directory', () => {
     for (const [name, svc] of others) {
-      expect(envText(svc), `${name} names the key`).not.toMatch(
+      // portal v2: the seed registers the registry row, which names the key by REFERENCE (the Vault field the owner
+      // pastes it into); it holds no Vault credential and mounts no key, so it can read nothing
+      const text =
+        name === 'seed'
+          ? envText(svc).replace(/vault:gateway\/anthropic-api-key#value/g, '')
+          : envText(svc);
+      expect(text, `${name} names the key`).not.toMatch(
         /anthropic[-_]api[-_]key|ANTHROPIC_API_KEY/i,
       );
+      if (name === 'seed') {
+        expect(secretsOf(svc).some((x) => x.startsWith('vault-approle'))).toBe(false);
+      }
       for (const v of svc.volumes ?? []) {
         const src = typeof v === 'string' ? v.split(':')[0] : v.source;
         expect(src ?? '', `${name} mounts the secrets directory`).not.toMatch(/secrets\/?$/);
@@ -176,7 +185,16 @@ describe('the gateway database role and the registry wiring in the compose stack
   it('has no adapter list of its own: the registry names the providers, the deployment only allows a key file and a host', () => {
     const e = env(gw());
     expect(e['GATEWAY_PROVIDER_ADAPTERS']).toBeUndefined();
-    expect(JSON.parse(e['GATEWAY_SECRET_REFS']!)).toEqual(['file:/run/secrets/anthropic-api-key']);
+    // the mounted key file, and (portal v2) the gateway's own Vault fields the owner pastes keys into
+    const refs = JSON.parse(e['GATEWAY_SECRET_REFS']!) as string[];
+    expect(refs).toEqual([
+      'file:/run/secrets/anthropic-api-key',
+      'vault:gateway/anthropic-api-key#value',
+      'vault:gateway/openai-api-key#value',
+      'vault:gateway/deepseek-api-key#value',
+    ]);
+    for (const r of refs.filter((x) => x.startsWith('vault:')))
+      expect(r).toMatch(/^vault:gateway\//);
     expect(JSON.parse(e['GATEWAY_EGRESS_HOSTS']!)).toEqual(['api.anthropic.com']);
   });
 
@@ -186,11 +204,17 @@ describe('the gateway database role and the registry wiring in the compose stack
     expect(e['CODEHOST_REGISTRY_INTEGRATION']).toBe('github-app');
     expect(e['CODEHOST_GITHUB_APP_ID']).toBeUndefined();
     expect(e['CODEHOST_GITHUB_APP_KEY_REF']).toBeUndefined();
-    expect(JSON.parse(e['CODEHOST_SECRET_REFS']!)).toEqual(['file:/run/secrets/github-app.pem']);
+    expect(JSON.parse(e['CODEHOST_SECRET_REFS']!)).toEqual([
+      'file:/run/secrets/github-app.pem',
+      'vault:codehost/github-app-key#value',
+    ]);
     expect(secretsOf(ch)).toContain('github-app.pem');
     // the seed registers the row, with a reference to the key (it mounts no key)
     const seed = compose.services['seed']!;
-    expect(env(seed)['SEED_GITHUB_APP_KEY_REF']).toBe('file:/run/secrets/github-app.pem');
+    // the mounted file by default; portal v2: AISDLC_GITHUB_APP_KEY_REF names the Vault field instead
+    expect(env(seed)['SEED_GITHUB_APP_KEY_REF']).toBe(
+      '${AISDLC_GITHUB_APP_KEY_REF:-file:/run/secrets/github-app.pem}',
+    );
     expect(secretsOf(seed)).not.toContain('github-app.pem');
     // core lets the codehost read the registry and report health
     expect(env(compose.services['core']!)['CORE_CALLERS']).toMatch(

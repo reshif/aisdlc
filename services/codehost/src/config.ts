@@ -63,7 +63,8 @@ const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 /**
  * Reads the environment (all configuration is read before anything is started):
  *   CODEHOST_GITHUB_APP_ID, CODEHOST_GITHUB_INSTALLATION_ID
- *   CODEHOST_GITHUB_APP_KEY_REF   `file:/path/to/app-key.pem` (an env: reference is refused)
+ *   CODEHOST_GITHUB_APP_KEY_REF   `file:/path/to/app-key.pem` or `vault:codehost/github-app-key#value` (an env:
+ *                                 reference is refused; a vault: key not yet pasted refuses each signature, not the start)
  *   CODEHOST_GITHUB_API_URL       default https://api.github.com; plain http only to loopback (tests)
  *   CODEHOST_MODE                 `census` (default: reads only), or `push` (M13.6: adds the Push Broker's writes with the
  *                                 `docs` role; needs CODEHOST_CORE_URL, which answers for leases and X2 decisions)
@@ -272,8 +273,10 @@ export function trackerConfigFromEnv(env: Env): CodeHostTrackerConfig | null {
     throw new ServiceConfigError('CODEHOST_TRACKER_INSTALLATION_ID must be a positive integer');
   }
   const appKeyRef = requiredEnv(env, 'CODEHOST_TRACKER_APP_KEY_REF');
-  if (!appKeyRef.startsWith('file:')) {
-    throw new ServiceConfigError('CODEHOST_TRACKER_APP_KEY_REF must be a file: reference');
+  if (!appKeyRef.startsWith('file:') && !appKeyRef.startsWith('vault:')) {
+    throw new ServiceConfigError(
+      'CODEHOST_TRACKER_APP_KEY_REF must be a vault: or file: reference',
+    );
   }
   if (env['CODEHOST_GITHUB_APP_KEY_REF'] === appKeyRef) {
     throw new ServiceConfigError("the tracker App has its own key, never the codehost App's");

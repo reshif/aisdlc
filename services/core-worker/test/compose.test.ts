@@ -73,8 +73,9 @@ describe('the Push Broker in the compose stack (M13.6)', () => {
       .sort();
   it('is the codehost in push mode with the push key (the factory App, or its own), mounted nowhere else', () => {
     expect(pb.environment?.['CODEHOST_MODE']).toBe('push');
+    // the mounted file by default; portal v2: the owner may point it at the Vault field instead (its own folder)
     expect(pb.environment?.['CODEHOST_GITHUB_APP_KEY_REF']).toBe(
-      'file:/run/secrets/push-broker-app.pem',
+      '${AISDLC_PUSH_BROKER_KEY_REF:-file:/run/secrets/push-broker-app.pem}',
     );
     expect(secretsOf(pb)).not.toContain('github-app.pem');
     for (const [name, svc] of Object.entries(compose.services)) {
@@ -94,7 +95,14 @@ describe('the Push Broker in the compose stack (M13.6)', () => {
     });
   });
   it('its networks open no new path: core, core-worker and identity share app already', () => {
-    expect(netsOf(pb).sort()).toEqual(['pushbroker', 'pushbroker-egress', 'pushbroker-github']);
+    // portal v2: vault-pushbroker is its own link to Vault (Vault and the Push Broker only)
+    expect(netsOf(pb).sort()).toEqual([
+      'pushbroker',
+      'pushbroker-egress',
+      'pushbroker-github',
+      'vault-pushbroker',
+    ]);
+    expect(members('vault-pushbroker')).toEqual(['push-broker', 'vault']);
     expect(members('pushbroker')).toEqual(['core', 'core-worker', 'identity', 'push-broker']);
     for (const s of ['core', 'core-worker', 'identity'])
       expect(netsOf(compose.services[s] as Service)).toContain('app');

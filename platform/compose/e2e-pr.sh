@@ -67,7 +67,7 @@ fi
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-aisdlc-e2e-pr}"
 export AISDLC_SUBNET_PREFIX="${AISDLC_SUBNET_PREFIX:-10.236}"
-# its own published ports (the portal and the dev IdP), so it runs beside a stack on the default 8340 and 8390
+# its own published ports (the portal and Keycloak), so it runs beside a stack on the default 8340 and 8390
 export AISDLC_BFF_PORT="${AISDLC_BFF_PORT:-8640}" AISDLC_OIDC_PORT="${AISDLC_OIDC_PORT:-8690}"
 export AISDLC_IMAGE_TAG="${AISDLC_IMAGE_TAG:-${E2E_PR_TAG:-e2e-pr}}"
 [ -n "${ONBOARDING_TAG:-}" ] && export SANDBOX_ONBOARDING_TAG="$ONBOARDING_TAG"
@@ -78,6 +78,9 @@ full_images
 full_wiring reshif/asf-factory-testbed
 export SEED_FAKE_FIXTURES=testbed
 export CHECKPOINT_INTERVAL_MS="${CHECKPOINT_INTERVAL_MS:-15000}"
+# portal v2: the factory App's key is read from Vault, where the browser run pastes it first (the registry row and the
+# codehost name the Vault field; E2E_APP_KEY_FILE=1 keeps the mounted file instead)
+[ "${E2E_APP_KEY_FILE:-0}" = 1 ] || export AISDLC_GITHUB_APP_KEY_REF='vault:codehost/github-app-key#value'
 full_scratch "${SANDBOX_SCRATCH:-$(mktemp -d "${TMPDIR:-/tmp}/aisdlc-e2e-pr-scratch.XXXXXX")}"
 evidence_dir=$(mktemp -d "${TMPDIR:-/tmp}/aisdlc-e2e-pr-evidence.XXXXXX")
 chmod 755 "$evidence_dir"

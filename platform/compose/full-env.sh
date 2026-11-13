@@ -121,11 +121,12 @@ full_check_real_github() {
   [ "$bad" = 0 ] || full_fail "the real GitHub Apps are not set up: run \`make github-apps\` (docs/getting-started.md §4.1), or §4.3 by hand"
 }
 
-# full_idp_seed DIR: the IdP seed names the issuer with its port; on another port than 8390 the stack gets its own copy
+# full_idp_seed DIR: the IdP seed names the issuer (Keycloak's realm) with its port; on another port than 8390 the stack
+# gets its own copy
 full_idp_seed() {
   if [ "${AISDLC_OIDC_PORT:-8390}" != 8390 ]; then
     export AISDLC_IDP_SEED_FILE="$1/idp-seed.json"
-    sed "s#http://dev-oidc.localhost:8390#http://dev-oidc.localhost:$AISDLC_OIDC_PORT#g" config/idp-seed.json >"$AISDLC_IDP_SEED_FILE"
+    sed "s#http://keycloak.localhost:8390/#http://keycloak.localhost:$AISDLC_OIDC_PORT/#g" config/keycloak-idp-seed.json >"$AISDLC_IDP_SEED_FILE"
     chmod 644 "$AISDLC_IDP_SEED_FILE"
   fi
 }
