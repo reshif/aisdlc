@@ -13,6 +13,8 @@ import {
   type Collaborator,
   type FileAtSha,
   type GithubPermissions,
+  type RedraftPrRequest,
+  type RedraftedPr,
 } from '@aisdlc/contracts';
 import { ok, systemClock, type Clock } from '@aisdlc/kernel';
 import {
@@ -25,6 +27,7 @@ import {
   NO_PUSH_GUARDS,
   commitMessage,
   preflightPush,
+  preflightRedraft,
   readUnreadable,
   refusal,
   renderPr,
@@ -43,6 +46,7 @@ import {
   type RepoRequest,
 } from '@aisdlc/ports';
 import { z } from 'zod';
+import { CONVERT_TO_DRAFT_MUTATION } from './allow-list.js';
 import { makeGitBundle, type GitBundleOptions } from './git-bundle.js';
 import type { TokenBroker } from './token-broker.js';
 import type { GitHubTransport } from './transport.js';
@@ -85,6 +89,7 @@ const RefObject = z.looseObject({
 
 const PullJson = z.looseObject({
   number: z.number().int().min(1),
+  node_id: z.string().optional(),
   state: z.enum(['open', 'closed']),
   draft: z.boolean().optional(),
   merged: z.boolean().optional(),
@@ -592,6 +597,80 @@ export class GitHubRestCodeHost implements CodeHostPort {
         base_ref: pull.data.base.ref,
         html_url: pull.data.html_url ?? null,
       },
+    });
+  }
+
+  /**
+   * The re-plan of a pushed Unit (owner decision 2026-11-13): the PR is read (open, from exactly the Unit's branch, or
+   * nothing is done), marked a draft by the one GraphQL mutation the allow-list has when it is not one already, and gets
+   * the one ids-only comment unless that very comment is on it (a redelivery posts nothing). Three rows of the allow-list
+   * and no other request.
+   */
+  async redraft_pr(input: RedraftPrRequest): Promise<CodeHostRead<RedraftedPr>> {
+    const pf = preflightRedraft(input);
+    if (!pf.ok) return pf.error;
+    const { req, comment } = pf.value;
+    if (!this.o.push)
+      return readUnreadable('refused', 'this code host has no Push Broker configured');
+    const repo = this.parseRepo(req.repo);
+    if ('state' in repo) return repo;
+    const base = `/repos/${repo.owner}/${repo.name}`;
+    const t = this.o.transport;
+    const r = await t.get(`${base}/pulls/${req.pr_number}`);
+    if (!r.ok) return r.error;
+    const p = PullJson.safeParse(r.value.json);
+    if (!p.success) return readUnknown('malformed', 'the pull request has an unexpected shape');
+    if (p.data.state !== 'open' || p.data.merged === true || p.data.head.ref !== req.branch) {
+      return refusal(
+        'refused',
+        "the pull request is not open from the Unit's branch: it is left as it is",
+      );
+    }
+    if (p.data.draft !== true) {
+      const id = p.data.node_id;
+      if (id === undefined) return readUnknown('malformed', 'the pull request has no node id');
+      const g = await t.post('/graphql', { query: CONVERT_TO_DRAFT_MUTATION, variables: { id } });
+      if (!g.ok) return g.error;
+      const done = z
+        .looseObject({
+          data: z.looseObject({
+            convertPullRequestToDraft: z.looseObject({
+              pullRequest: z.looseObject({ isDraft: z.literal(true) }),
+            }),
+          }),
+        })
+        .safeParse(g.value.json);
+      // GraphQL answers 200 with `errors` on a refusal: only `isDraft: true` is a success
+      if (!done.success)
+        return readUnknown('malformed', 'GitHub did not say the pull request is a draft');
+    }
+    const listed = await t.getAll(`${base}/issues/${req.pr_number}/comments`, (j) =>
+      Array.isArray(j) ? j : null,
+    );
+    if (!listed.ok) return listed.error;
+    const Comment = z.looseObject({
+      id: z.number().int().min(1),
+      body: z.string().nullable().optional(),
+    });
+    const comments = z.array(Comment).safeParse(listed.value);
+    if (!comments.success) return readUnknown('malformed', 'the comments have an unexpected shape');
+    const had = comments.data.find((c) => c.body === comment);
+    if (had)
+      return readOk({
+        pr_number: req.pr_number,
+        draft: true,
+        comment_id: had.id,
+        commented: false,
+      });
+    const c = await t.post(`${base}/issues/${req.pr_number}/comments`, { body: comment });
+    if (!c.ok) return c.error;
+    const posted = z.looseObject({ id: z.number().int().min(1) }).safeParse(c.value.json);
+    if (!posted.success) return readUnknown('malformed', 'the comment answer has no id');
+    return readOk({
+      pr_number: req.pr_number,
+      draft: true,
+      comment_id: posted.data.id,
+      commented: true,
     });
   }
 

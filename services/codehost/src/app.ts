@@ -210,6 +210,33 @@ export function createCodeHostApp(o: CodeHostAppOptions): FastifyInstance {
     return send(reply, await hostOf().apply_patch(body as never));
   });
 
+  /**
+   * A re-plan of a pushed Unit (owner decision 2026-11-13): the Unit's open PR is marked a draft again with one ids-only
+   * comment. The body is a `RedraftPrRequest` for exactly the PR in the path; the checks are the host's.
+   */
+  app.post('/v1/repos/:owner/:name/pulls/:number/redraft', async (req, reply) => {
+    if (!allowed(req, 'push')) return forbid(reply, 'push');
+    const repo = repoOf(req);
+    const number = Number((req.params as { number: string }).number);
+    const body = req.body as { repo?: unknown; pr_number?: unknown } | null;
+    if (
+      !repo ||
+      !Number.isInteger(number) ||
+      number < 1 ||
+      typeof body !== 'object' ||
+      body === null
+    ) {
+      return bad(reply, 'owner/name, a pull request number and a redraft request are required');
+    }
+    if (
+      typeof body.repo !== 'string' ||
+      repoKey(body.repo) !== repoKey(repo) ||
+      body.pr_number !== number
+    )
+      return bad(reply, 'the body names another repository or pull request');
+    return send(reply, await hostOf().redraft_pr(body as never));
+  });
+
   app.get('/v1/repos/:owner/:name/pulls/:number', async (req, reply) => {
     if (!allowed(req, 'push')) return forbid(reply, 'push');
     const repo = repoOf(req);

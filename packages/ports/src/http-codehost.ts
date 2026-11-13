@@ -1,5 +1,7 @@
 import {
   AppliedPatch,
+  RedraftedPr,
+  type RedraftPrRequest,
   BranchRules,
   CodeHostNotOk,
   Collaborator,
@@ -144,7 +146,10 @@ export class HttpCodeHostReads implements CodeHostReads {
  * (scope `push`). The checks are the code host's (lease, ruleset, paths, X2): a refusal comes back as the read that was
  * not ok, with its `code`. Anything that is not an answer (network, garbled body) is `unknown`, which is never a success.
  */
-export class HttpCodeHostPush implements Pick<CodeHostPort, 'apply_patch' | 'pr_status'> {
+export class HttpCodeHostPush implements Pick<
+  CodeHostPort,
+  'apply_patch' | 'pr_status' | 'redraft_pr'
+> {
   constructor(private readonly o: HttpCodeHostOptions) {}
 
   private async call<S extends z.ZodType>(
@@ -188,6 +193,16 @@ export class HttpCodeHostPush implements Pick<CodeHostPort, 'apply_patch' | 'pr_
 
   apply_patch(req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>> {
     return this.call('POST', `/v1/repos/${req.repo}/push`, AppliedPatch, req);
+  }
+
+  /** Scope `push`: the re-plan's redraft of the Unit's PR (owner decision 2026-11-13). */
+  redraft_pr(req: RedraftPrRequest): Promise<CodeHostRead<RedraftedPr>> {
+    return this.call(
+      'POST',
+      `/v1/repos/${req.repo}/pulls/${req.pr_number}/redraft`,
+      RedraftedPr,
+      req,
+    );
   }
 
   pr_status(req: PrStatusRequest): Promise<CodeHostRead<PrStatus>> {

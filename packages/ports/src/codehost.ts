@@ -19,6 +19,8 @@ import {
   type InstallationInfo,
   type InstallationRepo,
   type PrMergeability,
+  type RedraftPrRequest,
+  type RedraftedPr,
   type RepoFullName,
   type RequiredCheck,
 } from '@aisdlc/contracts';
@@ -154,6 +156,11 @@ export interface CodeHostPort {
   apply_patch(req: ApplyPatchRequest): Promise<CodeHostRead<AppliedPatch>>;
   /** Facts about a pull request, read only (M13.6). */
   pr_status(req: PrStatusRequest): Promise<CodeHostRead<PrStatus>>;
+  /**
+   * A re-plan of a pushed Unit (owner decision 2026-11-13): the Unit's open PR is marked a draft again and gets ONE
+   * ids-only comment (`replanCommentOf`). Nothing else: never closed, never a new PR, never a push.
+   */
+  redraft_pr(req: RedraftPrRequest): Promise<CodeHostRead<RedraftedPr>>;
 }
 
 /** Every method of the port, once. The contract suite and the verb test read this list. */
@@ -169,6 +176,7 @@ export const CODEHOST_PORT_METHODS = [
   'bundle',
   'apply_patch',
   'pr_status',
+  'redraft_pr',
 ] as const satisfies ReadonlyArray<keyof CodeHostPort>;
 
 // No method name may contain a forbidden verb. This is checked by the compiler (a violation makes

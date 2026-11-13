@@ -147,6 +147,18 @@ export async function restWriteHarness(seed: CodeHostSeed): Promise<CodeHostWrit
     moveBranch: (repo, branch, sha) => void t.server.moveBranch(repo, branch, sha),
     landPull: (repo, n, by) => void t.server.landPull(repo, n, by),
     setPullBaseState: (repo, n, st) => void t.server.setPullBaseState(repo, n, st),
+    markReady: (repo, n) => {
+      const p = t.server.pulls.find(
+        (x) => x.repo.toLowerCase() === repo.toLowerCase() && x.number === n,
+      );
+      if (p) p.draft = false;
+    },
+    pullView: (repo, n) => {
+      const p = t.server.pulls.find(
+        (x) => x.repo.toLowerCase() === repo.toLowerCase() && x.number === n,
+      );
+      return p ? { draft: p.draft, comments: (p.comments ?? []).map((c) => c.body) } : null;
+    },
     stop: () => t.stop(),
   };
 }

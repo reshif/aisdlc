@@ -14,6 +14,11 @@ codeHostWriteContract('FakeGitHub', async (seed) => {
     moveBranch: (repo, branch, sha) => void f.moveBranch(repo, branch, sha),
     landPull: (repo, n, by) => void f.landPull(repo, n, by),
     setPullBaseState: (repo, n, st) => void f.setPullBaseState(repo, n, mergeabilityOf(st)),
+    markReady: (repo, n) => f.markReady(repo, n),
+    pullView: (repo, n) => {
+      const pr = f.prOf(repo, n);
+      return pr ? { draft: pr.draft, comments: f.prComments(repo, n).map((c) => c.body) } : null;
+    },
   };
 });
 

@@ -14,6 +14,8 @@ import {
   type DeploymentState,
   type GithubPermissions,
   type PrMergeability,
+  type RedraftPrRequest,
+  type RedraftedPr,
 } from '@aisdlc/contracts';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -65,6 +67,7 @@ import {
   NO_PUSH_GUARDS,
   commitMessage,
   preflightPush,
+  preflightRedraft,
   refusal,
   renderPr,
   type PushGuardsPort,
@@ -204,6 +207,7 @@ export class FakeGitHub implements CodeHostPort {
   private brokenChecks: CodeHostNotOk | null = null;
   private issuesByRepo = new Map<string, FakeIssue[]>();
   private nextCommentId = 1;
+  private prCommentsBy = new Map<string, Array<{ id: number; body: string }>>();
   /** The Push Broker's App as a credential on this host (its token carries the installation's grant). */
   get pushApp(): FakeAppIdentity {
     return { app_id: FAKE_PUSH_APP_ID, permissions: { ...this.seed.installation.permissions } };
@@ -556,6 +560,49 @@ export class FakeGitHub implements CodeHostPort {
         html_url: `https://github.example/${req.repo}/pull/${pr.number}`,
       },
     });
+  }
+
+  /** The comments the Push Broker posted on a PR (`redraft_pr`), oldest first. */
+  prComments(repo: string, number: number): ReadonlyArray<{ id: number; body: string }> {
+    return this.prCommentsBy.get(`${repoKey(repo)}#${number}`) ?? [];
+  }
+
+  /** A person marks the PR ready for review (as on GitHub): what `redraft_pr` undoes on a re-plan. */
+  markReady(repo: string, number: number): void {
+    const pr = this.prs.get(repoKey(repo))?.find((p) => p.number === number);
+    if (pr) pr.draft = false;
+  }
+
+  async redraft_pr(req: RedraftPrRequest): Promise<CodeHostRead<RedraftedPr>> {
+    const pf = preflightRedraft(req);
+    if (!pf.ok) return pf.error;
+    const { req: r, comment } = pf.value;
+    const b = this.gate('redraft_pr', 'GET', `/repos/${r.repo}/pulls/${r.pr_number}`);
+    if (b) return b;
+    if (!this.repoKnown(r.repo)) return this.missingRepo(r.repo);
+    const pr = this.prs.get(repoKey(r.repo))?.find((p) => p.number === r.pr_number);
+    if (!pr) return readUnreadable('not_found', `no pull request ${r.pr_number}`);
+    if (pr.state !== 'open' || pr.head_ref !== r.branch) {
+      return refusal(
+        'refused',
+        "the pull request is not open from the Unit's branch: it is left as it is",
+      );
+    }
+    if (!pr.draft) {
+      this.requests.push({ method: 'POST', path: '/graphql' });
+      pr.draft = true;
+    }
+    const key = `${repoKey(r.repo)}#${r.pr_number}`;
+    const list = this.prCommentsBy.get(key) ?? [];
+    this.prCommentsBy.set(key, list);
+    this.requests.push({ method: 'GET', path: `/repos/${r.repo}/issues/${r.pr_number}/comments` });
+    const had = list.find((c) => c.body === comment);
+    if (had)
+      return readOk({ pr_number: pr.number, draft: true, comment_id: had.id, commented: false });
+    this.requests.push({ method: 'POST', path: `/repos/${r.repo}/issues/${r.pr_number}/comments` });
+    const id = this.nextCommentId++;
+    list.push({ id, body: comment });
+    return readOk({ pr_number: pr.number, draft: true, comment_id: id, commented: true });
   }
 
   async pr_status(req: PrStatusRequest): Promise<CodeHostRead<PrStatus>> {

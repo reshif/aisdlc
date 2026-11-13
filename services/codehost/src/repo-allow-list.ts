@@ -10,6 +10,8 @@ import type {
   InstallationInfo,
   InstallationRepo,
   ProjectId,
+  RedraftPrRequest,
+  RedraftedPr,
   RegisteredRepo,
 } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
@@ -120,5 +122,9 @@ export class AllowListedCodeHost implements CodeHostPort {
 
   async pr_status(req: PrStatusRequest): Promise<CodeHostRead<PrStatus>> {
     return (await this.gate(req.repo)) ?? this.inner.pr_status(req);
+  }
+
+  async redraft_pr(req: RedraftPrRequest): Promise<CodeHostRead<RedraftedPr>> {
+    return (await this.gate(req.repo)) ?? this.inner.redraft_pr(req);
   }
 }
