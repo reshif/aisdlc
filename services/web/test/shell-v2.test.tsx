@@ -119,10 +119,7 @@ describe('the v2 top bar', () => {
       'href',
       '/kill',
     );
-    expect(screen.getByRole('link', { name: 'Ask for work' })).toHaveAttribute(
-      'href',
-      '/ask-for-work',
-    );
+    expect(screen.getByRole('link', { name: 'Ask for work' })).toHaveAttribute('href', '/ask');
     expect(screen.getByRole('link', { name: 'My notifications' })).toHaveAttribute(
       'href',
       '/me/notifications',
@@ -138,7 +135,7 @@ describe('the v2 top bar', () => {
     const box = screen.getByRole('combobox', { name: 'Search' });
     await user.type(box, 'decision log');
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(window.location.pathname).toBe('/ledger'));
+    await waitFor(() => expect(window.location.pathname).toBe('/audit'));
     expect(screen.queryByRole('combobox', { name: 'Search' })).toBeNull();
   });
 

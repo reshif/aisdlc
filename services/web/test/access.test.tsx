@@ -230,15 +230,17 @@ describe('the shell and My access', () => {
     });
     renderAt('/me/access');
     expect(await screen.findByRole('heading', { level: 1, name: 'My access' })).toBeInTheDocument();
-    const bindings = await screen.findByRole('table', { name: 'Role bindings' });
-    expect(within(bindings).getByRole('rowheader', { name: /project\.admin/ })).toBeInTheDocument();
-    expect(within(bindings).getByText('not in force: binding_expired')).toBeInTheDocument();
+    const bindings = await screen.findByRole('table', { name: 'My roles' });
+    expect(within(bindings).getByRole('rowheader', { name: /Project admin/ })).toBeInTheDocument();
+    expect(within(bindings).getByText('No: the role ended')).toBeInTheDocument();
+    // never the raw role id or level codes
+    expect(bindings).not.toHaveTextContent('project.admin');
     const per = screen.getByRole('table', { name: /per project/ });
     const row = within(per).getByRole('row', { name: /acme/ });
-    expect(row).toHaveTextContent('V3');
-    await waitFor(() => expect(within(row).getAllByText('allowed')).toHaveLength(1));
-    expect(within(row).getAllByText(/not allowed/).length).toBeGreaterThan(0);
-    expect(decisionsOf(m.calls)).toHaveLength(1);
+    expect(row).toHaveTextContent('Everything');
+    expect(row).toHaveTextContent('See the project');
+    expect(row).not.toHaveTextContent('V3');
+    void m;
   });
 
   it('"Request access" lands on My access with the roles that would grant the action', async () => {
@@ -246,8 +248,8 @@ describe('the shell and My access', () => {
     renderAt('/me/access?want=gate.decide&project=acme&gate=G2');
     const panel = await screen.findByTestId('request-access');
     const roles = within(panel).getByRole('list', { name: 'Roles that grant it' });
-    expect(roles).toHaveTextContent('project.intent_approver');
-    expect(roles).not.toHaveTextContent('factory.admin');
+    expect(roles).toHaveTextContent('Request and spec approver');
+    expect(roles).not.toHaveTextContent('Factory admin');
   });
 
   it('an unknown path is the same 404 as an invisible thing', async () => {

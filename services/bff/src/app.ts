@@ -34,6 +34,7 @@ import { registerDriftRoutes } from './drift.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
 import { registerKillRoutes } from './kill.js';
 import { registerAdminRoutes } from './admin.js';
+import { registerPeopleRoutes } from './people.js';
 import { carryOverride } from './override.js';
 import { registerOpsRoutes } from './ops.js';
 import { registerNotificationRoutes } from './notifications.js';
@@ -687,6 +688,14 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     core: o.core,
     identity: o.identity,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  // portal v2: People, teams & roles reads and the fleet decision log (people.ts)
+  registerPeopleRoutes({
+    app,
+    pool: o.pool,
+    pdp: o.pdp,
+    now: () => clock.now(),
     principalOf: (req) => ctx(req).session.principal_id,
   });
   registerOpsRoutes({

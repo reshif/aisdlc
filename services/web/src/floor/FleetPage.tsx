@@ -1,3 +1,4 @@
+import { lookupTerm } from '@aisdlc/contracts';
 import type { FleetView, FloorProject, FloorStage } from '@aisdlc/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
@@ -39,7 +40,10 @@ function Belt({ row, view }: { row: FloorProject; view: FleetView }) {
               key={`g-${c.key}`}
               className={`fx-g${n > 0 ? ' fx-on' : ''}`}
               title={`Gate ${c.key}`}
-              aria-label={`Gate ${c.key}: ${n} waiting`}
+              aria-label={`${c.key
+                .split('+')
+                .map((g) => lookupTerm('gate', g)?.label ?? 'Approval')
+                .join(' and ')}: ${n} waiting`}
             >
               {n > 0 ? <b>{n}</b> : null}
             </li>
@@ -51,8 +55,8 @@ function Belt({ row, view }: { row: FloorProject; view: FleetView }) {
           <li
             key={c.s}
             className={`fx-st${n > 0 ? ' fx-on' : ''}${stuck ? ' fx-bad' : ''}`}
-            title={`${c.s} ${FLOOR_STAGE_TEXT[c.s]}`}
-            aria-label={`${c.s} ${FLOOR_STAGE_TEXT[c.s]}: ${n} here${stuck ? ', one stuck' : ''}`}
+            title={FLOOR_STAGE_TEXT[c.s]}
+            aria-label={`${FLOOR_STAGE_TEXT[c.s]}: ${n} here${stuck ? ', one stuck' : ''}`}
           >
             <span className="ui-mono">{c.s}</span>
             <b className="fx-n">{n > 0 ? n : ''}</b>

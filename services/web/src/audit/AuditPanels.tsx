@@ -605,10 +605,9 @@ export function RetentionPanel() {
                 ]}
               />
               <p className="muted">
-                The classes are configuration (<code>audit.retention</code>): a change is a factory
-                revision with its M1 gate.{' '}
-                <Link to="/config/audit.retention">Change them in Configuration</Link>. A legal hold
-                always wins over a class.
+                The classes are a factory setting: a change is proposed and approved like any
+                settings change. <Link to="/config/audit.retention">Change them in Settings</Link>.
+                A legal hold always wins over a class.
               </p>
             </Card>
             <Card title="Last sweeps" flush>

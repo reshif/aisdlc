@@ -144,8 +144,8 @@ function SignedInShell({
       }
       actions={
         <>
-          {may('/ask-for-work') ? (
-            <Link to="/ask-for-work" className="ui-btn ui-btn-primary ui-btn-sm ui-top-hide-phone">
+          {may('/ask') ? (
+            <Link to="/ask" className="ui-btn ui-btn-primary ui-btn-sm ui-top-hide-phone">
               {label('screen', 'ask_for_work')}
             </Link>
           ) : null}
@@ -154,9 +154,9 @@ function SignedInShell({
               {label('action', 'kill.request')}
             </Link>
           ) : null}
-          {may('/ask') ? (
+          {may('/assistant') ? (
             <Link
-              to="/ask"
+              to="/assistant"
               className="ui-iconbtn ui-top-hide-phone"
               aria-label={label('screen', 'assistant')}
             >
@@ -424,6 +424,11 @@ function Account({ me }: { me: Me }) {
             {me.principal.principal_id}
           </div>
           <ul>
+            <li>
+              <Link to="/me" className="ui-menu-item" onClick={close}>
+                {label('screen', 'my_profile')}
+              </Link>
+            </li>
             <li>
               <Link to="/me/access" className="ui-menu-item" onClick={close}>
                 {label('screen', 'my_access')}
