@@ -423,6 +423,31 @@ gate-check's App), G6 and Done, then `verify-ledger`. It runs on its own ports (
 `AISDLC_OIDC_PORT` 8690), project and subnets (10.236), beside another stack. CI: `.github/workflows/e2e-pr.yml`
 (nightly and on demand). `DRILL_DATA=pr npm run drill:restore` backs up and restores that data.
 
+## The owner's full stack (`make up-full`, `up-full.sh`)
+
+`make up` starts the light stack (no coding sessions, no PRs: core-worker's stage ports are `none` by default).
+`make up-full REPO=<owner>/<repo> [GITHUB=fake|real]` (`up-full.sh`) starts profile `full` with core-worker on the
+real ports. The setup is `full-env.sh`, sourced by `up-full.sh` and `e2e-pr.sh` alike, so the owner's stack and the one
+the e2e proves are wired by the same lines: the four images by name from `AISDLC_IMAGE_TAG` (`build-images.sh`,
+`make images`), the W image and the probe image pinned by digest (`SANDBOX_AGENT_IMAGE_ID`, `SANDBOX_ONBOARDING_IMAGE`,
+`SANDBOX_ONBOARDING_LOCK_SHA256`), `CORE_WORKER_STAGE_PORTS=agents`, `CORE_WORKER_SANDBOX_CONTROLLER_URL`,
+`CORE_WORKER_VERIFY_URL` (real verify: `CORE_WORKER_FAKE_VERIFY=default`), `CORE_WORKER_PUSH_BROKER=1` and its URL,
+`SEED_EXEC_ALLOWED_REPOS`, `DOCKER_GID`, `SANDBOX_SCRATCH`, the two-App layout on the fake GitHub, the IdP seed on
+another port, and SP-STD-1 (run once per W image, then posted to core). What the owner's path chooses differently:
+
+|                                 | `up-full.sh` (the owner)                                                                                          | `e2e-pr.sh` (the test)                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| project, ports, subnets         | `aisdlc`, 8340 and 8390, `10.231` (each overridable)                                                              | `aisdlc-e2e-pr`, 8640 and 8690, `10.236`                |
+| GitHub                          | `fake` or `real` (`real` refuses to start without both Apps: ids in `.env`, keys in `secrets/`, none a throwaway) | the fake                                                |
+| allow-listed repo               | `REPO`                                                                                                            | `reshif/asf-factory-testbed`                            |
+| the fake provider's fixtures    | `planning` (the seed's default); the model routes are the owner's M1 decision, and the seed never reverts them    | `testbed` (scripts the coding sessions and the reviews) |
+| scratch and the SP-STD-1 report | persistent: `.scratch/<project>/` (gitignored; `AISDLC_STATE_DIR` moves it)                                       | a `mktemp` directory, removed                           |
+| at the end                      | left running; `make down` keeps the volumes, `make reset` deletes them and the scratch                            | `down -v`                                               |
+
+`E2E_ATTACH=1 ./e2e-pr.sh` runs the browser journey and `verify-ledger` against a stack that is already running (it
+checks core-worker's wiring and that the fake provider has the `testbed` fixtures), and leaves it running: started
+with `SEED_FAKE_FIXTURES=testbed make up-full REPO=reshif/asf-factory-testbed`, it proves the owner's stack itself.
+
 ## gate-relay (profile `gate-relay`, M15.3)
 
 `docker compose --profile fake-github --profile gate-relay up -d --wait` adds it (against the fake GitHub, whose third
