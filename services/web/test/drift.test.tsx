@@ -399,9 +399,10 @@ describe('the inbox lists the after-onboarding items and the pack X2', () => {
     expect(
       screen.getByRole('link', { name: 'Review: Re-affirm changed instruction text: acme/web' }),
     ).toHaveAttribute('href', '/projects/acme/drift');
-    expect(screen.getByRole('link', { name: 'Decide: Onboarding files change' })).toHaveAttribute(
+    // the pack's approval is one of the onboarding's: one row that opens its console
+    expect(screen.getByRole('link', { name: /^Open: Onboarding of / })).toHaveAttribute(
       'href',
-      '/decide/01a1bc26-f0e5-719a-a52b-a88a4b6cbe99',
+      expect.stringMatching(/^\/onboard\//),
     );
   });
 

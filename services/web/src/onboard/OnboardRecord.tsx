@@ -104,26 +104,51 @@ interface Draft {
 
 function initialDraft(v: OnboardingSummaryView, me: string): Draft {
   const floor = v.census?.tier_floor ?? 'T0';
+  return applyDraft(
+    {
+      tier: floor,
+      t0: false,
+      regulatory: false,
+      criticality: false,
+      gaps: Object.fromEntries((v.census?.gaps ?? []).map((g) => [g.gap_id, g.suggested])),
+      attest: Object.fromEntries(ATTEST.map(([k]) => [k, false])),
+      secretScanning: '',
+      plan: '',
+      operationsMd: false,
+      roleMap:
+        v.role_map?.proposed ??
+        (Object.fromEntries(
+          RoleSlotValues.map((sl) => [
+            sl,
+            { kind: 'principals', principals: sl === 'admin' ? [me] : [] },
+          ]),
+        ) as RoleMap),
+      twoPerson: (v.role_map?.tier ?? floor) === 'T2',
+      gating: DEFAULT_GATING_PROFILE,
+    },
+    v,
+  );
+}
+
+/**
+ * What the person accepted in the console, as defaults of the summary (never a decision: the sign-off still asks for
+ * all of it). A tier under the census floor is ignored; the server holds the same rule.
+ */
+function applyDraft(d: Draft, v: OnboardingSummaryView): Draft {
+  const s = v.draft;
+  if (!s) return d;
+  const floor = v.census?.tier_floor ?? 'T0';
+  const rank = { T0: 0, T1: 1, T2: 2 } as const;
+  const roleMap = { ...d.roleMap } as Record<string, unknown>;
+  for (const [slot, principals] of Object.entries(s.role_map)) {
+    roleMap[slot] = { kind: 'principals', principals };
+  }
   return {
-    tier: floor,
-    t0: false,
-    regulatory: false,
-    criticality: false,
-    gaps: Object.fromEntries((v.census?.gaps ?? []).map((g) => [g.gap_id, g.suggested])),
-    attest: Object.fromEntries(ATTEST.map(([k]) => [k, false])),
-    secretScanning: '',
-    plan: '',
-    operationsMd: false,
-    roleMap:
-      v.role_map?.proposed ??
-      (Object.fromEntries(
-        RoleSlotValues.map((sl) => [
-          sl,
-          { kind: 'principals', principals: sl === 'admin' ? [me] : [] },
-        ]),
-      ) as RoleMap),
-    twoPerson: (v.role_map?.tier ?? floor) === 'T2',
-    gating: DEFAULT_GATING_PROFILE,
+    ...d,
+    ...(s.tier && rank[s.tier] >= rank[floor] ? { tier: s.tier } : {}),
+    gaps: { ...d.gaps, ...s.gaps },
+    roleMap: roleMap as RoleMap,
+    ...(s.two_person_enabled === undefined ? {} : { twoPerson: s.two_person_enabled }),
   };
 }
 
@@ -260,6 +285,11 @@ function Summary({
 }) {
   const [tab, setTab] = useState('console');
   const [draft, setDraft] = useState<Draft>(() => initialDraft(v, who));
+  // a choice accepted in the console arrives as a default; it is applied when it changes
+  const accepted = JSON.stringify(v.draft ?? null);
+  useEffect(() => {
+    setDraft((d) => applyDraft(d, v));
+  }, [accepted]);
   const set = <K extends keyof Draft>(k: K, x: Draft[K]) => setDraft((d) => ({ ...d, [k]: x }));
   const problems = useMemo(() => problemsOf(v, draft), [v, draft]);
   const step = stepOf(v);

@@ -19,7 +19,7 @@ import { loadS0, s0Cards } from '../cards/read.js';
 import { c1Context, c4Context, maxTier } from '../cards/views.js';
 import { coreError, type CoreError } from '../errors.js';
 import { latestProposal } from './agent.js';
-import { liveCards } from './summary.js';
+import { liveCards, onboardingSummary } from './summary.js';
 
 // "Why is it stuck" for one S0 record (onboarding console P0): reads what the record, knowledge and the code host say
 // now and hands it to the pure `explainS0`. A read: nothing is written, nothing is decided.
@@ -118,6 +118,8 @@ export async function onboardingBlockers(
     probe = p ? { outcome: p.result.outcome, detail: p.result.detail ?? null } : null;
   }
 
+  const sum = s0.census ? await onboardingSummary({ cards: d }, s0Id, null) : null;
+  const fixes = sum && sum.ok ? sum.value.fixes : [];
   const reading = explainS0({
     status: s0.record.status,
     requested_level: s0.record.requested_level,
@@ -129,6 +131,12 @@ export async function onboardingBlockers(
       status: card.state.status,
       live: l,
       finding_id: card.finding_id ?? null,
+      card_id: card.card_id,
+    })),
+    fixes: fixes.map((f) => ({
+      title: f.title,
+      state: f.state,
+      approval: f.approval ? { card_id: f.approval.card_id, status: f.approval.status } : null,
     })),
     controls_blocking_open: controlsOpen,
     floors,

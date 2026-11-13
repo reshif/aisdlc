@@ -14,6 +14,7 @@ import { describeError } from '../format';
 import { Card, EmptyState, KeyValue, Pill, type PillTone } from '../ui';
 import { Blockers } from './Blockers';
 import { onboardApi } from './api';
+import { Proposals } from './Proposals';
 
 // The onboarding console (docs/design/onboarding-console.md, P3): one place to work an onboarding with the onboarder.
 // Three panes: the PLAN (what is in the way and whose move it is, from the deterministic blocker graph), the
@@ -234,6 +235,12 @@ function Conversation({
           <article key={t.seq} className={`oc-turn oc-${t.role}`} data-role={t.role}>
             <h3 className="oc-who">{WHO[t.role] ?? t.role}</h3>
             <p className="oc-text">{t.text}</p>
+            <Proposals
+              s0={id}
+              items={view.proposals.filter((p) => p.turn_seq === t.seq && p.state !== 'superseded')}
+              csrf={csrf}
+              onView={onView}
+            />
           </article>
         ))}
         {say.isPending || view.state === 'running' ? (

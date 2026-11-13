@@ -8,6 +8,7 @@ import { C1DecisionContent, C4DecisionContent } from './onboarding-cards.js';
 import { C2DecisionContent } from './onboarding-light.js';
 import { CardKind, OnboardingStepId, OnboardingStepState } from './onboarding.js';
 import { SignoffFeasibility } from './onboarding-blockers.js';
+import { ConsoleDraft } from './onboarding-console.js';
 import { RoleMap } from './projects.js';
 
 // Portal v2, agent-led onboarding (intent §4; screen-map §2.10, N10-N13; gap G4). The onboarding agent reads an S0
@@ -251,6 +252,8 @@ export const OnboardingSummaryView = z.strictObject({
     step_up: z.strictObject({ bound_hash: Sha256Hex, card: CardKind }).nullable(),
     started_by: z.string().nullable(),
   }),
+  /** What the person accepted in the console: defaults for the sign-off. Not part of the hash. */
+  draft: ConsoleDraft.optional(),
   /** `onboardingSummaryHash` of this view. */
   summary_hash: Sha256Hex,
 });

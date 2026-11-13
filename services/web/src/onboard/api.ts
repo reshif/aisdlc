@@ -82,6 +82,21 @@ export const onboardApi = {
     }),
   consoleSteer: (s0: string, action: 'pause' | 'resume' | 'stop', csrf: string) =>
     call<ConsoleSessionView>('POST', `/api/s0/${enc(s0)}/console/${action}`, { body: {}, csrf }),
+  consoleDecide: (
+    s0: string,
+    proposal: string,
+    body: {
+      decision: 'accept' | 'edit' | 'reject';
+      proposal_sha256: string;
+      edited_value?: unknown;
+    },
+    csrf: string,
+  ) =>
+    call<ConsoleSessionView>(
+      'POST',
+      `/api/s0/${enc(s0)}/console/proposals/${enc(proposal)}/decide`,
+      { body, csrf },
+    ),
   consoleSessions: () => call<ConsoleSessionList>('GET', '/api/console/sessions'),
   runAgent: (s0: string, csrf: string) =>
     call<{ state: string }>('POST', `/api/s0/${enc(s0)}/agent/run`, { body: {}, csrf }),

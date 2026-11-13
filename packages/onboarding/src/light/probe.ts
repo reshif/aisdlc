@@ -40,7 +40,14 @@ export function argvOf(invocation: string): ProbeArgv | null {
  * What the probe runs, from the census's detector facts at the census head: the `setup` and `test` task-contract
  * commands (RS-BT-1), and the mirror needs its lockfile facts declare (LF8, RS-EN-1).
  */
-export function planProbe(facts: readonly Fact[]): ProbePlan {
+export function planProbe(
+  facts: readonly Fact[],
+  /**
+   * A command the person attested for THIS census head (the console's accepted test command). It fills a `test` (and a
+   * `setup`) the detectors did not find; it never replaces one they found.
+   */
+  attested?: { readonly command: string; readonly setup?: string | undefined } | null,
+): ProbePlan {
   const refused: string[] = [];
   const cmd = (name: 'setup' | 'test'): ProbeArgv | null => {
     const f = facts.find((x) => x.kind === 'task_command' && x.name === name);
@@ -49,8 +56,16 @@ export function planProbe(facts: readonly Fact[]): ProbePlan {
     if (argv === null) refused.push(`${name}: the invocation is not plain argv`);
     return argv;
   };
-  const setup = cmd('setup');
-  const test = cmd('test');
+  let setup = cmd('setup');
+  let test = cmd('test');
+  if (test === null && attested) {
+    test = argvOf(attested.command);
+    if (test === null) refused.push('test: the command you declared is not plain argv');
+    else if (setup === null && attested.setup) {
+      setup = argvOf(attested.setup);
+      if (setup === null) refused.push('setup: the command you declared is not plain argv');
+    }
+  }
   const declared = facts
     .flatMap((f) =>
       f.kind === 'lockfile'

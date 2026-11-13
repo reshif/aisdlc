@@ -1987,7 +1987,7 @@ const screen = {
   projects: t('Projects', 'Every project you can see.'),
   onboard: t('Onboard a repo', 'Get a repo ready so agents can work on it safely.'),
   ask_for_work: t('Ask for work', 'Send a request to the factory.'),
-  assistant: t('Ask the factory', 'Answers only from what you can see.'),
+  assistant: t('Sessions', 'Work with the factory’s agent, one subject at a time.'),
   operate: t(
     'Operate',
     'Run the factory: stop it, pause it, see capacity, sandboxes, health and spend.',

@@ -1,5 +1,7 @@
 import {
   ConsoleControlRequest,
+  ConsoleDraftPatch,
+  ConsoleProposalDecideRequest,
   ConsoleMessageRequest,
   ConsoleSessionList,
   PrincipalId,
@@ -12,8 +14,17 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { loadS0 } from '../cards/read.js';
 import { CORE_STATUS, coreError, type CoreError } from '../errors.js';
-import { observe, postMessage, startSession, steer, wake, type ConsoleDeps } from './engine.js';
-import { listSessions, readSessionRow, sessionView } from './store.js';
+import {
+  decideProposal,
+  observe,
+  patchDraft,
+  postMessage,
+  startSession,
+  steer,
+  wake,
+  type ConsoleDeps,
+} from './engine.js';
+import { draftOf, listSessions, sessionView } from './store.js';
 
 // The onboarding console's routes (docs/design/onboarding-console.md, P2), for the bff acting for a signed-in person.
 // The person is always `on_behalf_of`. Every route asks the PDP for `project.view` AND `onboarding.console.use` on the
@@ -24,6 +35,8 @@ import { listSessions, readSessionRow, sessionView } from './store.js';
 //   POST /v1/s0/:id/console/start                     opens it (once) and reads the state first          scope onboard
 //   POST /v1/s0/:id/console/messages                  the person says something; the agent answers       scope onboard
 //   POST /v1/s0/:id/console/{pause,resume,stop}       steering                                           scope onboard
+//   POST /v1/s0/:id/console/proposals/:pid/decide     accept, edit or reject one proposal; the agent goes on scope onboard
+//   PATCH /v1/s0/:id/summary                          the person sets summary defaults directly       scope onboard
 //   GET  /v1/console/sessions?on_behalf_of=           the sessions the person may see (the session list) scope read
 
 export const CONSOLE_USE_ACTIONS = [
@@ -171,6 +184,45 @@ export function registerConsoleRoutes(r: ConsoleRouteDeps): void {
     });
   }
 
+  app.post('/v1/s0/:id/console/proposals/:pid/decide', async (req, reply) => {
+    const d = pre(req, reply, 'onboard');
+    const id = idOf(req, reply);
+    if (!d || !id) return;
+    const pid = (req.params as Record<string, string>)['pid'];
+    if (!z.uuid().safeParse(pid).success)
+      return fail(reply, coreError('invalid_input', 'bad proposal id'));
+    const b = ConsoleProposalDecideRequest.safeParse(req.body ?? {});
+    if (!b.success) return fail(reply, coreError('invalid_input', b.error.message));
+    const project = await projectOf(d, reply, id);
+    if (project === null || !(await guardUse(reply, b.data.on_behalf_of, project))) return;
+    const r = await decideProposal(d, {
+      s0_id: id,
+      by: b.data.on_behalf_of,
+      proposal_id: pid as string,
+      proposal_sha256: b.data.proposal_sha256,
+      decision: b.data.decision,
+      ...(b.data.edited_value === undefined ? {} : { edited_value: b.data.edited_value }),
+    });
+    if (!r.ok) return fail(reply, r.error);
+    // the agent goes on from what the person chose
+    await wake(d, id);
+    return sessionView(d.pool, id);
+  });
+
+  app.patch('/v1/s0/:id/summary', async (req, reply) => {
+    const d = pre(req, reply, 'onboard');
+    const id = idOf(req, reply);
+    if (!d || !id) return;
+    const b = ConsoleDraftPatch.safeParse(req.body ?? {});
+    if (!b.success) return fail(reply, coreError('invalid_input', b.error.message));
+    const project = await projectOf(d, reply, id);
+    if (project === null || !(await guardUse(reply, b.data.on_behalf_of, project))) return;
+    const { on_behalf_of, ...patch } = b.data;
+    const r = await patchDraft(d, { s0_id: id, by: on_behalf_of, patch });
+    if (!r.ok) return fail(reply, r.error);
+    return { set: r.value.set, draft: await draftOf(d.pool, id) };
+  });
+
   app.get('/v1/console/sessions', async (req, reply) => {
     const d = pre(req, reply, 'read');
     if (!d) return;
@@ -191,7 +243,6 @@ export function registerConsoleRoutes(r: ConsoleRouteDeps): void {
       }
       if (seen.get(s.project_id)) keep.push(s);
     }
-    void readSessionRow;
     return ConsoleSessionList.parse({ sessions: keep });
   });
 }

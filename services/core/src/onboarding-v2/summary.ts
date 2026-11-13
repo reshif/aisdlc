@@ -27,6 +27,8 @@ import { coreError, type CoreError } from '../errors.js';
 import { prrByHash } from '../m4.js';
 import { revisionOfS0 } from '../portal-reads.js';
 import { gapChoices, latestProposal } from './agent.js';
+import { mergeConsoleFixes } from '../onboarding-console/fixes.js';
+import { acceptedFixFilesOf, draftOf } from '../onboarding-console/store.js';
 import { signoffOf } from './blockers.js';
 
 // The one onboarding summary (portal v2, N12; screen-map §2.10 step 3): everything the agent found and proposes and
@@ -303,7 +305,14 @@ export async function onboardingSummary(
     }
   }
 
-  const fixes = await fixesOf(d, s0Id, s0.repo, viewer, proposal?.output ?? null);
+  const fixes = await fixesOf(
+    d,
+    s0Id,
+    s0.repo,
+    viewer,
+    mergeConsoleFixes(proposal?.output ?? null, await acceptedFixFilesOf(deps.pool, s0Id)),
+  );
+  const draft = await draftOf(deps.pool, s0Id);
   const so = await signOffStateOf(d, loaded, live, viewer, proposal !== null);
 
   const view = {
@@ -353,6 +362,7 @@ export async function onboardingSummary(
       by_sign_off: bySignOff(card.kind),
     })),
     sign_off: so,
+    draft,
     summary_hash: '0'.repeat(64) as never,
   };
   const hashed = { ...view, summary_hash: onboardingSummaryHash(view as never) as never };

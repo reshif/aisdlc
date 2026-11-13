@@ -3517,8 +3517,8 @@
       "explain": "Send a request to the factory."
     },
     "assistant": {
-      "label": "Ask the factory",
-      "explain": "Answers only from what you can see."
+      "label": "Sessions",
+      "explain": "Work with the factory’s agent, one subject at a time."
     },
     "operate": {
       "label": "Operate",

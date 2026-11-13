@@ -29,6 +29,13 @@ export interface ExplainInput {
     readonly status: string;
     readonly live: boolean;
     readonly finding_id?: string | null;
+    readonly card_id?: string;
+  }>;
+  /** The fix PRs (the agent's and the console's) and where each stands. */
+  readonly fixes?: ReadonlyArray<{
+    readonly title: string;
+    readonly state: string;
+    readonly approval: { readonly card_id: string; readonly status: string } | null;
   }>;
   /** Controls still blocking card 4 (`null`: not read). */
   readonly controls_blocking_open: readonly string[] | null;
@@ -282,6 +289,45 @@ export function explainS0(i: ExplainInput): Omit<OnboardingBlockers, 's0_id'> {
       });
     }
 
+    // the fix PRs: their approval first, then the person's merge on GitHub
+    (i.fixes ?? []).forEach((f, n) => {
+      if (f.state === 'awaiting_approval' && f.approval) {
+        add({
+          id: `fix:${n}`,
+          kind: 'card',
+          owner: 'you',
+          code: 'fix_pr_awaiting_approval',
+          title: `Approve opening a pull request: ${f.title}`,
+          why: 'The factory never pushes before a person approves it, and never merges.',
+          next: 'Open the approval, read the change, then approve or reject it.',
+          blocked_by: [],
+          card_id: f.approval.card_id,
+        });
+      } else if (f.state === 'pr_open') {
+        add({
+          id: `fix:${n}`,
+          kind: 'step',
+          owner: 'github',
+          code: 'fix_pr_open',
+          title: `Merge the pull request on GitHub: ${f.title}`,
+          why: 'The factory opened it as a draft; only a person merges.',
+          next: 'Review it on GitHub and merge it, then ask the onboarder to read the repo again.',
+          blocked_by: [],
+        });
+      } else if (f.state === 'refused') {
+        add({
+          id: `fix:${n}`,
+          kind: 'step',
+          owner: 'you',
+          code: 'fix_pr_refused',
+          title: `The fix pull request was refused: ${f.title}`,
+          why: 'Its approval was rejected or the Push Broker refused it.',
+          next: 'Change what it proposes (tell the onboarder), or fix it by hand on GitHub.',
+          blocked_by: [],
+        });
+      }
+    });
+
     // the cards that wait for a person
     const have = ids();
     for (const c of i.cards) {
@@ -312,6 +358,7 @@ export function explainS0(i: ExplainInput): Omit<OnboardingBlockers, 's0_id'> {
             ? 'The onboarding signer signs it once nothing above is open.'
             : 'Choose in the summary, then sign off.',
         blocked_by: waits,
+        ...(c.card_id ? { card_id: c.card_id } : {}),
       });
     }
   }

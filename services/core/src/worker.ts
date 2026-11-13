@@ -12,6 +12,7 @@ export { probeFilesOf, probeLoop, runOnboardingProbe, type ProbeDeps } from './c
 export { packLoop, projectFullPack, projectPack, type PackDeps } from './cards/pack.js';
 export { onboardingConsoleLoop } from './onboarding-console/loop.js';
 export { consoleDepsFrom } from './onboarding-console/wire.js';
+export { consoleActsFrom } from './onboarding-console/acts.js';
 export {
   FakeOnboardingAgent,
   GatewayOnboardingAgent,

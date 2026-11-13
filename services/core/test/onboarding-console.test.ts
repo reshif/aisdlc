@@ -138,8 +138,12 @@ describe('a session: start, the first look, the answer', () => {
     expect(req?.mint.scope).toEqual({ kind: 'job', ref: `onboarding:${c.s0}` });
     expect(req?.mint.budget_group).toBe(`onboarding_console:${c.s0}`);
     expect(d.keys.revoked).toHaveLength(1);
-    // only the tools the session can run are offered: reads (no search wired, no proposal, no act in P2)
-    expect(d.model.requests[0]?.tools.map((t) => t.name)).toEqual(['OnboardingRead']);
+    // the tools the session offers: reads, proposals and the acts the autonomy setting allows (no search wired here)
+    expect(d.model.requests[0]?.tools.map((t) => t.name)).toEqual([
+      'OnboardingRead',
+      'OnboardingPropose',
+      'OnboardingAct',
+    ]);
   });
 
   it('a tool the session does not offer, or a topic off the list, is refused as a result; nothing else changes', async () => {

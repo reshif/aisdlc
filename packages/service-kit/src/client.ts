@@ -3,7 +3,7 @@ import { traceHeaders } from './telemetry.js';
 export interface CallOptions {
   baseUrl: string;
   token: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
   /** Extra request headers (never `authorization`, which is the token's). */
   headers?: Readonly<Record<string, string>>;

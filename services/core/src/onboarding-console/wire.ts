@@ -3,6 +3,7 @@ import { GatewayAgentKeys } from '../agent-keys.js';
 import { HttpKnowledgeSearch } from '../clients.js';
 import type { CardDeps } from '../cards/model.js';
 import { GatewayAdminHttp } from '../conversation/gateway.js';
+import { consoleActsFrom, type ConsoleActsPort } from './acts.js';
 import type { ConsoleDeps } from './engine.js';
 import { GatewayOnboarderModel } from './model.js';
 
@@ -21,6 +22,8 @@ export function consoleDepsFrom(o: {
   readonly knowledge: Remote;
   readonly gateway: Remote;
   readonly extraModels?: readonly string[];
+  /** What the onboarder may do here; default: re-check and card sync only (the probe and the pack are the worker's). */
+  readonly acts?: ConsoleActsPort;
 }): ConsoleDeps {
   const admin = new GatewayAdminHttp({ baseUrl: o.gateway.url, token: o.gateway.token });
   return {
@@ -29,6 +32,7 @@ export function consoleDepsFrom(o: {
     cards: o.cards,
     keys: new GatewayAgentKeys(admin, { extraModels: o.extraModels ?? [] }),
     model: new GatewayOnboarderModel({ baseUrl: o.gateway.url }),
+    acts: o.acts ?? consoleActsFrom({ cards: o.cards }),
     search: new HttpKnowledgeSearch({ baseUrl: o.knowledge.url, token: o.knowledge.token }),
     prompt: readPrompt,
   };

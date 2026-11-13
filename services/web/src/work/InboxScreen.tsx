@@ -8,6 +8,8 @@ import { CodeChip, EmptyState, PageHeader, Pill, Tabs, type TabDef } from '../ui
 import {
   dueText,
   fullTime,
+  collapseOnboarding,
+  type InboxRow,
   inboxHref,
   inboxVerb,
   inboxWhat,
@@ -26,7 +28,7 @@ import './work.css';
 type Scope = 'mine' | 'others' | 'factory';
 
 /** Overdue first, then the oldest due time; one with no time last (the order J/K walks on Decide too). */
-export function inboxOrder(rows: readonly PortalInboxItem[]): PortalInboxItem[] {
+export function inboxOrder<T extends PortalInboxItem>(rows: readonly T[]): T[] {
   return [...rows].sort((a, b) => {
     if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
     const x = a.sla_due_at ?? a.opened_at;
@@ -51,14 +53,17 @@ export function InboxScreen({ me }: { me: Me }) {
     () => (q.data ? { mine: q.data.decide, others: q.data.view } : null),
     [q.data],
   );
+  // an onboarding's approvals are one row that opens its console; each is still decided on its own page
   const base =
     all === null
       ? []
-      : scope === 'mine'
-        ? all.mine
-        : scope === 'others'
-          ? all.others
-          : [...all.mine, ...all.others];
+      : collapseOnboarding(
+          scope === 'mine'
+            ? all.mine
+            : scope === 'others'
+              ? all.others
+              : [...all.mine, ...all.others],
+        );
   const rows = inboxOrder(
     base.filter(
       (i) =>
@@ -167,7 +172,7 @@ export function InboxScreen({ me }: { me: Me }) {
   );
 }
 
-function InboxCard({ i, codes }: { i: PortalInboxItem; codes: boolean }) {
+function InboxCard({ i, codes }: { i: InboxRow; codes: boolean }) {
   const why = i.may_decide
     ? label('inboxReason', i.escalated ? 'escalated_backup' : 'eligible')
     : i.deciders.length > 0

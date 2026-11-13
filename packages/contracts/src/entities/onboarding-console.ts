@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { hashCanonical } from '@aisdlc/kernel';
 import { Tier } from '../values.js';
+import { GapDisposition } from './readiness.js';
+import { RoleSlot } from './projects.js';
 import { IsoDateTime, PrincipalId, S0RecordId, Sha256Hex } from './ids.js';
 import { PayloadRedaction } from './conversation.js';
 
@@ -105,6 +107,8 @@ export const ConsoleProposalKind = z.enum([
   'fix_file',
   'manual_step',
   'test_command',
+  // an act the autonomy setting says to ask about first: accepting it runs it, as the person
+  'act',
 ]);
 export type ConsoleProposalKind = z.infer<typeof ConsoleProposalKind>;
 
@@ -252,6 +256,8 @@ export type ConsoleProposal = z.infer<typeof ConsoleProposal>;
 export const SessionProposalRecordedPayload = z.strictObject({
   s0_id: S0RecordId,
   proposal: ConsoleProposal,
+  /** The census head the proposal was made at (a test command binds to it). */
+  census_hash: Sha256Hex.nullable(),
   /** sha256 over the canonical proposal: what an accept binds to. */
   proposal_sha256: Sha256Hex,
   turn_seq: z.number().int().min(1),
@@ -263,15 +269,89 @@ export const SessionProposalDecidedPayload = z.strictObject({
   s0_id: S0RecordId,
   proposal_id: z.uuid(),
   proposal_sha256: Sha256Hex,
-  state: z.enum(['accepted', 'edited', 'rejected']),
+  state: z.enum(['accepted', 'edited', 'rejected', 'superseded']),
   /** The person's value when `edited` (the edit is theirs; it is validated like the proposal). */
   edited_value: z.unknown().optional(),
-  by: PrincipalId,
+  /** The person who decided; `null` when the factory superseded it (the agent proposed the same thing again). */
+  by: PrincipalId.nullable(),
   at: IsoDateTime,
 });
 export type SessionProposalDecidedPayload = z.infer<typeof SessionProposalDecidedPayload>;
 
 export const proposalSha256 = (p: ConsoleProposal): string => hashCanonical(p);
+
+// ---------------------------------------------------------------- what a proposal may hold, by kind
+
+/**
+ * The value of each kind of proposal. The TARGET names what it is about (the tier: `tier`; a gap: its id; a role map
+ * slot; a claim id; an instruction file `AGENTS.md`; a fix id; a step id; the test command: `test`; an act: its name).
+ * Core checks the value against the kind AND against the session (the tier at or above the census floor, a disposition
+ * the gap allows, a slot that exists, a fix path the factory may write, a plain test command) and the secret ruleset.
+ */
+export const ProposalValues = {
+  tier: z.strictObject({ tier: Tier }),
+  gap_disposition: z.strictObject({ disposition: GapDisposition }),
+  role_map: z.strictObject({ principals: z.array(PrincipalId).max(20) }),
+  settings: z.strictObject({ two_person_enabled: z.boolean() }),
+  claim: z.strictObject({
+    stance: z.enum(['affirm', 'correct', 'unknown']),
+    text: z.string().max(1000).optional(),
+  }),
+  instruction_text: z.strictObject({ text: z.string().min(1).max(20_000) }),
+  fix_file: z.strictObject({
+    path: z.string().min(1).max(300),
+    content: z.string().min(1).max(20_000),
+  }),
+  manual_step: z.strictObject({ text: z.string().min(1).max(500) }),
+  test_command: z.strictObject({
+    command: z.string().min(2).max(300),
+    setup: z.string().min(2).max(300).optional(),
+  }),
+  act: z.strictObject({ act: ConsoleActTool }),
+} as const satisfies Record<ConsoleProposalKind, z.ZodType>;
+
+/** Whether a `role_map` proposal's target names a real slot. */
+export const isRoleSlotTarget = (t: string): boolean => RoleSlot.safeParse(t).success;
+
+/** The summary draft: what the person accepted in the console, as defaults for the one sign-off. Never a decision. */
+export const ConsoleDraft = z.strictObject({
+  tier: Tier.optional(),
+  gaps: z.record(z.string(), GapDisposition),
+  role_map: z.record(z.string(), z.array(PrincipalId)),
+  two_person_enabled: z.boolean().optional(),
+  /** The person-attested test command, bound to the census head it was accepted at. */
+  test_command: z
+    .strictObject({
+      command: z.string(),
+      setup: z.string().optional(),
+      census_hash: Sha256Hex.nullable(),
+    })
+    .optional(),
+  /** Paths of the fix files the person accepted (rendered by `render_fix_pack`). */
+  fix_files: z.array(z.string()),
+});
+export type ConsoleDraft = z.infer<typeof ConsoleDraft>;
+
+/** `POST /v1/s0/:id/console/proposals/:pid/decide`. */
+export const ConsoleProposalDecideRequest = z.strictObject({
+  on_behalf_of: PrincipalId,
+  decision: z.enum(['accept', 'edit', 'reject']),
+  /** What the person saw: a proposal that changed since is refused. */
+  proposal_sha256: Sha256Hex,
+  /** With `edit`: the person's own value for the same kind. */
+  edited_value: z.unknown().optional(),
+});
+export type ConsoleProposalDecideRequest = z.infer<typeof ConsoleProposalDecideRequest>;
+
+/** `PATCH /v1/s0/:id/summary`: the person sets draft defaults directly; each is recorded as their own edit. */
+export const ConsoleDraftPatch = z.strictObject({
+  on_behalf_of: PrincipalId,
+  tier: Tier.optional(),
+  gaps: z.record(z.string(), GapDisposition).optional(),
+  role_map: z.record(RoleSlot, z.array(PrincipalId).max(20)).optional(),
+  two_person_enabled: z.boolean().optional(),
+});
+export type ConsoleDraftPatch = z.infer<typeof ConsoleDraftPatch>;
 
 // ---------------------------------------------------------------- the views
 
@@ -300,6 +380,8 @@ export const ConsoleSessionView = z.strictObject({
   ),
   /** The tier the person may still choose is the console's to say; the floor is the census's. */
   tier_floor: Tier.nullable(),
+  /** What the person accepted so far (defaults for the sign-off). */
+  draft: ConsoleDraft.optional(),
 });
 export type ConsoleSessionView = z.infer<typeof ConsoleSessionView>;
 

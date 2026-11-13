@@ -14430,6 +14430,11 @@
             "minLength": 1,
             "maxLength": 80
           }
+        },
+        "card_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
         }
       },
       "required": [
@@ -32624,6 +32629,167 @@
       ],
       "additionalProperties": false
     },
+    "ConsoleDraft": {
+      "type": "object",
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": [
+            "T0",
+            "T1",
+            "T2"
+          ]
+        },
+        "gaps": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "file_issue",
+              "track_only",
+              "waive"
+            ]
+          }
+        },
+        "role_map": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            }
+          }
+        },
+        "two_person_enabled": {
+          "type": "boolean"
+        },
+        "test_command": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "setup": {
+              "type": "string"
+            },
+            "census_hash": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "command",
+            "census_hash"
+          ],
+          "additionalProperties": false
+        },
+        "fix_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "gaps",
+        "role_map",
+        "fix_files"
+      ],
+      "additionalProperties": false
+    },
+    "ConsoleDraftPatch": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "T0",
+            "T1",
+            "T2"
+          ]
+        },
+        "gaps": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "file_issue",
+              "track_only",
+              "waive"
+            ]
+          }
+        },
+        "role_map": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "requesters",
+              "intent",
+              "design",
+              "g4",
+              "g5",
+              "x",
+              "sec",
+              "m4",
+              "kill"
+            ]
+          },
+          "additionalProperties": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            }
+          },
+          "required": [
+            "admin",
+            "requesters",
+            "intent",
+            "design",
+            "g4",
+            "g5",
+            "x",
+            "sec",
+            "m4",
+            "kill"
+          ]
+        },
+        "two_person_enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
     "ConsoleMessageRequest": {
       "type": "object",
       "properties": {
@@ -32663,7 +32829,8 @@
             "instruction_text",
             "fix_file",
             "manual_step",
-            "test_command"
+            "test_command",
+            "act"
           ]
         },
         "target": {
@@ -32694,6 +32861,35 @@
       ],
       "additionalProperties": false
     },
+    "ConsoleProposalDecideRequest": {
+      "type": "object",
+      "properties": {
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "accept",
+            "edit",
+            "reject"
+          ]
+        },
+        "proposal_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "edited_value": {}
+      },
+      "required": [
+        "on_behalf_of",
+        "decision",
+        "proposal_sha256"
+      ],
+      "additionalProperties": false
+    },
     "ConsoleProposalKind": {
       "type": "string",
       "enum": [
@@ -32705,7 +32901,8 @@
         "instruction_text",
         "fix_file",
         "manual_step",
-        "test_command"
+        "test_command",
+        "act"
       ]
     },
     "ConsoleProposalState": {
@@ -33017,7 +33214,8 @@
                   "instruction_text",
                   "fix_file",
                   "manual_step",
-                  "test_command"
+                  "test_command",
+                  "act"
                 ]
               },
               "target": {
@@ -33085,6 +33283,89 @@
               "type": "null"
             }
           ]
+        },
+        "draft": {
+          "type": "object",
+          "properties": {
+            "tier": {
+              "type": "string",
+              "enum": [
+                "T0",
+                "T1",
+                "T2"
+              ]
+            },
+            "gaps": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "file_issue",
+                  "track_only",
+                  "waive"
+                ]
+              }
+            },
+            "role_map": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              }
+            },
+            "two_person_enabled": {
+              "type": "boolean"
+            },
+            "test_command": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                },
+                "setup": {
+                  "type": "string"
+                },
+                "census_hash": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "command",
+                "census_hash"
+              ],
+              "additionalProperties": false
+            },
+            "fix_files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "gaps",
+            "role_map",
+            "fix_files"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -98108,6 +98389,11 @@
                   "minLength": 1,
                   "maxLength": 80
                 }
+              },
+              "card_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
               }
             },
             "required": [
@@ -100009,6 +100295,89 @@
             "may_sign",
             "step_up",
             "started_by"
+          ],
+          "additionalProperties": false
+        },
+        "draft": {
+          "type": "object",
+          "properties": {
+            "tier": {
+              "type": "string",
+              "enum": [
+                "T0",
+                "T1",
+                "T2"
+              ]
+            },
+            "gaps": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "file_issue",
+                  "track_only",
+                  "waive"
+                ]
+              }
+            },
+            "role_map": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              }
+            },
+            "two_person_enabled": {
+              "type": "boolean"
+            },
+            "test_command": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                },
+                "setup": {
+                  "type": "string"
+                },
+                "census_hash": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "command",
+                "census_hash"
+              ],
+              "additionalProperties": false
+            },
+            "fix_files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "gaps",
+            "role_map",
+            "fix_files"
           ],
           "additionalProperties": false
         },
@@ -140025,14 +140394,22 @@
           "enum": [
             "accepted",
             "edited",
-            "rejected"
+            "rejected",
+            "superseded"
           ]
         },
         "edited_value": {},
         "by": {
-          "type": "string",
-          "maxLength": 128,
-          "pattern": "^[A-Za-z0-9_.@-]+$"
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.@-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "at": {
           "type": "string",
@@ -140076,7 +140453,8 @@
                 "instruction_text",
                 "fix_file",
                 "manual_step",
-                "test_command"
+                "test_command",
+                "act"
               ]
             },
             "target": {
@@ -140107,6 +140485,17 @@
           ],
           "additionalProperties": false
         },
+        "census_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "proposal_sha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
@@ -140125,6 +140514,7 @@
       "required": [
         "s0_id",
         "proposal",
+        "census_hash",
         "proposal_sha256",
         "turn_seq",
         "recorded_at"

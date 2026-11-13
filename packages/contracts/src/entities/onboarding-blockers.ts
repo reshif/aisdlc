@@ -33,6 +33,8 @@ export const Blocker = z.strictObject({
   why: z.string().min(1).max(400),
   next: z.string().min(1).max(300),
   blocked_by: z.array(z.string().min(1).max(80)).max(20),
+  /** The approval that clears it, when it is one: the console links to its page (the same decider, PDP and step-up). */
+  card_id: z.string().min(1).max(80).optional(),
 });
 export type Blocker = z.infer<typeof Blocker>;
 

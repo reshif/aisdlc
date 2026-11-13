@@ -1,4 +1,7 @@
+export * from './acts.js';
 export * from './engine.js';
+export * from './fixes.js';
+export * from './propose.js';
 export * from './loop.js';
 export * from './model.js';
 export * from './routes.js';

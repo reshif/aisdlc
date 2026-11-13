@@ -774,7 +774,15 @@ export async function runOnboardingAgent(
     row = await latestProposal(pool, s0Id, s0.census.census_hash);
   }
   if (!row) return err(coreError('database', 'the proposal row was not written'));
-  const fixes = await projectFixes(d, loaded, c1.card_id, row);
+  // the console owns the fix pack while a session is running (it renders the accepted files plus this proposal's)
+  const consoleOwns = await d.cards.pool.query(
+    "SELECT 1 FROM core.console_session WHERE s0_id = $1 AND state <> 'stopped'",
+    [s0Id],
+  );
+  const fixes =
+    consoleOwns.rowCount && consoleOwns.rowCount > 0
+      ? ok('console_owns_pack')
+      : await projectFixes(d, loaded, c1.card_id, row);
   return ok({
     state,
     output_hash: row.output_hash,

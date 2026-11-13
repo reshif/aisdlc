@@ -30,6 +30,7 @@ import type { Tx } from '@aisdlc/record';
 import { scanText } from '@aisdlc/secrets-rules';
 import type { LoopContext, LoopSpec } from '@aisdlc/loops';
 import type pg from 'pg';
+import { declaredTestCommand } from '../onboarding-console/store.js';
 import { coreError, type CoreError } from '../errors.js';
 import { clockOf, inCoreTx, lockKeys, type CoreDeps } from '../journal.js';
 import { GitBundleFiles, type BundleReads } from '@aisdlc/build';
@@ -271,7 +272,8 @@ export async function runOnboardingProbe(
   if (!facts.ok || facts.value === null) {
     return notRun(null, 'unavailable', 'the census job detector facts could not be read');
   }
-  const plan = planProbe(facts.value);
+  const declared = await declaredTestCommand(d.pool, s0Id, head.census_hash);
+  const plan = planProbe(facts.value, declared);
   if (plan.test === null) {
     return notRun(
       plan,

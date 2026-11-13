@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Blocker, BlockerOwner } from '@aisdlc/contracts';
 import { Card, Pill, type PillTone } from '../ui';
+import { Link } from '../router';
 import { onboardApi } from './api';
 
 // "What is in the way, and whose move is it" (onboarding console P0): the deterministic blocker graph of one S0
@@ -53,6 +54,11 @@ function BlockerRow({ b, title }: { b: Blocker; title: ReadonlyMap<string, strin
       <span>
         <strong>Next:</strong> {b.next}
       </span>
+      {b.card_id ? (
+        <Link to={`/decide/${b.card_id}`} data-testid="blocker-card">
+          Open the approval
+        </Link>
+      ) : null}
       {b.blocked_by.length > 0 ? (
         <span className="ui-help">
           Waits behind: {b.blocked_by.map((x) => title.get(x) ?? x).join('; ')}

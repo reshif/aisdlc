@@ -177,21 +177,70 @@ export function waitingSentence(waiting: string | null, terminal: string | null)
 // ---------------------------------------------------------------- inbox rows
 
 /** Where an inbox entry opens: a decision (work gate, onboarding card) on Decide; the rest on their own page. */
-export const inboxHref = (i: PortalInboxItem): string =>
-  i.kind === 'access_grant'
-    ? `/access/grants/${encodeURIComponent(i.id)}`
-    : i.kind === 'settings_revision'
-      ? `/revisions/${encodeURIComponent(i.id)}`
-      : i.kind === 'work_gate'
-        ? i.card_id !== null
-          ? `/decide/${encodeURIComponent(i.card_id)}`
-          : `/items/${encodeURIComponent(i.item_id ?? '')}`
-        : i.kind === 'onboarding_card'
-          ? `/decide/${encodeURIComponent(i.id)}`
-          : `/projects/${encodeURIComponent(i.project_id)}/drift`;
+/**
+ * An inbox row. An onboarding's approvals (its cards) are ONE row linking to its console; `onboarding` says how many
+ * approvals it stands for. Each card is still decided on its own page (the same decider, PDP, step-up and ledger).
+ */
+export type InboxRow = PortalInboxItem & { readonly onboarding?: { readonly count: number } };
+
+const WORST: Readonly<Record<string, number>> = { feasible: 0, unknown: 1, infeasible: 2 };
+
+/** One row per onboarding for its cards; every other entry is unchanged and keeps its place. */
+export function collapseOnboarding(rows: readonly PortalInboxItem[]): InboxRow[] {
+  const groups = new Map<string, PortalInboxItem[]>();
+  const out: InboxRow[] = [];
+  for (const r of rows) {
+    if (r.kind === 'onboarding_card' && r.s0_id !== null) {
+      const g = groups.get(r.s0_id);
+      if (g) g.push(r);
+      else {
+        groups.set(r.s0_id, [r]);
+        out.push(r);
+      }
+    } else out.push(r);
+  }
+  return out.map((r) => {
+    const g = r.s0_id !== null ? groups.get(r.s0_id) : undefined;
+    if (r.kind !== 'onboarding_card' || !g) return r;
+    const first = [...g].sort((a, b) =>
+      a.opened_at.localeCompare(b.opened_at),
+    )[0] as PortalInboxItem;
+    const worst = [...g].sort(
+      (a, b) => (WORST[b.feasibility] ?? 2) - (WORST[a.feasibility] ?? 2),
+    )[0] as PortalInboxItem;
+    return {
+      ...first,
+      overdue: g.some((x) => x.overdue),
+      escalated: g.some((x) => x.escalated),
+      may_decide: g.some((x) => x.may_decide),
+      feasibility: worst.feasibility,
+      feasibility_reason: worst.feasibility_reason,
+      deciders: [...new Map(g.flatMap((x) => x.deciders).map((d) => [d.principal_id, d])).values()],
+      onboarding: { count: g.length },
+    };
+  });
+}
+
+export const inboxHref = (i: InboxRow): string =>
+  i.onboarding && i.s0_id !== null
+    ? `/onboard/${encodeURIComponent(i.s0_id)}`
+    : i.kind === 'access_grant'
+      ? `/access/grants/${encodeURIComponent(i.id)}`
+      : i.kind === 'settings_revision'
+        ? `/revisions/${encodeURIComponent(i.id)}`
+        : i.kind === 'work_gate'
+          ? i.card_id !== null
+            ? `/decide/${encodeURIComponent(i.card_id)}`
+            : `/items/${encodeURIComponent(i.item_id ?? '')}`
+          : i.kind === 'onboarding_card'
+            ? `/decide/${encodeURIComponent(i.id)}`
+            : `/projects/${encodeURIComponent(i.project_id)}/drift`;
 
 /** What an inbox entry is, in plain words. */
-export function inboxWhat(i: PortalInboxItem): string {
+export function inboxWhat(i: InboxRow): string {
+  if (i.onboarding) {
+    return `Onboarding of ${i.project_id}${i.onboarding.count > 1 ? ` (${i.onboarding.count} approvals)` : ''}`;
+  }
   switch (i.kind) {
     case 'work_gate':
       return gateName(i.gate);
@@ -216,12 +265,14 @@ const AFTER_ONBOARDING: Readonly<Record<string, string>> = {
 };
 
 /** The one verb of an inbox entry. */
-export const inboxVerb = (i: PortalInboxItem): string =>
-  i.kind === 'work_gate' || i.kind === 'onboarding_card' || i.kind === 'settings_revision'
-    ? i.may_decide
-      ? 'Decide'
-      : 'Open'
-    : 'Review';
+export const inboxVerb = (i: InboxRow): string =>
+  i.onboarding
+    ? 'Open'
+    : i.kind === 'work_gate' || i.kind === 'onboarding_card' || i.kind === 'settings_revision'
+      ? i.may_decide
+        ? 'Decide'
+        : 'Open'
+      : 'Review';
 
 /** An inbox entry as a row of Home's "Needs you" table. */
 export function needsYouRow(i: PortalInboxItem, now: number = Date.now()): NeedsYouRow {

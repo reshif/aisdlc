@@ -159,7 +159,7 @@ export const NAV: Readonly<Record<NavGroup, readonly NavEntry[]>> = {
  */
 export const TOP_BAR: readonly NavEntry[] = [
   entry('ask_for_work', '/ask', { kind: 'somewhere', action: 'work.request' }, at('askForWork')),
-  // the assistant answers only from what the person can see; every thread is checked on its project
+  // the console's session list (the factory's ONE agent surface); every session is checked on its project
   entry('assistant', '/assistant', { kind: 'somewhere', action: 'assistant.use' }, at('ask')),
   entry(
     'my_notifications',

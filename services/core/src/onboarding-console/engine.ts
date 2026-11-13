@@ -28,16 +28,21 @@ import { coreError, type CoreError } from '../errors.js';
 import { clockOf, type CoreDeps } from '../journal.js';
 import { citationProblem } from '../conversation/assistant.js';
 import { onboardingBlockers } from '../onboarding-v2/blockers.js';
+import type { ConsoleActsPort } from './acts.js';
+import { checkValue } from './propose.js';
 import type { ModelMessage, OnboarderModelPort } from './model.js';
 import {
   appendConsoleTurn,
   openSession,
   readSessionRow,
+  recordConsoleProposal,
+  recordConsoleDecision,
+  sessionView,
   readTurns,
   recordToolCall,
   setConsoleState,
 } from './store.js';
-import { offeredTools, runTool, type ToolContext } from './tools.js';
+import { offeredTools, proposalContext, runAct, runTool, type ToolContext } from './tools.js';
 
 // The onboarding console's session engine (docs/design/onboarding-console.md, P2). Three moves:
 //   `postMessage`  the person says something (the turn is recorded first, secrets masked);
@@ -54,6 +59,8 @@ export interface ConsoleDeps extends CoreDeps {
   readonly cards: CardDeps;
   readonly keys: AgentKeyPort;
   readonly model: OnboarderModelPort;
+  /** What the onboarder may DO in this deployment (re-check, probe, fix pack, sync); absent: no act is available. */
+  readonly acts?: ConsoleActsPort;
   /** KnowledgeSearch's backend; absent: the tool is never offered. */
   readonly search?: KnowledgeSearchPort;
   /** The locked prompt text of `name@version`. */
@@ -356,6 +363,11 @@ async function converse(
     repo: c.loaded.s0.repo,
     census_sha: c.censusSha,
     cards: d.cards,
+    deps: d,
+    by: c.by,
+    census_hash: c.loaded.s0.census?.census_hash ?? null,
+    autonomy: c.cfg.autonomy,
+    ...(d.acts ? { acts: d.acts } : {}),
     ...(d.search ? { search: d.search } : {}),
     served: [],
     planted: new Set(),
@@ -557,3 +569,166 @@ export async function activeSessionIds(d: Pick<CoreDeps, 'pool'>): Promise<strin
   );
   return q.rows.map((r) => r.s0_id);
 }
+
+// ---------------------------------------------------------------- the person answers a proposal
+
+const VERB = {
+  accepted: 'accepted',
+  edited: 'changed and accepted',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * A person accepts, edits or rejects one proposal. The choice is recorded as theirs (the hash of what they read is
+ * checked); an accepted one lands in the summary draft (a default for the sign-off, never a decision). A test command
+ * becomes the attested command the probe reads. An accepted `act` is run now, as that person. The agent is told what
+ * the person chose so it can go on.
+ */
+export async function decideProposal(
+  d: ConsoleDeps,
+  o: {
+    s0_id: string;
+    by: string;
+    proposal_id: string;
+    proposal_sha256: string;
+    decision: 'accept' | 'edit' | 'reject';
+    edited_value?: unknown;
+  },
+): Promise<Result<{ state: 'accepted' | 'edited' | 'rejected'; note: string | null }, CoreError>> {
+  const s = await readSessionRow(d.pool, o.s0_id);
+  if (!s) return err(coreError('not_found', 'no console session'));
+  if (s.state === 'stopped' || s.state === 'done')
+    return err(coreError('conflict', `the session is ${s.state}`));
+  const q = await d.pool.query<{ kind: string; target: string; body: { title: string } }>(
+    'SELECT kind, target, body FROM core.console_proposal WHERE proposal_id = $1 AND s0_id = $2',
+    [o.proposal_id, o.s0_id],
+  );
+  const row = q.rows[0];
+  if (!row) return err(coreError('not_found', 'no such proposal'));
+  const state =
+    o.decision === 'accept' ? 'accepted' : o.decision === 'edit' ? 'edited' : 'rejected';
+  let edited: unknown;
+  if (state === 'edited') {
+    // the person's own value is held to the same rules as the agent's
+    const v = checkValue(
+      await proposalContext({ s0_id: o.s0_id, cards: d.cards }),
+      row.kind as never,
+      row.target,
+      o.edited_value,
+    );
+    if (!v.ok) return err(coreError('invalid_input', v.reason));
+    edited = v.value;
+  }
+  const w = await recordConsoleDecision(d, {
+    s0_id: o.s0_id,
+    proposal_id: o.proposal_id,
+    proposal_sha256: o.proposal_sha256,
+    state,
+    ...(state === 'edited' ? { edited_value: edited } : {}),
+    by: o.by,
+  });
+  if (!w.ok) return w;
+  let note: string | null = null;
+  if (state !== 'rejected' && w.value.kind === 'act') {
+    const act = (w.value.value as { act: string }).act as never;
+    const r = await runAct({ s0_id: o.s0_id, by: o.by, ...(d.acts ? { acts: d.acts } : {}) }, act);
+    note = r.content
+      .replace(/^[\s\S]*?>>>\n/, '')
+      .replace(/\n[^\n]*$/, '')
+      .slice(0, 300);
+  }
+  const text = `The person ${VERB[state]} "${row.body.title}".${note ? ` Result: ${note}` : ''}`;
+  const t = await appendConsoleTurn(d, {
+    s0_id: o.s0_id,
+    owner: s.started_by,
+    turn: { role: 'observation', text, observed: `proposal_${state}` },
+    ...(s.state === 'awaiting_person'
+      ? { state: { state: 'running' as const, cause: 'record_changed' as const, by: null } }
+      : {}),
+  });
+  if (!t.ok) return t;
+  return ok({ state, note });
+}
+
+/** The person sets summary defaults directly (`PATCH /v1/s0/:id/summary`): each one is their own recorded edit. */
+export async function patchDraft(
+  d: ConsoleDeps,
+  o: {
+    s0_id: string;
+    by: string;
+    patch: {
+      tier?: string | undefined;
+      gaps?: Record<string, string> | undefined;
+      role_map?: Partial<Record<string, readonly string[]>> | undefined;
+      two_person_enabled?: boolean | undefined;
+    };
+  },
+): Promise<Result<{ set: number }, CoreError>> {
+  const started = await startSession(d, { s0_id: o.s0_id, by: o.by });
+  if (!started.ok) return started;
+  const ctx = await proposalContext({ s0_id: o.s0_id, cards: d.cards });
+  const loaded = await loadS0(d.cards.pool, o.s0_id);
+  const census = loaded?.s0.census?.census_hash ?? null;
+  const items: Array<{
+    kind: 'tier' | 'gap_disposition' | 'role_map' | 'settings';
+    target: string;
+    value: unknown;
+    title: string;
+  }> = [];
+  if (o.patch.tier !== undefined)
+    items.push({
+      kind: 'tier',
+      target: 'tier',
+      value: { tier: o.patch.tier },
+      title: 'Risk chosen by you',
+    });
+  for (const [gap, disposition] of Object.entries(o.patch.gaps ?? {})) {
+    items.push({
+      kind: 'gap_disposition',
+      target: gap,
+      value: { disposition },
+      title: 'Gap decision chosen by you',
+    });
+  }
+  for (const [slot, principals] of Object.entries(o.patch.role_map ?? {})) {
+    if (!principals) continue;
+    items.push({
+      kind: 'role_map',
+      target: slot,
+      value: { principals },
+      title: `Who holds ${slot}, chosen by you`,
+    });
+  }
+  if (o.patch.two_person_enabled !== undefined) {
+    items.push({
+      kind: 'settings',
+      target: 'two_person',
+      value: { two_person_enabled: o.patch.two_person_enabled },
+      title: 'Two-person rule chosen by you',
+    });
+  }
+  const checked = items.map((i) => ({ i, v: checkValue(ctx, i.kind, i.target, i.value) }));
+  const bad = checked.find((c) => !c.v.ok);
+  if (bad && !bad.v.ok)
+    return err(coreError('invalid_input', `${bad.i.kind} ${bad.i.target}: ${bad.v.reason}`));
+  for (const { i, v } of checked) {
+    if (!v.ok) continue;
+    const w = await recordConsoleProposal(d, {
+      s0_id: o.s0_id,
+      proposal: {
+        kind: i.kind,
+        target: i.target,
+        title: i.title,
+        why: 'Set directly by the person.',
+        value: v.value,
+      },
+      census_hash: census,
+      decided: { state: 'edited', by: o.by },
+    });
+    if (!w.ok) return w;
+  }
+  return ok({ set: items.length });
+}
+
+/** The view of a session as the routes return it. */
+export const viewOf = (d: Pick<CoreDeps, 'pool'>, s0Id: string) => sessionView(d.pool, s0Id);

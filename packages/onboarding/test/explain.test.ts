@@ -69,6 +69,37 @@ describe('explainS0: the owner’s three stuck scenarios', () => {
   });
 });
 
+describe('explainS0: the fix pull request', () => {
+  it('awaiting approval: a card blocker with its card; an open one: the person merges on GitHub; a refused one: yours', () => {
+    const r = explainS0({
+      ...base,
+      requested_level: 'census',
+      fixes: [
+        {
+          title: 'Add code owners',
+          state: 'awaiting_approval',
+          approval: { card_id: 'c-x2', status: 'pending' },
+        },
+        { title: 'Add AGENTS.md', state: 'pr_open', approval: null },
+        { title: 'Add ruleset', state: 'refused', approval: null },
+      ],
+    });
+    expect(by(r, 'fix:0')).toMatchObject({ kind: 'card', owner: 'you', card_id: 'c-x2' });
+    expect(by(r, 'fix:1')).toMatchObject({ owner: 'github', code: 'fix_pr_open' });
+    expect(by(r, 'fix:2')).toMatchObject({ owner: 'you', code: 'fix_pr_refused' });
+    expect(r.ready).toBe(false);
+  });
+
+  it('a card blocker carries its card id', () => {
+    const r = explainS0({
+      ...base,
+      requested_level: 'census',
+      cards: [{ card: 'C1', status: 'open', live: true, card_id: 'c-1' }],
+    });
+    expect(by(r, 'card:C1')?.card_id).toBe('c-1');
+  });
+});
+
 describe('explainS0: shape', () => {
   it('a probe that has not run waits behind an open finding', () => {
     const r = explainS0({ ...base, open_secret_findings: 1 });

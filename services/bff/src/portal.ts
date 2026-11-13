@@ -1,5 +1,8 @@
 import {
+  ConsoleDraft,
+  ConsoleDraftPatch,
   ConsoleMessageRequest,
+  ConsoleProposalDecideRequest,
   ConsoleSessionList,
   ConsoleSessionView,
   OnboardingBlockers,
@@ -1357,6 +1360,46 @@ export function registerPortalRoutes(d: PortalDeps): void {
       reply,
       await c.call('POST', `/v1/s0/${id}/console/messages`, { ...body.data, on_behalf_of: who }),
       (v) => ConsoleSessionView.parse(v),
+    )?.value;
+  });
+
+  /** Accept, edit or reject one proposal of the onboarder; core records it as this person's choice. */
+  app.post('/api/s0/:id/console/proposals/:pid/decide', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const pid = (req.params as Record<string, string>)['pid'];
+    if (!z.uuid().safeParse(pid).success)
+      return sendError(reply, 400, 'invalid_input', 'bad proposal id');
+    const body = ConsoleProposalDecideRequest.omit({ on_behalf_of: true }).safeParse(
+      req.body ?? {},
+    );
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    if (!(await viewableS0(req, reply, c, id))) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('POST', `/v1/s0/${id}/console/proposals/${pid}/decide`, {
+        ...body.data,
+        on_behalf_of: who,
+      }),
+      (v) => ConsoleSessionView.parse(v),
+    )?.value;
+  });
+
+  /** The person sets the summary's defaults directly (each is recorded as their own edit). */
+  app.patch('/api/s0/:id/summary', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const body = ConsoleDraftPatch.omit({ on_behalf_of: true }).safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    if (!(await viewableS0(req, reply, c, id))) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('PATCH', `/v1/s0/${id}/summary`, { ...body.data, on_behalf_of: who }),
+      (v) => z.strictObject({ set: z.number().int(), draft: ConsoleDraft }).parse(v),
     )?.value;
   });
 

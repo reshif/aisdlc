@@ -58,6 +58,7 @@ import {
   onboardingAgentLoop,
   onboardingConsoleLoop,
   consoleDepsFrom,
+  consoleActsFrom,
   FakeOnboardingAgent,
   GatewayOnboardingAgent,
   driftLoop,
@@ -802,24 +803,63 @@ export async function bootCoreWorker(
       if (cfg.knowledge && ledger && cfg.stagePorts === 'agents' && cfg.gateway) {
         // onboarding console: the onboarder answers what moved in an onboarding (an observation turn when its blockers
         // change). The kill switch is asked per project before every wake (unreachable is a kill); reading only
-        const consoleDeps = consoleDepsFrom({
-          cards: cardDepsFrom({
-            pool,
-            readPool,
-            registry,
-            ledger,
-            eligibility: identityEligibility(readPool, registry),
-            stepUp: new RefusingStepUp(),
-            knowledge: new HttpKnowledge({
-              baseUrl: cfg.knowledge.url,
-              token: cfg.knowledge.token,
-            }),
-            source,
-            settings: s0SettingsFrom(rd),
-            instructionTemplate: instructionTemplateFrom(rd),
-            lightTests: lightTestsFrom(rd),
-            maintenance: maintenanceFrom(rd),
+        const consoleCards = cardDepsFrom({
+          pool,
+          readPool,
+          registry,
+          ledger,
+          eligibility: identityEligibility(readPool, registry),
+          stepUp: new RefusingStepUp(),
+          knowledge: new HttpKnowledge({
+            baseUrl: cfg.knowledge.url,
+            token: cfg.knowledge.token,
           }),
+          source,
+          settings: s0SettingsFrom(rd),
+          instructionTemplate: instructionTemplateFrom(rd),
+          lightTests: lightTestsFrom(rd),
+          maintenance: maintenanceFrom(rd),
+        });
+        const acts = consoleActsFrom({
+          cards: consoleCards,
+          pack: {
+            cards: consoleCards,
+            push: { pool, ledger },
+            ...(cfg.pushBroker
+              ? {
+                  broker: new HttpCodeHostPush({
+                    baseUrl: cfg.pushBroker.url,
+                    token: cfg.pushBroker.token,
+                  }),
+                }
+              : {}),
+          },
+          ...(cfg.sandboxController
+            ? {
+                probe: {
+                  pool,
+                  knowledge: new HttpKnowledge({
+                    baseUrl: cfg.knowledge.url,
+                    token: cfg.knowledge.token,
+                  }),
+                  probe: {
+                    sandbox: new HttpSandbox({
+                      baseUrl: cfg.sandboxController.url,
+                      token: cfg.sandboxController.token,
+                    }),
+                    files: probeFilesOf(
+                      new HttpBundleSource({ baseUrl: cfg.codehostUrl, token: cfg.codehostToken }),
+                    ),
+                    image: () => onboardingImageFrom(rd.current()),
+                    execAllowedRepos: execAllowedReposFrom(rd),
+                  },
+                },
+              }
+            : {}),
+        });
+        const consoleDeps = consoleDepsFrom({
+          cards: consoleCards,
+          acts,
           knowledge: cfg.knowledge,
           gateway: cfg.gateway,
           extraModels: cfg.agentExtraModels,

@@ -9,7 +9,7 @@ import { overrideHeaders } from './override.js';
  */
 export interface CoreClient {
   call(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
     body?: unknown,
   ): Promise<CallResult>;
@@ -25,7 +25,7 @@ export class HttpCoreClient implements CoreClient {
   ) {}
 
   call(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
     body?: unknown,
   ): Promise<CallResult> {

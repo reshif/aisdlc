@@ -215,9 +215,11 @@ describe('the inbox', () => {
     expect(
       within(cards[1] as HTMLElement).getByRole('link', { name: 'Item 0190a1b2' }),
     ).toHaveAttribute('href', `/items/${ITEM}`);
-    expect(
-      within(list).getByRole('link', { name: 'Decide: GitHub protection and people' }),
-    ).toHaveAttribute('href', `/decide/${CARD_ID}`);
+    // an onboarding's approvals are one row that opens its console
+    expect(within(list).getByRole('link', { name: /^Open: Onboarding of / })).toHaveAttribute(
+      'href',
+      expect.stringMatching(/^\/onboard\//),
+    );
     expect(list).not.toHaveTextContent(CODE);
     // the others: nobody can decide is flagged in red, with what to do
     await userEvent.click(screen.getByRole('tab', { name: /Others decide/ }));
