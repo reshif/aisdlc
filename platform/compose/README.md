@@ -278,7 +278,7 @@ run on a login of their own, `core_purge` (`CORE_PURGE_DATABASE_URL`, `secrets/d
 member of the group role `aisdlc_purge`, which record/0005 and ledger/0002 grant DELETE on the record and the read
 models and the redaction UPDATE of the ledger, each still refused by the triggers unless the transaction took the role
 (`SET LOCAL ROLE aisdlc_purge`) and the change is purge-shaped. Core's normal login `aisdlc` is not a member, so
-nothing but the delete routes can purge. (db-init also gives `aisdlc` the ADMIN option, alone, on `aisdlc_app`:
+nothing but the delete routes can purge. (db-init also gives `aisdlc` the ADMIN option on `aisdlc_app`:
 PostgreSQL 16 needs it for record/0005 to make the purge role a member of `aisdlc_app`.) A deleted object's packs and
 audit exports are purged with the store user `aisdlc-core-purge` (`CORE_PURGE_OBJECT_STORE_*`,
 `secrets/object-store-purge-*`, made by `object-store-init`): it may list an object's versions, lift a legal hold and

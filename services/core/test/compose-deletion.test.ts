@@ -81,7 +81,7 @@ describe('deletion in compose: the purge login and the purge credential', () => 
     expect(sh).toMatch(/GRANT aisdlc_purge TO core_purge;/);
     expect(sh).not.toMatch(/GRANT aisdlc_purge TO aisdlc\b/);
     // record/0005 (run as aisdlc) grants aisdlc_app to the purge role: PostgreSQL 16 needs ADMIN on aisdlc_app for it
-    expect(sh).toMatch(/GRANT aisdlc_app TO aisdlc WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;/);
+    expect(sh).toMatch(/GRANT aisdlc_app TO aisdlc WITH ADMIN OPTION;/);
     expect(sh).toMatch(/GRANT CONNECT ON DATABASE aisdlc TO core_purge;/);
     const init = readFileSync(join(dir, 'init-secrets'), 'utf8');
     expect(init).toMatch(/postgres core_purge .* >secrets\/db-url-purge/);
