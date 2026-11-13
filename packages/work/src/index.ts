@@ -7,3 +7,4 @@ export * from './state.js';
 export * from './interpret.js';
 export * from './fold.js';
 export * from './floor.js';
+export * from './clarify.js';
