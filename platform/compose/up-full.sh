@@ -109,7 +109,7 @@ if [ "$GITHUB" = fake ]; then gh="FAKE: the in-repo fake GitHub (one repository,
 cat <<EOF
 
 == up-full: the factory is up (project $COMPOSE_PROJECT_NAME)
-  Portal        http://localhost:$AISDLC_BFF_PORT   (sign in as lt, the factory owner; docs/getting-started.md §3)
+  Portal        http://localhost:$AISDLC_BFF_PORT   (the sign-in people: docs/getting-started.md §3)
   Repository    $REPO may run code in sandboxes (sandbox.exec_allowed_repos, M1-published by the seed)
   GitHub        $gh
   Model routes  ${routes:-unknown}: $models

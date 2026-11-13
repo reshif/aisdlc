@@ -145,7 +145,8 @@ full_ports_free() {
 # core computes the verdict itself when it is posted, so a failing report gives no LF4. A coding session of another run
 # on the same daemon makes the proxy answer busy (one W at a time): tried three times.
 full_sp_std_1() {
-  local dir="$1" attempt repo_root
+  local dir attempt repo_root
+  dir="$(cd "$1" && pwd)" # absolute: the test runs from the repository root
   repo_root="$(cd ../.. && pwd)"
   if [ -s "$dir/sp-std-1.json" ] && grep -q "\"worker_image\": \"$SANDBOX_AGENT_IMAGE_ID\"" "$dir/sp-std-1.json"; then
     echo "  the report for $SANDBOX_AGENT_IMAGE_ID is already there ($dir/sp-std-1.json)"
