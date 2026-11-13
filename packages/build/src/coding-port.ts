@@ -93,8 +93,16 @@ export interface CodingPortDeps {
     sensitive_globs: readonly string[];
     diff_budget: Record<string, { max_files: number; max_lines: number }>;
   }>;
-  readonly limits?: Partial<{ run_time_s: number; max_turns: number; test_time_s: number }>;
+  /**
+   * The session's turns and time limits. A function is read on every session (portal v2: the coder's row of
+   * `agents.settings`, M1-gated); absent fields are 40 turns, 1800 s a session and 600 s a test run.
+   */
+  readonly limits?: CodingLimits | (() => CodingLimits);
+  /** The model, read on every session when a function (portal v2: the coder's models in `agents.settings`). */
+  readonly modelOf?: () => string;
 }
+
+export type CodingLimits = Partial<{ run_time_s: number; max_turns: number; test_time_s: number }>;
 
 const STEPS_OURS = ['6.1', '6.2', '6.3', '6.4', '6.5'];
 
@@ -178,6 +186,12 @@ export class AgentCodingPort implements CodingPort {
   readonly port = 'coding' as const;
 
   constructor(private readonly d: CodingPortDeps) {}
+
+  /** The limits in force now (a function is read each time). */
+  private lim(): CodingLimits {
+    const l = this.d.limits;
+    return (typeof l === 'function' ? l() : l) ?? {};
+  }
 
   private now(): number {
     return (this.d.now ?? Date.now)();
@@ -288,7 +302,7 @@ export class AgentCodingPort implements CodingPort {
       command: argv,
       repo: this.d.store.filesOf(tree),
       repo_full_name: req.repo,
-      limits: { time_s: this.d.limits?.test_time_s ?? 600 },
+      limits: { time_s: this.lim().test_time_s ?? 600 },
     });
     const text = `${r.stdout}\n${r.stderr}`;
     const void_ =
@@ -599,12 +613,12 @@ export class AgentCodingPort implements CodingPort {
     ].join('\n');
     const spec: CodingTask = {
       schema: 'coding-task/1',
-      model: this.d.model,
+      model: this.d.modelOf?.() ?? this.d.model,
       system_prompt: system,
       prompt,
       allowed_tools: agent.tools.filter((t) => t !== 'KnowledgeSearch'),
-      max_turns: this.d.limits?.max_turns ?? 40,
-      time_s: this.d.limits?.run_time_s ?? 1800,
+      max_turns: this.lim().max_turns ?? 40,
+      time_s: this.lim().run_time_s ?? 1800,
       policy: {
         protected_globs: [...(this.d.tripwires?.protected_globs ?? DEFAULT_PROTECTED_GLOBS)],
         sensitive_globs: [],
@@ -1004,12 +1018,12 @@ export class AgentCodingPort implements CodingPort {
       const policy = this.policyOf(s, plan, req.lane, unlocked);
       const spec: CodingTask = {
         schema: 'coding-task/1',
-        model: this.d.model,
+        model: this.d.modelOf?.() ?? this.d.model,
         system_prompt: system,
         prompt: this.taskPrompt(s, plan, task),
         allowed_tools: tools,
-        max_turns: this.d.limits?.max_turns ?? 40,
-        time_s: this.d.limits?.run_time_s ?? 1800,
+        max_turns: this.lim().max_turns ?? 40,
+        time_s: this.lim().run_time_s ?? 1800,
         policy: {
           protected_globs: [...policy.protected_globs],
           sensitive_globs: [...policy.sensitive_globs],

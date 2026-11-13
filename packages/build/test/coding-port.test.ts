@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CodingSessionResult, StageOutcome } from '@aisdlc/contracts';
+import { CODING_TASK_FILE, type CodingSessionResult, type StageOutcome } from '@aisdlc/contracts';
 import { readPrompt } from '@aisdlc/agents/files';
 import { err, ok } from '@aisdlc/kernel';
 import { makeCanary } from '@aisdlc/secrets-rules';
@@ -16,6 +16,7 @@ import {
 } from '@aisdlc/ports';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  type CodingLimits,
   AgentCodingPort,
   FakeBuildSource,
   ITEM,
@@ -74,7 +75,9 @@ const fix = (): AgentRun => ({ final: DONE, changed: { 'src/calc.js': FIXED } })
 let dir: string;
 let w: World;
 
-function build(): World {
+function build(
+  o: { limits?: CodingLimits | (() => CodingLimits); modelOf?: () => string } = {},
+): World {
   dir = mkdtempSync(join(tmpdir(), 'aisdlc-build-'));
   const store = new SessionStore(dir);
   const s = synthRepo();
@@ -175,6 +178,8 @@ function build(): World {
     keys: world.vault,
     fallback: world.fallback,
     model: 'claude-sonnet-5-5',
+    ...(o.limits ? { limits: o.limits } : {}),
+    ...(o.modelOf ? { modelOf: o.modelOf } : {}),
     prompt: readPrompt,
     now: () => world.now,
   });
@@ -209,6 +214,36 @@ const upTo64 = async () => {
   await upTo63();
   done(await run('6.4'));
 };
+
+describe('agents.settings: the coder’s turns, times and model are read on every session', () => {
+  const taskOf = (spec: SandboxSpec) => {
+    const f = spec.repo.find((x) => x.path.endsWith(`/${CODING_TASK_FILE}`));
+    return JSON.parse(f ? Buffer.from(f.content).toString() : '{}') as {
+      max_turns: number;
+      time_s: number;
+      model: string;
+    };
+  };
+  it('defaults are 40 turns and 1800 s; a changed value is used by the next session', async () => {
+    await upTo64();
+    const first = w.wSpecs.at(-1);
+    if (!first) throw new Error('no W session');
+    expect(taskOf(first)).toMatchObject({
+      max_turns: 40,
+      time_s: 1800,
+      model: 'claude-sonnet-5-5',
+    });
+
+    const limits: CodingLimits = { max_turns: 12, run_time_s: 900, test_time_s: 120 };
+    w = build({ limits: () => limits, modelOf: () => 'claude-opus-5-5' });
+    await upTo64();
+    const second = w.wSpecs.at(-1);
+    if (!second) throw new Error('no W session');
+    expect(taskOf(second)).toMatchObject({ max_turns: 12, time_s: 900, model: 'claude-opus-5-5' });
+    const o = (w.sandbox as FakeSandbox).runs.filter((r) => r.class === 'O').at(-1);
+    expect(o?.limits?.time_s).toBe(120);
+  });
+});
 
 describe('the port is idempotent and only ours are steps 6.1 to 6.5', () => {
   it('asked twice with a command key it does the work once and answers the same', async () => {

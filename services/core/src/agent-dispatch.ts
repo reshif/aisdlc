@@ -1,10 +1,17 @@
-import { agentKeyRequest, primaryAgentFor, specialistAgentFor } from '@aisdlc/agents';
+import {
+  agentEnabled,
+  agentKeyRequest,
+  primaryAgentFor,
+  specialistAgentFor,
+  withAgentSettings,
+} from '@aisdlc/agents';
 import {
   AGENT_EVENT,
   AgentRunDispatchedPayload,
   STEPS,
   agentStream,
   type AgentBinding,
+  type AgentsSettingsConfig,
   type AgentRunFailureCode,
   type AgentRunFailedPayload,
   type ItemCommand,
@@ -49,6 +56,11 @@ export interface AgentDispatchDeps extends CoreDeps {
    * (a port that needs it, the sandbox of M13, gets it by its own channel).
    */
   readonly vault?: RunKeyVault;
+  /**
+   * Portal v2 (`agents.settings`, M1-gated): each agent on or off, its models and its budget. `null`: the published
+   * value does not read, and nothing is dispatched (fail closed). Absent: the contracts' values (tests of other things).
+   */
+  readonly agentSettings?: () => AgentsSettingsConfig | null;
 }
 
 /** The latest dispatch recorded for a command, if any (a lost secret is re-minted: a later dispatch). */
@@ -76,8 +88,11 @@ export async function dispatchAgent(
   s: ItemState,
   c: RunStage,
 ): Promise<Result<AgentBinding | null, CoreError>> {
-  const def = primaryAgentFor(c.step) ?? specialistAgentFor(c.step);
-  if (def === null) return ok(null);
+  const contractDef = primaryAgentFor(c.step) ?? specialistAgentFor(c.step);
+  if (contractDef === null) return ok(null);
+  // Portal v2: the factory's settings for the agent (models, budget; tools and data class stay the contract's)
+  const table = d.agentSettings ? d.agentSettings() : undefined;
+  const def = table ? withAgentSettings(contractDef, table[contractDef.agent_id]) : contractDef;
 
   const prior = await recorded(d, s.item_id, c.key);
   const lost =
@@ -87,6 +102,31 @@ export async function dispatchAgent(
     prior.binding.vkey_id !== null &&
     d.vault.keyOf(prior.run_id) !== prior.binding.vkey_id;
   if (prior && !lost) return ok(prior.binding);
+
+  if (table === null || (table && !agentEnabled(table, def.agent_id))) {
+    const why =
+      table === null
+        ? 'the published agents.settings does not read'
+        : `agent ${def.agent_id} is switched off (agents.settings)`;
+    await recordFailure(
+      d,
+      s,
+      c,
+      {
+        run_id: agentRunIdOf(c.key),
+        agent_id: def.agent_id,
+        contract_version: def.contract.contract_version,
+        prompt_ref: def.prompt.ref,
+        prompt_sha256: def.prompt.sha256,
+        tools: [...def.contract.tools],
+        data_class_max: def.contract.data_class_max,
+        vkey_id: null,
+      },
+      'agent_disabled',
+      why,
+    );
+    return err(coreError('unavailable', why));
+  }
 
   const run_id = agentRunIdOf(c.key);
   const contract = def.contract;

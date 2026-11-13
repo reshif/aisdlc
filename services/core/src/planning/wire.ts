@@ -1,5 +1,10 @@
 import { readPrompt } from '@aisdlc/agents/files';
-import type { Constitution, ReonboardTriggersConfig } from '@aisdlc/contracts';
+import type {
+  AgentsSettingsConfig,
+  Constitution,
+  PlanningSizeShareConfig,
+  ReonboardTriggersConfig,
+} from '@aisdlc/contracts';
 import type { Clock } from '@aisdlc/kernel';
 import {
   type KnowledgeSearchPort,
@@ -34,6 +39,9 @@ export function agentStagePorts(o: {
   readonly reonboardTriggers?: () => ReonboardTriggersConfig;
   /** The locked prompt text; default: the files beside the bundle (`dist/prompts`). */
   readonly prompt?: (ref: string) => string;
+  /** Portal v2: `agents.settings` and `planning.size_share` from the config reader. */
+  readonly agentSettings?: () => AgentsSettingsConfig | null;
+  readonly sizeShare?: () => PlanningSizeShareConfig | null;
 }): StagePorts {
   const knowledge = new HttpKnowledge({ baseUrl: o.knowledge.url, token: o.knowledge.token });
   const planning: PlanningPort = new AgentPlanningPort({
@@ -46,6 +54,8 @@ export function agentStagePorts(o: {
       o.search ?? new HttpKnowledgeSearch({ baseUrl: o.knowledge.url, token: o.knowledge.token }),
     ...(o.constitution ? { constitution: o.constitution } : {}),
     ...(o.reonboardTriggers ? { reonboardTriggers: o.reonboardTriggers } : {}),
+    ...(o.agentSettings ? { agentSettings: o.agentSettings } : {}),
+    ...(o.sizeShare ? { sizeShare: o.sizeShare } : {}),
     fallback: o.base.planning,
     prompt: o.prompt ?? readPrompt,
   });

@@ -68,6 +68,11 @@ export const AgentRunFailureCode = z.enum([
   'output_invalid',
   /** The output held a secret (the shared ruleset hit): refused before it was stored (M12). */
   'secret_in_output',
+  /**
+   * Portal v2 (`agents.settings`): the agent is switched off, or the settings cannot be read. Nothing runs; the command
+   * is delivered again later and runs once the agent is on.
+   */
+  'agent_disabled',
 ]);
 export type AgentRunFailureCode = z.infer<typeof AgentRunFailureCode>;
 

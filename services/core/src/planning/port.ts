@@ -6,6 +6,7 @@ import {
   inputSchemaFor,
   primaryAgentFor,
   quoteAsData,
+  withAgentSettings,
   validateOutput,
   type ArtefactPiece,
   type OutputFieldError,
@@ -26,6 +27,8 @@ import {
   type StageOutcome,
   type StageRequest,
   type ReonboardTriggersConfig,
+  type AgentsSettingsConfig,
+  type PlanningSizeShareConfig,
 } from '@aisdlc/contracts';
 import { err, hashCanonical, ok, sha256Hex, type Result } from '@aisdlc/kernel';
 import {
@@ -129,6 +132,10 @@ export interface AgentPlanningDeps extends CoreDeps {
   readonly maxToolRounds?: number;
   /** `onboarding.reonboard_triggers` (M17): the knowledge-defect threshold; absent: the spec's 3 in 30 days. */
   readonly reonboardTriggers?: () => ReonboardTriggersConfig;
+  /** Portal v2 (`agents.settings`): the model and budget per agent; absent or unreadable: the contract's. */
+  readonly agentSettings?: () => AgentsSettingsConfig | null;
+  /** Portal v2 (`planning.size_share`, H15): the budget share per part size; `null`: unreadable (5.5 fails). */
+  readonly sizeShare?: () => PlanningSizeShareConfig | null;
 }
 
 type Ctx = Parameters<typeof outcomeFor>[3];
@@ -282,7 +289,13 @@ export class AgentPlanningPort implements PlanningPort {
   ): Promise<Result<StageOutcome, StagePortError>> {
     const d = this.d;
     const spec = STEP_SPECS[step];
-    const def = primaryAgentFor(step);
+    const contractDef = primaryAgentFor(step);
+    // Portal v2 (`agents.settings`): the model and budget the factory set for the agent; the key was minted with them
+    const table = d.agentSettings?.();
+    const def =
+      contractDef && table
+        ? withAgentSettings(contractDef, table[contractDef.agent_id])
+        : contractDef;
     const binding = req.agent;
     if (def === null || binding === undefined || binding.agent_id !== def.agent_id) {
       return ok({ outcome: 'failed', code: 'no_agent_binding' });
@@ -737,8 +750,17 @@ export class AgentPlanningPort implements PlanningPort {
       ),
     );
     if (!split || !seq || !tasks || !ver) return ok({ outcome: 'failed', code: 'missing_input' });
-    const coder = primaryAgentFor('6.4')?.contract.budget;
+    const coderDef = primaryAgentFor('6.4');
+    const agents = d.agentSettings?.();
+    const coder = coderDef
+      ? agents
+        ? withAgentSettings(coderDef, agents[coderDef.agent_id]).contract.budget
+        : coderDef.contract.budget
+      : undefined;
     if (!coder) return ok({ outcome: 'failed', code: 'no_budget_contract' });
+    // Portal v2 (`planning.size_share`): unreadable is no envelope (unknown means unmet), never a default above it
+    const sizeShare = d.sizeShare ? d.sizeShare() : undefined;
+    if (sizeShare === null) return ok({ outcome: 'failed', code: 'settings_unreadable' });
     const stamp = (split.content as { base_sha?: unknown }).base_sha;
     if (typeof stamp !== 'string') return ok({ outcome: 'failed', code: 'plan_not_stamped' });
     const units = splitUnits(split.content);
@@ -748,6 +770,7 @@ export class AgentPlanningPort implements PlanningPort {
       coder_budget: coder,
       units: units.map((u) => ({ unit_key: u.unit_key, size: u.size })),
       base_sha: stamp,
+      ...(sizeShare ? { size_share: sizeShare } : {}),
     });
     const planned = await planUnits(d, {
       item_id: req.item_id,

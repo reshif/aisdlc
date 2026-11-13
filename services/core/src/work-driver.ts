@@ -10,6 +10,7 @@ import {
   WORK_EVENT,
   WorkRequestedPayload,
   workStream,
+  type AgentsSettingsConfig,
   type JsonObject,
   type PrincipalId,
   type ProjectId,
@@ -152,6 +153,11 @@ export interface WorkDriverDeps {
    * or an error. Absent, the secret is dropped (the ports of M9 to M11 need none).
    */
   readonly vault?: RunKeyVault;
+  /**
+   * Portal v2 (`agents.settings`, H12-H14): each agent on or off, its models and its budget, read on every dispatch.
+   * `null`: unreadable, nothing is dispatched. Absent: the contracts' values.
+   */
+  readonly agentSettings?: () => AgentsSettingsConfig | null;
   /**
    * G4 review (M15.1): with it, G4 opens with its review mode decided from the item (`g4ReviewOf`): the passing
    * Evidence Pack of exactly each PR head bound into the card, the D37 step-up on a sensitive path, and in mode C only
@@ -504,6 +510,7 @@ export async function executeCommand(d: WorkDriverDeps, row: OutboxRow): Promise
         ...cd,
         ...(d.keys ? { keys: d.keys } : {}),
         ...(d.vault ? { vault: d.vault } : {}),
+        ...(d.agentSettings ? { agentSettings: d.agentSettings } : {}),
       };
       const bound = await dispatchAgent(dispatchDeps, s, c);
       if (!bound.ok) throw new Error(bound.error.message);

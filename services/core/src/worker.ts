@@ -5,6 +5,7 @@ export * from './role-map-sync.js';
 export * from './clients.js';
 export * from './registry.js';
 export * from './settings.js';
+export * from './settings-v2.js';
 export { cardsLoop, type CardsLoopOptions } from './cards/loop.js';
 export { instructionTemplateFrom } from './cards/light.js';
 export { probeFilesOf, probeLoop, runOnboardingProbe, type ProbeDeps } from './cards/probe.js';

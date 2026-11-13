@@ -40,6 +40,10 @@ import {
   registerCoreConfig,
   constitutionFrom,
   reonboardTriggersFrom,
+  agentSettingsOf,
+  coderLimitsFrom,
+  coderModelFrom,
+  sizeShareFrom,
   roleMapSyncLoop,
   s0DriverLoop,
   maintenanceFrom,
@@ -319,6 +323,9 @@ export async function bootCoreWorker(
               knowledge: cfg.knowledge,
               constitution: constitutionFrom(rd),
               reonboardTriggers: reonboardTriggersFrom(rd),
+              // portal v2: models and budgets per agent, and the budget share per part size, from config
+              agentSettings: agentSettingsOf(rd),
+              sizeShare: sizeShareFrom(rd),
             })
           : baseStagePorts;
       // M13.3, M13.4: with a sandbox proxy, 6.1 to 6.5 run real coding sessions (the DEC-18 owner allow-list and B1 in
@@ -361,6 +368,9 @@ export async function bootCoreWorker(
               }),
               execAllowedRepos: execAllowedReposFrom(rd),
               model: session.model,
+              // portal v2: the coder's model, turns and times from `agents.settings`, read on every session
+              modelOf: coderModelFrom(rd, session.model),
+              limits: coderLimitsFrom(rd),
               // M13.6: the Push Broker's client, with the record first and the receipt in the record and the ledger
               ...(cfg.pushBroker
                 ? {
@@ -459,6 +469,8 @@ export async function bootCoreWorker(
                 }
               : {}),
             settings: workSettingsFrom(rd),
+            // portal v2: agents on or off, their models and budgets (`agents.settings`), read on every dispatch
+            agentSettings: agentSettingsOf(rd),
             decisions: {
               pool,
               ledger,

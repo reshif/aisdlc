@@ -12,6 +12,7 @@ import {
   CODING_SESSION_CAP,
   FixedGrounding,
   boundCapacity,
+  SIZE_SHARE,
   budgetEnvelope,
   dagOrder,
   gateArtefactsView,
@@ -491,6 +492,20 @@ describe('5.5: the budget envelope is a pure function of the lane profile and th
     expect(budgetEnvelope(input).content).toEqual(a.content);
     expect(a.envelopes.get('a')).toEqual({ max_tokens: 500_000, max_cost_micro_usd: 6_250_000 });
     expect(a.envelopes.get('b')).toEqual({ max_tokens: 2_000_000, max_cost_micro_usd: 25_000_000 });
+  });
+
+  it('planning.size_share (H15): the default is today’s shares, a published share is used', () => {
+    expect(SIZE_SHARE).toEqual({ small: 0.25, medium: 0.5, large: 1 });
+    const half = budgetEnvelope({ ...input, size_share: { small: 0.1, medium: 0.5, large: 0.5 } });
+    expect(half.envelopes.get('b')).toEqual({
+      max_tokens: 1_000_000,
+      max_cost_micro_usd: 12_500_000,
+    });
+    expect((half.content as { basis: { size_share: unknown } }).basis.size_share).toEqual({
+      small: 0.1,
+      medium: 0.5,
+      large: 0.5,
+    });
   });
 
   it('a lane default the catalogue gives only CAPS the plan: every Unit is scaled down so the total fits', () => {

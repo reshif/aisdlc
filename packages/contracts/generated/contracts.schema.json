@@ -7249,7 +7249,8 @@
             "key_mint_refused",
             "port_error",
             "output_invalid",
-            "secret_in_output"
+            "secret_in_output",
+            "agent_disabled"
           ]
         },
         "detail": {
@@ -7277,7 +7278,8 @@
         "key_mint_refused",
         "port_error",
         "output_invalid",
-        "secret_in_output"
+        "secret_in_output",
+        "agent_disabled"
       ]
     },
     "AgentRunId": {
