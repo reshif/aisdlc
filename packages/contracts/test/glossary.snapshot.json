@@ -1,0 +1,3240 @@
+{
+  "stage": {
+    "S0": {
+      "label": "Onboarding",
+      "explain": "Getting a repo ready so agents can work on it safely.",
+      "code": "audit"
+    },
+    "S1": {
+      "label": "Intake",
+      "explain": "The factory reads the request, checks for duplicates, picks a track and asks questions.",
+      "code": "audit"
+    },
+    "S2": {
+      "label": "Research",
+      "explain": "An agent studies the code and docs and lays out the options.",
+      "code": "audit"
+    },
+    "S3": {
+      "label": "Spec",
+      "explain": "An agent writes what will change and the acceptance tests that prove it.",
+      "code": "audit"
+    },
+    "S4": {
+      "label": "Design",
+      "explain": "An agent writes the design, contracts, data changes and risks.",
+      "code": "audit"
+    },
+    "S5": {
+      "label": "Plan",
+      "explain": "The work is split into parts, ordered and given a budget.",
+      "code": "audit"
+    },
+    "S6": {
+      "label": "Build",
+      "explain": "A coding agent writes the code in a locked-down sandbox and opens a draft PR.",
+      "code": "audit"
+    },
+    "S7": {
+      "label": "Verify",
+      "explain": "The factory checks the PR (tests, spec, secrets, rules) and signs the evidence.",
+      "code": "audit"
+    },
+    "S8": {
+      "label": "Review and merge",
+      "explain": "A code owner reviews the PR; a person merges it on GitHub.",
+      "code": "audit"
+    },
+    "S8a": {
+      "label": "Merge",
+      "explain": "The approved PR is merged on GitHub by a person, and re-checked if the base moved.",
+      "code": "audit"
+    },
+    "S8b": {
+      "label": "Release",
+      "explain": "The merged change is deployed, if this project releases through the factory.",
+      "code": "audit"
+    },
+    "S9": {
+      "label": "Close",
+      "explain": "The requester accepts the result and the factory records what it learned.",
+      "code": "audit"
+    }
+  },
+  "step": {
+    "0.1": {
+      "label": "Read-only scan",
+      "explain": "The factory and the onboarding agent read the repo: owners, tests, security, settings.",
+      "code": "audit"
+    },
+    "0.2": {
+      "label": "Small-changes review",
+      "explain": "The agent checks the repo facts and agent instructions needed for small changes.",
+      "code": "audit"
+    },
+    "0.3": {
+      "label": "Full-work review",
+      "explain": "The agent maps the code, drafts specs and locks the acceptance tests needed for all work.",
+      "code": "audit"
+    },
+    "0.4": {
+      "label": "Controls and people",
+      "explain": "GitHub protections are read and who decides what is set.",
+      "code": "audit"
+    },
+    "0.5": {
+      "label": "Sign-off",
+      "explain": "A person signs off the onboarding.",
+      "code": "audit"
+    },
+    "1.1": {
+      "label": "Read the request",
+      "explain": "The request is cleaned up and marked as untrusted input.",
+      "code": "audit"
+    },
+    "1.2": {
+      "label": "Check for duplicates",
+      "explain": "The factory looks for the same or conflicting requests.",
+      "code": "audit"
+    },
+    "1.3": {
+      "label": "Pick a track",
+      "explain": "An agent sizes the work; the factory picks the track from the rules.",
+      "code": "audit"
+    },
+    "1.4": {
+      "label": "Check eligibility",
+      "explain": "The factory checks this repo is ready for this track.",
+      "code": "audit"
+    },
+    "1.5": {
+      "label": "Ask questions",
+      "explain": "An agent asks what is unclear and writes the agreed goal.",
+      "code": "audit"
+    },
+    "1.6": {
+      "label": "Mark ready",
+      "explain": "The requester says the request is ready to be accepted.",
+      "code": "audit"
+    },
+    "2.1": {
+      "label": "Study the code",
+      "explain": "An agent reads the relevant code and docs at the current commit.",
+      "code": "audit"
+    },
+    "2.1b": {
+      "label": "Dig deeper",
+      "explain": "An agent reverse-engineers an unclear area.",
+      "code": "audit"
+    },
+    "2.2": {
+      "label": "Find impact",
+      "explain": "An agent lists what and who the change affects.",
+      "code": "audit"
+    },
+    "2.3": {
+      "label": "Lay out options",
+      "explain": "An agent writes the options and a decision brief.",
+      "code": "audit"
+    },
+    "2.4": {
+      "label": "Elaborate the initiative",
+      "explain": "Large initiatives only: an agent breaks the goal down.",
+      "code": "audit"
+    },
+    "2.5": {
+      "label": "Final goal sign-off",
+      "explain": "Large initiatives only: a person accepts the goal for good.",
+      "code": "audit"
+    },
+    "3.1": {
+      "label": "Find affected requirements",
+      "explain": "An agent finds which existing requirements change.",
+      "code": "audit"
+    },
+    "3.2": {
+      "label": "Draft the spec change",
+      "explain": "An agent writes the change to the spec.",
+      "code": "audit"
+    },
+    "3.3": {
+      "label": "Validate the spec",
+      "explain": "The factory checks the spec is complete and consistent.",
+      "code": "audit"
+    },
+    "3.4": {
+      "label": "Write acceptance criteria",
+      "explain": "An agent writes the tests that will prove the change.",
+      "code": "audit"
+    },
+    "3.5": {
+      "label": "Independent spec review",
+      "explain": "A second agent with fresh context reviews the spec.",
+      "code": "audit"
+    },
+    "4.1": {
+      "label": "Decisions",
+      "explain": "An agent records the design decisions.",
+      "code": "audit"
+    },
+    "4.2": {
+      "label": "Contracts",
+      "explain": "An agent writes interface contracts; the factory checks them.",
+      "code": "audit"
+    },
+    "4.3": {
+      "label": "Data and migrations",
+      "explain": "An agent writes the data and migration plan.",
+      "code": "audit"
+    },
+    "4.4": {
+      "label": "Risks and operations",
+      "explain": "An agent writes performance, security and operations notes.",
+      "code": "audit"
+    },
+    "4.5": {
+      "label": "Factory rules check",
+      "explain": "The design is checked against the factory rules.",
+      "code": "audit"
+    },
+    "4.6": {
+      "label": "Design review",
+      "explain": "A person reviews the design and threats.",
+      "code": "audit"
+    },
+    "5.1": {
+      "label": "Split into parts",
+      "explain": "An agent splits the work into parts that can be built separately.",
+      "code": "audit"
+    },
+    "5.2": {
+      "label": "Order the parts",
+      "explain": "An agent decides which part goes first.",
+      "code": "audit"
+    },
+    "5.3": {
+      "label": "Task list per part",
+      "explain": "An agent writes the task list for each part.",
+      "code": "audit"
+    },
+    "5.4": {
+      "label": "Link the tests",
+      "explain": "Each part is linked to the tests that prove it.",
+      "code": "audit"
+    },
+    "5.5": {
+      "label": "Set the budget",
+      "explain": "The factory works out the budget for each part.",
+      "code": "audit"
+    },
+    "5.6": {
+      "label": "Check capacity",
+      "explain": "The factory checks there is room to build.",
+      "code": "audit"
+    },
+    "5.7": {
+      "label": "Schedule",
+      "explain": "A person or the factory schedules the build.",
+      "code": "audit"
+    },
+    "5.8": {
+      "label": "Plan approval",
+      "explain": "A person approves the plan.",
+      "code": "audit"
+    },
+    "6.0": {
+      "label": "Start building",
+      "explain": "The factory gives the part a coding slot and budget.",
+      "code": "audit"
+    },
+    "6.1": {
+      "label": "Prepare the sandbox",
+      "explain": "A clean sandbox is made from the approved commit.",
+      "code": "audit"
+    },
+    "6.2": {
+      "label": "Run tests first",
+      "explain": "The existing tests are run before any change.",
+      "code": "audit"
+    },
+    "6.3": {
+      "label": "Confirm new tests fail",
+      "explain": "The new acceptance tests are run and must fail first.",
+      "code": "audit"
+    },
+    "6.4": {
+      "label": "Write the code",
+      "explain": "The coding agent works through the task list.",
+      "code": "audit"
+    },
+    "6.5": {
+      "label": "Self-check",
+      "explain": "The factory checks the change against the scope, budget and safety rules.",
+      "code": "audit"
+    },
+    "6.6": {
+      "label": "Open draft PR",
+      "explain": "The factory bot opens or updates the draft PR.",
+      "code": "audit"
+    },
+    "7.1": {
+      "label": "Build and tests",
+      "explain": "Build, lint and the full test suite on the PR's commit.",
+      "code": "audit"
+    },
+    "7.2": {
+      "label": "Test integrity",
+      "explain": "Tests were not weakened and the acceptance tests are real.",
+      "code": "audit"
+    },
+    "7.3": {
+      "label": "Matches the spec",
+      "explain": "The change does what the approved spec says.",
+      "code": "audit"
+    },
+    "7.4": {
+      "label": "Secrets and dependencies",
+      "explain": "No new secret and no unapproved dependency.",
+      "code": "audit"
+    },
+    "7.5": {
+      "label": "Factory rules",
+      "explain": "The change follows the factory rules.",
+      "code": "audit"
+    },
+    "7.6": {
+      "label": "Sign the evidence",
+      "explain": "The factory signs the evidence pack for this exact commit.",
+      "code": "audit"
+    },
+    "8.1": {
+      "label": "Code review",
+      "explain": "A code owner reviews the PR.",
+      "code": "audit"
+    },
+    "8.2": {
+      "label": "Merge on GitHub",
+      "explain": "A person merges the PR on GitHub; the factory never merges.",
+      "code": "audit"
+    },
+    "S8b": {
+      "label": "Release",
+      "explain": "The change is deployed after release approval.",
+      "code": "audit"
+    },
+    "9.2": {
+      "label": "Requester accepts",
+      "explain": "The requester checks the result does what they asked.",
+      "code": "audit"
+    },
+    "9.3": {
+      "label": "Close-out record",
+      "explain": "The factory writes the final record of the item.",
+      "code": "audit"
+    },
+    "9.4": {
+      "label": "Learn",
+      "explain": "The factory proposes improvements from finished work.",
+      "code": "audit"
+    },
+    "9.5": {
+      "label": "Spot-check audit",
+      "explain": "A person audits a sample of lightly reviewed merges.",
+      "code": "audit"
+    }
+  },
+  "gate": {
+    "G0": {
+      "label": "Accept the request",
+      "explain": "Decide whether the factory should take this request on.",
+      "code": "secondary"
+    },
+    "G1": {
+      "label": "Confirm the goal",
+      "explain": "Agree what the request is for, before the factory studies it.",
+      "code": "secondary"
+    },
+    "G1f": {
+      "label": "Final goal sign-off",
+      "explain": "Large initiatives only: accept the goal after it has been worked out.",
+      "code": "secondary"
+    },
+    "G2": {
+      "label": "Approve the spec",
+      "explain": "Approve what will change and the acceptance criteria.",
+      "code": "secondary"
+    },
+    "G3": {
+      "label": "Approve the plan",
+      "explain": "Approve the full plan for this exact commit.",
+      "code": "secondary"
+    },
+    "G3d": {
+      "label": "Approve the design",
+      "explain": "Approve the design and the risks it names.",
+      "code": "secondary"
+    },
+    "G3s": {
+      "label": "Approve the outline",
+      "explain": "Approve how the work is split into parts and ordered.",
+      "code": "secondary"
+    },
+    "G3o": {
+      "label": "Approve test changes",
+      "explain": "The acceptance tests differ from the approved criteria; approve the difference.",
+      "code": "secondary"
+    },
+    "G4": {
+      "label": "Code review",
+      "explain": "A code owner approves the PR. Always required.",
+      "code": "secondary"
+    },
+    "G5": {
+      "label": "Approve the release",
+      "explain": "Approve deploying the merged change. Needs \"confirm it's you\".",
+      "code": "secondary"
+    },
+    "G6": {
+      "label": "Accept the result",
+      "explain": "The requester says the change does what they asked.",
+      "code": "secondary"
+    },
+    "X1": {
+      "label": "Allow irreversible action",
+      "explain": "The agent wants to do something that cannot be undone.",
+      "code": "secondary"
+    },
+    "X2": {
+      "label": "Allow protected-file change",
+      "explain": "The change touches files only people may change.",
+      "code": "secondary"
+    },
+    "X3": {
+      "label": "Allow new dependency",
+      "explain": "The change adds a new package.",
+      "code": "secondary"
+    },
+    "X4": {
+      "label": "Review a bypassed merge",
+      "explain": "Someone merged without the factory's check; review it after the fact.",
+      "code": "secondary"
+    },
+    "E1": {
+      "label": "Allow a lighter track",
+      "explain": "Move the work to a track with fewer steps.",
+      "code": "secondary"
+    },
+    "E2": {
+      "label": "Allow a rule exception",
+      "explain": "The work breaks a factory rule; allow it once or not.",
+      "code": "secondary"
+    },
+    "E3": {
+      "label": "Allow more budget",
+      "explain": "The work needs more budget than planned.",
+      "code": "secondary"
+    },
+    "E4": {
+      "label": "Choose what happens next",
+      "explain": "The agents are stuck; choose to resume, re-plan, take over or stop.",
+      "code": "secondary"
+    },
+    "E5": {
+      "label": "Override an escalation",
+      "explain": "Decide an overdue approval on someone else's behalf.",
+      "code": "secondary"
+    },
+    "E6": {
+      "label": "Change a locked test",
+      "explain": "A locked acceptance test must change; approve the change.",
+      "code": "secondary"
+    },
+    "M1": {
+      "label": "Approve a settings change",
+      "explain": "Approve a change to the factory's or a project's settings.",
+      "code": "secondary"
+    },
+    "M2": {
+      "label": "Approve a rule variance",
+      "explain": "Let one project differ from a standard rule.",
+      "code": "secondary"
+    },
+    "M3": {
+      "label": "Approve a process change",
+      "explain": "Change the standard tracks, steps or limits.",
+      "code": "secondary"
+    },
+    "M4": {
+      "label": "Sign off onboarding",
+      "explain": "Confirm the repo is ready for the level asked. Needs \"confirm it's you\".",
+      "code": "secondary"
+    },
+    "M5": {
+      "label": "Raise agent autonomy",
+      "explain": "Let agents do more on this project with less review.",
+      "code": "secondary"
+    },
+    "M6": {
+      "label": "Grant approver rights",
+      "explain": "Let a person decide approvals they could not before.",
+      "code": "secondary"
+    },
+    "Q1": {
+      "label": "Security hold",
+      "explain": "Work stopped because an agent did something unsafe.",
+      "code": "secondary"
+    },
+    "SECT": {
+      "label": "Security review",
+      "explain": "A security approver decides if the hold was real before anything else happens.",
+      "code": "secondary"
+    }
+  },
+  "gateFamily": {
+    "stage": {
+      "label": "Step approval",
+      "explain": "An approval on the normal path of the work."
+    },
+    "action": {
+      "label": "Risky action approval",
+      "explain": "An approval for one risky action."
+    },
+    "exception": {
+      "label": "Exception approval",
+      "explain": "An approval for leaving the normal rules."
+    },
+    "meta": {
+      "label": "Factory change approval",
+      "explain": "An approval for changing how the factory works."
+    },
+    "quarantine": {
+      "label": "Security approval",
+      "explain": "An approval after a security hold."
+    },
+    "onboarding": {
+      "label": "Onboarding approval",
+      "explain": "The approval that ends onboarding."
+    }
+  },
+  "toggleGroup": {
+    "g0g1": {
+      "label": "Accept and confirm goal",
+      "explain": "Switch \"Accept the request\" and \"Confirm the goal\" on or off together."
+    },
+    "g2": {
+      "label": "Spec approval",
+      "explain": "Switch \"Approve the spec\" on or off."
+    },
+    "g3d": {
+      "label": "Design approval",
+      "explain": "Switch \"Approve the design\" on or off."
+    },
+    "g3_g3s": {
+      "label": "Plan approval",
+      "explain": "Switch \"Approve the outline\" and \"Approve the plan\" on or off together."
+    },
+    "g5": {
+      "label": "Release approval",
+      "explain": "Switch \"Approve the release\" on or off."
+    },
+    "g6": {
+      "label": "Result acceptance",
+      "explain": "Switch \"Accept the result\" on or off."
+    }
+  },
+  "decision": {
+    "approve": {
+      "label": "Approve",
+      "explain": "Agree; the work moves on.",
+      "code": "audit"
+    },
+    "request_changes": {
+      "label": "Request changes",
+      "explain": "Send it back with what must change; the agent tries again.",
+      "code": "audit"
+    },
+    "reject": {
+      "label": "Reject",
+      "explain": "Say no; the work stops or goes back as the rules say.",
+      "code": "audit"
+    },
+    "supersede": {
+      "label": "Replaced",
+      "explain": "A newer version replaced this one before it was decided.",
+      "code": "audit"
+    },
+    "expire": {
+      "label": "Expired, not approved",
+      "explain": "Nobody decided in time; expiry never approves.",
+      "code": "audit"
+    },
+    "withdraw": {
+      "label": "Withdrawn",
+      "explain": "The request or approval was withdrawn.",
+      "code": "audit"
+    }
+  },
+  "decideWord": {
+    "reason": {
+      "label": "Reason",
+      "explain": "Why you decided this; saved with your decision."
+    },
+    "step_up": {
+      "label": "Confirm it's you",
+      "explain": "Sign in again with your security key before this decision."
+    },
+    "two_person": {
+      "label": "Needs two people",
+      "explain": "Two different people must approve this."
+    },
+    "sod_waiver": {
+      "label": "Single-approver exception",
+      "explain": "You decided your own request because you are the only person who can. Recorded.",
+      "code": "audit"
+    },
+    "admin_override": {
+      "label": "Decide as factory admin",
+      "explain": "You are deciding outside the normal rules. Your name and reason are recorded."
+    },
+    "ask_for_work": {
+      "label": "Ask for work",
+      "explain": "Send a request to the factory."
+    },
+    "hand_back": {
+      "label": "Hand back",
+      "explain": "Give the work back to the agents."
+    },
+    "mark_done": {
+      "label": "Mark my work done",
+      "explain": "Tell the factory your human-led work is ready to be checked."
+    },
+    "unsure": {
+      "label": "I'm not sure",
+      "explain": "Ask a code owner to do a full review instead."
+    },
+    "always_required": {
+      "label": "Always required",
+      "explain": "No project can switch this approval off."
+    },
+    "switched_off": {
+      "label": "Off: step skipped",
+      "explain": "This approval does not exist on this project; nothing is approved automatically."
+    },
+    "decided_together": {
+      "label": "Decided together",
+      "explain": "Several approvals shown and decided as one card when one person holds them all."
+    }
+  },
+  "gateStatus": {
+    "pending": {
+      "label": "Waiting",
+      "explain": "Waiting for a decision."
+    },
+    "decided": {
+      "label": "Decided",
+      "explain": "Decided; the decision is shown."
+    },
+    "superseded": {
+      "label": "Replaced",
+      "explain": "A newer version replaced it before a decision."
+    },
+    "expired": {
+      "label": "Expired, not approved",
+      "explain": "Nobody decided in time. Nothing was approved."
+    },
+    "closed": {
+      "label": "Closed",
+      "explain": "The work ended, so the approval closed."
+    }
+  },
+  "cardStatus": {
+    "open": {
+      "label": "Waiting",
+      "explain": "Where an inbox card stands."
+    },
+    "decided": {
+      "label": "Decided",
+      "explain": "Where an inbox card stands."
+    },
+    "sent_back": {
+      "label": "Changes requested",
+      "explain": "Where an inbox card stands."
+    },
+    "rejected": {
+      "label": "Rejected",
+      "explain": "Where an inbox card stands."
+    },
+    "withdrawn": {
+      "label": "Withdrawn",
+      "explain": "Where an inbox card stands."
+    },
+    "expired": {
+      "label": "Expired",
+      "explain": "Where an inbox card stands."
+    },
+    "superseded": {
+      "label": "Replaced",
+      "explain": "Where an inbox card stands."
+    }
+  },
+  "feasibility": {
+    "feasible": {
+      "label": "Can be decided",
+      "explain": "Whether someone holds the right to decide this approval."
+    },
+    "infeasible": {
+      "label": "Nobody can decide",
+      "explain": "Whether someone holds the right to decide this approval."
+    },
+    "unknown": {
+      "label": "Unknown",
+      "explain": "Whether someone holds the right to decide this approval."
+    }
+  },
+  "inboxReason": {
+    "eligible": {
+      "label": "You can decide",
+      "explain": "Why this is in your inbox."
+    },
+    "escalated_backup": {
+      "label": "Overdue: you are the backup",
+      "explain": "Why this is in your inbox."
+    }
+  },
+  "lane": {
+    "L0": {
+      "label": "Hotfix",
+      "explain": "An urgent fix that skips planning; a follow-up small change is opened after.",
+      "code": "secondary"
+    },
+    "L1": {
+      "label": "Quick fix",
+      "explain": "The smallest change: spec and a short plan, no research or design.",
+      "code": "secondary"
+    },
+    "L2": {
+      "label": "Readiness fix",
+      "explain": "A fix the factory proposes to close a readiness gap in the repo.",
+      "code": "secondary"
+    },
+    "L3": {
+      "label": "Small change",
+      "explain": "A small change with a short spec and plan, no design step.",
+      "code": "secondary"
+    },
+    "L4": {
+      "label": "Feature",
+      "explain": "A normal feature: research, spec, design, plan, build.",
+      "code": "secondary"
+    },
+    "L5": {
+      "label": "Higher-risk feature",
+      "explain": "A feature with more risk; needs a separate staging environment.",
+      "code": "secondary"
+    },
+    "L6": {
+      "label": "Large initiative",
+      "explain": "A large piece of work whose goal is worked out and signed off first.",
+      "code": "secondary"
+    },
+    "L7": {
+      "label": "Experiment",
+      "explain": "A throwaway build to answer a question; ends in a report, never a PR.",
+      "code": "secondary"
+    },
+    "L8": {
+      "label": "Done by a person",
+      "explain": "A person does the work; the factory still checks and records it.",
+      "code": "secondary"
+    }
+  },
+  "relane": {
+    "R1": {
+      "label": "Moved to a bigger track",
+      "explain": "The work turned out bigger; steps were added. No approval needed.",
+      "code": "audit"
+    },
+    "R2": {
+      "label": "Moved to a lighter track",
+      "explain": "The work is smaller than thought; needs \"Allow a lighter track\".",
+      "code": "audit"
+    },
+    "R3": {
+      "label": "Agents paused on this track",
+      "explain": "Too many items failed on this track; new work goes to a person until reset.",
+      "code": "audit"
+    },
+    "R4": {
+      "label": "Hotfix follow-up",
+      "explain": "The hotfix is done; a follow-up small change makes it permanent.",
+      "code": "audit"
+    }
+  },
+  "level": {
+    "census": {
+      "label": "Read only",
+      "explain": "Agents may read the repo and plan, run experiments, and support people's own work; no agent code.",
+      "code": "audit"
+    },
+    "light": {
+      "label": "Small changes",
+      "explain": "Agents may also make small changes, hotfixes and readiness fixes.",
+      "code": "audit"
+    },
+    "full": {
+      "label": "All work",
+      "explain": "Agents may also build features and large initiatives.",
+      "code": "audit"
+    }
+  },
+  "tier": {
+    "T0": {
+      "label": "Low risk",
+      "explain": "No production use and no real data; the owner confirms it.",
+      "code": "secondary"
+    },
+    "T1": {
+      "label": "Standard risk",
+      "explain": "A normal repo.",
+      "code": "secondary"
+    },
+    "T2": {
+      "label": "High risk",
+      "explain": "Production, money or personal data; more approvals and two people.",
+      "code": "secondary"
+    }
+  },
+  "autonomy": {
+    "A0": {
+      "label": "Agents propose only",
+      "explain": "Every agent change gets a full human review.",
+      "code": "secondary"
+    },
+    "A1": {
+      "label": "Agents assisted",
+      "explain": "Agents work; every PR gets a full review.",
+      "code": "secondary"
+    },
+    "A2": {
+      "label": "Agents trusted",
+      "explain": "Agents work; low-risk PRs may get a light review.",
+      "code": "secondary"
+    },
+    "A3": {
+      "label": "Agents highly trusted",
+      "explain": "Most PRs get a light review with spot-checks.",
+      "code": "secondary"
+    }
+  },
+  "reviewMode": {
+    "C": {
+      "label": "Full review",
+      "explain": "A code owner reviews every line."
+    },
+    "E": {
+      "label": "Light review",
+      "explain": "A lighter review; some merges are spot-checked later."
+    }
+  },
+  "card": {
+    "C1": {
+      "label": "Owners and risk",
+      "explain": "Who owns the repo, its risk tier, and what to do about each gap.",
+      "code": "audit"
+    },
+    "C2": {
+      "label": "Repo facts and instructions",
+      "explain": "The facts the agent claims about the repo and the instructions agents will get.",
+      "code": "audit"
+    },
+    "C3": {
+      "label": "Code map and tests",
+      "explain": "The code map, draft specs and the tests that will be locked.",
+      "code": "audit"
+    },
+    "C4": {
+      "label": "GitHub protection and people",
+      "explain": "Main-branch protection, the GitHub App's access and who decides what.",
+      "code": "audit"
+    },
+    "C5": {
+      "label": "Sign-off",
+      "explain": "The final onboarding sign-off.",
+      "code": "audit"
+    },
+    "SECR": {
+      "label": "Secrets found",
+      "explain": "Secrets found in the repo or its history, and what was done with each.",
+      "code": "audit"
+    },
+    "BATCH": {
+      "label": "Issues to file",
+      "explain": "Gaps to file as GitHub issues.",
+      "code": "audit"
+    },
+    "X2": {
+      "label": "Onboarding files change",
+      "explain": "Approve the files the agent wants to add (AGENTS.md, CODEOWNERS, .factory/).",
+      "code": "audit"
+    }
+  },
+  "claimVerdict": {
+    "affirm": {
+      "label": "Confirm",
+      "explain": "Your answer to one repo fact."
+    },
+    "correct": {
+      "label": "Correct",
+      "explain": "Your answer to one repo fact."
+    },
+    "unknown": {
+      "label": "Don't know",
+      "explain": "Your answer to one repo fact."
+    }
+  },
+  "gapDisposition": {
+    "file_issue": {
+      "label": "Fix now (PR or issue)",
+      "explain": "What to do about one gap."
+    },
+    "track_only": {
+      "label": "Track",
+      "explain": "What to do about one gap."
+    },
+    "waive": {
+      "label": "Accept",
+      "explain": "What to do about one gap."
+    }
+  },
+  "gapStatus": {
+    "open": {
+      "label": "Open",
+      "explain": "Where a gap stands."
+    },
+    "closed_verified": {
+      "label": "Fixed",
+      "explain": "Where a gap stands."
+    },
+    "waived": {
+      "label": "Accepted",
+      "explain": "Where a gap stands."
+    }
+  },
+  "posture": {
+    "red": {
+      "label": "Not safe yet",
+      "explain": "The overall result of the read-only scan."
+    },
+    "amber": {
+      "label": "Needs fixes",
+      "explain": "The overall result of the read-only scan."
+    },
+    "green": {
+      "label": "Ready",
+      "explain": "The overall result of the read-only scan."
+    }
+  },
+  "blocker": {
+    "B1": {
+      "label": "Open secret found",
+      "explain": "A secret in the repo or its history has not been dealt with.",
+      "code": "audit"
+    },
+    "B2": {
+      "label": "Scan incomplete",
+      "explain": "The security scan did not finish or is out of date.",
+      "code": "audit"
+    },
+    "B3": {
+      "label": "Main branch not protected",
+      "explain": "The default branch lacks the required protection.",
+      "code": "audit"
+    },
+    "B4": {
+      "label": "GitHub App too powerful",
+      "explain": "The App holds a permission it must not have, or required checks are wrong.",
+      "code": "audit"
+    },
+    "B5": {
+      "label": "Unsafe workflow",
+      "explain": "A GitHub workflow could leak secrets to an agent PR.",
+      "code": "audit"
+    },
+    "B6": {
+      "label": "Deploys on merge, undocumented",
+      "explain": "Merging deploys, but operations are not documented.",
+      "code": "audit"
+    }
+  },
+  "control": {
+    "B4a": {
+      "label": "GitHub App too powerful",
+      "explain": "The App holds a permission it must not have, or required checks are wrong.",
+      "code": "audit"
+    },
+    "B4b": {
+      "label": "GitHub App too powerful",
+      "explain": "The App holds a permission it must not have, or required checks are wrong.",
+      "code": "audit"
+    },
+    "B4c": {
+      "label": "GitHub App too powerful",
+      "explain": "The App holds a permission it must not have, or required checks are wrong.",
+      "code": "audit"
+    },
+    "protect_main": {
+      "label": "Main branch protected",
+      "explain": "The default branch needs PRs, approval and the factory check."
+    },
+    "app_scope": {
+      "label": "App limited to this repo",
+      "explain": "The GitHub App is installed on selected repos only, with the right permissions."
+    },
+    "codeowners": {
+      "label": "Code owners file",
+      "explain": "A valid CODEOWNERS file exists."
+    },
+    "instructions": {
+      "label": "Agent instructions",
+      "explain": "Agent instructions exist and are approved."
+    }
+  },
+  "lightFloor": {
+    "LF1": {
+      "label": "No open security issues",
+      "explain": "No blocking security finding is open.",
+      "code": "audit"
+    },
+    "LF2": {
+      "label": "Main branch protected",
+      "explain": "Protection is in force and the factory check is required.",
+      "code": "audit"
+    },
+    "LF3": {
+      "label": "Tests run and pass",
+      "explain": "Setup and tests run cleanly in the sandbox.",
+      "code": "audit"
+    },
+    "LF4": {
+      "label": "Agent tooling checked",
+      "explain": "Files that run code or grant tools were checked, and isolation was tested.",
+      "code": "audit"
+    },
+    "LF5": {
+      "label": "Agent instructions approved",
+      "explain": "A person approved the agent instructions.",
+      "code": "audit"
+    },
+    "LF6": {
+      "label": "Repo facts confirmed",
+      "explain": "At least 90% of the repo facts are confirmed or marked unknown.",
+      "code": "audit"
+    },
+    "LF7": {
+      "label": "Operations documented",
+      "explain": "Whether a merge deploys is known and written down.",
+      "code": "audit"
+    },
+    "LF8": {
+      "label": "Network needs declared",
+      "explain": "Outside hosts the tests need are listed.",
+      "code": "audit"
+    }
+  },
+  "onboarding": {
+    "app": {
+      "label": "Waiting for the GitHub App",
+      "explain": "Install the factory's GitHub App on this repo to start."
+    },
+    "running": {
+      "label": "Agent working",
+      "explain": "The onboarding agent is working."
+    },
+    "card": {
+      "label": "Needs your review",
+      "explain": "The summary is ready for you."
+    },
+    "blocked": {
+      "label": "Blocked",
+      "explain": "Something must be fixed on GitHub before the agent can go on."
+    },
+    "starter": {
+      "label": "Needs starter files",
+      "explain": "The repo needs basic files first; the agent proposes them."
+    },
+    "parked": {
+      "label": "Paused: no answer",
+      "explain": "Nobody answered for 5 working days. Resume when ready."
+    },
+    "done": {
+      "label": "Onboarded",
+      "explain": "The repo is signed off at its level."
+    },
+    "rejected": {
+      "label": "Sign-off refused",
+      "explain": "The sign-off was refused; fix and ask again."
+    },
+    "superseded": {
+      "label": "Replaced",
+      "explain": "A newer onboarding replaced this one."
+    },
+    "withdrawn": {
+      "label": "Withdrawn",
+      "explain": "The onboarding was stopped."
+    }
+  },
+  "readiness": {
+    "proposed": {
+      "label": "Awaiting sign-off",
+      "explain": "Where the readiness scorecard stands."
+    },
+    "active": {
+      "label": "In force",
+      "explain": "Where the readiness scorecard stands."
+    },
+    "stale": {
+      "label": "Out of date",
+      "explain": "Where the readiness scorecard stands."
+    },
+    "suspended": {
+      "label": "Suspended",
+      "explain": "Where the readiness scorecard stands."
+    },
+    "expired": {
+      "label": "Expired",
+      "explain": "Where the readiness scorecard stands."
+    },
+    "superseded": {
+      "label": "Replaced",
+      "explain": "Where the readiness scorecard stands."
+    }
+  },
+  "pillar": {
+    "VRL": {
+      "label": "Testing",
+      "explain": "Can agents check their own work.",
+      "code": "secondary"
+    },
+    "ERL": {
+      "label": "Environment",
+      "explain": "Can the code be built and run safely.",
+      "code": "secondary"
+    },
+    "ORL": {
+      "label": "Operations",
+      "explain": "Is it known how changes reach production.",
+      "code": "secondary"
+    },
+    "KRL": {
+      "label": "Knowledge",
+      "explain": "What agents are told and can read about the repo.",
+      "code": "secondary"
+    }
+  },
+  "driftEffect": {
+    "reaffirm": {
+      "label": "Confirm again",
+      "explain": "What a change since onboarding means."
+    },
+    "suspend": {
+      "label": "Agents suspended",
+      "explain": "What a change since onboarding means."
+    },
+    "security": {
+      "label": "Security check needed",
+      "explain": "What a change since onboarding means."
+    }
+  },
+  "servedFile": {
+    "affirmed": {
+      "label": "Approved",
+      "explain": "The state of a file the factory placed."
+    },
+    "pending_projection": {
+      "label": "Waiting for PR merge",
+      "explain": "The state of a file the factory placed."
+    },
+    "drift": {
+      "label": "Changed on GitHub",
+      "explain": "The state of a file the factory placed."
+    },
+    "absent": {
+      "label": "Missing",
+      "explain": "The state of a file the factory placed."
+    }
+  },
+  "examGrade": {
+    "correct": {
+      "label": "Correct",
+      "explain": "Questions that test what the agent learned about the repo."
+    },
+    "incorrect": {
+      "label": "Incorrect",
+      "explain": "Questions that test what the agent learned about the repo."
+    },
+    "unsure": {
+      "label": "Unsure",
+      "explain": "Questions that test what the agent learned about the repo."
+    }
+  },
+  "seedStatus": {
+    "observed": {
+      "label": "As found",
+      "explain": "A draft spec from the code, or confirmed as intended behaviour."
+    },
+    "intended": {
+      "label": "As intended",
+      "explain": "A draft spec from the code, or confirmed as intended behaviour."
+    }
+  },
+  "phase": {
+    "Draft": {
+      "label": "Draft",
+      "explain": "Not sent yet."
+    },
+    "Clarifying": {
+      "label": "Questions asked",
+      "explain": "The factory asked questions; answer them to go on."
+    },
+    "S1": {
+      "label": "Intake",
+      "explain": "The stage the work is in now."
+    },
+    "S2": {
+      "label": "Research",
+      "explain": "The stage the work is in now."
+    },
+    "S3": {
+      "label": "Spec",
+      "explain": "The stage the work is in now."
+    },
+    "S4": {
+      "label": "Design",
+      "explain": "The stage the work is in now."
+    },
+    "S5": {
+      "label": "Plan",
+      "explain": "The stage the work is in now."
+    },
+    "Scheduling": {
+      "label": "Queued for build",
+      "explain": "The plan is approved; waiting for a coding slot."
+    },
+    "S6": {
+      "label": "Build",
+      "explain": "The stage the work is in now."
+    },
+    "S7": {
+      "label": "Verify",
+      "explain": "The stage the work is in now."
+    },
+    "G4": {
+      "label": "In code review",
+      "explain": "Waiting for a code owner to approve the PR."
+    },
+    "S8a": {
+      "label": "Merge",
+      "explain": "The stage the work is in now."
+    },
+    "S8b": {
+      "label": "Release",
+      "explain": "The stage the work is in now."
+    },
+    "G5": {
+      "label": "Waiting for release approval",
+      "explain": "Merged; waiting for release approval."
+    },
+    "S9": {
+      "label": "Close",
+      "explain": "The stage the work is in now."
+    },
+    "G6": {
+      "label": "Waiting for your acceptance",
+      "explain": "Done; the requester must accept it."
+    },
+    "Held": {
+      "label": "On hold",
+      "explain": "Paused for a reason shown beside it."
+    },
+    "Handoff": {
+      "label": "Needs a person",
+      "explain": "The agents stopped; a person must choose what happens next."
+    },
+    "Quarantined": {
+      "label": "Security hold",
+      "explain": "Stopped after unsafe agent behaviour; security decides next."
+    },
+    "Parked": {
+      "label": "Waiting for answers",
+      "explain": "Paused until the questions are answered; ends after 5 working days."
+    },
+    "Done": {
+      "label": "Done",
+      "explain": "Finished and accepted."
+    },
+    "Declined": {
+      "label": "Declined",
+      "explain": "The factory will not do this request."
+    },
+    "Abandoned": {
+      "label": "Abandoned",
+      "explain": "Stopped before it finished."
+    },
+    "Withdrawn": {
+      "label": "Withdrawn",
+      "explain": "The requester withdrew it."
+    },
+    "HandedOverClosed": {
+      "label": "Closed by a person",
+      "explain": "A person took the work over and closed it."
+    },
+    "Superseded": {
+      "label": "Replaced",
+      "explain": "Another item replaced this one."
+    },
+    "Deferred": {
+      "label": "Deferred",
+      "explain": "Put off to later."
+    }
+  },
+  "wait": {
+    "Parked": {
+      "label": "Waiting for answers",
+      "explain": "Paused until the questions are answered; ends after 5 working days."
+    },
+    "Blocked": {
+      "label": "Blocked: environment",
+      "explain": "The tests fail before any change, or the sandbox is broken; fix and retry."
+    },
+    "ReleaseHeld": {
+      "label": "Release on hold",
+      "explain": "The release was refused; fix and ask again, or open a new item."
+    },
+    "SpikeReport": {
+      "label": "Experiment report",
+      "explain": "The experiment finished; read its report."
+    }
+  },
+  "room": {
+    "SCHED": {
+      "label": "Queue",
+      "explain": "Waiting to start building."
+    },
+    "HOLD": {
+      "label": "On hold",
+      "explain": "Paused items."
+    },
+    "QUAR": {
+      "label": "Security hold",
+      "explain": "Items stopped for security."
+    },
+    "DESK": {
+      "label": "Needs a person",
+      "explain": "Items waiting for a person to take over or choose."
+    },
+    "BIN": {
+      "label": "Declined",
+      "explain": "Requests the factory will not do."
+    },
+    "DONE": {
+      "label": "Done",
+      "explain": "Finished items."
+    }
+  },
+  "floorStatus": {
+    "working": {
+      "label": "Working",
+      "explain": "What the item is doing now on the floor."
+    },
+    "waiting": {
+      "label": "Waiting",
+      "explain": "What the item is doing now on the floor."
+    },
+    "held": {
+      "label": "On hold",
+      "explain": "What the item is doing now on the floor."
+    },
+    "stuck": {
+      "label": "Stuck",
+      "explain": "No sign of life from the agent for longer than the set time."
+    },
+    "done": {
+      "label": "Done",
+      "explain": "What the item is doing now on the floor."
+    },
+    "declined": {
+      "label": "Declined",
+      "explain": "What the item is doing now on the floor."
+    }
+  },
+  "floorMove": {
+    "F": {
+      "label": "Forward",
+      "explain": "How an item last moved."
+    },
+    "B": {
+      "label": "Sent back",
+      "explain": "How an item last moved."
+    },
+    "R": {
+      "label": "Moved track",
+      "explain": "How an item last moved."
+    }
+  },
+  "backEdge": {
+    "B1": {
+      "label": "Needs more information",
+      "explain": "Questions asked; up to 2 rounds, then paused 5 working days.",
+      "code": "audit"
+    },
+    "B2": {
+      "label": "Goal unclear",
+      "explain": "Research found the goal unclear; the goal is confirmed again (2 tries, then a person).",
+      "code": "audit"
+    },
+    "B3": {
+      "label": "Spec failed checks",
+      "explain": "The spec failed validation; the agent retries (3 tries).",
+      "code": "audit"
+    },
+    "B4": {
+      "label": "Design found a spec gap",
+      "explain": "The design shows the spec is missing something; back to spec once.",
+      "code": "audit"
+    },
+    "B5": {
+      "label": "Plan changes requested",
+      "explain": "The plan was sent back; after 2 times, a person writes the plan.",
+      "code": "audit"
+    },
+    "B6": {
+      "label": "Blocked: environment",
+      "explain": "Tests fail before any change; the build waits until the environment is fixed.",
+      "code": "audit"
+    },
+    "B7": {
+      "label": "Checks failing, retrying",
+      "explain": "The agent's own checks fail; it retries within its limits.",
+      "code": "audit"
+    },
+    "B8": {
+      "label": "Out of scope: re-plan",
+      "explain": "The change went beyond its part; the part is split and approved again.",
+      "code": "audit"
+    },
+    "B9": {
+      "label": "Fixing check findings",
+      "explain": "Verify found something fixable; the agent fixes it.",
+      "code": "audit"
+    },
+    "B10": {
+      "label": "Spec unclear",
+      "explain": "Verify found the spec ambiguous; the spec is approved again once.",
+      "code": "audit"
+    },
+    "B11": {
+      "label": "Wrong approach: re-plan",
+      "explain": "Verify found the approach wrong; the plan is approved again once.",
+      "code": "audit"
+    },
+    "B12": {
+      "label": "Locked test must change",
+      "explain": "A locked test must change; needs \"Change a locked test\".",
+      "code": "audit"
+    },
+    "B13": {
+      "label": "Changes requested in review",
+      "explain": "The code owner requested changes; up to 2 rounds.",
+      "code": "audit"
+    },
+    "B14": {
+      "label": "Reviewer unsure",
+      "explain": "A light reviewer was unsure; a code owner does a full review.",
+      "code": "audit"
+    },
+    "B15": {
+      "label": "Base branch moved",
+      "explain": "The main branch moved; checks run again (2 times).",
+      "code": "audit"
+    },
+    "B16": {
+      "label": "Deploy unhealthy: rolled back",
+      "explain": "The release was rolled back; a new fix item was opened.",
+      "code": "audit"
+    },
+    "B17": {
+      "label": "Bug found after merge",
+      "explain": "A problem was found after merge; a new fix item was opened.",
+      "code": "audit"
+    },
+    "B18": {
+      "label": "Result not accepted",
+      "explain": "The requester did not accept the result; a new linked item was opened.",
+      "code": "audit"
+    },
+    "B19": {
+      "label": "Spot-check found a miss",
+      "explain": "An audit found a missed problem; too many suspend light reviews.",
+      "code": "audit"
+    },
+    "B20": {
+      "label": "Scope changed",
+      "explain": "The requester changed the scope; back to spec (once).",
+      "code": "audit"
+    },
+    "B21": {
+      "label": "Decision overdue",
+      "explain": "Waited over 1 working day; sent to the backup approver. Never approved automatically.",
+      "code": "audit"
+    },
+    "B22": {
+      "label": "Not eligible",
+      "explain": "The request does not fit this repo or the factory.",
+      "code": "audit"
+    },
+    "B23": {
+      "label": "Spec rejected",
+      "explain": "The spec was rejected; 2 rounds, then a person chooses.",
+      "code": "audit"
+    },
+    "B24": {
+      "label": "Design rejected",
+      "explain": "The design was rejected; 2 rounds, then a person chooses.",
+      "code": "audit"
+    },
+    "B25": {
+      "label": "Exception refused",
+      "explain": "The rule exception was refused; redesign once, then a person chooses.",
+      "code": "audit"
+    },
+    "B26": {
+      "label": "Release refused",
+      "explain": "The release was refused; it is on hold.",
+      "code": "audit"
+    },
+    "B27": {
+      "label": "Possible prompt injection",
+      "explain": "The request contains text that looks like instructions to the agent; it is treated as data.",
+      "code": "audit"
+    },
+    "B28": {
+      "label": "Rework limit reached",
+      "explain": "The work was sent back too often; a person chooses what happens next.",
+      "code": "audit"
+    }
+  },
+  "handoff": {
+    "D1": {
+      "label": "Needs a person: build",
+      "explain": "The agents stopped while building.",
+      "code": "audit"
+    },
+    "D2": {
+      "label": "Needs a person: checks",
+      "explain": "The agents stopped while fixing check findings.",
+      "code": "audit"
+    },
+    "D3": {
+      "label": "Needs a person: review",
+      "explain": "Review rejected the work twice.",
+      "code": "audit"
+    },
+    "D4": {
+      "label": "Hand back",
+      "explain": "A person gives the work back to the agents (once).",
+      "code": "audit"
+    },
+    "D5": {
+      "label": "Mark my work done",
+      "explain": "The person who took over says the work is ready for checks.",
+      "code": "audit"
+    }
+  },
+  "trigger": {
+    "ET1": {
+      "label": "Budget used up",
+      "explain": "The work spent its whole budget.",
+      "code": "audit"
+    },
+    "ET2": {
+      "label": "Taking too long",
+      "explain": "Too many CI rounds or twice the planned time.",
+      "code": "audit"
+    },
+    "ET3": {
+      "label": "Keeps failing",
+      "explain": "The same check failed 3 times.",
+      "code": "audit"
+    },
+    "ET4": {
+      "label": "Check limit reached",
+      "explain": "A verify check hit its retry limit.",
+      "code": "audit"
+    },
+    "ET5": {
+      "label": "Check limit reached",
+      "explain": "A verify check hit its retry limit.",
+      "code": "audit"
+    },
+    "ET6": {
+      "label": "Check limit reached",
+      "explain": "A verify check hit its retry limit.",
+      "code": "audit"
+    },
+    "ET7": {
+      "label": "Rejected twice",
+      "explain": "The review rejected the work twice.",
+      "code": "audit"
+    },
+    "ET8": {
+      "label": "Agent gave up",
+      "explain": "The agent said it cannot do this.",
+      "code": "audit"
+    },
+    "ET9": {
+      "label": "Scope drift",
+      "explain": "The change drifted out of scope twice.",
+      "code": "audit"
+    },
+    "ET10": {
+      "label": "Unsafe agent behaviour",
+      "explain": "The agent tried something not allowed; security hold.",
+      "code": "audit"
+    },
+    "ET11": {
+      "label": "Going in circles",
+      "explain": "The agent keeps undoing its own changes.",
+      "code": "audit"
+    },
+    "ET12": {
+      "label": "Unstable results",
+      "explain": "Results change between runs (flaky).",
+      "code": "audit"
+    },
+    "ET13": {
+      "label": "Bug found after merge",
+      "explain": "A problem was found after merge.",
+      "code": "audit"
+    },
+    "ET14": {
+      "label": "Too many failures",
+      "explain": "Too many items failed on this track; agents paused on it.",
+      "code": "audit"
+    }
+  },
+  "e4Choice": {
+    "resume": {
+      "label": "Resume",
+      "explain": "The options when the agents are stuck."
+    },
+    "replan": {
+      "label": "Re-plan",
+      "explain": "The options when the agents are stuck."
+    },
+    "respec": {
+      "label": "Rewrite spec",
+      "explain": "The options when the agents are stuck."
+    },
+    "take_over": {
+      "label": "Take over",
+      "explain": "The options when the agents are stuck."
+    },
+    "abandon": {
+      "label": "Stop the work",
+      "explain": "The options when the agents are stuck."
+    }
+  },
+  "hold": {
+    "H1": {
+      "label": "Waiting for an approver",
+      "explain": "Nobody who can approve the next step is available.",
+      "code": "audit"
+    },
+    "H2": {
+      "label": "Waiting for a coding slot",
+      "explain": "All coding sandboxes are busy.",
+      "code": "audit"
+    },
+    "H3": {
+      "label": "Waiting for environment",
+      "explain": "The build environment is not available.",
+      "code": "audit"
+    },
+    "WIP": {
+      "label": "Too much in progress",
+      "explain": "The project's work-in-progress limit is reached.",
+      "code": "audit"
+    },
+    "N8": {
+      "label": "Repo not ready",
+      "explain": "The repo has no readiness scorecard in force for this track.",
+      "code": "audit"
+    },
+    "kill": {
+      "label": "Agents stopped",
+      "explain": "The emergency stop is on for this scope.",
+      "code": "audit"
+    },
+    "maintenance": {
+      "label": "Maintenance mode",
+      "explain": "Timers frozen and decisions disabled; drafts kept.",
+      "code": "audit"
+    },
+    "quota": {
+      "label": "Over quota",
+      "explain": "The model provider's quota is reached.",
+      "code": "audit"
+    },
+    "control": {
+      "label": "Paused by an operator",
+      "explain": "An operator paused this scope.",
+      "code": "audit"
+    }
+  },
+  "unitState": {
+    "Planned": {
+      "label": "Planned",
+      "explain": "In the plan; not started."
+    },
+    "Admitted": {
+      "label": "Ready to build",
+      "explain": "Has a coding slot and budget."
+    },
+    "Building": {
+      "label": "Building",
+      "explain": "The coding agent is working on it."
+    },
+    "Pushed": {
+      "label": "Draft PR open",
+      "explain": "The PR is open."
+    },
+    "Verifying": {
+      "label": "Being checked",
+      "explain": "The factory is checking the PR."
+    },
+    "InReview": {
+      "label": "In code review",
+      "explain": "A code owner is reviewing the PR."
+    },
+    "Merged": {
+      "label": "Merged",
+      "explain": "Merged on GitHub."
+    },
+    "Released": {
+      "label": "Released",
+      "explain": "Deployed."
+    },
+    "HumanHeld": {
+      "label": "Waiting for a person",
+      "explain": "Paused for an approval."
+    },
+    "Tainted": {
+      "label": "Flagged unsafe",
+      "explain": "Unsafe behaviour seen; going to a security hold."
+    },
+    "Quarantined": {
+      "label": "Security hold",
+      "explain": "Stopped for security review."
+    },
+    "Stopped": {
+      "label": "Stopped",
+      "explain": "Stopped by an operator, a budget or the emergency stop."
+    },
+    "GrantReleased": {
+      "label": "Slot released",
+      "explain": "Its slot and budget were released."
+    }
+  },
+  "unitSize": {
+    "small": {
+      "label": "Small",
+      "explain": "How big the part is; sets its share of the budget."
+    },
+    "medium": {
+      "label": "Medium",
+      "explain": "How big the part is; sets its share of the budget."
+    },
+    "large": {
+      "label": "Large",
+      "explain": "How big the part is; sets its share of the budget."
+    }
+  },
+  "verifyCheck": {
+    "deterministic": {
+      "label": "Build and tests",
+      "explain": "Build, lint and the full test suite on the PR's commit.",
+      "code": "audit"
+    },
+    "test_integrity": {
+      "label": "Test integrity",
+      "explain": "Tests were not weakened and the acceptance tests are real.",
+      "code": "audit"
+    },
+    "spec_conformance": {
+      "label": "Matches the spec",
+      "explain": "The change does what the approved spec says.",
+      "code": "audit"
+    },
+    "secrets_dependencies": {
+      "label": "Secrets and dependencies",
+      "explain": "No new secret and no unapproved dependency.",
+      "code": "audit"
+    },
+    "constitution": {
+      "label": "Factory rules",
+      "explain": "The change follows the factory rules.",
+      "code": "audit"
+    }
+  },
+  "verdict": {
+    "passed": {
+      "label": "Passed",
+      "explain": "The result of one check."
+    },
+    "failed": {
+      "label": "Failed",
+      "explain": "The result of one check."
+    },
+    "unknown": {
+      "label": "Unknown (not passed)",
+      "explain": "The result of one check."
+    }
+  },
+  "repairClass": {
+    "repairable": {
+      "label": "Agent can fix",
+      "explain": "The agent will fix this."
+    },
+    "spec_ambiguous": {
+      "label": "Spec unclear",
+      "explain": "The spec must be clarified."
+    },
+    "approach_wrong": {
+      "label": "Wrong approach",
+      "explain": "The plan must change."
+    },
+    "locked_test_change": {
+      "label": "Locked test change",
+      "explain": "A locked test must change; needs approval."
+    },
+    "hard_fail": {
+      "label": "Cannot go on",
+      "explain": "A person must decide."
+    },
+    "quarantine": {
+      "label": "Security hold",
+      "explain": "Unsafe; security decides."
+    }
+  },
+  "role": {
+    "project.admin": {
+      "label": "Project admin",
+      "explain": "Runs the project: settings, people, project approvals.",
+      "code": "audit"
+    },
+    "project.requester": {
+      "label": "Requester",
+      "explain": "Asks for work and accepts the result.",
+      "code": "audit"
+    },
+    "project.intent_approver": {
+      "label": "Request and spec approver",
+      "explain": "Accepts requests, confirms goals, approves specs.",
+      "code": "audit"
+    },
+    "project.design_approver": {
+      "label": "Design and plan approver",
+      "explain": "Approves designs, outlines and plans.",
+      "code": "audit"
+    },
+    "project.code_owner": {
+      "label": "Code reviewer",
+      "explain": "Reviews agent PRs; the code owners on GitHub.",
+      "code": "audit"
+    },
+    "project.release_approver": {
+      "label": "Release approver",
+      "explain": "Approves releases.",
+      "code": "audit"
+    },
+    "project.exception_approver": {
+      "label": "Exception approver",
+      "explain": "Decides risky actions and exceptions.",
+      "code": "audit"
+    },
+    "project.security_approver": {
+      "label": "Security approver",
+      "explain": "Decides security holds and reviews.",
+      "code": "audit"
+    },
+    "project.onboarding_signer": {
+      "label": "Onboarding signer",
+      "explain": "Signs off onboarding.",
+      "code": "audit"
+    },
+    "project.kill_holder": {
+      "label": "Can stop agents",
+      "explain": "Can stop and restart agents on the project.",
+      "code": "audit"
+    },
+    "project.viewer": {
+      "label": "Viewer",
+      "explain": "Can see the project; no titles of restricted work.",
+      "code": "audit"
+    },
+    "factory.admin": {
+      "label": "Factory admin",
+      "explain": "Can change and decide anything in the factory; every action is recorded.",
+      "code": "audit"
+    },
+    "factory.onboarder": {
+      "label": "Can onboard repos",
+      "explain": "Can start onboarding a repo.",
+      "code": "audit"
+    },
+    "factory.auditor": {
+      "label": "Auditor",
+      "explain": "Can read the whole factory record; decides nothing.",
+      "code": "audit"
+    }
+  },
+  "roleSlot": {
+    "admin": {
+      "label": "Project admin",
+      "explain": "Runs the project: settings, people, project approvals.",
+      "code": "audit"
+    },
+    "requesters": {
+      "label": "Requester",
+      "explain": "Asks for work and accepts the result.",
+      "code": "audit"
+    },
+    "intent": {
+      "label": "Request and spec approver",
+      "explain": "Accepts requests, confirms goals, approves specs.",
+      "code": "audit"
+    },
+    "design": {
+      "label": "Design and plan approver",
+      "explain": "Approves designs, outlines and plans.",
+      "code": "audit"
+    },
+    "g4": {
+      "label": "Code reviewer",
+      "explain": "Reviews agent PRs; the code owners on GitHub.",
+      "code": "audit"
+    },
+    "g5": {
+      "label": "Release approver",
+      "explain": "Approves releases.",
+      "code": "audit"
+    },
+    "x": {
+      "label": "Exception approver",
+      "explain": "Decides risky actions and exceptions.",
+      "code": "audit"
+    },
+    "sec": {
+      "label": "Security approver",
+      "explain": "Decides security holds and reviews.",
+      "code": "audit"
+    },
+    "m4": {
+      "label": "Onboarding signer",
+      "explain": "Signs off onboarding.",
+      "code": "audit"
+    },
+    "kill": {
+      "label": "Can stop agents",
+      "explain": "Can stop and restart agents on the project.",
+      "code": "audit"
+    }
+  },
+  "principalKind": {
+    "human": {
+      "label": "Person",
+      "explain": "Who or what acted."
+    },
+    "service": {
+      "label": "Service",
+      "explain": "Who or what acted."
+    }
+  },
+  "action": {
+    "project.onboard": {
+      "label": "Onboard a repo",
+      "explain": "Start onboarding a repo.",
+      "code": "audit"
+    },
+    "work.request": {
+      "label": "Ask for work",
+      "explain": "Send a request to the factory.",
+      "code": "audit"
+    },
+    "item.ready": {
+      "label": "Mark ready / Answer questions",
+      "explain": "Say the request is ready, or answer the factory's questions.",
+      "code": "audit"
+    },
+    "item.observe": {
+      "label": "Raise a concern",
+      "explain": "During design review, say the spec has a gap or the work is smaller than its track.",
+      "code": "audit"
+    },
+    "item.plan": {
+      "label": "Write the plan",
+      "explain": "Write the plan yourself after it was sent back twice.",
+      "code": "audit"
+    },
+    "item.release": {
+      "label": "Ask to release again",
+      "explain": "Ask for release approval again after a refusal.",
+      "code": "audit"
+    },
+    "item.human_done": {
+      "label": "Mark my work done",
+      "explain": "Say your human-led work is ready for checks.",
+      "code": "audit"
+    },
+    "item.unsure": {
+      "label": "I'm not sure",
+      "explain": "Ask for a full code review.",
+      "code": "audit"
+    },
+    "item.escape": {
+      "label": "Report a bug after merge",
+      "explain": "Report a problem found after the item closed.",
+      "code": "audit"
+    },
+    "audit.record": {
+      "label": "Record a spot-check",
+      "explain": "Record the audit of a lightly reviewed merge.",
+      "code": "audit"
+    },
+    "closeout.read": {
+      "label": "See the close-out",
+      "explain": "Read an item's final record.",
+      "code": "audit"
+    },
+    "learn.propose": {
+      "label": "Suggest improvements",
+      "explain": "Ask the factory to propose changes from finished work.",
+      "code": "audit"
+    },
+    "project.view": {
+      "label": "See the project",
+      "explain": "See a project and its settings.",
+      "code": "audit"
+    },
+    "project.settings.edit": {
+      "label": "Change project settings",
+      "explain": "Change who decides what, approvals and two-person rules.",
+      "code": "audit"
+    },
+    "floor.read": {
+      "label": "See the floor",
+      "explain": "See the live floor.",
+      "code": "audit"
+    },
+    "item.view_floor": {
+      "label": "See the item",
+      "explain": "See an item on the floor.",
+      "code": "audit"
+    },
+    "gate.view": {
+      "label": "See the approval",
+      "explain": "See an approval and its evidence.",
+      "code": "audit"
+    },
+    "gate.decide": {
+      "label": "Decide approvals",
+      "explain": "Approve, request changes or reject.",
+      "code": "audit"
+    },
+    "card.decide": {
+      "label": "Decide inbox cards",
+      "explain": "Decide a card that carries several approvals.",
+      "code": "audit"
+    },
+    "kill.request": {
+      "label": "Stop agents",
+      "explain": "Emergency stop for a scope.",
+      "code": "audit"
+    },
+    "kill.release": {
+      "label": "Restart agents",
+      "explain": "Lift an emergency stop (two people).",
+      "code": "audit"
+    },
+    "config.propose": {
+      "label": "Propose a settings change",
+      "explain": "Draft a change to settings for approval.",
+      "code": "audit"
+    },
+    "config.decide": {
+      "label": "Approve factory settings",
+      "explain": "Approve a change to factory-wide settings.",
+      "code": "audit"
+    },
+    "audit.read": {
+      "label": "Read the audit trail",
+      "explain": "See the decision log and audit views.",
+      "code": "audit"
+    },
+    "control.apply": {
+      "label": "Pause or limit",
+      "explain": "Pause, limit, halt or put a scope in maintenance.",
+      "code": "audit"
+    },
+    "control.lift": {
+      "label": "Lift a pause",
+      "explain": "Lift a pause or limit.",
+      "code": "audit"
+    },
+    "banner.publish": {
+      "label": "Post a notice",
+      "explain": "Show a notice to everyone in a scope.",
+      "code": "audit"
+    },
+    "access.explain": {
+      "label": "See who can do what",
+      "explain": "See who can decide each approval.",
+      "code": "audit"
+    },
+    "identity.admin": {
+      "label": "Manage sign-in and data",
+      "explain": "Sign-in, sessions, suspension, deleting personal data, legal hold.",
+      "code": "audit"
+    },
+    "access.manage": {
+      "label": "Manage roles",
+      "explain": "Give and take away roles; answer access requests.",
+      "code": "audit"
+    },
+    "ops.read": {
+      "label": "See operations",
+      "explain": "See scheduling, sandboxes, controls and health.",
+      "code": "audit"
+    },
+    "session.stop": {
+      "label": "Stop a session",
+      "explain": "Stop one running agent sandbox.",
+      "code": "audit"
+    },
+    "quality.read": {
+      "label": "See agent quality",
+      "explain": "See agents, evaluations, models and integrations.",
+      "code": "audit"
+    },
+    "assistant.use": {
+      "label": "Ask the assistant",
+      "explain": "Ask the factory questions about what you can see.",
+      "code": "audit"
+    }
+  },
+  "viewLevel": {
+    "V1": {
+      "label": "Overview",
+      "explain": "Sees that work exists and where it is; no titles of restricted work.",
+      "code": "secondary"
+    },
+    "V2": {
+      "label": "Details",
+      "explain": "Sees requests, documents and checks.",
+      "code": "secondary"
+    },
+    "V3": {
+      "label": "Everything",
+      "explain": "Sees transcripts, settings and the full record.",
+      "code": "secondary"
+    }
+  },
+  "dataClass": {
+    "D0": {
+      "label": "Public",
+      "explain": "Safe to show anyone.",
+      "code": "secondary"
+    },
+    "D1": {
+      "label": "Internal",
+      "explain": "Company-internal; not personal or secret.",
+      "code": "secondary"
+    },
+    "D2": {
+      "label": "Confidential",
+      "explain": "Sensitive business or security detail.",
+      "code": "secondary"
+    },
+    "D3": {
+      "label": "Restricted",
+      "explain": "Never sent to a model and never shown in the portal.",
+      "code": "secondary"
+    }
+  },
+  "agent": {
+    "A1": {
+      "label": "Triage agent",
+      "explain": "Checks duplicates, sizes the work and checks eligibility.",
+      "code": "secondary"
+    },
+    "A2": {
+      "label": "Spec writer",
+      "explain": "Asks questions, writes the goal and the spec.",
+      "code": "secondary"
+    },
+    "A3": {
+      "label": "Planner",
+      "explain": "Researches, designs and plans.",
+      "code": "secondary"
+    },
+    "A4": {
+      "label": "Coding agent (one-shot)",
+      "explain": "The one-call coding agent.",
+      "code": "secondary"
+    },
+    "A5": {
+      "label": "Reviewer",
+      "explain": "Reviews specs, designs and changes with fresh context.",
+      "code": "secondary"
+    },
+    "A6": {
+      "label": "Test writer",
+      "explain": "Writes acceptance criteria and acceptance tests.",
+      "code": "secondary"
+    },
+    "A7": {
+      "label": "Not in use",
+      "explain": "Reserved; does nothing today.",
+      "code": "secondary"
+    },
+    "A8": {
+      "label": "Not in use",
+      "explain": "Reserved; does nothing today.",
+      "code": "secondary"
+    },
+    "A9": {
+      "label": "Repo reader",
+      "explain": "Reads the repo at onboarding and digs into unclear code.",
+      "code": "secondary"
+    },
+    "A10": {
+      "label": "Not in use",
+      "explain": "Reserved; does nothing today.",
+      "code": "secondary"
+    },
+    "A11": {
+      "label": "Handover writer",
+      "explain": "Writes the handover notes when agents stop.",
+      "code": "secondary"
+    },
+    "A12": {
+      "label": "Knowledge extractor",
+      "explain": "Builds the code map and draft specs at onboarding.",
+      "code": "secondary"
+    },
+    "coder": {
+      "label": "Coding agent",
+      "explain": "Writes the code in the sandbox and opens the draft PR.",
+      "code": "secondary"
+    },
+    "assistant": {
+      "label": "Assistant",
+      "explain": "Answers your questions from what you can see."
+    }
+  },
+  "sessionState": {
+    "starting": {
+      "label": "Starting",
+      "explain": "The live sandbox session."
+    },
+    "running": {
+      "label": "Running",
+      "explain": "The live sandbox session."
+    },
+    "idle": {
+      "label": "Idle",
+      "explain": "The live sandbox session."
+    },
+    "waiting_tool": {
+      "label": "Waiting for a tool",
+      "explain": "The live sandbox session."
+    },
+    "interrupted": {
+      "label": "Interrupted",
+      "explain": "The live sandbox session."
+    },
+    "ended": {
+      "label": "Finished",
+      "explain": "The live sandbox session."
+    },
+    "stopped": {
+      "label": "Stopped",
+      "explain": "The live sandbox session."
+    },
+    "tainted": {
+      "label": "Flagged unsafe",
+      "explain": "The live sandbox session."
+    }
+  },
+  "evalCaseKind": {
+    "regression": {
+      "label": "Regression",
+      "explain": "Kinds of evaluation case."
+    },
+    "holdout": {
+      "label": "Hidden",
+      "explain": "Kinds of evaluation case."
+    },
+    "pooled": {
+      "label": "Shared",
+      "explain": "Kinds of evaluation case."
+    },
+    "canary": {
+      "label": "Canary",
+      "explain": "Kinds of evaluation case."
+    },
+    "seeded_defect": {
+      "label": "Planted bug",
+      "explain": "Kinds of evaluation case."
+    }
+  },
+  "killState": {
+    "active": {
+      "label": "Stopped",
+      "explain": "Where an emergency stop stands."
+    },
+    "release_pending": {
+      "label": "Restart waiting for second person",
+      "explain": "Where an emergency stop stands."
+    },
+    "released": {
+      "label": "Restarted",
+      "explain": "Where an emergency stop stands."
+    }
+  },
+  "killScope": {
+    "fleet": {
+      "label": "Whole factory",
+      "explain": "What the stop covers."
+    },
+    "project": {
+      "label": "Project",
+      "explain": "What the stop covers."
+    },
+    "lane": {
+      "label": "Track",
+      "explain": "What the stop covers."
+    },
+    "session": {
+      "label": "Session",
+      "explain": "What the stop covers."
+    }
+  },
+  "controlKind": {
+    "hold": {
+      "label": "Pause",
+      "explain": "Pause new work in a scope."
+    },
+    "clamp": {
+      "label": "Limit",
+      "explain": "Allow at most N items in progress."
+    },
+    "halt": {
+      "label": "Halt",
+      "explain": "Stop work in a scope now."
+    },
+    "maintenance": {
+      "label": "Maintenance mode",
+      "explain": "Freeze timers and decisions everywhere."
+    }
+  },
+  "controlState": {
+    "active": {
+      "label": "In force",
+      "explain": "Where a control stands."
+    },
+    "lifted": {
+      "label": "Lifted",
+      "explain": "Where a control stands."
+    },
+    "expired": {
+      "label": "Ended",
+      "explain": "Where a control stands."
+    }
+  },
+  "bannerSeverity": {
+    "info": {
+      "label": "Info",
+      "explain": "How prominent the notice is."
+    },
+    "warning": {
+      "label": "Warning",
+      "explain": "How prominent the notice is."
+    },
+    "critical": {
+      "label": "Critical",
+      "explain": "How prominent the notice is."
+    }
+  },
+  "sandboxClass": {
+    "K": {
+      "label": "Read-only scan",
+      "explain": "Reads files; runs nothing.",
+      "code": "secondary"
+    },
+    "K-exec": {
+      "label": "Test run",
+      "explain": "Runs the repo's setup and tests, offline.",
+      "code": "secondary"
+    },
+    "P": {
+      "label": "Planning",
+      "explain": "Agents read and plan; no code runs.",
+      "code": "secondary"
+    },
+    "W": {
+      "label": "Coding",
+      "explain": "The coding agent writes and runs code.",
+      "code": "secondary"
+    },
+    "O": {
+      "label": "Checks",
+      "explain": "Runs the verify checks.",
+      "code": "secondary"
+    },
+    "V": {
+      "label": "Verify",
+      "explain": "Runs the final verification.",
+      "code": "secondary"
+    }
+  },
+  "health": {
+    "ok": {
+      "label": "Healthy",
+      "explain": "A service's state; no reading in 2 minutes is unknown."
+    },
+    "degraded": {
+      "label": "Degraded",
+      "explain": "A service's state; no reading in 2 minutes is unknown."
+    },
+    "down": {
+      "label": "Down",
+      "explain": "A service's state; no reading in 2 minutes is unknown."
+    },
+    "unknown": {
+      "label": "Unknown",
+      "explain": "A service's state; no reading in 2 minutes is unknown."
+    }
+  },
+  "integrationKind": {
+    "code_host": {
+      "label": "Code host",
+      "explain": "Where the code lives (GitHub)."
+    },
+    "model_provider": {
+      "label": "Model provider",
+      "explain": "Who runs the AI models (Anthropic, OpenAI-compatible)."
+    },
+    "notifier": {
+      "label": "Notifications",
+      "explain": "Slack and email."
+    },
+    "tracker": {
+      "label": "Issue tracker",
+      "explain": "Where gaps are filed as issues."
+    },
+    "identity": {
+      "label": "Sign-in",
+      "explain": "The sign-in provider (Keycloak, any OIDC)."
+    }
+  },
+  "integrationAdapter": {
+    "github_app": {
+      "label": "GitHub App",
+      "explain": "How the factory talks to the code host."
+    },
+    "fake_github": {
+      "label": "Test GitHub",
+      "explain": "How the factory talks to the code host."
+    },
+    "anthropic": {
+      "label": "Anthropic",
+      "explain": "How the factory talks to the model provider."
+    },
+    "openai_compat": {
+      "label": "OpenAI-compatible",
+      "explain": "How the factory talks to the model provider."
+    },
+    "fake": {
+      "label": "Test model",
+      "explain": "How the factory talks to the model provider."
+    }
+  },
+  "integrationStatus": {
+    "draft": {
+      "label": "Draft",
+      "explain": "Whether the integration is used."
+    },
+    "enabled": {
+      "label": "On",
+      "explain": "Whether the integration is used."
+    },
+    "disabled": {
+      "label": "Off",
+      "explain": "Whether the integration is used."
+    },
+    "retired": {
+      "label": "Retired",
+      "explain": "Whether the integration is used."
+    }
+  },
+  "notificationKind": {
+    "gate_waiting": {
+      "label": "Approval waiting",
+      "explain": "What a notification is about."
+    },
+    "sla_escalated": {
+      "label": "Approval overdue",
+      "explain": "What a notification is about."
+    },
+    "quarantine": {
+      "label": "Security hold",
+      "explain": "What a notification is about."
+    },
+    "handoff": {
+      "label": "Needs a person",
+      "explain": "What a notification is about."
+    },
+    "kill_engaged": {
+      "label": "Agents stopped",
+      "explain": "What a notification is about."
+    },
+    "kill_released": {
+      "label": "Agents restarted",
+      "explain": "What a notification is about."
+    },
+    "questions_waiting": {
+      "label": "Questions asked",
+      "explain": "What a notification is about."
+    },
+    "ready_waiting": {
+      "label": "Mark ready",
+      "explain": "What a notification is about."
+    },
+    "acceptance_waiting": {
+      "label": "Waiting for your acceptance",
+      "explain": "What a notification is about."
+    },
+    "item_parked": {
+      "label": "Waiting for answers",
+      "explain": "What a notification is about."
+    },
+    "item_done": {
+      "label": "Done",
+      "explain": "What a notification is about."
+    },
+    "item_ended": {
+      "label": "Work ended",
+      "explain": "What a notification is about."
+    },
+    "control_halt": {
+      "label": "Halt",
+      "explain": "What a notification is about."
+    },
+    "breaker_tripped": {
+      "label": "Agents paused on track",
+      "explain": "What a notification is about."
+    },
+    "drift_suspended": {
+      "label": "Agents suspended",
+      "explain": "What a notification is about."
+    },
+    "release_failed": {
+      "label": "Release failed",
+      "explain": "What a notification is about."
+    },
+    "factory_alert": {
+      "label": "Factory alert",
+      "explain": "What a notification is about."
+    }
+  },
+  "notificationReason": {
+    "slot_holder": {
+      "label": "You can decide",
+      "explain": "Why you got it."
+    },
+    "escalated_backup": {
+      "label": "You are the backup",
+      "explain": "Why you got it."
+    },
+    "project_admin": {
+      "label": "You run the project",
+      "explain": "Why you got it."
+    },
+    "factory_admin": {
+      "label": "You run the factory",
+      "explain": "Why you got it."
+    },
+    "requester": {
+      "label": "You asked for it",
+      "explain": "Why you got it."
+    }
+  },
+  "configKey": {
+    "project.role_map": {
+      "label": "Who decides what",
+      "explain": "Who holds each project role.",
+      "code": "audit"
+    },
+    "project.two_person": {
+      "label": "Two-person approvals",
+      "explain": "Whether risky approvals need two different people.",
+      "code": "audit"
+    },
+    "project.gating_profile": {
+      "label": "Which approvals are on",
+      "explain": "Which optional approvals this project has, per track, and how builds are scheduled.",
+      "code": "audit"
+    },
+    "project.kill_delegations": {
+      "label": "Who can stop agents",
+      "explain": "People given the right to stop agents here.",
+      "code": "audit"
+    },
+    "project.release": {
+      "label": "Releases",
+      "explain": "Off, or the GitHub environment to deploy to after release approval.",
+      "code": "audit"
+    },
+    "project.wip_limit": {
+      "label": "Work-in-progress limit",
+      "explain": "The most parts of this project building at once.",
+      "code": "audit"
+    },
+    "project.default_envelope": {
+      "label": "Default budget",
+      "explain": "The budget of an item with no plan, and the most one part may use.",
+      "code": "audit"
+    },
+    "s0.failure_model": {
+      "label": "Onboarding retries and pauses",
+      "explain": "Retries, send-backs, and when onboarding pauses for silence.",
+      "code": "audit"
+    },
+    "s0.timeboxes": {
+      "label": "Onboarding time limits",
+      "explain": "How long each onboarding step may take.",
+      "code": "audit"
+    },
+    "s0.calendar": {
+      "label": "Working days",
+      "explain": "Weekends, holidays and time zone for every timer.",
+      "code": "audit"
+    },
+    "s0.t0_attestation_required": {
+      "label": "Low risk needs owner confirmation",
+      "explain": "The owner must confirm \"no production, no real data\".",
+      "code": "audit"
+    },
+    "onboarding.instruction_template": {
+      "label": "Agent instructions template",
+      "explain": "What agent instructions may and may not contain.",
+      "code": "audit"
+    },
+    "onboarding.reonboard_triggers": {
+      "label": "When to re-onboard",
+      "explain": "How many knowledge errors in how many days suggest re-onboarding.",
+      "code": "audit"
+    },
+    "onboarding.sandbox_image": {
+      "label": "Test-run image",
+      "explain": "The sandbox image used to run a repo's tests.",
+      "code": "audit"
+    },
+    "onboarding.light_tests": {
+      "label": "Coding image and isolation tests",
+      "explain": "The coding image and the thresholds of its isolation tests.",
+      "code": "audit"
+    },
+    "factory.constitution": {
+      "label": "Factory rules",
+      "explain": "The rules every design and change is checked against.",
+      "code": "audit"
+    },
+    "factory.m1_policy": {
+      "label": "Who approves factory settings",
+      "explain": "Which role approves factory changes, and whether one or two people.",
+      "code": "audit"
+    },
+    "factory.learn": {
+      "label": "Learning from finished work",
+      "explain": "When the factory proposes improvements.",
+      "code": "audit"
+    },
+    "factory.floor": {
+      "label": "Floor display",
+      "explain": "When an item is drawn stuck and when an agent score is low.",
+      "code": "audit"
+    },
+    "sandbox.exec_allowed_repos": {
+      "label": "Repos agents may run code in",
+      "explain": "Agents run code only in these repos.",
+      "code": "audit"
+    },
+    "sandbox.caps": {
+      "label": "Sandbox limits",
+      "explain": "How many sandboxes and coding sandboxes run at once.",
+      "code": "audit"
+    },
+    "ops.maintenance.mm2": {
+      "label": "Maintenance mode",
+      "explain": "Freeze timers and decisions everywhere.",
+      "code": "audit"
+    },
+    "pdp.bundle": {
+      "label": "Access policy",
+      "explain": "The published permission rules (generated from roles).",
+      "code": "audit"
+    },
+    "integrations.registry": {
+      "label": "Integrations",
+      "explain": "The outside services the factory uses.",
+      "code": "audit"
+    },
+    "integrations.installs": {
+      "label": "Integrations per project",
+      "explain": "Which repos and models each project may use.",
+      "code": "audit"
+    },
+    "gateway.models": {
+      "label": "Models and prices",
+      "explain": "The models and their limits and prices.",
+      "code": "audit"
+    },
+    "gateway.routes": {
+      "label": "Model per data class",
+      "explain": "Which model handles each data sensitivity.",
+      "code": "audit"
+    },
+    "codehost.merge_bypass": {
+      "label": "Who may merge without the check",
+      "explain": "GitHub users allowed to merge around the factory check.",
+      "code": "audit"
+    },
+    "audit.retention": {
+      "label": "Data retention",
+      "explain": "How long each kind of data is kept.",
+      "code": "audit"
+    },
+    "notifications.channels": {
+      "label": "Notification channels",
+      "explain": "Slack and email channels and who gets what.",
+      "code": "audit"
+    },
+    "agents.config": {
+      "label": "Agents on/off, models, turns, timeouts, budgets",
+      "explain": "Per agent: on or off, model, max turns, time limit and budget."
+    },
+    "catalogue.limits": {
+      "label": "Tracks and limits",
+      "explain": "Which steps and approvals each track has, retry limits, rework limit, budget extension."
+    },
+    "gates.policy": {
+      "label": "Who decides each approval",
+      "explain": "The role, two-person rule and \"confirm it's you\" for each approval."
+    },
+    "sandbox.coding_cap": {
+      "label": "Coding sandboxes at once",
+      "explain": "Number of builds that may run at once."
+    },
+    "session.policy": {
+      "label": "Sign-in session limits",
+      "explain": "Inactivity sign-out and maximum session length."
+    },
+    "gates.timers": {
+      "label": "Approval timers",
+      "explain": "When an approval is overdue, when it expires, how long \"confirm it's you\" lasts."
+    },
+    "readiness.policy": {
+      "label": "Readiness rules",
+      "explain": "Scorecard expiry, waiver length, fact confirmation share."
+    }
+  },
+  "configLayer": {
+    "factory": {
+      "label": "Factory-wide",
+      "explain": "Where a setting applies."
+    },
+    "project": {
+      "label": "This project",
+      "explain": "Where a setting applies."
+    }
+  },
+  "configRevision": {
+    "proposed": {
+      "label": "Waiting for approval",
+      "explain": "Where a settings change stands."
+    },
+    "current": {
+      "label": "In force",
+      "explain": "Where a settings change stands."
+    },
+    "superseded": {
+      "label": "Replaced",
+      "explain": "Where a settings change stands."
+    },
+    "rolled_back": {
+      "label": "Rolled back",
+      "explain": "Where a settings change stands."
+    },
+    "rejected": {
+      "label": "Rejected",
+      "explain": "Where a settings change stands."
+    }
+  },
+  "status": {
+    "unknown": {
+      "label": "Unknown",
+      "explain": "We could not tell; treated as not met."
+    },
+    "unreadable": {
+      "label": "Could not read",
+      "explain": "The factory could not read this; treated as not met."
+    },
+    "met": {
+      "label": "Met",
+      "explain": "Whether a requirement holds."
+    },
+    "not_met": {
+      "label": "Not met",
+      "explain": "Whether a requirement holds."
+    },
+    "recorded": {
+      "label": "Noted",
+      "explain": "Recorded; does not block at this level."
+    },
+    "not_evaluated": {
+      "label": "Not checked at this level",
+      "explain": "Not part of this level, or not relevant."
+    },
+    "na": {
+      "label": "Does not apply",
+      "explain": "Not part of this level, or not relevant."
+    },
+    "held": {
+      "label": "On hold",
+      "explain": "Paused; reason beside it."
+    },
+    "parked": {
+      "label": "Waiting for answers",
+      "explain": "Paused for missing answers."
+    },
+    "blocked": {
+      "label": "Blocked",
+      "explain": "Cannot go on until something is fixed."
+    },
+    "stale": {
+      "label": "Out of date",
+      "explain": "Older than allowed; refresh."
+    },
+    "stale_index": {
+      "label": "Search out of date",
+      "explain": "The repo index is behind; it rebuilds on the next scan."
+    },
+    "busy": {
+      "label": "Full",
+      "explain": "No free slot right now."
+    },
+    "pending": {
+      "label": "Waiting",
+      "explain": "Not decided or done yet."
+    },
+    "void": {
+      "label": "Did not count",
+      "explain": "A check result that is not a pass."
+    },
+    "refused": {
+      "label": "Refused",
+      "explain": "A check result that is not a pass."
+    },
+    "error": {
+      "label": "Failed to run",
+      "explain": "A check result that is not a pass."
+    },
+    "superseded": {
+      "label": "Replaced",
+      "explain": "A newer version took its place."
+    },
+    "expired": {
+      "label": "Expired",
+      "explain": "Ran out of time; never approves."
+    },
+    "sent_back": {
+      "label": "Changes requested",
+      "explain": "Sent back with requested changes."
+    },
+    "not_requested": {
+      "label": "Not asked for",
+      "explain": "This level was not requested."
+    }
+  },
+  "concept": {
+    "factory": {
+      "label": "Factory",
+      "explain": "All projects and everything they share."
+    },
+    "project": {
+      "label": "Project",
+      "explain": "One onboarded repo and its settings, people and work."
+    },
+    "repo": {
+      "label": "Repo",
+      "explain": "A GitHub repository."
+    },
+    "work_item": {
+      "label": "Work item",
+      "explain": "One request and everything the factory does for it."
+    },
+    "item_key": {
+      "label": "Item number",
+      "explain": "The item's short id, for example PAY-42."
+    },
+    "floor": {
+      "label": "Floor",
+      "explain": "A live view of all work, by stage."
+    },
+    "fleet": {
+      "label": "All projects",
+      "explain": "The floor or list across every project."
+    },
+    "inbox": {
+      "label": "Inbox",
+      "explain": "Everything waiting on you."
+    },
+    "card": {
+      "label": "Decision card",
+      "explain": "One thing to decide, maybe several approvals together."
+    },
+    "closeout": {
+      "label": "Final record",
+      "explain": "What was done, checked and decided, kept for good."
+    },
+    "escape": {
+      "label": "Bug after merge",
+      "explain": "A problem found after the work closed."
+    },
+    "spot_check": {
+      "label": "Spot-check",
+      "explain": "A lightly reviewed merge picked for audit."
+    },
+    "catalogue": {
+      "label": "Process version",
+      "explain": "The version of the tracks and limits this item runs under.",
+      "code": "secondary"
+    },
+    "gate": {
+      "label": "Approval",
+      "explain": "A decision a person makes before the work moves on."
+    },
+    "lane": {
+      "label": "Track",
+      "explain": "The path this work follows: which steps run and which approvals it needs."
+    },
+    "level": {
+      "label": "Onboarding level",
+      "explain": "How much agents may do on this repo."
+    },
+    "unit": {
+      "label": "Part",
+      "explain": "One part of the plan, built on its own branch and PR."
+    },
+    "envelope": {
+      "label": "Budget",
+      "explain": "The most this work may spend on models, in money and tokens."
+    },
+    "coding_slot": {
+      "label": "Coding slot",
+      "explain": "The right to build one part now."
+    },
+    "push_broker": {
+      "label": "Factory bot",
+      "explain": "The only part of the factory that can push branches and open draft PRs."
+    },
+    "oracle": {
+      "label": "Acceptance tests",
+      "explain": "Tests written from the spec that prove the change works."
+    },
+    "oracle_specs": {
+      "label": "Acceptance criteria",
+      "explain": "What the acceptance tests must prove."
+    },
+    "locked_tests": {
+      "label": "Locked tests",
+      "explain": "Tests agents may not change without approval."
+    },
+    "constitution": {
+      "label": "Factory rules",
+      "explain": "Rules every design and change must follow (for example, no unapproved network access)."
+    },
+    "evidence_pack": {
+      "label": "Evidence pack",
+      "explain": "The signed proof of every check for one exact commit."
+    },
+    "notary_signature": {
+      "label": "Signed by the factory",
+      "explain": "The factory's signature; anyone can check it offline."
+    },
+    "gate_check": {
+      "label": "Factory check",
+      "explain": "The required GitHub check that passes only for signed, approved agent PRs.",
+      "code": "secondary"
+    },
+    "taint": {
+      "label": "Untrusted input",
+      "explain": "Text from outside; agents treat it as data, never instructions."
+    },
+    "intent_block": {
+      "label": "Agreed goal",
+      "explain": "The goal everyone agreed on, which later steps follow."
+    },
+    "artefact": {
+      "label": "Document",
+      "explain": "Something an agent wrote (spec, design, plan…)."
+    },
+    "ledger": {
+      "label": "Decision log",
+      "explain": "The signed, append-only list of every decision."
+    },
+    "checkpoint": {
+      "label": "Log checkpoint",
+      "explain": "A signed snapshot that proves the log was not changed."
+    },
+    "record": {
+      "label": "History",
+      "explain": "Everything that happened, in order."
+    },
+    "prr": {
+      "label": "Readiness scorecard",
+      "explain": "What this repo is ready for, signed at onboarding and kept up to date.",
+      "code": "secondary"
+    },
+    "drift": {
+      "label": "Changes since onboarding",
+      "explain": "Something on GitHub changed since sign-off (protection, App, files)."
+    },
+    "gap": {
+      "label": "Gap",
+      "explain": "Something the repo is missing for the level asked."
+    },
+    "claims": {
+      "label": "Repo facts",
+      "explain": "Statements the agent makes about the repo; confirm, correct or mark unknown."
+    },
+    "kill_switch": {
+      "label": "Emergency stop",
+      "explain": "Stops all agent work in a scope at once."
+    },
+    "kill_unreachable": {
+      "label": "Agents stopped (cannot reach the stop switch)",
+      "explain": "When the stop switch cannot be read, agents are treated as stopped."
+    },
+    "sandbox": {
+      "label": "Sandbox",
+      "explain": "A locked-down container agents work in."
+    },
+    "gateway": {
+      "label": "Model gateway",
+      "explain": "The only service that holds model keys and talks to model providers."
+    },
+    "notary": {
+      "label": "Signer",
+      "explain": "The service that signs evidence and decisions."
+    },
+    "witness": {
+      "label": "Log witness",
+      "explain": "The service that co-signs log checkpoints."
+    },
+    "spend": {
+      "label": "Spend",
+      "explain": "Money spent on models."
+    },
+    "integration": {
+      "label": "Integration",
+      "explain": "A connection to an outside service."
+    },
+    "secret_saved": {
+      "label": "Secret (saved)",
+      "explain": "A secret stored in the vault; never shown again."
+    },
+    "secret_field": {
+      "label": "Paste secret",
+      "explain": "Paste once; it is stored and never shown again."
+    },
+    "rotate": {
+      "label": "Replace secret",
+      "explain": "Paste a new secret; the old one stops working."
+    },
+    "test_connection": {
+      "label": "Test",
+      "explain": "Try the connection now with the saved secret."
+    },
+    "delete": {
+      "label": "Delete",
+      "explain": "Remove the object and all its data for good; the log keeps hashes only."
+    },
+    "forbidden_403": {
+      "label": "You can't open this",
+      "explain": "Says why and who to ask."
+    },
+    "not_found_404": {
+      "label": "Not found",
+      "explain": "Shown the same whether it does not exist or you cannot see it."
+    }
+  },
+  "screen": {
+    "home": {
+      "label": "Home",
+      "explain": "What needs you now, then what you are waiting for."
+    },
+    "inbox": {
+      "label": "Inbox",
+      "explain": "Every decision waiting on you, your team or the factory."
+    },
+    "items": {
+      "label": "Items",
+      "explain": "Find any work item."
+    },
+    "board": {
+      "label": "Board",
+      "explain": "Work items in columns by stage."
+    },
+    "floor": {
+      "label": "Floor",
+      "explain": "The live view of all work by stage."
+    },
+    "fleet": {
+      "label": "All projects",
+      "explain": "The floor or list across every project."
+    },
+    "projects": {
+      "label": "Projects",
+      "explain": "Every project you can see."
+    },
+    "onboard": {
+      "label": "Onboard a repo",
+      "explain": "Get a repo ready so agents can work on it safely."
+    },
+    "ask_for_work": {
+      "label": "Ask for work",
+      "explain": "Send a request to the factory."
+    },
+    "assistant": {
+      "label": "Ask the factory",
+      "explain": "Answers only from what you can see."
+    },
+    "operate": {
+      "label": "Operate",
+      "explain": "Run the factory: stop it, pause it, see capacity, sandboxes, health and spend."
+    },
+    "emergency_stop": {
+      "label": "Emergency stop",
+      "explain": "Stops all agent work in a scope at once."
+    },
+    "controls": {
+      "label": "Pauses and notices",
+      "explain": "Pause, limit, halt or post a notice for a scope."
+    },
+    "scheduler": {
+      "label": "Queue and capacity",
+      "explain": "What is waiting to build and why."
+    },
+    "sandboxes": {
+      "label": "Sandboxes",
+      "explain": "Running sandboxes by kind and their limits."
+    },
+    "health": {
+      "label": "Health",
+      "explain": "Services and background jobs and their state."
+    },
+    "budgets": {
+      "label": "Budgets",
+      "explain": "Budgets and how much of each is spent."
+    },
+    "spend": {
+      "label": "Spend",
+      "explain": "Money spent on models, by project and item."
+    },
+    "agents": {
+      "label": "Agents",
+      "explain": "Every agent: on or off, its model, limits and quality."
+    },
+    "evals": {
+      "label": "Evaluations",
+      "explain": "Test sets that measure each agent."
+    },
+    "models": {
+      "label": "Models and prices",
+      "explain": "The models and their limits and prices."
+    },
+    "settings": {
+      "label": "Settings",
+      "explain": "Everything configurable for the factory."
+    },
+    "catalogue": {
+      "label": "Tracks and limits",
+      "explain": "Which steps and approvals each track has."
+    },
+    "integrations": {
+      "label": "Integrations",
+      "explain": "The outside services the factory uses."
+    },
+    "people_roles": {
+      "label": "People, teams & roles",
+      "explain": "Who is in the factory and what each person may do."
+    },
+    "people": {
+      "label": "People",
+      "explain": "Everyone who can sign in."
+    },
+    "teams": {
+      "label": "Teams",
+      "explain": "People who work together."
+    },
+    "roles": {
+      "label": "Roles",
+      "explain": "What each role may do."
+    },
+    "access_requests": {
+      "label": "Access requests",
+      "explain": "Requests for a role, and their answers."
+    },
+    "who_can": {
+      "label": "Who can do what",
+      "explain": "Who can decide each approval."
+    },
+    "audit_log": {
+      "label": "Decision log & audit",
+      "explain": "The signed record of every decision."
+    },
+    "decision_log": {
+      "label": "Decision log",
+      "explain": "The signed, append-only list of every decision."
+    },
+    "access_decisions": {
+      "label": "Access decisions",
+      "explain": "Sampled permission decisions, exports and holds."
+    },
+    "my_access": {
+      "label": "My access",
+      "explain": "What you can do and why."
+    },
+    "my_notifications": {
+      "label": "My notifications",
+      "explain": "What the factory told you."
+    },
+    "design": {
+      "label": "Design system",
+      "explain": "Every component of the portal in both themes, for review."
+    }
+  }
+}
