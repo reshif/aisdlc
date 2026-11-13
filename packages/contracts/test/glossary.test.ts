@@ -5,7 +5,7 @@ import {
   GLOSSARY_ROLE_IDS,
   PROPOSED_TERMS,
   ROLE_IDS,
-  SETTINGS_KEYS,
+  CONFIG_KEY_TERMS,
   codeShows,
   explain,
   label,
@@ -160,9 +160,9 @@ describe('the glossary covers every value a person can see', () => {
       }
     }
     expect(named.size).toBeGreaterThan(20);
-    const missing = [...named].filter((k) => !(SETTINGS_KEYS as readonly string[]).includes(k));
+    const missing = [...named].filter((k) => !(CONFIG_KEY_TERMS as readonly string[]).includes(k));
     expect(missing).toEqual([]);
-    expect(Object.keys(GLOSSARY.configKey).sort()).toEqual([...SETTINGS_KEYS].sort());
+    expect(Object.keys(GLOSSARY.configKey).sort()).toEqual([...CONFIG_KEY_TERMS].sort());
   });
 
   it('proposed terms (not yet in glossary.md) exist, so the owner can find each one', () => {

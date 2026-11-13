@@ -1461,7 +1461,7 @@ const notificationReason: Readonly<Record<NotificationReason, Term>> = {
  * walks the exports and fails on a key missing here) plus the NEW keys glossary §18 names for settings
  * that are hard-coded today; the config registry (Settings squad) replaces this list with its own.
  */
-export const SETTINGS_KEYS = [
+export const CONFIG_KEY_TERMS = [
   'project.role_map',
   'project.two_person',
   'project.gating_profile',
@@ -1494,16 +1494,33 @@ export const SETTINGS_KEYS = [
   'notifications.channels',
   // NEW in glossary §18 (hard-coded today; screen-map §5)
   'agents.config',
-  'catalogue.limits',
   'gates.policy',
-  'sandbox.coding_cap',
   'session.policy',
   'gates.timers',
   'readiness.policy',
+  'catalogue.lanes',
+  'catalogue.back_edge_limits',
+  'catalogue.rework_budget',
+  'catalogue.envelope_extension',
+  'catalogue.flow_limits',
+  'catalogue.triggers',
+  'catalogue.gating',
+  'catalogue.eligibility',
+  'catalogue.autonomy',
+  'catalogue.criteria',
+  'gateway.limits',
+  'ops.health',
+  'evals.gate',
+  'codehost.polls',
+  'work.request',
+  'sandbox.probe',
+  'sandbox.profiles',
+  'planning.size_share',
+  'access.roles',
 ] as const;
-export type SettingsKey = (typeof SETTINGS_KEYS)[number];
+export type ConfigKeyTerm = (typeof CONFIG_KEY_TERMS)[number];
 
-const configKey: Readonly<Record<SettingsKey, Term>> = {
+const configKey: Readonly<Record<ConfigKeyTerm, Term>> = {
   'project.role_map': t('Who decides what', 'Who holds each project role.', 'audit'),
   'project.two_person': t(
     'Two-person approvals',
@@ -1630,15 +1647,10 @@ const configKey: Readonly<Record<SettingsKey, Term>> = {
     'Agents on/off, models, turns, timeouts, budgets',
     'Per agent: on or off, model, max turns, time limit and budget.',
   ),
-  'catalogue.limits': t(
-    'Tracks and limits',
-    'Which steps and approvals each track has, retry limits, rework limit, budget extension.',
-  ),
   'gates.policy': t(
     'Who decides each approval',
     'The role, two-person rule and "confirm it\'s you" for each approval.',
   ),
-  'sandbox.coding_cap': t('Coding sandboxes at once', 'Number of builds that may run at once.'),
   'session.policy': t('Sign-in session limits', 'Inactivity sign-out and maximum session length.'),
   'gates.timers': t(
     'Approval timers',
@@ -1648,6 +1660,46 @@ const configKey: Readonly<Record<SettingsKey, Term>> = {
     'Readiness rules',
     'Scorecard expiry, waiver length, fact confirmation share.',
   ),
+  'catalogue.lanes': t('Tracks', 'What each track runs: its steps, approvals and default budget.'),
+  'catalogue.back_edge_limits': t(
+    'Retry limits',
+    'How many times work may be sent back for each reason, and what happens then.',
+  ),
+  'catalogue.rework_budget': t(
+    'Rework limit',
+    'How often work may be sent back before a person takes over.',
+  ),
+  'catalogue.envelope_extension': t(
+    'Budget extension',
+    'How far and how often a budget may be extended.',
+  ),
+  'catalogue.flow_limits': t(
+    'Hand back limits',
+    'How often work may be handed back or an alternative tried.',
+  ),
+  'catalogue.triggers': t('Escalation triggers', 'What each escalation does and when it trips.'),
+  'catalogue.gating': t('Default approvals', 'The approvals each track has by default.'),
+  'catalogue.eligibility': t('Tracks per level', 'Which tracks each onboarding level allows.'),
+  'catalogue.autonomy': t('Agent autonomy caps', 'How much agents may do at each level and tier.'),
+  'catalogue.criteria': t('Readiness criteria', 'The criteria and floors a repo must meet.'),
+  'gateway.limits': t('Model call ceiling', 'Most model calls one gateway process makes.'),
+  'ops.health': t(
+    'Health timers',
+    'When health reads unknown, how often it is read, when it alerts.',
+  ),
+  'evals.gate': t('Evaluation gate', 'How a new agent version is compared with its baseline.'),
+  'codehost.polls': t('GitHub poll intervals', 'How often the factory reads GitHub.'),
+  'work.request': t('Request text limit', 'The longest request text accepted.'),
+  'sandbox.probe': t('Test-run lease', 'How long the onboarding test run may hold its sandbox.'),
+  'sandbox.profiles': t(
+    'Limits per sandbox kind',
+    'Lower the memory, CPU, time and output of each sandbox kind.',
+  ),
+  'planning.size_share': t(
+    'Budget share per size',
+    'The share of the coder budget each part size may spend.',
+  ),
+  'access.roles': t('Roles and permissions', 'The roles and what each may do.'),
 };
 
 const configLayer: Readonly<Record<ConfigLayerKind, Term>> = {
@@ -1973,6 +2025,25 @@ export const PROPOSED_TERMS: ReadonlyArray<readonly [GlossaryFamily, string]> = 
   ['action', 'person.delete'],
   ['action', 'team.delete'],
   ['action', 'binding.delete'],
+  ['configKey', 'catalogue.lanes'],
+  ['configKey', 'catalogue.back_edge_limits'],
+  ['configKey', 'catalogue.rework_budget'],
+  ['configKey', 'catalogue.envelope_extension'],
+  ['configKey', 'catalogue.flow_limits'],
+  ['configKey', 'catalogue.triggers'],
+  ['configKey', 'catalogue.gating'],
+  ['configKey', 'catalogue.eligibility'],
+  ['configKey', 'catalogue.autonomy'],
+  ['configKey', 'catalogue.criteria'],
+  ['configKey', 'gateway.limits'],
+  ['configKey', 'ops.health'],
+  ['configKey', 'evals.gate'],
+  ['configKey', 'codehost.polls'],
+  ['configKey', 'work.request'],
+  ['configKey', 'sandbox.probe'],
+  ['configKey', 'sandbox.profiles'],
+  ['configKey', 'planning.size_share'],
+  ['configKey', 'access.roles'],
 ];
 
 /** The term of a value. Typed: a value the family does not have does not compile. */

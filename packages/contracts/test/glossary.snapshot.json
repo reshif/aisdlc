@@ -2765,17 +2765,9 @@
       "label": "Agents on/off, models, turns, timeouts, budgets",
       "explain": "Per agent: on or off, model, max turns, time limit and budget."
     },
-    "catalogue.limits": {
-      "label": "Tracks and limits",
-      "explain": "Which steps and approvals each track has, retry limits, rework limit, budget extension."
-    },
     "gates.policy": {
       "label": "Who decides each approval",
       "explain": "The role, two-person rule and \"confirm it's you\" for each approval."
-    },
-    "sandbox.coding_cap": {
-      "label": "Coding sandboxes at once",
-      "explain": "Number of builds that may run at once."
     },
     "session.policy": {
       "label": "Sign-in session limits",
@@ -2788,6 +2780,82 @@
     "readiness.policy": {
       "label": "Readiness rules",
       "explain": "Scorecard expiry, waiver length, fact confirmation share."
+    },
+    "catalogue.lanes": {
+      "label": "Tracks",
+      "explain": "What each track runs: its steps, approvals and default budget."
+    },
+    "catalogue.back_edge_limits": {
+      "label": "Retry limits",
+      "explain": "How many times work may be sent back for each reason, and what happens then."
+    },
+    "catalogue.rework_budget": {
+      "label": "Rework limit",
+      "explain": "How often work may be sent back before a person takes over."
+    },
+    "catalogue.envelope_extension": {
+      "label": "Budget extension",
+      "explain": "How far and how often a budget may be extended."
+    },
+    "catalogue.flow_limits": {
+      "label": "Hand back limits",
+      "explain": "How often work may be handed back or an alternative tried."
+    },
+    "catalogue.triggers": {
+      "label": "Escalation triggers",
+      "explain": "What each escalation does and when it trips."
+    },
+    "catalogue.gating": {
+      "label": "Default approvals",
+      "explain": "The approvals each track has by default."
+    },
+    "catalogue.eligibility": {
+      "label": "Tracks per level",
+      "explain": "Which tracks each onboarding level allows."
+    },
+    "catalogue.autonomy": {
+      "label": "Agent autonomy caps",
+      "explain": "How much agents may do at each level and tier."
+    },
+    "catalogue.criteria": {
+      "label": "Readiness criteria",
+      "explain": "The criteria and floors a repo must meet."
+    },
+    "gateway.limits": {
+      "label": "Model call ceiling",
+      "explain": "Most model calls one gateway process makes."
+    },
+    "ops.health": {
+      "label": "Health timers",
+      "explain": "When health reads unknown, how often it is read, when it alerts."
+    },
+    "evals.gate": {
+      "label": "Evaluation gate",
+      "explain": "How a new agent version is compared with its baseline."
+    },
+    "codehost.polls": {
+      "label": "GitHub poll intervals",
+      "explain": "How often the factory reads GitHub."
+    },
+    "work.request": {
+      "label": "Request text limit",
+      "explain": "The longest request text accepted."
+    },
+    "sandbox.probe": {
+      "label": "Test-run lease",
+      "explain": "How long the onboarding test run may hold its sandbox."
+    },
+    "sandbox.profiles": {
+      "label": "Limits per sandbox kind",
+      "explain": "Lower the memory, CPU, time and output of each sandbox kind."
+    },
+    "planning.size_share": {
+      "label": "Budget share per size",
+      "explain": "The share of the coder budget each part size may spend."
+    },
+    "access.roles": {
+      "label": "Roles and permissions",
+      "explain": "The roles and what each may do."
     }
   },
   "configLayer": {
