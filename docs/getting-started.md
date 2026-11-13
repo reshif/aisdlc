@@ -18,7 +18,7 @@ Run `make` in the repository root to list every command. The everyday ones:
 | `make install` | install dependencies (`npm ci`) |
 | `make secrets` | create local secrets and `.env` for the fake GitHub (safe to re-run) |
 | `make secrets-real GITHUB_APP_ID=… GITHUB_INSTALLATION_ID=…` | switch to your real GitHub App |
-| `make github-apps` | create the GitHub Apps with the setup wizard (once it has landed) |
+| `make github-apps` | create the two GitHub Apps with the setup wizard (§4.1) |
 | `make up` / `make up GITHUB=real` | start the factory and wait until healthy; add `PROFILES="gate-check notifier"` for more |
 | `make portal` | print the portal's address |
 | `make ps` / `make logs SERVICE=core` | see containers and their health / follow logs |
@@ -214,7 +214,8 @@ blocked entirely (B4a, `packages/ports/src/b4.ts`).
 
 ### 4.1 The wizard (the main path)
 
-From `platform/compose`, after `npm ci` at the repository root and `./init-secrets` from section 2:
+From `platform/compose`, after `npm ci` at the repository root and `./init-secrets` from section 2 (or
+`make github-apps` from the repository root, which runs the first line below):
 
 ```bash
 ./setup-github-apps                  # both Apps, under your user account
