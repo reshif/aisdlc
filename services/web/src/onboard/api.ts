@@ -97,6 +97,8 @@ export const onboardApi = {
       `/api/s0/${enc(s0)}/console/proposals/${enc(proposal)}/decide`,
       { body, csrf },
     ),
+  consoleNote: (s0: string, text: string, csrf: string) =>
+    call<ConsoleSessionView>('POST', `/api/s0/${enc(s0)}/console/note`, { body: { text }, csrf }),
   consoleSessions: () => call<ConsoleSessionList>('GET', '/api/console/sessions'),
   runAgent: (s0: string, csrf: string) =>
     call<{ state: string }>('POST', `/api/s0/${enc(s0)}/agent/run`, { body: {}, csrf }),

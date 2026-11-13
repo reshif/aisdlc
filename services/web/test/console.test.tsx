@@ -314,6 +314,29 @@ describe('proposals as chips', () => {
   });
 });
 
+describe('the note for the onboarder', () => {
+  it('saves a note for this session; the server decides whether it only narrows', async () => {
+    const api = mockApi(
+      base({
+        [`GET /api/s0/${S0_ID}/console`]: { json: session() },
+        [`POST /api/s0/${S0_ID}/console/note`]: { json: session() },
+      }),
+    );
+    renderAt(`/onboard/${S0_ID}`);
+    const box = await screen.findByTestId('session-note');
+    await userEvent.click(within(box).getByText('Notes for the onboarder'));
+    await userEvent.type(
+      within(box).getByLabelText('Guidance for this session'),
+      'Do not propose a test command.',
+    );
+    await userEvent.click(within(box).getByRole('button', { name: 'Save the note' }));
+    await waitFor(() => expect(api.calls.some((c) => c.path.endsWith('/console/note'))).toBe(true));
+    expect(api.calls.find((c) => c.path.endsWith('/console/note'))?.body).toEqual({
+      text: 'Do not propose a test command.',
+    });
+  });
+});
+
 describe('/assistant is the console session list', () => {
   it('lists the sessions and lets a person start one on an onboarding that has none', async () => {
     const withS0 = summaryOf({

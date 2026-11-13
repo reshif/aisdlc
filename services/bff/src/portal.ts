@@ -2,6 +2,7 @@ import {
   ConsoleDraft,
   ConsoleDraftPatch,
   ConsoleMessageRequest,
+  ConsoleNoteRequest,
   ConsoleProposalDecideRequest,
   ConsoleSessionList,
   ConsoleSessionView,
@@ -1359,6 +1360,22 @@ export function registerPortalRoutes(d: PortalDeps): void {
     return upstream(
       reply,
       await c.call('POST', `/v1/s0/${id}/console/messages`, { ...body.data, on_behalf_of: who }),
+      (v) => ConsoleSessionView.parse(v),
+    )?.value;
+  });
+
+  /** This session's note for the onboarder (narrowing only; core refuses anything that grants authority). */
+  app.post('/api/s0/:id/console/note', async (req, reply) => {
+    const c = core(reply);
+    const id = idParam(req, reply);
+    if (!c || !id) return;
+    const body = ConsoleNoteRequest.omit({ on_behalf_of: true }).safeParse(req.body ?? {});
+    if (!body.success) return sendError(reply, 400, 'invalid_input', body.error.message);
+    if (!(await viewableS0(req, reply, c, id))) return;
+    const who = d.principalOf(req);
+    return upstream(
+      reply,
+      await c.call('POST', `/v1/s0/${id}/console/note`, { ...body.data, on_behalf_of: who }),
       (v) => ConsoleSessionView.parse(v),
     )?.value;
   });

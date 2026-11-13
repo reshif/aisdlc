@@ -4,7 +4,12 @@ import {
   ONBOARDING_CONSOLE_KEY,
 } from '@aisdlc/contracts';
 import { describe, expect, it } from 'vitest';
-import { ConfigRegistry, registerOnboardingConsoleConfig } from '../src/index.js';
+import {
+  ConfigRegistry,
+  agentGuidelinesFrom,
+  onboardingConsoleFrom,
+  registerOnboardingConsoleConfig,
+} from '../src/index.js';
 
 // The onboarding console's two keys: factory layer only (M1-gated like every revision), defaults that read.
 
@@ -47,5 +52,42 @@ describe('onboarding console config', () => {
     expect(r.validate('project', { [ONBOARDING_AGENT_GUIDELINES_KEY]: { text: 'x' } }).ok).toBe(
       false,
     );
+  });
+});
+
+describe('reading the keys from a snapshot', () => {
+  const snap = (
+    values: Record<string, unknown>,
+    rejected: string[] = [],
+    factory: string | null = 'rev-3',
+  ) => ({
+    rejected,
+    revisions: { factory },
+    get: (k: string) => values[k],
+  });
+
+  it('the console: the defaults when nothing is published; OFF when the published value does not read (fail closed)', () => {
+    expect(onboardingConsoleFrom(snap({}))).toEqual(DEFAULT_ONBOARDING_CONSOLE);
+    expect(onboardingConsoleFrom(snap({}, [ONBOARDING_CONSOLE_KEY])).enabled).toBe(false);
+    expect(
+      onboardingConsoleFrom(snap({ [ONBOARDING_CONSOLE_KEY]: { enabled: 'yes' } })).enabled,
+    ).toBe(false);
+  });
+
+  it('the guidelines: the text and the factory revision; empty when unreadable', () => {
+    expect(
+      agentGuidelinesFrom(snap({ [ONBOARDING_AGENT_GUIDELINES_KEY]: { text: 'Be brief.' } })),
+    ).toEqual({
+      text: 'Be brief.',
+      revision: 'rev-3',
+    });
+    expect(agentGuidelinesFrom(snap({}, [], null))).toEqual({ text: '', revision: 'default' });
+    expect(
+      agentGuidelinesFrom(
+        snap({ [ONBOARDING_AGENT_GUIDELINES_KEY]: { text: 'x' } }, [
+          ONBOARDING_AGENT_GUIDELINES_KEY,
+        ]),
+      ).text,
+    ).toBe('');
   });
 });

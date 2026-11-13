@@ -1,9 +1,11 @@
 import {
+  agentGuidelinesFrom,
   codehostPollsFrom,
   followSettings,
   opsHealthFrom,
   ConfigReader,
   ConfigRegistry,
+  onboardingConsoleFrom,
   onboardingImageFrom,
   registerGatewayConfig,
 } from '@aisdlc/config';
@@ -863,6 +865,8 @@ export async function bootCoreWorker(
           knowledge: cfg.knowledge,
           gateway: cfg.gateway,
           extraModels: cfg.agentExtraModels,
+          config: () => onboardingConsoleFrom(rd.current()),
+          guidelines: () => agentGuidelinesFrom(rd.current()),
         });
         supervisor.add(
           onboardingConsoleLoop(

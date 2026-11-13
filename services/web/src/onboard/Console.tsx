@@ -250,6 +250,7 @@ function Conversation({
         ) : null}
         <div ref={end} />
       </div>
+      <SessionNote id={id} csrf={csrf} closed={closed} onView={onView} />
       <form className="oc-composer" onSubmit={submit}>
         <label className="ui-label" htmlFor={inputId}>
           Tell the onboarder
@@ -340,5 +341,60 @@ function EvidencePane({ v }: { v: OnboardingSummaryView }) {
         </Card>
       ) : null}
     </div>
+  );
+}
+
+/** A note for the onboarder in this session: it can only narrow what it does (the factory refuses anything that grants). */
+function SessionNote({
+  id,
+  csrf,
+  closed,
+  onView,
+}: {
+  id: string;
+  csrf: string;
+  closed: boolean;
+  onView: (v: ConsoleSessionView) => void;
+}) {
+  const field = useId();
+  const [text, setText] = useState('');
+  const save = useMutation({
+    mutationFn: (t: string) => onboardApi.consoleNote(id, t, csrf),
+    onSuccess: onView,
+  });
+  return (
+    <details className="oc-note" data-testid="session-note">
+      <summary>Notes for the onboarder</summary>
+      <label className="ui-label" htmlFor={field}>
+        Guidance for this session
+      </label>
+      <textarea
+        id={field}
+        className="ui-input"
+        rows={3}
+        maxLength={1000}
+        value={text}
+        disabled={closed}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <p className="ui-help">
+        A note can only narrow what the onboarder does (for example “do not propose a test
+        command”). It cannot give it any right to decide; such a note is refused. Leave it empty and
+        save to clear it.
+      </p>
+      <button
+        type="button"
+        className="ui-btn ui-btn-sm"
+        disabled={closed || save.isPending}
+        onClick={() => save.mutate(text)}
+      >
+        {save.isPending ? 'Saving…' : 'Save the note'}
+      </button>
+      {save.isError ? (
+        <p role="alert" className="ui-help">
+          {describeError(save.error)}
+        </p>
+      ) : null}
+    </details>
   );
 }

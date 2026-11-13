@@ -24,6 +24,9 @@ export function consoleDepsFrom(o: {
   readonly extraModels?: readonly string[];
   /** What the onboarder may do here; default: re-check and card sync only (the probe and the pack are the worker's). */
   readonly acts?: ConsoleActsPort;
+  /** `onboarding.console` and the guidelines from the config reader; absent: the defaults and none. */
+  readonly config?: ConsoleDeps['config'];
+  readonly guidelines?: ConsoleDeps['guidelines'];
 }): ConsoleDeps {
   const admin = new GatewayAdminHttp({ baseUrl: o.gateway.url, token: o.gateway.token });
   return {
@@ -33,6 +36,8 @@ export function consoleDepsFrom(o: {
     keys: new GatewayAgentKeys(admin, { extraModels: o.extraModels ?? [] }),
     model: new GatewayOnboarderModel({ baseUrl: o.gateway.url }),
     acts: o.acts ?? consoleActsFrom({ cards: o.cards }),
+    ...(o.config ? { config: o.config } : {}),
+    ...(o.guidelines ? { guidelines: o.guidelines } : {}),
     search: new HttpKnowledgeSearch({ baseUrl: o.knowledge.url, token: o.knowledge.token }),
     prompt: readPrompt,
   };

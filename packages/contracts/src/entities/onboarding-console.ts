@@ -401,6 +401,13 @@ export const ConsoleMessageRequest = z.strictObject({
 });
 export type ConsoleMessageRequest = z.infer<typeof ConsoleMessageRequest>;
 
+/** `POST /v1/s0/:id/console/note`: this session's note for the onboarder; empty clears it. */
+export const ConsoleNoteRequest = z.strictObject({
+  on_behalf_of: PrincipalId,
+  text: z.string().max(1000),
+});
+export type ConsoleNoteRequest = z.infer<typeof ConsoleNoteRequest>;
+
 /** One row of the session list (`/assistant`): a session, what it is about, where it stands. */
 export const ConsoleSessionRow = z.strictObject({
   s0_id: S0RecordId,

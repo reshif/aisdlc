@@ -1321,6 +1321,7 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   SignOffState: entities.SignOffState,
   ConsoleSessionState: entities.ConsoleSessionState,
   ConsoleDraft: entities.ConsoleDraft,
+  ConsoleNoteRequest: entities.ConsoleNoteRequest,
   ConsoleProposalDecideRequest: entities.ConsoleProposalDecideRequest,
   ConsoleDraftPatch: entities.ConsoleDraftPatch,
   ConsoleControlRequest: entities.ConsoleControlRequest,

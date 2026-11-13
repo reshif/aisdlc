@@ -1,6 +1,7 @@
 import {
   ConsoleControlRequest,
   ConsoleDraftPatch,
+  ConsoleNoteRequest,
   ConsoleProposalDecideRequest,
   ConsoleMessageRequest,
   ConsoleSessionList,
@@ -19,6 +20,7 @@ import {
   observe,
   patchDraft,
   postMessage,
+  setSessionNote,
   startSession,
   steer,
   wake,
@@ -36,6 +38,7 @@ import { draftOf, listSessions, sessionView } from './store.js';
 //   POST /v1/s0/:id/console/messages                  the person says something; the agent answers       scope onboard
 //   POST /v1/s0/:id/console/{pause,resume,stop}       steering                                           scope onboard
 //   POST /v1/s0/:id/console/proposals/:pid/decide     accept, edit or reject one proposal; the agent goes on scope onboard
+//   POST /v1/s0/:id/console/note                      the person's note for the onboarder (narrowing only) scope onboard
 //   PATCH /v1/s0/:id/summary                          the person sets summary defaults directly       scope onboard
 //   GET  /v1/console/sessions?on_behalf_of=           the sessions the person may see (the session list) scope read
 
@@ -205,6 +208,20 @@ export function registerConsoleRoutes(r: ConsoleRouteDeps): void {
     });
     if (!r.ok) return fail(reply, r.error);
     // the agent goes on from what the person chose
+    await wake(d, id);
+    return sessionView(d.pool, id);
+  });
+
+  app.post('/v1/s0/:id/console/note', async (req, reply) => {
+    const d = pre(req, reply, 'onboard');
+    const id = idOf(req, reply);
+    if (!d || !id) return;
+    const b = ConsoleNoteRequest.safeParse(req.body ?? {});
+    if (!b.success) return fail(reply, coreError('invalid_input', b.error.message));
+    const project = await projectOf(d, reply, id);
+    if (project === null || !(await guardUse(reply, b.data.on_behalf_of, project))) return;
+    const r = await setSessionNote(d, { s0_id: id, by: b.data.on_behalf_of, text: b.data.text });
+    if (!r.ok) return fail(reply, r.error);
     await wake(d, id);
     return sessionView(d.pool, id);
   });

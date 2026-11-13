@@ -28,7 +28,11 @@ export {
   type EffectiveConfig,
 } from './reader.js';
 export { registerGatewayConfig } from './gateway.js';
-export { registerOnboardingConsoleConfig } from './onboarding-console.js';
+export {
+  agentGuidelinesFrom,
+  onboardingConsoleFrom,
+  registerOnboardingConsoleConfig,
+} from './onboarding-console.js';
 export { onboardingImageFrom, registerSandboxConfig, workerImageFrom } from './sandbox.js';
 export { registerGateCheckConfig } from './gate-check.js';
 export { readReleaseSetting, registerReleaseConfig, type ReleaseRead } from './gate-relay.js';

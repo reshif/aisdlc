@@ -67,6 +67,8 @@ export interface ConsoleDeps extends CoreDeps {
   readonly prompt: (ref: string) => string;
   /** `onboarding.console` in force (absent: the defaults). */
   readonly config?: () => OnboardingConsoleConfig;
+  /** `onboarding.agent_guidelines` in force and the factory revision it came from; absent: none. */
+  readonly guidelines?: () => { readonly text: string; readonly revision: string };
   /** The kill switch for agent work: `false` when a kill covers it or it cannot be reached (fail closed). */
   readonly admit?: (project_id: string) => Promise<boolean>;
   /** Extra model ids the deployment routes (the local `fake-model`). */
@@ -87,6 +89,26 @@ export const ONBOARDER_POLICY =
   'onboarder.v1 and nothing else.';
 
 const REFUSING_LINT = new Set(['L-SECRET', 'L-URL', 'L-PIPE-SH']);
+/** Rules that assert authority (a tier, lane, gate, budget, grant, autonomy): guidance may narrow, never grant. */
+const AUTHORITY_LINT = new Set(['L-TIER', 'L-AUTONOMY', 'L-LANE', 'L-GATE', 'L-BUDGET', 'L-GRANT']);
+export const SESSION_NOTE_MAX = 1000;
+const NOTE_PREFIX = 'Note for the onboarder: ';
+
+/**
+ * Whether a piece of guidance can only NARROW the onboarder: it may not assert authority (grant a gate, a tier, a lane,
+ * a budget, an autonomy) and may not carry a secret, a link or a piped download. Guidance is advice in the context
+ * (level 3); the tools, the autonomy and the gates are fixed outside it, so this is the second line, not the first.
+ */
+export function narrowOnly(text: string): { ok: true } | { ok: false; reason: string } {
+  const hits = [...new Set(lintText(text).map((f) => f.rule as string))];
+  const bad = hits.filter((r) => AUTHORITY_LINT.has(r) || REFUSING_LINT.has(r));
+  return bad.length === 0
+    ? { ok: true }
+    : {
+        ok: false,
+        reason: `guidance may only narrow what the onboarder does: it must not ${bad.includes('L-SECRET') ? 'carry a secret' : 'grant authority or carry links'} (${bad.join(', ')})`,
+      };
+}
 const FIXED_REFUSAL =
   'I could not give an answer the factory’s checks accept. Ask again, or say it another way.';
 
@@ -393,6 +415,49 @@ async function converse(
           : 'the factory observed';
     pieces.push({ type: `turn:${t.seq}`, sha256: sha256Hex(t.text), text: `${who}:\n${t.text}` });
   }
+  // level 3: the factory's guidelines and this person's session note, as fenced Guidance; narrowing only
+  const g = d.guidelines?.() ?? null;
+  const gText = g && g.text.trim() !== '' && narrowOnly(g.text).ok ? g.text : null;
+  const noteTurn = [...c.turns].reverse().find((t) => t.observed === 'session_note');
+  const cleared = [...c.turns].reverse().find((t) => t.observed === 'session_note_cleared');
+  const note =
+    noteTurn && (!cleared || cleared.seq < noteTurn.seq)
+      ? noteTurn.text.replace(NOTE_PREFIX, '')
+      : null;
+  const instructions = [
+    ...(gText
+      ? [
+          {
+            text: gText,
+            repo: 'factory',
+            area: '.',
+            path: 'onboarding.agent_guidelines',
+            text_sha256: sha256Hex(gText),
+            affirmation_ref: `config:${g?.revision ?? 'default'}`,
+          },
+        ]
+      : []),
+    ...(note
+      ? [
+          {
+            text: note,
+            repo: 'session',
+            area: '.',
+            path: 'session-note',
+            text_sha256: sha256Hex(note),
+            affirmation_ref: `person:${c.by}`,
+          },
+        ]
+      : []),
+  ];
+  const guidelinesRevision = g
+    ? `${g.revision}${gText === null && g.text.trim() !== '' ? '!ignored' : ''}${note ? `+note:${sha256Hex(note).slice(0, 8)}` : ''}`.slice(
+        0,
+        80,
+      )
+    : note
+      ? `+note:${sha256Hex(note).slice(0, 8)}`
+      : null;
   const built = buildContext({
     agent_id: 'onboarder',
     purpose: 'onboarding',
@@ -407,6 +472,7 @@ async function converse(
       },
     ],
     intent: null,
+    instructions,
     artefacts: pieces,
   });
   const planted = tctx.planted;
@@ -516,7 +582,7 @@ async function converse(
           role: 'agent',
           text: v.text,
           prompt_sha256: ONBOARDER.prompt.sha256,
-          guidelines_revision: null,
+          guidelines_revision: guidelinesRevision,
         },
         state: {
           state: v.next === 'done' ? 'done' : v.next === 'working' ? 'running' : 'awaiting_person',
@@ -537,7 +603,12 @@ async function converse(
   const w = await appendConsoleTurn(d, {
     s0_id: s0Id,
     owner: c.by,
-    turn: { role: 'agent', text: FIXED_REFUSAL, prompt_sha256: ONBOARDER.prompt.sha256 },
+    turn: {
+      role: 'agent',
+      text: FIXED_REFUSAL,
+      prompt_sha256: ONBOARDER.prompt.sha256,
+      guidelines_revision: guidelinesRevision,
+    },
     state: { state: 'awaiting_person', cause: 'agent_asked', by: null },
   });
   return w.ok ? ok('refused') : w;
@@ -732,3 +803,48 @@ export async function patchDraft(
 
 /** The view of a session as the routes return it. */
 export const viewOf = (d: Pick<CoreDeps, 'pool'>, s0Id: string) => sessionView(d.pool, s0Id);
+
+/**
+ * The person's note for the onboarder in THIS session (level 3 Guidance, latest wins, empty clears it). It may only
+ * narrow (`narrowOnly`); the text is masked before it is stored. It is a turn of the person, so it shows in the log and
+ * the agent acknowledges it.
+ */
+export async function setSessionNote(
+  d: ConsoleDeps,
+  o: { s0_id: string; by: string; text: string },
+): Promise<Result<{ cleared: boolean }, CoreError>> {
+  const s = await readSessionRow(d.pool, o.s0_id);
+  if (!s) return err(coreError('not_found', 'no console session'));
+  if (s.state === 'stopped' || s.state === 'done')
+    return err(coreError('conflict', `the session is ${s.state}`));
+  const text = o.text.trim();
+  if (text.length > SESSION_NOTE_MAX) {
+    return err(coreError('invalid_input', `a note is at most ${SESSION_NOTE_MAX} characters`));
+  }
+  if (text !== '') {
+    const n = narrowOnly(text);
+    if (!n.ok) return err(coreError('invalid_input', n.reason));
+  }
+  const masked = maskSecrets(text);
+  const w = await appendConsoleTurn(d, {
+    s0_id: o.s0_id,
+    owner: o.by,
+    turn:
+      text === ''
+        ? {
+            role: 'person',
+            text: 'Note for the onboarder cleared.',
+            observed: 'session_note_cleared',
+          }
+        : {
+            role: 'person',
+            text: `${NOTE_PREFIX}${masked.text}`,
+            redactions: masked.redactions,
+            observed: 'session_note',
+          },
+    ...(s.state === 'awaiting_person'
+      ? { state: { state: 'running' as const, cause: 'person' as const, by: o.by } }
+      : {}),
+  });
+  return w.ok ? ok({ cleared: text === '' }) : w;
+}

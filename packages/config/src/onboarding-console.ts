@@ -38,3 +38,35 @@ export function registerOnboardingConsoleConfig(registry: ConfigRegistry): Confi
         'the factory guidelines for the onboarding agent: plain text, read as fenced Guidance that can narrow what it does and never widen it. Factory layer only, M1-gated',
     });
 }
+
+type Snapshot = {
+  readonly rejected: readonly string[];
+  readonly revisions?: { readonly factory: string | null };
+  get(key: string): unknown;
+};
+
+/**
+ * `onboarding.console` from a config reader's snapshot. A published value that does not read is NOT the default: the
+ * console is off until a person fixes it (fail closed).
+ */
+export function onboardingConsoleFrom(c: Snapshot): OnboardingConsoleConfig {
+  if (c.rejected.includes(ONBOARDING_CONSOLE_KEY))
+    return { ...DEFAULT_ONBOARDING_CONSOLE, enabled: false };
+  const p = OnboardingConsoleConfig.safeParse(
+    c.get(ONBOARDING_CONSOLE_KEY) ?? DEFAULT_ONBOARDING_CONSOLE,
+  );
+  return p.success ? p.data : { ...DEFAULT_ONBOARDING_CONSOLE, enabled: false };
+}
+
+/**
+ * `onboarding.agent_guidelines` from a snapshot, with the factory revision it came from (recorded on each turn). A
+ * value that does not read is empty guidelines, never a guess.
+ */
+export function agentGuidelinesFrom(c: Snapshot): { text: string; revision: string } {
+  const revision = c.revisions?.factory ?? 'default';
+  if (c.rejected.includes(ONBOARDING_AGENT_GUIDELINES_KEY)) return { text: '', revision };
+  const p = AgentGuidelines.safeParse(
+    c.get(ONBOARDING_AGENT_GUIDELINES_KEY) ?? DEFAULT_AGENT_GUIDELINES,
+  );
+  return { text: p.success ? p.data.text : '', revision };
+}

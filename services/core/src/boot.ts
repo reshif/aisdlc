@@ -1,5 +1,7 @@
 import {
+  agentGuidelinesFrom,
   followSettings,
+  onboardingConsoleFrom,
   ConfigReader,
   ConfigRegistry,
   registerGatewayConfig,
@@ -180,6 +182,12 @@ export async function bootCore(env: Env): Promise<RunningService> {
             knowledge: cfg.cards.knowledge,
             gateway: cfg.assistant.gateway,
             extraModels: cfg.assistant.extraModels,
+            ...(reader
+              ? {
+                  config: () => onboardingConsoleFrom((reader as ConfigReader).current()),
+                  guidelines: () => agentGuidelinesFrom((reader as ConfigReader).current()),
+                }
+              : {}),
           })
         : undefined;
     const app = createCoreApp({
