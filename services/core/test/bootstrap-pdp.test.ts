@@ -3,6 +3,7 @@ import {
   CardOpenedPayload,
   S0_EVENT,
   cardStream,
+  isAdminOverride,
   pdpResource,
   type PdpResource,
 } from '@aisdlc/contracts';
@@ -50,8 +51,12 @@ afterAll(async () => {
 const h = makeHarness(() => s, 'bpdp');
 const { scenario, sync, actionable, detail, ok, c1Content, c4Content, events } = h;
 
-const allowed = async (pdp: Pdp, who: string, action: string, resource: PdpResource) =>
-  (await pdp.decide({ principal: who, action, resource }, { log: false })).decision === 'allow';
+// Owner decision 2026-11-13: a factory admin may decide anything, but only through the override (recorded, with a
+// reason). What these tests hold is what the GRANT permits: an allow that is not the override.
+const allowed = async (pdp: Pdp, who: string, action: string, resource: PdpResource) => {
+  const d = await pdp.decide({ principal: who, action, resource }, { log: false });
+  return d.decision === 'allow' && !isAdminOverride(d);
+};
 const decideCard = (pdp: Pdp, who: string, project: string, card: string) =>
   allowed(pdp, who, 'card.decide', pdpResource.card(project, card));
 

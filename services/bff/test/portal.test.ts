@@ -719,10 +719,14 @@ describe('the inbox', () => {
     expect(bob.json.view.map((i: Json) => i.label)).toEqual(['C1', null, 'C4']);
     expect(bob.json.view[0].deciders[0].display_name).toBe('Person alice');
     expect(bob.json.view.every((i: Json) => i.may_decide === false)).toBe(true);
-    // a bare factory admin sees both projects and decides neither: no project role, so the PDP says no
+    // a bare factory admin sees both projects. Owner decision 2026-11-13: nothing applies to the factory admin, so the
+    // PDP allows it every decision (as the override, recorded with a reason when it acts); what lands in its "decide"
+    // is still only what it is a decider of: the card it holds, never alice's
     const root = await api('root', 'GET', '/api/inbox');
-    expect(root.json.view).toHaveLength(4);
-    expect(root.json.decide).toEqual([]);
+    expect(root.json.view).toHaveLength(3);
+    expect(root.json.decide.map((i: Json) => [i.kind, i.label, i.holders])).toEqual([
+      ['onboarding_card', 'C1', ['root']],
+    ]);
   });
 
   it('a stranger sees nothing; a core failure is a 502; garbage from core is refused', async () => {
