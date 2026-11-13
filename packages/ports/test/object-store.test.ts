@@ -192,6 +192,35 @@ describe.skipIf(!reachable)('S3ObjectStore against MinIO', () => {
     expect((await s3.get(b, put.value.sha256)).ok).toBe(true);
   });
 
+  it('knownBuckets: an adapter that sends no bucket request purges what another adapter stored (the deletion)', async () => {
+    const b = nameFor('known');
+    const writer = mk();
+    await writer.declareBucket(b, 'write_once');
+    const put = await writer.put(b, new TextEncoder().encode('held'), {
+      contentType: 'text/plain',
+    });
+    if (!put.ok) throw new Error('put failed');
+    const seen: string[] = [];
+    const purger = new S3ObjectStore({
+      endpoint: m.endpoint,
+      accessKeyRef: `file:${join(dir, 'access')}`,
+      secretKeyRef: `file:${join(dir, 'secret')}`,
+      knownBuckets: { [b]: 'write_once' },
+      fetch: (input, init) => {
+        seen.push(`${init?.method ?? 'GET'} ${new URL(String(input)).search}`);
+        return fetch(input, init);
+      },
+    });
+    expect((await purger.purge(b, put.value.sha256)).ok).toBe(true);
+    expect((await writer.get(b, put.value.sha256)).ok).toBe(false);
+    // list versions, lift the hold, delete the version: no CreateBucket, no object-lock read
+    expect(seen.map((s) => s.split(/[=&]/)[0])).toEqual([
+      'GET ?versions',
+      'PUT ?legal-hold',
+      'DELETE ?versionId',
+    ]);
+  });
+
   it('an existing bucket with the wrong mode is a conflict across adapter instances', async () => {
     const b = nameFor('xmode');
     expect((await mk().declareBucket(b, 'normal')).ok).toBe(true);

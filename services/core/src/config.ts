@@ -34,6 +34,7 @@ const Callers = z.record(
           'erasure',
           'activity',
           'secrets',
+          'delete',
         ]),
       )
       .min(1),
