@@ -63,3 +63,4 @@ export * from './service-env.js';
 export * from './audit.js';
 export * from './floor.js';
 export * from './ops-health.js';
+export * from './portal-ops.js';

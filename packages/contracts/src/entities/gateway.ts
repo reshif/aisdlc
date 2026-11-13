@@ -247,6 +247,8 @@ export const GATEWAY_EVENT = {
   vkey_minted: 'gateway.vkey_minted',
   vkey_revoked: 'gateway.vkey_revoked',
   reservation_abandoned: 'gateway.reservation_abandoned',
+  /** P2-5: an operator's connection test of one provider (`ProviderTestedPayload`, contracts portal-ops.ts). */
+  provider_tested: 'gateway.provider_tested',
 } as const;
 export type GatewayEventType = (typeof GATEWAY_EVENT)[keyof typeof GATEWAY_EVENT];
 
