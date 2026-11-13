@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import type { BudgetRow, CostDay, MergedItemCost } from '@aisdlc/contracts';
+import { label, type BudgetRow, type CostDay, type MergedItemCost } from '@aisdlc/contracts';
+import { TabHead } from '../operate/TabHead';
 import { useState } from 'react';
 import { api } from '../api';
 import { Read, itemKey } from '../components/Read';
 import { shortTime } from '../format';
 import { Link } from '../router';
-import { Card, EmptyState, PageHead, Pill, Stat, Stats, Table, type Column } from '../ui';
+import { Card, EmptyState, Pill, Stat, Stats, Table, type Column } from '../ui';
 
 // P2-8 (docs/design/portal-review.md §12): Operate › Budgets and Govern › Cost, from the gateway's metered
 // `gateway.model_call` events (core sums the record; the gateway adds its live limits and reservations). Reads only:
@@ -89,15 +90,9 @@ export function BudgetsPage() {
   const q = useQuery({ queryKey: ['budgets'], queryFn: api.budgets, refetchInterval: 30_000 });
   return (
     <>
-      <PageHead
-        eyebrow="Operate"
-        title="Budgets"
-        sub="Every budget group of the model gateway: what settled calls spent, what calls in flight hold, and whether its hard stop was hit (ET1 hands the item to a person). Limits and holds are the gateway's own; when it does not answer they are unknown, never zero."
-        actions={
-          <Link to="/cost" className="ui-btn">
-            Cost reports
-          </Link>
-        }
+      <TabHead
+        title={label('screen', 'budgets')}
+        sub="Every budget: what finished calls spent, what calls in flight hold, and whether it ran out (the item then goes to a person). When the gateway does not answer, amounts are unknown, never zero."
       />
       <Read q={q} what="the budget groups">
         {(v) => {
@@ -181,15 +176,9 @@ export function CostPage() {
   const q = useQuery({ queryKey: ['cost', days], queryFn: () => api.cost(days) });
   return (
     <>
-      <PageHead
-        eyebrow="Govern"
-        title="Cost"
-        sub="What the model gateway metered: spend per day and project, by outcome, and what each merged item cost over every call made for it. Amounts are the gateway's prices (config gateway.models); refused calls cost nothing."
-        actions={
-          <Link to="/budgets" className="ui-btn">
-            Budgets
-          </Link>
-        }
+      <TabHead
+        title={label('screen', 'spend')}
+        sub="What models cost: per day and project, by outcome, and what each merged item cost."
       />
       <div className="pg-inline" role="group" aria-label="Range">
         {RANGES.map((d) => (

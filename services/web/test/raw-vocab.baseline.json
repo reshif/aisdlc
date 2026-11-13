@@ -7,7 +7,6 @@
   "cards/C3Form.tsx": 4,
   "cards/C4Form.tsx": 4,
   "cards/C5Panel.tsx": 4,
-  "config/ConfigConsole.tsx": 2,
   "floor/FleetPage.tsx": 2,
   "items/DocumentsTab.tsx": 1,
   "items/PlanForm.tsx": 1,
@@ -22,6 +21,5 @@
   "pages/LearnPage.tsx": 5,
   "pages/PackPage.tsx": 1,
   "pages/ProjectDetail.tsx": 3,
-  "pages/PrrPage.tsx": 3,
-  "pages/QualityPages.tsx": 2
+  "pages/PrrPage.tsx": 3
 }

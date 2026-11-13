@@ -118,6 +118,9 @@ SELECT format('CREATE ROLE %I LOGIN', r)
 -- owner role (the schemas of core, bff and others migrate at their own start); the cloud target
 -- splits migrator and service roles (RV §7).
 SELECT format('ALTER ROLE aisdlc CREATEROLE PASSWORD %L', :'pw_aisdlc') \gexec
+-- Postgres 16: a CREATEROLE role grants only the roles it administers. The record migration 0005 (deletion's purge
+-- path) grants aisdlc_app to aisdlc_purge as the owner role, so the owner administers aisdlc_app.
+GRANT aisdlc_app TO aisdlc WITH ADMIN OPTION;
 SELECT format('ALTER ROLE notary PASSWORD %L', :'pw_notary') \gexec
 SELECT format('ALTER ROLE witness PASSWORD %L', :'pw_witness') \gexec
 SELECT format('ALTER ROLE killswitch PASSWORD %L', :'pw_killswitch') \gexec

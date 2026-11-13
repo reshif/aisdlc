@@ -11,6 +11,8 @@ import type {
   ConfigLayerKind,
   ConfigRevisionState,
   ControlId,
+  SettingApplies,
+  SettingsSection,
   ControlKind,
   ControlState,
   DriftEffect,
@@ -1703,6 +1705,30 @@ const configKey: Readonly<Record<ConfigKeyTerm, Term>> = {
   'access.roles': t('Roles and permissions', 'The roles and what each may do.'),
 };
 
+/** The sections of Settings (screen-map §2.11) as the left list names them. */
+const settingsSection: Readonly<Record<SettingsSection, Term>> = {
+  general: t('General', 'Working days, who approves settings, sign-in, health and limits.'),
+  tracks: t('Tracks', 'What each track runs, its limits and its budget.'),
+  approvals: t('Approvals', 'Who decides each approval and its timers.'),
+  onboarding: t('Onboarding', 'How a repo is onboarded and kept ready.'),
+  factory_rules: t('Factory rules', 'The rules every design and change is checked against.'),
+  sandboxes: t('Sandboxes', 'Sandbox limits, images and where agents may run code.'),
+  retention: t('Retention', 'How long each kind of data is kept.'),
+  agents: t('Agents', 'Agents on or off, their models, limits and the evaluation gate.'),
+  integrations: t('Integrations', 'Outside services, models and notification channels.'),
+  project_defaults: t('Project defaults', 'What every project has until it sets its own.'),
+  access_policy: t('Access policy', 'The roles and the permission rules in force.'),
+  other: t('Other settings', 'Settings with no section yet.'),
+};
+
+const SETTING_APPLIES_TIP = 'When a change to this setting takes effect.';
+const settingsApplies: Readonly<Record<SettingApplies, Term>> = {
+  now: t('Applies now', SETTING_APPLIES_TIP),
+  new_items: t('New items only', SETTING_APPLIES_TIP),
+  new_onboardings: t('New onboardings only', SETTING_APPLIES_TIP),
+  next_start: t('At the next restart', SETTING_APPLIES_TIP),
+};
+
 const configLayer: Readonly<Record<ConfigLayerKind, Term>> = {
   factory: t('Factory-wide', 'Where a setting applies.'),
   project: t('This project', 'Where a setting applies.'),
@@ -2045,6 +2071,8 @@ export const GLOSSARY = {
   notificationKind,
   notificationReason,
   configKey,
+  settingsSection,
+  settingsApplies,
   configLayer,
   configRevision,
   status,
@@ -2103,6 +2131,22 @@ export const PROPOSED_TERMS: ReadonlyArray<readonly [GlossaryFamily, string]> = 
   ['configKey', 'sandbox.profiles'],
   ['configKey', 'planning.size_share'],
   ['configKey', 'access.roles'],
+  ['settingsSection', 'general'],
+  ['settingsSection', 'tracks'],
+  ['settingsSection', 'approvals'],
+  ['settingsSection', 'onboarding'],
+  ['settingsSection', 'factory_rules'],
+  ['settingsSection', 'sandboxes'],
+  ['settingsSection', 'retention'],
+  ['settingsSection', 'agents'],
+  ['settingsSection', 'integrations'],
+  ['settingsSection', 'project_defaults'],
+  ['settingsSection', 'access_policy'],
+  ['settingsSection', 'other'],
+  ['settingsApplies', 'now'],
+  ['settingsApplies', 'new_items'],
+  ['settingsApplies', 'new_onboardings'],
+  ['settingsApplies', 'next_start'],
   ['document', 'request'],
   ['document', 'intent_block'],
   ['document', 'context_brief'],

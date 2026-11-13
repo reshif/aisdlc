@@ -6,6 +6,8 @@ import { ErrorNote } from '../components/Notice';
 import { Read, ShortHash } from '../components/Read';
 import { Link } from '../router';
 import { Card, KeyValue, PageHead, Pill } from '../ui';
+import { label } from '@aisdlc/contracts';
+import { keyName, settingHref } from '../settings/SettingsPage';
 
 // The factory M1 (M15.5): a factory-layer configuration revision as something to decide, the decide half of the
 // configuration console. The policy (`factory.m1_policy`) names the role and how many approvals it takes; the
@@ -69,11 +71,13 @@ export function FactoryRevisionPage({
       {(v) => (
         <>
           <PageHead
-            eyebrow="Govern · factory M1"
-            title="A factory configuration revision"
-            crumbs={[{ label: 'Configuration', to: '/config' }, { label: 'revision' }]}
+            title={label('gate', 'M1')}
+            crumbs={[
+              { label: label('screen', 'settings'), to: '/settings' },
+              { label: 'A change' },
+            ]}
             renderLink={(to, label) => <Link to={to}>{label}</Link>}
-            sub="Every key the revision changes, before and after. A factory admin other than the proposer approves; how many approvals it takes is itself configuration."
+            sub="Every setting the change touches, before and after. Someone other than the proposer approves; how many approvals it takes is itself a setting."
           />
           <Card title="Decision">
             <KeyValue
@@ -103,9 +107,7 @@ export function FactoryRevisionPage({
             {v.changes.map((c) => (
               <section key={c.key} aria-label={`Change of ${c.key}`} className="pg-preview">
                 <h3>
-                  <Link to={`/config/${c.key}`}>
-                    <code>{c.key}</code>
-                  </Link>
+                  <Link to={settingHref(c.key)}>{keyName({ key: c.key })}</Link>
                 </h3>
                 <div className="pg-split">
                   <div>

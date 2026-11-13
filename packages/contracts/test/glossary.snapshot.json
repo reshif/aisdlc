@@ -2858,6 +2858,74 @@
       "explain": "The roles and what each may do."
     }
   },
+  "settingsSection": {
+    "general": {
+      "label": "General",
+      "explain": "Working days, who approves settings, sign-in, health and limits."
+    },
+    "tracks": {
+      "label": "Tracks",
+      "explain": "What each track runs, its limits and its budget."
+    },
+    "approvals": {
+      "label": "Approvals",
+      "explain": "Who decides each approval and its timers."
+    },
+    "onboarding": {
+      "label": "Onboarding",
+      "explain": "How a repo is onboarded and kept ready."
+    },
+    "factory_rules": {
+      "label": "Factory rules",
+      "explain": "The rules every design and change is checked against."
+    },
+    "sandboxes": {
+      "label": "Sandboxes",
+      "explain": "Sandbox limits, images and where agents may run code."
+    },
+    "retention": {
+      "label": "Retention",
+      "explain": "How long each kind of data is kept."
+    },
+    "agents": {
+      "label": "Agents",
+      "explain": "Agents on or off, their models, limits and the evaluation gate."
+    },
+    "integrations": {
+      "label": "Integrations",
+      "explain": "Outside services, models and notification channels."
+    },
+    "project_defaults": {
+      "label": "Project defaults",
+      "explain": "What every project has until it sets its own."
+    },
+    "access_policy": {
+      "label": "Access policy",
+      "explain": "The roles and the permission rules in force."
+    },
+    "other": {
+      "label": "Other settings",
+      "explain": "Settings with no section yet."
+    }
+  },
+  "settingsApplies": {
+    "now": {
+      "label": "Applies now",
+      "explain": "When a change to this setting takes effect."
+    },
+    "new_items": {
+      "label": "New items only",
+      "explain": "When a change to this setting takes effect."
+    },
+    "new_onboardings": {
+      "label": "New onboardings only",
+      "explain": "When a change to this setting takes effect."
+    },
+    "next_start": {
+      "label": "At the next restart",
+      "explain": "When a change to this setting takes effect."
+    }
+  },
   "configLayer": {
     "factory": {
       "label": "Factory-wide",

@@ -56,6 +56,7 @@ import {
   RevisionEvidenceRequest,
   RevisionPrepareRequest,
   ConfigProposeRequest,
+  SettingPreviewCoreRequest,
   RoleMap,
   SubmitRequestBody,
   RepoFullName,
@@ -167,6 +168,7 @@ import {
   projectConfigKeyView,
   proposeConfigKey,
 } from './config-console.js';
+import { previewSetting } from './settings-preview.js';
 import { destroySecret, listSecrets, putSecret, type SecretDeps } from './secrets.js';
 import {
   cardDetail,
@@ -2135,6 +2137,25 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
       parent_rev_hash: b.value.parent_rev_hash,
     });
     return r.ok ? reply.code(201).send(r.value) : fail(reply, r.error);
+  });
+
+  // portal v2 N8: the effect of a draft before it is proposed (reads only; the propose path checks again)
+  app.post('/v1/config/keys/:key/preview', async (req, reply) => {
+    if (!allowed(req, 'portal'))
+      return sendError(reply, 403, 'forbidden', 'scope portal is needed');
+    const config = configOr(reply);
+    const key = keyParam(req);
+    if (!config) return;
+    if (!key) return fail(reply, coreError('invalid_input', 'bad config key'));
+    const b = parse(SettingPreviewCoreRequest, req.body);
+    if (!b.ok) return fail(reply, b.error);
+    if (!(await guard(reply, b.value.on_behalf_of, 'config.propose', pdpResource.fleet()))) return;
+    try {
+      const r = await previewSetting(config, key, b.value.value);
+      return r.ok ? r.value : fail(reply, r.error);
+    } catch {
+      return fail(reply, coreError('unavailable', 'the configuration could not be read'));
+    }
   });
 
   // ------------------------------------------------------------ the project layer (P1-5)

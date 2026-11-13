@@ -65,7 +65,11 @@ describe('Operate › Budgets and Govern › Cost (P2-8)', () => {
     const quiet = within(table).getByRole('row', { name: /unit-quiet/ });
     expect(quiet).toHaveTextContent('limits unknown');
     expect(quiet).toHaveTextContent('none yet');
-    expect(screen.getByRole('link', { name: 'Budgets' })).toHaveAttribute('aria-current', 'page');
+    const tabs = screen.getByRole('navigation', { name: 'Operate tabs' });
+    expect(within(tabs).getByRole('link', { name: 'Spend' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
   it('cost: per project, per day, by outcome and per merged item, with a range', async () => {
@@ -117,12 +121,16 @@ describe('Operate › Budgets and Govern › Cost (P2-8)', () => {
     expect(screen.getByRole('button', { name: '7 days' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('the nav lists Budgets under Operate for ops.read and Cost under Govern for quality.read only', async () => {
-    mockApi({ 'GET /api/me': { json: me(['ops.read']) }, 'GET /api/budgets': { json: budgets } });
-    renderAt('/budgets');
+  it('Spend shows the budgets for ops.read, and the cost reports only for quality.read', async () => {
+    const m = mockApi({
+      'GET /api/me': { json: me(['ops.read']) },
+      'GET /api/budgets': { json: budgets },
+    });
+    renderAt('/operate/spend');
     const nav = await screen.findByRole('navigation', { name: 'Main' });
-    expect(within(nav).getByRole('link', { name: 'Budgets' })).toBeInTheDocument();
-    expect(within(nav).queryByRole('link', { name: 'Cost' })).toBeNull();
+    expect(within(nav).getByRole('link', { name: 'Operate' })).toBeInTheDocument();
+    await screen.findByRole('table', { name: 'Budget groups' });
+    expect(m.calls.some((c) => c.path.startsWith('/api/cost'))).toBe(false);
   });
 });
 
@@ -287,16 +295,11 @@ describe('Models › providers at the gateway (P2-5)', () => {
       'POST /api/models/reload': { json: { revision: 'r'.repeat(64), integrations: [] } },
     });
     renderAt('/models');
-    const table = await screen.findByRole('table', {
-      name: 'Model providers as the gateway built them',
-    });
-    expect(within(table).getByRole('row', { name: /deepseek/ })).toHaveTextContent(
-      'refused: key_ref_not_allowed',
-    );
-    expect(screen.getByText('api.anthropic.com')).toBeInTheDocument();
+    const table = await screen.findByRole('table', { name: 'Providers the gateway runs' });
+    expect(within(table).getByRole('row', { name: /deepseek/ })).toHaveTextContent('Not ready');
     await user.click(await within(table).findByRole('button', { name: 'Test anthropic' }));
-    expect(await within(table).findByText(/ok · 120 ms · 4 tokens/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Reload all (after a key rotation)' }));
+    expect(await within(table).findByText(/Worked in 120 ms/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Reload after a key change' }));
     await waitFor(() => expect(m.calls.some((c) => c.path === '/api/models/reload')).toBe(true));
     expect(m.calls.find((c) => c.path === '/api/models/reload')?.body).toEqual({ force: true });
   });

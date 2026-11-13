@@ -137538,6 +137538,108 @@
       ],
       "additionalProperties": false
     },
+    "SettingApplies": {
+      "type": "string",
+      "enum": [
+        "now",
+        "new_items",
+        "new_onboardings",
+        "next_start"
+      ]
+    },
+    "SettingPreview": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applies": {
+          "type": "string",
+          "enum": [
+            "now",
+            "new_items",
+            "new_onboardings",
+            "next_start"
+          ]
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "before": {},
+              "after": {}
+            },
+            "required": [
+              "path",
+              "before",
+              "after"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "items_in_progress": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "key",
+        "applies",
+        "valid",
+        "problems",
+        "changes",
+        "effects",
+        "items_in_progress"
+      ],
+      "additionalProperties": false
+    },
+    "SettingPreviewCoreRequest": {
+      "type": "object",
+      "properties": {
+        "value": {},
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "value",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
+    "SettingPreviewRequest": {
+      "type": "object",
+      "properties": {
+        "value": {}
+      },
+      "required": [
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "SettingsRevisionView": {
       "type": "object",
       "properties": {
@@ -138025,6 +138127,23 @@
         "deciders"
       ],
       "additionalProperties": false
+    },
+    "SettingsSection": {
+      "type": "string",
+      "enum": [
+        "general",
+        "tracks",
+        "approvals",
+        "onboarding",
+        "factory_rules",
+        "sandboxes",
+        "retention",
+        "agents",
+        "integrations",
+        "project_defaults",
+        "access_policy",
+        "other"
+      ]
     },
     "Sha256Hex": {
       "type": "string",
