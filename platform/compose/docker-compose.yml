@@ -470,6 +470,35 @@ services:
     networks: [data-record, data-notary, data-witness, data-killswitch]
     mem_limit: 64m
 
+  # The init step of the named volumes (volume-init.sh): every volume a factory service writes is given to the uid
+  # the stack runs as (AISDLC_UID:AISDLC_GID) and made 0700, before that service starts. A fresh volume takes the
+  # image directory's owner (10001 in the factory image, root in MinIO's), so without it a stack started by any other
+  # uid (a normal user, a CI runner) cannot write its own state. The one container that runs as root: no network, a
+  # read-only root, the three capabilities chown needs (CHOWN; FOWNER for the chmod; DAC_READ_SEARCH to walk a
+  # restored volume's 0700 directories) and no secret. File modes are kept (a key file stays 0600). Idempotent.
+  volume-init:
+    image: postgres:16.4@sha256:e62fbf9d3e2b49816a32c400ed2dba83e3b361e6833e624024309c35d334b412
+    user: '0:0'
+    restart: 'no'
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_READ_SEARCH]
+    security_opt: ['no-new-privileges:true']
+    entrypoint: ['sh', '/volume-init.sh']
+    environment:
+      AISDLC_UID: ${AISDLC_UID:?run ./init-secrets first}
+      AISDLC_GID: ${AISDLC_GID:?run ./init-secrets first}
+    volumes:
+      - ./volume-init.sh:/volume-init.sh:ro
+      - kms-state:/v/kms-state
+      - codehost-work:/v/codehost-work
+      - core-worker-sessions:/v/core-worker-sessions
+      - knowledge-work:/v/knowledge-work
+      - objectstore-data:/v/objectstore-data
+    mem_limit: 32m
+    pids_limit: 32
+
   # `aisdlc-migrate` first: every schema in dependency order, the Notary's, the Witness's and the kill
   # switch's databases too (--notary --witness --killswitch). This service also builds the image (see Dockerfile).
   migrate:
@@ -551,6 +580,7 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
+      volume-init: { condition: service_completed_successfully }
     networks: [kms-notary, kms-witness, kms-killswitch, kms-clients, telemetry-kms-local]
     mem_limit: 128m
 
@@ -1083,6 +1113,7 @@ services:
       start_period: 15s
     depends_on:
       migrate: { condition: service_completed_successfully }
+      volume-init: { condition: service_completed_successfully }
       core: { condition: service_healthy }
       codehost: { condition: service_healthy }
       knowledge: { condition: service_healthy }
@@ -1168,6 +1199,7 @@ services:
       start_period: 5s
     depends_on:
       migrate: { condition: service_completed_successfully }
+      volume-init: { condition: service_completed_successfully }
     networks:
       [
         app,
@@ -1222,6 +1254,7 @@ services:
       start_period: 8s
     depends_on:
       migrate: { condition: service_completed_successfully }
+      volume-init: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
       codehost: { condition: service_healthy }
     networks: [app, data-record, kms-clients, telemetry]
@@ -1883,6 +1916,8 @@ services:
     volumes:
       - objectstore-data:/data
     secrets: [object-store-access-key, object-store-secret-key]
+    depends_on:
+      volume-init: { condition: service_completed_successfully }
     healthcheck:
       test:
         - CMD

@@ -84,7 +84,9 @@ shell. Run the first two steps in every new terminal.
 
    You should see a line like
    `init-secrets: 1xx secret files in .../secrets (owner uid ..., mode 0600), GitHub App key: fake, Anthropic key: placeholder`.
-   You can run it again safely: it keeps existing files.
+   You can run it again safely: it keeps existing files. Run it as the user who will run `docker compose` (root or
+   not): the containers run as the uid it writes to `.env` (`AISDLC_UID`/`AISDLC_GID`; 10001 when run as root), so
+   that they can read the secret files.
 
 5. Start the stack on the **fake GitHub**. This is an in-repo stand-in with a seeded repository,
    `reshif/asf-factory-testbed`, so you need no credentials yet:
@@ -102,8 +104,11 @@ shell. Run the first two steps in every new terminal.
    docker compose --profile fake-github ps -a
    ```
 
-   Every long-running service should say `(healthy)`. The three one-shot jobs `db-init`, `migrate` and `seed` should
-   say `Exited (0)`.
+   Every long-running service should say `(healthy)`. The four one-shot jobs `db-init`, `volume-init`, `migrate` and
+   `seed` should say `Exited (0)`. `volume-init` gives the named volumes the services write (key custody's keys, the
+   git scratch space, the session store, the object store) to the uid in `.env`; if a service still logs
+   `EACCES: permission denied` on `/kms` or `/work`, `.env` names another uid than the secrets' owner: run
+   `./init-secrets` again as yourself and bring the stack up again.
 
 7. Open the portal at <http://localhost:8340>. Press **Sign in**. You are sent to the stand-in identity provider at
    `http://dev-oidc.localhost:8390`. Use a browser that resolves `*.localhost` to your own machine; current Chrome

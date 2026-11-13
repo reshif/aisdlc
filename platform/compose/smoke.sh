@@ -3,7 +3,7 @@
 # no credentials. Run it as `npm run smoke:compose` or `platform/compose/smoke.sh`.
 #
 #   1. init-secrets (a no-op when the secrets exist), build the image
-#   2. `up -d --wait`: every service healthy, the one-shot jobs (db-init, migrate, seed) exited 0
+#   2. `up -d --wait`: every service healthy, the one-shot jobs (db-init, volume-init, migrate, seed) exited 0
 #   3. the boundaries hold: only bff and dev-oidc publish a port, no Docker socket anywhere, the App
 #      key only in codehost, knowledge cannot reach GitHub, the codehost cannot reach the trust plane,
 #      the Notary and the Witness cannot reach each other
@@ -38,7 +38,7 @@
 #      refused by the proxy; no sandbox container, network or scratch directory is left behind
 #  12. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
 #
-# SMOKE_SKIP_BUILD=1   use the image aisdlc/factory:local as it is (a network that blocks apt or
+# SMOKE_SKIP_BUILD=1   use the image AISDLC_FACTORY_IMAGE (default aisdlc/factory:local) as it is (a network that blocks apt or
 #                      the npm registry: build it yourself, see README.md)
 # SMOKE_KEEP=1         leave the stack running at the end (you remove it with `docker compose down -v`)
 set -euo pipefail
@@ -95,7 +95,7 @@ for p in 8340 8390; do
   if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then fail "port $p is already in use on this host (another stack?)"; fi
 done
 if [ "${SMOKE_SKIP_BUILD:-0}" = 1 ]; then
-  docker image inspect aisdlc/factory:local >/dev/null 2>&1 || fail "SMOKE_SKIP_BUILD=1 but the image aisdlc/factory:local does not exist"
+  docker image inspect "${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local}" >/dev/null 2>&1 || fail "SMOKE_SKIP_BUILD=1 but the image ${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local} does not exist"
 else
   dc build
 fi
@@ -114,14 +114,14 @@ else
   SANDBOX_IMAGE="$SANDBOX_IMAGE" SANDBOX_AGENT_IMAGE="$SANDBOX_AGENT_IMAGE" bash ../sandbox/build-agent.sh >/dev/null || fail "the W (coding session) image did not build"
 fi
 
-step "up -d --wait (db-init, migrate, seed, then every service)"
+step "up -d --wait (db-init, volume-init, migrate, seed, then every service)"
 dc up -d --wait --wait-timeout 300
 
 step "every service is healthy"
 bad=0
 while IFS='|' read -r svc state health code; do
   case "$svc" in
-    db-init|migrate|seed)
+    db-init|volume-init|migrate|seed)
       if [ "$state" = exited ] && [ "$code" = 0 ]; then printf '  %-12s exited 0\n' "$svc"; else printf '  %-12s %s (exit %s)  <-- not ok\n' "$svc" "$state" "$code"; bad=1; fi ;;
     *)
       if [ "$state" = running ] && [ "$health" = healthy ]; then printf '  %-12s healthy\n' "$svc"; else printf '  %-12s %s/%s  <-- not ok\n' "$svc" "$state" "$health"; bad=1; fi ;;
@@ -145,7 +145,14 @@ for p in docker-proxy-cvw docker-proxy-coding; do
   id=$(dc ps -q "$p")
   [ "$(docker inspect "$id" --format '{{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}} {{.Config.User}}')" = "true [ALL] $(sed -n 's/^AISDLC_UID=//p' .env):$(sed -n 's/^AISDLC_GID=//p' .env)" ] || fail "$p is not read-only, cap-dropped and non-root"
 done
-echo "  both proxies are read-only, drop all capabilities and run as the factory uid" 
+echo "  both proxies are read-only, drop all capabilities and run as the factory uid"
+# volume-init gave each written volume to the factory uid, 0700 (a fresh volume takes the image directory's owner)
+want_owner="$(sed -n 's/^AISDLC_UID=//p' .env):$(sed -n 's/^AISDLC_GID=//p' .env) 700"
+for sv in kms-local:/kms codehost:/work knowledge:/work core-worker:/work; do
+  got=$(dc exec -T "${sv%%:*}" node -e 'const s=require("fs").statSync(process.argv[1]);console.log(`${s.uid}:${s.gid} ${(s.mode&0o777).toString(8)}`)' "${sv#*:}")
+  [ "$got" = "$want_owner" ] || fail "${sv%%:*}'s volume ${sv#*:} is $got, not $want_owner"
+done
+echo "  the written volumes belong to the factory uid ($want_owner)"
 others=$(for s in $(dc ps --format '{{.Service}}'); do
   [ "$s" = codehost ] && continue
   dc exec -T "$s" test -e /run/secrets/github-app.pem 2>/dev/null && echo "$s"
