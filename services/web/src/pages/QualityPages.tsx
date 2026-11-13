@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   GATEWAY_CONFIG_KEYS,
+  pdpResource,
+  type ProviderTestResult,
   GatewayModels,
   GatewayRoutes,
   STEPS,
@@ -8,6 +10,8 @@ import {
   type EvalRunHeader,
   type IntegrationHealthTile,
 } from '@aisdlc/contracts';
+import { useState } from 'react';
+import { Guarded } from '../access';
 import { ApiError, api } from '../api';
 import { ErrorNote, Loading } from '../components/Notice';
 import { NotBuilt, Read, ShortHash } from '../components/Read';
@@ -23,6 +27,7 @@ import {
   Stat,
   Stats,
   Table,
+  useToast,
   type Column,
   type PillTone,
 } from '../ui';
@@ -409,7 +414,143 @@ function ConfigTable({ configKey }: { configKey: string }) {
   );
 }
 
-export function ModelsPage() {
+/**
+ * P2-5: the gateway's model providers as it built them, the deployment's bounds on a registry row, and two acts:
+ * Test (one tiny metered call to that provider) and Reload (rebuild the adapters, `force` after a key file was
+ * rotated). Both are `config.propose` on the fleet, decided by the bff; the gateway records the test.
+ */
+function ProvidersCard({ csrf }: { csrf: string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({ queryKey: ['model-providers'], queryFn: api.modelProviders, retry: false });
+  const [results, setResults] = useState<Record<string, ProviderTestResult>>({});
+  const test = useMutation({
+    mutationFn: (id: string) => api.testProvider(id, csrf),
+    onSuccess: (r) => setResults((m) => ({ ...m, [r.integration_id]: r })),
+  });
+  const reload = useMutation({
+    mutationFn: (force: boolean) => api.reloadProviders(force, csrf),
+    onSuccess: (r) => {
+      toast(`The gateway follows revision ${r.revision?.slice(0, 12) ?? 'none'}.`, 'ok');
+      void qc.invalidateQueries({ queryKey: ['model-providers'] });
+    },
+  });
+  const fleet = pdpResource.fleet();
+  return (
+    <Card
+      title="Providers at the gateway"
+      actions={
+        <Guarded action="config.propose" resource={fleet} label="Reload" mode="hide">
+          <button
+            type="button"
+            className="ui-btn ui-btn-sm"
+            disabled={reload.isPending}
+            onClick={() => reload.mutate(false)}
+          >
+            Reload
+          </button>{' '}
+          <button
+            type="button"
+            className="ui-btn ui-btn-sm"
+            disabled={reload.isPending}
+            onClick={() => reload.mutate(true)}
+          >
+            Reload all (after a key rotation)
+          </button>
+        </Guarded>
+      }
+    >
+      {reload.isError ? <ErrorNote error={reload.error} /> : null}
+      <Read q={q} what="the gateway's providers">
+        {(v) => (
+          <>
+            <Table
+              caption="Model providers as the gateway built them"
+              captionHidden
+              columns={[
+                {
+                  key: 'i',
+                  header: 'Provider',
+                  rowHeader: true,
+                  render: (p) => <code>{p.integration_id}</code>,
+                },
+                { key: 'a', header: 'Adapter', render: (p) => p.adapter },
+                {
+                  key: 's',
+                  header: 'State',
+                  render: (p) => (
+                    <Pill tone={p.state === 'built' ? 'ok' : 'bad'}>
+                      {p.state === 'built' ? 'built' : `refused: ${p.detail}`}
+                    </Pill>
+                  ),
+                },
+                {
+                  key: 't',
+                  header: 'Last test',
+                  render: (p) => {
+                    const r = results[p.integration_id];
+                    if (!r) return <span className="muted">not tested here</span>;
+                    return r.outcome === 'ok' ? (
+                      <Pill tone="ok">
+                        ok · {r.latency_ms} ms · {r.tokens_in + r.tokens_out} tokens
+                      </Pill>
+                    ) : (
+                      <Pill tone="bad">
+                        {r.outcome}
+                        {r.code ? `: ${r.code}` : ''}
+                      </Pill>
+                    );
+                  },
+                },
+                {
+                  key: 'b',
+                  header: 'Test',
+                  render: (p) => (
+                    <Guarded
+                      action="config.propose"
+                      resource={fleet}
+                      label={`Test ${p.integration_id}`}
+                    >
+                      <button
+                        type="button"
+                        className="ui-btn ui-btn-sm"
+                        disabled={test.isPending}
+                        onClick={() => test.mutate(p.integration_id)}
+                      >
+                        Test {p.integration_id}
+                      </button>
+                    </Guarded>
+                  ),
+                },
+              ]}
+              rows={v.integrations}
+              rowKey={(p) => p.integration_id}
+              empty={
+                <EmptyState title="No provider is enabled">
+                  Add one to the integration registry in Configuration.
+                </EmptyState>
+              }
+            />
+            {test.isError ? <ErrorNote error={test.error} /> : null}
+            <KeyValue
+              rows={[
+                ['Revision', v.revision ? <code key="r">{v.revision.slice(0, 12)}</code> : 'none'],
+                ['Key references allowed', v.bounds.secret_refs.join(', ') || 'none'],
+                ['Hosts a key may be sent to', v.bounds.egress_hosts.join(', ') || 'none'],
+              ]}
+            />
+            <p className="muted">
+              A test is one call of one token to the provider&rsquo;s cheapest model, metered and
+              recorded with who asked; no budget group pays for it.
+            </p>
+          </>
+        )}
+      </Read>
+    </Card>
+  );
+}
+
+export function ModelsPage({ csrf }: { csrf: string }) {
   return (
     <>
       <PageHead
@@ -431,6 +572,7 @@ export function ModelsPage() {
           <ConfigTable configKey={GATEWAY_CONFIG_KEYS.routes} />
         </Card>
       </div>
+      <ProvidersCard csrf={csrf} />
     </>
   );
 }

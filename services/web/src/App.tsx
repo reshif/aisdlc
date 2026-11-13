@@ -40,6 +40,7 @@ import {
   SchedulerPage,
 } from './pages/OperatePages';
 import { AuditPage, CataloguePage, FleetLedgerPage } from './pages/GovernPages';
+import { BudgetsPage, CostPage } from './pages/SpendPages';
 import { ExplainPage, PeoplePage, RolesPage, TeamsPage } from './pages/AdminPages';
 import { guardAction, guardOf, guardPasses } from './shell/nav';
 
@@ -180,7 +181,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'evals':
       return <EvalsPage />;
     case 'models':
-      return <ModelsPage />;
+      return <ModelsPage csrf={csrf} />;
     case 'integrations':
       return <IntegrationsPage />;
     case 'scheduler':
@@ -193,6 +194,10 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
       return <KillPage csrf={csrf} />;
     case 'health':
       return <HealthPage />;
+    case 'budgets':
+      return <BudgetsPage />;
+    case 'cost':
+      return <CostPage />;
     case 'fleetLedger':
       return <FleetLedgerPage me={me} />;
     case 'audit':
@@ -212,7 +217,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'onboard':
       return <OnboardPage csrf={me.csrf_token} mayOnboard={mayOnboard} />;
     case 'project':
-      return <ProjectDetailPage id={route.id} />;
+      return <ProjectDetailPage id={route.id} csrf={csrf} />;
     case 's0':
       return <S0Page id={route.id} csrf={me.csrf_token} who={me.principal.display_name} />;
     case 'card':

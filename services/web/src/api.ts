@@ -1,5 +1,12 @@
 import type {
   CardKindView,
+  BreakersView,
+  BudgetsView,
+  CostView,
+  GatewayReloadView,
+  OnboardReposView,
+  ProviderTestResult,
+  PublishBannerBody,
   AccessBindingList,
   AccessChange,
   AccessDecideResult,
@@ -928,7 +935,37 @@ export const api = {
       'GET',
       `/api/projects/${encodeURIComponent(project)}/ledger${s0 ? `?s0=${encodeURIComponent(s0)}` : ''}`,
     ),
+  // the P2 operate and govern gaps (bff ops.ts)
+  budgets: () => request<BudgetsView>('GET', '/api/budgets'),
+  cost: (days: number) => request<CostView>('GET', `/api/cost?days=${days}`),
+  breakers: (project: string) =>
+    request<BreakersView>('GET', `/api/projects/${encodeURIComponent(project)}/breakers`),
+  resetBreaker: (project: string, lane: string, csrf: string) =>
+    request<{ gate_instance_id: string }>(
+      'POST',
+      `/api/projects/${encodeURIComponent(project)}/breakers/${encodeURIComponent(lane)}/reset`,
+      {},
+      csrf,
+    ),
+  publishBanner: (b: PublishBannerBody, csrf: string) =>
+    request<unknown>('POST', '/api/banners', b, csrf),
+  onboardRepos: () => request<OnboardReposView>('GET', '/api/onboard/repos'),
+  modelProviders: () => request<ModelProvidersWire>('GET', '/api/models/providers'),
+  testProvider: (id: string, csrf: string) =>
+    request<ProviderTestResult>(
+      'POST',
+      `/api/models/providers/${encodeURIComponent(id)}/test`,
+      {},
+      csrf,
+    ),
+  reloadProviders: (force: boolean, csrf: string) =>
+    request<GatewayReloadView>('POST', '/api/models/reload', { force }, csrf),
 };
+
+/** `GET /api/models/providers`: the gateway's adapters and the deployment's bounds. */
+export interface ModelProvidersWire extends GatewayReloadView {
+  readonly bounds: { readonly secret_refs: string[]; readonly egress_hosts: string[] };
+}
 
 /** Where the browser downloads a pack's signed bytes (a plain GET with the session cookie). */
 export const signedPackHref = (item: string, pack: string): string =>

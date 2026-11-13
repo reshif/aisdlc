@@ -1,8 +1,9 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LevelValues, TierValues, type Level, type OnboardRequest } from '@aisdlc/contracts';
 import { useId, useState, type FormEvent } from 'react';
 import { api, type OnboardInput } from '../api';
 import { ErrorNote } from '../components/Notice';
+import { describeError } from '../format';
 import { useNavigate } from '../router';
 import { LEVEL_TEXT } from '../vocab';
 
@@ -21,6 +22,68 @@ export const slugOf = (name: string): string =>
 type Attestations = NonNullable<OnboardRequest['attestations']>;
 
 /**
+ * P2-21: the repos the factory's GitHub App installation can see (codehost reads through core), so the person picks
+ * one instead of typing it. A repo a project already holds, or an archived one, is listed but cannot be chosen. When
+ * the list cannot be read (no installation yet, or no right to onboard) the typed fields below still work.
+ */
+function RepoPicker({
+  id,
+  value,
+  onPick,
+}: {
+  id: string;
+  value: string;
+  onPick: (fullName: string) => void;
+}) {
+  const q = useQuery({ queryKey: ['onboard-repos'], queryFn: api.onboardRepos, retry: false });
+  if (q.isPending) return <p className="muted">Reading the App installation&rsquo;s repos…</p>;
+  if (q.isError) {
+    return (
+      <p className="muted" role="note">
+        The App installation&rsquo;s repos could not be read ({describeError(q.error)}). Type the
+        repository below.
+      </p>
+    );
+  }
+  const repos = q.data.repos;
+  if (repos.length === 0) {
+    return (
+      <p className="muted" role="note">
+        The App installation sees no repo yet. Type the repository below, then install the App on
+        it.
+      </p>
+    );
+  }
+  const known = repos.some((r) => r.full_name.toLowerCase() === value.toLowerCase());
+  return (
+    <div className="field">
+      <label htmlFor={id}>From the App installation</label>
+      <select
+        id={id}
+        value={
+          known
+            ? (repos.find((r) => r.full_name.toLowerCase() === value.toLowerCase())?.full_name ??
+              '')
+            : ''
+        }
+        onChange={(e) => {
+          if (e.target.value) onPick(e.target.value);
+        }}
+      >
+        <option value="">Choose a repo, or type it below</option>
+        {repos.map((r) => (
+          <option key={r.full_name} value={r.full_name} disabled={r.registered || r.archived}>
+            {r.full_name}
+            {r.private ? ' (private)' : ''}
+            {r.registered ? ', already a project’s' : r.archived ? ', archived' : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/**
  * "Onboard a repo": the repo, the level asked for, the project slug, and attestations that can only
  * raise the project's risk (never lower it). Whether the person may do this is the server's call;
  * the button is always there and a refusal is shown as one.
@@ -28,7 +91,14 @@ type Attestations = NonNullable<OnboardRequest['attestations']>;
 export function OnboardPage({ csrf, mayOnboard }: { csrf: string; mayOnboard: boolean }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const ids = { owner: useId(), name: useId(), slug: useId(), tier: useId(), level: useId() };
+  const ids = {
+    owner: useId(),
+    name: useId(),
+    slug: useId(),
+    tier: useId(),
+    level: useId(),
+    pick: useId(),
+  };
   const [owner, setOwner] = useState('');
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -107,6 +177,15 @@ export function OnboardPage({ csrf, mayOnboard }: { csrf: string; mayOnboard: bo
 
         <fieldset>
           <legend>Repository</legend>
+          <RepoPicker
+            id={ids.pick}
+            value={owner && name ? `${owner.trim()}/${name.trim()}` : ''}
+            onPick={(full) => {
+              const [o, n] = full.split('/');
+              setOwner(o ?? '');
+              setName(n ?? '');
+            }}
+          />
           <div className="row">
             <div className="field">
               <label htmlFor={ids.owner}>Repository owner</label>
