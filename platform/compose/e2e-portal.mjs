@@ -375,7 +375,7 @@ try {
       return v && (v.waiting === 'human:ready' || v.questions.some((q) => !q.answered)) ? v : null;
     }, 'the item to reach a question or the Ready decision (S1 run by the agents)');
     await page.goto(`${base}/items/${itemId}`);
-    await page.getByRole('heading', { level: 1, name: 'Work item' }).waitFor();
+    await page.getByRole('heading', { level: 1, name: /^Item / }).waitFor();
     if (item.questions.some((q) => !q.answered)) {
       // the browser answers each open question, as the requester
       for (const q of item.questions.filter((x) => !x.answered)) {
@@ -584,7 +584,7 @@ try {
     must(quarantined.waiting?.startsWith('gates'), `Q1 item waits at ${quarantined.waiting}`);
     // the S7 tab shows 7.2 raised
     await bp.goto(`${base}/items/${itemOne}`);
-    await bp.getByRole('heading', { level: 1, name: 'Work item' }).waitFor();
+    await bp.getByRole('heading', { level: 1, name: /^Item / }).waitFor();
     await bp.getByRole('tab', { name: 'Verify' }).click();
     await bp.waitForLoadState('networkidle');
     await audit(bp, 'the Verify tab');
