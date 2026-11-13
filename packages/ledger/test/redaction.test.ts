@@ -184,3 +184,37 @@ describe('redacting ledger entries', () => {
     expect(!marked.ok && marked.error.code).toBe('redaction_unaccounted');
   });
 });
+
+describe('redacting under the deployed row-level security (the audit migration enables it on the ledger)', () => {
+  it('migration 0003 lets the purge role redact; without its policy the UPDATE touches nothing', async () => {
+    // what services/audit/migrations/0001_audit.sql deploys on the ledger: RLS with read and append policies
+    await s.record.pool.query(`ALTER TABLE ledger.ledger_entry ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY ledger_entry_read ON ledger.ledger_entry FOR SELECT USING (true);
+      CREATE POLICY ledger_entry_app_append ON ledger.ledger_entry FOR INSERT TO aisdlc_app WITH CHECK (true);`);
+    expect((await appendLedgerEntry(s.record.pool, s.deps, decisionDraft('rls'))).ok).toBe(true);
+    const seq = Number(
+      (
+        await s.record.pool.query<{ n: string }>(
+          'SELECT max(ledger_seq)::text AS n FROM ledger.ledger_entry',
+        )
+      ).rows[0]?.n,
+    );
+    // without 0003's policy: zero rows, and no error (why the deletion checks the count)
+    const c = await s.record.pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query('DROP POLICY ledger_entry_purge_redact ON ledger.ledger_entry');
+      await c.query('SET LOCAL ROLE aisdlc_purge');
+      expect(await redactEntriesFully(c, deletionId, [seq], clock.now())).toBe(0);
+    } finally {
+      await c.query('ROLLBACK');
+      c.release();
+    }
+    expect(await asPurger((x) => redactEntriesFully(x, deletionId, [seq], clock.now()))).toBe(1);
+    const row = await s.record.pool.query<{ t: string }>(
+      'SELECT entry_type AS t FROM ledger.ledger_entry WHERE ledger_seq = $1',
+      [seq],
+    );
+    expect(row.rows[0]?.t).toBe('redacted');
+  });
+});
