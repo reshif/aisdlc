@@ -111,6 +111,7 @@ import { agentStatsOf, listAgentRuns } from './agent-runs.js';
 import { CorePushGuards, listPullRequests } from './build/push.js';
 import { agentScoresOf, evalHistory, evalSummary, recordEvalRun } from './evals.js';
 import { itemView } from './work-view.js';
+import { pullRequestUrl } from './verify/gate-subject.js';
 import { itemDocumentsView, itemRequestView, itemTimelineView } from './item-portal.js';
 import { DEFAULT_WORK_SETTINGS, type WorkSettings } from './work-control.js';
 import { itemGateLinks } from './item-gates.js';
@@ -790,6 +791,7 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
         head_sha: p.head_sha as never,
         state: p.state as 'open' | 'closed',
         draft: p.draft,
+        url: pullRequestUrl(p.repo, p.number),
       })),
       calendar: (o.workSettings?.() ?? DEFAULT_WORK_SETTINGS).calendar,
     });

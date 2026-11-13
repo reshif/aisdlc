@@ -69983,6 +69983,11 @@
                   },
                   "draft": {
                     "type": "boolean"
+                  },
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
                   }
                 },
                 "required": [
@@ -69992,7 +69997,8 @@
                   "head_ref",
                   "head_sha",
                   "state",
-                  "draft"
+                  "draft",
+                  "url"
                 ],
                 "additionalProperties": false
               }
@@ -74495,6 +74501,11 @@
                   },
                   "draft": {
                     "type": "boolean"
+                  },
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
                   }
                 },
                 "required": [
@@ -74504,7 +74515,8 @@
                   "head_ref",
                   "head_sha",
                   "state",
-                  "draft"
+                  "draft",
+                  "url"
                 ],
                 "additionalProperties": false
               }
@@ -74598,6 +74610,11 @@
         },
         "draft": {
           "type": "boolean"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
         }
       },
       "required": [
@@ -74607,7 +74624,8 @@
         "head_ref",
         "head_sha",
         "state",
-        "draft"
+        "draft",
+        "url"
       ],
       "additionalProperties": false
     },
@@ -77457,6 +77475,11 @@
               },
               "draft": {
                 "type": "boolean"
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
               }
             },
             "required": [
@@ -77466,7 +77489,8 @@
               "head_ref",
               "head_sha",
               "state",
-              "draft"
+              "draft",
+              "url"
             ],
             "additionalProperties": false
           }
@@ -98122,6 +98146,11 @@
               },
               "draft": {
                 "type": "boolean"
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
               }
             },
             "required": [
@@ -98131,7 +98160,8 @@
               "head_ref",
               "head_sha",
               "state",
-              "draft"
+              "draft",
+              "url"
             ],
             "additionalProperties": false
           }

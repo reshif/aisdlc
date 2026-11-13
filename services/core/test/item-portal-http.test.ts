@@ -255,6 +255,7 @@ describe('the clarifying round on the item (P2-16) and its pull requests (P3-5)'
         head_sha: 'c'.repeat(40),
         state: 'open',
         draft: false,
+        url: `https://github.com/${seeded.repo}/pull/7`,
       },
     ]);
     const t = ItemTimelineView.parse(

@@ -999,6 +999,8 @@ export const ItemPullRequest = z.strictObject({
   head_sha: GitSha,
   state: PullRequestState,
   draft: z.boolean(),
+  /** The code host's web page of the PR. */
+  url: z.string().min(1).max(500),
 });
 export type ItemPullRequest = z.infer<typeof ItemPullRequest>;
 
