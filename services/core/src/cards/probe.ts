@@ -2,7 +2,6 @@ import {
   ONBOARDING_PROBE_UNIT,
   PROBE_EVENT,
   PROBE_GRANT_LEASE_EPOCH,
-  PROBE_GRANT_TTL_S,
   PROBE_NOT_RUN,
   ProbeGrantedPayload,
   ProbeRecordedPayload,
@@ -11,6 +10,9 @@ import {
   type OnboardingSandboxImage,
   type ProbeOutcome,
   type ProbeResult,
+  DEFAULT_SANDBOX_PROBE,
+  SETTINGS_KEYS,
+  settingInForce,
 } from '@aisdlc/contracts';
 import { err, ok, type Result } from '@aisdlc/kernel';
 import {
@@ -329,7 +331,11 @@ export async function runOnboardingProbe(
     const running = await tx.query(
       `SELECT 1 FROM core.onboarding_probe WHERE s0_id = $1 AND status = 'granted'
           AND granted_at > $2::timestamptz - make_interval(secs => $3)`,
-      [s0Id, now.toISOString(), PROBE_GRANT_TTL_S],
+      [
+        s0Id,
+        now.toISOString(),
+        settingInForce(SETTINGS_KEYS.sandbox_probe, DEFAULT_SANDBOX_PROBE).grant_ttl_s,
+      ],
     );
     if ((running.rowCount ?? 0) > 0)
       return err(coreError('conflict', 'a probe is already running'));

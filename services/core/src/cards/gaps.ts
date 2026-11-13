@@ -1,5 +1,6 @@
 import {
   MAX_WAIVER_DAYS,
+  readinessPolicy,
   cardPayloadItemKey,
   levelRank,
   type CardPayloadItem,
@@ -79,10 +80,10 @@ export function gapPayload(
       if (!(exp > now.getTime())) {
         return err(coreError('invalid_input', `${r.gap_id}: the waiver must expire in the future`));
       }
-      if (exp - now.getTime() > MAX_WAIVER_DAYS * DAY_MS) {
-        return err(
-          coreError('refused', `${r.gap_id}: a waiver lasts at most ${MAX_WAIVER_DAYS} days`),
-        );
+      // portal v2 (`readiness.policy`): the factory's limit, never above the record's own ceiling
+      const maxDays = Math.min(readinessPolicy().max_waiver_days, MAX_WAIVER_DAYS);
+      if (exp - now.getTime() > maxDays * DAY_MS) {
+        return err(coreError('refused', `${r.gap_id}: a waiver lasts at most ${maxDays} days`));
       }
     } else if (r.waiver) {
       return err(coreError('invalid_input', `${r.gap_id}: only a waived gap has a waiver`));

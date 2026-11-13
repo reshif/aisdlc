@@ -1,6 +1,6 @@
 import {
   CENSUS_AREA,
-  LF6_MIN_AFFIRMED_OR_UNKNOWN,
+  readinessPolicy,
   levelRank,
   type ClaimVerdict,
   type Level,
@@ -89,7 +89,7 @@ function lf6Of(area: string, input: AreaLevelInput, names: readonly string[]): P
     return { id: 'LF6', state: 'unknown', reason: 'no card 2 claim is about the area' };
   }
   const share = about.filter((c) => c.verdict !== 'correct').length / about.length;
-  return share >= LF6_MIN_AFFIRMED_OR_UNKNOWN
+  return share >= readinessPolicy().lf6_min_affirmed_or_unknown
     ? { id: 'LF6', state: 'met', reason: null }
     : {
         id: 'LF6',

@@ -29,6 +29,7 @@ import { mergeBypassFrom } from './drift/routes.js';
 import { migrateCore } from './migrations.js';
 import { maintenanceFrom, registerCoreConfig } from './settings.js';
 import { workSettingsFrom } from './work-control.js';
+import { gateTimersOf } from './settings-v2.js';
 
 /**
  * Starts core from the environment (see `coreConfigFromEnv`). All configuration is read before the
@@ -122,6 +123,8 @@ export async function bootCore(env: Env): Promise<RunningService> {
             stepUp,
             registry,
             maintenance: maintenanceFrom(reader),
+            // portal v2 (`gates.timers`, H8): read on every open and prepare
+            ...gateTimersOf(reader),
           }
         : undefined;
     const cards =

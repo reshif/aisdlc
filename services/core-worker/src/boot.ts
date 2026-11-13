@@ -1,5 +1,7 @@
 import {
+  codehostPollsFrom,
   followSettings,
+  opsHealthFrom,
   ConfigReader,
   ConfigRegistry,
   onboardingImageFrom,
@@ -41,6 +43,7 @@ import {
   constitutionFrom,
   reonboardTriggersFrom,
   agentSettingsOf,
+  gateTimersOf,
   coderLimitsFrom,
   coderModelFrom,
   sizeShareFrom,
@@ -60,6 +63,7 @@ import {
   AlertTracker,
   opsBackfillLoop,
 } from '@aisdlc/core/worker';
+import { DEFAULT_OPS_HEALTH } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
 import {
   HttpBundleSource,
@@ -199,15 +203,30 @@ export async function bootCoreWorker(
         ? new FileRegisteredRepos(cfg.registeredReposFile)
         : new DbRegisteredRepos(pool),
     };
+    // portal v2 (`codehost.polls`, H25; `ops.health`, H23): the env intervals are the bootstrap default until the
+    // factory publishes other values; read when the loops start (a change takes effect at the next start)
+    const startCfg = await ensureReader();
+    const polls = codehostPollsFrom(startCfg, {
+      fast_ms: cfg.headIntervalMs,
+      hourly_ms: cfg.rulesInFlightIntervalMs,
+      daily_ms: cfg.rulesIdleIntervalMs,
+    });
+    const fastInstall =
+      polls.fast_ms === cfg.headIntervalMs ? cfg.installationIntervalMs : polls.fast_ms;
+    const health = opsHealthFrom(startCfg);
+    const healthIntervalMs =
+      health.snapshot_interval_ms === DEFAULT_OPS_HEALTH.snapshot_interval_ms
+        ? cfg.healthIntervalMs
+        : health.snapshot_interval_ms;
     supervisor
-      .add(defaultBranchHeadLoop(poll, { intervalMs: cfg.headIntervalMs }))
-      .add(installationLoop(poll, { intervalMs: cfg.installationIntervalMs, startDelayMs: 1_000 }))
+      .add(defaultBranchHeadLoop(poll, { intervalMs: polls.fast_ms }))
+      .add(installationLoop(poll, { intervalMs: fastInstall, startDelayMs: 1_000 }))
       .add(
         effectiveRulesLoop(
           { ...poll, workInFlight: deps.workInFlight ?? new DbWorkInFlight(pool) },
           {
-            inFlightIntervalMs: cfg.rulesInFlightIntervalMs,
-            idleIntervalMs: cfg.rulesIdleIntervalMs,
+            inFlightIntervalMs: polls.hourly_ms,
+            idleIntervalMs: polls.daily_ms,
             tickMs: cfg.rulesTickMs,
             startDelayMs: 2_000,
           },
@@ -233,7 +252,7 @@ export async function bootCoreWorker(
             alerts: new AlertTracker(),
             checkpointAlerts: Boolean(ledger && cfg.witness),
           },
-          { intervalMs: cfg.healthIntervalMs, startDelayMs: 2_500 },
+          { intervalMs: healthIntervalMs, startDelayMs: 2_500 },
         ),
       );
     }
@@ -477,6 +496,8 @@ export async function bootCoreWorker(
               eligibility: identityEligibility(readPool, registry),
               stepUp: new RefusingStepUp(),
               maintenance: maintenanceFrom(rd),
+              // portal v2 (`gates.timers`, H8): a gate the driver opens expires after the published time
+              ...gateTimersOf(rd),
             },
           },
           {

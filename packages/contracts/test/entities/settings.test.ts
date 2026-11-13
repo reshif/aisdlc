@@ -45,6 +45,8 @@ import {
   gatePolicies,
   gatePolicy,
   installGatePolicies,
+  installReadinessPolicy,
+  readinessPolicy,
   settingFrom,
   gateAttributes,
 } from '../../src/index.js';
@@ -174,6 +176,19 @@ describe('settings keys', () => {
     expect(CatalogueVersion.safeParse('1.4.0+settings.0').success).toBe(false);
     expect(CatalogueVersion.safeParse('1.4.0-settings.1').success).toBe(false);
     expect(CatalogueVersion.safeParse('1.4.0').success).toBe(true);
+  });
+});
+
+describe('the readiness rules in force (readiness.policy)', () => {
+  afterEach(() => installReadinessPolicy(null));
+  it('are the defaults until installed; lower only for the bounds a record is checked against', () => {
+    expect(readinessPolicy()).toEqual(DEFAULT_READINESS_POLICY);
+    installReadinessPolicy({ ...DEFAULT_READINESS_POLICY, prr_fresh_days: 30 });
+    expect(readinessPolicy().prr_fresh_days).toBe(30);
+    expect(() =>
+      installReadinessPolicy({ ...DEFAULT_READINESS_POLICY, prr_fresh_days: PRR_FRESH_DAYS + 1 }),
+    ).toThrow();
+    expect(readinessPolicy().prr_fresh_days).toBe(30);
   });
 });
 

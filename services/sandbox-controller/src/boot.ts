@@ -1,6 +1,7 @@
 import {
   ConfigReader,
   ConfigRegistry,
+  followSettings,
   onboardingImageFrom,
   workerImageFrom,
   registerSandboxConfig,
@@ -245,6 +246,8 @@ export async function bootSandboxController(
       onError,
     });
     await reader.start();
+    // portal v2: `sandbox.probe` (the test-run lease) and the other settings, installed on every reload
+    await followSettings({ reader, gatePolicies: false, onError });
     const caps = new ConfigCaps(reader, host.data, onError);
     const r0 = reader;
     live.caps = caps;

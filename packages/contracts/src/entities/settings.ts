@@ -82,6 +82,25 @@ export function settingFrom<T>(
   return p.success ? p.data : null;
 }
 
+// ---------------------------------------------------------------- the settings in force in this process
+
+const inForce = new Map<string, unknown>();
+
+/**
+ * Installs the value of a settings key for this process (`followSettings` in `@aisdlc/config` does it for every key
+ * on every revision; `null`: back to the default). Read deep in code that has no config reader with `settingInForce`.
+ * The value must already be validated (the installer parses it with the key's schema).
+ */
+export function installSetting(key: SettingsKey, value: unknown): void {
+  if (value === null || value === undefined) inForce.delete(key);
+  else inForce.set(key, value);
+}
+
+/** The installed value of a key, or `fallback` (its default) when this process installed none. */
+export function settingInForce<T>(key: SettingsKey, fallback: T): T {
+  return inForce.has(key) ? (inForce.get(key) as T) : fallback;
+}
+
 // ---------------------------------------------------------------- H6, H7 approvals
 
 /**
@@ -158,13 +177,17 @@ export const DEFAULT_GATES_TIMERS: GatesTimersConfig = {
 
 // ---------------------------------------------------------------- H10 readiness
 
+/**
+ * Lower only for the three numbers the record's own schemas bound (`PRR_FRESH_DAYS`, `MAX_WAIVER_DAYS`,
+ * `MAX_LIGHT_CLAIMS` are the ceilings a stored record is checked against); the LF6 share may move either way.
+ */
 export const ReadinessPolicyConfig = z.strictObject({
   /** The readiness record (PRR) is fresh this many days after it is issued. */
-  prr_fresh_days: z.number().int().min(1).max(365),
+  prr_fresh_days: z.number().int().min(1).max(PRR_FRESH_DAYS),
   /** A gap waiver lasts at most this many days. */
-  max_waiver_days: z.number().int().min(1).max(365),
+  max_waiver_days: z.number().int().min(1).max(MAX_WAIVER_DAYS),
   /** Light onboarding asks to confirm at most this many facts. */
-  max_light_claims: z.number().int().min(1).max(200),
+  max_light_claims: z.number().int().min(1).max(MAX_LIGHT_CLAIMS),
   /** At least this share of the facts must be confirmed or "don't know" (LF6). */
   lf6_min_affirmed_or_unknown: z.number().min(0.5).max(1),
 });
@@ -175,6 +198,18 @@ export const DEFAULT_READINESS_POLICY: ReadinessPolicyConfig = {
   max_light_claims: MAX_LIGHT_CLAIMS,
   lf6_min_affirmed_or_unknown: LF6_MIN_AFFIRMED_OR_UNKNOWN,
 };
+
+let readinessInForce: ReadinessPolicyConfig = DEFAULT_READINESS_POLICY;
+
+/**
+ * The readiness rules in force in this process (`readiness.policy`, installed on every revision by a service that
+ * reads config; `null`: the defaults). Read where the rule is applied: card 1's waivers, card 2's claims and LF6, the
+ * readiness record's freshness. An invalid value throws and the previous rules stay.
+ */
+export function installReadinessPolicy(v: ReadinessPolicyConfig | null): void {
+  readinessInForce = v === null ? DEFAULT_READINESS_POLICY : ReadinessPolicyConfig.parse(v);
+}
+export const readinessPolicy = (): ReadinessPolicyConfig => readinessInForce;
 
 // ---------------------------------------------------------------- H16 sign-in sessions
 

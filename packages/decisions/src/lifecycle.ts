@@ -14,6 +14,7 @@ import { runProjection, type Tx } from '@aisdlc/record';
 import { decisionError, type DecisionError } from './errors.js';
 import {
   DEFAULT_GATE_TTL_MS,
+  ttlMs,
   appendGateEvents,
   clockOf,
   decisionDraft,
@@ -134,7 +135,7 @@ export async function openGate(
     const expiresAt =
       typeof input.facts?.['expires_at'] === 'string'
         ? input.facts['expires_at']
-        : new Date(clock.nowMs() + (deps.gateTtlMs ?? DEFAULT_GATE_TTL_MS)).toISOString();
+        : new Date(clock.nowMs() + ttlMs(deps.gateTtlMs, DEFAULT_GATE_TTL_MS)).toISOString();
     const payload = GateOpenedPayload.safeParse({
       gate_instance_id: newIdStr,
       gate_id: input.gate_id,

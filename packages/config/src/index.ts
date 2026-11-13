@@ -54,4 +54,21 @@ export {
   type CataloguePin,
 } from './catalogue.js';
 export { SETTINGS_KEY_DEFAULTS, registerSettingsConfig } from './settings.js';
-export { applyGatePolicies, followSettings, type FollowSettingsOptions } from './follow.js';
+export {
+  applyGatePolicies,
+  applyScalarSettings,
+  followSettings,
+  type FollowSettingsOptions,
+} from './follow.js';
+export {
+  codehostPollsFrom,
+  evalsGateFrom,
+  gatesTimersFrom,
+  gatewayLimitsFrom,
+  opsHealthFrom,
+  readinessPolicyFrom,
+  sandboxProbeFrom,
+  sessionPolicyFrom,
+  workRequestFrom,
+  type SnapshotSource,
+} from './readers.js';

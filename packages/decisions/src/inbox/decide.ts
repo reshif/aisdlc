@@ -24,6 +24,7 @@ import { randomBytes } from 'node:crypto';
 import { decisionError, type DecisionError } from '../errors.js';
 import {
   DEFAULT_NONCE_TTL_MS,
+  ttlMs,
   clockOf,
   inDecisionTx,
   lockKey,
@@ -145,7 +146,7 @@ async function prepareStepNonce(
   const clock = clockOf(deps);
   const nonce = randomBytes(32).toString('base64url');
   const created = clock.now();
-  const expires = new Date(created.getTime() + (deps.nonceTtlMs ?? DEFAULT_NONCE_TTL_MS));
+  const expires = new Date(created.getTime() + ttlMs(deps.nonceTtlMs, DEFAULT_NONCE_TTL_MS));
   const done = await inDecisionTx<PreparedStep>(deps, async (tx) => {
     await tx.query(
       `INSERT INTO decisions.card_nonce

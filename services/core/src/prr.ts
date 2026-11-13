@@ -17,7 +17,7 @@ import {
 import {
   AutonomyValues,
   MS_PER_DAY,
-  PRR_FRESH_DAYS,
+  readinessPolicy,
   PRR_GOVERNANCE_CAP_MAP,
   PRR_REVIEW_MONTHS,
   ProjectReadinessRecord,
@@ -645,7 +645,9 @@ export function buildPrr(i: PrrInputs): Result<ProjectReadinessRecord, PrrBuildE
     signer: i.signer,
     m4: null,
     issued_at: issued_at as never,
-    fresh_until: new Date(i.now.getTime() + PRR_FRESH_DAYS * MS_PER_DAY).toISOString() as never,
+    fresh_until: new Date(
+      i.now.getTime() + readinessPolicy().prr_fresh_days * MS_PER_DAY,
+    ).toISOString() as never,
     review_by:
       months === undefined
         ? null

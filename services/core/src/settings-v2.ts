@@ -1,5 +1,5 @@
 import { agentSettingsFrom, coderLimitsOf } from '@aisdlc/agents';
-import type { ConfigReader } from '@aisdlc/config';
+import { gatesTimersFrom, type ConfigReader } from '@aisdlc/config';
 import {
   AgentsSettingsConfig,
   DEFAULT_PLANNING_SIZE_SHARE,
@@ -45,3 +45,11 @@ export const sizeShareFrom =
       PlanningSizeShareConfig,
       DEFAULT_PLANNING_SIZE_SHARE,
     );
+
+/** The decision kernel's TTLs from `gates.timers` (portal v2, H8), read on every use. */
+export const gateTimersOf = (
+  reader: ConfigReader,
+): { gateTtlMs: () => number; nonceTtlMs: () => number } => ({
+  gateTtlMs: () => gatesTimersFrom(reader).expires_after_s * 1000,
+  nonceTtlMs: () => gatesTimersFrom(reader).nonce_ttl_s * 1000,
+});

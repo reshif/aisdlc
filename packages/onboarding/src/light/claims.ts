@@ -1,5 +1,5 @@
 import {
-  MAX_LIGHT_CLAIMS,
+  readinessPolicy,
   type DetectorEvidence,
   type Fact,
   type LightClaim,
@@ -142,8 +142,8 @@ export function cartographerClaims(facts: readonly Fact[]): CartographerResult {
       (a.claim_id < b.claim_id ? -1 : a.claim_id > b.claim_id ? 1 : 0),
   );
   return {
-    claims: ranked.slice(0, MAX_LIGHT_CLAIMS),
+    claims: ranked.slice(0, readinessPolicy().max_light_claims),
     dropped: dropped + v.dropped,
-    truncated: ranked.length > MAX_LIGHT_CLAIMS,
+    truncated: ranked.length > readinessPolicy().max_light_claims,
   };
 }

@@ -124579,17 +124579,17 @@
         "prr_fresh_days": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 365
+          "maximum": 90
         },
         "max_waiver_days": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 365
+          "maximum": 90
         },
         "max_light_claims": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 200
+          "maximum": 50
         },
         "lf6_min_affirmed_or_unknown": {
           "type": "number",

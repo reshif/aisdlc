@@ -2,7 +2,9 @@ import {
   ConfigReader,
   ConfigRegistry,
   followSettings,
+  gatesTimersFrom,
   registerSettingsConfig,
+  sessionPolicyFrom,
 } from '@aisdlc/config';
 import { STEP_UP_KEY_ID } from '@aisdlc/contracts';
 import { createPool } from '@aisdlc/db';
@@ -280,6 +282,7 @@ export async function bootBff(env: Env): Promise<RunningService> {
         console.error(`bff: config reader: ${e instanceof Error ? e.message : String(e)}`),
     });
     await reader.start();
+    const settingsReader = reader;
     // Portal v2: the approvals table (`gates.policy`) the PDP's gate attributes read, followed on every revision
     await followSettings({
       reader,
@@ -296,12 +299,23 @@ export async function bootBff(env: Env): Promise<RunningService> {
       pool,
       oidc: new HttpOidcClient({ issuer, client_id: clientId, client_secret: clientSecret }),
       pdp,
-      stepUp: new StepUpIssuer({ custody, store: new PgProofStore(pool), keyId: STEP_UP_KEY_ID }),
+      stepUp: new StepUpIssuer({
+        custody,
+        store: new PgProofStore(pool),
+        keyId: STEP_UP_KEY_ID,
+        // portal v2 (`gates.timers`): the life of a confirm-it's-you proof, read on every issue
+        ttlSeconds: () => gatesTimersFrom(settingsReader).step_up_ttl_s,
+      }),
       publicUrl,
       allowedOrigins,
       cookieSecure,
-      idleSeconds,
-      absoluteSeconds,
+      // portal v2 (`session.policy`, H16): the env values are the bootstrap default; a published policy wins
+      idleSeconds: () =>
+        sessionPolicyFrom(settingsReader, { idle_s: idleSeconds, absolute_s: absoluteSeconds })
+          .idle_s,
+      absoluteSeconds: () =>
+        sessionPolicyFrom(settingsReader, { idle_s: idleSeconds, absolute_s: absoluteSeconds })
+          .absolute_s,
       stepUpMode,
       ...(core ? { core } : {}),
       ...(notifier ? { notifier } : {}),

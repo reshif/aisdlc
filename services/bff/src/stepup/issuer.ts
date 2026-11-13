@@ -34,9 +34,17 @@ export class StepUpIssuer {
       readonly store: ProofStore;
       readonly clock?: Clock;
       readonly keyId?: string;
-      readonly ttlSeconds?: number;
+      /** A proof's life; a function is read on every issue (portal v2 `gates.timers.step_up_ttl_s`, H8). */
+      readonly ttlSeconds?: number | (() => number);
     },
   ) {}
+
+  /** The life of a proof now (a bad answer is the default, `STEP_UP_TTL_SECONDS`). */
+  private ttlNow(): number {
+    const v = this.o.ttlSeconds;
+    const n = typeof v === 'function' ? v() : v;
+    return typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : STEP_UP_TTL_SECONDS;
+  }
 
   async issue(i: IssueInput): Promise<Result<IssuedProof, string>> {
     const now = (this.o.clock ?? systemClock).now();
@@ -48,9 +56,7 @@ export class StepUpIssuer {
       method: i.method,
       auth_time: i.auth_time.toISOString(),
       issued_at: now.toISOString(),
-      expires_at: new Date(
-        now.getTime() + (this.o.ttlSeconds ?? STEP_UP_TTL_SECONDS) * 1000,
-      ).toISOString(),
+      expires_at: new Date(now.getTime() + this.ttlNow() * 1000).toISOString(),
     });
     const sig = await this.o.custody.sign(
       this.o.keyId ?? STEP_UP_KEY_ID,
