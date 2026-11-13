@@ -65,6 +65,12 @@ T0=$SECONDS
 step() { printf '\n== [%3ss] %s\n' $((SECONDS - T0)) "$*"; }
 fail() { echo "smoke: FAIL: $*" >&2; exit 1; }
 
+# what this stack's two proxies made (they label it with their owner, `<project>-cvw` / `<project>-coding`)
+own_sandboxes() { # docker subcommand words: ps -aq | network ls -q
+  local o
+  for o in cvw coding; do docker "$@" --filter "label=aisdlc.sandbox=1" --filter "label=aisdlc.sandbox.owner=$COMPOSE_PROJECT_NAME-$o"; done
+}
+
 cleanup() {
   local code=$?
   trap - EXIT
@@ -77,9 +83,9 @@ cleanup() {
     echo "== SMOKE_KEEP=1: stack left running (project $COMPOSE_PROJECT_NAME); remove it with: docker compose --profile fake-github down -v"
   else
     dcs down -v --remove-orphans >/dev/null 2>&1 || true
-    # a failed run must not leave sandboxes behind either
-    docker ps -aq --filter "label=aisdlc.sandbox=1" | xargs -r docker rm -f >/dev/null 2>&1 || true
-    docker network ls -q --filter "label=aisdlc.sandbox=1" | xargs -r docker network rm >/dev/null 2>&1 || true
+    # a failed run must not leave sandboxes behind either (only this stack's: another run's on a shared daemon stays)
+    own_sandboxes ps -aq | xargs -r docker rm -f >/dev/null 2>&1 || true
+    own_sandboxes network ls -q | xargs -r docker network rm >/dev/null 2>&1 || true
     rm -rf "$SANDBOX_SCRATCH"
     echo "== stack removed (down -v): $(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) containers, $(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) volumes left"
   fi
@@ -514,8 +520,8 @@ echo "  integration events: $(printf '%s' "$events" | node -e 'let s="";process.
 step "the sandbox plane: one K and one K-exec session through the coding proxy, a privileged create refused, nothing left behind (M13.2)"
 # the coding proxy and the mirror are healthy (up --wait did that); run the client on the coding proxy's network
 dcs run --rm --no-deps -T sandbox-smoke || fail "the sandbox smoke client failed"
-left=$(docker ps -aq --filter "label=aisdlc.sandbox=1" | wc -l)
-nets=$(docker network ls -q --filter "label=aisdlc.sandbox=1" | wc -l)
+left=$(own_sandboxes ps -aq | wc -l)
+nets=$(own_sandboxes network ls -q | wc -l)
 dirs=$(find "$SANDBOX_SCRATCH" -mindepth 1 -maxdepth 1 | wc -l)
 echo "  left behind: $left sandbox containers, $nets session networks, $dirs scratch directories"
 [ "$left" = 0 ] && [ "$nets" = 0 ] && [ "$dirs" = 0 ] || fail "the sandbox plane left something behind"
