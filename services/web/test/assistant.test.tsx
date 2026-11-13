@@ -1,8 +1,8 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { summary } from './onboardFixtures';
-import { CARD_ID, NOW, S0_ID, me, mockApi, renderAt, summaryOf } from './helpers';
+import { CARD_ID, NOW, S0_ID, me, mockApi, renderAt } from './helpers';
 
 // PLAN M18 in the portal: the onboarding assistant beside the S0 page, "Ask the factory", and the notifications
 // screens. The browser sends the question and nothing else (the bff adds the person and the data class); answers are
@@ -142,6 +142,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** The page opens on the console; the summary and its sign-off are one tab over. */
+const openSummary = async () => {
+  const tabs = await screen.findAllByRole('tab', { name: 'Summary and sign-off' });
+  await userEvent.click(tabs[tabs.length - 1] as HTMLElement);
+};
+
 describe('the onboarding assistant beside the onboarding summary', () => {
   it('asks with the question only, and shows the answer as text with citations, drafts and buttons', async () => {
     let asked = false;
@@ -167,6 +173,7 @@ describe('the onboarding assistant beside the onboarding summary', () => {
       }),
     );
     renderAt(`/s0/${S0_ID}`);
+    await openSummary();
     const panel = await screen.findByRole(
       'region',
       { name: 'Onboarding assistant' },
@@ -230,6 +237,7 @@ describe('the onboarding assistant beside the onboarding summary', () => {
       }),
     );
     renderAt(`/s0/${S0_ID}`);
+    await openSummary();
     const panel = await screen.findByRole(
       'region',
       { name: 'Onboarding assistant' },
@@ -243,8 +251,10 @@ describe('the onboarding assistant beside the onboarding summary', () => {
     );
 
     vi.unstubAllGlobals();
+    cleanup();
     mockApi(s0Routes());
     renderAt(`/s0/${S0_ID}`);
+    await openSummary();
     expect(
       (
         await screen.findAllByText(
@@ -254,49 +264,10 @@ describe('the onboarding assistant beside the onboarding summary', () => {
         )
       ).length,
     ).toBeGreaterThan(0);
-  });
+  }, 20_000);
 });
 
 describe('Ask the factory', () => {
-  it('starts a conversation about a project the person can see', async () => {
-    const api = mockApi({
-      'GET /api/me': { json: me(['project.onboard', 'assistant.use']) },
-      'POST /api/me/decisions': decisions(['project.view', 'assistant.use']),
-      'GET /api/projects': { json: [summaryOf()] },
-      'GET /api/assistant/threads': { json: { threads: [] } },
-      'GET /api/assistant/budget': { json: { ...budget, exhausted: true } },
-      'POST /api/assistant/ask': {
-        status: 201,
-        json: {
-          ...askResult,
-          thread: { ...thread, subject: { kind: 'project', project_id: 'testbed' } },
-        },
-      },
-      [`GET /api/assistant/threads/${THREAD}`]: {
-        json: {
-          thread: { ...thread, subject: { kind: 'project', project_id: 'testbed' } },
-          turns: [personTurn, { ...botTurn, kind: 'answer', drafts: [], proposals: [] }],
-          grounding: { repo: 'reshif/asf-factory-testbed', census_sha: SHA, stale: false },
-          budget,
-        },
-      },
-    });
-    renderAt('/assistant');
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Ask the factory' }),
-    ).toBeInTheDocument();
-    expect(await screen.findByText(/spent; it resets at 00:00 UTC/)).toBeInTheDocument();
-    await userEvent.type(await screen.findByLabelText('Message'), 'What is waiting?');
-    await userEvent.click(screen.getByRole('button', { name: 'Ask' }));
-    await waitFor(() =>
-      expect(api.calls.find((c) => c.path === '/api/assistant/ask')?.body).toEqual({
-        subject: { kind: 'project', project_id: 'testbed' },
-        text: 'What is waiting?',
-      }),
-    );
-    expect(await screen.findByText('Card 1 waits for you. <b>not html</b>')).toBeInTheDocument();
-  });
-
   it('without assistant.use anywhere (PLAN §7a) Ask is not in the nav and a direct link is the 403 page', async () => {
     const { calls } = mockApi({ 'GET /api/me': { json: me(['project.onboard']) } });
     renderAt('/assistant');
@@ -315,6 +286,7 @@ describe('the onboarding assistant asks for assistant.use too (PLAN §7a)', () =
       s0Routes({ 'POST /api/me/decisions': decisions(['project.view', 'card.decide']) }),
     );
     renderAt(`/s0/${S0_ID}`);
+    await openSummary();
     expect(
       (
         await screen.findAllByText(

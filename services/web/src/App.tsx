@@ -20,7 +20,7 @@ import { SettingPage, SettingsPage } from './settings/SettingsPage';
 import { MyAccessPage } from './me/MyAccess';
 import { MyNotificationsPage } from './me/MyNotifications';
 import { MyProfilePage } from './me/MyProfile';
-import { AskPage } from './assistant/AskPage';
+import { ConsoleSessions } from './onboard/ConsoleSessions';
 import { AskScreen } from './work/AskScreen';
 import { DecideScreen } from './work/DecideScreen';
 import { HomeScreen } from './work/HomeScreen';
@@ -279,7 +279,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'profile':
       return <MyProfilePage me={me} />;
     case 'ask':
-      return <AskPage csrf={me.csrf_token} who={me.principal.display_name} />;
+      return <ConsoleSessions />;
     case 'askForWork':
       return <AskScreen key={route.project ?? ''} project={route.project} csrf={csrf} />;
     case 'notifications':

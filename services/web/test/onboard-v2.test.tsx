@@ -11,6 +11,10 @@ import { S0_ID, me, mockApi, projectOf, renderAt, repoOf } from './helpers';
 
 const H = 'a'.repeat(64);
 
+/** The page opens on the console; the summary and its sign-off are one tab over. */
+const openSummary = async () =>
+  userEvent.click(await screen.findByRole('tab', { name: 'Summary and sign-off' }));
+
 const project = { project: projectOf(), repos: [repoOf()], s0: [] };
 
 afterEach(() => {
@@ -64,6 +68,7 @@ describe('Onboard a repo: pick (step 1)', () => {
     expect(screen.getByRole('textbox', { name: 'Project name' })).toHaveValue('new-one');
     await user.click(screen.getByRole('button', { name: 'Start onboarding' }));
     await waitFor(() => expect(window.location.pathname).toBe(`/onboard/${S0_ID}`));
+    await openSummary();
     const post = m.calls.find((c) => c.method === 'POST' && c.path === '/api/onboard');
     expect(post?.body).toEqual({ project_id: 'new-one', repo: 'reshif/new-one', level: 'census' });
     expect(post?.headers['x-csrf-token']).toBe('csrf-token-of-alice');
@@ -146,6 +151,7 @@ describe('Onboard a repo: the summary and the one sign-off', () => {
     );
     const user = userEvent.setup();
     renderAt(`/onboard/${S0_ID}`);
+    await openSummary();
     const rows = await screen.findAllByTestId('blocker');
     expect(rows).toHaveLength(2);
     expect(rows[1]).toHaveAttribute('data-code', 'b1_blocked');
@@ -161,6 +167,7 @@ describe('Onboard a repo: the summary and the one sign-off', () => {
   it('shows what the agent learned, the fix PRs and their state, and what a person must do; the factory never merges', async () => {
     mockApi(routes(summary()) as never);
     renderAt(`/onboard/${S0_ID}`);
+    await openSummary();
     expect(
       await screen.findByRole('heading', {
         level: 1,
@@ -211,6 +218,7 @@ describe('Onboard a repo: the summary and the one sign-off', () => {
       }) as never,
     );
     renderAt(`/onboard/${S0_ID}`);
+    await openSummary();
     const sign = await screen.findByRole('button', { name: 'Sign off' });
     expect(sign).toBeDisabled(); // the attestations are the person's to give
     await user.click(screen.getByRole('checkbox', { name: /no production use/ }));
@@ -268,6 +276,7 @@ describe('Onboard a repo: the summary and the one sign-off', () => {
       ) as never,
     );
     renderAt(`/onboard/${S0_ID}`);
+    await openSummary();
     expect(await screen.findByTestId('may-not-sign')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign off' })).toBeDisabled();
   });
@@ -294,6 +303,7 @@ describe('Onboard a repo: the summary and the one sign-off', () => {
       ) as never,
     );
     renderAt(`/onboard/${S0_ID}`);
+    await openSummary();
     await user.type(
       await screen.findByRole('textbox', { name: /Sign off as factory admin/ }),
       'owner away',
@@ -464,6 +474,7 @@ describe('on a phone', () => {
       'GET /api/assistant/budget': { json: { used_tokens: 0, limit_tokens: 1, exhausted: false } },
     });
     renderAt(`/onboard/${S0_ID}`);
+    await openSummary();
     await screen.findByTestId('sign-off');
     for (const el of document.querySelectorAll('input,select,textarea')) {
       const named =

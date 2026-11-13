@@ -21,7 +21,8 @@ import { OnboardingAssistant } from '../assistant/OnboardingAssistant';
 import { useStepUp } from '../cards/StepUp';
 import { describeError } from '../format';
 import { Link } from '../router';
-import { Card, EmptyState, KeyValue, PageHeader, Pill, Stepper, type PillTone } from '../ui';
+import { Card, EmptyState, KeyValue, PageHeader, Pill, Stepper, Tabs, type PillTone } from '../ui';
+import { ConsoleTab } from './Console';
 import { Blockers } from './Blockers';
 import { onboardApi, type SignOffBody } from './api';
 import { ONBOARD_STEPS } from './OnboardStart';
@@ -257,6 +258,7 @@ function Summary({
   csrf: string;
   refresh: () => void;
 }) {
+  const [tab, setTab] = useState('console');
   const [draft, setDraft] = useState<Draft>(() => initialDraft(v, who));
   const set = <K extends keyof Draft>(k: K, x: Draft[K]) => setDraft((d) => ({ ...d, [k]: x }));
   const problems = useMemo(() => problemsOf(v, draft), [v, draft]);
@@ -282,39 +284,52 @@ function Summary({
         }
       />
       <Stepper label="Onboarding steps" steps={ONBOARD_STEPS(step)} />
-      <div className="ui-split ob-split">
-        <div className="ob-main">
-          <Blockers id={v.s0_id} />
-          <AgentWorks v={v} csrf={csrf} />
-          <Fixes v={v} />
-          <PersonMust v={v} refresh={refresh} />
-          <Owners v={v} d={draft} set={set} />
-          <GitHub v={v} d={draft} set={set} />
-          <People v={v} d={draft} set={set} />
-          <Readiness v={v} />
-          <OtherApprovals v={v} />
-        </div>
-        <div className="ob-rail">
-          <SignOff
-            v={v}
-            me={me}
-            who={who}
-            csrf={csrf}
-            draft={draft}
-            problems={problems}
-            refresh={refresh}
-          />
-          <div className="ui-card ob-assist">
-            <OnboardingAssistant
-              s0Id={v.s0_id}
-              projectId={v.project_id}
-              repo={v.repo}
-              csrf={csrf}
-              who={me.principal.display_name}
-            />
+      <Tabs
+        label="Onboarding"
+        tabs={[
+          { id: 'console', label: 'Console' },
+          { id: 'summary', label: 'Summary and sign-off' },
+        ]}
+        selected={tab}
+        onSelect={setTab}
+      >
+        {tab === 'console' ? <ConsoleTab v={v} csrf={csrf} /> : null}
+        {tab === 'summary' ? (
+          <div className="ui-split ob-split">
+            <div className="ob-main">
+              <Blockers id={v.s0_id} />
+              <AgentWorks v={v} csrf={csrf} />
+              <Fixes v={v} />
+              <PersonMust v={v} refresh={refresh} />
+              <Owners v={v} d={draft} set={set} />
+              <GitHub v={v} d={draft} set={set} />
+              <People v={v} d={draft} set={set} />
+              <Readiness v={v} />
+              <OtherApprovals v={v} />
+            </div>
+            <div className="ob-rail">
+              <SignOff
+                v={v}
+                me={me}
+                who={who}
+                csrf={csrf}
+                draft={draft}
+                problems={problems}
+                refresh={refresh}
+              />
+              <div className="ui-card ob-assist">
+                <OnboardingAssistant
+                  s0Id={v.s0_id}
+                  projectId={v.project_id}
+                  repo={v.repo}
+                  csrf={csrf}
+                  who={me.principal.display_name}
+                />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        ) : null}
+      </Tabs>
     </>
   );
 }

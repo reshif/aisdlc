@@ -1,5 +1,7 @@
 import {
   OVERRIDE_REASON_HEADER,
+  type ConsoleSessionList,
+  type ConsoleSessionView,
   type OnboardingBlockers,
   type OnboardingSummaryView,
   type SignOffRequest,
@@ -62,6 +64,25 @@ export const onboardApi = {
       csrf,
       ...(override ? { override } : {}),
     }),
+  /** The console session of an onboarding; `null` until a person starts it (404). */
+  console: async (s0: string): Promise<ConsoleSessionView | null> => {
+    try {
+      return await call<ConsoleSessionView>('GET', `/api/s0/${enc(s0)}/console`);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+  consoleStart: (s0: string, csrf: string) =>
+    call<ConsoleSessionView>('POST', `/api/s0/${enc(s0)}/console/start`, { body: {}, csrf }),
+  consoleSay: (s0: string, text: string, csrf: string) =>
+    call<ConsoleSessionView>('POST', `/api/s0/${enc(s0)}/console/messages`, {
+      body: { text },
+      csrf,
+    }),
+  consoleSteer: (s0: string, action: 'pause' | 'resume' | 'stop', csrf: string) =>
+    call<ConsoleSessionView>('POST', `/api/s0/${enc(s0)}/console/${action}`, { body: {}, csrf }),
+  consoleSessions: () => call<ConsoleSessionList>('GET', '/api/console/sessions'),
   runAgent: (s0: string, csrf: string) =>
     call<{ state: string }>('POST', `/api/s0/${enc(s0)}/agent/run`, { body: {}, csrf }),
 };
