@@ -37,6 +37,7 @@ import { registerOpsRoutes } from './ops.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerAuditRoutes } from './audit.js';
 import { registerPortalRoutes } from './portal.js';
+import { registerSecretRoutes } from './secrets.js';
 import { registerPortalListRoutes } from './portal-lists.js';
 import { registerFloorRoutes } from './floor.js';
 import { levelsOn, rolesIn } from './levels.js';
@@ -672,6 +673,13 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     audit: o.audit,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  // portal v2 N15: the write-only secret fields (the value goes to core once, never back)
+  registerSecretRoutes({
+    app,
+    pdp: o.pdp,
+    core: o.core,
     principalOf: (req) => ctx(req).session.principal_id,
   });
   if (o.webDir) registerWebFiles(app, o.webDir);

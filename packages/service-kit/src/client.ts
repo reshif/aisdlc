@@ -3,7 +3,7 @@ import { traceHeaders } from './telemetry.js';
 export interface CallOptions {
   baseUrl: string;
   token: string;
-  method: 'GET' | 'POST' | 'PUT';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   path: string;
   body?: unknown;
   fetchImpl?: typeof fetch;

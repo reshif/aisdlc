@@ -11,7 +11,12 @@ import { HttpNotary } from '@aisdlc/notary/client';
 import { ConfigBundleSource, Pdp, RecordDecisionLog, registerPdpConfig } from '@aisdlc/pdp';
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
 import { BootstrapPdpEntities } from '@aisdlc/onboarding';
-import { HttpCodeHostReads, S3ObjectStore, fetchGithubAppReport } from '@aisdlc/ports';
+import {
+  HttpCodeHostReads,
+  S3ObjectStore,
+  VaultSecretStore,
+  fetchGithubAppReport,
+} from '@aisdlc/ports';
 import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/service-kit';
 import { createCoreApp } from './app.js';
 import { HttpAdmissionVerdict } from './floor-live.js';
@@ -160,6 +165,8 @@ export async function bootCore(env: Env): Promise<RunningService> {
       ...(cards ? { cards } : {}),
       ...(assistant ? { assistant } : {}),
       ...(cfg.objectStore ? { objects: new S3ObjectStore(cfg.objectStore) } : {}),
+      // portal v2 N15: the write-only secret API's store
+      ...(cfg.vault ? { secretStore: new VaultSecretStore(cfg.vault) } : {}),
       // P2-4: the GitHub Apps panel asks the services that hold the keys (never a key itself)
       githubApps: {
         codehost: reportOf(cfg.cards?.codehost ?? null),

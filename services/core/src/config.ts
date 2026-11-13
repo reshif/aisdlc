@@ -6,8 +6,10 @@ import {
   loadServiceAuth,
   requiredEnv,
   resolveSecretRef,
+  vaultClientFromEnv,
   type Env,
   type ServiceAuth,
+  type VaultClient,
 } from '@aisdlc/service-kit';
 import { z } from 'zod';
 import type { CoreScope } from './app.js';
@@ -31,6 +33,7 @@ const Callers = z.record(
           'push_guard',
           'erasure',
           'activity',
+          'secrets',
         ]),
       )
       .min(1),
@@ -72,6 +75,11 @@ export interface CoreConfig {
   readonly admissionUrl: string | null;
   /** P1-6: identity's API with scope `grant` (the decided grant path); `null`: approved grants wait unapplied. */
   readonly identity: { readonly url: string; readonly token: string } | null;
+  /**
+   * Portal v2 N15: the secret store the write-only secret API writes to (Vault: VAULT_ADDR with core's AppRole in
+   * VAULT_APPROLE_FILE; its policy writes values and reads metadata, never a value); `null`: those routes answer 503.
+   */
+  readonly vault: VaultClient | null;
 }
 
 /**
@@ -169,6 +177,7 @@ export function coreConfigFromEnv(env: Env): CoreConfig {
         ? null
         : httpUrlEnv(env, 'CORE_ADMISSION_URL'),
     identity: remote('IDENTITY'),
+    vault: vaultClientFromEnv(env),
   };
 }
 
