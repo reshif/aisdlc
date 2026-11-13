@@ -639,7 +639,14 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
     networks:
-      [kms-killswitch, killswitch-api, killswitch-gateway, data-killswitch, telemetry-killswitch, killswitch-bff]
+      [
+        kms-killswitch,
+        killswitch-api,
+        killswitch-gateway,
+        data-killswitch,
+        telemetry-killswitch,
+        killswitch-bff,
+      ]
     mem_limit: 128m
 
   # Boundary: model key custody (RV §2, AR5, AR7). EVERY model call of the factory goes through here and
