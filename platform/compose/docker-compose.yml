@@ -11,7 +11,7 @@
 # identity 8330, bff 8340, codehost 8350, core-worker 8360, knowledge 8370, core 8380, dev-oidc 8390,
 # killswitch 8400, gateway 8410, package mirror 8420, sandbox-controller 8430, verify 8440, gate-check 8450, notifier 8460,
 # gate-relay 8470, audit 8480, fake GitHub 8353 api / 8354 git / 8355 gate-check's door / 8356 gate-relay's door). Only the bff and
-# dev-oidc are published, on 127.0.0.1 (AISDLC_BFF_PORT and AISDLC_OIDC_PORT move both, inside and out, so two stacks
+# dev-oidc are published, on 127.0.0.1 (AISDLC_BFF_PORT moves the portal with its URL; AISDLC_OIDC_PORT the dev IdP inside and out, so two stacks
 # can run on one host: the issuer and the redirect URI are the same name and port for the browser and the bff).
 # The Push Broker's door on the fake GitHub is 8358.
 
@@ -238,13 +238,13 @@ networks:
   # GitHub (in the codehost's network namespace) answers it on its own port (8358); `pushbroker-egress` its own way out
   # to GitHub. It shares no other network with the read codehost and holds none of its tokens.
   pushbroker:
-    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.44.0/24' }] }
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.55.0/24' }] }
     internal: true
   pushbroker-github:
-    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.45.0/24' }] }
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.56.0/24' }] }
     internal: true
   pushbroker-egress:
-    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.46.0/24' }] }
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.57.0/24' }] }
   # The codehost's only way out: api.github.com and github.com. Knowledge is not on it (nor on any
   # network with a route out), so it has no route to GitHub and gets repo content only as bundles
   # from the codehost.
@@ -1025,13 +1025,13 @@ services:
         {"core":"http://core:8380","identity":"http://identity:8330","knowledge":"http://knowledge:8370",
         "codehost":"http://codehost:8350","notary":"http://notary:8310","witness":"http://witness:8320",
         "killswitch":"http://killswitch:8400","kms-local":"http://kms-local:8300","gateway":"http://gateway:8410",
-        "bff":"http://bff:${AISDLC_BFF_PORT:-8340}","object-store":{"url":"http://object-store:9000","path":"/minio/health/live"},
+        "bff":"http://bff:8340","object-store":{"url":"http://object-store:9000","path":"/minio/health/live"},
         "sandbox-controller":{"url":"http://sandbox-controller:8430","profile":true},
         "verify":{"url":"http://verify:8440","profile":true},
         "gate-check":{"url":"http://gate-check:8450","profile":true},
         "gate-relay":{"url":"http://gate-relay:8470","profile":true},
         "audit":{"url":"http://audit:8480","profile":true},
-        "notifier":{"url":"http://bff:${AISDLC_BFF_PORT:-8340}","path":"/healthz/peer/notifier","profile":true}}
+        "notifier":{"url":"http://bff:8340","path":"/healthz/peer/notifier","profile":true}}
       # M16: the issue twin (DEC-20(a)) through the codehost's tracker routes (scope `tracker`): the tracker's OWN App is
       # the codehost's to hold; core-worker holds no GitHub credential and has no route out (user decision 2026-11-12).
       # Empty TRACKER_LOGIN: the `issue_twin` loop does not run.
@@ -1300,10 +1300,11 @@ services:
       # Plain http on localhost only; behind TLS this is true.
       BFF_COOKIE_SECURE: 'false'
       BFF_HOST: 0.0.0.0
-      BFF_PORT: '${AISDLC_BFF_PORT:-8340}'
+      BFF_PORT: '8340'
     ports:
-      # M19: the HOST port can move (BFF_HOST_PORT); AISDLC_BFF_PORT moves it inside and out (the browser URL with it)
-      - '127.0.0.1:${BFF_HOST_PORT:-${AISDLC_BFF_PORT:-8340}}:${AISDLC_BFF_PORT:-8340}'
+      # M19: the HOST port can move (BFF_HOST_PORT). AISDLC_BFF_PORT moves it with the browser URL (BFF_PUBLIC_URL, the
+      # redirect URI); inside, the bff listens on 8340 whatever it is
+      - '127.0.0.1:${BFF_HOST_PORT:-${AISDLC_BFF_PORT:-8340}}:8340'
     secrets:
       [
         db-url-aisdlc,
@@ -1316,7 +1317,7 @@ services:
         tok-bff-audit,
       ]
     healthcheck:
-      test: ['CMD', 'node', '/app/healthcheck.mjs', '${AISDLC_BFF_PORT:-8340}']
+      test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
       interval: 5s
       timeout: 5s
       retries: 20
