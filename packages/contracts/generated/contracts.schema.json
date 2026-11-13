@@ -33229,6 +33229,249 @@
       ],
       "additionalProperties": false
     },
+    "CoreGithubAppsView": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "enum": [
+                  "codehost",
+                  "push-broker",
+                  "gate-check"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "unreachable",
+                  "not_configured"
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "job": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "push",
+                  "tracker",
+                  "gate-relay",
+                  "gate-check"
+                ]
+              },
+              "app_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "installation_id": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "login": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key_loaded": {
+                "type": "boolean"
+              },
+              "last_ok_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "installation": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "const": "ok"
+                      },
+                      "account_login": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "repository_selection": {
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "selected"
+                        ]
+                      },
+                      "permissions": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "suspended": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "account_login",
+                      "repository_selection",
+                      "permissions",
+                      "suspended"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "unknown",
+                          "unreadable"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "job",
+              "app_id",
+              "installation_id",
+              "login",
+              "key_loaded",
+              "last_ok_at",
+              "installation"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "branches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "minLength": 1
+              },
+              "branch": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "required_checks": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "context": {
+                          "type": "string"
+                        },
+                        "integration_id": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "context",
+                        "integration_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "repo",
+              "branch",
+              "required_checks"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "sources",
+        "reports",
+        "branches"
+      ],
+      "additionalProperties": false
+    },
     "CoreInboxItem": {
       "type": "object",
       "properties": {
@@ -58231,6 +58474,15 @@
       ],
       "additionalProperties": false
     },
+    "GateRequirement": {
+      "type": "string",
+      "enum": [
+        "required",
+        "other_source",
+        "not_required",
+        "unknown"
+      ]
+    },
     "GateStatus": {
       "type": "string",
       "enum": [
@@ -60731,6 +60983,942 @@
     "GitSha": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
+    },
+    "GithubAppJob": {
+      "type": "string",
+      "enum": [
+        "read",
+        "push",
+        "tracker",
+        "gate-relay",
+        "gate-check"
+      ]
+    },
+    "GithubAppJobReport": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "type": "string",
+          "enum": [
+            "read",
+            "push",
+            "tracker",
+            "gate-relay",
+            "gate-check"
+          ]
+        },
+        "app_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "installation_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "login": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key_loaded": {
+          "type": "boolean"
+        },
+        "last_ok_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "installation": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "const": "ok"
+                },
+                "account_login": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "repository_selection": {
+                  "type": "string",
+                  "enum": [
+                    "all",
+                    "selected"
+                  ]
+                },
+                "permissions": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "suspended": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "state",
+                "account_login",
+                "repository_selection",
+                "permissions",
+                "suspended"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "unknown",
+                    "unreadable"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "state",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "job",
+        "app_id",
+        "installation_id",
+        "login",
+        "key_loaded",
+        "last_ok_at",
+        "installation"
+      ],
+      "additionalProperties": false
+    },
+    "GithubAppKind": {
+      "type": "string",
+      "enum": [
+        "factory",
+        "gate-check"
+      ]
+    },
+    "GithubAppReport": {
+      "type": "object",
+      "properties": {
+        "reports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "job": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "push",
+                  "tracker",
+                  "gate-relay",
+                  "gate-check"
+                ]
+              },
+              "app_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "installation_id": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "login": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key_loaded": {
+                "type": "boolean"
+              },
+              "last_ok_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "installation": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "const": "ok"
+                      },
+                      "account_login": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "repository_selection": {
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "selected"
+                        ]
+                      },
+                      "permissions": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "suspended": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "account_login",
+                      "repository_selection",
+                      "permissions",
+                      "suspended"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "unknown",
+                          "unreadable"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "job",
+              "app_id",
+              "installation_id",
+              "login",
+              "key_loaded",
+              "last_ok_at",
+              "installation"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "reports"
+      ],
+      "additionalProperties": false
+    },
+    "GithubAppRow": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "factory",
+            "gate-check"
+          ]
+        },
+        "app_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "installation_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "login": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "read",
+              "push",
+              "tracker",
+              "gate-relay",
+              "gate-check"
+            ]
+          }
+        },
+        "required": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "installation": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "const": "ok"
+                },
+                "account_login": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "repository_selection": {
+                  "type": "string",
+                  "enum": [
+                    "all",
+                    "selected"
+                  ]
+                },
+                "permissions": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "suspended": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "state",
+                "account_login",
+                "repository_selection",
+                "permissions",
+                "suspended"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "unknown",
+                    "unreadable"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "state",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "comparison": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "extra": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "forbidden": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "ok",
+                "missing",
+                "extra",
+                "forbidden"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key_loaded": {
+          "type": "boolean"
+        },
+        "last_ok_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shares_with_pusher": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "app_id",
+        "installation_id",
+        "login",
+        "jobs",
+        "required",
+        "installation",
+        "comparison",
+        "key_loaded",
+        "last_ok_at",
+        "shares_with_pusher"
+      ],
+      "additionalProperties": false
+    },
+    "GithubAppSource": {
+      "type": "string",
+      "enum": [
+        "codehost",
+        "push-broker",
+        "gate-check"
+      ]
+    },
+    "GithubAppSourceState": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "codehost",
+            "push-broker",
+            "gate-check"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "unreachable",
+            "not_configured"
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "GithubAppsView": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "enum": [
+                  "codehost",
+                  "push-broker",
+                  "gate-check"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "unreachable",
+                  "not_configured"
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "apps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "factory",
+                  "gate-check"
+                ]
+              },
+              "app_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "installation_id": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "login": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "jobs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "read",
+                    "push",
+                    "tracker",
+                    "gate-relay",
+                    "gate-check"
+                  ]
+                }
+              },
+              "required": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "installation": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "const": "ok"
+                      },
+                      "account_login": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "repository_selection": {
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "selected"
+                        ]
+                      },
+                      "permissions": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "suspended": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "account_login",
+                      "repository_selection",
+                      "permissions",
+                      "suspended"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "unknown",
+                          "unreadable"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "comparison": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "ok": {
+                        "type": "boolean"
+                      },
+                      "missing": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "extra": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "forbidden": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "ok",
+                      "missing",
+                      "extra",
+                      "forbidden"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "key_loaded": {
+                "type": "boolean"
+              },
+              "last_ok_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shares_with_pusher": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "app_id",
+              "installation_id",
+              "login",
+              "jobs",
+              "required",
+              "installation",
+              "comparison",
+              "key_loaded",
+              "last_ok_at",
+              "shares_with_pusher"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "gate_rule": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string"
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "required",
+                  "other_source",
+                  "not_required",
+                  "unknown"
+                ]
+              }
+            },
+            "required": [
+              "repo",
+              "branch",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "setup_command": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sources",
+        "apps",
+        "gate_rule",
+        "setup_command"
+      ],
+      "additionalProperties": false
+    },
+    "GithubBranchChecks": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "required_checks": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "context": {
+                    "type": "string"
+                  },
+                  "integration_id": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "context",
+                  "integration_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "repo",
+        "branch",
+        "required_checks"
+      ],
+      "additionalProperties": false
+    },
+    "GithubInstallationRead": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "ok"
+            },
+            "account_login": {
+              "type": "string",
+              "minLength": 1
+            },
+            "repository_selection": {
+              "type": "string",
+              "enum": [
+                "all",
+                "selected"
+              ]
+            },
+            "permissions": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "suspended": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "state",
+            "account_login",
+            "repository_selection",
+            "permissions",
+            "suspended"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "unknown",
+                "unreadable"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "GithubPermissionLevel": {
       "type": "string",
@@ -93706,6 +94894,161 @@
         },
         "registered": {
           "type": "boolean"
+        },
+        "onboarding": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "const": "not_onboarded"
+                }
+              },
+              "required": [
+                "state"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "const": "onboarding"
+                },
+                "project_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                },
+                "s0_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "app",
+                    "running",
+                    "card",
+                    "blocked",
+                    "starter",
+                    "parked",
+                    "done",
+                    "rejected",
+                    "superseded",
+                    "withdrawn"
+                  ]
+                },
+                "waiting": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "state",
+                "project_id",
+                "s0_id",
+                "status",
+                "waiting"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "const": "onboarded"
+                },
+                "project_id": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                },
+                "s0_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "level": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "census",
+                        "light",
+                        "full"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lanes": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "L0",
+                          "L1",
+                          "L2",
+                          "L3",
+                          "L4",
+                          "L5",
+                          "L6",
+                          "L7",
+                          "L8"
+                        ]
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "state",
+                "project_id",
+                "s0_id",
+                "level",
+                "lanes"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "const": "archived"
+                }
+              },
+              "required": [
+                "state"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "const": "unknown"
+                }
+              },
+              "required": [
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          ]
         }
       },
       "required": [
@@ -93749,6 +95092,161 @@
               },
               "registered": {
                 "type": "boolean"
+              },
+              "onboarding": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "const": "not_onboarded"
+                      }
+                    },
+                    "required": [
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "const": "onboarding"
+                      },
+                      "project_id": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                      },
+                      "s0_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "app",
+                          "running",
+                          "card",
+                          "blocked",
+                          "starter",
+                          "parked",
+                          "done",
+                          "rejected",
+                          "superseded",
+                          "withdrawn"
+                        ]
+                      },
+                      "waiting": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "project_id",
+                      "s0_id",
+                      "status",
+                      "waiting"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "const": "onboarded"
+                      },
+                      "project_id": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                      },
+                      "s0_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "level": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "census",
+                              "light",
+                              "full"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "lanes": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "L0",
+                                "L1",
+                                "L2",
+                                "L3",
+                                "L4",
+                                "L5",
+                                "L6",
+                                "L7",
+                                "L8"
+                              ]
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "project_id",
+                      "s0_id",
+                      "level",
+                      "lanes"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "const": "archived"
+                      }
+                    },
+                    "required": [
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "const": "unknown"
+                      }
+                    },
+                    "required": [
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
               }
             },
             "required": [
@@ -125379,6 +126877,161 @@
         "default_branch"
       ],
       "additionalProperties": false
+    },
+    "RepoOnboardingState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "not_onboarded"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "onboarding"
+            },
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "s0_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "app",
+                "running",
+                "card",
+                "blocked",
+                "starter",
+                "parked",
+                "done",
+                "rejected",
+                "superseded",
+                "withdrawn"
+              ]
+            },
+            "waiting": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "state",
+            "project_id",
+            "s0_id",
+            "status",
+            "waiting"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "onboarded"
+            },
+            "project_id": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "s0_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "level": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "census",
+                    "light",
+                    "full"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lanes": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "L0",
+                      "L1",
+                      "L2",
+                      "L3",
+                      "L4",
+                      "L5",
+                      "L6",
+                      "L7",
+                      "L8"
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "state",
+            "project_id",
+            "s0_id",
+            "level",
+            "lanes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "archived"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "RepoOwnerType": {
       "type": "string",
