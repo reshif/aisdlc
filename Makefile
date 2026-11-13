@@ -6,6 +6,10 @@
 # Variables you can set on the command line, e.g. `make up GITHUB=real`:
 #   GITHUB=fake|real      which GitHub the stack talks to (default fake: the in-repo fake GitHub)
 #   PROJECT=aisdlc        the compose project name (COMPOSE_PROJECT_NAME)
+#   REPO=owner/name       for `up-full`: the one repository agents may run code on (DEC-18: one you own)
+#   TAG=local             for `images` and `up-full`: the tag of the four images (AISDLC_IMAGE_TAG)
+#   RUNTIME_IMAGE=...  EXTRA_CA=/path/ca.pem  BUILD_PROXY=1  BUILD_NETWORK=host
+#                         for `images`, behind a proxy or without apt (platform/compose/build-images.sh)
 #   PROFILES=...          extra compose profiles, e.g. PROFILES="gate-check notifier"
 #   SERVICE=core          for `logs`, `restart`, `shell`
 #   DIR=./backups/x       for `backup` and `restore`
@@ -22,6 +26,12 @@ SERVICE ?=
 DIR ?=
 GITHUB_APP_ID ?=
 GITHUB_INSTALLATION_ID ?=
+REPO ?=
+TAG ?= local
+RUNTIME_IMAGE ?=
+EXTRA_CA ?=
+BUILD_PROXY ?=
+BUILD_NETWORK ?=
 
 ifeq ($(GITHUB),fake)
   GITHUB_PROFILE := --profile fake-github
@@ -36,17 +46,25 @@ PROFILE_FLAGS := $(GITHUB_PROFILE) $(foreach p,$(PROFILES),--profile $(p))
 ALL_PROFILES := --profile fake-github --profile full --profile gate-check --profile gate-relay --profile notifier \
   --profile audit --profile telemetry
 DC := cd $(COMPOSE_DIR) && COMPOSE_PROJECT_NAME=$(PROJECT) docker compose
+# the sandboxes and session networks this project's two Docker proxies made (labelled with their owner): a session that
+# outlived its controller (`down` mid-session) is removed with the stack, never left running
+SWEEP := for o in cvw coding; do \
+  docker ps -aq --filter label=aisdlc.sandbox=1 --filter label=aisdlc.sandbox.owner=$(PROJECT)-$$o | xargs -r docker rm -f >/dev/null; \
+  docker network ls -q --filter label=aisdlc.sandbox=1 --filter label=aisdlc.sandbox.owner=$(PROJECT)-$$o | xargs -r docker network rm >/dev/null; \
+  done
 
 .PHONY: help install check check-changed test test-fast lint format typecheck build \
-  secrets secrets-real github-apps up down reset ps logs restart shell portal verify-ledger \
+  secrets secrets-real github-apps images up up-full down reset ps logs restart shell portal verify-ledger \
   smoke e2e e2e-pr demo drill-restore backup restore census
 
 help: ## list the commands
-	@echo "AISDLC: make <target> [GITHUB=fake|real] [PROJECT=aisdlc] [PROFILES=\"...\"] [SERVICE=...] [DIR=...]"
+	@echo "AISDLC: make <target> [GITHUB=fake|real] [PROJECT=aisdlc] [REPO=owner/name] [TAG=local] [PROFILES=\"...\"] [SERVICE=...] [DIR=...]"
 	@echo
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z0-9-]+:.*## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo
-	@echo "First time: make install && make secrets && make up && make portal   (docs/getting-started.md)"
+	@echo "Try it on fakes:  make install && make secrets && make up && make portal"
+	@echo "Real work:        make install && make images && make github-apps && make up-full REPO=owner/name GITHUB=real"
+	@echo "                  (make up is the light stack: no coding sessions, no PRs; coding needs up-full. docs/getting-started.md)"
 
 ## ---- code ---------------------------------------------------------------------------------------------------
 
@@ -92,17 +110,28 @@ github-apps: ## create the GitHub Apps through GitHub's manifest flow (the setup
 	  { echo "platform/compose/setup-github-apps is missing or not executable; create the Apps by hand: docs/getting-started.md section 4.3"; exit 1; }
 	cd $(COMPOSE_DIR) && ./setup-github-apps
 
-up: ## start the local factory and wait until it is healthy (GITHUB=fake by default)
+images: ## build the four images up-full runs: factory, sandbox, W (coding), onboarding probe [TAG= RUNTIME_IMAGE= EXTRA_CA= BUILD_PROXY=1 BUILD_NETWORK=host]
+	AISDLC_IMAGE_TAG="$(TAG)" RUNTIME_IMAGE="$(RUNTIME_IMAGE)" EXTRA_CA="$(EXTRA_CA)" BUILD_PROXY="$(BUILD_PROXY)" \
+	  BUILD_NETWORK="$(BUILD_NETWORK)" bash $(COMPOSE_DIR)/build-images.sh
+
+up: ## the LIGHT stack: portal, onboarding, the record; no coding sessions and no PRs (that is up-full)
 	$(DC) $(PROFILE_FLAGS) up -d --wait
 	@$(MAKE) --no-print-directory portal
 
-down: ## stop the local factory; keeps the database, the ledger and the keys
-	$(DC) $(ALL_PROFILES) down --remove-orphans
+up-full: ## the full factory for real work on one repo: make up-full REPO=owner/name [GITHUB=real] (needs make images)
+	@test -n "$(REPO)" || { echo "name the repository agents may work on: make up-full REPO=owner/name [GITHUB=real]"; exit 1; }
+	COMPOSE_PROJECT_NAME=$(PROJECT) AISDLC_IMAGE_TAG="$(TAG)" bash $(COMPOSE_DIR)/up-full.sh --repo "$(REPO)" --github "$(GITHUB)"
 
-reset: ## stop and DELETE everything: database, ledger, keys' state (asks first)
+down: ## stop the local factory (up or up-full); keeps the database, the ledger and the keys
+	$(DC) $(ALL_PROFILES) down --remove-orphans
+	@$(SWEEP)
+
+reset: ## stop and DELETE everything: database, ledger, keys' state, up-full's scratch (asks first)
 	@read -r -p "This deletes the record, the ledger and every volume of project '$(PROJECT)'. Type the project name to go on: " a; \
 	  [ "$$a" = "$(PROJECT)" ] || { echo "nothing deleted"; exit 1; }
 	$(DC) $(ALL_PROFILES) down -v --remove-orphans
+	@$(SWEEP)
+	rm -rf $(COMPOSE_DIR)/.scratch/$(PROJECT)
 
 ps: ## show every container of the stack and its health
 	$(DC) $(ALL_PROFILES) ps -a

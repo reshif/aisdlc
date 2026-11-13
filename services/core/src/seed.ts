@@ -175,6 +175,21 @@ export const localGatewayRouting = (
     model_id: 'fake-model',
   })),
 });
+/**
+ * What the seed proposes for the routing keys: the integration registry always (it carries the GitHub App's ids from
+ * the compose settings, which `init-secrets --real-github` changes), the models and the routes only where the
+ * effective document has none yet. Those two are the owner's to change through an M1 gate (Quality › Models), and a
+ * later run of the seed must not put the fake back.
+ */
+export function seedRoutingDoc(effective: JsonObject, seeded: JsonObject): JsonObject {
+  const out: JsonObject = { ...seeded };
+  for (const k of [GATEWAY_CONFIG_KEYS.models, GATEWAY_CONFIG_KEYS.routes]) {
+    const have = effective[k];
+    if (have !== undefined && have !== null) out[k] = have;
+  }
+  return out;
+}
+
 const SLOTS: readonly RoleSlot[] = [
   'admin',
   'requesters',
@@ -503,9 +518,14 @@ async function bundleStep(env: Env, cfg: SeedConfig, log: (l: string) => void): 
 
     // The model gateway's routing table (M10.2), local-prod only: the fake provider answers for D0-D2 in
     // `local`, and the Anthropic provider and its models are registered but unrouted. Pointing a route at
-    // Claude is a later, gated revision (a human decides it like any other config change). D3 has no route.
-    const routing = localGatewayRouting(cfg.github, cfg.fixtures) as unknown as JsonObject;
+    // Claude is a later, gated revision (a human decides it like any other config change), so the models and the
+    // routes are seeded only while none are effective: a re-run (every `up`) never reverts that decision. D3 has
+    // no route.
     const effective = await mine();
+    const routing = seedRoutingDoc(
+      (effective?.doc ?? {}) as JsonObject,
+      localGatewayRouting(cfg.github, cfg.fixtures) as unknown as JsonObject,
+    );
     const same = Object.entries(routing).every(
       ([k, v]) => canonicalJson(effective?.doc[k] ?? null) === canonicalJson(v),
     );

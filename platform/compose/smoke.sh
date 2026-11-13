@@ -216,14 +216,29 @@ refused killswitch http://identity:8330/healthz
 # its three read-only routes, healthz, metrics and admission; a network is symmetric and core-worker has no
 # route that writes. It is not in this list for that reason. Nor is core, on gateway-api since M18: the assistant
 # mints a per-ask key and calls /v1/messages; nor verify, M14.3: the A5 reviewer calls it under the run's key.)
+# (The bff shares `gateway-bff` with it since P2-5, for the portal's Models › Test and Reload, so the gateway can reach the
+# bff's browser API, where every route needs a person's session; it is not in this list for that reason.)
 for t in http://kms-local:8300/healthz http://notary:8310/healthz http://witness:8320/healthz \
          http://identity:8330/healthz \
-         http://codehost:8350/healthz http://knowledge:8370/healthz http://bff:8340/healthz; do
+         http://codehost:8350/healthz http://knowledge:8370/healthz; do
   refused gateway "$t"
 done
-for from in identity knowledge codehost bff notary witness kms-local; do
-  refused "$from" http://gateway:8410/healthz     # nobody calls the gateway but the work driver's process (M11, M12), core's assistant (M18), verify (M14.3) and a sandbox (M13), on gateway-api
+for from in identity knowledge codehost notary witness kms-local; do
+  refused "$from" http://gateway:8410/healthz     # nobody calls the gateway but the work driver's process (M11, M12), core's assistant (M18), verify (M14.3), the bff's Test and Reload (P2-5) and a sandbox (M13)
 done
+# P2-5: the bff reaches the gateway on gateway-bff (those two only), with a token of scope operate and nothing else
+dc exec -T bff node -e "fetch('http://gateway:8410/healthz',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || fail "the bff cannot reach the gateway for Models › Test and Reload"
+gw_bff=$(docker network inspect "${COMPOSE_PROJECT_NAME}_gateway-bff" --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}-//; s/-1$//" | grep -v '^$' | sort | tr '\n' ' ')
+[ "$gw_bff" = "bff gateway " ] || fail "unexpected services on gateway-bff: $gw_bff"
+dc exec -T -e TOKEN="$(cat secrets/tok-bff-gateway)" bff node -e "
+  const h = { authorization: 'Bearer ' + process.env.TOKEN, 'content-type': 'application/json' };
+  const go = (p, m, b) => fetch('http://gateway:8410' + p, { method: m, headers: h, ...(b ? { body: JSON.stringify(b) } : {}) }).then((r) => r.status);
+  (async () => {
+    const view = await go('/v1/admin/integrations', 'GET');
+    const mint = await go('/v1/admin/budget-groups', 'POST', { group_id: 'smoke-bff', max_tokens: 1, max_cost_micro_usd: 1 });
+    process.exit(view === 200 && mint === 403 ? 0 : (console.error('integrations ' + view + ', budget group ' + mint), 1));
+  })();" || fail "the bff's gateway token is not operate-only (it reads the integrations, it mints nothing)"
+echo "  the bff reaches the gateway on gateway-bff with scope operate only (reads the integrations; a budget group is refused)"
 # M12: core-worker runs the work driver, which mints each agent run's key and calls /v1/messages under it
 dc exec -T core-worker node -e "fetch('http://gateway:8410/healthz',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || fail "core-worker cannot reach the gateway it mints agent keys at"
 echo "  core-worker (the work driver), core (the assistant) and verify (A5) are the services on gateway-api"
@@ -233,8 +248,9 @@ dc exec -T gateway node -e "fetch('http://killswitch:8400/healthz',{signal:Abort
 echo "  gateway can reach the kill switch (its read link), nothing else of the stack"
 gw_nets=$(docker inspect "$(dc ps -q gateway)" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}_//" | grep -v '^$' | sort | tr '\n' ' ')
 echo "  gateway networks: $gw_nets"
-# telemetry-gateway (M19): its own link to the collector, nobody else of the stack on it
-[ "$gw_nets" = "data-gateway gateway-api gateway-egress killswitch-gateway telemetry-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
+# telemetry-gateway (M19): its own link to the collector, nobody else of the stack on it; gateway-bff (P2-5): the bff's
+# Test and Reload, the bff and the gateway only
+[ "$gw_nets" = "data-gateway gateway-api gateway-bff gateway-egress killswitch-gateway telemetry-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
 on_egress=$(docker network inspect "${COMPOSE_PROJECT_NAME}_gateway-egress" --format '{{range .Containers}}{{.Name}} {{end}}')
 [ "$(printf '%s' "$on_egress" | wc -w)" = 1 ] || fail "something else is on the gateway's egress network: $on_egress"
 echo "  nothing but the gateway is on gateway-egress"
