@@ -3,7 +3,7 @@
 # no credentials. Run it as `npm run smoke:compose` or `platform/compose/smoke.sh`.
 #
 #   1. init-secrets (a no-op when the secrets exist), build the image
-#   2. `up -d --wait`: every service healthy, the one-shot jobs (db-init, migrate, seed) exited 0
+#   2. `up -d --wait`: every service healthy, the one-shot jobs (db-init, volume-init, migrate, seed) exited 0
 #   3. the boundaries hold: only bff and dev-oidc publish a port, no Docker socket anywhere, the App
 #      key only in codehost, knowledge cannot reach GitHub, the codehost cannot reach the trust plane,
 #      the Notary and the Witness cannot reach each other
@@ -38,7 +38,7 @@
 #      refused by the proxy; no sandbox container, network or scratch directory is left behind
 #  12. per-service memory (docker stats), then `down -v`, also on failure or Ctrl-C
 #
-# SMOKE_SKIP_BUILD=1   use the image aisdlc/factory:local as it is (a network that blocks apt or
+# SMOKE_SKIP_BUILD=1   use the image AISDLC_FACTORY_IMAGE (default aisdlc/factory:local) as it is (a network that blocks apt or
 #                      the npm registry: build it yourself, see README.md)
 # SMOKE_KEEP=1         leave the stack running at the end (you remove it with `docker compose down -v`)
 set -euo pipefail
@@ -65,6 +65,12 @@ T0=$SECONDS
 step() { printf '\n== [%3ss] %s\n' $((SECONDS - T0)) "$*"; }
 fail() { echo "smoke: FAIL: $*" >&2; exit 1; }
 
+# what this stack's two proxies made (they label it with their owner, `<project>-cvw` / `<project>-coding`)
+own_sandboxes() { # docker subcommand words: ps -aq | network ls -q
+  local o
+  for o in cvw coding; do docker "$@" --filter "label=aisdlc.sandbox=1" --filter "label=aisdlc.sandbox.owner=$COMPOSE_PROJECT_NAME-$o"; done
+}
+
 cleanup() {
   local code=$?
   trap - EXIT
@@ -77,9 +83,9 @@ cleanup() {
     echo "== SMOKE_KEEP=1: stack left running (project $COMPOSE_PROJECT_NAME); remove it with: docker compose --profile fake-github down -v"
   else
     dcs down -v --remove-orphans >/dev/null 2>&1 || true
-    # a failed run must not leave sandboxes behind either
-    docker ps -aq --filter "label=aisdlc.sandbox=1" | xargs -r docker rm -f >/dev/null 2>&1 || true
-    docker network ls -q --filter "label=aisdlc.sandbox=1" | xargs -r docker network rm >/dev/null 2>&1 || true
+    # a failed run must not leave sandboxes behind either (only this stack's: another run's on a shared daemon stays)
+    own_sandboxes ps -aq | xargs -r docker rm -f >/dev/null 2>&1 || true
+    own_sandboxes network ls -q | xargs -r docker network rm >/dev/null 2>&1 || true
     rm -rf "$SANDBOX_SCRATCH"
     echo "== stack removed (down -v): $(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) containers, $(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l) volumes left"
   fi
@@ -95,7 +101,7 @@ for p in 8340 8390; do
   if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then fail "port $p is already in use on this host (another stack?)"; fi
 done
 if [ "${SMOKE_SKIP_BUILD:-0}" = 1 ]; then
-  docker image inspect aisdlc/factory:local >/dev/null 2>&1 || fail "SMOKE_SKIP_BUILD=1 but the image aisdlc/factory:local does not exist"
+  docker image inspect "${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local}" >/dev/null 2>&1 || fail "SMOKE_SKIP_BUILD=1 but the image ${AISDLC_FACTORY_IMAGE:-aisdlc/factory:local} does not exist"
 else
   dc build
 fi
@@ -114,14 +120,14 @@ else
   SANDBOX_IMAGE="$SANDBOX_IMAGE" SANDBOX_AGENT_IMAGE="$SANDBOX_AGENT_IMAGE" bash ../sandbox/build-agent.sh >/dev/null || fail "the W (coding session) image did not build"
 fi
 
-step "up -d --wait (db-init, migrate, seed, then every service)"
+step "up -d --wait (db-init, volume-init, migrate, seed, then every service)"
 dc up -d --wait --wait-timeout 300
 
 step "every service is healthy"
 bad=0
 while IFS='|' read -r svc state health code; do
   case "$svc" in
-    db-init|migrate|seed)
+    db-init|volume-init|migrate|seed)
       if [ "$state" = exited ] && [ "$code" = 0 ]; then printf '  %-12s exited 0\n' "$svc"; else printf '  %-12s %s (exit %s)  <-- not ok\n' "$svc" "$state" "$code"; bad=1; fi ;;
     *)
       if [ "$state" = running ] && [ "$health" = healthy ]; then printf '  %-12s healthy\n' "$svc"; else printf '  %-12s %s/%s  <-- not ok\n' "$svc" "$state" "$health"; bad=1; fi ;;
@@ -145,7 +151,14 @@ for p in docker-proxy-cvw docker-proxy-coding; do
   id=$(dc ps -q "$p")
   [ "$(docker inspect "$id" --format '{{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}} {{.Config.User}}')" = "true [ALL] $(sed -n 's/^AISDLC_UID=//p' .env):$(sed -n 's/^AISDLC_GID=//p' .env)" ] || fail "$p is not read-only, cap-dropped and non-root"
 done
-echo "  both proxies are read-only, drop all capabilities and run as the factory uid" 
+echo "  both proxies are read-only, drop all capabilities and run as the factory uid"
+# volume-init gave each written volume to the factory uid, 0700 (a fresh volume takes the image directory's owner)
+want_owner="$(sed -n 's/^AISDLC_UID=//p' .env):$(sed -n 's/^AISDLC_GID=//p' .env) 700"
+for sv in kms-local:/kms codehost:/work knowledge:/work core-worker:/work; do
+  got=$(dc exec -T "${sv%%:*}" node -e 'const s=require("fs").statSync(process.argv[1]);console.log(`${s.uid}:${s.gid} ${(s.mode&0o777).toString(8)}`)' "${sv#*:}")
+  [ "$got" = "$want_owner" ] || fail "${sv%%:*}'s volume ${sv#*:} is $got, not $want_owner"
+done
+echo "  the written volumes belong to the factory uid ($want_owner)"
 others=$(for s in $(dc ps --format '{{.Service}}'); do
   [ "$s" = codehost ] && continue
   dc exec -T "$s" test -e /run/secrets/github-app.pem 2>/dev/null && echo "$s"
@@ -201,25 +214,27 @@ refused killswitch http://identity:8330/healthz
 # API, which it must ask before every call.)
 # (core-worker is on gateway-api since M12, the work driver being the gateway's caller, so the gateway can read
 # its three read-only routes, healthz, metrics and admission; a network is symmetric and core-worker has no
-# route that writes. It is not in this list for that reason.)
+# route that writes. It is not in this list for that reason. Nor is core, on gateway-api since M18: the assistant
+# mints a per-ask key and calls /v1/messages; nor verify, M14.3: the A5 reviewer calls it under the run's key.)
 for t in http://kms-local:8300/healthz http://notary:8310/healthz http://witness:8320/healthz \
-         http://identity:8330/healthz http://core:8380/healthz \
+         http://identity:8330/healthz \
          http://codehost:8350/healthz http://knowledge:8370/healthz http://bff:8340/healthz; do
   refused gateway "$t"
 done
-for from in core identity knowledge codehost bff notary witness kms-local; do
-  refused "$from" http://gateway:8410/healthz     # nobody calls the gateway but the work driver's process (M11, M12) and later a sandbox (M13), on gateway-api
+for from in identity knowledge codehost bff notary witness kms-local; do
+  refused "$from" http://gateway:8410/healthz     # nobody calls the gateway but the work driver's process (M11, M12), core's assistant (M18), verify (M14.3) and a sandbox (M13), on gateway-api
 done
 # M12: core-worker runs the work driver, which mints each agent run's key and calls /v1/messages under it
 dc exec -T core-worker node -e "fetch('http://gateway:8410/healthz',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || fail "core-worker cannot reach the gateway it mints agent keys at"
-echo "  core-worker (the work driver) is the one service on gateway-api"
+echo "  core-worker (the work driver), core (the assistant) and verify (A5) are the services on gateway-api"
 gw_api=$(docker network inspect "${COMPOSE_PROJECT_NAME}_gateway-api" --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}-//; s/-1$//" | grep -v '^$' | sort | tr '\n' ' ')
-[ "$gw_api" = "core-worker gateway " ] || fail "unexpected services on the gateway's API network: $gw_api"
+[ "$gw_api" = "core core-worker gateway verify " ] || fail "unexpected services on the gateway's API network: $gw_api"
 dc exec -T gateway node -e "fetch('http://killswitch:8400/healthz',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || fail "the gateway cannot reach the kill switch it must ask"
 echo "  gateway can reach the kill switch (its read link), nothing else of the stack"
 gw_nets=$(docker inspect "$(dc ps -q gateway)" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | tr ' ' '\n' | sed "s/^${COMPOSE_PROJECT_NAME}_//" | grep -v '^$' | sort | tr '\n' ' ')
 echo "  gateway networks: $gw_nets"
-[ "$gw_nets" = "data-gateway gateway-api gateway-egress killswitch-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
+# telemetry-gateway (M19): its own link to the collector, nobody else of the stack on it
+[ "$gw_nets" = "data-gateway gateway-api gateway-egress killswitch-gateway telemetry-gateway " ] || fail "the gateway is on unexpected networks: $gw_nets"
 on_egress=$(docker network inspect "${COMPOSE_PROJECT_NAME}_gateway-egress" --format '{{range .Containers}}{{.Name}} {{end}}')
 [ "$(printf '%s' "$on_egress" | wc -w)" = 1 ] || fail "something else is on the gateway's egress network: $on_egress"
 echo "  nothing but the gateway is on gateway-egress"
@@ -505,8 +520,8 @@ echo "  integration events: $(printf '%s' "$events" | node -e 'let s="";process.
 step "the sandbox plane: one K and one K-exec session through the coding proxy, a privileged create refused, nothing left behind (M13.2)"
 # the coding proxy and the mirror are healthy (up --wait did that); run the client on the coding proxy's network
 dcs run --rm --no-deps -T sandbox-smoke || fail "the sandbox smoke client failed"
-left=$(docker ps -aq --filter "label=aisdlc.sandbox=1" | wc -l)
-nets=$(docker network ls -q --filter "label=aisdlc.sandbox=1" | wc -l)
+left=$(own_sandboxes ps -aq | wc -l)
+nets=$(own_sandboxes network ls -q | wc -l)
 dirs=$(find "$SANDBOX_SCRATCH" -mindepth 1 -maxdepth 1 | wc -l)
 echo "  left behind: $left sandbox containers, $nets session networks, $dirs scratch directories"
 [ "$left" = 0 ] && [ "$nets" = 0 ] && [ "$dirs" = 0 ] || fail "the sandbox plane left something behind"
