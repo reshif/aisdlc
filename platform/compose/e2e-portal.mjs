@@ -245,7 +245,12 @@ try {
   await page.getByRole('button', { name: 'Confirm it’s you' }).click();
   await devSignIn();
   await page.waitForURL(/\/onboard\/[0-9a-f-]{36}/);
-  must(!page.url().includes('step_up'), 'the step-up attempt id is left in the address bar');
+  // the page collects the proof once and takes the attempt id out of the address bar
+  await until(
+    async () => !page.url().includes('step_up'),
+    'the step-up attempt id to leave the address bar',
+    15_000,
+  );
   await until(async () => (await signState()) === 'done', 'the sign-off to end');
   await page.locator('[data-testid="onboarding-status"][data-status="done"]').waitFor();
   log('onboarding signed off: done');
