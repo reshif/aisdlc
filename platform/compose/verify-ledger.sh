@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 # Verify the stack's ledger offline with the bundled `verify-ledger` (PLAN M8.0b, M8.5).
 #
-#   verify-ledger.sh [--wait SECONDS]
+#   verify-ledger.sh [--wait SECONDS] [--allow-redacted]
 #
 # Waits (up to SECONDS, default 120) until the newest checkpoint, co-signed by the Witness, covers
 # the ledger head, then runs `verify-ledger` inside the core-worker container against the record
 # database with the two public keys (dev:notary, dev:witness) fetched from kms-local. Nothing is
 # written: the CLI's session is read-only and the keys are public. Exit 0 only if it verified.
-# Uses the compose project of the caller (COMPOSE_PROJECT_NAME), run from this directory.
+# Uses the compose project of the caller (COMPOSE_PROJECT_NAME), run from this directory. --allow-redacted passes the
+# CLI's flag: an entry a deletion redacted is checked by its stored hash and must be named by a signed
+# `deletion.performed` entry (docs/specs/deletion.md §2); without it any redacted entry fails.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 wait_s=120
-if [ "${1:-}" = "--wait" ]; then wait_s="${2:?--wait needs a number of seconds}"; fi
+redacted=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --wait) wait_s="${2:?--wait needs a number of seconds}"; shift 2 ;;
+    --allow-redacted) redacted=1; shift ;;
+    *) echo "verify-ledger: unknown argument $1" >&2; exit 2 ;;
+  esac
+done
 dc() { docker compose "$@"; }
 psql_one() {
   local pw
@@ -35,7 +44,7 @@ while :; do
 done
 echo "  checkpoint $cp_seq co-signed by the Witness covers ledger entries 1..$cp_to (the head is $head_seq)"
 
-dc exec -T core-worker node -e '
+dc exec -T -e ALLOW_REDACTED="$redacted" core-worker node -e '
 const { readFileSync, writeFileSync } = require("node:fs");
 const { spawnSync } = require("node:child_process");
 (async () => {
@@ -49,7 +58,8 @@ const { spawnSync } = require("node:child_process");
     console.log(`  public key ${id} fetched from kms-local`);
   }
   const url = readFileSync("/run/secrets/db-url-aisdlc", "utf8").trim();
-  const p = spawnSync("node", ["/app/packages/ledger/dist/verify-ledger.js", "--notary-key", "/tmp/notary.jwk", "--witness-key", "/tmp/witness.jwk"],
+  const p = spawnSync("node", ["/app/packages/ledger/dist/verify-ledger.js", "--notary-key", "/tmp/notary.jwk", "--witness-key", "/tmp/witness.jwk",
+     ...(process.env.ALLOW_REDACTED === "1" ? ["--allow-redacted"] : [])],
     { env: { ...process.env, AISDLC_LEDGER_DB_URL: url }, encoding: "utf8" });
   for (const l of (p.stdout + p.stderr).split("\n")) if (l) console.log("  " + l);
   process.exit(p.status ?? 2);

@@ -20,6 +20,12 @@
 #   role verify -> database aisdlc     NOT the owner (M14.3): a login role in the group role `aisdlc_verify`, which the
 #                                      verify migration grants its own table (SELECT, INSERT) and its own `verify:`
 #                                      record streams (SELECT, INSERT), nothing else.
+#   role core_purge -> database aisdlc  NOT the owner (portal v2, docs/specs/deletion.md §4): core's deletion login, a
+#                                      member of the group role `aisdlc_purge` (record/0005_purge.sql and
+#                                      ledger/0002_redaction.sql grant it: DELETE on the record and the read models, the
+#                                      redaction UPDATE of the ledger, each refused by the triggers unless purge-shaped
+#                                      and the transaction ran `SET LOCAL ROLE aisdlc_purge`). core's normal login
+#                                      `aisdlc` is NOT a member: only the delete routes use this one.
 #
 # Each role owns only its database and nobody else may connect to it, so a compromised record
 # service cannot read the Notary's or the Witness's state. Same server for all three: a declared
@@ -42,7 +48,8 @@ psql -v ON_ERROR_STOP=1 \
   -v pw_gate_relay="$(cat /run/secrets/pg-pass-gate-relay)" \
   -v pw_notifier="$(cat /run/secrets/pg-pass-notifier)" \
   -v pw_audit="$(cat /run/secrets/pg-pass-audit)" \
-  -v pw_keycloak="$(cat /run/secrets/pg-pass-keycloak)" <<'SQL'
+  -v pw_keycloak="$(cat /run/secrets/pg-pass-keycloak)" \
+  -v pw_purge="$(cat /run/secrets/pg-pass-purge)" <<'SQL'
 SELECT 'CREATE ROLE aisdlc_app NOLOGIN'
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_app') \gexec
 
@@ -109,6 +116,15 @@ SELECT 'CREATE ROLE audit LOGIN'
 SELECT format('ALTER ROLE audit PASSWORD %L', :'pw_audit') \gexec
 GRANT aisdlc_audit TO audit;
 
+-- Deletion's purge group role (record/0005 creates it too, idempotently, and grants it; it exists before the first
+-- migration so the login can be made a member here) and core's deletion login, its only member.
+SELECT 'CREATE ROLE aisdlc_purge NOLOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aisdlc_purge') \gexec
+SELECT 'CREATE ROLE core_purge LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'core_purge') \gexec
+SELECT format('ALTER ROLE core_purge PASSWORD %L', :'pw_purge') \gexec
+GRANT aisdlc_purge TO core_purge;
+
 SELECT format('CREATE ROLE %I LOGIN', r)
   FROM unnest(ARRAY['aisdlc', 'notary', 'witness', 'killswitch', 'keycloak']) AS r
  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r) \gexec
@@ -120,6 +136,10 @@ SELECT format('CREATE ROLE %I LOGIN', r)
 SELECT format('ALTER ROLE aisdlc CREATEROLE PASSWORD %L', :'pw_aisdlc') \gexec
 SELECT format('ALTER ROLE notary PASSWORD %L', :'pw_notary') \gexec
 SELECT format('ALTER ROLE witness PASSWORD %L', :'pw_witness') \gexec
+-- record/0005 (run by `migrate` as aisdlc) makes the purge role a member of aisdlc_app: PostgreSQL 16 lets only a
+-- holder of aisdlc_app's ADMIN option grant it, and this script made aisdlc_app. ADMIN alone: aisdlc neither inherits
+-- nor sets the group role (it owns the tables anyway).
+GRANT aisdlc_app TO aisdlc WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
 SELECT format('ALTER ROLE killswitch PASSWORD %L', :'pw_killswitch') \gexec
 SELECT format('ALTER ROLE keycloak PASSWORD %L', :'pw_keycloak') \gexec
 
@@ -138,5 +158,6 @@ GRANT CONNECT ON DATABASE aisdlc TO gate_check;
 GRANT CONNECT ON DATABASE aisdlc TO gate_relay;
 GRANT CONNECT ON DATABASE aisdlc TO notifier;
 GRANT CONNECT ON DATABASE aisdlc TO audit;
+GRANT CONNECT ON DATABASE aisdlc TO core_purge;
 SQL
 echo "db-init: roles and databases are in place"
