@@ -1,4 +1,9 @@
-import { RepoFullName, WorkItemId } from '@aisdlc/contracts';
+import {
+  RepoFullName,
+  WorkItemId,
+  type GithubAppJobReport,
+  type GithubAppReport,
+} from '@aisdlc/contracts';
 import type { LoopSupervisor } from '@aisdlc/loops';
 import { newApp, sendError, type ServiceAuth } from '@aisdlc/service-kit';
 import type { FastifyInstance } from 'fastify';
@@ -10,7 +15,7 @@ import { listMerges, listVerdicts } from './store.js';
  * gate-check's HTTP surface (docs/specs/gate-check-api.md). It takes no command: nothing here writes, decides or
  * asks gate-check to pass anything. `GET /healthz` and `GET /metrics` are the loops' health (no credential, nothing
  * read from a repo); `GET /v1/verdicts` and `GET /v1/merges` (scope `read`: the bff, for the portal's gate-check run
- * status, M14.6) are the read models.
+ * status, M14.6) are the read models; `GET /v1/app` (scope `read`) is its App's report (no key, no token).
  */
 export type GateCheckScope = 'read';
 
@@ -19,6 +24,8 @@ export interface GateCheckAppOptions {
   readonly pool: Pick<pg.Pool, 'query'>;
   readonly auth: ServiceAuth;
   readonly callers: Record<string, readonly GateCheckScope[]>;
+  /** `GET /v1/app`: gate-check's App report (the portal's GitHub Apps panel); absent: no App to report. */
+  readonly appReport?: () => Promise<GithubAppJobReport>;
 }
 
 const VerdictsQuery = z.union([
@@ -58,6 +65,10 @@ export function createGateCheckApp(o: GateCheckAppOptions): FastifyInstance {
             : { repo: d.repo, pr: d.pr },
       ),
     };
+  });
+  app.get('/v1/app', async () => {
+    const body: GithubAppReport = { reports: o.appReport ? [await o.appReport()] : [] };
+    return body;
   });
   app.get('/v1/merges', async (req, reply) => {
     const q = MergesQuery.safeParse(req.query);

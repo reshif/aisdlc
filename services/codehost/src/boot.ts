@@ -3,7 +3,7 @@ import { listen, listenConfig, type Env, type RunningService } from '@aisdlc/ser
 import { FakeRegisteredRepos, FileRegisteredRepos, HttpRegisteredRepos } from '@aisdlc/ports';
 import { GitHubRestCodeHost } from './adapter.js';
 import { HttpPushGuards } from './push-guards.js';
-import { createCodeHostApp } from './app.js';
+import { createCodeHostApp, type CodeHostAppFacts } from './app.js';
 import {
   codeHostConfigFromEnv,
   codeHostRegistryConfigFromEnv,
@@ -51,12 +51,31 @@ function trackerOf(
   });
 }
 
+/** The tracker App's facts (its installation is not read here: `null` last call, not known). */
+const trackerFacts = (t: CodeHostTrackerConfig | null): CodeHostAppFacts['tracker'] =>
+  t === null
+    ? null
+    : {
+        job: 'tracker',
+        app_id: t.appId,
+        installation_id: t.installationId,
+        login: t.login,
+        key_loaded: true, // trackerOf parsed it at start, or the process did not start
+        last_ok_at: null,
+      };
+
 export async function bootCodeHost(env: Env): Promise<RunningService> {
   if (env['CODEHOST_REGISTRY_INTEGRATION']) return bootCodeHostFromRegistry(env);
   const cfg = codeHostConfigFromEnv(env);
-  const tracker = trackerOf(trackerConfigFromEnv(env), env);
+  const trackerCfg = trackerConfigFromEnv(env);
+  const tracker = trackerOf(trackerCfg, env);
   const listenOpts = listenConfig(env, 'CODEHOST', 8350);
   const clock = systemClock;
+  let lastOk: string | null = null;
+  const seen = (e: { method: string; path: string; status: number; auth: string }): void => {
+    if (e.status >= 200 && e.status < 400) lastOk = clock.now().toISOString();
+    requestLog(e);
+  };
   const broker = new TokenBroker({
     appKey: cfg.appKey,
     appId: cfg.appId,
@@ -64,14 +83,14 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
     baseUrl: cfg.apiUrl,
     mode: cfg.mode,
     clock,
-    onMint: (e) => requestLog(e),
+    onMint: (e) => seen(e),
   });
   const transport = new GitHubTransport({
     baseUrl: cfg.apiUrl,
     broker,
     mode: cfg.mode,
     log: (line) => console.log(`codehost: ${line}`),
-    onRequest: (e) => requestLog(e),
+    onRequest: (e) => seen(e),
   });
   const registered = cfg.core
     ? new HttpRegisteredRepos({ baseUrl: cfg.core.url, token: cfg.core.token })
@@ -110,6 +129,17 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
     callers: cfg.callers,
     broker,
     clock,
+    appFacts: () => ({
+      main: {
+        job: cfg.mode === 'push' ? 'push' : 'read',
+        app_id: /^[1-9][0-9]*$/.test(cfg.appId) ? cfg.appId : null,
+        installation_id: cfg.installationId,
+        login: cfg.mode === 'push' ? cfg.committer.name : null,
+        key_loaded: true, // the config read and parsed it, or the process did not start
+        last_ok_at: lastOk,
+      },
+      tracker: trackerFacts(trackerCfg),
+    }),
   });
   const url = await listen(app, listenOpts);
   return { url, close: () => app.close() };
@@ -123,7 +153,8 @@ export async function bootCodeHost(env: Env): Promise<RunningService> {
  */
 async function bootCodeHostFromRegistry(env: Env): Promise<RunningService> {
   const cfg = codeHostRegistryConfigFromEnv(env);
-  const tracker = trackerOf(trackerConfigFromEnv(env), env, new Set(cfg.egressHosts));
+  const trackerCfg = trackerConfigFromEnv(env);
+  const tracker = trackerOf(trackerCfg, env, new Set(cfg.egressHosts));
   const listenOpts = listenConfig(env, 'CODEHOST', 8350);
   const selector = new RegistryHostSelector({
     integrationId: cfg.integrationId,
@@ -155,6 +186,7 @@ async function bootCodeHostFromRegistry(env: Env): Promise<RunningService> {
     auth: cfg.auth,
     callers: cfg.callers,
     clock: systemClock,
+    appFacts: () => ({ main: selector.appFacts(), tracker: trackerFacts(trackerCfg) }),
     reload: async ({ force }) => {
       await tick(force);
       return selector.current;

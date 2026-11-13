@@ -4,6 +4,7 @@ import type {
   BudgetsView,
   CostView,
   GatewayReloadView,
+  GithubAppsView,
   OnboardReposView,
   ProviderTestResult,
   PublishBannerBody,
@@ -769,6 +770,7 @@ export const api = {
   evalSummary: () => request<EvalSummaryView>('GET', '/api/evals/summary'),
   evalRuns: () => request<EvalRunsView>('GET', '/api/evals/runs?limit=50'),
   integrations: () => request<IntegrationsView>('GET', '/api/integrations'),
+  githubApps: () => request<GithubAppsView>('GET', '/api/integrations/github-apps'),
   health: () => request<HealthView>('GET', '/api/health'),
   degraded: (projects: readonly string[]) =>
     request<DegradedView>(

@@ -9,6 +9,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { gitBlobSha, repoKey, type CodeHostSeed } from '@aisdlc/ports';
 import { GitObjects } from './fake-github-objects.js';
+import { FakeManifestFlow } from './fake-github-manifest.js';
 import { emptySeed } from '@aisdlc/ports';
 import { systemClock, type Clock } from '@aisdlc/kernel';
 
@@ -159,6 +160,8 @@ export interface FakeGitHubServerOptions {
   readonly people?: readonly string[];
   /** The check runs a person's merge needs to have concluded `success` on the PR head (branch protection). */
   readonly requiredChecks?: readonly string[];
+  /** The account an App made through the manifest flow belongs to (default `reshif`, the testbed's owner). */
+  readonly manifestAccount?: string;
   /** A second listener (the compose stack: gate-check reaches the host from another container). */
   readonly extraListen?: { readonly host: string; readonly port: number };
   /** More listeners (M15.3: gate-relay's door, on its own network). */
@@ -199,6 +202,8 @@ export class FakeGitHubServer {
   /** The fields every issue write (POST or PATCH) carried, in order: what the tracker asked GitHub to change. */
   readonly issueWrites: Array<{ method: string; path: string; keys: string[] }> = [];
   readonly deployments: FakeDeployment[] = [];
+  /** The App manifest flow (the setup wizard's): Apps made on this host, their installations. */
+  readonly manifestFlow: FakeManifestFlow;
   private server: Server | null = null;
   private extra: Server[] = [];
   private readonly revoked = new Set<string>();
@@ -212,6 +217,12 @@ export class FakeGitHubServer {
   constructor(private readonly o: FakeGitHubServerOptions) {
     this.seed = o.seed ?? emptySeed();
     this.objects = new GitObjects(this.seed);
+    this.manifestFlow = new FakeManifestFlow({
+      account: o.manifestAccount ?? 'reshif',
+      repos: () => this.seed.repos.map((r) => r.full_name),
+      now: () => this.clock.now(),
+      issue: (t) => this.issued.push(t),
+    });
   }
 
   private get clock(): Clock {
@@ -606,6 +617,15 @@ export class FakeGitHubServer {
       this.o.onRequest?.(entry);
     };
 
+    const flow = this.manifestFlow.handle(method, url, body, req.headers.authorization);
+    if (flow) {
+      if (flow.location !== undefined) {
+        res.writeHead(flow.status, { location: flow.location }).end();
+        return void log(flow.status);
+      }
+      return void log(this.json(res, flow.status, flow.body ?? {}));
+    }
+
     const mint = /^\/app\/installations\/(\d+)\/access_tokens$/.exec(path);
     if (mint) {
       if (method !== 'POST')
@@ -708,7 +728,22 @@ export class FakeGitHubServer {
     if (inst) {
       if (who.kind !== 'jwt')
         return void log(this.json(res, 401, { message: 'A JSON web token could not be decoded' }));
-      const i = this.seed.installation;
+      // a second App sees its own installation (its own grant); the main App the seed's
+      const second = {
+        checks: this.o.checksApp,
+        deploys: this.o.deployApp,
+        tracker: this.o.trackerApp,
+        push: this.o.pushApp,
+        main: undefined,
+      }[who.app ?? 'main'];
+      const i = second
+        ? {
+            ...this.seed.installation,
+            installation_id: second.installationId,
+            permissions: { ...second.permissions },
+          }
+        : this.seed.installation;
+      if (who.app !== 'main' && !second) return void log(this.json(res, 404, notFound));
       if (Number(inst[1]) !== i.installation_id) return void log(this.json(res, 404, notFound));
       return void log(
         this.json(res, 200, {
@@ -717,7 +752,7 @@ export class FakeGitHubServer {
           repository_selection: i.repository_selection,
           access_tokens_url: `${this.baseUrl}/app/installations/${i.installation_id}/access_tokens`,
           repositories_url: `${this.baseUrl}/installation/repositories`,
-          app_id: Number(this.o.appId) || 1,
+          app_id: second ? Number(second.appId) : Number(this.o.appId) || 1,
           target_id: 1,
           target_type: 'Organization',
           permissions: i.permissions,

@@ -62,6 +62,8 @@ export function testbedSeed(o: {
   head: string;
   installationId: number;
   gateCheckAppId?: number;
+  /** The installation's grant (default read-only: the two-App layout's factory App also pushes). */
+  permissions?: Record<string, 'read' | 'write'>;
 }): CodeHostSeed {
   const [owner] = o.repo.split('/') as [string];
   const rule = (type: string, parameters?: Record<string, unknown>) => ({
@@ -77,7 +79,7 @@ export function testbedSeed(o: {
       account_login: owner,
       repository_selection: 'selected',
       // Read-only: contents and metadata. The factory never asks for more (OB §5.5).
-      permissions: { contents: 'read', metadata: 'read' },
+      permissions: o.permissions ?? { contents: 'read', metadata: 'read' },
       suspended: false,
     },
     repos: [{ full_name: o.repo, default_branch: 'main', private: true, archived: false }],

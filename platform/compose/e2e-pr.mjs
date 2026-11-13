@@ -629,10 +629,12 @@ try {
     (gh.json.draft === true && gh.json.state === 'open') || gh.json.merged === true,
     `PR #${pr.number} is not an open draft`,
   );
-  must(gh.json.user?.login === 'aisdlc[bot]', `PR #${pr.number} is by ${gh.json.user?.login}`);
+  // the Push Broker's bot: the factory App's in the two-App layout (e2e-pr.sh sets it as setup-github-apps does)
+  const bot = process.env.E2E_BROKER_LOGIN || 'aisdlc[bot]';
+  must(gh.json.user?.login === bot, `PR #${pr.number} is by ${gh.json.user?.login}, not ${bot}`);
   must(gh.json.head.sha === pr.head_sha, `the PR head on GitHub is ${gh.json.head.sha}`);
   log(
-    `the fake GitHub: PR #${pr.number} is ${gh.json.merged ? 'merged' : 'an open draft'} by aisdlc[bot] at ${gh.json.head.sha.slice(0, 12)}`,
+    `the fake GitHub: PR #${pr.number} is ${gh.json.merged ? 'merged' : 'an open draft'} by ${bot} at ${gh.json.head.sha.slice(0, 12)}`,
   );
   // gate-check looks at the PR as soon as the Push Broker opens it, before 7.6 signs the pack (`failure no_pack`, as its
   // spec says), and again on every pass: the check must turn to success for exactly this head

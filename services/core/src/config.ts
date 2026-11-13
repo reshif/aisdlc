@@ -46,6 +46,8 @@ export interface CoreConfig {
     readonly notaryUrl: string;
     readonly notaryToken: string;
   } | null;
+  /** P2-4: the Push Broker's App report (`GET /v1/app`, scope `status`); `null`: the panel says not configured. */
+  readonly pushBroker: { readonly url: string; readonly token: string } | null;
   /** The onboarding cards' remotes (PLAN M8.0): knowledge (scopes census, security) and the codehost reads. */
   readonly cards: {
     readonly knowledge: { readonly url: string; readonly token: string };
@@ -95,6 +97,8 @@ export interface CoreConfig {
  *                            back (and checks them); without it the viewer shows the record's facts only
  *   CORE_ADMISSION_URL       (M19) core-worker's read-only `/admission`: the kill switch's verdict the floor shows
  *                            (core has no route to the kill switch); without it the floor reads killed (AR9)
+ *   CORE_PUSH_BROKER_URL, CORE_PUSH_BROKER_TOKEN_REF   (P2-4) the Push Broker's App report only (scope `status`), for
+ *                            the portal's GitHub Apps panel; without it the panel says the push job is not configured
  *   CORE_IDENTITY_URL, CORE_IDENTITY_TOKEN_REF   (P1-6) identity's API, scope `grant`: writes the role binding an
  *                            approved access M1 decided; without it a decided grant waits (`POST .../apply` retries)
  * Every secret is an `env:NAME` or `file:PATH` reference.
@@ -141,6 +145,7 @@ export function coreConfigFromEnv(env: Env): CoreConfig {
             notaryToken: resolveSecretRef(requiredEnv(env, 'CORE_NOTARY_TOKEN_REF'), { env }),
           },
     cards: knowledge !== null && codehost !== null ? { knowledge, codehost } : null,
+    pushBroker: remote('PUSH_BROKER'),
     assistant:
       gateway === null
         ? null

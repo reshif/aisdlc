@@ -89,7 +89,7 @@ secrets-real: ## switch the secrets and .env to your real GitHub App: make secre
 
 github-apps: ## create the GitHub Apps through GitHub's manifest flow (the setup wizard)
 	@test -x $(COMPOSE_DIR)/setup-github-apps || \
-	  { echo "the setup wizard is not on this branch yet; create the Apps by hand: docs/getting-started.md section 4"; exit 1; }
+	  { echo "platform/compose/setup-github-apps is missing or not executable; create the Apps by hand: docs/getting-started.md section 4.3"; exit 1; }
 	cd $(COMPOSE_DIR) && ./setup-github-apps
 
 up: ## start the local factory and wait until it is healthy (GITHUB=fake by default)

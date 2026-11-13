@@ -18,6 +18,7 @@ import {
 import { callJson, type Env } from '@aisdlc/service-kit';
 import { GitHubRestCodeHost } from './adapter.js';
 import { AppKey } from './app-key.js';
+import type { CodeHostAppFacts } from './app.js';
 import { AllowListedCodeHost } from './repo-allow-list.js';
 import { TokenBroker } from './token-broker.js';
 import { GitHubTransport } from './transport.js';
@@ -133,6 +134,9 @@ export class RegistryHostSelector {
   private evidence: { code: 'ok' | 'auth' | 'rate_limited' | 'unavailable'; at: number } | null =
     null;
   private readonly clock: Clock;
+  /** The App of the row serving, and its last good answer from GitHub (for `GET /v1/app`). */
+  private app: { app_id: string; installation_id: number } | null = null;
+  private lastOk: number | null = null;
 
   constructor(private readonly o: SelectorOptions) {
     this.clock = o.clock ?? systemClock;
@@ -262,6 +266,7 @@ export class RegistryHostSelector {
                 : null;
       // a 404 or another 4xx is about the repo asked for, not about the integration
       if (code !== null) this.evidence = { code, at: this.clock.nowMs() };
+      if (code === 'ok') this.lastOk = this.clock.nowMs();
     };
     const clock = this.clock;
     const broker = new TokenBroker({
@@ -307,7 +312,22 @@ export class RegistryHostSelector {
       }),
       new NarrowedRegisteredRepos(this.o.registered, view, row.integration_id),
     );
+    this.app = { app_id: String(cfg.data.app_id), installation_id: cfg.data.installation_id };
     return { host, broker };
+  }
+
+  /** The serving row's App (the key loaded only while a row serves), for the codehost's `GET /v1/app`. */
+  appFacts(): CodeHostAppFacts['main'] {
+    const serving = this.runtime !== null && this.app !== null;
+    const id = this.app?.app_id ?? null;
+    return {
+      job: 'read',
+      app_id: id !== null && /^[1-9][0-9]*$/.test(id) ? id : null,
+      installation_id: this.app?.installation_id ?? null,
+      login: null,
+      key_loaded: serving,
+      last_ok_at: this.lastOk === null ? null : new Date(this.lastOk).toISOString(),
+    };
   }
 
   /** The shared health shape for this integration, from what the row and GitHub's answers showed. */

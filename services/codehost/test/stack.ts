@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   AllowListedCodeHost,
   createCodeHostApp,
+  type CodeHostAppFacts,
   type CodeHostScope,
   type IdentityLinksPort,
 } from '../src/index.js';
@@ -79,6 +80,8 @@ export async function startCodeHostApp(
   git?: NonNullable<Parameters<typeof startTestCodeHost>[0]>['git'],
   /** The Push Broker (M13.6): with guards the host runs in push mode and the `push` caller may use it. */
   guards?: PushGuardsPort,
+  /** `GET /v1/app`'s facts (the App report). */
+  appFacts?: CodeHostAppFacts,
 ): Promise<CodeHostTestApp> {
   const gh = await startTestCodeHost({
     seed,
@@ -102,6 +105,7 @@ export async function startCodeHostApp(
     callers,
     broker: gh.broker,
     clock: gh.clock,
+    ...(appFacts ? { appFacts: () => appFacts } : {}),
   });
   const url = await listen(app);
   const outputs: string[] = [];

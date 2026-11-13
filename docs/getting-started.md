@@ -18,7 +18,7 @@ Run `make` in the repository root to list every command. The everyday ones:
 | `make install` | install dependencies (`npm ci`) |
 | `make secrets` | create local secrets and `.env` for the fake GitHub (safe to re-run) |
 | `make secrets-real GITHUB_APP_ID=… GITHUB_INSTALLATION_ID=…` | switch to your real GitHub App |
-| `make github-apps` | create the GitHub Apps with the setup wizard (once it has landed) |
+| `make github-apps` | create the two GitHub Apps with the setup wizard (§4.1) |
 | `make up` / `make up GITHUB=real` | start the factory and wait until healthy; add `PROFILES="gate-check notifier"` for more |
 | `make portal` | print the portal's address |
 | `make ps` / `make logs SERVICE=core` | see containers and their health / follow logs |
@@ -193,46 +193,106 @@ same page: pick the **same** person again.
 
 ## 4. Create the GitHub Apps
 
-The factory talks to GitHub only through Apps that it holds keys for. Each App does one kind of thing, so that one
-leaked key never gives two powers (`platform/compose/README.md`, the `gate-check` and `gate-relay` sections). The
-factory polls; it uses no webhooks ("Polling, no webhooks", `packages/loops/src/code-host-polls.ts:9`).
+The factory talks to GitHub only through Apps it holds keys for. It polls and uses no webhooks ("Polling, no
+webhooks", `packages/loops/src/code-host-polls.ts`). The default is **two Apps**:
 
-These settings apply to every App below:
-
-- GitHub: your avatar › Settings › Developer settings › GitHub Apps › **New GitHub App**.
-- Webhook: clear **Active**. No events are needed.
-- "Where can this GitHub App be installed?": **Only on this account**.
-- Permissions: exactly the ones listed. Leave everything else at **No access**. The factory refuses `administration`
-  and `workflows` at any level, and `statuses` too (DEC-7). It also refuses any `admin` level
-  (`GITHUB_FORBIDDEN_PERMS`, `packages/contracts/src/entities/codehost.ts:47`). If the installation holds
-  `administration` or `workflows`, M4 is blocked entirely (B4a, `packages/ports/src/b4.ts`).
-- After you create the App: **Generate a private key** downloads a `.pem` file. Note the **App ID**, a number (not
-  the Client ID).
-- Install the App: **Install App** › your account › **Only select repositories** › your testbed repository only. The
-  installation id is the number at the end of the installation page's URL (`/installations/<number>`).
-- Every key goes into `platform/compose/secrets/` with mode 600. Never commit it or paste it anywhere.
-
-| Role | Needed for a first run? | Permissions (from the code) | Key file | Settings |
+| App | What it does | Permissions (derived from the code, never typed by hand) | Key file(s) | `.env` |
 | --- | --- | --- | --- | --- |
-| **read** (codehost, Census) | **yes** | Contents: Read, Metadata: Read. Tokens are minted per role from `CODEHOST_ROLE_PERMISSIONS` (`packages/contracts/src/entities/codehost.ts:95-100`): `hub` = contents read and metadata read (`:96`), `posture` = metadata read (`:97`) | `secrets/github-app.pem` (mounted in `codehost` only) | `GITHUB_APP_ID`, `GITHUB_INSTALLATION_ID` in `.env` (written by `init-secrets --real-github`); compose passes them to the seed's registry row (`SEED_GITHUB_*`) |
-| **push** (Push Broker) | no. **Available after `build/e2e-pr` lands** | the `docs` role: Contents: Read and write, Pull requests: Read and write, Metadata: Read (`codehost.ts:98`). It writes only the `agent/<item>/<unit>` branch and a draft PR (`PUSH_ALLOW_LIST`, `services/codehost/src/allow-list.ts:123`) | on `main` the Push Broker is the codehost in `CODEHOST_MODE=push`, and it mints `docs` tokens from the **same** App key, `secrets/github-app.pem` (`services/codehost/src/token-broker.ts:109-111`). Whether it gets its own App is settled on `build/e2e-pr` | `CODEHOST_MODE=push` and `CORE_WORKER_PUSH_BROKER=1` are not in `docker-compose.yml` on `main`. gate-check recognises agent PRs by `GATE_CHECK_PUSH_BROKER_LOGIN` (default `aisdlc[bot]`; set it to your App's `<slug>[bot]`) |
-| **gate-check** | no (profile `gate-check`) | Checks: Read and write, Pull requests: Read, Metadata: Read (`GATE_CHECK_APP_PERMISSIONS`, `packages/contracts/src/entities/gate-check.ts:24`) | `secrets/gate-check-app.pem` | `GATE_CHECK_APP_ID`, `GATE_CHECK_INSTALLATION_ID` in `.env` |
-| **gate-relay** | no (profile `gate-relay`) | Deployments: Read and write, Metadata: Read (`GATE_RELAY_APP_PERMISSIONS`, `packages/contracts/src/entities/gate-relay.ts:23`) | `secrets/gate-relay-app.pem` | `GATE_RELAY_APP_ID`, `GATE_RELAY_INSTALLATION_ID` in `.env`; core follows it only with `CORE_WORKER_RELEASE=gate-relay` |
-| **tracker** (gap issues) | no | Issues: Read and write, Metadata: Read (`TRACKER_APP_PERMISSIONS`, `packages/contracts/src/entities/issue-twin.ts:41`) | `secrets/tracker-app.pem` (held by `codehost`, never with the read App's key: `services/codehost/src/config.ts`, `trackerConfigFromEnv`) | `TRACKER_APP_ID`, `TRACKER_INSTALLATION_ID`, `TRACKER_LOGIN` (`<slug>[bot]`) in `.env`. Leave `TRACKER_APP_ID` empty and the `issue_twin` loop does not run |
+| **factory** | reads (Census, the bundle route) and pushes: the Push Broker writes only the `agent/<item>/<unit>` branch and a Draft PR (`PUSH_ALLOW_LIST`, `services/codehost/src/allow-list.ts`) | Contents: Read and write, Pull requests: Read and write, Metadata: Read. The union of the codehost roles `hub`, `posture` and `docs` (`CODEHOST_ROLE_PERMISSIONS`, `packages/contracts/src/entities/codehost.ts`). With `--with-tracker` also Issues: Read and write (`TRACKER_APP_PERMISSIONS`), with `--with-gate-relay` also Deployments: Read and write (`GATE_RELAY_APP_PERMISSIONS`) | the same key in `secrets/github-app.pem` (codehost) and `secrets/push-broker-app.pem` (push-broker); `tracker-app.pem`, `gate-relay-app.pem` when opted in | `GITHUB_APP_ID`, `GITHUB_INSTALLATION_ID`, `PUSH_BROKER_APP_ID`, `PUSH_BROKER_INSTALLATION_ID` (the same two numbers), `PUSH_BROKER_LOGIN` and `GATE_CHECK_PUSH_BROKER_LOGIN` (`<slug>[bot]`); `TRACKER_*`, `GATE_RELAY_*` when opted in |
+| **gate-check** | writes only the check run `aisdlc/gate` on agent PRs (profile `gate-check`, part of `full`) | Checks: Read and write, Pull requests: Read, Metadata: Read (`GATE_CHECK_APP_PERMISSIONS`, `packages/contracts/src/entities/gate-check.ts`) | `secrets/gate-check-app.pem` | `GATE_CHECK_APP_ID`, `GATE_CHECK_INSTALLATION_ID` |
 
-Why the Apps are separate:
+Both sets come from `githubAppPermissions('factory' | 'gate-check')` in `packages/contracts/src/entities/github-apps.ts`.
 
-- **read** reads only. In Census mode the codehost refuses to mint any token that writes
-  (`services/codehost/src/token-broker.ts:109-111`).
-- **push** writes only the `agent/*` branch and its draft PR. No allow-list row exists for a merge, a review, a
-  status, a check or a ruleset.
-- **gate-check** writes only the check run `aisdlc/gate`. In the codehost, one leaked key would give both pushing and
-  passing the check.
-- **gate-relay** writes only deployments of a merged commit after an approved G5.
-- **tracker** can only file issues for approved onboarding gaps. The tracker comment in `issue-twin.ts` says neither
-  the Push Broker nor gate-check can write an issue.
+Why gate-check is always its own App: separation of duties. The identity that pushes agent code must never be able
+to write the check that lets a person merge it. The factory App plays every other role, and each service still mints
+its tokens per role with an explicit subset (a Census codehost never mints a token that writes,
+`services/codehost/src/token-broker.ts`).
 
-### 4.1 Put the read App's key in place and switch to real GitHub
+Neither App may hold `administration`, `workflows` or `statuses`, or any `admin` level (`GITHUB_FORBIDDEN_PERMS`,
+`packages/contracts/src/entities/codehost.ts`). If the installation holds `administration` or `workflows`, M4 is
+blocked entirely (B4a, `packages/ports/src/b4.ts`).
+
+### 4.1 The wizard (the main path)
+
+From `platform/compose`, after `npm ci` at the repository root and `./init-secrets` from section 2 (or
+`make github-apps` from the repository root, which runs the first line below):
+
+```bash
+./setup-github-apps                  # both Apps, under your user account
+./setup-github-apps --org my-org     # under an organisation (you must be allowed to create its Apps)
+./setup-github-apps --with-tracker --with-gate-relay   # the factory App also files gap issues and writes deployments
+./setup-github-apps --help
+```
+
+It prints a link to a page on `127.0.0.1` (a random port; the link carries a one-time token, and every step checks
+it) and opens it in your browser. Use the browser where you are signed in to GitHub:
+
+1. **Create factory App.** GitHub shows the App it is about to create from the manifest: private, webhook off, no
+   events, the permissions above. Confirm. The wizard exchanges GitHub's one-time code for the App's id and private
+   key, writes the key to the key files above (mode 600; it never prints the key) and the ids to `.env`.
+2. GitHub then shows the App's **install** page. Choose **Only select repositories** and pick your testbed repository
+   only. GitHub sends you back to the wizard with the installation id.
+3. The wizard checks the installation through the API (`GET /app/installations/<id>` with an App JWT): exactly the
+   App's permissions, and `selected` repositories. If not, it says what is wrong and writes no installation id. Fix it
+   on GitHub (Settings › Applications › Installed GitHub Apps › Configure) and press **Check again**.
+4. **Create gate-check App**: the same three steps.
+
+When both are checked, the wizard prints the Apps and stops. It refuses to overwrite a key that is already real (one
+`init-secrets` did not make); `--rotate` replaces it, and you then delete the old App on GitHub yourself.
+`--only factory` or `--only gate-check` creates one of the two.
+
+### 4.2 Require `aisdlc/gate` on the default branch (by hand)
+
+The factory never changes branch protection, and it does not check that you did this (`docs/readiness-challenge.md`,
+RC-E2E-8). On GitHub, in the testbed repository: Settings › Rules › Rulesets › New branch ruleset (or Settings ›
+Branches › Add branch protection rule) for the default branch › **Require status checks to pass** › add
+`aisdlc/gate` and choose the **gate-check App** as its source, so a status of the same name from anyone else does
+not count.
+
+### 4.3 Without the wizard: the form, field by field
+
+If you cannot use the wizard, create each App by hand: your avatar › Settings › Developer settings › GitHub Apps ›
+**New GitHub App** (for an organisation: the organisation's Settings › Developer settings › GitHub Apps).
+
+| Field | factory App | gate-check App |
+| --- | --- | --- |
+| GitHub App name | anything unique, e.g. `aisdlc-factory-<yours>` | e.g. `aisdlc-gate-check-<yours>` |
+| Homepage URL | any URL, e.g. `https://github.com/apps`; nothing is served there | the same |
+| Callback URL | empty (no redirect URI) | empty |
+| Expire user authorization tokens, Request user authorization (OAuth) during installation, Enable Device Flow | all off | all off |
+| Setup URL | empty | empty |
+| Webhook | clear **Active** | clear **Active** |
+| Repository permissions | Contents: **Read and write**, Pull requests: **Read and write**, Metadata: **Read-only** (+ Issues: Read and write for the tracker, + Deployments: Read and write for gate-relay) | Checks: **Read and write**, Pull requests: **Read-only**, Metadata: **Read-only** |
+| Every other permission | **No access** (never Administration, Workflows or Commit statuses) | **No access** |
+| Subscribe to events | none | none |
+| Where can this GitHub App be installed? | **Only on this account** | **Only on this account** |
+
+Then, for each App:
+
+1. **Generate a private key**: it downloads a `.pem` file. Note the **App ID**, a number on the App's page (not the
+   Client ID).
+2. **Install App** › your account › **Only select repositories** › your testbed repository only. The **installation
+   id** is the number at the end of the installation page's URL (`/settings/installations/<number>`). It is not the
+   App ID.
+3. Put the keys in place (mode 600) and the ids in `.env`:
+
+   ```bash
+   rm -f secrets/.github-app-fake secrets/.push-broker-app-fake secrets/.gate-check-app-fake
+   cp ~/Downloads/<factory-app>.private-key.pem secrets/github-app.pem
+   cp ~/Downloads/<factory-app>.private-key.pem secrets/push-broker-app.pem
+   mv ~/Downloads/<gate-check-app>.private-key.pem secrets/gate-check-app.pem
+   rm ~/Downloads/<factory-app>.private-key.pem
+   chmod 600 secrets/*.pem
+   GITHUB_APP_ID=<factory App ID> GITHUB_INSTALLATION_ID=<factory installation id> \
+   PUSH_BROKER_APP_ID=<factory App ID> PUSH_BROKER_INSTALLATION_ID=<factory installation id> \
+   GATE_CHECK_APP_ID=<gate-check App ID> GATE_CHECK_INSTALLATION_ID=<gate-check installation id> \
+     ./init-secrets --real-github
+   ```
+
+4. Add `PUSH_BROKER_LOGIN=<factory-slug>[bot]` and `GATE_CHECK_PUSH_BROKER_LOGIN=<factory-slug>[bot]` to `.env`
+   (the slug is the App's URL name, `github.com/apps/<slug>`). Then do 4.2.
+
+### 4.4 Switch the stack to real GitHub
 
 1. Stop and remove the fake-GitHub stack from section 2. Its database holds the fake repository's record:
 
@@ -240,64 +300,32 @@ Why the Apps are separate:
    docker compose --profile fake-github down -v
    ```
 
-2. Remove the throwaway key from a fake-GitHub run, if you did one. `init-secrets --real-github` removes it by
-   itself only when it is still the exact key it generated, and keeps a key you copied over it, but removing it
-   yourself makes the state obvious:
-
-   ```bash
-   rm -f secrets/github-app.pem secrets/github-app.pub.pem secrets/.github-app-fake
-   ```
-
-3. Move the downloaded key into place:
-
-   ```bash
-   mv ~/Downloads/<your-app>.private-key.pem secrets/github-app.pem
-   ```
-
-4. Lock it down:
-
-   ```bash
-   chmod 600 secrets/github-app.pem
-   ```
-
-5. Put your GitHub login in alice's `"logins"` in `config/idp-seed.json`, in place of `reshif`. Do this before the
+2. Put your GitHub login in alice's `"logins"` in `config/idp-seed.json`, in place of `reshif`. Do this before the
    first start: the seed syncs the file once. The role map proposed on card 4 maps CODEOWNERS and collaborators to
    people through these logins.
 
-6. Write the real settings into `.env`:
+3. Start without the fake profile. `.env` now has your ids and empty GitHub URLs, so the services use
+   `api.github.com` and `github.com`:
 
    ```bash
-   GITHUB_APP_ID=<App ID> GITHUB_INSTALLATION_ID=<installation id> ./init-secrets --real-github
+   docker compose up -d --wait                         # Census and Light onboarding
+   docker compose --profile gate-check up -d --wait    # adds gate-check
    ```
 
-   The line should end `GitHub App key: real`. `.env` now has your ids and empty GitHub URLs, so the codehost uses
-   `api.github.com` and `github.com`. The gate-check and gate-relay ids are `REPLACE_ME` until you set them. They are
-   only read when their profiles are on.
+   `./live-census.sh` (without `--fake-github`) does the first and then runs the Census checks.
 
-7. Start without the fake profile:
+The tracker and gate-relay jobs are off until you opt in (`--with-tracker` sets `TRACKER_APP_ID` and
+`TRACKER_LOGIN`; without them the `issue_twin` loop does not run). gate-relay also needs
+`export CORE_WORKER_RELEASE=gate-relay`, `docker compose --profile gate-relay up -d --wait` and a release target on the
+project (card 4 › Release, or Project › Settings › Release, G5).
 
-   ```bash
-   docker compose up -d --wait
-   ```
+### 4.5 Optional stricter setup: five Apps
 
-   `./live-census.sh` (without `--fake-github`) does the same and then runs the Census checks; it passes the fake
-   profile only on a dry run.
-
-### 4.2 Optional Apps
-
-- **gate-check:** put its key at `secrets/gate-check-app.pem` (chmod 600), set `GATE_CHECK_APP_ID` and
-  `GATE_CHECK_INSTALLATION_ID` in `.env`, then start it with
-  `docker compose --profile gate-check up -d --wait`. Then, on GitHub, make the `aisdlc/gate` check run from that
-  App a required check on the default branch. The factory never changes branch protection, and today it does not
-  check that you did this (`docs/readiness-challenge.md`, RC-E2E-8).
-- **gate-relay:** put its key at `secrets/gate-relay-app.pem` and set its ids, then start it with
-  `export CORE_WORKER_RELEASE=gate-relay` and `docker compose --profile gate-relay up -d --wait`. The project also
-  needs a release target: card 4 › Release, or Project › Settings › Release (G5).
-- **tracker:** put its key at `secrets/tracker-app.pem`, set `TRACKER_APP_ID`, `TRACKER_INSTALLATION_ID` and
-  `TRACKER_LOGIN`, then run `docker compose up -d --wait` again.
-
-`init-secrets` writes a throwaway key for each of these three Apps when none exists. A real key you copy over it is
-never overwritten.
+You can give each job its own App instead: read (`github-app.pem`), push (`push-broker-app.pem`), tracker
+(`tracker-app.pem`), gate-relay (`gate-relay-app.pem`) and gate-check, each with only its own job's permissions, so
+one leaked key gives one power. Every service already takes its own App id, installation and key (`PUSH_BROKER_*`,
+`TRACKER_*`, `GATE_RELAY_*`, `GATE_CHECK_*`), and `npm run e2e:pr` runs the Push Broker on its own App with
+`E2E_APPS=split`. The wizard makes the two-App layout only: create these Apps by hand (4.3, one App per job).
 
 ---
 
@@ -397,7 +425,7 @@ only references.
 
 ## 6. Onboard your repository
 
-You need the stack from step 4.1 running against real GitHub, with the read App installed on the testbed.
+You need the stack from step 4.4 running against real GitHub, with the factory App installed on the testbed.
 
 ### 6.1 Census (read only)
 

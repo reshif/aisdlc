@@ -7,7 +7,7 @@ export const JWT_BACKDATE_SECONDS = 60;
 export const JWT_LIFETIME_SECONDS = 9 * 60;
 
 /** The App JWT (RS256) that authenticates the App itself, never an installation. */
-export function appJwt(key: AppKey, appId: string, now: Date): string {
+export function appJwt(key: Pick<AppKey, 'signRs256'>, appId: string, now: Date): string {
   const iat = Math.floor(now.getTime() / 1000) - JWT_BACKDATE_SECONDS;
   const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const payload = b64url(

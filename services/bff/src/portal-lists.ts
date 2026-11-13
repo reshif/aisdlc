@@ -1,4 +1,9 @@
 import {
+  CoreGithubAppsView,
+  GithubAppReport,
+  githubAppsView,
+  type GithubAppJobReport,
+  type GithubAppsView,
   AccessExplainView,
   AdmissionView,
   AgentDetailView,
@@ -73,6 +78,8 @@ export interface PortalListDeps {
   readonly core: CoreClient | undefined;
   /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it `/api/slots` answers 503. */
   readonly sandboxController?: CoreClient;
+  /** gate-check's read API: its App report for the GitHub Apps panel (scope `read`). */
+  readonly gateCheck?: CoreClient;
   readonly now: () => Date;
   readonly principalOf: (req: FastifyRequest) => string;
 }
@@ -279,6 +286,40 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     );
     if (!events) return;
     return { health, events };
+  });
+
+  /**
+   * P2-4: the GitHub Apps panel (read only). core relays the codehost's and the Push Broker's App reports and the
+   * registered repos' branch rules; gate-check's own report is asked here (it has no route to core, AR9). Whether a
+   * branch requires `aisdlc/gate` is judged against gate-check's App id: unknown when either side cannot be read.
+   * No key, token or anything derived from one passes here.
+   */
+  app.get('/api/integrations/github-apps', async (req, reply) => {
+    const c = await fleetReader(req, reply, 'quality.read', 'ops.read');
+    if (!c) return;
+    const core_ = upstream(
+      reply,
+      await c.call('GET', `/v1/integrations/github-apps?on_behalf_of=${as(req)}`),
+      (v) => CoreGithubAppsView.parse(v),
+    );
+    if (!core_) return;
+    let gate: { state: 'ok' | 'unreachable' | 'not_configured'; reports: GithubAppJobReport[] } = {
+      state: 'not_configured',
+      reports: [],
+    };
+    if (d.gateCheck) {
+      const r = await d.gateCheck.call('GET', '/v1/app');
+      const parsed = r.reached && r.status === 200 ? GithubAppReport.safeParse(r.json) : null;
+      gate = parsed?.success
+        ? { state: 'ok', reports: parsed.data.reports }
+        : { state: 'unreachable', reports: [] };
+    }
+    const view: GithubAppsView = githubAppsView({
+      sources: [...core_.sources, { source: 'gate-check', state: gate.state }],
+      reports: [...core_.reports, ...gate.reports],
+      branches: core_.branches,
+    });
+    return view;
   });
 
   app.get('/api/degraded', async (req, reply) => {

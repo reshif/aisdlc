@@ -1238,6 +1238,19 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   GatewayReloadView: entities.GatewayReloadView,
   OnboardRepo: entities.OnboardRepo,
   OnboardReposView: entities.OnboardReposView,
+  GithubAppKind: entities.GithubAppKind,
+  GithubAppJob: entities.GithubAppJob,
+  GithubInstallationRead: entities.GithubInstallationRead,
+  GithubAppJobReport: entities.GithubAppJobReport,
+  GithubAppReport: entities.GithubAppReport,
+  GithubAppSource: entities.GithubAppSource,
+  GithubAppSourceState: entities.GithubAppSourceState,
+  GithubBranchChecks: entities.GithubBranchChecks,
+  CoreGithubAppsView: entities.CoreGithubAppsView,
+  GateRequirement: entities.GateRequirement,
+  GithubAppRow: entities.GithubAppRow,
+  GithubAppsView: entities.GithubAppsView,
+  RepoOnboardingState: entities.RepoOnboardingState,
 };
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';

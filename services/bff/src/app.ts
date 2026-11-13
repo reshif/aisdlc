@@ -599,6 +599,7 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     pdp: o.pdp,
     core: o.core,
     ...(o.sandboxController ? { sandboxController: o.sandboxController } : {}),
+    ...(o.gateCheck ? { gateCheck: o.gateCheck } : {}),
     now: () => clock.now(),
     principalOf: (req) => ctx(req).session.principal_id,
   });

@@ -1,11 +1,13 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CODEHOST_ROLE_PERMISSIONS, githubAppPermissions } from '@aisdlc/contracts';
 import { FakeGitHub } from '@aisdlc/ports';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TESTBED_FILES, buildTestbed, testbedSeed } from '../src/fake-github-testbed.js';
+import { appJwt } from '../src/jwt.js';
 
 // The compose stack's fake GitHub (PLAN M8.0): the seeded testbed repository is one a Census can
 // read (the REST seed and the git history agree), and the bundle starts, answers its health check,
@@ -112,6 +114,58 @@ describe('the fake-github bundle', () => {
       /fake-github api \{"method":"GET","path":"\/installation\/repositories"/,
     );
     expect(output).not.toMatch(/healthz/);
+    const exited = new Promise<number | null>((r) => child?.once('exit', (c) => r(c)));
+    child.kill('SIGTERM');
+    expect(await exited).toBe(0);
+  }, 60_000);
+
+  it('one factory App that reads and pushes: the Push Broker id is the main App, its grant the union', async () => {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const pub = join(dir, 'one.pub.pem');
+    writeFileSync(pub, publicKey.export({ type: 'spki', format: 'pem' }).toString());
+    output = '';
+    child = spawn(process.execPath, [bundle], {
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        FAKE_GITHUB_APP_ID: '123456',
+        FAKE_GITHUB_INSTALLATION_ID: '1',
+        FAKE_GITHUB_APP_PUBLIC_KEY_FILE: pub,
+        FAKE_GITHUB_PUSH_APP_ID: '123456',
+        FAKE_GITHUB_PUSH_INSTALLATION_ID: '1',
+        FAKE_GITHUB_PUSH_APP_PUBLIC_KEY_FILE: pub,
+        FAKE_GITHUB_BOT_LOGIN: 'aisdlc-factory-abc123[bot]',
+        FAKE_GITHUB_API_PORT: '18363',
+        FAKE_GITHUB_GIT_PORT: '18364',
+        FAKE_GITHUB_DIR: join(dir, 'served-one'),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout?.on('data', (d) => (output += d));
+    child.stderr?.on('data', (d) => (output += d));
+    const until = Date.now() + 20_000;
+    while (!/fake-github listening on/.test(output)) {
+      if (Date.now() > until) throw new Error(`did not start:\n${output}`);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(output).toContain('one factory App reads and pushes');
+    const jwt = appJwt(
+      { signRs256: (d: string) => sign('RSA-SHA256', Buffer.from(d), privateKey) },
+      '123456',
+      new Date(),
+    );
+    const inst = await fetch('http://127.0.0.1:18363/app/installations/1', {
+      headers: { authorization: `Bearer ${jwt}` },
+    });
+    expect(((await inst.json()) as { permissions: unknown }).permissions).toEqual(
+      githubAppPermissions('factory'),
+    );
+    // the Push Broker's token (the `docs` role) is minted from the same installation
+    const mint = await fetch('http://127.0.0.1:18363/app/installations/1/access_tokens', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ permissions: CODEHOST_ROLE_PERMISSIONS.docs }),
+    });
+    expect(mint.status).toBe(201);
     const exited = new Promise<number | null>((r) => child?.once('exit', (c) => r(c)));
     child.kill('SIGTERM');
     expect(await exited).toBe(0);

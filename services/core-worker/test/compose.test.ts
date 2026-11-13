@@ -71,7 +71,7 @@ describe('the Push Broker in the compose stack (M13.6)', () => {
       .filter(([, s]) => netsOf(s).includes(n))
       .map(([k]) => k)
       .sort();
-  it('is the codehost in push mode with its OWN App key, mounted nowhere else', () => {
+  it('is the codehost in push mode with the push key (the factory App, or its own), mounted nowhere else', () => {
     expect(pb.environment?.['CODEHOST_MODE']).toBe('push');
     expect(pb.environment?.['CODEHOST_GITHUB_APP_KEY_REF']).toBe(
       'file:/run/secrets/push-broker-app.pem',
@@ -84,12 +84,13 @@ describe('the Push Broker in the compose stack (M13.6)', () => {
       'push-broker-app.pub.pem',
     );
     expect(pb.profiles).toEqual(['push-broker', 'full']);
-    // core-worker is its one caller, with scope push only
+    // core-worker is its one caller that may push; core reads its App report only (P2-4, scope status)
     expect(JSON.parse(pb.environment?.['CODEHOST_CALLERS'] ?? '{}')).toEqual({
       'core-worker': {
         token_ref: 'file:/run/secrets/tok-core-worker-push-broker',
         scopes: ['push'],
       },
+      core: { token_ref: 'file:/run/secrets/tok-core-push-broker', scopes: ['status'] },
     });
   });
   it('its networks open no new path: core, core-worker and identity share app already', () => {
