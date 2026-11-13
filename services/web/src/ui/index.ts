@@ -3,6 +3,7 @@
 // from `@aisdlc/contracts`, never re-listed here.
 import './tokens.css';
 import './ui.css';
+import './v2.css';
 
 export { Card, KeyValue, PageHead, Stat, Stats, type Crumb, type StatTone } from './layout';
 export { Table, type Column } from './Table';
@@ -19,3 +20,45 @@ export {
 export { Drawer, Modal, ToastProvider, useToast, type ToastTone } from './overlay';
 export { EmptyState, ErrorState, LockedButton } from './states';
 export { useScrollable } from './scroll';
+
+// portal v2 (the skeleton and the sign-in look)
+export {
+  AppShell,
+  CommandPalette,
+  MenuButton,
+  type PaletteItem,
+  type RenderLink,
+  type ShellNavEntry,
+  type ShellNavGroup,
+} from './AppShell';
+export { Breadcrumb, PageHeader } from './page';
+export {
+  ITEM_STAGES,
+  NeedsYouTable,
+  PropertiesPanel,
+  StageStrip,
+  orderNeedsYou,
+  type NeedsYouKind,
+  type NeedsYouRow,
+  type Property,
+  type StageMark,
+} from './work';
+export {
+  DecisionRail,
+  EvidenceGrid,
+  VerdictPill,
+  type DecisionVerb,
+  type EvidenceTile,
+  type RailAccess,
+} from './decide';
+export {
+  ScoreMark,
+  Scorecard,
+  Stepper,
+  type ScoreItem,
+  type ScoreState,
+  type StepState,
+  type StepperStep,
+} from './progress';
+export { ConfirmDelete, SecretField } from './forms';
+export { CodeChip, InfoTip, Term, WireTerm, type Audience } from './term';

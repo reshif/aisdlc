@@ -1,8 +1,9 @@
 import {
   GATES,
   LANE_LABELS,
+  label,
+  term,
   type ActorKind,
-  type GateFamily,
   type GateId,
   type Lane,
 } from '@aisdlc/contracts';
@@ -83,26 +84,21 @@ export function Chip({
   );
 }
 
-const FAMILY_TEXT: Readonly<Record<GateFamily, string>> = {
-  stage: 'stage gate',
-  action: 'action gate',
-  exception: 'exception gate',
-  meta: 'meta gate',
-  quarantine: 'quarantine gate',
-  onboarding: 'onboarding gate',
-};
-
-/** A gate by id, its shape coloured by family; the flow's title is the tooltip and the label. */
+/**
+ * A gate by id, its shape coloured by family; the glossary's plain name is the tooltip and the accessible name.
+ * (The v1 screens show the code; portal v2 screens show `<Term family="gate">` instead.)
+ */
 export function GateTag({ gate, showTitle }: { gate: GateId; showTitle?: boolean }) {
   const info = GATES[gate];
-  const title = info.title ?? FAMILY_TEXT[info.family];
+  const plain = label('gate', gate);
+  const family = label('gateFamily', info.family);
   return (
     <span
       className={`ui-gtag ui-gtag-${info.family}`}
-      title={`${gate}: ${title}`}
+      title={`${plain}: ${term('gate', gate).explain}`}
       data-gate={gate}
       role="img"
-      aria-label={`${gate}, ${FAMILY_TEXT[info.family]}: ${title}`}
+      aria-label={`${gate}, ${family}: ${plain}`}
     >
       <i aria-hidden="true" />
       <span aria-hidden="true">{gate}</span>

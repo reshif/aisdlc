@@ -248,6 +248,6 @@ describe('the shell and My access', () => {
   it('an unknown path is the same 404 as an invisible thing', async () => {
     mockApi({ 'GET /api/me': { json: me() } });
     renderAt('/nowhere/at/all');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Nothing here');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not found');
   });
 });
