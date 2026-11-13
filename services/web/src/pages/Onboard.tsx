@@ -99,8 +99,18 @@ export function OnboardPage({ csrf, mayOnboard }: { csrf: string; mayOnboard: bo
     level: useId(),
     pick: useId(),
   };
-  const [owner, setOwner] = useState('');
-  const [name, setName] = useState('');
+  // `?repo=owner/name` (the Integrations page's Onboard action) prefills the repo; nothing else changes
+  const asked = (() => {
+    try {
+      const r = new URLSearchParams(window.location.search).get('repo') ?? '';
+      const [o, n] = r.split('/');
+      return o && n && OWNER.test(o) && NAME.test(n) ? { o, n } : null;
+    } catch {
+      return null;
+    }
+  })();
+  const [owner, setOwner] = useState(asked?.o ?? '');
+  const [name, setName] = useState(asked?.n ?? '');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
   const [level, setLevel] = useState<Level>('census');

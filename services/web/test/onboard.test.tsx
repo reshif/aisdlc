@@ -15,6 +15,14 @@ const base = () => ({
 });
 
 describe('Onboard a repo', () => {
+  it('P2-4: ?repo=owner/name (the Integrations page’s Onboard) prefills the repo; anything else is ignored', async () => {
+    mockApi(base());
+    renderAt('/onboard?repo=acme%2Fnew-app');
+    expect(await screen.findByLabelText('Repository owner')).toHaveValue('acme');
+    expect(screen.getByLabelText('Repository name')).toHaveValue('new-app');
+    window.history.pushState(null, '', '/');
+  });
+
   it('explains each level in plain words, from the contracts level list, Census first', async () => {
     mockApi(base());
     renderAt('/onboard');

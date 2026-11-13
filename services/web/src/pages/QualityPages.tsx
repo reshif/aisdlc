@@ -17,6 +17,7 @@ import { ErrorNote, Loading } from '../components/Notice';
 import { NotBuilt, Read, ShortHash } from '../components/Read';
 import { shortTime } from '../format';
 import { Link } from '../router';
+import { GithubAppsCard, RepositoriesCard } from './GithubAppsPanel';
 import {
   ActorGlyph,
   Card,
@@ -639,6 +640,8 @@ export function IntegrationsPage() {
             <Card title="Health">
               <IntegrationTiles tiles={v.health.tiles} />
             </Card>
+            <GithubAppsCard />
+            <RepositoriesCard />
             <Card title="What published revisions did" flush>
               <Table
                 caption="Integration events"
