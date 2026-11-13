@@ -2,6 +2,7 @@ import { EVIDENCE_BUCKET, DELETION_ENTRY_TYPE, type DeletionResult } from '@aisd
 import { IdentityPdpEntities } from '@aisdlc/identity/read';
 import { bindProject, grantFleetRole, seedPrincipals } from '@aisdlc/identity/testing';
 import { sha256Hex } from '@aisdlc/kernel';
+import { readGateState } from '@aisdlc/decisions';
 import { verifyLedger } from '@aisdlc/ledger';
 import { Pdp, RecordDecisionLog, StaticBundleSource, buildBundle } from '@aisdlc/pdp';
 import { FakeObjectStore } from '@aisdlc/ports';
@@ -107,7 +108,7 @@ async function lifecycle(o: typeof GONE): Promise<string> {
 beforeAll(async () => {
   s = await startCoreStack();
   await loadReports();
-  await seedPrincipals(s.id.deps, ['ada', 'pat', 'ria']);
+  await seedPrincipals(s.id.deps, ['ada', 'pat', 'ria', 'bob']);
   await grantFleetRole(s.id.deps, 'ada', 'factory.admin');
   goneItem = await lifecycle(GONE);
   keptItem = await lifecycle(KEPT);
@@ -311,5 +312,64 @@ describe('deleting a project after a full item lifecycle', () => {
   it('every table is swept or kept with a reason', async () => {
     for (const [t, why] of Object.entries(DELETION_KEPT_TABLES))
       expect(why.length, t).toBeGreaterThan(3);
+  });
+});
+
+describe('deleting a person whose decisions stay', () => {
+  it("removes the person and their sign-in data; their decisions on the kept item stay decided, as a deleted person's", async () => {
+    const gatesBefore = await s.record.pool.query<{ gate_instance_id: string }>(
+      `SELECT DISTINCT gate_instance_id::text FROM ledger.ledger_entry
+        WHERE entry_type = 'decision' AND actor = 'bob' AND subject_id = $1`,
+      [keptItem],
+    );
+    expect(gatesBefore.rows.length).toBeGreaterThan(0);
+    const r = await call('DELETE', '/v1/people/bob', {
+      on_behalf_of: 'ada',
+      reason: 'left the company',
+      confirm: 'bob',
+    });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body.kind).toBe('person');
+    // the person is gone from identity and the directory
+    for (const t of ['identity.principal', 'identity.membership', 'identity.identity_link']) {
+      const q = await s.record.pool.query(
+        `SELECT 1 FROM ${t} x WHERE position('"bob"' in to_jsonb(x)::text) > 0`,
+      );
+      expect(q.rowCount, t).toBe(0);
+    }
+    const stream = await s.record.pool.query(
+      `SELECT 1 FROM record.record_event WHERE stream = 'principal:bob'`,
+    );
+    expect(stream.rowCount).toBe(0);
+    // no ledger entry names them any more; every gate they decided is still decided
+    const named = await s.record.pool.query(
+      `SELECT 1 FROM ledger.ledger_entry WHERE actor = 'bob'`,
+    );
+    expect(named.rowCount).toBe(0);
+    for (const g of gatesBefore.rows) {
+      const st = await readGateState(s.record.pool, g.gate_instance_id);
+      expect(st?.status, g.gate_instance_id).toBe('decided');
+    }
+    const kept = await readItem(s.record.pool, keptItem);
+    expect(kept?.state.terminal).not.toBeNull();
+    const w = await s.id.kms.custodyFor('witness').publicKey('dev:witness');
+    const n = await s.id.kms.custodyFor('witness').publicKey('dev:notary');
+    if (!w.ok || !n.ok) throw new Error('keys');
+    const v = await verifyLedger(
+      s.record.pool,
+      { notary: n.value, witness: w.value },
+      { allowUncoveredTail: true, allowRedacted: true },
+    );
+    expect(v.ok, JSON.stringify(v)).toBe(true);
+    expect((await verifyAll(s.record.pool)).valid).toBe(true);
+  });
+
+  it('a person is the factory admin’s to delete: a project admin is refused', async () => {
+    const r = await call('DELETE', '/v1/people/ria', {
+      on_behalf_of: 'pat',
+      reason: 'x',
+      confirm: 'ria',
+    });
+    expect(r.status).toBe(403);
   });
 });
