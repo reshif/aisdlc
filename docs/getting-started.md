@@ -22,7 +22,9 @@ Run `make` in the repository root to list every command. The everyday ones:
 | `make images` | build the four images `make up-full` runs (factory, sandbox, W, onboarding probe) |
 | `make up-full REPO=owner/name [GITHUB=real]` | **the factory for real work**: coding sessions, verify, the Push Broker's PRs, on one repository you own |
 | `make up` / `make up GITHUB=real` | the light stack (portal, onboarding, the record; no coding, no PRs); add `PROFILES="gate-check notifier"` for more |
-| `make portal` | print the portal's address |
+| `make portal` | print the portal's address and how to sign in (Keycloak, the passwords' files) |
+| `make secret NAME=anthropic-api-key` | put a key into Vault; it asks for the value and never shows it again (`FILE=key.pem` for a multi-line key) |
+| `make secrets-list` | which keys Vault holds: name, version, who set it (never a value) |
 | `make ps` / `make logs SERVICE=core` | see containers and their health / follow logs |
 | `make down` | stop; the database, ledger and keys are kept |
 | `make reset` | stop and delete everything (asks you to type the project name first) |
@@ -31,6 +33,8 @@ Run `make` in the repository root to list every command. The everyday ones:
 | `make demo` | the full request-to-PR stack on fakes, left running for you to click through (port 8640) |
 | `make smoke` / `make e2e-pr` / `make drill-restore` | whole-stack checks on a throwaway stack |
 | `make check` | everything that must pass before a commit |
+| `make clean` / `make clean-docker` | remove build output and caches / free disk (dangling images, build cache); never secrets or a stack's data |
+| `make clean-branches [REMOTE=1]` | delete branches already merged into main (`REMOTE=1` also on GitHub, after `gh auth login`) |
 
 Each target runs a command named in the sections below, so the steps there and the targets stay the same thing.
 
@@ -82,11 +86,11 @@ ports, wired by `platform/compose/full-env.sh`, the same code `npm run e2e:pr` r
    It refuses to start until both Apps are in place: their ids in `.env`, their keys in `platform/compose/secrets/`,
    none of them a throwaway. It publishes, each through its own M1 revision decided by the seed's genesis admin,
    `sandbox.exec_allowed_repos = ["<owner>/<repo>"]`, the onboarding probe image and the W image. The project is
-   `aisdlc` (the portal on <http://localhost:8340>, the sign-in page on 8390); `make ps`, `make logs SERVICE=...`,
+   `aisdlc` (the portal on <http://localhost:8340>, Keycloak's sign-in page on <http://keycloak.localhost:8390>); `make ps`, `make logs SERVICE=...`,
    `make down` and `make reset` act on it. Running `make up-full` again keeps the record, the ledger and every M1
    decision.
 
-5. **Route the models to Claude** (section 5): put the Anthropic key in its file, then `lt` proposes the routes on
+5. **Route the models to Claude** (section 5): `make secret NAME=anthropic-api-key` puts the key into Vault, then `lt` proposes the routes on
    `/config/gateway.routes` and `oh` approves (M1). Until then **the deterministic fake provider answers every
    agent**: the planning steps get canned outputs and a coding session gets no real code. The seed never puts the fake
    routes back once you have changed them. **Quality › Models** (`/models`) has **Test** and **Reload** for each
@@ -102,10 +106,12 @@ What stays stubbed with `make up-full`, and how each becomes real:
 | --- | --- | --- |
 | GitHub | the in-repo fake GitHub | `GITHUB=real`, with the two Apps from `make github-apps` |
 | The models | the deterministic fake provider (fixtures `planning`) | you route `gateway.routes` to Claude through M1 (section 5) |
-| The vendor key | a placeholder in `secrets/anthropic-api-key` | `ANTHROPIC_API_KEY` in `./init-secrets` (section 5), mounted in the gateway only |
+| The vendor key | not set (Vault holds none) | `make secret NAME=anthropic-api-key` (section 5): in Vault, readable by the gateway only |
 | Coding, verify, the Evidence Pack, the push | real (W sessions on this Docker daemon, one at a time; the verify service; the Notary; the Push Broker) | always, with `make up-full` |
 | Release (S8b) | the fake | `CORE_WORKER_RELEASE=gate-relay` and profile `gate-relay` (section 4.4) |
-| Key custody, sign-in, the first admin | `kms-local`, the dev IdP and its test people, the seed | a cloud deployment (README.md, "What local-prod stubs") |
+| Key custody, the first admin | `kms-local`, the seed | a cloud deployment (README.md, "What local-prod stubs") |
+| Sign-in | Keycloak with the test people, plain http on loopback | Keycloak behind TLS, or your own OIDC provider |
+| Secrets | Vault, LOCAL PROD ONLY: one unseal key on disk, it unseals itself | AWS Secrets Manager behind the same port |
 
 ---
 
@@ -130,7 +136,7 @@ What stays stubbed with `make up-full`, and how each becomes real:
    ```
 
    You should see `v22.x`.
-5. **Ports 8340 and 8390 free** on `127.0.0.1`. The portal uses 8340 and the stand-in sign-in page uses 8390.
+5. **Ports 8340 and 8390 free** on `127.0.0.1`. The portal uses 8340 and Keycloak (sign-in) uses 8390.
 6. **A GitHub account or organisation** where you can create GitHub Apps.
 7. **A testbed repository that you own**, with no production use, no real data and nobody depending on it. This is
    what lets you sign tier T0 on card 1 (DEC-4). Agents may run code only in repositories you own (DEC-18, step 6.4).
@@ -230,9 +236,19 @@ before `up`. See `platform/compose/README.md`, "Networks".
 
 ## 3. Sign in: the test people
 
-The stand-in sign-in page lists 13 accounts: `alice` and `bob`, then the 11 design personas. The personas are defined
-in `services/bff/src/dev-oidc/personas.ts`, and their groups are in `platform/compose/config/idp-seed.json`. The seed
-binds their fleet, team and viewer roles (`SEED_PERSONAS=1`).
+Sign-in goes through **Keycloak** (`make portal` prints both addresses). The portal sends you to Keycloak's page at
+<http://keycloak.localhost:8390>; type a username from the table below. Every test person has the same password, in
+`platform/compose/secrets/keycloak-persona-password` (made by `make secrets`). Keycloak takes it at its first start;
+change it in Keycloak afterwards.
+
+There is also a break-glass factory admin, `factory-admin`, with its own password in
+`platform/compose/secrets/keycloak-factory-admin-password`. `make secret` signs in as it. Keycloak's own console
+admin is `kc-admin` (password in `secrets/keycloak-bootstrap-admin`).
+
+The 13 test people are `alice` and `bob`, then the 11 design personas. The personas are defined in
+`services/bff/src/dev-oidc/personas.ts`, and their groups are in `platform/compose/config/idp-seed.json`
+(`npm run gen -w @aisdlc/bff` regenerates Keycloak's realm from them). The seed binds their fleet, team and viewer
+roles (`SEED_PERSONAS=1`).
 
 A persona's **project** roles (admin, intent, design, ...) exist only after a project whose id is `payments`,
 `ledger`, `web`, `identity` or `mobile` is onboarded, and its card 4 role map names them. `personaRoleMap(project)`
@@ -261,8 +277,8 @@ Two rules apply to everyone:
 | `nf` | Nora Field (Auditor) | `factory.auditor` | none | reading everything (view level V3); decides nothing |
 | `tb` | Tom Becker (Viewer guest) | `project.viewer` on `payments`, expires 90 days after the seed ran | none | checking what a read-only guest sees |
 
-To sign in as someone else, sign out and pick another account. A step-up (cards 2 and 5, G5) sends you back to the
-same page: pick the **same** person again.
+To sign in as someone else, sign out and sign in with another username. A step-up ("confirm it's you": cards 2 and 5,
+G5) sends you back to Keycloak: sign in as the **same** person again.
 
 ---
 
@@ -406,48 +422,38 @@ one leaked key gives one power. Every service already takes its own App id, inst
 
 ## 5. Add the Anthropic key
 
-The key lives in one file, `platform/compose/secrets/anthropic-api-key`. Only the `gateway` container mounts it, at
-`/run/secrets/anthropic-api-key`. The configuration refers to it only as the reference
-`file:/run/secrets/anthropic-api-key`:
+The key lives in **Vault**, in the gateway's folder; only the gateway can read it. The configuration refers to it only
+as the reference `vault:gateway/anthropic-api-key#value` (the seed's registry row `anthropic`,
+`AISDLC_ANTHROPIC_KEY_REF`), next to `GATEWAY_EGRESS_HOSTS: ["api.anthropic.com"]`. You put the value in once; it is
+never shown again, and the record keeps only who set which version and when.
 
-- the seed's registry row `anthropic` (`services/core/src/seed.ts`, `localIntegrationRegistry`);
-- the gateway's allow-list of key files, `GATEWAY_SECRET_REFS` (`docker-compose.yml`), next to
-  `GATEWAY_EGRESS_HOSTS: ["api.anthropic.com"]`.
-
-Never type the key into the portal, a config revision, `.env` or a commit. The secret scanner and the registry accept
+Never type the key into a config revision, `.env`, a chat or a commit. The secret scanner and the registry accept
 only references.
 
-1. Read the key without echoing it or saving it in your shell history:
+1. With the stack running, put the key into Vault. It asks for the value without showing it, signs in through
+   Keycloak as `factory-admin`, and saves it the same way the portal does:
 
    ```bash
-   read -rs ANTHROPIC_API_KEY
+   make secret NAME=anthropic-api-key
    ```
 
-2. Export it so that `init-secrets` can see it:
+   It answers `secret: anthropic-api-key saved in Vault, version 1`. The gateway picks it up on its next call; no
+   restart.
+
+2. Check it is there (names and versions only):
 
    ```bash
-   export ANTHROPIC_API_KEY
+   make secrets-list
    ```
 
-3. Write it into the file. This replaces the placeholder:
+The other keys work the same way (`make secrets-list` names them all). A multi-line key such as a GitHub App's
+private key is read from its file: `make secret NAME=github-app-key FILE=~/Downloads/app.private-key.pem`.
 
-   ```bash
-   ./init-secrets
-   ```
-
-   The line should now end `Anthropic key: set`.
-
-4. Clear it from the shell:
-
-   ```bash
-   unset ANTHROPIC_API_KEY
-   ```
-
-5. Restart the gateway so it reads the file:
-
-   ```bash
-   docker compose restart gateway
-   ```
+**Keeping the key in a file instead** (the setup before Vault): before the stack's first `make up`, set
+`AISDLC_ANTHROPIC_KEY_REF=file:/run/secrets/anthropic-api-key` in `platform/compose/.env` (the seed writes it into the
+registry's `anthropic` row; on a running stack change that row on `/integrations` through M1 instead), write the key into
+`platform/compose/secrets/anthropic-api-key` with `ANTHROPIC_API_KEY` exported and `./init-secrets`, then
+`make restart SERVICE=gateway`.
 
 6. **Set a call ceiling first.** `GATEWAY_MAX_PROVIDER_CALLS` is the per-process hard limit on vendor calls (default
    1000). Over it, every call is refused with `spend_guard`. Pick a low number for a first run, then recreate the
