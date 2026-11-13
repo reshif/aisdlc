@@ -107,6 +107,14 @@ function Portal() {
   );
 }
 
+/** `/auth/login`, with the page in the address bar as where to come back to (not for `/`, which is the default). */
+export function signInHref(loc: Pick<Location, 'pathname' | 'search' | 'hash'> = window.location) {
+  const here = `${loc.pathname}${loc.search}${loc.hash}`;
+  return here === '/' || here === ''
+    ? '/auth/login'
+    : `/auth/login?return_to=${encodeURIComponent(here)}`;
+}
+
 function SignedOut() {
   return (
     <section aria-labelledby="signin-h" className="signin">
@@ -114,8 +122,9 @@ function SignedOut() {
         title={<span id="signin-h">Sign in</span>}
         sub="The factory takes work through a governed lifecycle, and people decide the gates. Sign in to see your projects and cards."
       />
-      {/* A plain link: the bff starts the sign-in and sends the browser to the identity provider. */}
-      <a className="btn" href="/auth/login">
+      {/* A plain link: the bff starts the sign-in and sends the browser to the identity provider, then
+          back to the page that was asked for (P2-18; the bff keeps only a same-origin path). */}
+      <a className="btn" href={signInHref()}>
         Sign in
       </a>
     </section>

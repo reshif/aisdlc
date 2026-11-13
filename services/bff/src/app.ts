@@ -130,8 +130,19 @@ const StepUpBody = z
 export function safeReturnTo(raw: string | undefined): string {
   if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/';
   // eslint-disable-next-line no-control-regex -- control characters in a redirect target are refused on purpose
-  if (/[\u0000-\u001f]/.test(raw)) return '/';
-  return raw;
+  if (/[\u0000-\u001f\u007f\\]/.test(raw) || raw.length > 2048) return '/';
+  // P2-18: whatever the browser would make of it, it must stay on this origin and be a path
+  const base = 'http://bff.invalid';
+  let u: URL;
+  try {
+    u = new URL(raw, base);
+  } catch {
+    return '/';
+  }
+  if (u.origin !== base) return '/';
+  // the auth routes are never a place to come back to (a loop, or a sign-out on arrival)
+  if (u.pathname === '/auth' || u.pathname.startsWith('/auth/')) return '/';
+  return `${u.pathname}${u.search}${u.hash}`;
 }
 
 const eq = (a: string, b: string): boolean => {

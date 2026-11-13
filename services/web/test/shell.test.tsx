@@ -15,6 +15,16 @@ describe('the shell', () => {
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
   });
 
+  it('P2-18: signed out on a deep link, sign-in carries the asked path back', async () => {
+    mockApi({ 'GET /api/me': unauth });
+    renderAt('/config/gateway.models?x=1');
+    const link = await screen.findByRole('link', { name: 'Sign in' });
+    expect(link).toHaveAttribute(
+      'href',
+      `/auth/login?return_to=${encodeURIComponent('/config/gateway.models?x=1')}`,
+    );
+  });
+
   it('signed in: the principal name, the project list, and sign-out as a POST with the CSRF token', async () => {
     const user = userEvent.setup();
     const m = mockApi({
