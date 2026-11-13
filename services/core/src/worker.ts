@@ -64,4 +64,5 @@ export {
   type IssueTwinSyncReport,
 } from './issue-twin/index.js';
 export { healthSnapshotLoop, collectHealth, HEALTH_LOOP } from './health.js';
+export { AlertTracker, checkpointLag, recordAlert, verdictOf } from './alerts.js';
 export { opsBackfillLoop } from './controls.js';

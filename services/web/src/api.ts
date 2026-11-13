@@ -85,6 +85,10 @@ import type {
   DegradedView,
   ItemListView,
   KillsView,
+  ActiveKillsView,
+  KillActPrepared,
+  KillRecord,
+  KillScope,
   OpsPreview,
   SandboxSlots,
   Scope,
@@ -747,6 +751,31 @@ export const api = {
   liftControl: (id: string, reason: string, csrf: string) =>
     request<unknown>('POST', `/api/controls/${encodeURIComponent(id)}/lift`, { reason }, csrf),
   kills: () => request<KillsView>('GET', '/api/kills'),
+  // RC-UI-1: a kill requested and released here, each act with the person's own step-up
+  activeKills: () => request<ActiveKillsView>('GET', '/api/kills/active'),
+  killPrepare: (b: { scope: KillScope; reason: string }, csrf: string) =>
+    request<KillActPrepared>('POST', '/api/kills/prepare', b, csrf),
+  killRequest: (b: { scope: KillScope; reason: string; proof: string }, csrf: string) =>
+    request<KillRecord>(
+      'POST',
+      '/api/kills',
+      { scope: b.scope, reason: b.reason, step_up: { proof: b.proof } },
+      csrf,
+    ),
+  killReleasePrepare: (id: string, csrf: string) =>
+    request<KillActPrepared>(
+      'POST',
+      `/api/kills/${encodeURIComponent(id)}/release/prepare`,
+      {},
+      csrf,
+    ),
+  killRelease: (id: string, proof: string, csrf: string) =>
+    request<KillRecord>(
+      'POST',
+      `/api/kills/${encodeURIComponent(id)}/release`,
+      { step_up: { proof } },
+      csrf,
+    ),
   auditDecisions: (action?: string) =>
     request<AuditDecisionsView>(
       'GET',

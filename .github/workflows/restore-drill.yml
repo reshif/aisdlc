@@ -1,0 +1,47 @@
+name: restore-drill
+
+# RC-OPS-1: the backup and restore drill (platform/compose/drill-restore.sh, docs/runbooks/backup-restore.md), nightly
+# and on demand. It builds the image, runs the browser e2e for data, backs the stack up, destroys it, restores it into
+# a fresh stack and proves the ledger, the read models, the Witness, the kill switch and the evidence packs survived.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # The e2e's browser, outside the workspace (the repo does not depend on it): pinned, with its Chromium.
+      - name: playwright
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: the drill
+        env:
+          DRILL_DATA: e2e
+          DRILL_REPORT: ${{ runner.temp }}/restore-drill.txt
+        run: npm run drill:restore
+      - name: the result
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/restore-drill.txt" ]; then cat "$RUNNER_TEMP/restore-drill.txt" >> "$GITHUB_STEP_SUMMARY"; fi

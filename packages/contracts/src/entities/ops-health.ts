@@ -208,3 +208,56 @@ export const DegradedView = z.strictObject({
   read_models: z.array(ReadModelFreshness),
 });
 export type DegradedView = z.infer<typeof DegradedView>;
+
+// ---------------------------------------------------------------- alerts to a person (RC-NOT-3)
+
+/**
+ * What core-worker's health loop pages a factory admin about, through the notifier. A reading is not a fact, but an
+ * alert is: when a tile has read `down` or `degraded` for `OPS_ALERT_AFTER_MS` (or the newest Witness-co-signed
+ * checkpoint is older than `OPS_CHECKPOINT_OVERDUE_MS` while ledger entries wait behind it), core-worker records
+ * `ops.alert_raised` on the alert's own stream, once; `ops.alert_cleared` when it reads healthy again. The notifier
+ * raises `factory_alert` for the fleet's factory admins from the raise. Codes only, never text from the thing probed.
+ */
+export const OPS_ALERT_EVENT = {
+  raised: 'ops.alert_raised',
+  cleared: 'ops.alert_cleared',
+} as const;
+
+export const OpsAlertKind = z.enum([
+  'service_down',
+  'service_degraded',
+  'loop_stalled',
+  'checkpoint_overdue',
+]);
+export type OpsAlertKind = z.infer<typeof OpsAlertKind>;
+
+/** The subject of an alert: a health tile, or `ledger.checkpoint`. */
+export const OpsAlertSubject = z.string().regex(/^(service|loop|ledger)\.[a-z][a-z0-9_.-]{0,95}$/);
+export type OpsAlertSubject = z.infer<typeof OpsAlertSubject>;
+
+export const OPS_ALERT_SUBJECT_CHECKPOINT = 'ledger.checkpoint';
+
+/** The record stream of one alert subject: `alert:<subject>`. */
+export const opsAlertStream = (subject: string): string => `alert:${subject}`;
+
+/** A tile must read bad this long before anyone is paged (two readings in a row, at the default interval). */
+export const OPS_ALERT_AFTER_MS = 60_000;
+/** The newest checkpoint may be this old, while entries wait behind it, before the ledger is overdue. */
+export const OPS_CHECKPOINT_OVERDUE_MS = 15 * 60_000;
+
+export const OpsAlertRaisedPayload = z.strictObject({
+  alert_id: z.uuid(),
+  subject: OpsAlertSubject,
+  kind: OpsAlertKind,
+  detail_code: HealthDetailCode.nullable(),
+  /** When the subject was first read bad (the alert waited `OPS_ALERT_AFTER_MS` after it). */
+  since: IsoDateTime,
+});
+export type OpsAlertRaisedPayload = z.infer<typeof OpsAlertRaisedPayload>;
+
+export const OpsAlertClearedPayload = z.strictObject({
+  alert_id: z.uuid(),
+  subject: OpsAlertSubject,
+  cleared_at: IsoDateTime,
+});
+export type OpsAlertClearedPayload = z.infer<typeof OpsAlertClearedPayload>;

@@ -52,6 +52,7 @@ import {
   workDriverLoop,
   workSettingsFrom,
   healthSnapshotLoop,
+  AlertTracker,
   opsBackfillLoop,
 } from '@aisdlc/core/worker';
 import { createPool } from '@aisdlc/db';
@@ -213,7 +214,14 @@ export async function bootCoreWorker(
       // into `core.health_snapshot` (a reading, never a fact; the read applies the two-minute rule).
       supervisor.add(
         healthSnapshotLoop(
-          { pool, own: () => supervisor.health(), targets: cfg.healthTargets },
+          {
+            pool,
+            own: () => supervisor.health(),
+            targets: cfg.healthTargets,
+            // RC-NOT-3: a tile bad for a minute, or the ledger's checkpoint overdue, pages the factory admins
+            alerts: new AlertTracker(),
+            checkpointAlerts: Boolean(ledger && cfg.witness),
+          },
           { intervalMs: cfg.healthIntervalMs, startDelayMs: 2_500 },
         ),
       );

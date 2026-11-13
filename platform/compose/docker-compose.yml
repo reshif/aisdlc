@@ -115,6 +115,12 @@ networks:
   killswitch-gateway:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.16.0/24' }] }
     internal: true
+  # RC-UI-1: the portal's kill routes. The bff and the kill switch only: the bff forwards a person's kill or release
+  # with that person's step-up proof (the kill switch verifies it and takes the actor from it, never from the bff's
+  # token); nothing of core, the Notary or the record is on it, so the kill switch still has no route to them.
+  killswitch-bff:
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.55.0/24' }] }
+    internal: true
   gateway-egress:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.17.0/24' }] }
   # The sandbox plane (profile `sandbox`, PLAN M13.2). None of these has a route out.
@@ -238,7 +244,7 @@ networks:
   # GitHub (in the codehost's network namespace) answers it on its own port (8358); `pushbroker-egress` its own way out
   # to GitHub. It shares no other network with the read codehost and holds none of its tokens.
   pushbroker:
-    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.55.0/24' }] }
+    ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.58.0/24' }] }
     internal: true
   pushbroker-github:
     ipam: { config: [{ subnet: '${AISDLC_SUBNET_PREFIX:-10.231}.56.0/24' }] }
@@ -348,6 +354,7 @@ secrets:
   tok-killswitch-kms: { file: ./secrets/tok-killswitch-kms }
   tok-core-worker-killswitch: { file: ./secrets/tok-core-worker-killswitch }
   tok-operator-killswitch: { file: ./secrets/tok-operator-killswitch }
+  tok-bff-killswitch: { file: ./secrets/tok-bff-killswitch }
   tok-gateway-killswitch: { file: ./secrets/tok-gateway-killswitch }
   tok-core-gateway: { file: ./secrets/tok-core-gateway }
   tok-core-worker-gateway: { file: ./secrets/tok-core-worker-gateway }
@@ -630,7 +637,8 @@ services:
       KILLSWITCH_CALLERS: >-
         {"core-worker":{"token_ref":"file:/run/secrets/tok-core-worker-killswitch","scopes":["read","sync"]},
         "operator":{"token_ref":"file:/run/secrets/tok-operator-killswitch","scopes":["act","read"]},
-        "gateway":{"token_ref":"file:/run/secrets/tok-gateway-killswitch","scopes":["read"]}}
+        "gateway":{"token_ref":"file:/run/secrets/tok-gateway-killswitch","scopes":["read"]},
+        "bff":{"token_ref":"file:/run/secrets/tok-bff-killswitch","scopes":["act","read"]}}
       KILLSWITCH_FACTORY_ADMINS: '["alice","bob"]'
       KMS_URL: http://kms-local:8300
       KMS_TOKEN_REF: file:/run/secrets/tok-killswitch-kms
@@ -642,6 +650,7 @@ services:
         tok-core-worker-killswitch,
         tok-operator-killswitch,
         tok-gateway-killswitch,
+        tok-bff-killswitch,
         tok-killswitch-kms,
       ]
     healthcheck:
@@ -654,7 +663,14 @@ services:
       migrate: { condition: service_completed_successfully }
       kms-local: { condition: service_healthy }
     networks:
-      [kms-killswitch, killswitch-api, killswitch-gateway, data-killswitch, telemetry-killswitch]
+      [
+        kms-killswitch,
+        killswitch-api,
+        killswitch-gateway,
+        data-killswitch,
+        telemetry-killswitch,
+        killswitch-bff,
+      ]
     mem_limit: 128m
 
   # Boundary: model key custody (RV §2, AR5, AR7). EVERY model call of the factory goes through here and
@@ -1295,6 +1311,10 @@ services:
       # the /api/audit/* routes answer 502; nothing else in the portal waits for it.
       BFF_AUDIT_URL: http://audit:8480
       BFF_AUDIT_TOKEN_REF: file:/run/secrets/tok-bff-audit
+      # RC-UI-1: the kill switch (scopes act, read) for the portal's kill and release, each act carrying the person's
+      # own step-up proof; and its list of kills for the Kill switch page.
+      BFF_KILLSWITCH_URL: http://killswitch:8400
+      BFF_KILLSWITCH_TOKEN_REF: file:/run/secrets/tok-bff-killswitch
       # M19: the notifier's liveness answer, relayed for core-worker's health tile (the bff is the one that reaches it)
       BFF_HEALTH_PEERS: '{"notifier":"http://notifier:8460"}'
       # Plain http on localhost only; behind TLS this is true.
@@ -1315,6 +1335,7 @@ services:
         tok-bff-notifier,
         tok-bff-sandbox-controller,
         tok-bff-audit,
+        tok-bff-killswitch,
       ]
     healthcheck:
       test: ['CMD', 'node', '/app/healthcheck.mjs', '8340']
@@ -1338,6 +1359,7 @@ services:
         sandbox-controller-api,
         telemetry-bff,
         audit-api,
+        killswitch-bff,
       ]
     mem_limit: 256m
 

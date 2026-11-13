@@ -10,6 +10,7 @@ import {
 import type { HealthReport, LoopSpec, LoopState } from '@aisdlc/loops';
 import type { Executor } from '@aisdlc/record';
 import type pg from 'pg';
+import type { AlertTracker } from './alerts.js';
 
 // HealthSnapshot and HealthTile (PLAN M19; DM §3.10): core collects how each service and each loop is doing into
 // `core.health_snapshot`, the newest reading per tile, and serves the tiles. The collector is a loop of core-worker
@@ -212,6 +213,10 @@ export interface HealthLoopDeps {
   readonly targets: Readonly<Record<string, HealthTarget>>;
   readonly now?: () => Date;
   readonly fetchImpl?: typeof fetch;
+  /** RC-NOT-3: alerts to a person from the readings (absent: readings only). */
+  readonly alerts?: AlertTracker;
+  /** Whether this host runs the checkpointer, so an overdue checkpoint is its to page about (default false). */
+  readonly checkpointAlerts?: boolean;
 }
 
 /** One collection: the host's own report and every target, written in one statement batch. */
@@ -223,6 +228,7 @@ export async function collectHealth(d: HealthLoopDeps): Promise<HealthSnapshot[]
   );
   const all = [...own, ...probed.flat()];
   await writeHealthSnapshots(d.pool, all);
+  await d.alerts?.evaluate(d.pool, all, now(), { checkpoint: d.checkpointAlerts === true });
   return all;
 }
 

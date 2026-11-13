@@ -5,6 +5,7 @@ import {
   KillRecord,
   KillScope,
   Lane,
+  killScopeResource,
   PrincipalId,
   pdpResource,
   projectOfScope,
@@ -50,22 +51,8 @@ export const KILLSWITCH_KEY_ID = 'dev:killswitch';
 
 type R<T> = Promise<Result<T, KillswitchError>>;
 
-const resourceOf = (scope: KillScope): PdpResource => {
-  const project = projectOfScope(scope);
-  switch (scope.kind) {
-    case 'fleet':
-      return pdpResource.fleet();
-    case 'project':
-      return pdpResource.project(scope.ref);
-    case 'lane': {
-      const [p, lane] = scope.ref.split('/');
-      return pdpResource.lane(p as string, lane as string);
-    }
-    // an agent session is killed with the right to kill its project
-    default:
-      return pdpResource.project(project as string);
-  }
-};
+// an agent session is killed with the right to kill its project (the portal asks the same: contracts' function)
+const resourceOf = (scope: KillScope): PdpResource => killScopeResource(scope);
 
 interface KillRow {
   kill_id: string;

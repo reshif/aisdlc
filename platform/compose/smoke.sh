@@ -192,7 +192,10 @@ refused killswitch http://notary:8310/healthz
 refused core http://killswitch:8400/healthz      # core is not on the kill switch's network
 refused notary http://killswitch:8400/healthz
 refused codehost http://killswitch:8400/healthz
-refused bff http://killswitch:8400/healthz
+# RC-UI-1: the bff reaches the kill switch (killswitch-bff: those two only) to forward a person's kill or release with
+# that person's own step-up proof; the kill switch still reaches nothing of core's through it
+dc exec -T bff node -e "fetch('http://killswitch:8400/healthz',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || fail "the bff cannot reach the kill switch for the portal's kill routes"
+refused killswitch http://identity:8330/healthz
 # M10.1: the gateway holds a vendor key and has egress: it has no route to the trust plane or to core, and
 # nothing but it is on its egress network. (Its one link into the trust plane is the kill switch's READ
 # API, which it must ask before every call.)

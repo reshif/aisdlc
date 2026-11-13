@@ -24,7 +24,36 @@ const KIND_TEXT: Readonly<Record<NotificationKind, string>> = {
   handoff: 'An item was handed off',
   kill_engaged: 'A kill switch was engaged',
   kill_released: 'A kill switch was released',
+  questions_waiting: 'Your request has questions for you',
+  ready_waiting: 'Your request waits for your Ready',
+  acceptance_waiting: 'Your request waits for your acceptance (G6)',
+  item_parked: 'Your request is parked',
+  item_done: 'A work item is done',
+  item_ended: 'A work item ended',
+  control_halt: 'A halt stopped work',
+  breaker_tripped: 'A circuit breaker tripped',
+  drift_suspended: 'A project is suspended by drift',
+  release_failed: 'A release failed',
+  factory_alert: 'Factory alert',
 };
+
+/** What a notification adds to its kind: the rounds left, a date, an outcome, a lane, an alert's subject. */
+function detailOf(n: NotificationView): string {
+  const c = n.content;
+  const parts: string[] = [];
+  if (c.kind === 'questions_waiting' && c.rounds_left != null)
+    parts.push(c.rounds_left === 0 ? 'last round' : `${c.rounds_left} round(s) left`);
+  if (c.kind === 'questions_waiting' && c.due_at !== null)
+    parts.push(`parked ${shortTime(c.due_at)}`);
+  else if (c.kind === 'item_parked' && c.due_at !== null)
+    parts.push(`abandoned ${shortTime(c.due_at)}`);
+  else if (c.due_at !== null) parts.push(`due ${shortTime(c.due_at)}`);
+  if (c.outcome) parts.push(c.outcome);
+  if (c.lane) parts.push(c.lane);
+  if (c.release) parts.push(c.release.replace('_', ' '));
+  if (c.alert_kind) parts.push(`${c.alert_kind.replace(/_/g, ' ')}: ${c.alert_subject ?? ''}`);
+  return parts.join(' · ');
+}
 
 const deliveryText = (n: NotificationView): string =>
   n.deliveries.length === 0
@@ -52,6 +81,7 @@ export function NotificationsPage() {
     },
     { key: 'project', header: 'Project', render: (n) => n.content.project_id ?? 'the factory' },
     { key: 'gate', header: 'Gate', render: (n) => n.content.gate_id ?? '' },
+    { key: 'detail', header: 'Detail', render: (n) => detailOf(n) },
     { key: 'when', header: 'Raised', render: (n) => shortTime(n.raised_at) },
     { key: 'sent', header: 'Sent to', render: (n) => deliveryText(n) },
   ];
@@ -79,7 +109,8 @@ export function NotificationsPage() {
       ) : null}
       {q.data && q.data.notifications.length === 0 ? (
         <EmptyState title="Nothing yet">
-          When a gate waits for you, a card is escalated or a kill switch moves, it shows here.
+          When a gate waits for you, your request needs you (questions, Ready, acceptance), an item
+          you asked for ends, a card is escalated or a kill switch moves, it shows here.
         </EmptyState>
       ) : null}
       {q.data && q.data.notifications.length > 0 ? (

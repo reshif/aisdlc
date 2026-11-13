@@ -2,9 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ControlKindValues,
   HOLD_DESCRIPTIONS,
+  KillScope,
   SANDBOX_PROFILES,
   SandboxClassValues,
+  killScopeResource,
   pdpResource,
+  type ActiveKillsView,
   type AdmissionGrant,
   type HealthTile,
   type ControlKind,
@@ -13,7 +16,7 @@ import {
   type PdpResource,
   type Scope,
 } from '@aisdlc/contracts';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { Guarded } from '../access';
 import { ErrorNote, Loading } from '../components/Notice';
@@ -535,8 +538,266 @@ export function ControlsPage({ csrf }: { csrf: string }) {
 
 // ---------------------------------------------------------------- kill switch
 
-export function KillPage() {
+// RC-UI-1: a kill is requested and released here. Each act is the person's own: the bff asks the PDP, the person
+// signs in again at the identity provider for exactly the act's hash, and the kill switch verifies that proof and
+// takes the actor from it. A release needs as many distinct people as the kill says (two for the fleet, on T2 and
+// where two-person is on): each approves in their own session.
+
+type PendingKillAct =
+  | { readonly act: 'request'; readonly scope: KillScope; readonly reason: string }
+  | { readonly act: 'release'; readonly kill_id: string };
+
+const PENDING_KEY = 'aisdlc.kill.pending';
+function savePending(p: PendingKillAct): void {
+  try {
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify(p));
+  } catch {
+    // storage blocked: the act is lost across the sign-in redirect and the person starts it again
+  }
+}
+function takePending(): PendingKillAct | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    sessionStorage.removeItem(PENDING_KEY);
+    return raw === null ? null : (JSON.parse(raw) as PendingKillAct);
+  } catch {
+    return null;
+  }
+}
+
+/** Starts a kill act (prepare, step up, send) and finishes one coming back from the identity provider. */
+function useKillAct(csrf: string) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const send = useCallback(
+    async (p: PendingKillAct, proof: string) => {
+      const k =
+        p.act === 'request'
+          ? await api.killRequest({ scope: p.scope, reason: p.reason, proof }, csrf)
+          : await api.killRelease(p.kill_id, proof, csrf);
+      toast(
+        p.act === 'request'
+          ? 'The kill is in force. Agent work in its scope stops.'
+          : k.state === 'released'
+            ? 'The kill is released.'
+            : 'Your approval is recorded. Another person must approve the release too.',
+        'ok',
+      );
+      await qc.invalidateQueries({ queryKey: ['kills'] });
+    },
+    [csrf, qc, toast],
+  );
+  // back from the identity provider: collect the proof once and send the act it was started for
+  const collected = useRef(false);
+  useEffect(() => {
+    if (collected.current) return;
+    const attempt = new URLSearchParams(window.location.search).get('step_up');
+    if (!attempt) return;
+    collected.current = true;
+    window.history.replaceState(null, '', window.location.pathname);
+    const p = takePending();
+    if (!p) return;
+    setBusy(true);
+    api
+      .stepUpCollect(attempt)
+      .then((got) => send(p, got.proof))
+      .catch((e: unknown) => setError(e))
+      .finally(() => setBusy(false));
+  }, [send]);
+  const start = useCallback(
+    async (p: PendingKillAct) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const prepared =
+          p.act === 'request'
+            ? await api.killPrepare({ scope: p.scope, reason: p.reason }, csrf)
+            : await api.killReleasePrepare(p.kill_id, csrf);
+        savePending(p);
+        const got = await api.stepUpStart(
+          { subject_hash: prepared.bound_hash, return_to: '/kill' },
+          csrf,
+        );
+        if (got.status === 'redirect') {
+          window.location.assign(got.authorize_url);
+          return;
+        }
+        takePending();
+        await send(p, got.proof);
+      } catch (e) {
+        setError(e);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [csrf, send],
+  );
+  return { start, busy, error };
+}
+type KillActState = ReturnType<typeof useKillAct>;
+
+const KILL_SCOPE_KIND_OPTIONS = ['fleet', 'project', 'lane', 'session'] as const;
+const KILL_REF_LABEL = { project: 'Project', lane: 'Project/lane', session: 'Project/session' };
+const KILL_REF_HINT = {
+  project: 'payments',
+  lane: 'payments/L3',
+  session: 'payments/<session id>',
+};
+
+function KillRequestForm({ act }: { act: KillActState }) {
+  const [kind, setKind] = useState<(typeof KILL_SCOPE_KIND_OPTIONS)[number]>('project');
+  const [ref, setRef] = useState('');
+  const [reason, setReason] = useState('');
+  const parsed = KillScope.safeParse({ kind, ref: kind === 'fleet' ? '*' : ref.trim() });
+  const scope = parsed.success ? parsed.data : null;
+  return (
+    <Card title="Request a kill">
+      <form
+        className="pg-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (scope && reason.trim())
+            void act.start({ act: 'request', scope, reason: reason.trim() });
+        }}
+      >
+        <label>
+          Scope{' '}
+          <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+            {KILL_SCOPE_KIND_OPTIONS.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
+        </label>
+        {kind !== 'fleet' ? (
+          <label>
+            {KILL_REF_LABEL[kind]}{' '}
+            <input
+              value={ref}
+              onChange={(e) => setRef(e.target.value)}
+              placeholder={KILL_REF_HINT[kind]}
+              required
+            />
+          </label>
+        ) : null}
+        <label>
+          Reason{' '}
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={500}
+            required
+          />
+        </label>
+        {scope ? (
+          <Guarded
+            action="kill.request"
+            resource={killScopeResource(scope)}
+            label="Request the kill"
+          >
+            <button
+              type="submit"
+              className="ui-btn ui-btn-primary"
+              disabled={act.busy || reason.trim() === ''}
+            >
+              Request the kill
+            </button>
+          </Guarded>
+        ) : (
+          <button type="submit" className="ui-btn" disabled>
+            Request the kill
+          </button>
+        )}
+      </form>
+      <p className="muted">
+        You confirm your identity at the identity provider for exactly this kill (its scope and
+        reason) before it is sent. A kill takes effect at once.
+      </p>
+    </Card>
+  );
+}
+
+type ActiveKillRow = ActiveKillsView['kills'][number];
+
+function ActiveKills({ act }: { act: KillActState }) {
+  const q = useQuery({
+    queryKey: ['kills', 'active'],
+    queryFn: api.activeKills,
+    refetchInterval: 10_000,
+  });
+  const cols: ReadonlyArray<Column<ActiveKillRow>> = [
+    {
+      key: 'scope',
+      header: 'Scope',
+      rowHeader: true,
+      render: (k) =>
+        k.scope.kind === 'fleet' ? 'the whole factory' : `${k.scope.kind} ${k.scope.ref}`,
+    },
+    {
+      key: 'state',
+      header: 'State',
+      render: (k) =>
+        k.state === 'active' ? (
+          <Pill tone="bad">killing</Pill>
+        ) : (
+          <Pill tone="warn">release pending</Pill>
+        ),
+    },
+    { key: 'by', header: 'Requested by', render: (k) => k.requested_by },
+    { key: 'why', header: 'Reason', render: (k) => k.reason },
+    {
+      key: 'ap',
+      header: 'Release approvals',
+      render: (k) => `${k.release_approvals.length} of ${k.release_required}`,
+    },
+    {
+      key: 'act',
+      header: 'Release',
+      render: (k) =>
+        k.approved_by_me ? (
+          <span className="muted">You approved; another person must</span>
+        ) : (
+          <Guarded
+            action="kill.release"
+            resource={killScopeResource(k.scope)}
+            label="Approve the release"
+          >
+            <button
+              type="button"
+              className="ui-btn"
+              disabled={act.busy}
+              onClick={() => void act.start({ act: 'release', kill_id: k.kill_id })}
+            >
+              Approve the release
+            </button>
+          </Guarded>
+        ),
+    },
+  ];
+  return (
+    <Card title="Kills in force" flush>
+      {q.isPending ? <Loading what="the kills in force" /> : null}
+      {q.isError ? <ErrorNote error={q.error} /> : null}
+      {q.data ? (
+        <Table
+          caption="Kills in force"
+          captionHidden
+          columns={cols}
+          rows={q.data.kills}
+          rowKey={(k) => k.kill_id}
+          empty={<EmptyState title="Nothing is killed">No kill is in force now.</EmptyState>}
+        />
+      ) : null}
+    </Card>
+  );
+}
+
+export function KillPage({ csrf }: { csrf: string }) {
   const q = useQuery({ queryKey: ['kills'], queryFn: api.kills, refetchInterval: 10_000 });
+  const act = useKillAct(csrf);
   return (
     <>
       <PageHead
@@ -549,6 +810,10 @@ export function KillPage() {
           </Link>
         }
       />
+      {act.busy ? <Loading what="your kill act" /> : null}
+      {act.error ? <ErrorNote error={act.error} /> : null}
+      <ActiveKills act={act} />
+      <KillRequestForm act={act} />
       <Read q={q} what="the kill journal">
         {(v) => (
           <>
@@ -610,11 +875,6 @@ export function KillPage() {
           </>
         )}
       </Read>
-      <NotBuilt title="Request or release a kill from the portal" milestone="M9.7 follow-up">
-        The bff has no route to the kill switch (AR9 keeps it apart; only core-worker and an
-        operator reach it), so a kill is requested and released with the operator&rsquo;s client
-        today. The portal button with its step-up and the two-person release waits for that route.
-      </NotBuilt>
     </>
   );
 }

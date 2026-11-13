@@ -2,6 +2,10 @@ import {
   CARD_EVENT,
   CardOpenedPayload,
   GATE_EVENT,
+  GATERELAY_EVENT,
+  ITEM_EVENT,
+  ItemCreatedPayload,
+  itemStream,
   NOTIFICATION_DELIVERIES_MAX,
   type DataClass,
   type NotificationChannelRow,
@@ -12,14 +16,18 @@ import {
 } from '@aisdlc/contracts';
 import { withTransaction } from '@aisdlc/db';
 import { deterministicId, systemClock, type Clock } from '@aisdlc/kernel';
+import { EVENT_COLUMNS, toRecordEvent, type EventRow } from '@aisdlc/record';
 import type pg from 'pg';
+import { ItemFolds, itemIntents } from './items.js';
 import type { RecipientsPort } from './recipients.js';
 import {
   SOURCE_TYPES,
   audienceClass,
   audienceSlot,
   intentOf,
+  isItemSource,
   type Audience,
+  type NotificationIntent,
   type SourceEvent,
 } from './sources.js';
 import { preferencesOf, recordRaised } from './store.js';
@@ -66,6 +74,45 @@ async function cardOpenedOf(tx: Tx, stream: string): Promise<CardOpenedPayload |
   return p.success ? p.data : null;
 }
 
+/** The project of an item (its `item.created`), or `null`. */
+async function itemProjectOf(tx: Tx, itemId: unknown): Promise<string | null> {
+  if (typeof itemId !== 'string') return null;
+  const r = await tx.query<{ body: unknown }>(
+    `SELECT body FROM record.record_event WHERE stream = $1 AND type = $2 ORDER BY seq LIMIT 1`,
+    [itemStream(itemId), ITEM_EVENT.created],
+  );
+  const p = ItemCreatedPayload.safeParse(r.rows[0]?.body);
+  return p.success ? p.data.project_id : null;
+}
+
+/** The item folds of one pass: each item stream read once, from where the pass last left it. */
+function foldsFor(tx: Tx): ItemFolds {
+  return new ItemFolds(async (stream, after, upTo) => {
+    const r = await tx.query<EventRow>(
+      `SELECT ${EVENT_COLUMNS} FROM record.record_event
+        WHERE stream = $1 AND record_event.seq > $2 AND record_event.seq <= $3 ORDER BY record_event.seq`,
+      [stream, after, upTo],
+    );
+    return r.rows.map(toRecordEvent);
+  });
+}
+
+/** What one source event asks for (an item event: what its fold says changed). */
+async function intentsFor(tx: Tx, e: SourceEvent, folds: ItemFolds): Promise<NotificationIntent[]> {
+  if (isItemSource(e)) {
+    const step = await folds.step(e.stream, e.stream_seq);
+    return step === null ? [] : itemIntents(step.before, step.after, step.catalogue);
+  }
+  const intent = intentOf(e, {
+    cardOpened: e.type === CARD_EVENT.escalated ? await cardOpenedOf(tx, e.stream) : null,
+    itemProject:
+      e.type === GATERELAY_EVENT.deploy_unhealthy
+        ? await itemProjectOf(tx, (e.body as { item_id?: unknown } | null)?.item_id)
+        : null,
+  });
+  return intent === null ? [] : [intent];
+}
+
 async function principalsOf(r: RecipientsPort, a: Audience): Promise<readonly PrincipalId[]> {
   if (a.kind === 'principals') return a.principals;
   if (a.kind === 'slot') return r.slotHolders(a.project, a.slot);
@@ -92,13 +139,27 @@ async function draftsFor(
   tx: Tx,
   e: SourceEvent,
   now: Date,
+  folds: ItemFolds,
 ): Promise<NotificationRaisedPayload[]> {
   const maxAge = d.maxSourceAgeMs ?? 24 * 3600_000;
   if (now.getTime() - Date.parse(e.occurred_at) > maxAge) return [];
-  const intent = intentOf(e, {
-    cardOpened: e.type === CARD_EVENT.escalated ? await cardOpenedOf(tx, e.stream) : null,
-  });
-  if (intent === null) return [];
+  const out: NotificationRaisedPayload[] = [];
+  const intents = await intentsFor(tx, e, folds);
+  for (const [i, intent] of intents.entries()) {
+    out.push(...(await draftsOfIntent(d, tx, e, now, intent, i)));
+  }
+  return out;
+}
+
+/** The notifications of one intent of `e`; `index` keeps the ids of a second intent of one event apart. */
+async function draftsOfIntent(
+  d: RaiseDeps,
+  tx: Tx,
+  e: SourceEvent,
+  now: Date,
+  intent: NotificationIntent,
+  index: number,
+): Promise<NotificationRaisedPayload[]> {
   if (intent.gate_instance_id !== null && (await gateClosed(tx, intent.gate_instance_id)))
     return [];
   // the first audience that reaches a person says why they got it (an escalation's backup before the slot)
@@ -118,7 +179,11 @@ async function draftsFor(
     if (!(await d.recipients.isActiveHuman(principal))) continue;
     const { preferences } = await preferencesOf(tx, principal);
     if (preferences.muted_kinds.includes(intent.content.kind)) continue;
-    const notification_id = deterministicId(`notifier:${e.event_id}:${principal}`);
+    const notification_id = deterministicId(
+      index === 0
+        ? `notifier:${e.event_id}:${principal}`
+        : `notifier:${e.event_id}:${index}:${principal}`,
+    );
     out.push({
       notification_id,
       principal_id: principal as PrincipalId,
@@ -180,6 +245,7 @@ export async function raiseOnce(d: RaiseDeps): Promise<RaiseReport> {
     // every read first, then every append: the record's counter lock (taken by the first append, held to commit) is
     // never held while identity or the preferences are read
     const drafts: NotificationRaisedPayload[] = [];
+    const folds = foldsFor(tx);
     let last = after;
     for (const r of ev.rows) {
       drafts.push(
@@ -196,6 +262,7 @@ export async function raiseOnce(d: RaiseDeps): Promise<RaiseReport> {
             occurred_at: r.occurred_at.toISOString(),
           },
           now,
+          folds,
         )),
       );
       last = Number(r.global_seq);

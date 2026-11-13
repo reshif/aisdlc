@@ -32,6 +32,7 @@ import { registerAccessRoutes } from './access.js';
 import { registerAssistantRoutes } from './assistant.js';
 import { registerDriftRoutes } from './drift.js';
 import { registerIssueTwinRoutes } from './issue-twin.js';
+import { registerKillRoutes } from './kill.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerAuditRoutes } from './audit.js';
 import { registerPortalRoutes } from './portal.js';
@@ -100,6 +101,8 @@ export interface BffAppOptions {
   readonly healthPeers?: Readonly<Record<string, string>>;
   /** gate-check's read API (M14.6: the run status on the item page); without it that status reads `unknown`. */
   readonly gateCheck?: CoreClient;
+  /** The kill switch (RC-UI-1, scopes `act`, `read`), for `/api/kills/*` with the person's step-up; else 503. */
+  readonly killswitch?: CoreClient;
   /** The sandbox-controller's read API (`GET /v1/slots`, scope `read`); without it the Sandboxes screen says so. */
   readonly sandboxController?: CoreClient;
   /** The built web bundle (`index.html` and `assets/`) to serve; without it the bff serves only its API. */
@@ -634,6 +637,12 @@ export function createBffApp(o: BffAppOptions): FastifyInstance {
     app,
     pdp: o.pdp,
     notifier: o.notifier,
+    principalOf: (req) => ctx(req).session.principal_id,
+  });
+  registerKillRoutes({
+    app,
+    pdp: o.pdp,
+    killswitch: o.killswitch,
     principalOf: (req) => ctx(req).session.principal_id,
   });
   registerAuditRoutes({

@@ -181,7 +181,7 @@ function PageBody({ route, me }: { route: Route; me: Me }) {
     case 'controls':
       return <ControlsPage csrf={csrf} />;
     case 'kill':
-      return <KillPage />;
+      return <KillPage csrf={csrf} />;
     case 'health':
       return <HealthPage />;
     case 'fleetLedger':

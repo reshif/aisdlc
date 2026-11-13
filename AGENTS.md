@@ -22,6 +22,7 @@ npm run evidence:sp-std-3 # M16: the SP-STD-3 lint precision report over the fix
 npm run smoke:compose  # M8.0: the local-prod compose stack (fake GitHub) up, checked, down; needs Docker
 npm run e2e:compose    # M8.1-M8.4: the same stack, a real Chromium onboards a repo end to end: cards 1, 4, 5, step-up, PRR, ledger (Playwright)
 npm run live:census   # M8.5: onboard a real repo with your own read-only GitHub App (platform/compose/live-census.sh; --fake-github is a dry run); docs/runbooks/m8.5-live-census.md
+npm run drill:restore  # RC-OPS-1: stack with data (e2e when Playwright resolves), backup.sh, down -v, restore.sh, prove ledger, read models, Witness, kill switch, packs (docs/runbooks/backup-restore.md)
 npm run lint:shell     # bash -n on the compose scripts, shellcheck when installed
 npm run drill:compose -- postgres|notary|killswitch|runner   # M19: an outage drill on a running stack (docs/runbooks/drill-*.md; runner needs --profile sandbox)
 npm run load:compose  # M19: the load test (platform/compose/load.sh: its own stack, 4 projects x 30 items, fakes behind the ports); writes docs/evidence/load-m19.{json,md}

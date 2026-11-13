@@ -2875,6 +2875,151 @@
         "assistant.use"
       ]
     },
+    "ActiveKillsView": {
+      "type": "object",
+      "properties": {
+        "kills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kill_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "fleet"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "const": "*"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "enterprise",
+                          "org",
+                          "team",
+                          "project",
+                          "repo",
+                          "service_env",
+                          "environment",
+                          "lane",
+                          "session",
+                          "item",
+                          "role",
+                          "model",
+                          "release",
+                          "budget"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "release_pending",
+                  "released"
+                ]
+              },
+              "requested_by": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.@-]+$"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "release_required": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2
+              },
+              "release_approvals": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.@-]+$"
+                }
+              },
+              "released_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "may_release": {
+                "type": "boolean"
+              },
+              "approved_by_me": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kill_id",
+              "scope",
+              "state",
+              "requested_by",
+              "reason",
+              "requested_at",
+              "release_required",
+              "release_approvals",
+              "released_at",
+              "may_release",
+              "approved_by_me"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "kills"
+      ],
+      "additionalProperties": false
+    },
     "ActivitySource": {
       "type": "string",
       "enum": [
@@ -73898,6 +74043,19 @@
       },
       "additionalProperties": {}
     },
+    "KillActPrepared": {
+      "type": "object",
+      "properties": {
+        "bound_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "bound_hash"
+      ],
+      "additionalProperties": false
+    },
     "KillDelegation": {
       "type": "object",
       "properties": {
@@ -87410,7 +87568,18 @@
             "quarantine",
             "handoff",
             "kill_engaged",
-            "kill_released"
+            "kill_released",
+            "questions_waiting",
+            "ready_waiting",
+            "acceptance_waiting",
+            "item_parked",
+            "item_done",
+            "item_ended",
+            "control_halt",
+            "breaker_tripped",
+            "drift_suspended",
+            "release_failed",
+            "factory_alert"
           ]
         },
         "project_id": {
@@ -87515,6 +87684,112 @@
         "link_path": {
           "type": "string",
           "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rounds_left": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "Done",
+                "Declined",
+                "Abandoned",
+                "Withdrawn",
+                "HandedOverClosed",
+                "Superseded",
+                "Deferred"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lane": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "release": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "refused",
+                "unhealthy",
+                "rolled_back",
+                "held"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alert_kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "service_down",
+                "service_degraded",
+                "loop_stalled",
+                "checkpoint_overdue"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alert_subject": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(service|loop|ledger)\\.[a-z][a-z0-9_.-]{0,95}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -87548,7 +87823,18 @@
         "quarantine",
         "handoff",
         "kill_engaged",
-        "kill_released"
+        "kill_released",
+        "questions_waiting",
+        "ready_waiting",
+        "acceptance_waiting",
+        "item_parked",
+        "item_done",
+        "item_ended",
+        "control_halt",
+        "breaker_tripped",
+        "drift_suspended",
+        "release_failed",
+        "factory_alert"
       ]
     },
     "NotificationList": {
@@ -87575,7 +87861,18 @@
                       "quarantine",
                       "handoff",
                       "kill_engaged",
-                      "kill_released"
+                      "kill_released",
+                      "questions_waiting",
+                      "ready_waiting",
+                      "acceptance_waiting",
+                      "item_parked",
+                      "item_done",
+                      "item_ended",
+                      "control_halt",
+                      "breaker_tripped",
+                      "drift_suspended",
+                      "release_failed",
+                      "factory_alert"
                     ]
                   },
                   "project_id": {
@@ -87680,6 +87977,112 @@
                   "link_path": {
                     "type": "string",
                     "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+                  },
+                  "item_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "rounds_left": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "outcome": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "Done",
+                          "Declined",
+                          "Abandoned",
+                          "Withdrawn",
+                          "HandedOverClosed",
+                          "Superseded",
+                          "Deferred"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "L0",
+                          "L1",
+                          "L2",
+                          "L3",
+                          "L4",
+                          "L5",
+                          "L6",
+                          "L7",
+                          "L8"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "release": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "refused",
+                          "unhealthy",
+                          "rolled_back",
+                          "held"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "alert_kind": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "service_down",
+                          "service_degraded",
+                          "loop_stalled",
+                          "checkpoint_overdue"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "alert_subject": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(service|loop|ledger)\\.[a-z][a-z0-9_.-]{0,95}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -87700,7 +88103,8 @@
                   "slot_holder",
                   "escalated_backup",
                   "project_admin",
-                  "factory_admin"
+                  "factory_admin",
+                  "requester"
                 ]
               },
               "raised_at": {
@@ -87832,7 +88236,7 @@
           ]
         },
         "muted_kinds": {
-          "maxItems": 6,
+          "maxItems": 17,
           "type": "array",
           "items": {
             "type": "string",
@@ -87842,7 +88246,18 @@
               "quarantine",
               "handoff",
               "kill_engaged",
-              "kill_released"
+              "kill_released",
+              "questions_waiting",
+              "ready_waiting",
+              "acceptance_waiting",
+              "item_parked",
+              "item_done",
+              "item_ended",
+              "control_halt",
+              "breaker_tripped",
+              "drift_suspended",
+              "release_failed",
+              "factory_alert"
             ]
           }
         },
@@ -87892,7 +88307,7 @@
               ]
             },
             "muted_kinds": {
-              "maxItems": 6,
+              "maxItems": 17,
               "type": "array",
               "items": {
                 "type": "string",
@@ -87902,7 +88317,18 @@
                   "quarantine",
                   "handoff",
                   "kill_engaged",
-                  "kill_released"
+                  "kill_released",
+                  "questions_waiting",
+                  "ready_waiting",
+                  "acceptance_waiting",
+                  "item_parked",
+                  "item_done",
+                  "item_ended",
+                  "control_halt",
+                  "breaker_tripped",
+                  "drift_suspended",
+                  "release_failed",
+                  "factory_alert"
                 ]
               }
             },
@@ -88011,7 +88437,18 @@
                 "quarantine",
                 "handoff",
                 "kill_engaged",
-                "kill_released"
+                "kill_released",
+                "questions_waiting",
+                "ready_waiting",
+                "acceptance_waiting",
+                "item_parked",
+                "item_done",
+                "item_ended",
+                "control_halt",
+                "breaker_tripped",
+                "drift_suspended",
+                "release_failed",
+                "factory_alert"
               ]
             },
             "project_id": {
@@ -88116,6 +88553,112 @@
             "link_path": {
               "type": "string",
               "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+            },
+            "item_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rounds_left": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "outcome": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Done",
+                    "Declined",
+                    "Abandoned",
+                    "Withdrawn",
+                    "HandedOverClosed",
+                    "Superseded",
+                    "Deferred"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lane": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "L0",
+                    "L1",
+                    "L2",
+                    "L3",
+                    "L4",
+                    "L5",
+                    "L6",
+                    "L7",
+                    "L8"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "release": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "refused",
+                    "unhealthy",
+                    "rolled_back",
+                    "held"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "alert_kind": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "service_down",
+                    "service_degraded",
+                    "loop_stalled",
+                    "checkpoint_overdue"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "alert_subject": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(service|loop|ledger)\\.[a-z][a-z0-9_.-]{0,95}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -88136,7 +88679,8 @@
             "slot_holder",
             "escalated_backup",
             "project_admin",
-            "factory_admin"
+            "factory_admin",
+            "requester"
           ]
         },
         "slot": {
@@ -88250,7 +88794,17 @@
         "slot_holder",
         "escalated_backup",
         "project_admin",
-        "factory_admin"
+        "factory_admin",
+        "requester"
+      ]
+    },
+    "NotificationReleaseFailure": {
+      "type": "string",
+      "enum": [
+        "refused",
+        "unhealthy",
+        "rolled_back",
+        "held"
       ]
     },
     "NotificationSource": {
@@ -88304,7 +88858,18 @@
                 "quarantine",
                 "handoff",
                 "kill_engaged",
-                "kill_released"
+                "kill_released",
+                "questions_waiting",
+                "ready_waiting",
+                "acceptance_waiting",
+                "item_parked",
+                "item_done",
+                "item_ended",
+                "control_halt",
+                "breaker_tripped",
+                "drift_suspended",
+                "release_failed",
+                "factory_alert"
               ]
             },
             "project_id": {
@@ -88409,6 +88974,112 @@
             "link_path": {
               "type": "string",
               "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
+            },
+            "item_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rounds_left": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "outcome": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Done",
+                    "Declined",
+                    "Abandoned",
+                    "Withdrawn",
+                    "HandedOverClosed",
+                    "Superseded",
+                    "Deferred"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lane": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "L0",
+                    "L1",
+                    "L2",
+                    "L3",
+                    "L4",
+                    "L5",
+                    "L6",
+                    "L7",
+                    "L8"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "release": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "refused",
+                    "unhealthy",
+                    "rolled_back",
+                    "held"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "alert_kind": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "service_down",
+                    "service_degraded",
+                    "loop_stalled",
+                    "checkpoint_overdue"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "alert_subject": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(service|loop|ledger)\\.[a-z][a-z0-9_.-]{0,95}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -88429,7 +89100,8 @@
             "slot_holder",
             "escalated_backup",
             "project_admin",
-            "factory_admin"
+            "factory_admin",
+            "requester"
           ]
         },
         "raised_at": {
@@ -89216,6 +89888,91 @@
         "O-N",
         "O-L"
       ]
+    },
+    "OpsAlertClearedPayload": {
+      "type": "object",
+      "properties": {
+        "alert_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "subject": {
+          "type": "string",
+          "pattern": "^(service|loop|ledger)\\.[a-z][a-z0-9_.-]{0,95}$"
+        },
+        "cleared_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "alert_id",
+        "subject",
+        "cleared_at"
+      ],
+      "additionalProperties": false
+    },
+    "OpsAlertKind": {
+      "type": "string",
+      "enum": [
+        "service_down",
+        "service_degraded",
+        "loop_stalled",
+        "checkpoint_overdue"
+      ]
+    },
+    "OpsAlertRaisedPayload": {
+      "type": "object",
+      "properties": {
+        "alert_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "subject": {
+          "type": "string",
+          "pattern": "^(service|loop|ledger)\\.[a-z][a-z0-9_.-]{0,95}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "service_down",
+            "service_degraded",
+            "loop_stalled",
+            "checkpoint_overdue"
+          ]
+        },
+        "detail_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,47}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "alert_id",
+        "subject",
+        "kind",
+        "detail_code",
+        "since"
+      ],
+      "additionalProperties": false
+    },
+    "OpsAlertSubject": {
+      "type": "string",
+      "pattern": "^(service|loop|ledger)\\.[a-z][a-z0-9_.-]{0,95}$"
     },
     "OpsControl": {
       "type": "object",
@@ -93849,6 +94606,184 @@
       ],
       "additionalProperties": false
     },
+    "PortalKillPrepareRequest": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "scope",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "PortalKillReleaseRequest": {
+      "type": "object",
+      "properties": {
+        "step_up": {
+          "type": "object",
+          "properties": {
+            "proof": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "proof"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "step_up"
+      ],
+      "additionalProperties": false
+    },
+    "PortalKillRequest": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "fleet"
+                },
+                "ref": {
+                  "type": "string",
+                  "const": "*"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "enterprise",
+                    "org",
+                    "team",
+                    "project",
+                    "repo",
+                    "service_env",
+                    "environment",
+                    "lane",
+                    "session",
+                    "item",
+                    "role",
+                    "model",
+                    "release",
+                    "budget"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "step_up": {
+          "type": "object",
+          "properties": {
+            "proof": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "proof"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "scope",
+        "reason",
+        "step_up"
+      ],
+      "additionalProperties": false
+    },
     "PortalPath": {
       "type": "string",
       "pattern": "^\\/[A-Za-z0-9/_.-]{0,200}$"
@@ -96425,7 +97360,7 @@
               ]
             },
             "muted_kinds": {
-              "maxItems": 6,
+              "maxItems": 17,
               "type": "array",
               "items": {
                 "type": "string",
@@ -96435,7 +97370,18 @@
                   "quarantine",
                   "handoff",
                   "kill_engaged",
-                  "kill_released"
+                  "kill_released",
+                  "questions_waiting",
+                  "ready_waiting",
+                  "acceptance_waiting",
+                  "item_parked",
+                  "item_done",
+                  "item_ended",
+                  "control_halt",
+                  "breaker_tripped",
+                  "drift_suspended",
+                  "release_failed",
+                  "factory_alert"
                 ]
               }
             },
@@ -126947,7 +127893,7 @@
               ]
             },
             "muted_kinds": {
-              "maxItems": 6,
+              "maxItems": 17,
               "type": "array",
               "items": {
                 "type": "string",
@@ -126957,7 +127903,18 @@
                   "quarantine",
                   "handoff",
                   "kill_engaged",
-                  "kill_released"
+                  "kill_released",
+                  "questions_waiting",
+                  "ready_waiting",
+                  "acceptance_waiting",
+                  "item_parked",
+                  "item_done",
+                  "item_ended",
+                  "control_halt",
+                  "breaker_tripped",
+                  "drift_suspended",
+                  "release_failed",
+                  "factory_alert"
                 ]
               }
             },
