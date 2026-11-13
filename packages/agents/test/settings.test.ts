@@ -8,15 +8,15 @@ import {
   withAgentSettings,
 } from '../src/settings.js';
 
-// Per-agent settings (agents.settings): the defaults are the contracts' values, a change reaches the key the
+// Per-agent settings (agents.config): the defaults are the contracts' values, a change reaches the key the
 // gateway mints, and no setting reaches the tools or the data class.
 
 const snap = (v: unknown, rejected: string[] = []) => ({
   rejected,
-  get: (k: string) => (k === 'agents.settings' ? v : undefined),
+  get: (k: string) => (k === 'agents.config' ? v : undefined),
 });
 
-describe('agents.settings', () => {
+describe('agents.config', () => {
   it('defaults are every contract’s models and budget, all on, the coder at 40 turns / 1800 s / 600 s', () => {
     const d = agentSettingsDefaults();
     for (const s of AGENT_SPECS) {
@@ -56,6 +56,6 @@ describe('agents.settings', () => {
 
   it('an unreadable published value is null (nothing is dispatched)', () => {
     expect(agentSettingsFrom(snap({ A1: { enabled: 'no' } }))).toBeNull();
-    expect(agentSettingsFrom(snap(undefined, ['agents.settings']))).toBeNull();
+    expect(agentSettingsFrom(snap(undefined, ['agents.config']))).toBeNull();
   });
 });

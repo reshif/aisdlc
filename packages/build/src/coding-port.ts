@@ -95,10 +95,10 @@ export interface CodingPortDeps {
   }>;
   /**
    * The session's turns and time limits. A function is read on every session (portal v2: the coder's row of
-   * `agents.settings`, M1-gated); absent fields are 40 turns, 1800 s a session and 600 s a test run.
+   * `agents.config`, M1-gated); absent fields are 40 turns, 1800 s a session and 600 s a test run.
    */
   readonly limits?: CodingLimits | (() => CodingLimits);
-  /** The model, read on every session when a function (portal v2: the coder's models in `agents.settings`). */
+  /** The model, read on every session when a function (portal v2: the coder's models in `agents.config`). */
   readonly modelOf?: () => string;
 }
 

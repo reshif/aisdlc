@@ -54,7 +54,7 @@ export const SETTINGS_KEYS = {
   /** H15: the budget share of each part size. */
   planning_size_share: 'planning.size_share',
   /** H12, H13, H14: model, budget, turns and time limits per agent, and agents on or off. */
-  agents_settings: 'agents.settings',
+  agents_settings: 'agents.config',
 } as const;
 export type SettingsKey = (typeof SETTINGS_KEYS)[keyof typeof SETTINGS_KEYS];
 

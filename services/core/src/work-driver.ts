@@ -154,7 +154,7 @@ export interface WorkDriverDeps {
    */
   readonly vault?: RunKeyVault;
   /**
-   * Portal v2 (`agents.settings`, H12-H14): each agent on or off, its models and its budget, read on every dispatch.
+   * Portal v2 (`agents.config`, H12-H14): each agent on or off, its models and its budget, read on every dispatch.
    * `null`: unreadable, nothing is dispatched. Absent: the contracts' values.
    */
   readonly agentSettings?: () => AgentsSettingsConfig | null;

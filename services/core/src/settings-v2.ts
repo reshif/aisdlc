@@ -12,7 +12,7 @@ import {
 // config reader's snapshot, so a published revision is in force without a restart. Fail closed: a published value
 // that no longer reads is `null` where the caller refuses (agents, the 5.5 envelope).
 
-/** `agents.settings` (H12-H14): the table in force, the contracts' values where unset; `null`: unreadable. */
+/** `agents.config` (H12-H14): the table in force, the contracts' values where unset; `null`: unreadable. */
 export const agentSettingsOf =
   (reader: ConfigReader): (() => AgentsSettingsConfig | null) =>
   () =>

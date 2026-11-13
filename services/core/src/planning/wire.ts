@@ -39,7 +39,7 @@ export function agentStagePorts(o: {
   readonly reonboardTriggers?: () => ReonboardTriggersConfig;
   /** The locked prompt text; default: the files beside the bundle (`dist/prompts`). */
   readonly prompt?: (ref: string) => string;
-  /** Portal v2: `agents.settings` and `planning.size_share` from the config reader. */
+  /** Portal v2: `agents.config` and `planning.size_share` from the config reader. */
   readonly agentSettings?: () => AgentsSettingsConfig | null;
   readonly sizeShare?: () => PlanningSizeShareConfig | null;
 }): StagePorts {

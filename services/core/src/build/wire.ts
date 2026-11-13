@@ -44,7 +44,7 @@ export function buildStagePorts(o: {
   readonly knowledge: Pick<KnowledgePort, 'openFindings'>;
   readonly execAllowedRepos: () => readonly string[] | null;
   readonly model: string;
-  /** Portal v2 (`agents.settings`, H12, H13): the coder's model and its turns and times, read on every session. */
+  /** Portal v2 (`agents.config`, H12, H13): the coder's model and its turns and times, read on every session. */
   readonly modelOf?: () => string;
   readonly limits?: () => CodingLimits;
   readonly now?: () => number;

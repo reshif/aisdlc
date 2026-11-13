@@ -66,7 +66,7 @@ const SCHEMAS: ReadonlyArray<[string, z.ZodType, unknown]> = [
   ['sandbox.probe', SandboxProbeConfig, DEFAULT_SANDBOX_PROBE],
   ['sandbox.profiles', SandboxProfilesConfig, DEFAULT_SANDBOX_PROFILES],
   ['planning.size_share', PlanningSizeShareConfig, DEFAULT_PLANNING_SIZE_SHARE],
-  ['agents.settings', AgentsSettingsConfig, {}],
+  ['agents.config', AgentsSettingsConfig, {}],
 ];
 
 afterEach(() => installGatePolicies(null));

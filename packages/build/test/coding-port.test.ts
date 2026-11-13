@@ -215,7 +215,7 @@ const upTo64 = async () => {
   done(await run('6.4'));
 };
 
-describe('agents.settings: the coder’s turns, times and model are read on every session', () => {
+describe('agents.config: the coder’s turns, times and model are read on every session', () => {
   const taskOf = (spec: SandboxSpec) => {
     const f = spec.repo.find((x) => x.path.endsWith(`/${CODING_TASK_FILE}`));
     return JSON.parse(f ? Buffer.from(f.content).toString() : '{}') as {

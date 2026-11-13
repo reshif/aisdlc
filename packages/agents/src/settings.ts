@@ -10,7 +10,7 @@ import {
 } from '@aisdlc/contracts';
 import { AGENT_SPECS } from './spec-data.js';
 
-// Per-agent settings (portal v2, H12-H14; config `agents.settings`, factory layer, M1-gated). The factory owner sets
+// Per-agent settings (portal v2, H12-H14; config `agents.config`, factory layer, M1-gated). The factory owner sets
 // an agent on or off, its models, its key's budget and, for the coding agent, its turns and time limits. The default
 // of every field is the agent CONTRACT's value (spec-data), so an unset key changes nothing. What a setting never
 // reaches: the contract's tools and most sensitive data (no field for them), and anything a request, repo text or an

@@ -57,7 +57,7 @@ export interface AgentDispatchDeps extends CoreDeps {
    */
   readonly vault?: RunKeyVault;
   /**
-   * Portal v2 (`agents.settings`, M1-gated): each agent on or off, its models and its budget. `null`: the published
+   * Portal v2 (`agents.config`, M1-gated): each agent on or off, its models and its budget. `null`: the published
    * value does not read, and nothing is dispatched (fail closed). Absent: the contracts' values (tests of other things).
    */
   readonly agentSettings?: () => AgentsSettingsConfig | null;
@@ -106,8 +106,8 @@ export async function dispatchAgent(
   if (table === null || (table && !agentEnabled(table, def.agent_id))) {
     const why =
       table === null
-        ? 'the published agents.settings does not read'
-        : `agent ${def.agent_id} is switched off (agents.settings)`;
+        ? 'the published agents.config does not read'
+        : `agent ${def.agent_id} is switched off (agents.config)`;
     await recordFailure(
       d,
       s,

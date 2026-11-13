@@ -132,7 +132,7 @@ export interface AgentPlanningDeps extends CoreDeps {
   readonly maxToolRounds?: number;
   /** `onboarding.reonboard_triggers` (M17): the knowledge-defect threshold; absent: the spec's 3 in 30 days. */
   readonly reonboardTriggers?: () => ReonboardTriggersConfig;
-  /** Portal v2 (`agents.settings`): the model and budget per agent; absent or unreadable: the contract's. */
+  /** Portal v2 (`agents.config`): the model and budget per agent; absent or unreadable: the contract's. */
   readonly agentSettings?: () => AgentsSettingsConfig | null;
   /** Portal v2 (`planning.size_share`, H15): the budget share per part size; `null`: unreadable (5.5 fails). */
   readonly sizeShare?: () => PlanningSizeShareConfig | null;
@@ -290,7 +290,7 @@ export class AgentPlanningPort implements PlanningPort {
     const d = this.d;
     const spec = STEP_SPECS[step];
     const contractDef = primaryAgentFor(step);
-    // Portal v2 (`agents.settings`): the model and budget the factory set for the agent; the key was minted with them
+    // Portal v2 (`agents.config`): the model and budget the factory set for the agent; the key was minted with them
     const table = d.agentSettings?.();
     const def =
       contractDef && table

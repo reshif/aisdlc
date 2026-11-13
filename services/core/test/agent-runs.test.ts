@@ -235,7 +235,7 @@ describe('dispatch: the agent, its key and the record of both', () => {
     });
   });
 
-  it('agents.settings: an agent switched off runs nothing (recorded once); its models and budget reach the key', async () => {
+  it('agents.config: an agent switched off runs nothing (recorded once); its models and budget reach the key', async () => {
     const it_ = await newItem({ lane: 'L3', level: 'light', gating: GATING_OFF });
     const state = (await readItem(s.record.pool, it_.itemId))?.state;
     if (!state) throw new Error('no item');
