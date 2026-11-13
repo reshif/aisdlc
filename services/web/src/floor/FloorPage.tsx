@@ -1,9 +1,10 @@
 import {
   DEFAULT_SANDBOX_CAPS,
-  GATES,
   STEPS,
   StepIdValues,
   feasibilityFlagged,
+  label,
+  lookupTerm,
   type FloorItem,
   type FloorKill,
   type FloorWaitingGate,
@@ -12,7 +13,7 @@ import {
   type GateId,
 } from '@aisdlc/contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, type Me } from '../api';
 import { Loading, PageError } from '../components/Notice';
 import { describeError } from '../format';
@@ -30,7 +31,6 @@ import {
   Stats,
   Table,
   laneFill,
-  laneText,
 } from '../ui';
 import { FLOOR_ROOM_TEXT, FLOOR_STAGE_TEXT, FLOOR_STATUS_TEXT } from '../vocab';
 import { countByStatus, initials, inPod } from './geometry';
@@ -77,6 +77,28 @@ function useFloor(project: string | null, live: boolean) {
 
 const time = (ms: number) => new Date(ms).toISOString().slice(11, 19);
 
+/** A value off the wire in plain words; "Unknown" for one the glossary does not have. */
+const words = (family: Parameters<typeof lookupTerm>[0], v: string | null | undefined): string =>
+  v ? (lookupTerm(family, v)?.label ?? 'Unknown') : 'Unknown';
+
+/** The phone (screen-map §2.17): the floor plan is desktop only; a phone gets the list of stuck and waiting items. */
+export const PHONE_QUERY = '(max-width: 760px)';
+function useNarrow(): boolean {
+  const q = () =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(PHONE_QUERY).matches
+      : false;
+  const [narrow, setNarrow] = useState(q);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const m = window.matchMedia(PHONE_QUERY);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener?.('change', on);
+    return () => m.removeEventListener?.('change', on);
+  }, []);
+  return narrow;
+}
+
 /** The projects whose floor the person may open: every one with floor.read on the fleet, else the bound ones. */
 function floorProjects(me: Me, all: readonly string[]): string[] {
   if (me.actions.fleet.includes('floor.read')) return [...all];
@@ -106,9 +128,10 @@ export function FloorPage({ me }: { me: Me }) {
   if (project === null) {
     return (
       <>
-        <PageHead eyebrow="Work" title="Floor" />
-        <EmptyState title="No floor to show">
-          You read no project's floor yet. A role on a project (a viewer is enough) opens its floor.
+        <PageHead title={label('screen', 'floor')} />
+        <EmptyState title="No work in progress">
+          You can read no project's floor yet. A role on a project (a viewer is enough) opens its
+          floor.
         </EmptyState>
       </>
     );
@@ -143,16 +166,16 @@ function FloorScreen(p: {
   const [lanes, setLanes] = useState<ReadonlySet<string> | null>(null);
   const [open, setOpen] = useState<FloorTarget | null>(null);
   const q = useFloor(p.project, live);
+  const narrow = useNarrow();
 
   const head = (
     <PageHead
-      eyebrow="Work"
-      title={`Floor: ${p.name}`}
-      sub="The same requests as the board, moving through stations from the record. Gates show the initials of the people they wait on. Open a chip, station, gate or room for details."
+      title={`${label('screen', 'floor')}: ${p.name}`}
+      sub="The live view of all work by stage, with what is stuck and where approvals wait. Approvals show the initials of the people they wait on. Open an item, a stage, an approval or a room for details."
       actions={
         p.choices.length > 1 ? (
           <label className="fl-pick">
-            <span>Project</span>
+            <span>{label('concept', 'project')}</span>
             <select value={p.project} onChange={(e) => p.onChoose(e.target.value)}>
               {p.choices.map((c) => (
                 <option key={c} value={c}>
@@ -211,18 +234,17 @@ function FloorScreen(p: {
         {behind ? (
           <div className="notice notice-attention fl-banner" role="status">
             <p>
-              <b>Stale:</b> the floor is behind the record (
-              {view.freshness.reason ?? 'unknown cause'}). Positions are as of record entry{' '}
-              {view.freshness.as_of_seq}; the record is at {view.freshness.head_seq}. Nothing here
-              is current.
+              <b>{label('status', 'stale')}:</b> the floor is behind the record. Positions are{' '}
+              {view.freshness.head_seq - view.freshness.as_of_seq} events behind; nothing here is
+              current.
             </p>
           </div>
         ) : null}
         {failing ? (
           <div className="notice notice-attention fl-banner" role="status">
             <p>
-              <b>Stale:</b> the floor could not be refreshed since {time(checked_at)} UTC (
-              {describeError(q.error)}). What you see may have moved.
+              <b>{label('status', 'stale')}:</b> the floor could not be refreshed since{' '}
+              {time(checked_at)} UTC ({describeError(q.error)}). What you see may have moved.
             </p>
             <button type="button" className="ui-btn ui-btn-sm" onClick={() => void q.refetch()}>
               Try again
@@ -240,25 +262,26 @@ function FloorScreen(p: {
           <div key={c.control_id} className="notice notice-attention fl-banner">
             <p>
               <b>
-                Control: {c.kind} on {c.scope.kind} {c.scope.ref}
+                {words('controlKind', c.kind)}: {c.scope.ref}
               </b>
               {c.expires_at ? ` until ${c.expires_at.slice(0, 16).replace('T', ' ')} UTC` : ''}.
-              Items it covers stay where they are. <Link to="/controls">Controls</Link>
+              Items it covers stay where they are.{' '}
+              <Link to="/controls">{label('screen', 'controls')}</Link>
             </p>
           </div>
         ))}
         {view.view_level === 'V1' ? (
           <div className="notice fl-banner">
             <p>
-              You see this floor as a viewer: positions, lanes and who a gate waits on. Titles and
-              content stay hidden (data class {view.data_class}).
+              You see this floor as a viewer: positions, tracks and who an approval waits on. Titles
+              and content stay hidden ({words('dataClass', view.data_class).toLowerCase()}).
             </p>
           </div>
         ) : null}
         {waitingOnMe.length > 0 ? (
           <Link to="/inbox" className="fl-wait">
             <b>Waiting on you:</b> {waitingOnMe.length} item{waitingOnMe.length === 1 ? '' : 's'} at
-            a gate you decide. Open your inbox
+            an approval you decide. Open your inbox
           </Link>
         ) : null}
       </div>
@@ -273,13 +296,13 @@ function FloorScreen(p: {
           {live ? (
             <>
               <span className={`fl-live${stale ? ' fl-live-stale' : ''}`} aria-hidden="true" />{' '}
-              {stale ? 'Stale' : 'Live'}
+              {stale ? label('status', 'stale') : 'Live'}
             </>
           ) : (
             'Resume'
           )}
         </button>
-        <div className="fl-lanes" role="group" aria-label="Lanes">
+        <div className="fl-lanes" role="group" aria-label="Tracks">
           {groups.map((g) => (
             <button
               key={g}
@@ -289,9 +312,9 @@ function FloorScreen(p: {
               onClick={() => toggleGroup(g)}
             >
               <i className={`ui-lane-${g}`} aria-hidden="true" />
-              {lanesOfGroup(g).length > 1
-                ? `${lanesOfGroup(g)[0]}–${lanesOfGroup(g).at(-1)}`
-                : laneText(lanesOfGroup(g)[0] as never)}
+              {lanesOfGroup(g)
+                .map((l) => words('lane', l))
+                .join(', ')}
             </button>
           ))}
         </div>
@@ -299,7 +322,7 @@ function FloorScreen(p: {
         <span className="fl-counts" aria-label="Items by status">
           <Pill tone="info">{counts.working} working</Pill>
           <Pill tone="gate">{counts.waiting} waiting</Pill>
-          <Pill tone="back">{counts.held} held</Pill>
+          <Pill tone="back">{counts.held} on hold</Pill>
           <Pill tone="bad">{counts.stuck} stuck</Pill>
         </span>
         <div className="fl-seg" role="group" aria-label="Show">
@@ -320,16 +343,30 @@ function FloorScreen(p: {
         </div>
       </div>
 
-      <FloorPlanView
-        view={view}
-        lanes={lanes}
-        mineOnly={mineOnly}
-        showTags={tags}
-        fit={fit}
-        stale={stale}
-        pods={pods}
-        onOpen={setOpen}
-      />
+      {narrow ? (
+        <Card title="Stuck and waiting" testId="floor-phone">
+          <p className="muted">
+            The floor plan needs a wider screen; here is what is stuck or waits.
+          </p>
+          <ItemList
+            items={view.items.filter(
+              (i) => i.status === 'stuck' || i.status === 'waiting' || i.status === 'held',
+            )}
+            onOpen={setOpen}
+          />
+        </Card>
+      ) : (
+        <FloorPlanView
+          view={view}
+          lanes={lanes}
+          mineOnly={mineOnly}
+          showTags={tags}
+          fit={fit}
+          stale={stale}
+          pods={pods}
+          onOpen={setOpen}
+        />
+      )}
 
       <ul className="fl-legend">
         <li>
@@ -338,52 +375,52 @@ function FloorScreen(p: {
         </li>
         <li>
           <i className="fl-lg-dot" aria-hidden="true" />
-          Dotted: the bypass track, every move off the belt
+          Dotted: every move off the main belt
         </li>
         <li>
           <i className="fl-lg-back" aria-hidden="true" />
-          Orange: a back-edge (the last 24 hours)
+          Orange: sent back (the last 24 hours)
         </li>
         <li>
           <i className="fl-lg-mine" aria-hidden="true" />
           Gold ring: waiting on you
         </li>
         <li>
-          <ActorGlyph actor="A" /> agent · <ActorGlyph actor="D" /> deterministic ·{' '}
+          <ActorGlyph actor="A" /> agent · <ActorGlyph actor="D" /> the factory ·{' '}
           <ActorGlyph actor="H" /> person
         </li>
         <li>
           <i className="fl-lg-flag" aria-hidden="true">
             !
           </i>
-          A gate nobody eligible can decide (or whose quorum cannot be met)
+          An approval nobody can decide as things stand
         </li>
         <li>
-          <span className="fl-score">A7 .90</span> the lowest agent score at a station;{' '}
+          <span className="fl-score">.90</span> the lowest agent score at a stage;{' '}
           <span className="fl-score fl-score-low">.62</span> below {view.liveness.low_score}
         </li>
         <li className="muted">
           Stuck: in a session and silent for more than {view.liveness.silence_minutes} min
           {Object.keys(view.liveness.by_stage).length > 0
             ? ` (${Object.entries(view.liveness.by_stage)
-                .map(([k, v]) => `${k} ${v} min`)
+                .map(([k, v]) => `${words('stage', k)} ${v} min`)
                 .join(', ')})`
             : ''}
           {view.liveness.source === 'config'
-            ? ' (factory.floor)'
+            ? ' (set in Settings)'
             : view.liveness.source === 'unreadable'
-              ? ' (factory.floor is unreadable: the defaults are used)'
+              ? ' (the setting could not be read: the defaults are used)'
               : ' (default)'}
           .
         </li>
         <li className="muted">
-          Stations and gates come from catalogue {view.plan.catalogue.version}; each item follows
-          the route of its own pinned catalogue.
+          Stages and approvals come from process version {view.plan.catalogue.version}; each item
+          follows the route of its own process version.
         </li>
       </ul>
 
       <div className="fl-below">
-        <Card title="Back-edges and re-lanes, last 24 hours" flush>
+        <Card title="Sent back and moved track, last 24 hours" flush>
           {view.recent.length === 0 ? (
             <p className="fl-pad muted">None in the last 24 hours.</p>
           ) : (
@@ -392,7 +429,12 @@ function FloorScreen(p: {
                 <li key={`${m.item_id}-${m.at}-${m.edge}-${m.kind}`}>
                   <span className="ui-mono muted">{m.at.slice(11, 19)}</span>
                   <span>
-                    <Pill tone="back">{m.edge ?? m.kind}</Pill>{' '}
+                    <Pill tone="back">
+                      {m.edge
+                        ? ((lookupTerm('backEdge', m.edge) ?? lookupTerm('relane', m.edge))
+                            ?.label ?? 'Moved')
+                        : words('floorMove', m.kind)}
+                    </Pill>{' '}
                     <button
                       type="button"
                       className="fl-link"
@@ -400,8 +442,9 @@ function FloorScreen(p: {
                     >
                       {m.key}
                     </button>{' '}
-                    <span className="ui-mono muted">
-                      {m.from ?? '?'} → {m.to ?? '?'}
+                    <span className="muted">
+                      {m.from ? words('phase', m.from) : 'Unknown'} →{' '}
+                      {m.to ? words('phase', m.to) : 'Unknown'}
                     </span>
                   </span>
                 </li>
@@ -412,20 +455,20 @@ function FloorScreen(p: {
         <Card title="Flow, last 24 hours">
           <FlowBlock view={view} />
         </Card>
-        <Card title="Stations" flush>
+        <Card title="Stages" flush>
           <StationTable items={view.items} stations={view.plan.stations} />
         </Card>
-        <Card title="Sandbox sessions">
+        <Card title={label('screen', 'sandboxes')}>
           {view.sessions === null ? (
             <p>
-              <Pill tone="mute">unknown</Pill> The sandbox-controller did not answer: the free slots
-              are unknown (admission reads unknown as none free).
+              <Pill tone="mute">{label('status', 'unknown')}</Pill> The sandboxes did not answer:
+              the free slots are unknown, and unknown is treated as none free.
             </p>
           ) : (
             <KeyValue
               label="Sessions per class"
               rows={Object.entries(view.sessions.used).map(([c, n]) => [
-                c,
+                words('sandboxClass', c),
                 `${n} running, ${view.sessions?.free[c as 'W'] ?? 0} free`,
               ])}
             />
@@ -446,17 +489,15 @@ export function KillBanner({ kill, name }: { kill: FloorKill; name: string }) {
       <p>
         {kill.state === 'killed' ? (
           <>
-            <b>Kill active on {name}.</b> Agent work is stopped and admission is closed; items stay
-            where they are until two people release it.
-            {kill.kill_ids.length > 0 ? ` Kill ${kill.kill_ids.join(', ')}.` : ''}
+            <b>Agents stopped on {name}.</b> No agent work starts; items stay where they are until
+            two people release the stop.
           </>
         ) : (
           <>
-            <b>Kill switch unreachable: treated as killed.</b> No agent work is admitted until it
-            answers ({kill.message ?? 'no answer'}).
+            <b>{label('concept', 'kill_unreachable')}.</b> No agent work starts until it answers.
           </>
         )}{' '}
-        <Link to="/kill">Kill switch</Link>
+        <Link to="/kill">{label('screen', 'emergency_stop')}</Link>
       </p>
     </div>
   );
@@ -478,9 +519,7 @@ function FeasibilityNote({ g }: { g: FloorWaitingGate }) {
   return (
     <>
       {' '}
-      <Pill tone="bad">
-        {g.feasibility === 'unknown' ? 'feasibility unknown' : 'cannot be decided'}
-      </Pill>{' '}
+      <Pill tone="bad">{words('feasibility', g.feasibility)}</Pill>{' '}
       <span className="muted">{g.feasibility_reason ?? ''}</span>
     </>
   );
@@ -526,19 +565,19 @@ function FlowBlock({ view }: { view: FloorView }) {
   return (
     <>
       <Stats label="Moves in the last 24 hours">
-        <Stat label="Forward" value={sum('F')} detail="F moves" />
+        <Stat label="Forward" value={sum('F')} />
         <Stat
-          label="Back-edges"
+          label="Sent back"
           value={sum('B')}
           {...(sum('B') > 0 ? { tone: 'warn' as const } : {})}
         />
-        <Stat label="Re-lanes" value={sum('R')} />
+        <Stat label="Moved track" value={sum('R')} />
       </Stats>
       <svg
         className="fl-flow"
         viewBox={`0 0 ${w} ${h + 18}`}
         role="img"
-        aria-label={`Forward moves per hour over the last 24 hours: ${sum('F')} in all, ${sum('B')} back-edges`}
+        aria-label={`Forward moves per hour over the last 24 hours: ${sum('F')} in all, ${sum('B')} sent back`}
       >
         {view.flow.map((x, i) => (
           <g key={x.hour}>
@@ -599,13 +638,9 @@ function StationTable({
       columns={[
         {
           key: 's',
-          header: 'Station',
+          header: 'Stage',
           rowHeader: true,
-          render: (r) => (
-            <>
-              <span className="ui-mono muted">{r.s}</span> {FLOOR_STAGE_TEXT[r.s]}
-            </>
-          ),
+          render: (r) => FLOOR_STAGE_TEXT[r.s],
         },
         { key: 'n', header: 'In', align: 'right', render: (r) => r.n },
         { key: 'w', header: 'Waiting', align: 'right', render: (r) => r.waiting },
@@ -632,9 +667,9 @@ function ItemRow({ it, onOpen }: { it: FloorItem; onOpen: (t: FloorTarget) => vo
       </button>
       <span className="fl-li-t">
         {it.title ?? <span className="muted">Title hidden</span>}
-        <span className="muted ui-mono">
+        <span className="muted">
           {' '}
-          {it.step ?? ''}
+          {it.step ? words('step', it.step) : ''}
           {it.waiting_gates.length > 0
             ? ` · waits on ${[...new Set(it.waiting_gates.flatMap((w) => w.deciders ?? ['?']))].join(', ')}`
             : ''}
@@ -685,9 +720,9 @@ function FloorDrawer({
     }
     const where =
       it.node.kind === 'station'
-        ? `${it.node.stage} ${FLOOR_STAGE_TEXT[it.node.stage]}`
+        ? FLOOR_STAGE_TEXT[it.node.stage]
         : it.node.kind === 'gate'
-          ? `at gate ${it.node.key}`
+          ? `at the approval ${it.node.key}`
           : FLOOR_ROOM_TEXT[it.node.room].title;
     const at =
       it.node.kind === 'gate' ? it.node.key : it.node.kind === 'station' ? it.node.stage : null;
@@ -701,9 +736,12 @@ function FloorDrawer({
         <KeyValue
           label="Where the item is"
           rows={[
-            ['Lane', `${laneText(it.lane)}${it.lane_bound ? '' : ' (proposed, G0 binds it)'}`],
+            [
+              label('concept', 'lane'),
+              `${words('lane', it.lane)}${it.lane_bound ? '' : ' (proposed: accepting the request confirms it)'}`,
+            ],
             ['Where', where],
-            ['Step', it.step ? `${it.step} ${STEPS[it.step].title}` : '—'],
+            ['Step', it.step ? words('step', it.step) : '—'],
             [
               'Status',
               <Pill key="s" tone={FLOOR_STATUS_TEXT[it.status].tone}>
@@ -711,7 +749,10 @@ function FloorDrawer({
               </Pill>,
             ],
             ['Waits for', it.waiting ?? '—'],
-            ['Holds', it.holds.length > 0 ? it.holds.map((h) => h.reason).join(', ') : 'none'],
+            [
+              label('status', 'held'),
+              it.holds.length > 0 ? it.holds.map((h) => words('hold', h.reason)).join(', ') : 'No',
+            ],
             ['Session', activityText(it)],
             [
               'Requested by',
@@ -721,11 +762,11 @@ function FloorDrawer({
                 </span>
               ),
             ],
-            ['Catalogue', it.catalogue_version],
+            [label('concept', 'catalogue'), it.catalogue_version],
           ]}
         />
         {it.waiting_gates.length > 0 ? (
-          <Card title="Gates it waits at">
+          <Card title="Approvals it waits for">
             <ul className="fl-list">
               {it.waiting_gates.map((g) => (
                 <li key={g.gate_instance_id} className="fl-li">
@@ -734,8 +775,8 @@ function FloorDrawer({
                     {g.deciders === null
                       ? 'who decides it could not be read (unknown)'
                       : g.deciders.length === 0
-                        ? 'nobody holds the slot: it cannot be decided'
-                        : `decided by ${g.deciders.join(', ')} (${g.slot} slot)`}
+                        ? 'nobody holds the role: it cannot be decided'
+                        : `decided by ${g.deciders.join(', ')} (${words('roleSlot', g.slot)})`}
                     <FeasibilityNote g={g} />
                   </span>
                 </li>
@@ -747,7 +788,7 @@ function FloorDrawer({
           <ol className="fl-route">
             {it.route.map((k, i) => (
               <li key={`${k}-${i}`} className={k === at ? 'fl-route-now' : undefined}>
-                <span className="ui-mono">{k}</span>
+                <span>{lookupTerm('stage', k)?.label ?? lookupTerm('gate', k)?.label ?? k}</span>
               </li>
             ))}
           </ol>
@@ -768,10 +809,10 @@ function FloorDrawer({
       return (st === 'S8a' || st === 'S8b' ? 'S8' : st) === s;
     });
     return (
-      <Drawer open title={`${s} ${FLOOR_STAGE_TEXT[s]}`} onClose={onClose}>
+      <Drawer open title={FLOOR_STAGE_TEXT[s]} onClose={onClose}>
         <Stats label="This station">
           <Stat label="Here now" value={items.length} />
-          <Stat label="In a pod" value={items.filter(inPod).length} />
+          <Stat label="In a sandbox" value={items.filter(inPod).length} />
           <Stat
             label="Stuck"
             value={items.filter((i) => i.status === 'stuck').length}
@@ -786,8 +827,7 @@ function FloorDrawer({
           <ol className="fl-steps">
             {steps.map((id) => (
               <li key={id}>
-                <span className="ui-mono muted">{id}</span> {STEPS[id].title}{' '}
-                <ActorGlyph actor={STEPS[id].actor} />
+                {words('step', id)} <ActorGlyph actor={STEPS[id].actor} />
               </li>
             ))}
           </ol>
@@ -800,29 +840,35 @@ function FloorDrawer({
     const items = view.items.filter((i) => i.node.kind === 'gate' && i.node.key === target.key);
     const lanes = view.plan.lanes.filter((l) => l.route.includes(target.key)).map((l) => l.lane);
     return (
-      <Drawer open title={`Gate ${target.key}`} onClose={onClose}>
+      <Drawer
+        open
+        title={(g?.gates ?? []).map((x: GateId) => label('gate', x)).join(' and ') || 'Approval'}
+        onClose={onClose}
+      >
         <p>
           {(g?.gates ?? []).map((x: GateId) => (
             <span key={x} className="fl-gtitle">
-              <GateTag gate={x} /> {GATES[x].title ?? ''}
+              <GateTag gate={x} /> {label('gate', x)}
             </span>
           ))}
         </p>
         <KeyValue
           label="The gate"
           rows={[
-            ['After', g ? `${g.after_step} ${STEPS[g.after_step].title}` : '—'],
-            ['On the route of', lanes.length > 0 ? lanes.join(', ') : 'no lane of this catalogue'],
+            ['After', g ? words('step', g.after_step) : '—'],
+            [
+              'On the tracks',
+              lanes.length > 0
+                ? lanes.map((l) => words('lane', l)).join(', ')
+                : 'no track of this process version',
+            ],
             [
               'For this project',
               (view.gates_off ?? []).includes(target.key)
-                ? 'off for this project (its gating profile has it off; an item pinned before keeps it)'
-                : 'on where the lane has it',
+                ? 'Off for this project (an item that started before keeps it)'
+                : 'On where the track has it',
             ],
-            [
-              'If nobody decides',
-              'B21 notifies the backup after a business day; expiry never approves',
-            ],
+            ['If nobody decides', 'The backup is told after a working day; expiry never approves'],
           ]}
         />
         {items.some((i) => i.waiting_gates.some((w) => feasibilityFlagged(w.feasibility))) ? (
@@ -834,11 +880,13 @@ function FloorDrawer({
                   items.flatMap((i) =>
                     i.waiting_gates
                       .filter((w) => feasibilityFlagged(w.feasibility))
-                      .map((w) => `${w.gate}: ${w.feasibility_reason ?? w.feasibility}`),
+                      .map(
+                        (w) => `${label('gate', w.gate)}: ${words('feasibility', w.feasibility)}`,
+                      ),
                   ),
                 ),
               ].join('; ')}
-              . A person must be given the role (or the quorum changed); expiry never approves.
+              . A person must be given the role; expiry never approves.
             </p>
           </div>
         ) : null}

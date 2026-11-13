@@ -16,6 +16,8 @@ export type Route =
   | { name: 'project'; id: string }
   | { name: 's0'; id: string }
   | { name: 'card'; id: string }
+  /** portal v2: deciding an approval (`/decide/<card>`; `/cards/<card>` is the same screen). */
+  | { name: 'decide'; id: string }
   | { name: 'item'; id: string }
   | { name: 'pack'; id: string }
   | { name: 'inbox' }
@@ -67,7 +69,8 @@ export const STATIC_SCREENS = {
   '/access-requests': 'accessRequests',
   '/access-explain': 'explain',
   // PLAN §7a: guarded by `assistant.use` somewhere, so a direct link is the 403 page like the others
-  '/ask': 'ask',
+  // (portal v2: `/ask` is Ask for work, screen-map §2.8)
+  '/assistant': 'ask',
   // portal v2: every component in both themes, for review (a factory admin, or a dev build)
   '/design': 'design',
 } as const;
@@ -109,8 +112,8 @@ export function parseRoute(path: string): Route {
   if (p === '/integrations') return { name: 'integrations', tab: null };
   const ig = /^\/integrations\/([^/]+)$/.exec(p);
   if (ig) return { name: 'integrations', tab: decodeURIComponent(ig[1] as string) };
-  if (p === '/ask-for-work') return { name: 'askForWork', project: null };
-  const askFor = /^\/ask-for-work\/([^/]+)$/.exec(p);
+  if (p === '/ask-for-work' || p === '/ask') return { name: 'askForWork', project: null };
+  const askFor = /^\/ask(?:-for-work)?\/([^/]+)$/.exec(p);
   if (askFor) return { name: 'askForWork', project: decodeURIComponent(askFor[1] as string) };
   if (p === '/me/notifications') return { name: 'notifications' };
   if (p === '/me/notifications/preferences') return { name: 'notificationPrefs' };
@@ -128,6 +131,8 @@ export function parseRoute(path: string): Route {
   if (frev) return { name: 'factoryRevision', id: decodeURIComponent(frev[1] as string) };
   const agent = /^\/agents\/([^/]+)$/.exec(p);
   if (agent) return { name: 'agent', id: decodeURIComponent(agent[1] as string) };
+  const decide = /^\/decide\/([^/]+)$/.exec(p);
+  if (decide) return { name: 'decide', id: decodeURIComponent(decide[1] as string) };
   const pack = /^\/items\/([^/]+)\/evidence$/.exec(p);
   if (pack) return { name: 'pack', id: decodeURIComponent(pack[1] as string) };
   const reaffirm = /^\/projects\/([^/]+)\/reaffirm\/([^/]+)\/([^/]+)$/.exec(p);

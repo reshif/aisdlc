@@ -3265,6 +3265,140 @@
       "explain": "Shown the same whether it does not exist or you cannot see it."
     }
   },
+  "document": {
+    "request": {
+      "label": "Request",
+      "explain": "The request as the factory keeps it, marked untrusted."
+    },
+    "intent_block": {
+      "label": "Agreed goal",
+      "explain": "The goal everyone agreed on, which later steps follow."
+    },
+    "context_brief": {
+      "label": "Context brief",
+      "explain": "What the agent learned about the code and the docs."
+    },
+    "decision_brief": {
+      "label": "Decision brief",
+      "explain": "The options the agent found and the one it suggests."
+    },
+    "spec_delta": {
+      "label": "Spec change",
+      "explain": "What will change in the spec."
+    },
+    "oracle_specs": {
+      "label": "Acceptance criteria",
+      "explain": "What the acceptance tests must prove."
+    },
+    "design": {
+      "label": "Design",
+      "explain": "A document an agent wrote for this work item."
+    },
+    "plan": {
+      "label": "Task plan",
+      "explain": "The tasks of each part, in order."
+    },
+    "diff": {
+      "label": "Code change",
+      "explain": "The change to the code, file by file."
+    },
+    "evidence_pack": {
+      "label": "Evidence pack",
+      "explain": "The signed proof of every check for one exact commit."
+    },
+    "session_log": {
+      "label": "Session log",
+      "explain": "What the agent did in its sandbox, step by step."
+    },
+    "repo_snapshot": {
+      "label": "Repo snapshot",
+      "explain": "The repo as the agent read it."
+    },
+    "config_history": {
+      "label": "Settings history",
+      "explain": "Earlier versions of the settings."
+    },
+    "reverse_engineering": {
+      "label": "How it works now",
+      "explain": "What the agent worked out about the current code."
+    },
+    "impact": {
+      "label": "Impact",
+      "explain": "Who and what the change affects."
+    },
+    "initiative": {
+      "label": "Initiative outline",
+      "explain": "The goal and outline of a large initiative."
+    },
+    "affected_requirements": {
+      "label": "Affected requirements",
+      "explain": "The requirements the change touches."
+    },
+    "validation_report": {
+      "label": "Spec check report",
+      "explain": "Whether the spec change is complete and consistent."
+    },
+    "spec_review": {
+      "label": "Spec review",
+      "explain": "A second agent read the spec with fresh eyes."
+    },
+    "classification": {
+      "label": "Size and risk",
+      "explain": "How big and risky the agent judged the work."
+    },
+    "adr": {
+      "label": "Design decisions",
+      "explain": "The design decisions and why each was made."
+    },
+    "contracts": {
+      "label": "Interfaces",
+      "explain": "The interfaces and data shapes the change adds or changes."
+    },
+    "data_migration": {
+      "label": "Data and migration",
+      "explain": "How stored data changes and how it is moved."
+    },
+    "nfr_threat_ops": {
+      "label": "Risks and operations",
+      "explain": "Performance, security threats and how it is run."
+    },
+    "constitution_report": {
+      "label": "Factory rules check",
+      "explain": "Whether the design follows the factory rules."
+    },
+    "unit_split": {
+      "label": "Parts",
+      "explain": "How the work is split into parts."
+    },
+    "unit_sequence": {
+      "label": "Order of parts",
+      "explain": "The order the parts are built in."
+    },
+    "verification_binding": {
+      "label": "Checks per part",
+      "explain": "Which checks prove each part."
+    },
+    "budget_envelope": {
+      "label": "Budget",
+      "explain": "The most this work may spend on models, in money and tokens."
+    },
+    "capacity_input": {
+      "label": "Capacity",
+      "explain": "How much building time the plan needs."
+    },
+    "oracle_code": {
+      "label": "Acceptance tests",
+      "explain": "Tests written from the spec that prove the change works."
+    },
+    "patch": {
+      "label": "Patch",
+      "explain": "The exact change an approval is bound to."
+    },
+    "spike_report": {
+      "label": "Experiment report",
+      "explain": "What the experiment found."
+    }
+  },
   "screen": {
     "home": {
       "label": "Home",

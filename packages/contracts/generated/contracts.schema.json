@@ -136732,6 +136732,22 @@
       ],
       "additionalProperties": false
     },
+    "SettingPreviewCoreRequest": {
+      "type": "object",
+      "properties": {
+        "value": {},
+        "on_behalf_of": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.@-]+$"
+        }
+      },
+      "required": [
+        "value",
+        "on_behalf_of"
+      ],
+      "additionalProperties": false
+    },
     "SettingPreviewRequest": {
       "type": "object",
       "properties": {

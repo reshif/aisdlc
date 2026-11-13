@@ -127,10 +127,7 @@ describe('the v2 top bar', () => {
       'href',
       '/operate/stop',
     );
-    expect(screen.getByRole('link', { name: 'Ask for work' })).toHaveAttribute(
-      'href',
-      '/ask-for-work',
-    );
+    expect(screen.getByRole('link', { name: 'Ask for work' })).toHaveAttribute('href', '/ask');
     expect(screen.getByRole('link', { name: 'My notifications' })).toHaveAttribute(
       'href',
       '/me/notifications',
