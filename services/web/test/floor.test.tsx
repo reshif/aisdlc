@@ -246,8 +246,8 @@ describe('the floor screen', () => {
       }),
     ).toBeInTheDocument();
     expect(
-      within(plan).getByRole('button', { name: /^Holding shelf [^:]*: 1 here/ }),
-    ).toBeInTheDocument();
+      within(plan).getByRole('button', { name: /^Holding shelf held/ }),
+    ).toHaveAccessibleDescription('1 here. Open the room');
     // counts, recent back-edges, the stations table, sessions per class
     expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 working');
     expect(screen.getByLabelText('Items by status')).toHaveTextContent('1 held');

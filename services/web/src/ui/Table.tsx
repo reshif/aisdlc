@@ -37,7 +37,9 @@ export function Table<T>({
       className="ui-tbl-wrap"
       ref={ref}
       // a table wider than its box scrolls inside it: then the box is a named stop for the keyboard
-      {...(scrolls ? { tabIndex: 0, role: 'region', 'aria-label': caption } : {})}
+      {...(scrolls
+        ? { tabIndex: 0, role: 'region', 'aria-label': `${caption} (scrolls sideways)` }
+        : {})}
     >
       <table className="ui-tbl">
         <caption className={captionHidden ? 'ui-sr' : undefined}>{caption}</caption>

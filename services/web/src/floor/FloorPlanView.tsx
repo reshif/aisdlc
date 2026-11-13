@@ -302,14 +302,23 @@ export function FloorPlanView(p: FloorPlanProps) {
                 className={`fl-room fl-room-${r.toLowerCase()}`}
                 role="button"
                 tabIndex={0}
-                aria-label={`${r === 'DONE' ? t.title : `${t.title} ${t.sub}`}: ${n} here. Open the room`}
+                // named by its visible title and line (WCAG 2.5.3), the count is its description
+                aria-describedby={`fl-room-d-${r}`}
                 onClick={() => p.onOpen({ kind: 'room', room: r })}
                 onKeyDown={press(() => p.onOpen({ kind: 'room', room: r }))}
                 style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
                 data-room={r}
               >
                 <div className="fl-rt">{t.title}</div>
-                {r === 'DONE' ? null : <div className="fl-rs">{t.sub}</div>}
+                {r === 'DONE' ? null : (
+                  <>
+                    {' '}
+                    <div className="fl-rs">{t.sub}</div>
+                  </>
+                )}
+                <span id={`fl-room-d-${r}`} className="ui-sr" aria-hidden="true">
+                  {`${n} here. Open the room`}
+                </span>
               </div>
             );
           })}
