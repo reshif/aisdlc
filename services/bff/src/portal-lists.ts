@@ -1,6 +1,9 @@
 import {
   AccessExplainView,
   AdmissionView,
+  AgentDetailView,
+  AgentId,
+  AgentRecentRunsView,
   AgentRegistryView,
   AuditDecisionsView,
   CatalogueView,
@@ -44,6 +47,9 @@ import { higher } from './levels.js';
 //   GET  /api/items[?project=]           the items the person may see, theirs marked   (item.view_floor per row,
 //                                        and project.view on its project here)
 //   GET  /api/agents                     the agent registry (code) with prompt hashes   (quality.read, fleet)
+//   GET  /api/agents/:id                 one agent: contract, input and output JSON Schemas (quality.read, fleet)
+//   GET  /api/agents/:id/runs[?limit=]   its newest production runs with their items    (quality.read, fleet; core
+//                                        leaves out a project the person may not view)
 //   GET  /api/catalogue                  every released catalogue and its pinned items  (signed in)
 //   GET  /api/admission                  H1-H3, WIP holds, grants, HUMAN-WAIT           (ops.read, fleet)
 //   GET  /api/slots                      the sandbox-controller's slots and caps        (ops.read, fleet; unreachable 502)
@@ -200,6 +206,36 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     if (!c) return;
     return upstream(reply, await c.call('GET', `/v1/agents?on_behalf_of=${as(req)}`), (v) =>
       AgentRegistryView.parse(v),
+    );
+  });
+
+  /** P2-3: the agent page. */
+  app.get('/api/agents/:id', async (req, reply) => {
+    const agent = AgentId.safeParse((req.params as { id?: string }).id);
+    if (!agent.success) return sendError(reply, 400, 'invalid_input', 'unknown agent');
+    const c = await fleetReader(req, reply, 'quality.read');
+    if (!c) return;
+    return upstream(
+      reply,
+      await c.call('GET', `/v1/agents/${agent.data}?on_behalf_of=${as(req)}`),
+      (v) => AgentDetailView.parse(v),
+    );
+  });
+
+  app.get('/api/agents/:id/runs', async (req, reply) => {
+    const agent = AgentId.safeParse((req.params as { id?: string }).id);
+    if (!agent.success) return sendError(reply, 400, 'invalid_input', 'unknown agent');
+    const q = z
+      .strictObject({ limit: z.coerce.number().int().min(1).max(200).optional() })
+      .safeParse(req.query ?? {});
+    if (!q.success) return sendError(reply, 400, 'invalid_input', 'limit is 1 to 200');
+    const c = await fleetReader(req, reply, 'quality.read');
+    if (!c) return;
+    const limit = q.data.limit === undefined ? '' : `&limit=${q.data.limit}`;
+    return upstream(
+      reply,
+      await c.call('GET', `/v1/agents/${agent.data}/runs?on_behalf_of=${as(req)}${limit}`),
+      (v) => AgentRecentRunsView.parse(v),
     );
   });
 

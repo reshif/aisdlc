@@ -46,6 +46,8 @@ export function itemViewFixture() {
     injection_suspected: false,
     dedupe_links: [],
     profile_gates: null,
+    clarify: null,
+    pull_requests: [],
   };
 }
 
