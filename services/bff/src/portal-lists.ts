@@ -22,6 +22,8 @@ import {
   DegradedView,
   ItemListView,
   KillsView,
+  lookupTerm,
+  type ItemListRow,
   ProjectId,
   SandboxSlots,
   ViewLevel,
@@ -204,6 +206,36 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
       if (ok) items.push(it);
     }
     return { items };
+  });
+
+  /**
+   * N6 (portal v2 screen-map §2.5): the items the person can see as CSV, for whoever reads the audit trail
+   * (`audit.read` on the fleet). The same rows as `/api/items` (core's per-row answer, then `project.view` here), with
+   * the glossary's plain words beside the codes so a spreadsheet reads the way the portal does. No request text.
+   */
+  app.get('/api/items/export.csv', async (req, reply) => {
+    const c = await fleetReader(req, reply, 'audit.read');
+    if (!c) return;
+    const who = d.principalOf(req);
+    const got = upstream(reply, await c.call('GET', `/v1/items?on_behalf_of=${as(req)}`), (v) =>
+      ItemListView.parse(v),
+    );
+    if (!got) return;
+    const seen = new Map<string, boolean>();
+    const rows: string[] = [itemsCsvHeader()];
+    for (const it of got.items) {
+      let ok = seen.get(it.project_id);
+      if (ok === undefined) {
+        ok = await allowed(who, 'project.view', pdpResource.project(it.project_id));
+        seen.set(it.project_id, ok);
+      }
+      if (ok) rows.push(itemCsvRow(it));
+    }
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="items.csv"')
+      .header('cache-control', 'no-store')
+      .send(`${rows.join('\r\n')}\r\n`);
   });
 
   // ------------------------------------------------------------ quality and govern reads
@@ -529,4 +561,49 @@ export function registerPortalListRoutes(d: PortalListDeps): void {
     }
     return AccessExplainView.parse({ project_id: id.data, as_of: now.toISOString(), holders });
   });
+}
+
+// ---------------------------------------------------------------- N6: items as CSV
+
+/** One CSV field (RFC 4180), and never a formula a spreadsheet would run (a leading = + - @ is kept as text). */
+export function csvField(v: string): string {
+  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+export const itemsCsvHeader = (): string =>
+  [
+    'item_id',
+    'project',
+    'repo',
+    'track_code',
+    'track',
+    'status_code',
+    'status',
+    'on_hold',
+    'mine',
+    'process_version',
+    'created_at',
+    'updated_at',
+  ].join(',');
+
+export function itemCsvRow(it: ItemListRow): string {
+  const lane = it.lane ?? it.proposed_lane;
+  const status = it.terminal ?? it.phase;
+  return [
+    it.item_id,
+    it.project_id,
+    it.repo,
+    lane,
+    lookupTerm('lane', lane)?.label ?? 'Unknown',
+    status,
+    lookupTerm('phase', status)?.label ?? 'Unknown',
+    it.holds > 0 ? 'yes' : 'no',
+    it.mine ? 'yes' : 'no',
+    it.catalogue_version,
+    it.created_at,
+    it.updated_at,
+  ]
+    .map(csvField)
+    .join(',');
 }
