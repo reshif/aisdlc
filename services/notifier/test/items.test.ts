@@ -17,9 +17,11 @@ import {
 } from '@aisdlc/contracts';
 import { deterministicId, newId, sha256Hex } from '@aisdlc/kernel';
 import { EVENT_COLUMNS, toRecordEvent, type EventRow } from '@aisdlc/record';
-import { foldItem, type ItemState } from '@aisdlc/work';
+import { addBusinessDays } from '@aisdlc/decisions';
+import { clarifyState, foldItem, type ItemState } from '@aisdlc/work';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { deliverOnce } from '../src/deliver.js';
+import { NOTIFIER_CALENDAR } from '../src/items.js';
 import { raiseOnce } from '../src/raise.js';
 import { listNotifications } from '../src/store.js';
 import { PROJECT, startWorld, type World } from './fixture.js';
@@ -200,6 +202,7 @@ describe('the requester is told what the factory needs from them (RC-HAI-2)', ()
       kind: 'questions_waiting',
       project_id: PROJECT,
       item_id: item,
+      round: 1,
       rounds_left: 1,
       link_path: `/items/${item}`,
     });
@@ -239,6 +242,63 @@ describe('the requester is told what the factory needs from them (RC-HAI-2)', ()
     expect(e?.reason).toBe('project_admin');
     expect((await listNotifications(w.rolePool, REQUESTER))[0]?.content.kind).toBe('item_ended');
     await deliverOnce(w.deliverDeps());
+  });
+
+  it('B1: the second round of questions is told again, as the last round, with the PARK date the item page says (P2-16)', async () => {
+    const item = await createItem('questions-b1');
+    let asked = 0;
+    const ask: Script = (step, c) => (step === '1.5' ? questions(++asked)(step, c) : null);
+    await drive(item, (x) => x.waiting?.kind === 'questions', { script: ask });
+    expect(await drain()).toBe(1);
+    const [q1] = await listNotifications(w.rolePool, REQUESTER);
+    expect(q1?.content).toMatchObject({
+      kind: 'questions_waiting',
+      item_id: item,
+      round: 1,
+      rounds_left: 1,
+    });
+    // the requester answers; 1.5 asks again (B1's second round)
+    w.clock.advance(86_400_000);
+    for (const q of (await stateOf(item)).questions.filter((x) => x.state === 'open')) {
+      await w.append(itemStream(item), ITEM_EVENT.question_answered, {
+        question_id: q.question_id,
+        answer: {
+          text: 'staging',
+          taint: 'untrusted',
+          origin: 'answer',
+          provenance: {
+            channel: 'N1',
+            source: 'portal_ask',
+            received_at: w.clock.now().toISOString(),
+            submitted_by: REQUESTER,
+            raw_sha256: 'a'.repeat(64),
+            normalised_sha256: 'b'.repeat(64),
+          },
+          flags: [],
+        },
+        by: REQUESTER,
+      });
+    }
+    const s = await drive(item, (x) => x.waiting?.kind === 'questions' && x.rounds === 2, {
+      script: ask,
+    });
+    expect(await drain()).toBe(1);
+    const [q2] = await listNotifications(w.rolePool, REQUESTER);
+    expect(q2?.content).toMatchObject({
+      kind: 'questions_waiting',
+      item_id: item,
+      round: 2,
+      rounds_left: 0,
+    });
+    // the same round, limit and date as the item page's (`ItemView.clarify`, one function: `clarifyState`)
+    const page = clarifyState(s, (from, bd) => addBusinessDays(NOTIFIER_CALENDAR, from, bd));
+    expect(page).toMatchObject({ round: 2, rounds_max: 2, then: 'parks' });
+    expect(q2?.content.due_at).toBe(page?.deadline);
+    expect(q2?.content.due_at).not.toBe(q1?.content.due_at);
+    await deliverOnce(w.deliverDeps());
+    const slack = w.slack.received.at(-1)?.text ?? '';
+    expect(slack).toContain('This is round 2 of 2.');
+    expect(slack).toContain('This is the last round');
   });
 
   it('Ready, then G6 acceptance, then done for the requester and the project admin', async () => {

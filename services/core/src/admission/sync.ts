@@ -2,6 +2,7 @@ import {
   HUMAN_WAIT_GATES,
   ITEM_EVENT,
   UNIT_EVENT,
+  WorkItemPhase,
   type GrantReleaseCause,
   type HumanWaitGate,
 } from '@aisdlc/contracts';
@@ -19,7 +20,9 @@ import { currentLease, listGrants } from './read.js';
 // state (the interpreter's, folded from its stream) and of the rows. Each move is one `unit.*` event with an
 // idempotency key, so a pass run twice does nothing the second time; none of them holds state of its own.
 //
-//   - the grant ends (GrantReleased, DM §6.4) on a handoff, when the item ends, or when G4 is decided;
+//   - the grant ends (GrantReleased, DM §6.4) on a handoff, when the item ends, when G4 is decided, or when a
+//     back-edge sends the item back to planning (B8 from 6.5 to 5.1, R1): `replanned`, the Unit is retired and the
+//     next plan re-plans it under its own id, so 6.0 admits it again at a higher epoch (`foldPlan`, `ensureUnits`);
 //   - the lease ends when the item leaves S6 (the session is over; the grant lives on to G4);
 //   - TAKEOVER (E4) and D4 hand-back: the engine says who holds the lease now and at what epoch; the Unit
 //     bumps its own epoch to match and never below its own: the epoch only increases. The agent's rows of the
@@ -36,6 +39,14 @@ export interface UnitSyncReport {
 }
 
 const IN_S6 = ['S6', 'Scheduling'];
+/** The phases of planning (S1 to S5): an item with a grant that is back in one of them was sent back by a back-edge. */
+const PLANNING: readonly WorkItemPhase[] = WorkItemPhase.extract([
+  'S1',
+  'S2',
+  'S3',
+  'S4',
+  'S5',
+]).options;
 
 export async function syncUnits(
   d: AdmissionDeps,
@@ -56,6 +67,7 @@ export async function syncUnits(
       if (s.terminal !== null) cause = 'item_ended';
       else if (s.underlying === 'Handoff') cause = 'handoff';
       else if (s.underlying === 'Quarantined') cause = 'quarantined';
+      else if (PLANNING.includes(s.underlying)) cause = 'replanned';
       else if (live.status === 'active') {
         const ev = await readItemEvents(d.pool, id);
         const decided = ev.some(

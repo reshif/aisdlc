@@ -56,7 +56,7 @@ export type LeaseChangeCause = z.infer<typeof LeaseChangeCause>;
 export const GrantStatus = z.enum(['active', 'waiting', 'released']);
 export type GrantStatus = z.infer<typeof GrantStatus>;
 
-/** DM §6.4: `Admitted -> GrantReleased` on handoff, item end or G4 decided; `readmitted` closes a waiting grant. */
+/** DM §6.4: `Admitted -> GrantReleased` on handoff, item end, G4 decided or a re-plan; `readmitted` closes a waiting grant. */
 export const GrantReleaseCause = z.enum([
   'handoff',
   'item_ended',
@@ -64,6 +64,12 @@ export const GrantReleaseCause = z.enum([
   'readmitted',
   /** Q1: the session was stopped and tainted; the coding slot is freed while SECT waits for the security slot. */
   'quarantined',
+  /**
+   * A back-edge sent the item back to planning (B8 scope drift from 6.5 to 5.1, an R1 upshift): the session is over and
+   * the Unit is retired (`GrantReleased`); the next plan re-plans it under the same id (its lease epoch kept), and 6.0
+   * admits it again at a higher epoch.
+   */
+  'replanned',
 ]);
 export type GrantReleaseCause = z.infer<typeof GrantReleaseCause>;
 

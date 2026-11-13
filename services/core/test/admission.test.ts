@@ -38,6 +38,7 @@ import {
   listGrants,
   listLeases,
   listUnits,
+  planUnits,
   lockKeys,
   readItem,
   rebuildUnits,
@@ -778,5 +779,137 @@ describe('rebuild', () => {
     const again = ok(await admitUnit({ ...s.deps, ...r.d.admission! }, st, e!.body.command_key));
     expect(again).toMatchObject({ admitted: true, grant_id: e!.body.grant_id, lease_epoch: 1 });
     expect(await listGrants(s.record.pool, x.itemId)).toHaveLength(1);
+  });
+});
+
+describe('B8 rework: 6.5 scope drift back to 5.1', () => {
+  /** The item's first 6.5 finds scope drift (B8); planning stops answering there, so the test sees the item back in S5. */
+  const driftOnce = (r: Rig, itemId: string) => {
+    let drifted = 0;
+    r.ports.coding.script((q2) => {
+      if (q2.step !== '6.5' || q2.item_id !== itemId || drifted++ > 0) return undefined;
+      r.ports.planning.breakIt();
+      return { outcome: 'rework', edge: 'B8', reason_code: 'scope_drift' } as StageOutcome;
+    });
+  };
+
+  it('releases the grant on the back-edge, re-plans the Unit, and re-admits it at a fresh epoch through G3 and 6.0: the item runs to Done, and the rows rebuild', async () => {
+    const r = rigOf();
+    const x = await newItem(r);
+    driftOnce(r, x.itemId);
+    // to the back-edge: the item is back in planning, its first session over
+    const back = await runItem(s, r.d, x.itemId, {
+      stop: (st) => (st.rework.by_edge['B8'] ?? 0) === 1,
+    });
+    expect(back?.state).toMatchObject({ underlying: 'S5', rework: { by_edge: { B8: 1 } } });
+    await driveWork(r.d);
+    const [g1] = await listGrants(s.record.pool, x.itemId);
+    expect(g1).toMatchObject({ status: 'released', release_cause: 'replanned', lease_epoch: 1 });
+    expect((await listUnits(s.record.pool, x.itemId))[0]).toMatchObject({
+      state: 'GrantReleased',
+      lease_epoch: 1,
+    });
+    r.ports.planning.breakIt(false);
+
+    // 5.1 again, G3, 6.0: the re-planned Unit is admitted at a higher epoch and runs to the end
+    const done = await settle(r, x.itemId);
+    expect(done?.state.terminal).toBe('Done');
+    expect(done?.state.holds).toEqual([]);
+    const sixFive = r.ports.coding.calls.filter((c) => c.step === '6.5' && c.item_id === x.itemId);
+    expect(sixFive.length).toBeGreaterThanOrEqual(2);
+    const grants = await listGrants(s.record.pool, x.itemId);
+    expect(grants.map((g) => [g.status, g.release_cause, g.unit_id])).toEqual([
+      ['released', 'replanned', `${x.itemId}:main`],
+      ['released', 'g4_decided', `${x.itemId}:main`],
+    ]);
+    expect(grants[1]!.lease_epoch).toBeGreaterThan(grants[0]!.lease_epoch);
+    const [unit] = await listUnits(s.record.pool, x.itemId);
+    expect(unit).toMatchObject({ unit_key: 'main', state: 'GrantReleased' });
+    expect(unit?.lease_epoch).toBe(grants[1]!.lease_epoch);
+    const [lease] = await listLeases(s.record.pool, x.itemId);
+    expect(lease?.history.map((h) => [h.cause, h.epoch])).toEqual([
+      ['admitted', 1],
+      ['left_s6', 1],
+      ['admitted', grants[1]!.lease_epoch],
+      ['left_s6', grants[1]!.lease_epoch],
+    ]);
+
+    // the rows are the record's: a rebuild gives the same
+    const read = async () => ({
+      units: await listUnits(s.record.pool, x.itemId),
+      leases: await listLeases(s.record.pool, x.itemId),
+      grants: await listGrants(s.record.pool, x.itemId),
+    });
+    const live = await read();
+    expect(await rebuildUnits(s.deps, x.itemId)).toBe(2);
+    expect(await read()).toEqual(live);
+  });
+
+  it("a new plan after the back-edge re-plans the retired Unit in place (the plan's fields, its epoch kept); 6.0 admits that one", async () => {
+    const r = rigOf();
+    const x = await newItem(r);
+    driftOnce(r, x.itemId);
+    await runItem(s, r.d, x.itemId, {
+      stop: (st) => (st.rework.by_edge['B8'] ?? 0) === 1,
+    });
+    await driveWork(r.d);
+    const [retired] = await listUnits(s.record.pool, x.itemId);
+    expect(retired).toMatchObject({ state: 'GrantReleased', lease_epoch: 1 });
+    // 5.5's re-plan: the Unit split, `main` narrowed
+    ok(
+      await planUnits(s.deps, {
+        item_id: x.itemId,
+        project_id: retired!.project_id,
+        repo: retired!.repo,
+        plan_sha256: 'd'.repeat(64),
+        base_sha: null,
+        units: [
+          { ...retired!, title: 'narrowed', paths: ['src/a/'], position: 0, depends_on: [] },
+          { ...retired!, unit_key: 'split', title: 'split', paths: ['src/b/'], position: 1 },
+        ].map((u) => ({
+          unit_key: u.unit_key,
+          title: u.title,
+          paths: u.paths,
+          size: u.size,
+          depends_on: [],
+          position: u.position,
+          envelope: u.envelope,
+        })),
+      }),
+    );
+    r.ports.planning.breakIt(false);
+    const replanned = await listUnits(s.record.pool, x.itemId);
+    expect(replanned.map((u) => [u.unit_key, u.state, u.title, u.lease_epoch])).toEqual([
+      ['main', 'Planned', 'narrowed', 1],
+      ['split', 'Planned', 'split', null],
+    ]);
+    // the lease row stayed: its epoch only goes up from here
+    expect((await listLeases(s.record.pool, x.itemId))[0]).toMatchObject({ epoch: 1 });
+
+    const done = await settle(r, x.itemId);
+    expect(done?.state.terminal).toBe('Done');
+    const grants = await listGrants(s.record.pool, x.itemId);
+    expect(grants.map((g) => [g.unit_id, g.release_cause])).toEqual([
+      [`${x.itemId}:main`, 'replanned'],
+      [`${x.itemId}:main`, 'g4_decided'],
+    ]);
+    expect(grants[1]!.lease_epoch).toBeGreaterThan(1);
+    // nothing was re-issued: the plan had Units to admit
+    expect(
+      (
+        await q(`SELECT 1 FROM record.record_event WHERE stream = $1 AND type = $2`, [
+          planningStream(x.itemId),
+          PLANNING_EVENT.units_planned,
+        ])
+      ).length,
+    ).toBe(2);
+    const read = async () => ({
+      units: await listUnits(s.record.pool, x.itemId),
+      leases: await listLeases(s.record.pool, x.itemId),
+      grants: await listGrants(s.record.pool, x.itemId),
+    });
+    const live = await read();
+    expect(await rebuildUnits(s.deps, x.itemId)).toBe(2);
+    expect(await read()).toEqual(live);
   });
 });
