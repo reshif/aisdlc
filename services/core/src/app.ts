@@ -5,6 +5,7 @@ import {
   integrationEvents,
 } from './integration-api.js';
 import { registerPortalListRoutes } from './portal-lists.js';
+import { registerPortalOpsRoutes, type BudgetViewPort } from './portal-ops.js';
 import { registerFloorRoutes } from './floor.js';
 import { registerFleetRoutes } from './fleet.js';
 import { readHealthView } from './health.js';
@@ -119,7 +120,7 @@ import {
   itemVerifyView,
   signedPackBytes,
 } from './verify/portal.js';
-import type { ObjectStorePort } from '@aisdlc/ports';
+import type { CodeHostPort, ObjectStorePort } from '@aisdlc/ports';
 import { answerQuestion, decideReady, requestReceipt, submitRequest } from './requests.js';
 import { observeRelane, reRequestRelease, requestRework } from './work-signals.js';
 import { submitHumanPlan } from './planning/human-plan.js';
@@ -221,6 +222,10 @@ export interface CoreAppOptions {
   readonly grounding?: GroundingPort;
   /** The assistant (M18): the onboarding assistant and "Ask the factory"; without it those routes answer `unavailable`. */
   readonly assistant?: AssistantDeps;
+  /** P2-8: the gateway's live view of a budget group (limits, reservations); default: the assistant's admin client. */
+  readonly budgets?: BudgetViewPort;
+  /** P2-21: the code host's installation repos for the onboard picker; default: the cards' code host reads. */
+  readonly installationRepos?: Pick<CodeHostPort, 'list_repos'>;
   /** The object store of the Evidence Packs (M14.6: the pack viewer reads them back); without it the contents are not shown. */
   readonly objects?: ObjectStorePort;
   /** M16: config `codehost.merge_bypass` now in force (a restore re-attests it); absent or `null`: no restore. */
@@ -406,6 +411,21 @@ export function createCoreApp(o: CoreAppOptions): FastifyInstance {
     pdp: o.pdp,
     now: () => clock.now(),
     allowed: (req, scope) => allowed(req, scope),
+  });
+
+  // P2-8, P2-21: budgets, cost, the onboard repo picker
+  registerPortalOpsRoutes({
+    app,
+    pool: o.pool,
+    pdp: o.pdp,
+    now: () => clock.now(),
+    allowed: (req, scope) => allowed(req, scope),
+    ...(o.budgets ? { budget: o.budgets } : o.assistant ? { budget: o.assistant.budget } : {}),
+    ...(o.installationRepos
+      ? { repos: o.installationRepos }
+      : o.cards
+        ? { repos: o.cards.source }
+        : {}),
   });
 
   // M19: the floor's live read model (floor.read on the project, item.view_floor per item)
