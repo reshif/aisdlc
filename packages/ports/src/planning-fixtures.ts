@@ -182,3 +182,48 @@ export function planningFixtureReply(req: ModelCompleteRequest): ScriptedReply |
   const out = step === null ? undefined : PLANNING_FIXTURES[step];
   return out === undefined ? undefined : { text: JSON.stringify(out) };
 }
+
+/**
+ * Portal v2: the onboarding agent's canned answer on a local stack (its system prompt is the registry's
+ * `onboarding@` file). One valid `onboarding.v1` output that cites no file and proposes one fix with a file
+ * (CODEOWNERS); the factory still checks every path and secret, and drops a file the repo already has.
+ */
+export const ONBOARDING_FIXTURE = {
+  kind: 'onboarding',
+  summary:
+    'The repo was read at its census commit. A code owners file is proposed; the rest is what the census found.',
+  learned: [
+    {
+      topic: 'owners',
+      status: 'needs_fix',
+      text: 'Owners should be named in CODEOWNERS.',
+      evidence: [],
+    },
+    { topic: 'tests', status: 'unknown', text: 'The test command is not known yet.', evidence: [] },
+  ],
+  claims: [],
+  fixes: [
+    {
+      fix_id: 'codeowners',
+      fix_kind: 'codeowners',
+      title: 'Add a code owners file',
+      why: 'Code review needs an owner for every path.',
+      files: [
+        {
+          path: '.github/CODEOWNERS',
+          content: '# Proposed by the onboarding agent.\n* @alice-gh\n',
+        },
+      ],
+      manual_steps: [],
+    },
+  ],
+  questions: ['Does a merge to the default branch deploy anywhere?'],
+  gap_suggestions: [],
+};
+
+/** The fixture reply for the onboarding agent's call; `undefined` for any other call. */
+export function onboardingFixtureReply(req: ModelCompleteRequest): ScriptedReply | undefined {
+  return req.system?.startsWith('# onboarding @')
+    ? { text: JSON.stringify(ONBOARDING_FIXTURE) }
+    : undefined;
+}

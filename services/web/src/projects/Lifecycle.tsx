@@ -12,6 +12,9 @@ import { onboardApi } from '../onboard/api';
 // Every act is the server's decision (`project.onboard`, `repo.delete`, `project.delete`); the factory admin's
 // override reason travels in its header and is recorded.
 
+// TODO(portal v2 merge): replace this delete flow with the People squad's shared `<DeleteObject kind id name csrf
+// onDeleted />` from `services/web/src/admin` (v2/screens-people) once it is on main; same routes, same preview.
+
 type Target = { kind: 'project' | 'repo'; id: string; name: string } | null;
 
 export function Lifecycle({ d, me }: { d: ProjectDetail; me: Me }) {

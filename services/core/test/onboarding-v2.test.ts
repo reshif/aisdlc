@@ -1,5 +1,6 @@
 import { readCardState, type FakeStepUp } from '@aisdlc/decisions';
 import { validateOutput } from '@aisdlc/agents';
+import { ONBOARDING_FIXTURE } from '@aisdlc/ports';
 import type { OnboardingSummaryView } from '@aisdlc/contracts';
 import { ONBOARDING_AGENT_EVENT, onboardingAgentStream } from '@aisdlc/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -106,6 +107,10 @@ const body = (v: OnboardingSummaryView) => ({
 });
 
 describe('the onboarding agent proposes', () => {
+  it("the local gateway's canned onboarding answer is a valid onboarding.v1 output", () => {
+    expect(validateOutput('onboarding', ONBOARDING_FIXTURE).ok).toBe(true);
+  });
+
   it('records a valid proposal first, once per census, and the read model rebuilds equal', async () => {
     const { c, d, r } = await proposed();
     expect(r.value.state).toBe('proposed');
