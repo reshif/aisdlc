@@ -95,7 +95,7 @@ export function Lifecycle({ d, me }: { d: ProjectDetail; me: Me }) {
               render: (r) => {
                 const signed = r.onboarding_level;
                 return (
-                  <div className="ob-row">
+                  <div className="ob-acts">
                     <button
                       type="button"
                       className="ui-btn ui-btn-sm"

@@ -82,6 +82,20 @@
 .ob-assist {
   padding: 14px;
 }
+.ob-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ob-acts .ui-btn {
+  white-space: normal;
+  text-align: left;
+}
+.ob-target {
+  display: inline-block;
+  min-height: 24px;
+  line-height: 24px;
+}
 .ob-slot {
   min-width: 0;
 }

@@ -184,7 +184,7 @@ function Overview({ d, prr }: { d: ProjectDetail; prr: ProjectPrrView | null }) 
             rows={[
               [
                 'State',
-                <Link key="s" to={`/onboard/${latest.record.s0_id}`}>
+                <Link key="s" className="ob-target" to={`/onboard/${latest.record.s0_id}`}>
                   {lookupTerm('onboarding', latest.record.status)?.label ?? 'Unknown'}
                 </Link>,
               ],
@@ -283,7 +283,7 @@ function Readiness({ d, prr }: { d: ProjectDetail; prr: ProjectPrrView | null })
               items={items}
               summary={`Readiness ${rec.composite} of 4 · ${lookupTerm('readiness', r.governing!.effective_status)?.label ?? 'Unknown'} · expires ${rec.fresh_until.slice(0, 10)}`}
               footer={
-                <Link to={`/projects/${d.project.project_id}/readiness`}>
+                <Link className="ob-target" to={`/projects/${d.project.project_id}/readiness`}>
                   The full scorecard and its history
                 </Link>
               }
