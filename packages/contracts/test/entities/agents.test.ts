@@ -40,7 +40,7 @@ const def = {
 describe('agents vocabulary (PLAN M11.1, M11.2)', () => {
   it('names the 13 agents of the specs once, and the M18 assistant', () => {
     expect(AgentIdValues).toEqual(
-      [...Array(12).keys()].map((i) => `A${i + 1}`).concat(['coder', 'assistant']),
+      [...Array(12).keys()].map((i) => `A${i + 1}`).concat(['coder', 'assistant', 'onboarding']),
     );
     expect(AgentId.safeParse('A13').success).toBe(false);
   });

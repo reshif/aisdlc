@@ -324,6 +324,21 @@ export const AGENT_SPECS: readonly AgentSpec[] = [
     budget: planning(200_000, 2, 600),
     prompt: 'assistant@1.0.0',
   },
+  {
+    agent_id: 'onboarding',
+    name: 'onboarding',
+    role: 'onboarding',
+    note: "Portal v2 (intent §4, screen-map §2.10): reads an S0 record's census, controls report and instructions at the census commit, and proposes what the summary shows: what it learned, claims with evidence, fixes as ONE draft PR through the Push Broker (bound to its own X2; the factory never merges), the steps only a person can take on GitHub, and gap dispositions. It acts at no lifecycle step and decides nothing: a person signs off. Its key is per S0 record (scope `job`), read-only.",
+    steps: [],
+    contract_version: '1.0.0',
+    output_schema_id: 'onboarding.v1',
+    artefacts: ['repo_snapshot', 'context_brief'],
+    tools: ['KnowledgeSearch'],
+    data_class_max: 'D1',
+    models: [SONNET],
+    budget: planning(200_000, 2, 1_800),
+    prompt: 'onboarding@1.0.0',
+  },
 ];
 
 /**

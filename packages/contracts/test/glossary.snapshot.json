@@ -2270,6 +2270,10 @@
     "assistant": {
       "label": "Assistant",
       "explain": "Answers your questions from what you can see."
+    },
+    "onboarding": {
+      "label": "Onboarding agent",
+      "explain": "The agent that reads the repo, works out what is missing and proposes fixes as PRs."
     }
   },
   "sessionState": {

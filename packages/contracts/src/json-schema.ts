@@ -1296,6 +1296,15 @@ export const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   DeletionPerformedBody: entities.DeletionPerformedBody,
   DeletionPerformedEvent: entities.DeletionPerformedEvent,
   DeletionResult: entities.DeletionResult,
+  OnboardingAgentProposedPayload: entities.OnboardingAgentProposedPayload,
+  OnboardingSignOffStartedPayload: entities.OnboardingSignOffStartedPayload,
+  SummaryFixState: entities.SummaryFixState,
+  SummaryFix: entities.SummaryFix,
+  SummaryCard: entities.SummaryCard,
+  SignOffState: entities.SignOffState,
+  OnboardingSummaryView: entities.OnboardingSummaryView,
+  SignOffRequest: entities.SignOffRequest,
+  SignOffResult: entities.SignOffResult,
 };
 
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';

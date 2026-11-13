@@ -464,7 +464,7 @@ export const S0PackGateContext = z.strictObject({
   /** The files the gate opened with are the recorded render's, byte for byte (by sha256). `false`: do not decide. */
   intact: z.boolean(),
   deciding_card: z.strictObject({
-    card: z.enum(['C2', 'C3']),
+    card: z.enum(['C1', 'C2', 'C3']),
     card_id: z.string().uuid(),
     payload_hash: Sha256Hex,
   }),

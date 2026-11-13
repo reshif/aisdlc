@@ -1318,6 +1318,10 @@ const agent: Readonly<Record<AgentId, Term>> = {
   A12: t('Knowledge extractor', 'Builds the code map and draft specs at onboarding.', 'secondary'),
   coder: t('Coding agent', 'Writes the code in the sandbox and opens the draft PR.', 'secondary'),
   assistant: t('Assistant', 'Answers your questions from what you can see.'),
+  onboarding: t(
+    'Onboarding agent',
+    'The agent that reads the repo, works out what is missing and proposes fixes as PRs.',
+  ),
 };
 
 const SESSION_TIP = 'The live sandbox session.';

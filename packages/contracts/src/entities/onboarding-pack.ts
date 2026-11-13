@@ -31,22 +31,29 @@ export const ONBOARDING_PACK_UNIT = 'onboarding-pack';
  * `intended`, on their own branch `agent/<s0 id>/onboarding-full-pack` and their own X2 (step 0.3's artefact).
  */
 export const ONBOARDING_FULL_PACK_UNIT = 'onboarding-full-pack';
+/**
+ * Portal v2 (intent §4): the fixes the onboarding agent proposes (CODEOWNERS, AGENTS.md, CLAUDE.md, a protect-main
+ * ruleset to import, the test command), as ONE draft PR on `agent/<s0 id>/onboarding-fixes`, bound to its own X2 like
+ * the other packs. The factory never merges it; a person does, on GitHub.
+ */
+export const ONBOARDING_FIXES_UNIT = 'onboarding-fixes';
 /** Where the oracle lock lives in the repo (DM §3.2 OracleLock). A protected path (`.factory/**`). */
 export const ORACLE_LOCK_PATH = '.factory/oracle-lock.json';
 export const ORACLE_LOCK_SCHEMA_ID = 'oracle-lock/1';
 
 /** Which projection a pack is: card 2's (Light, step 0.2) or card 3's (Full, step 0.3). */
-export const PackKind = z.enum(['light', 'full']);
+export const PackKind = z.enum(['light', 'full', 'fixes']);
 export type PackKind = z.infer<typeof PackKind>;
 /** The Unit key, the S0 step and the X2 facts kind of each pack. */
 export const PACK_KINDS: Readonly<
   Record<
     PackKind,
-    { readonly unit: string; readonly step: '0.2' | '0.3'; readonly facts_kind: string }
+    { readonly unit: string; readonly step: '0.1' | '0.2' | '0.3'; readonly facts_kind: string }
   >
 > = {
   light: { unit: ONBOARDING_PACK_UNIT, step: '0.2', facts_kind: 'onboarding_pack' },
   full: { unit: ONBOARDING_FULL_PACK_UNIT, step: '0.3', facts_kind: 'onboarding_full_pack' },
+  fixes: { unit: ONBOARDING_FIXES_UNIT, step: '0.1', facts_kind: 'onboarding_fixes' },
 };
 /** The broker's `lane` for an onboarding pack: not a delivery lane (S0 is not an item), never the spike lane. */
 export const ONBOARDING_PACK_LANE = 'S0';
@@ -74,6 +81,8 @@ export const PackFileSource = z.enum([
   /** a living-spec seed card 3 affirmed `intended` (`specs/<area>.md`). */
   'seed',
   'codeowners',
+  /** a file the onboarding agent proposed (portal v2), checked against its fix's allowed paths. */
+  'agent_fix',
 ]);
 export type PackFileSource = z.infer<typeof PackFileSource>;
 

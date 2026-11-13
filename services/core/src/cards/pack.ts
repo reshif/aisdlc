@@ -331,7 +331,7 @@ const view = (
 });
 
 /** What a decided card gives a pack: the card, its payload hash, the base commit and the rendered patch. */
-interface PackSource {
+export interface PackSource {
   readonly card_id: string;
   readonly payload_hash: string;
   readonly base_sha: string;
@@ -473,7 +473,7 @@ export async function projectFullPack(
   return advancePack(d, loaded, 'full', { ...aff.value, rendered });
 }
 
-async function advancePack(
+export async function advancePack(
   d: PackDeps,
   loaded: LoadedS0,
   kind: PackKind,
@@ -521,7 +521,8 @@ async function advancePack(
 
   // 2. X2 on the S0 record, bound to exactly this patch
   if (row.x2_gate_instance_id === null) {
-    const deciding = kind === 'light' ? 'card_2' : 'card_3';
+    // the fixes pack is bound to card 1 (the gaps it fixes) and the agent proposal's hash
+    const deciding = kind === 'light' ? 'card_2' : kind === 'full' ? 'card_3' : 'card_1';
     const opened = await openCard(decisionsFor(d.cards, s0Id), {
       project_id: loaded.s0.record.project_id as never,
       subject_kind: 's0_record',
@@ -638,12 +639,16 @@ async function pushPack(
     message:
       kind === 'light'
         ? 'Onboarding pack: the affirmed instruction text and knowledge'
-        : 'Onboarding pack: the oracle lock and the intended spec seeds',
+        : kind === 'full'
+          ? 'Onboarding pack: the oracle lock and the intended spec seeds'
+          : 'Onboarding fixes proposed by the onboarding agent',
     evidence: {
       title:
         kind === 'light'
           ? 'Onboarding pack (Light, card 2 affirmed)'
-          : 'Onboarding pack (Full, card 3 affirmed: oracle lock and seeds)',
+          : kind === 'full'
+            ? 'Onboarding pack (Full, card 3 affirmed: oracle lock and seeds)'
+            : 'Onboarding fixes (proposed by the onboarding agent; a person merges)',
       lane: ONBOARDING_PACK_LANE,
       base_sha: row.base_sha,
       oracles: [],
@@ -722,6 +727,7 @@ interface X2Facts {
   branch?: string;
   card_2?: { card_id?: string; payload_hash?: string };
   card_3?: { card_id?: string; payload_hash?: string };
+  card_1?: { card_id?: string; payload_hash?: string };
   files?: Array<{ path?: string; sha256?: string }>;
 }
 
@@ -746,8 +752,8 @@ export async function packGateContext(
   const gate = state?.gates[0]?.state.open.payload;
   if (!state || !gate || gate.gate_id !== 'X2') return ok(null);
   const facts = (gate.facts ?? {}) as X2Facts;
-  const kind: PackKind = row.kind === 'full' ? 'full' : 'light';
-  const deciding = kind === 'light' ? facts.card_2 : facts.card_3;
+  const kind: PackKind = row.kind === 'full' || row.kind === 'fixes' ? row.kind : 'light';
+  const deciding = kind === 'light' ? facts.card_2 : kind === 'full' ? facts.card_3 : facts.card_1;
   if (!deciding?.card_id || !deciding.payload_hash) {
     return err(coreError('conflict', 'the X2 card names no deciding card'));
   }
@@ -811,7 +817,7 @@ export async function packGateContext(
     bound: gate.subject_hash === row.patch_hash,
     intact,
     deciding_card: {
-      card: kind === 'light' ? 'C2' : 'C3',
+      card: kind === 'light' ? 'C2' : kind === 'full' ? 'C3' : 'C1',
       card_id: deciding.card_id,
       payload_hash: deciding.payload_hash as never,
     },

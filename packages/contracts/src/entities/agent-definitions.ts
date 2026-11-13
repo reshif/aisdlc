@@ -33,6 +33,9 @@ export const AgentId = z.enum([
   // M18: the onboarding assistant and "Ask the factory" (docs/design/portal-config.md §4). It acts at no step of the
   // lifecycle: it answers a person, read-only, and its key is minted per ask on the person's day budget.
   'assistant',
+  // portal v2 (intent §4): the onboarding agent. It reads an S0 record's census and controls, proposes the cards'
+  // contents and fix PRs; it acts at no lifecycle step and decides nothing (a person signs off).
+  'onboarding',
 ]);
 export type AgentId = z.infer<typeof AgentId>;
 export const AgentIdValues: readonly AgentId[] = AgentId.options;
