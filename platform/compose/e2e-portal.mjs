@@ -125,8 +125,10 @@ try {
   // 2. The identity provider (Keycloak): sign in as alice (the first person of the seed, a factory admin).
   await devSignIn();
   await page.waitForURL(`${base}/`);
-  await page.getByRole('button', { name: 'Sign out' }).waitFor();
-  const who = await page.locator('.who-name').innerText();
+  // portal v2: the person is the avatar menu (their name in its label; Sign out inside it)
+  const account = page.getByRole('button', { name: /^Account: / });
+  await account.waitFor();
+  const who = (await account.getAttribute('aria-label')) ?? '';
   log(`signed in as ${who}`);
   must(/Alice/.test(who), `unexpected principal ${who}`);
   // The 401 of /api/me before sign-in is the browser logging a normal answer; from here on nothing may be reported.
@@ -482,7 +484,7 @@ try {
     await bp.goto(`${base}/`);
     await bp.getByRole('link', { name: 'Sign in' }).first().click();
     await idpSignIn(bp, 'bob', composeDir);
-    await bp.getByRole('button', { name: 'Sign out' }).waitFor();
+    await bp.getByRole('button', { name: /^Account: / }).waitFor();
     problems.length = 0;
     const bobCsrf = (await (await bobCtx.request.get(`${base}/api/me`)).json()).csrf_token;
     const aliceCsrf = (await (await context.request.get(`${base}/api/me`)).json()).csrf_token;
@@ -657,6 +659,7 @@ try {
   }
 
   // 13. Sign out ends the session.
+  await page.getByRole('button', { name: /^Account: / }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByRole('link', { name: 'Sign in' }).first().waitFor();
   const me = await page.evaluate(() => fetch('/api/me').then((r) => r.status));
