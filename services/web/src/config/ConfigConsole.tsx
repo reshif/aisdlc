@@ -215,9 +215,9 @@ export function ConfigConsole({
       {readOnly ? null : (
         <Card title="Change it">
           <p className="muted">
-            {v.key.description}. A change waits for “{settingsGate}”
-            {project === null ? '' : ` (decided by the project's admins)`}; the value changes only
-            once it is approved.
+            {lookupTerm('configKey', configKey)?.explain ?? `${v.key.description}.`} A change waits
+            for “{settingsGate}”{project === null ? '' : ` (decided by the project's admins)`}; the
+            value changes only once it is approved.
           </p>
           {draft === undefined ? null : (
             <form
