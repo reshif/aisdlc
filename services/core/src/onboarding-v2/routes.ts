@@ -100,12 +100,15 @@ export function registerOnboardingV2Routes(r: OnboardingV2RouteDeps): void {
     if (!loaded) return fail(reply, coreError('not_found', `no S0 record ${id}`));
     const c1 = (await s0Cards(cards.pool, id)).find((c) => c.kind === 'C1');
     if (!c1) return fail(reply, coreError('conflict', 'card 1 is not open yet: nothing to sign'));
+    // the route asks the PDP's `project.view`; each card the sign-off decides is the PDP's `card.decide` on THAT card
+    // (`mayDecide`, below), then the decision kernel's slot, separation of duties and step-up. The card a person
+    // already decided is not asked again (once card 4's role map is published the bootstrap grant on card 1 ends).
     if (
       !(await r.guard(
         reply,
         b.data.on_behalf_of,
-        'card.decide',
-        pdpResource.card(loaded.s0.record.project_id, c1.card_id),
+        'project.view',
+        pdpResource.project(loaded.s0.record.project_id),
         { kernel: true },
       ))
     ) {

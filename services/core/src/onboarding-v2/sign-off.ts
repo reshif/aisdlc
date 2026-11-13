@@ -93,6 +93,20 @@ export async function signOff(
   let started = await startedBy(d.cards, s0Id, who);
   const restart = input.summary_hash !== undefined;
   if (restart && started?.summary_hash !== input.summary_hash) {
+    // a start is recorded only for a person who may decide the step it would decide first
+    if (input.mayDecide) {
+      const firstCard = liveCards(first, await s0Cards(pool, s0Id)).find(
+        (x) => x.live && ['C1', 'C2', 'C4', 'C5'].includes(x.card.kind),
+      );
+      if (firstCard && !(await input.mayDecide(firstCard.card.card_id))) {
+        return err(
+          coreError(
+            'forbidden',
+            `card.decide is not allowed on ${firstCard.card.kind} for this person`,
+          ),
+        );
+      }
+    }
     const now = await onboardingSummary(d, s0Id, who);
     if (!now.ok) return now;
     if (now.value.sign_off.state === 'not_ready') {
