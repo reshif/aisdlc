@@ -4,3 +4,5 @@ secrets/*
 secrets/.*
 .env
 .env.bak
+# up-full.sh's state per project: the sandbox scratch (repo copies the sessions read) and the SP-STD-1 report.
+.scratch/
