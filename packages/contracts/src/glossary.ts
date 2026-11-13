@@ -1859,6 +1859,23 @@ const concept = {
     'Role assignment',
     'A person or group given a role on a project, team or the factory.',
   ),
+  // People, teams & roles (portal v2, People squad; PROPOSED_TERMS until glossary.md has them)
+  person: t('Person', 'Someone who can sign in to the factory.'),
+  team: t('Team', 'People who work together; a role given to a team reaches every member.'),
+  role: t('Role', 'A named set of things a person may do, and where.'),
+  role_scope_fleet: t('Whole factory', 'The role reaches every project.'),
+  sign_in_sso: t('Company sign-in', 'Signs in through the company identity provider.'),
+  sign_in_local: t('Local account', 'A break-glass account for factory admins.'),
+  person_active: t('Active', 'Can sign in and act.'),
+  person_suspended: t('Suspended', 'Cannot sign in or act until reactivated.'),
+  deleted_person: t('Deleted person', 'Someone who was deleted; their decisions stay in the log.'),
+  override: t(
+    'Factory admin override',
+    'The factory admin acted outside a normal rule; who, what and why are recorded.',
+  ),
+  override_reason: t('Reason for the override', 'Kept in the decision log with the act.'),
+  deletion: t('Deletion', 'An object deleted for good; the log keeps only hashes.'),
+  redacted: t('Hash only', 'The entry was deleted; only its hash stays so the log still verifies.'),
   delete: t('Delete', 'Remove the object and all its data for good; the log keeps hashes only.'),
   forbidden_403: t("You can't open this", 'Says why and who to ask.'),
   not_found_404: t('Not found', 'Shown the same whether it does not exist or you cannot see it.'),
@@ -1904,6 +1921,7 @@ const screen = {
   access_decisions: t('Access decisions', 'Sampled permission decisions, exports and holds.'),
   my_access: t('My access', 'What you can do and why.'),
   my_notifications: t('My notifications', 'What the factory told you.'),
+  my_profile: t('My profile', 'Who you are in the factory: name, sign-in, teams and roles.'),
   design: t('Design system', 'Every component of the portal in both themes, for review.'),
 } as const satisfies Readonly<Record<string, Term>>;
 
@@ -2044,6 +2062,20 @@ export const PROPOSED_TERMS: ReadonlyArray<readonly [GlossaryFamily, string]> = 
   ['configKey', 'sandbox.profiles'],
   ['configKey', 'planning.size_share'],
   ['configKey', 'access.roles'],
+  ['concept', 'person'],
+  ['concept', 'team'],
+  ['concept', 'role'],
+  ['concept', 'role_scope_fleet'],
+  ['concept', 'sign_in_sso'],
+  ['concept', 'sign_in_local'],
+  ['concept', 'person_active'],
+  ['concept', 'person_suspended'],
+  ['concept', 'deleted_person'],
+  ['concept', 'override'],
+  ['concept', 'override_reason'],
+  ['concept', 'deletion'],
+  ['concept', 'redacted'],
+  ['screen', 'my_profile'],
 ];
 
 /** The term of a value. Typed: a value the family does not have does not compile. */
