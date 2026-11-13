@@ -163,7 +163,7 @@ textarea.ui-input {
   gap: 8px;
   flex: none;
 }
-.ui-top-menu {
+.ui-iconbtn.ui-top-menu {
   display: none;
 }
 .ui-iconbtn {
@@ -1211,9 +1211,22 @@ button.ui-evidence-tile:hover {
     gap: 6px;
     padding: 0 8px;
   }
-  .ui-top-menu {
+  .ui-iconbtn.ui-top-menu {
     display: inline-grid;
   }
+  /* the stop state keeps its colour and dot, and its words for a screen reader (the banner says a stop in full) */
+  .ui-killpill {
+    padding: 0 10px;
+  }
+  .ui-killpill-t {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
   .ui-top-switch,
   .ui-search-btn .ui-kbd,
   .ui-search-btn > span:first-of-type,

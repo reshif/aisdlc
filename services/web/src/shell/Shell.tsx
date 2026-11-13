@@ -155,7 +155,11 @@ function SignedInShell({
             </Link>
           ) : null}
           {may('/ask') ? (
-            <Link to="/ask" className="ui-iconbtn" aria-label={label('screen', 'assistant')}>
+            <Link
+              to="/ask"
+              className="ui-iconbtn ui-top-hide-phone"
+              aria-label={label('screen', 'assistant')}
+            >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path
                   d="M4 5h16v11H9l-5 4V5Z"
@@ -223,17 +227,19 @@ function KillPill({ state }: { state: number | 'unknown' | null }) {
   if (state === 'unknown') {
     return (
       <Link to="/kill" className="ui-killpill ui-killpill-unknown" title={`${stop}: unknown`}>
-        {stop}: unknown
+        <span className="ui-killpill-t">{stop}: unknown</span>
       </Link>
     );
   }
   return state > 0 ? (
     <Link to="/kill" className="ui-killpill ui-killpill-stopped">
-      {label('hold', 'kill')}: {state}
+      <span className="ui-killpill-t">
+        {label('hold', 'kill')}: {state}
+      </span>
     </Link>
   ) : (
     <Link to="/kill" className="ui-killpill" title={`${stop}: off`}>
-      Agents running
+      <span className="ui-killpill-t">Agents running</span>
     </Link>
   );
 }
